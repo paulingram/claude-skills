@@ -29,6 +29,25 @@ REQUIRED_EVIDENCE_FIELDS = {
 }
 
 
+def _safe_id(value: str) -> str | None:
+    """Return value if safe for use in a filesystem path component, else None.
+
+    Rejects empty strings, values containing '/' or '\\', values starting with
+    '.', and the exact string '..'.  These cover every path-traversal vector
+    for the controlled identifier sets (subagent names like 'backend-auth',
+    'frontend-dashboard') that the hooks handle.
+    """
+    if not value:
+        return None
+    if "/" in value or "\\" in value:
+        return None
+    if value.startswith("."):
+        return None
+    if value == "..":
+        return None
+    return value
+
+
 def main() -> int:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -39,6 +58,14 @@ def main() -> int:
     name = _extract_subagent_name(payload)
     if not name:
         return 0  # nothing to check
+
+    if _safe_id(name) is None:
+        print(
+            f"teammate-idle-check: blocking SubagentStop: subagent name {name!r} contains "
+            f"path-traversal characters and was rejected.",
+            file=sys.stderr,
+        )
+        return 2
 
     manifest_path = Path.cwd() / ".architect-team" / "teammates" / f"{name}.json"
     if not manifest_path.exists():

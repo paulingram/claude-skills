@@ -112,3 +112,47 @@ def test_invalid_evidence_exits_two(script: Path, workspace: Path) -> None:
     r = _run(script, workspace, payload)
     assert r.returncode == 2
     assert "T-1" in r.stderr
+
+
+@pytest.mark.parametrize("unsafe_name", [
+    "backend\\..\\..\\malicious",
+    "frontend/../../etc/passwd",
+    ".hidden-agent",
+    "..",
+])
+def test_exits_two_when_subagent_name_has_path_traversal(
+    script: Path, workspace: Path, unsafe_name: str
+) -> None:
+    """REQ-002: subagent names containing path-traversal chars must be rejected."""
+    payload = {"subagent": {"name": unsafe_name}}
+    r = _run(script, workspace, payload)
+    assert r.returncode == 2, (
+        f"expected exit 2 for unsafe name {unsafe_name!r}, stderr={r.stderr!r}"
+    )
+    assert unsafe_name in r.stderr or "path-traversal" in r.stderr, (
+        f"stderr should name the rejected id; got: {r.stderr!r}"
+    )
+
+
+def test_subagent_name_flat_payload(script: Path, workspace: Path) -> None:
+    """REQ-003: flat payload shape {subagent_name: ...} must be handled correctly.
+
+    _extract_subagent_name() tolerates a flat payload where the name is at the
+    top level as 'subagent_name' instead of nested under 'subagent.name'.
+    Verify that the manifest is found and the review gate is enforced.
+    """
+    _write_manifest(workspace, "backend-flat", ["T-F1"])
+    _write_evidence(workspace, "T-F1")
+    # flat payload shape
+    payload = {"subagent_name": "backend-flat"}
+    r = _run(script, workspace, payload)
+    assert r.returncode == 0, f"flat payload with valid evidence should exit 0; stderr={r.stderr!r}"
+
+    # Also verify the gate fires when evidence is missing
+    _write_manifest(workspace, "backend-flat2", ["T-F2"])
+    payload2 = {"subagent_name": "backend-flat2"}
+    r2 = _run(script, workspace, payload2)
+    assert r2.returncode == 2, (
+        f"flat payload with missing evidence should exit 2; stderr={r2.stderr!r}"
+    )
+    assert "T-F2" in r2.stderr

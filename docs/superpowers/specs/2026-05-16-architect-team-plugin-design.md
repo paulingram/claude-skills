@@ -205,7 +205,7 @@ claude_skill_lib/                              # git root
 
 **Defines:**
 - Codebase discovery rules (codebases.json → proposal/design frontmatter → cwd → ask user).
-- The freshness-check algorithm (`last_mapped` timestamp vs `git log -1 --format=%ct`).
+- The freshness-check algorithm (`last_mapped` timestamp vs `git log -1 --format=%cI`).
 - The 3-reviewer ralph loop for per-codebase map review, with the explicit completion-promise string `"CODEBASE MAP COMPLETE"`.
 - The frontend-detection markers and when to spawn `route-mapper`.
 - The integration-mapping ralph loop (3 explorers → convergence → master-synthesizer → confirmation), with completion-promise `"INTEGRATION MAP COMPLETE"`.
@@ -402,7 +402,7 @@ If `cartographer`, `ralph-loop`, or `superpowers` are missing, instruct the user
 For each codebase:
 
 1. **Freshness check:**
-   - If `<codebase>/docs/CODEBASE_MAP.md` exists: read `last_mapped`; compare against `git log -1 --format=%ct` of codebase root. If doc newer → mark `CURRENT`, skip remap.
+   - If `<codebase>/docs/CODEBASE_MAP.md` exists: read `last_mapped`; compare against `git log -1 --format=%cI` of codebase root. If doc newer → mark `CURRENT`, skip remap.
    - Else / if stale → run `cartographer` (it picks full vs update mode based on its own logic).
 2. **If frontend**: run `route-mapper` agent → produces `<codebase>/docs/ROUTE_MAP.md`.
 3. **Review loop (wrapped in `/ralph-loop` with completion-promise `"CODEBASE MAP COMPLETE"`):**
@@ -661,7 +661,7 @@ Fires on every `TaskUpdate`.
 Fires on every `SubagentStop`.
 
 1. Read stdin → JSON hook payload with subagent metadata.
-2. Read `<cwd>/.architect-team/teammates/<subagent-name>.json` — manifest of assigned `task_ids[]`.
+2. Read `<cwd>/.architect-team/teammates/<subagent-name>.json` — manifest's `expected_review_evidence` list (the set of task IDs for which review evidence is required).
 3. If manifest missing → exit 0 (not an architect-team teammate).
 4. For each `task_id`:
    - If no review evidence file → record gap.

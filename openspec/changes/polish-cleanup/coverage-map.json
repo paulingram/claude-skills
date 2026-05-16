@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "change": "polish-cleanup",
+  "generated_at": "2026-05-16T09:55:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_excerpt": "Update commands/architect-team.md body so the model is explicitly told that the requirements folder path is known from the command context, and the orchestrator skill should bind $REQ_DIR to the path from command context and proceed with Phase −1.",
+      "spec_requirement_id": "pipeline-polish-v023.command-pre-binds-requirements-folder",
+      "scenarios": [
+        "pipeline-polish-v023.command-pre-binds.scenario.slash-command-with-non-empty-path",
+        "pipeline-polish-v023.command-pre-binds.scenario.slash-command-with-empty-path"
+      ],
+      "acceptance_criteria": [
+        "Invoking /architect-team:architect-team <path> begins Phase −1 against that path directly without re-prompting.",
+        "Invoking /architect-team:architect-team with no arg preserves the existing escape-clause (ask user, do nothing else)."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_excerpt": "Add a _safe_id helper in each hook script that rejects identifiers that contain /, \\, leading ., or equal ... Call it on task_id (review-gate-task) and on subagent name (teammate-idle-check). On rejection: exit 2 with structured stderr.",
+      "spec_requirement_id": "pipeline-polish-v023.hooks-reject-path-traversal",
+      "scenarios": [
+        "pipeline-polish-v023.hooks-traversal.scenario.review-gate-rejects-task-id-with-slash",
+        "pipeline-polish-v023.hooks-traversal.scenario.idle-check-rejects-subagent-name-with-backslash",
+        "pipeline-polish-v023.hooks-traversal.scenario.safe-identifiers-still-work"
+      ],
+      "acceptance_criteria": [
+        "_safe_id present in both hook scripts; rejects empty, /, \\, leading ., exact '..'.",
+        "Hook exits 2 with structured stderr when identifier rejected.",
+        "test_exits_two_when_taskid_has_path_traversal and test_exits_two_when_subagent_name_has_path_traversal both pass."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_excerpt": "Add one test per missing branch (quality_review, reuse_compliance, demo_artifact empty, tests.added zero, malformed JSON, subagent_name flat payload). Total pytest count rises by 6+2 (combined with REQ-002 sanitization tests).",
+      "spec_requirement_id": "pipeline-polish-v023.hook-validation-branches-have-test-coverage",
+      "scenarios": [
+        "pipeline-polish-v023.hook-coverage.scenario.full-suite-passes-with-all-new-tests",
+        "pipeline-polish-v023.hook-coverage.scenario.each-new-test-exercises-its-named-branch"
+      ],
+      "acceptance_criteria": [
+        "≥6 new tests in tests/test_review_gate_task.py covering quality_review, reuse_compliance, demo_artifact empty, tests.added=0, malformed JSON.",
+        "≥1 new test in tests/test_teammate_idle_check.py covering subagent_name flat payload.",
+        "Total pytest count rises from 54 to ≥60 (combined with REQ-002 tests, target is 62+)."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_excerpt": "Add a new ## Hook-rejection escalation policy section to skills/team-spawning-and-review-gates/SKILL.md mandating: after 3 consecutive hook rejections on the same task_id, the teammate MUST stop, write an escalation handoff, and wait for orchestrator clarification.",
+      "spec_requirement_id": "pipeline-polish-v023.hook-rejection-escalation-policy-documented",
+      "scenarios": [
+        "pipeline-polish-v023.escalation.scenario.skill-body-contains-the-escalation-section",
+        "pipeline-polish-v023.escalation.scenario.frontmatter-description-mentions-the-policy"
+      ],
+      "acceptance_criteria": [
+        "## Hook-rejection escalation policy section present in skills/team-spawning-and-review-gates/SKILL.md.",
+        "Section lists 3 mandatory steps with handoff path format.",
+        "Frontmatter description extended with 'and escalation policy on repeated hook rejection.'",
+        "test_skills.py still passes (description-length test)."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_excerpt": "Apply three corrections in-place to docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md: line 208 %ct→%cI; line 405 %ct→%cI; line 664 task_ids[]→expected_review_evidence list.",
+      "spec_requirement_id": "pipeline-polish-v023.spec-drift-resolved",
+      "scenarios": [
+        "pipeline-polish-v023.spec-drift.scenario.grep-returns-no-matches-for-stale-references"
+      ],
+      "acceptance_criteria": [
+        "grep -n '%ct\\|task_ids\\[\\]' docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md returns exit code 1 (no matches)."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "source_excerpt": "Bump version to 0.2.3, prepend CHANGELOG entry, commit with author override, tag v0.2.3, push main + tag.",
+      "spec_requirement_id": "pipeline-polish-v023.v023-release-published",
+      "scenarios": [
+        "pipeline-polish-v023.release.scenario.local-tag-exists",
+        "pipeline-polish-v023.release.scenario.tag-is-on-origin",
+        "pipeline-polish-v023.release.scenario.fresh-install-reads-v023",
+        "pipeline-polish-v023.release.scenario.changelog-entry-lists-every-req"
+      ],
+      "acceptance_criteria": [
+        "plugin.json version is '0.2.3'.",
+        "marketplace.json plugins[0].version is '0.2.3'.",
+        "CHANGELOG.md has ## [0.2.3] section listing all REQs with affected files.",
+        "git tag --list includes v0.2.3.",
+        "git ls-remote origin refs/tags/v0.2.3 returns a SHA.",
+        "openspec archive polish-cleanup runs successfully."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 name: team-spawning-and-review-gates
-description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema, and the teammate manifest format the SubagentStop hook reads.
+description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
 ---
 
 # Team Spawning & Review Gates
@@ -112,6 +112,30 @@ Schema:
 ```
 
 The hook checks that for every `task_id` in `expected_review_evidence`, there's a valid review-evidence file. If not → exit 2 with a structured error naming the gaps. The harness re-engages the teammate.
+
+## Hook-rejection escalation policy
+
+When the `PostToolUse(TaskUpdate)` hook rejects a teammate's attempt to mark a task complete (exits 2), the teammate MUST follow this procedure:
+
+**Threshold:** after **3 consecutive hook rejections on the same `task_id`**, the teammate STOPS attempting to mark the task complete and escalates instead.
+
+**Step 1 — Stop retrying.** Do not attempt a fourth `TaskUpdate(status=completed)` for the same `task_id`. Further attempts will keep failing and waste context.
+
+**Step 2 — Write an escalation handoff.** Create a file at:
+
+```
+<cwd>/.architect-team/handoffs/<teammate>-to-orchestrator-stuck-<task_id>-<timestamp>.md
+```
+
+The file MUST contain:
+- The task ID.
+- The exact stderr output the hook reported for each of the 3 rejections (copy verbatim).
+- What was tried to close each reported gap and why each attempt failed.
+- The specific clarification or action the teammate needs from the orchestrator (e.g., a schema correction, a scope reassignment, an evidence-field waiver with justification).
+
+**Step 3 — Wait.** Do not proceed with other tasks that depend on the stuck task. Signal idle. The orchestrator will inspect the handoff, either resolve the blocker (correct the task, update the manifest, or explicitly waive a field) and re-engage, or reassign the task to a different teammate.
+
+**Note:** this policy is currently enforced by documentation (the teammate's own discipline). Code-level enforcement (counting consecutive rejections in the hook) is a v0.3.0 candidate if real-world data shows teammates ignoring the 3-rejection threshold.
 
 ## Review evidence — what each field means in practice
 

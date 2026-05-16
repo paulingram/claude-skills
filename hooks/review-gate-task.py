@@ -30,6 +30,25 @@ REQUIRED_EVIDENCE_FIELDS = {
 }
 
 
+def _safe_id(value: str) -> str | None:
+    """Return value if safe for use in a filesystem path component, else None.
+
+    Rejects empty strings, values containing '/' or '\\', values starting with
+    '.', and the exact string '..'.  These cover every path-traversal vector
+    for the controlled identifier sets (task IDs like 'T-1', 'REQ-001') that
+    the hooks handle.
+    """
+    if not value:
+        return None
+    if "/" in value or "\\" in value:
+        return None
+    if value.startswith("."):
+        return None
+    if value == "..":
+        return None
+    return value
+
+
 def _is_teammate_task(task_id: str, cwd: Path) -> bool:
     """Return True if task_id appears in any teammate manifest's expected_review_evidence.
 
@@ -75,6 +94,14 @@ def main() -> int:
         # rather than block: false positives would break every other plugin /
         # workflow that uses TaskUpdate without architect-team semantics.
         return 0
+
+    if _safe_id(str(task_id)) is None:
+        print(
+            f"review-gate-task: blocking TaskUpdate: task_id {task_id!r} contains "
+            f"path-traversal characters and was rejected.",
+            file=sys.stderr,
+        )
+        return 2
 
     # Scope: only enforce on tasks an architect-team orchestrator has assigned.
     if not _is_teammate_task(str(task_id), Path.cwd()):

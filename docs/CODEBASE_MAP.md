@@ -1,7 +1,8 @@
 ---
-last_mapped: 2026-05-16T09:32:23Z
-total_files: 46
+last_mapped: 2026-05-16T09:55:00Z
+total_files: 48
 total_tokens: 94540
+note: total_tokens reflects the original cartographer scan; actual repo content has grown by ~12k tokens since with the addition of this map + CLAUDE.md.
 ---
 
 # Codebase Map
@@ -124,11 +125,17 @@ claude_skill_lib/
 │   ├── playwright-user-flows/           # Two-phase Playwright test methodology
 │   ├── reuse-first-design/              # Extend > compose > reuse > build-new ladder
 │   └── team-spawning-and-review-gates/  # Teammate manifests + evidence schema
-├── tests/                   # 52 pytest self-tests
-│   ├── helpers/             # frontmatter.py parser (PyYAML or fallback)
-│   ├── conftest.py          # repo_root + plugin_root fixtures
+├── tests/                   # 54 pytest self-tests (was 52 pre-v0.2.2)
+│   ├── __init__.py          # package marker (added in B1; required for tests.helpers import)
+│   ├── helpers/
+│   │   ├── __init__.py      # package marker (added in A2)
+│   │   └── frontmatter.py   # PyYAML or flat-fallback frontmatter parser
+│   ├── conftest.py          # repo_root + plugin_root session fixtures
 │   └── test_*.py            # 8 test files
-├── docs/superpowers/        # Historical design doc + plan (read-only reference)
+├── docs/
+│   ├── CODEBASE_MAP.md      # this file (cartographer output)
+│   └── superpowers/         # Historical design doc + plan (read-only reference)
+├── CLAUDE.md                # repo-level Claude Code context (cartographer step 7)
 ├── CHANGELOG.md
 ├── README.md
 ├── LICENSE
@@ -261,7 +268,7 @@ sequenceDiagram
 
 **Skill frontmatter:** required `name` (matches dir), `description` (≥ 20 chars). Optional `argument-hint`, `disable-model-invocation` (currently absent from all skills post-v0.2.1).
 
-**Agent frontmatter:** all 5 required: `name`, `description`, `tools` (comma-separated from 13-tool valid set), `model` (opus/sonnet/haiku), `color` (blue/cyan/green/orange/magenta/purple/red). Model pattern: opus for synthesis/judgment, sonnet for implementers/reviewers, haiku for narrow mechanical (none shipped yet).
+**Agent frontmatter:** all 5 keys are required-by-test-presence: `name`, `description`, `tools` (comma-separated from a 13-tool valid set, validated against the set), `model` (validated against `{opus, sonnet, haiku}`), `color`. **Test-enforced validation:** `name` matches dir, `description` ≥ 20 chars, `tools` ⊆ valid set + non-empty, `model` ∈ valid set, body non-empty. **NOT test-enforced:** `color` value (presence only — the suggested palette `blue/cyan/green/orange/magenta/purple/red` is convention, not validation). Model pattern: opus for synthesis/judgment, sonnet for implementers/reviewers, haiku for narrow mechanical (none shipped yet).
 
 **Command frontmatter:** required `description`. Optional `argument-hint`, `allowed-tools` (Bash filter strings).
 
@@ -280,22 +287,22 @@ sequenceDiagram
 
 **Test conventions:** all in `tests/`, discovered via `test_*.py` glob. Session fixtures in `conftest.py`. Parametrize pattern with `sorted(EXPECTED_*)` for stable ordering. `pytest.skip` for parametrized tests where set may outpace files. Subprocess tests use `tmp_path` workspace + `PYTHONIOENCODING=utf-8`. Setup script imported via `importlib.util` (avoids package-layout dep). `--strict-markers` enforced.
 
-**Review-gate evidence schema** (8 required fields, all must pass validity):
+**Review-gate evidence schema.**
+
+The 8 fields enforced by `REQUIRED_EVIDENCE_FIELDS` in `hooks/review-gate-task.py:21-30` (verified by `_validate()` lines 84-122):
 
 | Field | Required value |
 |---|---|
-| `schema_version` | int (presence only) |
-| `task_id` | string |
-| `teammate` | string |
-| `completed_at` | string |
+| `task_id` | non-empty string |
 | `spec_review` | `"pass"` |
 | `quality_review` | `"pass"` |
-| `real_not_stubbed` | `true` |
-| `tests.added` | int ≥ 1, == `tests.passing` |
-| `tests.passing` | int |
+| `real_not_stubbed` | `true` (boolean) |
+| `tests` | object containing `added` (int ≥ 1) and `passing` (int, must equal `added`) |
 | `demo_artifact` | non-empty string |
 | `files_changed` | non-empty array |
 | `reuse_compliance` | `"ok"` |
+
+The schema example in `team-spawning-and-review-gates/SKILL.md` ALSO carries three conventional fields the hook does NOT enforce: `schema_version` (int), `teammate` (string), `completed_at` (ISO 8601 string). Teammates are expected to write all 11 fields for human-readable evidence; the hook only blocks on missing/invalid required fields, not the conventional ones.
 
 ## 7. Gotchas (cross-cutting)
 
@@ -304,6 +311,8 @@ sequenceDiagram
 **v0.2.0 — skill/command name collision silently broke the pipeline.** Skill name `architect-team` collided with command name `architect-team`; Skill tool resolved to the command body (thin wrapper) instead of the Phase −1 → 8 playbook. The pipeline appeared to start but immediately exited. Fix: renamed skill to `architect-team-pipeline`.
 
 **v0.2.1 — `disable-model-invocation: true` blocks the Skill tool.** The flag prevented the Skill tool from loading the orchestrator body; the command's delegation chain (Skill tool → orchestrator) failed with "cannot be used due to disable-model-invocation". Fix: removed the flag entirely.
+
+**v0.2.2 — `review-gate-task.py` blocked every TaskUpdate, not just teammate ones (REQ-007).** Discovered while dogfooding the pipeline against this very repo: the orchestrator's internal task tracking via TaskUpdate triggered the review gate, which had no way to tell teammate tasks from non-teammate ones. Fix: new `_is_teammate_task(task_id, cwd)` helper walks `.architect-team/teammates/*.json` and returns true only if the task is in some manifest's `expected_review_evidence`. Absent teammates dir = no architect-team workflow = hard allow. Tests `test_exits_zero_when_task_not_in_any_manifest` and `test_exits_zero_when_no_teammates_dir` cover the new behavior; existing tests now write a manifest before exercising the gate.
 
 **Hook exit-2 vs exit-1 semantics.** Both hooks return exit 2 (not 1) to block. Exit 0 = allow. Exit 1 is treated as error, not block. Never return exit 1 from these hooks for intentional blocking.
 

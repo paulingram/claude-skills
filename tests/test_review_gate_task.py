@@ -181,3 +181,88 @@ def test_exits_zero_when_no_teammates_dir(script: Path, workspace: Path, tmp_pat
     pristine.mkdir()
     r = _run(script, pristine, _make_payload("T-anything", "completed"))
     assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+@pytest.mark.parametrize("unsafe_id", [
+    "T-1/../../etc/passwd",
+    "T-1\\..\\..\\malicious",
+    ".hidden",
+    "..",
+])
+def test_exits_two_when_taskid_has_path_traversal(
+    script: Path, workspace: Path, unsafe_id: str
+) -> None:
+    """REQ-002: task_id values containing path-traversal chars must be rejected."""
+    _write_manifest(workspace, "backend-test", [unsafe_id])
+    r = _run(script, workspace, _make_payload(unsafe_id, "completed"))
+    assert r.returncode == 2, f"expected exit 2 for unsafe id {unsafe_id!r}, stderr={r.stderr!r}"
+    assert unsafe_id in r.stderr or "path-traversal" in r.stderr, (
+        f"stderr should name the rejected id; got: {r.stderr!r}"
+    )
+
+
+def test_exits_two_when_quality_review_failing(script: Path, workspace: Path) -> None:
+    """REQ-003: quality_review != 'pass' must be blocked."""
+    _write_manifest(workspace, "backend-test", ["T-10"])
+    ev = _valid_evidence("T-10")
+    ev["quality_review"] = "fail"
+    (workspace / ".architect-team" / "reviews" / "T-10.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-10", "completed"))
+    assert r.returncode == 2
+    assert "quality_review" in r.stderr
+
+
+def test_exits_two_when_reuse_compliance_failing(script: Path, workspace: Path) -> None:
+    """REQ-003: reuse_compliance != 'ok' must be blocked."""
+    _write_manifest(workspace, "backend-test", ["T-11"])
+    ev = _valid_evidence("T-11")
+    ev["reuse_compliance"] = "pending"
+    (workspace / ".architect-team" / "reviews" / "T-11.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-11", "completed"))
+    assert r.returncode == 2
+    assert "reuse_compliance" in r.stderr
+
+
+@pytest.mark.parametrize("artifact", ["", "   "])
+def test_exits_two_when_demo_artifact_empty(
+    script: Path, workspace: Path, artifact: str
+) -> None:
+    """REQ-003: empty or whitespace-only demo_artifact must be blocked."""
+    _write_manifest(workspace, "backend-test", ["T-12"])
+    ev = _valid_evidence("T-12")
+    ev["demo_artifact"] = artifact
+    (workspace / ".architect-team" / "reviews" / "T-12.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-12", "completed"))
+    assert r.returncode == 2
+    assert "demo_artifact" in r.stderr
+
+
+def test_exits_two_when_tests_added_zero(script: Path, workspace: Path) -> None:
+    """REQ-003: tests.added == 0 must be blocked."""
+    _write_manifest(workspace, "backend-test", ["T-13"])
+    ev = _valid_evidence("T-13")
+    ev["tests"]["added"] = 0
+    ev["tests"]["passing"] = 0
+    (workspace / ".architect-team" / "reviews" / "T-13.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-13", "completed"))
+    assert r.returncode == 2
+    assert "tests" in r.stderr
+
+
+def test_exits_two_when_evidence_json_malformed(script: Path, workspace: Path) -> None:
+    """REQ-003: malformed evidence JSON (not valid JSON) must be blocked."""
+    _write_manifest(workspace, "backend-test", ["T-14"])
+    (workspace / ".architect-team" / "reviews" / "T-14.json").write_text(
+        "not json", encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-14", "completed"))
+    assert r.returncode == 2
+    assert "T-14" in r.stderr
