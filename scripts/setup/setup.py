@@ -128,9 +128,17 @@ def _pkg_importable(pkg: str) -> bool:
 
 
 def _install_packages(pkgs: Iterable[str]) -> tuple[bool, str | None]:
+    """Install packages via uv if present (with --system when not in a venv) or plain pip."""
     uv = shutil.which("uv")
     if uv:
-        res = subprocess.run([uv, "pip", "install", *pkgs], capture_output=True, text=True)
+        in_venv = bool(os.environ.get("VIRTUAL_ENV")) or hasattr(sys, "real_prefix") or (
+            getattr(sys, "base_prefix", sys.prefix) != sys.prefix
+        )
+        cmd = [uv, "pip", "install"]
+        if not in_venv:
+            cmd.append("--system")
+        cmd.extend(pkgs)
+        res = subprocess.run(cmd, capture_output=True, text=True)
     else:
         res = subprocess.run(
             [sys.executable, "-m", "pip", "install", *pkgs],
