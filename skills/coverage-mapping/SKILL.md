@@ -44,7 +44,7 @@ The coverage map is the spine the entire pipeline hangs on. It translates source
 - `scenarios` — list of scenario IDs under the spec requirement. At least one is required.
 - `acceptance_criteria` — measurable. Reject "works correctly" / "is performant" / "is secure" without specifics.
 - `layer` — `backend` / `frontend` / `both` / `infra`.
-- `implementing_commits` — filled during Phase 6 as work lands.
+- `implementing_commits` — filled incrementally as commits land (Phases 2-5); reconciled in Phase 6.
 - `tests.unit / integration / e2e` — test IDs (filename::test_name) added as they're written.
 - `demo_artifact` — curl example for backend, Playwright trace path for frontend.
 - `status` — `pending` / `in_progress` / `done` / `blocked`.

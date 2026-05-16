@@ -1,6 +1,6 @@
 ---
 name: architect-team
-description: Spec-to-production agent team orchestration. Takes a requirements folder ($ARGUMENTS) containing OpenSpec, Superpowers, or plain markdown; builds and validates codebase + integration maps; generates the OpenSpec plan via a 100% coverage validation loop with reuse-first design; spawns parallel Superpowers-driven agent teams for backend and frontend work with mandatory architectural review gates; reconciles parallel changes; runs Playwright user-flow tests against the development environment; and meta-loops until the entire spec is implemented. Use when a feature folder needs to be driven end-to-end to tested, integrated, demonstrable production code.
+description: "Use when a feature folder needs to be driven end-to-end to tested, integrated, demonstrable production code. Spec-to-production agent team orchestration: takes a requirements folder ($ARGUMENTS) containing OpenSpec, Superpowers, or plain markdown; builds and validates codebase + integration maps; generates the OpenSpec plan via a 100% coverage validation loop with reuse-first design; spawns parallel Superpowers-driven agent teams for backend and frontend work with mandatory architectural review gates; reconciles parallel changes; runs Playwright user-flow tests against the development environment; and meta-loops until the entire spec is implemented."
 argument-hint: [path-to-requirements-folder]
 disable-model-invocation: true
 ---
@@ -30,7 +30,7 @@ Follow the `intake-and-mapping` skill. Briefly:
 **A. Discover required codebases** — read `$REQ_DIR/codebases.json` → `codebases:` key in proposal/design frontmatter → cwd → ask user. Resolve each to an absolute path; assert each is a git repo. Classify each (backend / frontend / fullstack / library / infra) using the markers in `frontend-route-mapping` and `intake-and-mapping`.
 
 **B. Per-codebase mapping (one ralph loop per codebase).** For each codebase:
-1. Freshness check: read `<codebase>/docs/CODEBASE_MAP.md` `last_mapped` and compare against `git log -1 --format=%ct` of the codebase root. If doc newer → mark CURRENT; else run `cartographer`.
+1. Freshness check: read `<codebase>/docs/CODEBASE_MAP.md` `last_mapped` and compare against `git log -1 --format=%cI` of the codebase root. If doc newer → mark CURRENT; else run `cartographer`.
 2. If the codebase is a frontend (per detection markers), run the `route-mapper` agent → produces `<codebase>/docs/ROUTE_MAP.md`.
 3. Review loop wrapped in `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE" --max-iterations 10`:
    - Spawn 3 `codebase-map-reviewer` agents IN PARALLEL. Each gets CODEBASE_MAP.md (and ROUTE_MAP.md if present).
@@ -101,7 +101,7 @@ Loop:
    - A clear, predictable name (e.g., `backend-auth`, `frontend-dashboard`, `infra-pipeline`) so other teammates can message it directly.
    - The subagent definition to inherit (e.g., "use the `backend` agent type").
    - The relevant CODEBASE_MAP.md sections and the Reuse Decisions for this teammate's slice. The teammate MUST honor them — any deviation requires returning to the orchestrator for re-approval.
-4. Before the teammate begins, write `<cwd>/.architect-team/teammates/<teammate-name>.json` with `{ task_ids: [...], expected_review_evidence: [...] }` so the `SubagentStop` hook can validate on idle.
+4. Before the teammate begins, write `<cwd>/.architect-team/teammates/<teammate-name>.json` per the full teammate manifest schema defined in `team-spawning-and-review-gates` (fields: `schema_version`, `teammate`, `spawned_at`, `task_ids`, `files_owned`, `expected_review_evidence`). The `SubagentStop` hook reads this manifest to validate on idle.
 5. State explicitly to each teammate: **do not mark your tasks complete until the Team Review Gate passes (Phase 3).**
 
 Spawn 3-5 teammates per parallel group. Size each task group to 5-6 tasks per teammate.

@@ -47,8 +47,8 @@ When two teammates need to coordinate (e.g., backend defines a contract, fronten
 
 - The owning teammate publishes its result to a known path (e.g., the contract file, plus a brief in `.architect-team/handoffs/<owner>-to-<consumer>.md`).
 - The consuming teammate is told in its brief: "Wait for the handoff from `<owner>` at `<path>` before starting tasks T-X, T-Y."
-- Direct messages use the harness's teammate-messaging mechanism (e.g., `SendMessage` if the harness exposes one). The orchestrator does NOT proxy.
-- Every cross-team message is also written to `.architect-team/handoffs/<from>-to-<to>-<timestamp>.md` for audit.
+- Every cross-team message MUST be written to `.architect-team/handoffs/<from>-to-<to>-<timestamp>.md` — this is the primary coordination primitive and survives across sessions.
+- If the harness exposes a teammate-messaging mechanism (e.g., `SendMessage`), use it as an optional shortcut in ADDITION to (not in place of) the handoff file. The orchestrator does NOT proxy.
 
 ## Review-gate evidence file
 
