@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Setup script artifacts
+scripts/setup/.last-run.json
+
+# Runtime state (created when /architect-team is run, not part of the plugin)
+.architect-team/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
