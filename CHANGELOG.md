@@ -13,7 +13,15 @@ Initial release.
 - 2 commands: `/architect-team`, `/architect-team-setup`.
 - 2 hooks: `PostToolUse(TaskUpdate)` review-gate enforcement, `SubagentStop` teammate-idle check.
 - Cross-platform setup script: `scripts/setup/setup.py`.
-- 51 pytest self-tests covering structural validity of every shipped file plus hook + setup logic.
+- 52 pytest self-tests covering structural validity of every shipped file plus hook + setup logic.
+
+### Install
+
+```
+/plugin marketplace add https://github.com/paulingram/claude-skills.git
+/plugin install architect-team@architect-team-marketplace
+/architect-team-setup
+```
 
 ### Requires
 - Python ≥ 3.10, Node ≥ 20.19.
