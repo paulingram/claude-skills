@@ -5,7 +5,6 @@ layout) and patch shutil.which / subprocess.run where needed.
 """
 import importlib.util
 import json
-import subprocess
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -81,11 +80,29 @@ def test_check_plugin_presence_missing_file(setup_module: ModuleType, tmp_path: 
     assert missing == {"superpowers@claude-plugins-official"}
 
 
+def test_check_plugin_presence_bad_json(setup_module: ModuleType, tmp_path: Path) -> None:
+    """A non-JSON installed_plugins.json should treat every required plugin as missing."""
+    p = tmp_path / "installed_plugins.json"
+    p.write_text("not json at all", encoding="utf-8")
+    present, missing = setup_module.check_plugin_presence(
+        installed_path=p,
+        required={"superpowers@claude-plugins-official"},
+    )
+    assert not present
+    assert missing == {"superpowers@claude-plugins-official"}
+
+
 def test_check_only_mode_does_not_run_installers(setup_module: ModuleType, tmp_path: Path) -> None:
-    """In --check-only mode, ensure() never calls _install_*. We patch the actual install hooks."""
-    with patch.object(setup_module, "_install_openspec") as mock_install:
+    """In --check-only mode, ensure_* functions never call their _install_* helpers."""
+    with patch.object(setup_module, "_install_openspec") as m_open, \
+         patch.object(setup_module, "_install_packages") as m_pkgs, \
+         patch.object(setup_module, "_install_playwright") as m_pw:
         setup_module.ensure_openspec(check_only=True, force=False)
-        mock_install.assert_not_called()
+        setup_module.ensure_python_test_tools(check_only=True, force=False)
+        setup_module.ensure_playwright(check_only=True, force=False)
+        m_open.assert_not_called()
+        m_pkgs.assert_not_called()
+        m_pw.assert_not_called()
 
 
 def test_main_returns_zero_when_everything_present(setup_module: ModuleType, tmp_path: Path, capsys) -> None:

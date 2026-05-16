@@ -24,6 +24,7 @@ Exit:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import platform
@@ -156,18 +157,43 @@ def ensure_python_test_tools(check_only: bool, force: bool) -> tuple[str, str, s
 
 
 def _playwright_browser_installed() -> bool:
-    """Try a non-destructive probe; safe to assume 'missing' if we can't tell."""
+    """Check both the playwright Python package AND the chromium browser binary directory.
+
+    The browser binary lives in a platform-dependent cache:
+    - Linux/Mac: ~/.cache/ms-playwright
+    - Windows:  %LOCALAPPDATA%/ms-playwright
+
+    Returns True only when BOTH the Python package imports cleanly AND the cache directory
+    contains at least one chromium-* subdirectory.
+    """
     try:
         res = subprocess.run(
             [sys.executable, "-c", "import playwright; print(playwright.__version__)"],
             capture_output=True, text=True,
         )
-        return res.returncode == 0
+        if res.returncode != 0:
+            return False
     except OSError:
         return False
 
+    # Probe for the chromium browser directory.
+    cache_root: Path
+    if sys.platform == "win32":
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if not local_appdata:
+            return False
+        cache_root = Path(local_appdata) / "ms-playwright"
+    else:
+        cache_root = Path.home() / ".cache" / "ms-playwright"
 
-def _install_playwright(force: bool) -> tuple[bool, str | None]:
+    if not cache_root.is_dir():
+        return False
+
+    # Look for chromium-* subdirectory (Playwright versions browsers by build).
+    return any(p.name.startswith("chromium-") and p.is_dir() for p in cache_root.iterdir())
+
+
+def _install_playwright() -> tuple[bool, str | None]:
     ok, err = _install_packages(["playwright"])
     if not ok:
         return False, err
@@ -186,7 +212,7 @@ def ensure_playwright(check_only: bool, force: bool) -> tuple[str, str, str | No
         return name, "present", None
     if check_only:
         return name, "missing", "would install: pip install playwright && playwright install chromium"
-    ok, err = _install_playwright(force=force)
+    ok, err = _install_playwright()
     return (name, "installed", None) if ok else (name, "failed", err)
 
 
@@ -217,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
-        except Exception:
+        except (AttributeError, io.UnsupportedOperation, OSError):
             pass
 
     parser = argparse.ArgumentParser(description="architect-team plugin setup")
