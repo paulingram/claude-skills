@@ -135,3 +135,33 @@ def test_main_returns_one_when_plugin_missing(setup_module: ModuleType, tmp_path
          patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)):
         rc = setup_module.main(["--check-only"])
     assert rc == 1
+
+
+# ---- REQ-003 / REQ-004: _python3_on_path helper tests ----------------------
+
+
+def test_python3_on_path_returns_true_when_present(setup_module: ModuleType) -> None:
+    """When shutil.which('python3') resolves, helper returns (True, resolved_path)."""
+    with patch("shutil.which", return_value="/usr/bin/python3"):
+        result = setup_module._python3_on_path()
+    assert result == (True, "/usr/bin/python3")
+
+
+def test_python3_on_path_returns_remediation_when_missing_linux(setup_module: ModuleType) -> None:
+    """On Linux, missing python3 returns (False, str) with apt remediation hint."""
+    with patch("shutil.which", return_value=None), \
+         patch.object(setup_module.sys, "platform", "linux"):
+        ok, msg = setup_module._python3_on_path()
+    assert ok is False
+    assert isinstance(msg, str)
+    assert "python-is-python3" in msg
+
+
+def test_python3_on_path_returns_remediation_when_missing_windows(setup_module: ModuleType) -> None:
+    """On Windows, missing python3 returns (False, str) with py launcher / python.org hint."""
+    with patch("shutil.which", return_value=None), \
+         patch.object(setup_module.sys, "platform", "win32"):
+        ok, msg = setup_module._python3_on_path()
+    assert ok is False
+    assert isinstance(msg, str)
+    assert ("py launcher" in msg or "python.org" in msg)

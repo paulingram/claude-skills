@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] — 2026-05-16
+
+### Fixed (python3-portability REQ-001: Setup command uses python3)
+- `commands/architect-team-setup.md`: replaced bare `python` invocation with `python3` in both the body shell block and the `allowed-tools` frontmatter (`Bash(python:*)` → `Bash(python3:*)`). Fresh installs on stock Linux (Ubuntu, Debian, Fedora) and macOS 12.3+ — where only `python3` is on `$PATH` by default — now succeed instead of failing with `python: command not found`.
+
+### Fixed (python3-portability REQ-002: Hooks use python3)
+- `hooks/hooks.json`: both `command` strings (PostToolUse→`review-gate-task.py`, SubagentStop→`teammate-idle-check.py`) now invoke `python3` instead of bare `python`. Same Linux/macOS portability root cause as REQ-001.
+
+### Added (python3-portability REQ-003: Setup script reports python3 PATH resolution)
+- `scripts/setup/setup.py`: new `_python3_on_path() -> tuple[bool, str | None]` helper using `shutil.which("python3")`. Returns `(True, path)` on success, `(False, remediation_str)` on failure with per-`sys.platform` remediation: Linux → `python-is-python3`, macOS → `brew install python`, Windows → `py launcher` / `python.org installer`. Wired into `main()` as a non-fatal `python3-on-path` warning row in the status table.
+
+### Added (python3-portability REQ-004: Test coverage)
+- `tests/test_setup_script.py`: 3 new tests covering the helper (`test_python3_on_path_returns_true_when_present`, `_when_missing_linux`, `_when_missing_windows`).
+- `tests/test_commands.py`: `test_setup_command_uses_python3` + `test_readme_documents_python3_prerequisite`.
+- `tests/test_hooks_structure.py`: `test_hooks_use_python3` asserting both hook commands start with `python3 `.
+- Total test count: 75 (up from 69).
+
+### Documented (python3-portability REQ-005)
+- `README.md`: new Prerequisites subsection listing `python3` as an explicit prerequisite with per-OS one-line remediation (Ubuntu/Debian apt, macOS brew, Windows python.org / py launcher).
+
+### Released (python3-portability REQ-006: v0.2.4)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.2.3` → `0.2.4`.
+- Git annotated tag `v0.2.4` created with author override (`Paul Ingram`).
+- Implemented end-to-end via the architect-team pipeline (Phase −1 mapping refresh + 3-reviewer ralph loop, OpenSpec validation gate, single backend teammate slice, review-gate evidence for REQ-001..REQ-005, full-suite verification).
+
 ## [0.2.3] — 2026-05-16
 
 ### Fixed (REQ-001: Command pre-binds $REQ_DIR for invoked skill)

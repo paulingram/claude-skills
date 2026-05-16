@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "change_name": "python3-portability",
+  "generated_at": "2026-05-16T18:05:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "python3-portability/Setup command uses python3",
+      "summary": "Slash command + allowed-tools frontmatter use python3 not python",
+      "scenarios": [
+        "Fresh install on Ubuntu without python alias",
+        "Frontmatter permission matches body command"
+      ],
+      "acceptance_criteria": [
+        "commands/architect-team-setup.md body contains `python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py\"`",
+        "commands/architect-team-setup.md frontmatter allowed-tools contains Bash(python3:*)",
+        "grep -n '\\bpython\\b' on file returns no bare-python matches",
+        "On a Linux system without `python` on PATH, the slash command produces the setup-script status table"
+      ],
+      "layer": "infra",
+      "owning_team": "backend-portability",
+      "task_ids": ["1.1", "1.2", "1.3"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "python3-portability/Hooks use python3",
+      "summary": "hooks.json invokes python3 for both review-gate-task and teammate-idle-check",
+      "scenarios": [
+        "PostToolUse hook on Linux",
+        "SubagentStop hook on Linux"
+      ],
+      "acceptance_criteria": [
+        "hooks/hooks.json PostToolUse command starts with `python3 `",
+        "hooks/hooks.json SubagentStop command starts with `python3 `",
+        "JSON parses cleanly via `python3 -c 'import json; json.load(open(...))'`",
+        "On a Linux system without `python` on PATH, hooks return exit 0 or 2 (never command-not-found)"
+      ],
+      "layer": "infra",
+      "owning_team": "backend-portability",
+      "task_ids": ["2.1", "2.2", "2.3", "2.4"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "python3-portability/Setup script reports python3 PATH resolution",
+      "summary": "setup.py adds _python3_on_path() helper + reporting row with OS-specific remediation",
+      "scenarios": [
+        "python3 is on PATH",
+        "python3 is missing on Linux",
+        "python3 is missing on Windows"
+      ],
+      "acceptance_criteria": [
+        "scripts/setup/setup.py defines `_python3_on_path() -> tuple[bool, str | None]`",
+        "Returns (True, path) when shutil.which('python3') resolves",
+        "Returns (False, remediation_str) when shutil.which('python3') returns None — remediation per sys.platform",
+        "main() appends a `python3-on-path` row to the status table after `check_python_version`",
+        "Absence is non-fatal (warning, exit code still 0)"
+      ],
+      "layer": "infra",
+      "owning_team": "backend-portability",
+      "task_ids": ["3.1", "3.2", "3.3"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "python3-portability/Test coverage for python3 invocations",
+      "summary": "≥5 new tests across test_setup_script.py / test_commands.py / test_hooks_structure.py",
+      "scenarios": [
+        "Suite enforces python3 across surfaces"
+      ],
+      "acceptance_criteria": [
+        "tests/test_setup_script.py has test_python3_on_path_returns_true_when_present",
+        "tests/test_setup_script.py has test_python3_on_path_returns_remediation_when_missing_linux",
+        "tests/test_setup_script.py has test_python3_on_path_returns_remediation_when_missing_windows",
+        "tests/test_commands.py has test_setup_command_uses_python3",
+        "tests/test_hooks_structure.py has test_hooks_use_python3",
+        "Full suite `python -m pytest -v` reports ≥ 74 PASS (69 prior + 5 new)"
+      ],
+      "layer": "infra",
+      "owning_team": "backend-portability",
+      "task_ids": ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6", "4.7"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "python3-portability/Documentation",
+      "summary": "README lists python3 prerequisite with OS-specific one-liner remediation",
+      "scenarios": [],
+      "acceptance_criteria": [
+        "README.md contains a Prerequisites section",
+        "Section names python3 explicitly + lists per-OS remediation (Ubuntu, macOS, Windows)",
+        "Existing test suite still passes after edit"
+      ],
+      "layer": "infra",
+      "owning_team": "backend-portability",
+      "task_ids": ["5.1", "5.2"]
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "python3-portability/Release v0.2.4",
+      "summary": "Version bump + CHANGELOG entry + commit + tag + push",
+      "scenarios": [],
+      "acceptance_criteria": [
+        ".claude-plugin/plugin.json version == 0.2.4",
+        ".claude-plugin/marketplace.json version == 0.2.4",
+        "CHANGELOG.md has `## [0.2.4] — 2026-05-16` entry referencing python3-portability REQ-001..REQ-005",
+        "Full suite passes one final time from clean state",
+        "Annotated tag v0.2.4 exists with explicit author override",
+        "main + tag pushed to origin"
+      ],
+      "layer": "infra",
+      "owning_team": "release-orchestrator",
+      "task_ids": ["6.1", "6.2", "6.3", "6.4", "6.5", "6.6", "6.7", "6.8"]
+    }
+  ],
+  "uncovered_source_requirements": [],
+  "reuse_decisions": [
+    {
+      "decision": "extend",
+      "rationale": "Every modified surface (command, hooks, setup script, tests, README, version files) already exists. Zero new modules, zero new files, zero new dependencies. The helper `_python3_on_path()` is a new function within the existing setup.py module — extension at the function level, not the module level.",
+      "codebase_map_anchor": "docs/CODEBASE_MAP.md §3 directory tree + §4 Module Guide rows for commands/, hooks/, scripts/setup/, tests/, README.md",
+      "verified": true
+    }
+  ],
+  "notes": {
+    "no_frontend": "Plugin has zero frontend surface; Playwright user-flow tests do not apply.",
+    "no_backend_api": "Plugin has zero HTTP API surface; dev-api-integration tests do not apply. Test discipline = pytest unit + structural.",
+    "single_team": "Per Phase 2 sizing rule, this change is small enough to be implemented by a single Superpowers-driven backend agent (`backend-portability`). No parallel teams; no reconciliation phase needed."
+  }
+}

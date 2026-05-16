@@ -1,7 +1,7 @@
 ---
 description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers) and verifies prerequisite plugins (superpowers, cartographer, ralph-loop) are installed.
 argument-hint: "[--check-only] [--force-reinstall]"
-allowed-tools: ["Bash(python:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py:*)"]
+allowed-tools: ["Bash(python3:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py:*)"]
 ---
 
 # Architect-Team Setup
@@ -9,7 +9,7 @@ allowed-tools: ["Bash(python:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup/setu
 Run the idempotent setup script. It detects each dependency, installs only what's missing, and reports what it did.
 
 ```!
-python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py" $ARGUMENTS
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py" $ARGUMENTS
 ```
 
 After the script finishes, summarize:

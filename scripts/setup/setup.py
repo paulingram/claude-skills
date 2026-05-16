@@ -88,6 +88,40 @@ def check_node_version(min_major: int = 20, min_minor: int = 19) -> tuple[bool, 
     return check_node_version_string(res.stdout, min_major, min_minor)
 
 
+# ---- python3-on-PATH detection -----------------------------------------------
+
+
+def _python3_on_path() -> tuple[bool, str | None]:
+    """Check whether `python3` is resolvable on PATH.
+
+    Returns:
+        (True, resolved_path)  — when shutil.which("python3") succeeds.
+        (False, remediation)   — when it doesn't; remediation is OS-specific.
+    """
+    path = shutil.which("python3")
+    if path:
+        return True, path
+    # Build a per-OS remediation hint.
+    if sys.platform == "linux":
+        remediation = (
+            "python3 not found on PATH. "
+            "On Ubuntu/Debian: sudo apt install python-is-python3"
+        )
+    elif sys.platform == "darwin":
+        remediation = (
+            "python3 not found on PATH. "
+            "On macOS: brew install python"
+        )
+    else:
+        # win32 and everything else
+        remediation = (
+            "python3 not found on PATH. "
+            "On Windows: re-run the python.org installer with 'Add to PATH', "
+            "or use the py launcher (py -3) from python.org installer."
+        )
+    return False, remediation
+
+
 # ---- openspec ----------------------------------------------------------------
 
 
@@ -266,6 +300,9 @@ def main(argv: list[str] | None = None) -> int:
     if not py_ok:
         _print_report(rows, [], list(REQUIRED_PLUGINS))
         return 2
+
+    py3_present, py3_msg = _python3_on_path()
+    rows.append(("python3-on-path", "present" if py3_present else "warn", py3_msg))
 
     node_ok, node_msg = check_node_version()
     rows.append(("node", "present" if node_ok else "fail", node_msg))

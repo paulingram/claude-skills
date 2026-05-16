@@ -18,7 +18,10 @@ Full design: [`docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md
 
 ### Prerequisites (must already be on your machine)
 
-- Python ≥ 3.10
+- **Python 3.10+** available as `python3` on `$PATH`
+  - Ubuntu/Debian: `sudo apt install python-is-python3`
+  - macOS: `brew install python` (if `python3` is missing)
+  - Windows: re-run the [python.org installer](https://www.python.org/downloads/) with "Add to PATH" checked, or use the `py launcher` (`py -3`)
 - Node ≥ 20.19 (npm)
 - Claude Code
 
