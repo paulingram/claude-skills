@@ -6,7 +6,7 @@ import pytest
 from tests.helpers import frontmatter
 
 EXPECTED_SKILLS: set[str] = {
-    "architect-team",
+    "architect-team-pipeline",
     "intake-and-mapping",
     "reuse-first-design",
     "frontend-route-mapping",

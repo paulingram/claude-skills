@@ -1,5 +1,5 @@
 ---
-name: architect-team
+name: architect-team-pipeline
 description: "Use when a feature folder needs to be driven end-to-end to tested, integrated, demonstrable production code. Spec-to-production agent team orchestration: takes a requirements folder ($ARGUMENTS) containing OpenSpec, Superpowers, or plain markdown; builds and validates codebase + integration maps; generates the OpenSpec plan via a 100% coverage validation loop with reuse-first design; spawns parallel Superpowers-driven agent teams for backend and frontend work with mandatory architectural review gates; reconciles parallel changes; runs Playwright user-flow tests against the development environment; and meta-loops until the entire spec is implemented."
 argument-hint: [path-to-requirements-folder]
 disable-model-invocation: true
