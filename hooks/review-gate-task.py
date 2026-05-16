@@ -30,6 +30,29 @@ REQUIRED_EVIDENCE_FIELDS = {
 }
 
 
+def _is_teammate_task(task_id: str, cwd: Path) -> bool:
+    """Return True if task_id appears in any teammate manifest's expected_review_evidence.
+
+    This scopes the hook: it only enforces the review gate on tasks that an
+    architect-team orchestrator has explicitly assigned to a teammate via a
+    manifest at .architect-team/teammates/<name>.json. Orchestrator-internal
+    and user task tracking (TaskCreate/TaskUpdate outside the architect-team
+    pipeline) is left alone.
+    """
+    teammates_dir = cwd / ".architect-team" / "teammates"
+    if not teammates_dir.is_dir():
+        return False
+    for manifest_path in teammates_dir.glob("*.json"):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        expected = manifest.get("expected_review_evidence") or []
+        if isinstance(expected, list) and task_id in expected:
+            return True
+    return False
+
+
 def main() -> int:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -47,8 +70,15 @@ def main() -> int:
     if status != "completed":
         return 0
     if not task_id:
-        print("review-gate-task: TaskUpdate→completed without taskId; blocking", file=sys.stderr)
-        return 2
+        # No taskId on a completed TaskUpdate — can't look up a manifest, so
+        # we cannot tell whether this is a teammate task. Default to allow
+        # rather than block: false positives would break every other plugin /
+        # workflow that uses TaskUpdate without architect-team semantics.
+        return 0
+
+    # Scope: only enforce on tasks an architect-team orchestrator has assigned.
+    if not _is_teammate_task(str(task_id), Path.cwd()):
+        return 0
 
     evidence_path = Path.cwd() / ".architect-team" / "reviews" / f"{task_id}.json"
     if not evidence_path.exists():

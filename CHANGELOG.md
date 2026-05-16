@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] — 2026-05-16
+
+### Fixed (REQ-007: discovered via dogfood)
+- `hooks/review-gate-task.py` no longer blocks ALL `TaskUpdate→completed` calls — only those whose `task_id` appears in some teammate manifest's `expected_review_evidence` list. Previously the hook fired on every TaskUpdate, breaking orchestrator-internal task tracking, user TaskCreate/TaskUpdate workflows, and any other plugin using TaskUpdate without architect-team semantics. New `_is_teammate_task()` helper walks `.architect-team/teammates/*.json`; absence of the teammates dir entirely (no architect-team workflow in progress) is also a hard allow.
+- Two new tests: `test_exits_zero_when_task_not_in_any_manifest`, `test_exits_zero_when_no_teammates_dir`. Existing review-gate tests updated to write a teammate manifest claiming the task ID before exercising the gate.
+- Also tightened the "missing taskId on completed" branch: now exits 0 instead of 2 (a TaskUpdate without taskId can't be looked up in any manifest, so we can't safely block — same reasoning as the manifest-absence case).
+
+### Coming in v0.2.3+
+The dogfood that found REQ-007 also surfaced the following open items from earlier reviews, all targeted for a follow-up pass:
+- REQ-001: `$ARGUMENTS` propagation from command into invoked skill body.
+- REQ-002: path-traversal sanitization on `task_id` / subagent `name` in both hooks.
+- REQ-003: test coverage for `quality_review` / `reuse_compliance` / `demo_artifact` empty / `tests.added=0` validation branches; subagent_name flat-payload shape.
+- REQ-004: hook-rejection escalation policy in `team-spawning-and-review-gates` skill.
+- REQ-005: spec drift cleanup (`%ct`→`%cI` lines 208/405; "task_ids[]" line 664).
+- REQ-006: CHANGELOG accuracy + tag/release polish.
+
 ## [0.2.1] — 2026-05-16
 
 ### Fixed

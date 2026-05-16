@@ -24,6 +24,7 @@ def script(plugin_root: Path) -> Path:
 def workspace(tmp_path: Path) -> Path:
     """A temp workspace that becomes the hook script's cwd."""
     (tmp_path / ".architect-team" / "reviews").mkdir(parents=True)
+    (tmp_path / ".architect-team" / "teammates").mkdir(parents=True)
     return tmp_path
 
 
@@ -62,18 +63,40 @@ def _valid_evidence(task_id: str) -> dict:
     }
 
 
+def _write_manifest(workspace: Path, name: str, task_ids: list[str]) -> None:
+    """Create a teammate manifest claiming ownership of the given task IDs.
+
+    The hook only enforces the review gate on tasks listed in some
+    teammate's expected_review_evidence — so tests that exercise the gate
+    must first publish a manifest declaring the task as a teammate task.
+    """
+    (workspace / ".architect-team" / "teammates" / f"{name}.json").write_text(
+        json.dumps({
+            "schema_version": 1,
+            "teammate": name,
+            "spawned_at": "2026-05-16T09:00:00Z",
+            "task_ids": task_ids,
+            "files_owned": [],
+            "expected_review_evidence": task_ids,
+        }),
+        encoding="utf-8",
+    )
+
+
 def test_exits_zero_when_status_not_completed(script: Path, workspace: Path) -> None:
     r = _run(script, workspace, _make_payload("T-1", "in_progress"))
     assert r.returncode == 0, f"stderr={r.stderr!r}"
 
 
 def test_exits_two_when_completed_but_no_evidence(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-test", ["T-2"])
     r = _run(script, workspace, _make_payload("T-2", "completed"))
     assert r.returncode == 2
     assert "T-2" in r.stderr
 
 
 def test_exits_zero_when_completed_with_valid_evidence(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-test", ["T-3"])
     (workspace / ".architect-team" / "reviews" / "T-3.json").write_text(
         json.dumps(_valid_evidence("T-3")), encoding="utf-8"
     )
@@ -82,6 +105,7 @@ def test_exits_zero_when_completed_with_valid_evidence(script: Path, workspace: 
 
 
 def test_exits_two_when_spec_review_failing(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-test", ["T-4"])
     ev = _valid_evidence("T-4")
     ev["spec_review"] = "fail"
     (workspace / ".architect-team" / "reviews" / "T-4.json").write_text(
@@ -93,6 +117,7 @@ def test_exits_two_when_spec_review_failing(script: Path, workspace: Path) -> No
 
 
 def test_exits_two_when_tests_added_not_equal_passing(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-test", ["T-5"])
     ev = _valid_evidence("T-5")
     ev["tests"]["passing"] = 2  # added is 3
     (workspace / ".architect-team" / "reviews" / "T-5.json").write_text(
@@ -104,6 +129,7 @@ def test_exits_two_when_tests_added_not_equal_passing(script: Path, workspace: P
 
 
 def test_exits_two_when_real_not_stubbed_false(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-test", ["T-6"])
     ev = _valid_evidence("T-6")
     ev["real_not_stubbed"] = False
     (workspace / ".architect-team" / "reviews" / "T-6.json").write_text(
@@ -115,6 +141,7 @@ def test_exits_two_when_real_not_stubbed_false(script: Path, workspace: Path) ->
 
 
 def test_exits_two_when_files_changed_empty(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-test", ["T-7"])
     ev = _valid_evidence("T-7")
     ev["files_changed"] = []
     (workspace / ".architect-team" / "reviews" / "T-7.json").write_text(
@@ -130,3 +157,27 @@ def test_exits_zero_on_unrelated_tool(script: Path, workspace: Path) -> None:
     payload = {"tool_name": "Read", "tool_input": {"file_path": "/tmp/x"}}
     r = _run(script, workspace, payload)
     assert r.returncode == 0
+
+
+def test_exits_zero_when_task_not_in_any_manifest(script: Path, workspace: Path) -> None:
+    """REQ-007: hook scopes its enforcement to architect-team teammate tasks.
+
+    TaskUpdate→completed for a task ID that isn't listed in any teammate's
+    expected_review_evidence must NOT block. This covers orchestrator-internal
+    task tracking, user TaskCreate/TaskUpdate flows, and any other workflow
+    that uses TaskUpdate outside the architect-team pipeline.
+    """
+    # Manifest exists but assigns a DIFFERENT task; T-99 is not a teammate task.
+    _write_manifest(workspace, "backend-test", ["T-1", "T-2"])
+    r = _run(script, workspace, _make_payload("T-99", "completed"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_exits_zero_when_no_teammates_dir(script: Path, workspace: Path, tmp_path: Path) -> None:
+    """Absent .architect-team/teammates/ dir means no architect-team workflow
+    is in progress at all. Don't block ANY TaskUpdate."""
+    # Use a fresh tmp dir that has no .architect-team layout at all.
+    pristine = tmp_path / "pristine"
+    pristine.mkdir()
+    r = _run(script, pristine, _make_payload("T-anything", "completed"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
