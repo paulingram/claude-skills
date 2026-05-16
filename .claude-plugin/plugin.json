@@ -1,0 +1,10 @@
+{
+  "name": "architect-team",
+  "description": "Spec-to-production multi-agent coding pipeline. Takes a requirements folder (OpenSpec / Superpowers / plain markdown), drives it through a 100%-coverage planning loop, spawns parallel agent teams for backend/frontend, enforces review gates, reconciles parallel work, and verifies with live dev-API + Playwright user-flow tests.",
+  "version": "0.1.0",
+  "author": { "name": "Paul Ingram", "email": "paul.ingram0322@gmail.com" },
+  "homepage": "https://example.invalid/architect-team",
+  "repository": "https://example.invalid/architect-team.git",
+  "license": "MIT",
+  "keywords": ["multi-agent", "openspec", "superpowers", "spec-driven", "playwright", "orchestration"]
+}
