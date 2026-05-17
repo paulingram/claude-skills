@@ -210,7 +210,7 @@ def _playwright_browser_installed() -> bool:
     """
     try:
         res = subprocess.run(
-            [sys.executable, "-c", "import playwright; print(playwright.__version__)"],
+            [sys.executable, "-c", "import importlib.metadata, playwright; print(importlib.metadata.version('playwright'))"],
             capture_output=True, text=True,
         )
         if res.returncode != 0:

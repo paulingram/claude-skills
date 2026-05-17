@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.5] — 2026-05-16
+
+### Fixed
+- `scripts/setup/setup.py`: Playwright dependency probe now reads the package version via `importlib.metadata.version('playwright')` instead of the deprecated `playwright.__version__` attribute. Playwright 1.59.0+ no longer exposes `__version__` on the package itself, which caused `_playwright_browser_installed()` to incorrectly report playwright as missing on stock installs.
+
 ## [0.2.4] — 2026-05-16
 
 ### Fixed (python3-portability REQ-001: Setup command uses python3)
