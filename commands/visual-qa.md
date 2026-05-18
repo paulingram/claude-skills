@@ -1,11 +1,21 @@
 ---
-description: Run a pixel-perfect post-development visual-QA reconciliation against DESIGN_MAP.md for one or all frontend codebases. Refreshes the design map if stale, runs code-first static analysis, then Playwright runtime verification with per-state screenshots, and produces a reconciliation report. Drift / gaps escalate to the architect-team via handoff — never inline-patched.
-argument-hint: [codebase-path]
+description: Run a pixel-perfect post-development visual-QA reconciliation against DESIGN_MAP.md for one or all frontend codebases. Refreshes the design map if stale, runs code-first static analysis, then Playwright runtime verification with per-state screenshots, fixes drift to spec by default, and (unless --no-commit / --no-push is passed) auto-commits any fixes and pushes them.
+argument-hint: "[codebase-path] [--no-commit] [--no-push]"
 ---
 
 # /architect-team:visual-qa — On-Demand Visual Fidelity Reconciliation
 
-You are running the visual-QA pipeline against one or all frontend codebases. The user invoked this with optional `$ARGUMENTS = <codebase-path>`. If empty, you reconcile every frontend codebase tracked in the workspace.
+You are running the visual-QA pipeline against one or all frontend codebases. The user invoked this with `$ARGUMENTS` = optional codebase path + optional flags.
+
+## Argument parsing (do this first)
+
+Parse `$ARGUMENTS` into tokens. The FIRST non-flag token is the codebase path (may be empty — then reconcile every frontend codebase in the workspace per Step 1). Flags:
+
+- `--no-commit` → `AUTO_COMMIT = false`, `AUTO_PUSH = false`.
+- `--no-push` → `AUTO_COMMIT = true`, `AUTO_PUSH = false`.
+- Neither → `AUTO_COMMIT = true`, `AUTO_PUSH = true` (default).
+
+Also accept natural-language opt-outs ("don't commit", "no push", "leave it uncommitted"). When ambiguous, default to opt-out and tell the user which interpretation you took.
 
 ## Step 1 — Discover frontend codebases in scope
 
@@ -65,7 +75,47 @@ For each in-scope codebase:
 6. **Escalation handoffs** (only for the four named cases above): write `<cwd>/.architect-team/handoffs/visual-qa-to-architect-<reason>-<screen>-<ts>.md` containing: DESIGN_MAP version reconciled against, summary of the drift/gap, the specific decision-matrix case that triggered escalation, links to JSON + screenshots. Identify the team that likely introduced the upstream issue via `git log -p --since=<last_designed> -- <files-involved>` and include `to: <team>` in the frontmatter.
 7. **When a fix is applied**, also write an informational handoff to the team that introduced the drift (`visual-qa-to-<team>-fixed-<screen>-<ts>.md`) — not blocking, just heads-up so their next change matches the corrected spec.
 
-## Step 4 — Report to the user
+## Step 4 — Auto-commit and push (default behavior; opt-out via --no-commit / --no-push)
+
+When the run completes with `overall: PASS` (whether by zero-drift-on-arrival OR by fix-to-spec convergence) AND at least one file was modified by the pipeline during fix-to-spec:
+
+1. `git -C <codebase-root> status --porcelain` to enumerate what changed.
+2. `git -C <codebase-root> add <files-the-reconciliation-touched>` — stage ONLY the files this command modified (the fix-to-spec edits + any DESIGN_MAP.md refresh from Step 2). Do NOT use `git add -A`.
+3. Commit using the repo's local git config (no `-c user.name=` override):
+   ```bash
+   git -C <codebase-root> commit -m "$(cat <<'EOF'
+visual-qa: fix drift to spec on <screen(s)-list>
+
+- N tuples reconciled, all verdict perfect after M fix-to-spec iterations
+- DESIGN_MAP.md version: <last_designed> (<refreshed | current> at run time)
+- Reconciliation reports: <paths>
+- Screens covered: <list>
+- Viewports: <list>
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+   ```
+4. `git -C <codebase-root> push origin <current-branch>` — push to the current branch's upstream.
+5. Capture the commit SHA and push range; include in the Step 5 report.
+
+If the run completes `overall: PASS` but NO files were modified (everything was already at spec on arrival), there is nothing to commit — skip steps 1-4 entirely. Do NOT make empty commits.
+
+If `AUTO_COMMIT = false`: skip steps 1-5; mention in the Step 5 report that fixes (if any) were left uncommitted at the user's request.
+
+If `AUTO_COMMIT = true` but `AUTO_PUSH = false`: do steps 1-3 only; mention in the Step 5 report that the commit was made locally but not pushed.
+
+If `overall != PASS` (DRIFT_DETECTED or GAPS_DETECTED — drift required escalation): do NOT commit; the escalation handoff(s) + solution requirement(s) are the artifacts. The fix routes through the architect-team's standard dev loop and that fix-team's terminal commit captures the change.
+
+### Safety rules
+
+- NEVER force-push.
+- NEVER skip git hooks (`--no-verify`).
+- NEVER amend the previous commit.
+- If `git push` fails, surface the error clearly and stop — do NOT escalate to force-push.
+- If the working tree had unstaged user changes BEFORE this command ran, do NOT stage them; surface their presence in the report.
+
+## Step 5 — Report to the user
 
 Emit a structured summary:
 
@@ -85,6 +135,8 @@ per-codebase results:
 
 overall: PASS | DRIFT_DETECTED | GAPS_DETECTED
 ```
+
+If a commit was made in Step 4, include its SHA and the push range; if AUTO_COMMIT was disabled, say so explicitly.
 
 If `overall != PASS`, also list the top 5 highest-severity findings in the terminal output. Direct the user to the summary file and the handoffs for the full evidence.
 

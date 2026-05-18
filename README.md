@@ -7,29 +7,31 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 7 . 0
+                       ─── T E A M ───   v 0 . 8 . 0
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
 > requirements folder (OpenSpec / Superpowers / plain markdown), drives it
 > through a 100%-coverage planning loop with reuse-first design, spawns
 > parallel agent teams for backend / frontend, enforces review gates via
-> hooks, **fixes design drift to spec autonomously**, and **auto-spawns fix
-> teams from every surfaced issue** — the dev loop closes itself.
+> hooks, **fixes design drift to spec autonomously**, **auto-spawns fix
+> teams from every surfaced issue**, and **auto-commits and pushes on a
+> clean pass** — the dev loop closes itself end-to-end.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.7.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.8.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| ▸ **Solution-Requirement auto-spawn** | Every Playwright / integration failure or visual-fidelity drift writes a structured SR; the orchestrator picks it up and auto-spawns a Phase 2 fix team. Alerts that don't trigger remediation are gone. |
-| ▸ **`/architect-team:visual-qa`** | On-demand pixel-perfect audit against `DESIGN_MAP.md`. Refreshes the design map if stale, runs code-first + Playwright reconciliation, fixes drift to spec autonomously. |
-| ▸ **Link inference for un-annotated UI** | Route-mapper now infers `target_link` for buttons the design didn't annotate, with explicit precedence (explicit > route-match > page-set match > UX convention > escalate) + confidence levels. |
-| ▸ **Visual-fidelity reconciliation discipline** | Zero-tolerance defaults (0px / exact color / exact font / exact spacing). Exhaustive state walks (default / hover / focus / active / disabled / loading / error / empty + every viewport). Fix-to-spec by default. |
-| ▸ **Root-cause-test-failures** | Three-pass loop on every test failure: forward data-flow → backward call-flow → alternative-hypotheses sweep. Evidence-backed RCA artifact required. |
+| ▸ **Auto-commit + push on clean pass** | At the end of a successful Phase 8 (and at the end of `/architect-team:visual-qa` when fixes converged), the pipeline auto-stages its working set, commits with a structured message, and pushes to the current branch's upstream. Opt out per invocation via `--no-commit` / `--no-push` flags (or natural language: "don't commit", "no push"). Never force-pushes; never amends; never skips hooks; never `git add -A`. |
+| ▸ **Solution-Requirement auto-spawn (v0.7.0)** | Every Playwright / integration failure or visual-fidelity drift writes a structured SR; the orchestrator picks it up and auto-spawns a Phase 2 fix team. Alerts that don't trigger remediation are gone. |
+| ▸ **`/architect-team:visual-qa` (v0.5.0)** | On-demand pixel-perfect audit against `DESIGN_MAP.md`. Refreshes the design map if stale, runs code-first + Playwright reconciliation, fixes drift to spec autonomously. |
+| ▸ **Link inference for un-annotated UI (v0.6.0)** | Route-mapper now infers `target_link` for buttons the design didn't annotate, with explicit precedence (explicit > route-match > page-set match > UX convention > escalate) + confidence levels. |
+| ▸ **Visual-fidelity reconciliation (v0.5.0)** | Zero-tolerance defaults (0px / exact color / exact font / exact spacing). Exhaustive state walks (default / hover / focus / active / disabled / loading / error / empty + every viewport). Fix-to-spec by default. |
+| ▸ **Root-cause-test-failures (v0.3.0)** | Three-pass loop on every test failure: forward data-flow → backward call-flow → alternative-hypotheses sweep. Evidence-backed RCA artifact required. |
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -118,10 +120,12 @@ Idempotent. Flags: `--check-only` (report only), `--force-reinstall` (reinstall 
 ```
 
 ```bash
-/architect-team <path-to-requirements-folder>
+/architect-team <path-to-requirements-folder> [--no-commit] [--no-push]
 ```
 
 The requirements folder may contain OpenSpec artifacts (`proposal.md`, `specs/`, `design.md`, `tasks.md`), a Superpowers-formatted brief, or plain markdown. The orchestrator detects and normalizes.
+
+**Default: auto-commit + push on clean pass.** At the end of a successful Phase 8, the pipeline stages its working set, commits with a structured message including the requirements implemented + tests added + archive path, and pushes to the current branch's upstream. To opt out per invocation: pass `--no-commit` (skip both) or `--no-push` (commit locally only). Natural-language opt-outs ("don't commit", "no push", "leave it uncommitted") are also honored.
 
 ### The pipeline at a glance
 
@@ -377,7 +381,8 @@ Tests validate: plugin/marketplace JSON; all 11 skill frontmatters; all 10 agent
            v0.4.0 ─ design-fidelity-mapping + visual-fidelity tests
            v0.5.0 ─ visual-fidelity-reconciliation + /visual-qa command
            v0.6.0 ─ link inference for un-annotated UI
-   ◆       v0.7.0 ─ solution-requirement auto-spawn (current)
+           v0.7.0 ─ solution-requirement auto-spawn
+   ◆       v0.8.0 ─ auto-commit + push on clean pass (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

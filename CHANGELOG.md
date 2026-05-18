@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] — 2026-05-18
+
+### Added (auto-commit + push at end of clean pass — opt-out via flags)
+- `commands/architect-team.md`: argument parser now supports `--no-commit` and `--no-push` flags (and natural-language equivalents like "don't commit" / "no push" / "leave it uncommitted"). Default behavior is `AUTO_COMMIT=true`, `AUTO_PUSH=true`. Flags propagate into the pipeline skill as parameters.
+- `commands/visual-qa.md`: same argument parser + same default behavior. Auto-commit only when `overall: PASS` AND at least one file was modified by fix-to-spec (no empty commits). The skipped-commit / fixes-uncommitted-by-user-request branches are surfaced in the report.
+- `skills/architect-team-pipeline/SKILL.md` Phase 8: extended with auto-commit + push terminal step. Process: `git status --porcelain` to enumerate changes; explicitly stage the pipeline's working set (openspec/changes/<change-name>/, CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP touched, files in review-evidence `files_changed`, added tests); construct commit message from Phase 8 report data; commit with repo's local git config (no `-c user.name=` override — that's specific to mis-configured repos); push to current branch's upstream. NEVER `git add -A` — explicit enumeration only. Pre-existing user changes are surfaced and excluded from the pipeline's commit.
+
+### Hard safety rules for auto-commit/push (every consumer enforces these)
+- NEVER force-push.
+- NEVER skip git hooks (`--no-verify`).
+- NEVER amend the previous commit.
+- NEVER push to a protected branch in violation of branch-protection policy — if rejected, surface and stop.
+- Pre-commit hook failure → fix the issue and create a NEW commit; never bypass.
+- Push failure (non-fast-forward / network / auth) → surface clearly and stop; do NOT escalate to force-push.
+- Detached HEAD or no upstream configured → skip the push, tell the user how to set the upstream.
+
+### Why this matters
+v0.7.0 closed the issue → fix loop by auto-spawning solution requirements. v0.8.0 closes the pass → published-state loop by automatically committing and pushing on clean completion. Running `/architect-team <path>` end-to-end now lands the work on the target branch's remote without manual `git add` / `commit` / `push` steps — unless the user explicitly opts out at invocation.
+
+### Released (v0.8.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.7.0` → `0.8.0`.
+
 ## [0.7.0] — 2026-05-18
 
 ### Added (solution-requirement auto-spawn — closes the dev loop on surfaced issues)

@@ -195,6 +195,52 @@ Emit a final report containing:
 - Each teammate spawned, its task group, and outcome
 - Final statement: **"Spec `<change-name>` has been implemented."** Followed by the archive path.
 
+### Auto-commit and push at the end of a clean pass
+
+The invoking command (`/architect-team`) sets `AUTO_COMMIT` and `AUTO_PUSH` flags from `$ARGUMENTS` (defaults: both `true`; opt-out via `--no-commit` / `--no-push`). At the end of Phase 8, after the final-statement line is emitted, do this:
+
+If `AUTO_COMMIT = true`:
+
+1. `git -C <repo-root> status --porcelain` — enumerate what changed during the run.
+2. Identify the pipeline's working set: every file under `openspec/changes/<change-name>/`, every CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP touched, every file referenced in any review-gate evidence's `files_changed`, and any test files added. Do NOT use `git add -A` — explicitly enumerate.
+3. `git -C <repo-root> add <enumerated-files>`.
+4. Construct the commit message from the Phase 8 report data:
+
+   ```
+   <change-name>: <one-line summary from Final Report>
+
+   - Requirements implemented: <REQ-001, REQ-002, ...> (N total)
+   - Tests added: <unit-count> unit / <integration-count> integration / <e2e-count> e2e — all passing
+   - Coverage map: fully green
+   - Phases −1 → 8 complete; openspec archive landed at <archive-path>
+
+   Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+   ```
+
+5. `git -C <repo-root> commit -m "<message>"` using the repo's local git config (no `-c user.name=` override; the override is specific to repos with broken local config — most repos do not need it).
+
+If `AUTO_PUSH = true` (and the commit succeeded):
+
+6. `git -C <repo-root> rev-parse --abbrev-ref HEAD` to get the current branch.
+7. `git -C <repo-root> push origin <current-branch>` — push to the current branch's upstream.
+8. Capture the commit SHA and the push range (e.g., `abc1234..def5678`); add them to the final user-facing report.
+
+If `AUTO_COMMIT = false`: skip steps 1-8 entirely. Mention in the final report that changes were left uncommitted at the user's request.
+
+If `AUTO_COMMIT = true` but `AUTO_PUSH = false`: do steps 1-5 only. Mention in the final report that the commit was made locally but not pushed.
+
+If the working tree had unstaged or staged user changes BEFORE the pipeline started: surface their presence in the final report and do NOT include them in the pipeline's commit. The pipeline commits ONLY what the pipeline produced.
+
+### Safety rules for the auto-commit step (non-negotiable)
+
+- NEVER force-push (`--force`).
+- NEVER skip git hooks (`--no-verify`).
+- NEVER amend the previous commit (`--amend`).
+- If a pre-commit hook fails, surface the failure, fix the underlying issue (if it is the pipeline's responsibility), and create a NEW commit. Never bypass the hook.
+- If `git push` fails (non-fast-forward, network, auth), surface the error clearly and stop. Do NOT escalate to force-push.
+- If the repo has detached HEAD or no upstream configured for the current branch, skip the push, mention it in the report, and tell the user how to set the upstream (`git push -u origin <branch>`).
+- Do NOT push to `main` if the change has not been peer-reviewed by a human reviewer AND the repo's branch-protection policy requires reviews — the orchestrator does NOT have judgment to override branch protection. If push is rejected by branch protection, surface the rejection and stop.
+
 Then clean up the team.
 
 ## Operating rules (non-negotiable)
