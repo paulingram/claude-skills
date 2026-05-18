@@ -58,6 +58,11 @@ For each in-scope element:
    - Code value resolves to a different value → static drift, capture both with file:line citation.
    - Code value is dynamic (depends on a prop / theme / feature flag) → record the dependency and resolve at runtime in Phase C.
 3. **Check asset references statically** — for every `<img src=...>` / `<svg use href=...>` / `background-image: url(...)`, verify the path resolves to an entry in DESIGN_MAP's Asset Registry, and the file at that path matches the registered SHA-256 (compute via `sha256sum` / `certutil`).
+4. **Check link targets** — for every element with a `target_link` in DESIGN_MAP, locate the click handler / `href` / `to` prop / `router.push(...)` / `navigate(...)` call in the source. Compare:
+   - `source: "explicit"` → match REQUIRED. Mismatch is drift; fix the implementation to match the explicit target.
+   - `source: "inferred"`, `confidence: "high"` → match expected. Mismatch is drift, but with a note: the inference may have been wrong (the implementation is the more recent intent) OR the implementation drifted from intent. The fix-or-escalate decision uses the standard Phase E matrix; in practice, high-confidence inferences that match a coherent navigation web should be honored as the contract, and mismatches fix the implementation.
+   - `source: "inferred"`, `confidence: "medium"` or `"low"` → match is informational only. Mismatch escalates to clarify (`awaiting_confirmation: true` items become escalations naturally; the user confirms the target, which becomes `explicit` on the next DESIGN_MAP refresh).
+   - `source: "unknown"` (target is `"?"`) → cannot reconcile; record the implementation's actual link target as evidence and escalate so the user can promote it to `explicit` or correct it.
 
 The static analysis output is a per-element `static_verdict` field captured into the reconciliation JSON before runtime. The runtime in Phase C either confirms it or contradicts it (which itself is a finding — usually means a cascade or runtime computation the static pass missed).
 

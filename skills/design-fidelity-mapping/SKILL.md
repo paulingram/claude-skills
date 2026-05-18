@@ -168,6 +168,95 @@ For every screen / route that has a corresponding design artifact, the expected 
 
 For every interactive element listed in the ROUTE_MAP.md and corresponding `playwright-user-flows` interactivity inventory, this section MUST define its computed-style spec. An element in the inventory without a row in this table is a gap (declared in `## Coverage & Gaps`).
 
+### `## Link Inference for Un-Annotated Interactive Elements`
+
+Designers often skip explicit link annotations on obvious buttons — "Sign in" rarely gets an arrow because everyone "knows" where it goes. The route-mapper agent is EMPOWERED to INFER the most likely link target when a design artifact lacks an explicit annotation. Inference is bounded: only when no explicit annotation exists, and only when a confident candidate can be identified from context. Silent "blank link" is forbidden.
+
+The same principle generalizes to requirements interpretation: when `proposal.md` / `design.md` describe a flow without naming the precise destination ("users can navigate to their account"), the AI infers from available routes and the design page set, records the inference with reasoning, and surfaces low / medium confidence inferences for confirmation. The design audit is the most common application but not the only one.
+
+#### Inference precedence (top wins)
+
+1. **Explicit annotation in the design** — a Figma prototype connector, an arrow drawn on the mockup, a `"→ /dashboard"` label on the screenshot, text in the design's exported metadata, OR an explicit page link in the requirements doc. Always follow explicit; never override.
+2. **Existing route in ROUTE_MAP.md whose name semantically matches the button text** — "Sign in" button + `/signin` route exists → high confidence; "Account" button + `/account` route exists → high confidence; "Pricing" button + `/pricing` route exists → high confidence.
+3. **Existing page in the design set whose title semantically matches** — "Account" button + a screen titled "Account Settings" in `$REQ_DIR/designs/` → medium confidence.
+4. **UX conventions when nothing else applies** — logo / wordmark → `/` (homepage); "Cancel" inside a form → previous route or close modal; "Save" → stay on current route with toast; "Submit" in a wizard → next step in the flow; "Back" → previous route; breadcrumb segment → that segment's route; tab → URL fragment or query param.
+5. **No good candidate** → record as `target: "?"` with `inferred_reason: "no matching route or page; awaiting user confirmation"` and add to `## Coverage & Gaps` with `escalate: true`.
+
+#### Schema addition
+
+Every interactive element in `## Per-Screen Visual Specs` that has (or should have) a click handler gets a `target_link` field. For single-target links:
+
+```json
+{
+  "element_id": "signin-button",
+  "target_link": {
+    "target": "/signin",
+    "source": "inferred",
+    "confidence": "high",
+    "reasoning": "Button text 'Sign in' + route /signin exists in ROUTE_MAP.md; no other 'sign in' targets in the design set",
+    "alternatives": ["/login (not in routes)", "/auth (route exists but is API namespace, not a page)"],
+    "awaiting_confirmation": false
+  }
+}
+```
+
+For state-conditional links (button targets different pages based on app state — e.g., "Get started" → `/onboarding` for new users, `/dashboard` for returning users), use an array:
+
+```json
+{
+  "element_id": "cta-button",
+  "target_link": [
+    { "target": "/onboarding", "source": "explicit", "condition": "user.is_first_login === true" },
+    { "target": "/dashboard", "source": "inferred", "confidence": "high", "reasoning": "returning-user CTA pattern in the design set's other flows", "condition": "user.is_first_login === false", "awaiting_confirmation": false }
+  ]
+}
+```
+
+#### Field definitions
+
+- `target` — page identifier (path, screen ID, modal ID, or `"?"` if unknown).
+- `source` — `"explicit"` (from design annotation OR explicit requirements doc) | `"inferred"` (this skill's inference) | `"unknown"` (no annotation, no good candidate; user must confirm).
+- `confidence` (required when `source: "inferred"`) — `"high"` | `"medium"` | `"low"`.
+- `reasoning` (required when `source: "inferred"`) — one-sentence justification citing the precedence-rule level that produced the inference.
+- `alternatives` (required when `source: "inferred"`) — other candidates considered, each with a one-line reason for rejection.
+- `condition` (optional) — when the target is state-conditional, the predicate that selects this branch.
+- `awaiting_confirmation` (required boolean) — `true` for `unknown`, `low`, `medium`; `false` for `high` and `explicit`. The orchestrator surfaces every `awaiting_confirmation: true` entry to the user at audit time.
+
+#### Confidence levels (precise definitions)
+
+- **high** — button text closely matches the name of an existing route in ROUTE_MAP.md AND no other route is a plausible target. The inference is recorded and used downstream; no escalation. Examples: "Sign in" → `/signin`, "Settings" → `/settings`, "Logout" → `/logout`.
+- **medium** — multiple routes are plausible OR the button text only loosely matches OR the match comes from the design page set rather than ROUTE_MAP.md. Recorded with `awaiting_confirmation: true`; escalated via `## Coverage & Gaps` for user confirmation. Examples: "Account" → `/profile` / `/settings` / `/account` (3 plausible); "Help" → `/help` / `/support` / `/docs`.
+- **low** — generic button text with no semantic anchor: "Continue", "Next", "Go", "OK". Multiple plausible targets, no UX-convention disambiguation. Best-guess recorded with `awaiting_confirmation: true` and explicit alternatives listed. Always escalated.
+
+#### Coverage & Gaps integration
+
+Every `target_link` with `awaiting_confirmation: true` becomes an entry in `## Coverage & Gaps`:
+
+```yaml
+gaps:
+  - kind: link_inference_low_confidence
+    screen: /pricing
+    element: cta-button
+    inferred_target: /signup
+    alternatives: [/contact, /trial]
+    reason: button text 'Get started' is generic; multiple plausible targets in routes
+    escalate: true
+```
+
+The orchestrator surfaces these to the user at audit time (e.g., as part of `/architect-team:visual-qa` output or at Phase 1 spec validation). The user confirms or corrects; the corrected target is then `source: "explicit"` on the next DESIGN_MAP refresh.
+
+#### Anti-pattern rationalizations to reject
+
+| Rationalization | Rebuttal |
+|---|---|
+| "I'll leave the link blank — the design did not show one" | No. Leaving it blank means future agents do not know where the button goes; the visual-fidelity reconciliation cannot verify the implementation's link target; the user does not know what to confirm. Either infer with reasoning, or escalate via Coverage & Gaps. |
+| "I'll guess all the links to be thorough" | No. Inference is CONDITIONAL on no explicit annotation. If the design has an arrow, follow it — never override with a guess. Inference is for the silent buttons, not the labeled ones. |
+| "Every 'Sign in' button goes to /login — I'll mark it explicit" | No. If the design did not annotate it, mark it `inferred` with `high` confidence and the reasoning. The `source` distinction matters: `inferred` flags it for the audit log and future re-checks; `explicit` hides the inference under a claim of certainty. |
+| "Low-confidence inferences slow things down" | Then mark them `awaiting_confirmation: true` and proceed; surface them in the Coverage & Gaps section. The user makes the call at audit time. The discipline is to not silently guess. |
+| "The implementation already has the link wired correctly, so the inference is fine" | The DESIGN_MAP captures the design intent, not the current implementation. If implementation says `/dashboard` and inference says `/home`, `visual-fidelity-reconciliation` will surface the disagreement — that is intentional. The inference may have been wrong (and the implementation right) OR the implementation may have drifted from intent. Both are findings worth surfacing. |
+| "I'll infer with 'medium' for everything to be safe" | Then the user has to confirm every link, which trains them to rubber-stamp the audit. Use the precise confidence definitions; reserve `medium` for genuine ambiguity. |
+| "State-conditional links are too complex — I'll just pick one variant" | No. State-conditional behavior is part of the contract. Capture all branches as an array; if one branch is genuinely unknown, mark THAT branch `awaiting_confirmation`, not the whole element. |
+
 ### `## Asset Placement Diagram`
 
 A textual or ASCII diagram per screen showing where assets render. Useful for asymmetric layouts:

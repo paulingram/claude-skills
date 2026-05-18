@@ -131,8 +131,9 @@ If none of the above, skip — no DESIGN_MAP.md is produced and its absence is n
 4. **Read Storybook stories** (if present) for component state variants — each story name maps to a state row in the per-element table.
 5. **Cross-reference the implementation values against the design source values.** Every discrepancy becomes a row in `## Detected Drift` with both values and citations.
 6. **Cross-reference the per-element specs against the ROUTE_MAP.md interactivity inventory** (or — if `playwright-user-flows` Phase A has not yet been run for this codebase — against the inventory you can infer from the same component code you traced for ROUTE_MAP.md). Every interactive element on a designed screen must have a row.
-7. **Write `<codebase>/docs/DESIGN_MAP.md`** per the `design-fidelity-mapping` skill's schema with `last_designed` frontmatter (ISO 8601 UTC).
-8. **Surface gaps**: every entry in `## Coverage & Gaps` with `escalate: true` is a question for the orchestrator to forward to the user.
+7. **Infer link targets for un-annotated interactive elements.** For every clickable element (button, link, card, tile, menu item, breadcrumb, tab) in `## Per-Screen Visual Specs` that has no explicit link annotation in the design source AND would naturally have one, apply the inference precedence in the `design-fidelity-mapping` skill's `## Link Inference for Un-Annotated Interactive Elements` section: (1) explicit annotation always wins; (2) ROUTE_MAP.md route name semantic match → `high`; (3) design-page-set title match → `medium`; (4) UX convention (logo → `/`, "Cancel" → previous, etc.) → varies; (5) no candidate → `"?"`. Record each as a `target_link` object with `target`, `source`, `confidence` (when inferred), `reasoning`, `alternatives`, and `awaiting_confirmation`. State-conditional links (different targets based on app state) use the array form. NEVER leave a clickable element with a blank link — either infer with reasoning or escalate via Coverage & Gaps. Inference is BOUNDED: only when no explicit annotation exists; if the design has an arrow / connector / label, follow it without override.
+8. **Write `<codebase>/docs/DESIGN_MAP.md`** per the `design-fidelity-mapping` skill's schema with `last_designed` frontmatter (ISO 8601 UTC).
+9. **Surface gaps**: every entry in `## Coverage & Gaps` with `escalate: true` is a question for the orchestrator to forward to the user — this includes every `target_link` with `awaiting_confirmation: true` (medium/low/unknown inferences).
 
 ### Update mode for DESIGN_MAP.md
 
@@ -152,3 +153,5 @@ If `ROUTE_MAP.md` exists and its `last_routed` is stale (orchestrator told you t
 - When design inputs are present, ALWAYS produce DESIGN_MAP.md — do not silently skip a screen with a screenshot or a token with a tailwind entry.
 - Never invent precise pixel/color values that aren't grep-able from the codebase or readable from the design source. Mark estimated values `~approximate` and escalate via the Gaps section.
 - Always compute SHA-256 for every asset in the registry. A registry row without a hash is incomplete.
+- Never leave a clickable element with no `target_link`. If no explicit annotation exists, infer with reasoning OR escalate via Coverage & Gaps with `awaiting_confirmation: true`. Silent gaps in link targets break downstream visual-fidelity-reconciliation.
+- Never override an explicit design annotation with an inference. Inference is for the silent buttons, never for the labeled ones.

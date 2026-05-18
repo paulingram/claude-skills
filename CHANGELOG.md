@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] — 2026-05-18
+
+### Added (design-fidelity-mapping: link inference for un-annotated interactive elements)
+- `skills/design-fidelity-mapping/SKILL.md`: new section `## Link Inference for Un-Annotated Interactive Elements`. Designers routinely skip link annotations on obvious buttons ("Sign in" rarely gets an arrow); the route-mapper agent is now empowered to INFER the most likely link target via an explicit precedence: (1) explicit design annotation always wins; (2) ROUTE_MAP.md route name semantic match → `high` confidence; (3) design-page-set title match → `medium`; (4) UX conventions (logo → `/`, "Cancel" → previous route, "Save" → stay, breadcrumb → segment route, etc.); (5) no candidate → `"?"` and escalate. Inference is BOUNDED: only when no explicit annotation exists; never overrides an arrow / connector / label. Same principle generalizes to requirements interpretation (when proposal.md describes a flow without naming the destination).
+- New `target_link` field added to per-screen visual specs schema. Fields: `target` (path / screen ID / modal ID / "?"); `source` (`"explicit"` / `"inferred"` / `"unknown"`); `confidence` (required when inferred — `high` / `medium` / `low`, precisely defined); `reasoning` (required when inferred); `alternatives` (other candidates considered with rejection reasons); `condition` (for state-conditional links); `awaiting_confirmation` (boolean — true for medium / low / unknown; surfaces in Coverage & Gaps for user confirmation). State-conditional links use the array form (e.g., "Get started" → `/onboarding` for new users vs `/dashboard` for returning).
+- Coverage & Gaps now includes a new gap kind: `link_inference_low_confidence` with the inferred target, alternatives considered, and `escalate: true`. The orchestrator surfaces these to the user at audit time; confirmed targets become `source: "explicit"` on the next DESIGN_MAP refresh.
+- 7 new anti-pattern rows covering blank links, over-inference, mis-marking inferred as explicit, low-confidence-as-everything, implementation-override-of-inference, etc.
+
+### Added (route-mapper agent: inference process step)
+- `agents/route-mapper.md`: new process step 7 — "Infer link targets for un-annotated interactive elements." Applies the design-fidelity-mapping inference precedence to every clickable element that lacks an explicit design annotation. Two new hard rules: (a) never leave a clickable element with a blank `target_link` — infer with reasoning OR escalate; (b) never override an explicit design annotation with an inference.
+
+### Added (visual-fidelity-reconciliation: link target verification)
+- `skills/visual-fidelity-reconciliation/SKILL.md`: Phase B static analysis now also checks link targets per element. Match rules vary by `source`: `explicit` requires exact match (mismatch → fix to spec); `inferred` `high` confidence expects match (mismatch is drift, fix-or-escalate per matrix); `inferred` `medium` / `low` is informational (mismatch escalates to clarify, awaiting confirmation); `unknown` cannot reconcile (record implementation target as evidence, escalate so user can promote to explicit or correct).
+
+### Released (v0.6.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.5.0` → `0.6.0`.
+
 ## [0.5.0] — 2026-05-18
 
 ### Added (new skill: visual-fidelity-reconciliation)
