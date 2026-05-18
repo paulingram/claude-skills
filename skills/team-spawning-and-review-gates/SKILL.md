@@ -117,6 +117,113 @@ Schema:
 
 The hook checks that for every `task_id` in `expected_review_evidence`, there's a valid review-evidence file. If not → exit 2 with a structured error naming the gaps. The harness re-engages the teammate.
 
+## Solution Requirements — auto-spawn the dev loop on any surfaced issue
+
+Whenever an agent surfaces an issue during testing — a Playwright failure, an integration test failure, a live-dev-API regression, a visual-fidelity drift, an RCA product-bug verdict — the agent does NOT just write a handoff and wait. It ALSO writes a structured **solution requirement** that the orchestrator automatically picks up and feeds back into Phase 2 of the dev loop. The loop is closed: issue → solution requirement → fix team spawned → fix flows through Phase 2 → Phase 5 → original test re-runs → verdict pass → originating teammate's task unblocks.
+
+This converts "alert the user" into "fix the system." Alerts that don't trigger remediation are process failures; the discipline is to spawn the remediation, not log the alert.
+
+### File location
+
+```
+<cwd>/.architect-team/solution-requirements/SR-<short-id>-<ISO-8601-UTC>.json
+```
+
+where `<short-id>` is derived from the originating test ID, drifted screen+element, or affected requirement. Use `_safe_id()`-compatible characters only (no `/`, `\`, leading `.`, or `..`).
+
+### Schema
+
+```json
+{
+  "schema_version": 1,
+  "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
+  "created_at": "<ISO 8601 UTC>",
+  "origin": {
+    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit",
+    "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
+    "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
+    "test_id": "<failing test ID, if applicable>",
+    "rca_artifact": "<path to rca/<test-id>-<ts>.json, if applicable>",
+    "reconciliation_artifact": "<path to visual-fidelity/<screen>-<viewport>-<ts>.json, if applicable>",
+    "handoff_artifact": "<path to .architect-team/handoffs/<from>-to-<to>-<ts>.md if also written>"
+  },
+  "problem_summary": "<one-paragraph user-facing description: what the user sees that they should not, in product terms not implementation terms>",
+  "expected_behavior": "<one-paragraph spec citation: what DESIGN_MAP / coverage-map / proposal.md says SHOULD happen>",
+  "evidence": [
+    "<path to log excerpt / screenshot / captured payload>",
+    "<file:line citation>",
+    "..."
+  ],
+  "affected_requirements": ["REQ-012", "REQ-019"],
+  "affected_screens": ["/login", "/dashboard"],
+  "scope": {
+    "files_to_change": ["src/auth/login.py", "src/auth/__init__.py"],
+    "files_to_test": ["tests/integration/test_login_dev_api.py", "tests/playwright/test_login.spec.ts"]
+  },
+  "acceptance_criteria": [
+    "POST /api/auth/login with a soft-deleted account returns 410 Gone with body {error: 'account_deactivated'}",
+    "POST /api/auth/login with a valid account returns 200 with body.user.name as a non-null string matching the DB row's name column",
+    "Existing test_user_completes_first_login passes against the live dev API",
+    "Visual-fidelity reconciliation for /dashboard's user-name banner reaches verdict perfect"
+  ],
+  "suggested_team": "backend-auth",
+  "blast_radius": "single endpoint; no schema changes; safe to deploy with the existing release window",
+  "priority": "critical" | "high" | "medium" | "low",
+  "status": "open"
+}
+```
+
+### Required field validity
+
+- `solution_id` must be unique and `_safe_id()`-compatible.
+- `origin.kind` must be one of the enumerated values; agents MUST NOT invent new kinds.
+- `problem_summary` and `expected_behavior` are non-empty strings.
+- `evidence` is a non-empty array; an SR without evidence is an alert dressed as a requirement.
+- `affected_requirements` may be empty if the problem is in territory not yet covered by the coverage map — but then `affected_screens` (for visual) or `scope.files_to_change` MUST be non-empty so the orchestrator can attribute the fix.
+- `acceptance_criteria` MUST include the original failing test as one of its criteria. The fix is only complete when the test that surfaced the issue passes.
+- `suggested_team` is a hint; the orchestrator may route differently based on file ownership.
+- `priority` defaults to `"high"` for any RCA product-bug, `"critical"` for any visual-fidelity drift blocking a designed user journey, and per-case judgment otherwise.
+
+### Orchestrator pickup (architect-team-pipeline behavior)
+
+When the orchestrator resumes (after any subagent signals idle), it MUST:
+
+1. Walk `.architect-team/solution-requirements/*.json`.
+2. For each SR with `status: "open"`:
+   - If `affected_requirements` is non-empty → append entries to the active change's `coverage-map.json` referencing the SR ID; mark each entry `status: "in_progress"` once the fix team is spawned.
+   - If `affected_requirements` is empty → write a new coverage-map entry derived from `acceptance_criteria` + `affected_screens` + `scope`.
+   - Spawn a Phase 2 team per `team-spawning-and-review-gates` rules. The teammate's brief includes the SR ID, the SR file path, the acceptance criteria copied verbatim, the files_owned from `scope.files_to_change`, and a pointer to the original failing test that becomes the team's review-gate verification.
+   - Update SR `status: "in_progress"` and record the spawned teammate name in a new `spawned_teammate` field.
+3. The fix team works through Phase 3 (review gate) → Phase 4 (reconciliation if shared boundary) → Phase 5 (the original failing test re-runs as part of integration).
+4. When the originating test reaches verdict `pass`, the orchestrator marks the SR `status: "resolved"` with a `resolved_at` timestamp and a `resolved_by` commit SHA, then unblocks the ORIGINATING teammate's task. The originating teammate re-runs whatever they were waiting on (visual-fidelity reconciliation, RCA, etc.) and that loop now converges to pass.
+5. Master review (Phase 7) walks every SR and confirms each is `resolved` AND its acceptance criteria are reflected in a passing test in the coverage map.
+
+### What this prevents
+
+- Alerts that sit in a handoff file forever until someone manually triages them.
+- Failures that surface, get logged, and don't translate into a code change.
+- Teammates that mark their task `visual_fidelity_review: "fail"` and leave the fix to the user.
+- Phase 5 failures that route back to a team in name only, with no concrete acceptance criteria attached.
+- Process drift where "we'll fix it next sprint" silently re-enters the backlog instead of the active loop.
+
+### Mandatory consumers (these skills write SRs on every applicable trigger)
+
+- `root-cause-test-failures` Phase C — every `product-bug` RCA verdict writes an SR alongside the handoff. The handoff is for human readability; the SR is for orchestrator action.
+- `visual-fidelity-reconciliation` Phase E — every escalation (out-of-scope file, implementation-extras, spec-ambiguity, cascade-blast-radius) writes an SR. Drift that gets autonomously fixed-to-spec does NOT need an SR (the fix happened in-loop).
+- `playwright-user-flows` — when a Playwright test fails AND the RCA verdict is product-bug, the SR is written by RCA (don't duplicate). When a test reveals a UI contract that the implementation never honored (gap in the original spec), write an SR with `origin.kind: "playwright-failure"`.
+- `dev-api-integration-testing` — when an integration test fails against the live dev API with a backend regression (RCA verdict product-bug), the SR is written by RCA. When the failure is in test-author error or env / fixture / race, fix in-loop without an SR (per root-cause-test-failures Phase C).
+
+### Anti-patterns to reject
+
+| Rationalization | Rebuttal |
+|---|---|
+| "The handoff is enough — the orchestrator can read it" | The handoff is markdown for humans. The SR is JSON for machine action. Without the SR, the orchestrator has nothing structured to spawn a team from. |
+| "I'll write a brief SR and let the fix team figure out the details" | Then the fix team negotiates the spec instead of executing it, and the acceptance criteria drift. Write the full SR with concrete acceptance criteria — the originating test MUST be among them. |
+| "I'll skip the SR if the fix is obvious" | "Obvious" fixes still need acceptance criteria, evidence, and a loop entry. Otherwise the master review (Phase 7) has nothing to walk. |
+| "I'll wait for the orchestrator to ask before writing the SR" | The orchestrator picks up SRs from disk; it does not poll teammates for status. If you don't write the SR, the loop does not re-enter. |
+| "The fix touches files outside my scope; I'll let the user spawn the next team" | That is the scope-out-of-bounds escalation — write the SR with `suggested_team` set to the owning team. The orchestrator routes; the user does not need to be in the loop unless the SR has a spec-ambiguity. |
+| "I'll set priority to medium to be neutral" | RCA product-bugs blocking a documented user journey are critical or high. The priority drives queue ordering at Phase 2 spawn time. Be honest, not modest. |
+
 ## Hook-rejection escalation policy
 
 When the `PostToolUse(TaskUpdate)` hook rejects a teammate's attempt to mark a task complete (exits 2), the teammate MUST follow this procedure:

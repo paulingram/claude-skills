@@ -51,12 +51,12 @@ If `<codebase>/docs/DESIGN_MAP.md` exists for the codebase you're working in AND
 5. **Phase E remediation — fix to spec by default.** For any tuple with verdict `drift` or `gap`, consult the decision matrix in `visual-fidelity-reconciliation`'s Phase E:
    - **Drift in a file you own** → fix the className / inline style / token / asset reference to produce the spec value. Re-run Phase B + Phase C for the affected tuples. Loop until `perfect`.
    - **Gap: spec describes an element NOT rendered** → add the JSX / state binding so the element renders per the spec.
-   - **Gap: implementation has an element NOT in spec** → escalate (user must decide whether to add to spec or remove from implementation).
-   - **Drift in a file OUTSIDE your scope** → escalate to the team that owns the file (identified via `git log`).
-   - **Spec ambiguity** (token referenced but undefined, contradictory specs) → escalate to clarify the spec first.
-   - **Cascade blast radius** (the fix converts one drift into many drifts because dependent screens relied on the wrong value) → escalate to the architect-team.
-   Each escalation handoff names the specific decision-matrix case that triggered it.
-6. **Verdict** — re-run reconciliation after every fix iteration. When every tuple is `perfect`, set `visual_fidelity_review: "pass"` in your review-gate evidence and reference the reconciliation JSON(s) (including all `passes_after_fix` iterations) in `demo_artifact`. Only when the discipline cannot converge autonomously (one of the four escalation cases above applies) set `visual_fidelity_review: "fail"` and write the escalation handoff; signal idle and wait for the architect-routed clarification, then re-run reconciliation to `pass` before marking complete.
+   - **Gap: implementation has an element NOT in spec** → escalate AND write a solution requirement (user must decide whether to add to spec or remove from implementation).
+   - **Drift in a file OUTSIDE your scope** → escalate AND write a solution requirement to spawn the team that owns the file (identified via `git log`).
+   - **Spec ambiguity** (token referenced but undefined, contradictory specs) → escalate AND write a solution requirement that asks the architect-team to clarify the spec; reconciliation re-runs after the clarification.
+   - **Cascade blast radius** (the fix converts one drift into many drifts because dependent screens relied on the wrong value) → escalate AND write a solution requirement that asks the architect-team to plan the cascade fix.
+   Each escalation handoff names the specific decision-matrix case that triggered it. **Each escalation ALSO writes a solution requirement** per `team-spawning-and-review-gates`'s `## Solution Requirements` section so the orchestrator auto-spawns the fix team — no alert sits idle.
+6. **Verdict** — re-run reconciliation after every fix iteration. When every tuple is `perfect`, set `visual_fidelity_review: "pass"` in your review-gate evidence and reference the reconciliation JSON(s) (including all `passes_after_fix` iterations) in `demo_artifact`. Only when the discipline cannot converge autonomously (one of the four escalation cases above applies) set `visual_fidelity_review: "fail"`, write the handoff AND the solution requirement; signal idle and wait for the architect-routed fix to complete, then re-run reconciliation to `pass` before marking complete.
 7. If no DESIGN_MAP.md exists OR no frontend file was touched, set `visual_fidelity_review: "n/a"` AND `visual_fidelity_review_note: "<one-sentence reason>"`.
 
 ## Per-test expectations & failure handling

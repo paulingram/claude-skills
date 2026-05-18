@@ -289,7 +289,8 @@ When escalating:
    - The link(s) to the reconciliation JSON(s) and the per-state screenshots.
    - **Crucially: WHY this isn't being fixed autonomously** — name the specific decision matrix row that triggered escalation. Without this, the handoff is just an alert (which the user said is insufficient).
    - For scope-out-of-bounds escalations, identify the team that owns the file (`git log` ownership) so the orchestrator can route directly.
-4. Signal idle.
+4. **Write a solution requirement** (mandatory) per `team-spawning-and-review-gates`'s `## Solution Requirements` section to `<cwd>/.architect-team/solution-requirements/SR-<screen>-<element>-<state>-<ts>.json` with `origin.kind: "visual-fidelity-drift"`, the reconciliation artifact path in `evidence`, `affected_screens` populated, `acceptance_criteria` listing both "reconciliation for <screen> reaches verdict perfect at all viewports" AND any specific behavioral assertions implied by the drift, and `suggested_team` set per the decision-matrix case (out-of-scope → file-owning team; implementation-extras / spec-ambiguity → architect for user input; cascade-blast-radius → architect for cross-screen planning). The orchestrator picks up the SR and spawns the fix team automatically; the loop re-enters without manual triage.
+5. Signal idle.
 
 The hook value `"fail"` is the SAFETY NET, not the default workflow. The default workflow is: drift found → fix → re-run → `"pass"`. If you find yourself reaching for `"fail"`, you have either (a) hit one of the four escalation cases above and the handoff is the right action, or (b) you're avoiding a fix that you should be making. Choose carefully.
 

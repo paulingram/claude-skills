@@ -122,6 +122,23 @@ The review must confirm:
 
 Teammate writes `<cwd>/.architect-team/reviews/<task-id>.json` per the schema in `team-spawning-and-review-gates` BEFORE any `TaskUpdate` flips its task to `completed`. If any check fails, the teammate re-engages on implementation. The `SubagentStop` hook re-checks the review checklist on idle and sends the teammate back to work (exit 2) if any item is unsatisfied.
 
+## Phase 3b — Solution-Requirement Intake (continuous, runs after every subagent idle)
+
+The architect-team pipeline runs as a closing loop: failed tests, drifted visuals, and surfaced bugs do not sit in handoff files waiting for manual triage — they spawn fresh dev-loop entries automatically.
+
+After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression failure, visual-fidelity drift, RCA product-bug verdict), the orchestrator MUST:
+
+1. **Walk `<cwd>/.architect-team/solution-requirements/`.** Read every `SR-*.json` file with `status: "open"`.
+2. **For each open SR:**
+   - Validate the required fields per `team-spawning-and-review-gates`'s `## Solution Requirements` schema. Any malformed SR → flag back to the writer (re-engage them with the schema requirement).
+   - If `affected_requirements` is populated → append/update entries in the active change's `coverage-map.json` referencing the SR ID. If empty → derive a new coverage-map entry from `acceptance_criteria` + `affected_screens` + `scope`.
+   - Spawn a Phase 2 fix team per `team-spawning-and-review-gates` rules, using `suggested_team` as the hint and `scope.files_to_change` as `files_owned`. The teammate manifest's `expected_review_evidence` includes the task ID generated for the fix. The fix team's brief includes the SR file path, verbatim `acceptance_criteria` (the originating failing test MUST be among them), and a pointer to the original failing test as the verification check.
+   - Update the SR: `status: "in_progress"`, add `spawned_teammate: "<name>"` and `spawned_at: "<ISO 8601 UTC>"`.
+3. **The fix flows through Phase 2 → Phase 3 → Phase 4 → Phase 5** as a normal dev-loop iteration. When the originating test reaches verdict `pass` at Phase 5, the orchestrator marks the SR `status: "resolved"` with `resolved_at` and `resolved_by` (commit SHA), then unblocks the ORIGINATING teammate's task (the one whose failure surfaced the SR). The originating teammate re-runs whatever they were waiting on; their loop converges.
+4. **Master review (Phase 7) walks every SR** and confirms each is `resolved` AND its acceptance criteria are reflected in a passing test in the coverage map. Any `open` or `in_progress` SR at Phase 7 is a coverage gap; re-spawn until resolved.
+
+This phase is NOT a manual step — it runs every time the orchestrator resumes (which the SubagentStop hook plus the harness's idle-resume already make automatic). The point is: there is NO state where an SR sits unactioned. The loop closes itself.
+
 ## Phase 4 — Reconciliation
 
 When two or more teammates have completed parallel work that touches a shared boundary (interfaces, schemas, generated types, contract files, shared modules):

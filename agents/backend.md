@@ -47,8 +47,8 @@ Apply `root-cause-test-failures` to every integration test:
 1. **Before running**, write `<test-output-dir>/expectations/<test-id>.json` capturing request payload, response assertions (status / shape / values), side-effect assertions (DB rows, queue messages, files), and audit-log assertions. The review-gate evidence file references it.
 2. **On failure**, run the 3-pass root-cause loop (forward data-flow trace → backward call-flow trace → alternative-hypotheses sweep) and produce `<test-output-dir>/rca/<test-id>-<ts>.json` with evidence at every node (file:line, captured payload paths, log excerpts).
 3. **Branch by category:**
-   - If the RCA identifies a `product-bug` UPSTREAM of your slice (e.g., a contract violation by a service you depend on, or a schema regression you cannot fix in your scope): escalate via `.architect-team/handoffs/backend-to-architect-rca-<test-id>-<ts>.md` with the RCA artifact reference. Do NOT patch around it inside your slice.
-   - If the RCA identifies a `product-bug` INSIDE your slice: fix it as a normal scoped task (the test failure is your spec-review failure).
+   - If the RCA identifies a `product-bug` UPSTREAM of your slice (e.g., a contract violation by a service you depend on, or a schema regression you cannot fix in your scope): escalate via `.architect-team/handoffs/backend-to-architect-rca-<test-id>-<ts>.md` with the RCA artifact reference AND write a solution requirement to `.architect-team/solution-requirements/SR-<test-id>-<ts>.json` per `team-spawning-and-review-gates`'s `## Solution Requirements` section. The orchestrator auto-spawns the upstream-team fix; the loop re-enters Phase 2 with your originating test as the convergence check. Do NOT patch around it inside your slice.
+   - If the RCA identifies a `product-bug` INSIDE your slice: fix it as a normal scoped task (the test failure is your spec-review failure). No SR needed — you ARE the fix team.
    - If `test-author-error`: correct the expectation file with a note on what the original got wrong; re-run.
    - If `environment` / `fixture-drift` / `race` / `cache`: document trigger + fix + prevention; re-run.
 

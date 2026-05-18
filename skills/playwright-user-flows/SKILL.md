@@ -419,7 +419,9 @@ The tests authored here are the test-authoring discipline. The strict POST-DEVEL
 
 ### Per-test expectations & failure handling
 
-For every Playwright test authored here, write a per-step expectation file BEFORE running the test, per `root-cause-test-failures`. The expectation file (`<test-output-dir>/expectations/<test-id>.json`) is the contract Phase B's root-cause loop measures against. On any test failure, do NOT propose a fix until the 3-pass root-cause loop from `root-cause-test-failures` has completed and produced an `rca/<test-id>-<ts>.json` artifact with evidence-backed root cause. Symptom patches, blind retries, and "probably-flaky" rationalizations are forbidden — escalate via the RCA handoff if a product bug is found.
+For every Playwright test authored here, write a per-step expectation file BEFORE running the test, per `root-cause-test-failures`. The expectation file (`<test-output-dir>/expectations/<test-id>.json`) is the contract Phase B's root-cause loop measures against. On any test failure, do NOT propose a fix until the 3-pass root-cause loop from `root-cause-test-failures` has completed and produced an `rca/<test-id>-<ts>.json` artifact with evidence-backed root cause. Symptom patches, blind retries, and "probably-flaky" rationalizations are forbidden.
+
+When the RCA verdict is `product-bug`, the failure-handler does NOT just escalate via a handoff — it ALSO writes a solution requirement to `<cwd>/.architect-team/solution-requirements/SR-<test-id>-<ts>.json` per `team-spawning-and-review-gates`'s `## Solution Requirements` section. The orchestrator picks the SR up automatically and spawns a fix team; the loop re-enters Phase 2 with the failing test as the convergence check. No alert sits idle.
 
 ## Phase C — Coverage verification (before submitting tests)
 

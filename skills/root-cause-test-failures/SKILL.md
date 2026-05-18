@@ -195,7 +195,17 @@ If the RCA category is `product-bug` (the code under test is wrong, not the test
    - Affected requirements: list every entry from `coverage-map.json` this breaks (so the architect can scope the fix correctly).
    - **Suggested area of investigation only — NOT a proposed fix.** The architect convenes the team to design the fix per the standard Phase 2 → Phase 5 dev loops.
 
-3. Signal idle. The orchestrator picks up the handoff, surfaces it to the user, convenes the team (per `architect-team-pipeline` Phase 2 spawn rules), and routes the fix through a new task ID with the full review-gate cycle. The failing test is re-run after the fix lands.
+3. **Write a solution requirement** (mandatory, not optional) per `team-spawning-and-review-gates`'s `## Solution Requirements` section to:
+
+   ```
+   <cwd>/.architect-team/solution-requirements/SR-<test-id>-<timestamp>.json
+   ```
+
+   This is the structured-JSON twin of the markdown handoff — same content, machine-readable. The orchestrator picks the SR up on its next pickup pass and AUTOMATICALLY spawns a Phase 2 fix team using `suggested_team`, `acceptance_criteria`, and `scope.files_to_change`. The originating failing test MUST appear in `acceptance_criteria` so the fix is only complete when the original failure converges to pass.
+
+   `origin.kind` is `"rca-product-bug"`. `evidence` includes the RCA artifact path. `acceptance_criteria` lists the test that surfaced the bug plus any related coverage-map requirements the fix must restore.
+
+4. Signal idle. The orchestrator picks up the SR (and the handoff for human context), spawns the fix team automatically, and routes the fix through Phase 2 → Phase 5 with the full review-gate cycle. The failing test is re-run as part of Phase 5; when it passes, the SR is marked `resolved` and the ORIGINATING teammate's task unblocks.
 
 If the RCA category is `test-author-error`:
 

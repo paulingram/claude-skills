@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] — 2026-05-18
+
+### Added (solution-requirement auto-spawn — closes the dev loop on surfaced issues)
+- `skills/team-spawning-and-review-gates/SKILL.md`: new section `## Solution Requirements — auto-spawn the dev loop on any surfaced issue`. Defines the `<cwd>/.architect-team/solution-requirements/SR-<short-id>-<ISO-8601-UTC>.json` schema: `solution_id`, `origin` (kind ∈ playwright-failure / integration-test-failure / live-dev-regression / visual-fidelity-drift / rca-product-bug / visual-qa-audit; discovered_in ∈ Phase 3 / Phase 5 / /architect-team:visual-qa / ad-hoc; discovered_by, test_id, rca_artifact, reconciliation_artifact, handoff_artifact), `problem_summary` (product-terms), `expected_behavior` (spec citation), `evidence` (file:line / log / screenshot / payload paths — non-empty), `affected_requirements`, `affected_screens`, `scope.files_to_change`, `scope.files_to_test`, `acceptance_criteria` (originating failing test MUST be among them), `suggested_team`, `blast_radius`, `priority` ∈ critical / high / medium / low, `status` ∈ open / in_progress / resolved. The orchestrator picks SRs up after every subagent idle, spawns Phase 2 fix teams automatically with the SR's acceptance criteria copied verbatim, and marks SRs `resolved` only when the originating test reaches verdict `pass`. The originating teammate's task unblocks at that point.
+- `skills/architect-team-pipeline/SKILL.md`: new Phase 3b — `Solution-Requirement Intake (continuous, runs after every subagent idle)`. The orchestrator walks `.architect-team/solution-requirements/*.json`, validates each open SR, updates the coverage map, spawns Phase 2 fix teams using `suggested_team` + `scope.files_to_change` + `acceptance_criteria`, marks SR `in_progress`. On Phase 5 test pass, SR → `resolved` with `resolved_at` + `resolved_by` commit SHA; originating teammate unblocks. Phase 7 master review walks every SR and confirms each is `resolved` with acceptance criteria in passing tests.
+- `skills/root-cause-test-failures/SKILL.md` Phase C: every `product-bug` RCA verdict now writes BOTH the handoff (human context) AND a solution requirement (machine-actionable; `origin.kind: "rca-product-bug"`). The originating failing test MUST appear in `acceptance_criteria`. Orchestrator spawns the fix team automatically.
+- `skills/visual-fidelity-reconciliation/SKILL.md` Phase E: every escalation (out-of-scope, implementation-extras, spec-ambiguity, cascade-blast-radius) writes BOTH the handoff AND the solution requirement (`origin.kind: "visual-fidelity-drift"`). Drift autonomously fixed-to-spec does NOT need an SR (fix happened in-loop).
+- `skills/playwright-user-flows/SKILL.md`: when a Playwright test fails with RCA verdict `product-bug`, the failure handler writes the SR alongside the RCA artifact. No alert sits idle.
+- `skills/dev-api-integration-testing/SKILL.md`: same pattern for integration tests against the live dev API — `product-bug` verdict triggers SR auto-spawn.
+- `agents/integration.md`: Phase 5 routing-failures now mandates SR writing alongside the handoff for every product-bug RCA verdict or visual-fidelity escalation. `origin.kind` enumerates the integration / live-dev / visual contexts.
+- `agents/frontend.md`: every visual-fidelity escalation case (the four named exceptions) writes an SR; non-escalation fixes happen in-loop without SR.
+- `agents/backend.md`: upstream-of-slice product-bug verdicts write SR to spawn the upstream-team fix; in-slice product-bugs are fixed normally (the teammate IS the fix team).
+
+### Why this matters (in one sentence)
+Alerts that don't trigger remediation are process failures — v0.7.0 makes every surfaced issue auto-spawn its own fix-team task with the originating test as the convergence check, so the loop closes itself instead of waiting for manual triage.
+
+### Released (v0.7.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.6.0` → `0.7.0`.
+
 ## [0.6.0] — 2026-05-18
 
 ### Added (design-fidelity-mapping: link inference for un-annotated interactive elements)

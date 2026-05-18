@@ -61,7 +61,8 @@ Per-test pass/fail must be reported to the orchestrator. On failure:
 - Run the 3-pass RCA loop first per `root-cause-test-failures` and produce the `rca/<test-id>-<ts>.json` artifact.
 - Identify the responsible team (backend / frontend / both) from the RCA root cause and the slice that owns the code.
 - Write `<cwd>/.architect-team/handoffs/integration-to-<team>-<failure-id>.md` REFERENCING the RCA artifact path and including: which test, what failed, the captured request/response, the evidence-backed root cause, and (if a product bug) the affected coverage-map requirements.
-- The cycle resumes at Phase 3 for that slice; the team consumes the RCA artifact as their starting context.
+- **For any product-bug RCA verdict OR visual-fidelity drift requiring escalation, ALSO write a solution requirement to `<cwd>/.architect-team/solution-requirements/SR-<test-id-or-screen>-<ts>.json` per `team-spawning-and-review-gates`'s `## Solution Requirements` schema.** This is non-optional. The SR is what the orchestrator picks up on its next pickup pass to auto-spawn the fix team. The handoff is for human context; the SR is for action. Set `origin.kind` to `"integration-test-failure"`, `"live-dev-regression"`, or `"visual-fidelity-drift"` depending on the trigger. `acceptance_criteria` MUST include the original failing test passing.
+- The cycle resumes at Phase 3 for that slice; the team consumes the SR + RCA artifact as their starting context. The original failing test is the convergence check.
 - Do not silently retry past failures. Each failure is a routed issue.
 
 ## Demo artifacts
