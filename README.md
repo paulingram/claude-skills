@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 8 . 0
+                       ─── T E A M ───   v 0 . 8 . 1
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -42,8 +42,8 @@
 ```
 ┌─ SKILLS (11) ───────────────────────┬─ AGENTS (10) ─────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect       (opus)   │
-│ ◇ intake-and-mapping                │ ◆ frontend               (sonnet) │
-│ ◇ reuse-first-design                │ ◆ backend                (sonnet) │
+│ ◇ intake-and-mapping                │ ◆ frontend               (opus)   │
+│ ◇ reuse-first-design                │ ◆ backend                (opus)   │
 │ ◇ frontend-route-mapping            │ ◆ reconciler             (opus)   │
 │ ◇ design-fidelity-mapping       *   │ ◆ integration            (sonnet) │
 │ ◇ visual-fidelity-reconciliation *  │ ◆ scaffold-agent         (sonnet) │
@@ -382,7 +382,8 @@ Tests validate: plugin/marketplace JSON; all 11 skill frontmatters; all 10 agent
            v0.5.0 ─ visual-fidelity-reconciliation + /visual-qa command
            v0.6.0 ─ link inference for un-annotated UI
            v0.7.0 ─ solution-requirement auto-spawn
-   ◆       v0.8.0 ─ auto-commit + push on clean pass (current)
+           v0.8.0 ─ auto-commit + push on clean pass
+   ◆       v0.8.1 ─ frontend + backend implementers on opus (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

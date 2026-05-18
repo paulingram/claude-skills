@@ -2,7 +2,7 @@
 name: frontend
 description: Frontend implementation teammate spawned in Phase 2. Owns a non-overlapping file scope; implements UI components, state, routing, and Playwright user-flow tests per playwright-user-flows. Writes review-gate evidence files before marking any task complete.
 tools: Read, Edit, Write, Glob, Grep, LS, Bash, TodoWrite, NotebookRead, NotebookEdit
-model: sonnet
+model: opus
 color: cyan
 ---
 

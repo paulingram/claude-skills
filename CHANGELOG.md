@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] — 2026-05-18
+
+### Changed (frontend + backend implementers now run opus)
+- `agents/frontend.md`: `model: sonnet` → `model: opus`. Frontend implementer is the Phase 2 developer for UI components, state, routing, Playwright user-flow tests, and (when DESIGN_MAP.md exists) visual-fidelity reconciliation with fix-to-spec convergence. Opus is the right tier for the judgment calls this role makes — reuse-decision adherence, state-conditional UI logic, accessibility, design-tokens resolution across cascade layers, and the visual-fidelity decision matrix.
+- `agents/backend.md`: `model: sonnet` → `model: opus`. Backend implementer is the Phase 2 developer for endpoints, business logic, services, DB migrations, and live dev-API integration tests. Opus matches the judgment required for contract design, side-effect verification across DB / queue / cache / audit layers, error-response coverage, and idempotency reasoning.
+- `docs/CODEBASE_MAP.md` agent table + mermaid: model column updated to `opus` for both. `README.md` agent inventory grid updated to `(opus)` for both.
+
+### Why
+Both implementer roles operate inside hook-enforced review gates (Phase 3 evidence with 9 required fields), produce auditable test artifacts (RCA, reconciliation reports, expectations files), and must converge to spec on every drift. The judgment-density of those workflows benefits from Opus's stronger reasoning vs Sonnet — best-in-class coding for the developers that actually ship the product.
+
+### Cost note
+Opus is materially more expensive per token than Sonnet. For teams running the full pipeline frequently, the Phase 2 spawn cost roughly doubles compared to v0.8.0. The trade is intentional — better code on the first pass costs less than fixing slipped drift in subsequent passes — but worth being explicit about.
+
+### Released (v0.8.1)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.8.0` → `0.8.1`.
+
 ## [0.8.0] — 2026-05-18
 
 ### Added (auto-commit + push at end of clean pass — opt-out via flags)

@@ -41,8 +41,8 @@ graph TB
 
     subgraph "Named Agents"
         AG_SA["system-architect (opus)"]
-        AG_FE["frontend (sonnet)"]
-        AG_BE["backend (sonnet)"]
+        AG_FE["frontend (opus)"]
+        AG_BE["backend (opus)"]
         AG_REC["reconciler (opus)"]
         AG_INT["integration (sonnet)"]
         AG_SCAFFOLD["scaffold-agent (sonnet)"]
@@ -198,8 +198,8 @@ Dependencies: every auxiliary skill + every agent + `openspec` CLI + `cartograph
 | Agent | File | Model | Color | Tools | One-line purpose |
 |---|---|---|---|---|---|
 | system-architect | `agents/system-architect.md` | opus | blue | Read, Grep, Glob, LS, NotebookRead, Bash, WebFetch, WebSearch, TodoWrite | On-demand architectural recommendations; analysis-only, no Edit/Write. |
-| frontend | `agents/frontend.md` | sonnet | cyan | Read, Edit, Write, Glob, Grep, LS, Bash, TodoWrite, NotebookRead, NotebookEdit | Phase 2 frontend implementer; mandatory Playwright workflow. |
-| backend | `agents/backend.md` | sonnet | green | Read, Edit, Write, Glob, Grep, LS, Bash, TodoWrite, NotebookRead, NotebookEdit | Phase 2 backend implementer; live dev-API integration tests. |
+| frontend | `agents/frontend.md` | opus | cyan | Read, Edit, Write, Glob, Grep, LS, Bash, TodoWrite, NotebookRead, NotebookEdit | Phase 2 frontend implementer; mandatory Playwright workflow. v0.8.1 bumped sonnet → opus for best-in-class coding. |
+| backend | `agents/backend.md` | opus | green | Read, Edit, Write, Glob, Grep, LS, Bash, TodoWrite, NotebookRead, NotebookEdit | Phase 2 backend implementer; live dev-API integration tests. v0.8.1 bumped sonnet → opus for best-in-class coding. |
 | reconciler | `agents/reconciler.md` | opus | orange | Read, Grep, Glob, LS, Bash, Edit, Write, TodoWrite | Phase 4 conflict resolution; no feature code. |
 | integration | `agents/integration.md` | sonnet | magenta | Read, Edit, Write, Glob, Grep, LS, Bash, TodoWrite, NotebookRead, NotebookEdit, WebFetch | Phase 5 cross-layer; live dev API + Playwright. |
 | scaffold-agent | `agents/scaffold-agent.md` | sonnet | purple | Read, Glob, Write, Edit, Bash, TodoWrite, WebFetch | Generates new agent files. |
