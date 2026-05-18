@@ -15,6 +15,7 @@ EXPECTED_SKILLS: set[str] = {
     "coverage-mapping",
     "team-spawning-and-review-gates",
     "root-cause-test-failures",
+    "design-fidelity-mapping",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

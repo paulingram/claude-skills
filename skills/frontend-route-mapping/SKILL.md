@@ -105,6 +105,10 @@ Reviewers must spot-check by sampling components and confirming claims.
 - `last_routed` is set by the route-mapper at write time, ISO 8601 UTC.
 - The intake skill compares it against `git -C <codebase> log -1 --format=%cI`. Doc older than the latest commit → re-run the route-mapper. The agent uses git diff to scope the update.
 
+## Companion artifact: DESIGN_MAP.md (conditional)
+
+When design artifacts are present in `$REQ_DIR` (screenshots, Figma exports) OR design tokens / Storybook / assets exist in the codebase, the route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill. ROUTE_MAP.md captures STRUCTURAL surface (routes, navigation, API calls, modals); DESIGN_MAP.md captures VISUAL surface (design tokens, asset registry, per-screen visual specs, detected drift). Both are produced in the same Phase −1B pass when applicable; DESIGN_MAP.md's absence is not a gap when no design inputs exist.
+
 ## Anti-patterns to reject
 
 | Rationalization | Rebuttal |

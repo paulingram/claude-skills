@@ -8,7 +8,7 @@ Full design: [`docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md
 
 ## What you get
 
-- **9 skills** — orchestrator (`architect-team-pipeline`), intake-and-mapping, reuse-first-design, frontend-route-mapping, playwright-user-flows, dev-api-integration-testing, coverage-mapping, team-spawning-and-review-gates, root-cause-test-failures.
+- **10 skills** — orchestrator (`architect-team-pipeline`), intake-and-mapping, reuse-first-design, frontend-route-mapping, design-fidelity-mapping (conditional — activates when screenshots / Figma / design tokens / Storybook / assets exist), playwright-user-flows, dev-api-integration-testing, coverage-mapping, team-spawning-and-review-gates, root-cause-test-failures.
 - **10 agents** — system-architect, frontend, backend, reconciler, integration, scaffold-agent, codebase-map-reviewer, integration-explorer, master-synthesizer, route-mapper.
 - **2 commands** — `/architect-team <path>` (main), `/architect-team-setup` (one-time).
 - **2 hooks** — `PostToolUse(TaskUpdate)` + `SubagentStop` enforce review gates.
@@ -204,6 +204,7 @@ The pipeline is a stack of seven nested loops, each with explicit exit criteria.
 
 - `<codebase>/docs/CODEBASE_MAP.md` — cartographer's output (`last_mapped` frontmatter).
 - `<codebase>/docs/ROUTE_MAP.md` — route-mapper's output for frontends (`last_routed` frontmatter).
+- `<codebase>/docs/DESIGN_MAP.md` — route-mapper's design-fidelity output for frontends WHEN design inputs are present (`last_designed` frontmatter). Captures design tokens, asset registry with SHA-256 hashes, per-screen visual specs (typography / color / spacing / layout / asset placement), and detected drift between design source and implementation.
 - `<workspace>/docs/INTEGRATION_MAP.md` — master-synthesizer's output (`last_synthesized` frontmatter).
 - `<workspace>/.architect-team/intake-state.json` — re-entry short-circuit state.
 - `<workspace>/.architect-team/reviews/<task-id>.json` — per-task review-gate evidence.

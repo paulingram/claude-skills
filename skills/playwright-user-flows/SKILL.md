@@ -320,6 +320,101 @@ Use Playwright storage state files (`page.context().storageState({ path })`). Ne
 
 Configure `trace: 'retain-on-failure'`. Failure traces go into the review-gate evidence file as artifact paths.
 
+### Visual-fidelity tests (when DESIGN_MAP.md exists)
+
+If `<codebase>/docs/DESIGN_MAP.md` exists, author a parallel layer of **visual-fidelity tests** alongside the user-journey tests. These tests assert that every interactive element's COMPUTED STYLE, BOUNDING BOX, and ASSET REFERENCE matches the per-screen visual specs in the design map. Naming follows the user-intent convention — describe what the user perceives, not the assertion mechanic.
+
+#### Computed-style assertions
+
+For each row in DESIGN_MAP.md's `## Per-Screen Visual Specs` table, assert the spec via `element.evaluate`:
+
+```typescript
+test('user_sees_brand_primary_button_on_login_page', async ({ page }) => {
+  await page.goto('/login');
+  const submit = page.getByRole('button', { name: 'Sign in' });
+  const styles = await submit.evaluate(el => {
+    const cs = window.getComputedStyle(el);
+    return {
+      fontFamily: cs.fontFamily,
+      fontSize: cs.fontSize,
+      fontWeight: cs.fontWeight,
+      color: cs.color,
+      backgroundColor: cs.backgroundColor,
+      paddingTop: cs.paddingTop,
+      paddingRight: cs.paddingRight,
+      paddingBottom: cs.paddingBottom,
+      paddingLeft: cs.paddingLeft,
+      borderRadius: cs.borderRadius,
+      boxShadow: cs.boxShadow,
+    };
+  });
+  expect(styles.fontFamily).toContain('Inter');
+  expect(styles.fontSize).toBe('14px');
+  expect(styles.fontWeight).toBe('600');
+  expect(styles.color).toBe('rgb(255, 255, 255)');
+  expect(styles.backgroundColor).toBe('rgb(37, 99, 235)'); // brand.primary.500 = #2563EB
+  expect(styles.borderRadius).toBe('6px');
+});
+```
+
+Browser color values normalize to `rgb()` (or `rgba()`); convert hex from DESIGN_MAP.md to rgb for the assertion. Maintain a single helper that does the conversion (`hexToRgb('#2563EB') → 'rgb(37, 99, 235)'`) so tests stay readable.
+
+#### Bounding-box assertions (with tolerance)
+
+```typescript
+const box = await submit.boundingBox();
+expect(box?.width).toBeGreaterThanOrEqual(238); // ±2px tolerance from spec width 240
+expect(box?.width).toBeLessThanOrEqual(242);
+expect(box?.height).toBeGreaterThanOrEqual(38);
+expect(box?.height).toBeLessThanOrEqual(42);
+```
+
+Default tolerance is ±2px for any dimension; tighten or loosen per-element only with a recorded rationale in the test comment. Set viewport explicitly with `page.setViewportSize(...)` to match the viewport declared in DESIGN_MAP.md's frontmatter, otherwise different CI hosts produce different bounding boxes.
+
+#### Asset reference assertions
+
+For every `<img>` / `<svg use href>` / `background-image` referenced in DESIGN_MAP.md's Asset Registry:
+
+```typescript
+test('user_sees_brand_logo_top_left_on_login_page', async ({ page }) => {
+  await page.goto('/login');
+  const logo = page.getByRole('img', { name: /acme|brand/i });
+  await expect(logo).toBeVisible();
+  const src = await logo.getAttribute('src');
+  expect(src).toBe('/images/logo.svg'); // matches Asset Registry path
+  const response = await page.request.get(new URL(src!, page.url()).toString());
+  expect(response.status()).toBe(200);
+  // Optional SHA-256 verification:
+  // const buf = await response.body();
+  // expect(crypto.createHash('sha256').update(buf).digest('hex')).toBe('a3f1...');
+});
+```
+
+If DESIGN_MAP.md records a SHA-256 hash for the asset, the test SHOULD verify it. Hash mismatches detect accidental asset overwrites that visual snapshots might miss.
+
+#### Snapshot regression (primary viewport only)
+
+Use sparingly and with explicit masks for time-sensitive UI:
+
+```typescript
+test('user_sees_login_page_layout_as_designed', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/login');
+  await expect(page).toHaveScreenshot('login-empty-1440.png', {
+    maxDiffPixelRatio: 0.01,
+    mask: [page.getByTestId('current-time'), page.getByTestId('cookie-banner')],
+  });
+});
+```
+
+One snapshot per primary viewport declared in DESIGN_MAP.md is sufficient. Don't snapshot every responsive breakpoint — computed-style assertions cover the breakpoint-specific values precisely. Snapshots regress on layout / pixel; computed styles regress on intentional values. Both signals matter and aren't redundant.
+
+#### Drift handling
+
+If DESIGN_MAP.md's `## Detected Drift` flags a known disagreement between design and implementation, the visual-fidelity test should assert against whichever value the team decided to ship — captured in the Phase 1 spec validation as either "fix the code" (test asserts the DESIGN value) or "fix the design / accept the drift" (test asserts the IMPLEMENTATION value, with a `// drift: see DESIGN_MAP.md#detected-drift row N` comment).
+
+Never assert against both values, and never write a test against an undeclared drift — that hides the decision instead of forcing it.
+
 ### Per-test expectations & failure handling
 
 For every Playwright test authored here, write a per-step expectation file BEFORE running the test, per `root-cause-test-failures`. The expectation file (`<test-output-dir>/expectations/<test-id>.json`) is the contract Phase B's root-cause loop measures against. On any test failure, do NOT propose a fix until the 3-pass root-cause loop from `root-cause-test-failures` has completed and produced an `rca/<test-id>-<ts>.json` artifact with evidence-backed root cause. Symptom patches, blind retries, and "probably-flaky" rationalizations are forbidden — escalate via the RCA handoff if a product bug is found.

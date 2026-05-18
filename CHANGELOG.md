@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] — 2026-05-18
+
+### Added (new skill: design-fidelity-mapping)
+- `skills/design-fidelity-mapping/SKILL.md`: new conditional skill that activates when design artifacts are present (screenshots / Figma exports / design tokens file / Storybook / brand docs / `assets/` directory) and produces `<codebase>/docs/DESIGN_MAP.md` per the schema. Sections: Design Tokens (color palette, typography, spacing, radii, shadows, borders, breakpoints, z-index, motion — each with citations to source AND codebase file:line), Asset Registry (every static image / icon / illustration / font with path / purpose / dimensions / size / SHA-256 hash / variants / alt text / where-referenced), Per-Screen Visual Specs (per-element computed-style spec for every interactive element on every designed screen, plus asset placement diagrams and responsive breakpoint deltas), Theme Variants, Detected Drift (every disagreement between design source and implementation captured explicitly), Coverage & Gaps (with `escalate: true` flag for the orchestrator). The skill is skipped (correctly) when no design inputs exist — absence of DESIGN_MAP.md is not a gap in that case.
+
+### Added (route-mapper agent extended)
+- `agents/route-mapper.md`: agent now additionally produces DESIGN_MAP.md when design inputs are detected. New process steps cover reading screenshot/mockup images via the multimodal Read tool, parsing tokens files (`tailwind.config.{js,ts}` / `tokens.json` / `theme.ts` / `styles/tokens.css`), walking assets directories with SHA-256 hashing (`sha256sum` on Unix / `certutil -hashfile` on Windows), reading Storybook stories for component state variants, cross-referencing implementation values against design source values into `## Detected Drift`. New hard rules forbid silent skipping of designed screens, inventing precise values not grep-able from code or readable from the design, and omitting SHA-256 hashes from the registry. Update mode added for DESIGN_MAP.md (mtime-based freshness against `$REQ_DIR/designs/`, tokens file, and assets directory).
+
+### Added (codebase-map-reviewer extended)
+- `agents/codebase-map-reviewer.md`: now also reviews DESIGN_MAP.md when present. Spot-checks include SHA-256 verification on a sample of assets and grep-confirmation of design tokens against the codebase tokens file. New rule: if design inputs exist but DESIGN_MAP.md is absent → deficiency; if no design inputs → not a deficiency. Verdict JSON `map` enum now includes `"design"`.
+
+### Added (playwright-user-flows visual-fidelity tests)
+- `skills/playwright-user-flows/SKILL.md`: new "Visual-fidelity tests" subsection in Phase B (activates when DESIGN_MAP.md exists). Authors a parallel layer of tests asserting computed styles, bounding boxes (±2px default tolerance), asset references with optional SHA-256 verification, and primary-viewport snapshot regression with explicit masks. Test naming follows the user-intent convention (`test_user_sees_brand_primary_button_on_login_page`, NOT `test_submit_button_has_correct_background_color`). Drift-handling rule: tests assert against the value the team decided to ship per the Phase 1 spec validation, never against both, never against undeclared drift.
+
+### Added (intake-and-mapping cross-reference)
+- `skills/intake-and-mapping/SKILL.md`: Step 3 (route-mapper) updated to note conditional DESIGN_MAP.md production. Reviewers are explicitly told NOT to flag absence of DESIGN_MAP.md when no design inputs exist; when design inputs DO exist, all three docs (CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP) are reviewed together by the 3-reviewer ralph loop.
+
+### Added (frontend-route-mapping cross-reference)
+- `skills/frontend-route-mapping/SKILL.md`: new "Companion artifact: DESIGN_MAP.md (conditional)" section clarifying the structural-vs-visual split between the two artifacts and the conditional production rule.
+
+### Added (README + CODEBASE_MAP)
+- `README.md`: "What you get" bumped 9 → 10 skills with the new design-fidelity-mapping listed as conditional. "Document conventions" lists DESIGN_MAP.md with its purpose and frontmatter.
+- `docs/CODEBASE_MAP.md`: targeted refresh for v0.4.0 — skill count, file count, mermaid diagram with new SK_DESIGN node, directory tree, module guide entry, test count.
+
+### Added (test coverage)
+- `tests/test_skills.py`: `EXPECTED_SKILLS` now includes `design-fidelity-mapping`; parametrized skill tests bumped from 10 to 11. Total test count: 77 (up from 76).
+
+### Released (v0.4.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.3.0` → `0.4.0`.
+
 ## [0.3.0] — 2026-05-17
 
 ### Added (new skill: root-cause-test-failures)

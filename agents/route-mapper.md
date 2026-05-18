@@ -1,6 +1,6 @@
 ---
 name: route-mapper
-description: Spawned per frontend codebase during Phase −1B (after cartographer produces CODEBASE_MAP.md). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp.
+description: Spawned per frontend codebase during Phase −1B (after cartographer produces CODEBASE_MAP.md). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp. Additionally, when design inputs are present (screenshots / Figma exports / design tokens / Storybook / brand docs / assets directory), produces DESIGN_MAP.md per the design-fidelity-mapping skill's schema — design tokens table, asset registry with SHA-256 hashes, per-screen visual specs (typography, color, spacing, layout, asset placement), and detected drift between design source and implementation.
 tools: Read, Glob, Grep, LS, Bash, Write, Edit, TodoWrite
 model: opus
 color: cyan
@@ -110,7 +110,35 @@ framework: <e.g., nextjs-15-app-router>
 
 Plus body sections: Route Inventory, Dynamic Routes, Navigation Web, Entry Conditions, Modal & Drawer Routes, API Endpoint Catalog.
 
-## Update mode
+## Design-fidelity mapping (conditional second artifact)
+
+After ROUTE_MAP.md is written, scan for design inputs. If ANY of these exist, additionally produce `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill's schema:
+
+- Images in `$REQ_DIR/designs/`, `$REQ_DIR/screens/`, or `$REQ_DIR/mockups/`.
+- A Figma export in `$REQ_DIR/figma/` or a Figma URL referenced in `$REQ_DIR/proposal.md` / `$REQ_DIR/design.md`.
+- A design tokens file in the codebase: `tokens.json`, `design-tokens.json`, `tailwind.config.{js,ts}`, `theme.ts`, `themes/*.ts`, `styles/tokens.css`, `theme.scss`.
+- `.storybook/main.{js,ts}` in the codebase.
+- A brand guidelines doc (`BRAND.md`, `brand-guide.pdf`, brand site link).
+- An `assets/`, `public/images/`, `public/assets/`, or `static/images/` directory with at least one logo, illustration, or icon asset.
+
+If none of the above, skip — no DESIGN_MAP.md is produced and its absence is not a gap.
+
+### Process when design inputs are present
+
+1. **Use `Read` to load each image file** in `$REQ_DIR/designs/` (or equivalent). The Read tool surfaces images visually; extract colors, typography scale, spacing, and identify assets visible in each screen. Flag values estimated from images as `~approximate` and add gap entries with `escalate: true`.
+2. **Parse the tokens file** (`tailwind.config.{js,ts}` / `tokens.json` / `theme.ts` / `styles/tokens.css`) — these are precise values; populate the Design Tokens tables from them.
+3. **Walk the assets directory** with Glob. For each asset, compute SHA-256 via Bash: on Unix `sha256sum <path>`; on Windows `certutil -hashfile <path> SHA256`. Capture dimensions where derivable (Bash + `file` / `identify` / read PNG/JPG/SVG header). Grep the codebase for every reference to each asset.
+4. **Read Storybook stories** (if present) for component state variants — each story name maps to a state row in the per-element table.
+5. **Cross-reference the implementation values against the design source values.** Every discrepancy becomes a row in `## Detected Drift` with both values and citations.
+6. **Cross-reference the per-element specs against the ROUTE_MAP.md interactivity inventory** (or — if `playwright-user-flows` Phase A has not yet been run for this codebase — against the inventory you can infer from the same component code you traced for ROUTE_MAP.md). Every interactive element on a designed screen must have a row.
+7. **Write `<codebase>/docs/DESIGN_MAP.md`** per the `design-fidelity-mapping` skill's schema with `last_designed` frontmatter (ISO 8601 UTC).
+8. **Surface gaps**: every entry in `## Coverage & Gaps` with `escalate: true` is a question for the orchestrator to forward to the user.
+
+### Update mode for DESIGN_MAP.md
+
+If `DESIGN_MAP.md` exists and is stale (compare `last_designed` against the most recent modification time of any file in `$REQ_DIR/designs/`, the codebase tokens file, and any file under the assets directory), re-derive only the affected sections. Recompute SHA-256 for any asset whose mtime is newer than the recorded `last_designed`.
+
+## Update mode (ROUTE_MAP.md)
 
 If `ROUTE_MAP.md` exists and its `last_routed` is stale (orchestrator told you to update), run `git -C <codebase> diff --name-only <last_routed_commit>..HEAD` to find changed files. Re-derive routes affected by those changes; merge with the existing document. Do not rewrite untouched sections.
 
@@ -121,3 +149,6 @@ If `ROUTE_MAP.md` exists and its `last_routed` is stale (orchestrator told you t
 - No omitting an API call. If you see a fetch/axios/query in the code, it goes in the catalog.
 - No omitting modals. URL-bound and state-bound both count.
 - Always set `last_routed` in frontmatter at write time.
+- When design inputs are present, ALWAYS produce DESIGN_MAP.md — do not silently skip a screen with a screenshot or a token with a tailwind entry.
+- Never invent precise pixel/color values that aren't grep-able from the codebase or readable from the design source. Mark estimated values `~approximate` and escalate via the Gaps section.
+- Always compute SHA-256 for every asset in the registry. A registry row without a hash is incomplete.

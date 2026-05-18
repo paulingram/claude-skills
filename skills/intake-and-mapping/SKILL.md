@@ -50,6 +50,8 @@ Trigger the `cartographer` plugin's own flow against the codebase. It produces `
 
 For codebases classified as frontend or fullstack, additionally spawn the `route-mapper` agent. It produces `<codebase>/docs/ROUTE_MAP.md` with `last_routed` frontmatter per the `frontend-route-mapping` skill's schema.
 
+The route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill IF AND ONLY IF design inputs exist (screenshots/Figma in `$REQ_DIR`, design tokens / Storybook / assets in the codebase). The codebase-map-reviewers MUST NOT flag the absence of DESIGN_MAP.md when no design inputs exist — it is intentionally conditional. When design inputs DO exist, all three docs (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP) are reviewed together by the 3-reviewer ralph loop.
+
 ### Step 4: Review ralph loop (exit string "CODEBASE MAP COMPLETE")
 
 Wrap the review in:
