@@ -56,11 +56,11 @@ Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
 
 The teammate writes this BEFORE its `TaskUpdate` flips the task to `completed`. The `PostToolUse(TaskUpdate)` hook reads it and exits 2 (blocks completion) if it's missing or any field is invalid.
 
-Schema:
+Schema (v2 — v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "T-12",
   "teammate": "backend-auth",
   "completed_at": "<ISO 8601 UTC>",
@@ -76,7 +76,9 @@ Schema:
   },
   "demo_artifact": "curl -X POST http://dev.local/api/auth/login -d '{\"email\":\"t@t.com\",\"password\":\"...\"}'",
   "files_changed": ["src/auth/login.py", "src/auth/__init__.py", "tests/auth/test_login.py"],
-  "reuse_compliance": "ok"
+  "reuse_compliance": "ok",
+  "visual_fidelity_review": "n/a",
+  "visual_fidelity_review_note": "backend-only slice; no frontend files touched"
 }
 ```
 
@@ -89,6 +91,8 @@ Required field validity:
 - `demo_artifact` must be a non-empty string.
 - `files_changed` must be a non-empty array.
 - `reuse_compliance` must be `"ok"`.
+- `visual_fidelity_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — drift / gaps detected by `visual-fidelity-reconciliation` MUST be escalated via handoff, not marked complete. Re-run reconciliation after the architect-routed fix and only mark complete when verdict is `"pass"`.
+- `visual_fidelity_review_note` is required (non-empty string) WHEN `visual_fidelity_review == "n/a"`. It must explain which branch applies (no frontend touched, OR no DESIGN_MAP.md exists for the codebase). Not required when value is `"pass"` (the reconciliation JSON paths carry the evidence).
 
 Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry.
 

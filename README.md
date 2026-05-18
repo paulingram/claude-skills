@@ -8,9 +8,9 @@ Full design: [`docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md
 
 ## What you get
 
-- **10 skills** — orchestrator (`architect-team-pipeline`), intake-and-mapping, reuse-first-design, frontend-route-mapping, design-fidelity-mapping (conditional — activates when screenshots / Figma / design tokens / Storybook / assets exist), playwright-user-flows, dev-api-integration-testing, coverage-mapping, team-spawning-and-review-gates, root-cause-test-failures.
+- **11 skills** — orchestrator (`architect-team-pipeline`), intake-and-mapping, reuse-first-design, frontend-route-mapping, design-fidelity-mapping (conditional — activates when screenshots / Figma / design tokens / Storybook / assets exist), visual-fidelity-reconciliation (hook-enforced post-development QA against DESIGN_MAP.md), playwright-user-flows, dev-api-integration-testing, coverage-mapping, team-spawning-and-review-gates, root-cause-test-failures.
 - **10 agents** — system-architect, frontend, backend, reconciler, integration, scaffold-agent, codebase-map-reviewer, integration-explorer, master-synthesizer, route-mapper.
-- **2 commands** — `/architect-team <path>` (main), `/architect-team-setup` (one-time).
+- **3 commands** — `/architect-team <path>` (main pipeline), `/architect-team-setup` (one-time setup), `/architect-team:visual-qa [<codebase-path>]` (on-demand visual fidelity reconciliation).
 - **2 hooks** — `PostToolUse(TaskUpdate)` + `SubagentStop` enforce review gates.
 - **Cross-platform setup script** — `scripts/setup/setup.py` installs openspec CLI, pytest/httpx, Playwright + chromium.
 

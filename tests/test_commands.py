@@ -8,6 +8,7 @@ from tests.helpers import frontmatter
 EXPECTED_COMMANDS: set[str] = {
     "architect-team",
     "architect-team-setup",
+    "visual-qa",
 }
 
 REQUIRED_KEYS = {"description"}

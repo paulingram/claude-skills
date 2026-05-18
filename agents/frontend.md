@@ -40,6 +40,25 @@ Read the Reuse Decisions for your slice from `design.md`. Every file you create 
    - Write `<cwd>/.architect-team/reviews/<task-id>.json` per the evidence schema.
    - Then call `TaskUpdate` to mark complete. The `PostToolUse(TaskUpdate)` hook will verify the evidence.
 
+## Visual-fidelity reconciliation (mandatory before marking complete when DESIGN_MAP.md exists)
+
+If `<codebase>/docs/DESIGN_MAP.md` exists for the codebase you're working in AND your `files_changed` includes any frontend file (`.tsx` / `.jsx` / `.vue` / `.svelte` / `.astro` / `.css` / `.scss` / `.less` / `.module.css` / Tailwind config / theme tokens / Storybook stories / asset files), apply `visual-fidelity-reconciliation` BEFORE writing the review-gate evidence:
+
+1. **Phase A** — identify which screens are in-scope from your file changes (component imports cascade; token-file changes cascade to ALL screens).
+2. **Phase B (code-first)** — read each affected component, resolve every styling layer (inline / Tailwind / CSS modules / CSS-in-JS / theme variables) to its concrete value, and statically compare to the DESIGN_MAP spec. Verify asset SHA-256s match the Asset Registry.
+3. **Phase C (runtime)** — Playwright at each viewport from DESIGN_MAP frontmatter; induce every state (default / hover / focus / active / disabled / loading / error / empty); capture computed styles + bounding box + per-state element screenshot + per-viewport full-page screenshot for every in-scope tuple.
+4. **Phase D** — write a reconciliation JSON per (screen, viewport) with zero-tolerance comparison. Aggregate into `<cwd>/.architect-team/visual-fidelity-summary-<ts>.md`.
+5. **Phase E remediation — fix to spec by default.** For any tuple with verdict `drift` or `gap`, consult the decision matrix in `visual-fidelity-reconciliation`'s Phase E:
+   - **Drift in a file you own** → fix the className / inline style / token / asset reference to produce the spec value. Re-run Phase B + Phase C for the affected tuples. Loop until `perfect`.
+   - **Gap: spec describes an element NOT rendered** → add the JSX / state binding so the element renders per the spec.
+   - **Gap: implementation has an element NOT in spec** → escalate (user must decide whether to add to spec or remove from implementation).
+   - **Drift in a file OUTSIDE your scope** → escalate to the team that owns the file (identified via `git log`).
+   - **Spec ambiguity** (token referenced but undefined, contradictory specs) → escalate to clarify the spec first.
+   - **Cascade blast radius** (the fix converts one drift into many drifts because dependent screens relied on the wrong value) → escalate to the architect-team.
+   Each escalation handoff names the specific decision-matrix case that triggered it.
+6. **Verdict** — re-run reconciliation after every fix iteration. When every tuple is `perfect`, set `visual_fidelity_review: "pass"` in your review-gate evidence and reference the reconciliation JSON(s) (including all `passes_after_fix` iterations) in `demo_artifact`. Only when the discipline cannot converge autonomously (one of the four escalation cases above applies) set `visual_fidelity_review: "fail"` and write the escalation handoff; signal idle and wait for the architect-routed clarification, then re-run reconciliation to `pass` before marking complete.
+7. If no DESIGN_MAP.md exists OR no frontend file was touched, set `visual_fidelity_review: "n/a"` AND `visual_fidelity_review_note: "<one-sentence reason>"`.
+
 ## Per-test expectations & failure handling
 
 Apply `root-cause-test-failures` to every Playwright test:
@@ -67,3 +86,7 @@ Apply `root-cause-test-failures` to every Playwright test:
 - No running a Playwright test without its expectation file already on disk per `root-cause-test-failures`.
 - No "the test is probably flaky" — run the 3-pass RCA loop and either identify the root cause with evidence or escalate.
 - No defensive UI fallbacks (e.g., "Welcome, " when name is null) inserted to make a failing test pass — that is a symptom patch hiding an upstream contract bug. Escalate the RCA instead.
+- No marking complete with `visual_fidelity_review: "fail"` — the hook blocks it. The default workflow is fix-to-spec → re-run → `pass`. `"fail"` is only correct when one of the four named escalation cases applies (out-of-scope, implementation-extras, spec-ambiguity, cascade-blast-radius).
+- No alerting the user about drift without first attempting the fix. The discipline converges to the spec; alerting-without-fixing is a process failure.
+- No reconciliation at a viewport other than what DESIGN_MAP.md declares. Different viewport = different verdict.
+- No fix that introduces NEW drift elsewhere. After any fix, re-run reconciliation on EVERY screen the changed file/token cascades to (not just the screen that surfaced the drift). Convergence to spec across all affected screens is the bar.

@@ -27,7 +27,10 @@ REQUIRED_EVIDENCE_FIELDS = {
     "demo_artifact",
     "files_changed",
     "reuse_compliance",
+    "visual_fidelity_review",
 }
+
+VALID_VISUAL_FIDELITY_VALUES = {"pass", "n/a", "fail"}
 
 
 def _safe_id(value: str) -> str | None:
@@ -175,6 +178,28 @@ def _validate(evidence: dict[str, Any]) -> list[str]:
     files = evidence.get("files_changed")
     if not isinstance(files, list) or not files:
         gaps.append("files_changed must be a non-empty array")
+
+    vfr = evidence.get("visual_fidelity_review")
+    if vfr not in VALID_VISUAL_FIDELITY_VALUES:
+        gaps.append(
+            f"visual_fidelity_review={vfr!r} must be one of "
+            f"{sorted(VALID_VISUAL_FIDELITY_VALUES)}"
+        )
+    elif vfr == "fail":
+        gaps.append(
+            "visual_fidelity_review='fail' — drift or gaps detected by "
+            "visual-fidelity-reconciliation MUST be escalated via handoff to the "
+            "architect-team, not marked complete. Re-run reconciliation after the "
+            "architect-routed fix lands and only mark complete when verdict is 'pass'."
+        )
+    elif vfr == "n/a":
+        note = evidence.get("visual_fidelity_review_note")
+        if not isinstance(note, str) or not note.strip():
+            gaps.append(
+                "visual_fidelity_review='n/a' requires a non-empty "
+                "visual_fidelity_review_note explaining why (no frontend files "
+                "touched, OR no DESIGN_MAP.md exists for the codebase)"
+            )
 
     return gaps
 

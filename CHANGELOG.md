@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] — 2026-05-18
+
+### Added (new skill: visual-fidelity-reconciliation)
+- `skills/visual-fidelity-reconciliation/SKILL.md`: hook-enforced post-development QA discipline. Mandates zero-tolerance defaults (0px / exact color / exact font / exact spacing / exact shadow) per (screen, element, state, viewport) tuple and exhaustive state walks (default / hover / focus / active / disabled / loading / error / empty + every responsive viewport). **DESIGN_MAP.md is the agreed contract; drift is FIXED to align to the spec, not just escalated.** Phase B code-first static analysis resolves every styling layer (inline / Tailwind / CSS modules / CSS-in-JS / theme variables / cascade) to its concrete value and compares to DESIGN_MAP spec; verifies asset SHA-256s. Phase C runtime verification: Playwright at each viewport, induce each state, capture computed styles + bounding box + per-state element screenshot + per-viewport full-page screenshot. Phase D produces a structured reconciliation JSON per (screen, viewport) plus an aggregated summary. Phase E remediation follows an explicit decision matrix: fix-to-spec for drift in in-scope files (the default); escalate only on four narrow exceptions (out-of-scope file, implementation-has-element-not-in-spec, spec-ambiguity, cascade-blast-radius). Every escalation handoff names which decision-matrix case applied — handoffs without that name are alerts, not escalations.
+
+### Added (new slash command: /architect-team:visual-qa)
+- `commands/visual-qa.md`: on-demand visual fidelity audit. Workflow: (1) discover frontend codebases from intake-state.json or `$ARGUMENTS`, (2) freshness-check DESIGN_MAP.md against the latest commit on frontend files + design input mtimes + tokens/assets mtimes — refresh via route-mapper if stale, (3) apply visual-fidelity-reconciliation across all designed screens, (4) emit structured PASS / DRIFT_DETECTED / GAPS_DETECTED report with handoff paths. Designed for invocation at any point post-development, not just at Phase 3 / 5.
+
+### Added (hook enforcement: visual_fidelity_review evidence field)
+- `hooks/review-gate-task.py`: new required evidence field `visual_fidelity_review` accepting `"pass"` / `"n/a"` / `"fail"`. `"fail"` is blocked at the gate — drift / gaps must escalate via handoff to the architect-team, not be marked complete. `"n/a"` requires a non-empty `visual_fidelity_review_note` justifying which branch applies (no frontend touched OR no DESIGN_MAP.md exists). `"pass"` allows completion. Evidence schema bumped v1 → v2.
+- `tests/test_review_gate_task.py`: 4 new test cases (parametrized) + 4 single tests cover every branch of the new validation: pass, fail (block), missing field (block), invalid values (parametrized over 5 invalid strings, block), n/a-without-note (parametrized over None / "" / "   ", block). `_valid_evidence` helper now returns schema_version 2 with `visual_fidelity_review: "n/a"` + a non-empty note so existing tests remain valid.
+
+### Added (review-gate evidence schema v2)
+- `skills/team-spawning-and-review-gates/SKILL.md`: evidence schema bumped to v2 with `visual_fidelity_review` and conditional `visual_fidelity_review_note` documented. Each value's semantic + the hook-enforced rules are explicit.
+
+### Added (Phase 3 + Phase 5 wiring)
+- `skills/architect-team-pipeline/SKILL.md` Phase 3: review checklist item 8 added — visual-fidelity reconciliation passed when frontend was touched per `visual-fidelity-reconciliation`. Hook enforces via `visual_fidelity_review` field.
+- `skills/architect-team-pipeline/SKILL.md` Phase 5: integration agent now runs visual-fidelity reconciliation as a regression sweep across ALL designed screens (not just touched ones), catching token-cascade and upstream-component drift.
+- `agents/frontend.md`: new "Visual-fidelity reconciliation" mandatory pre-completion section + 4 new hard rules forbidding inline-patching drift, marking-complete-with-fail, wrong-viewport reconciliation.
+- `agents/integration.md`: new "Visual-fidelity regression sweep" section + 2 new hard rules covering Phase 5 obligations.
+
+### Changed (playwright-user-flows bounding-box default tolerance)
+- `skills/playwright-user-flows/SKILL.md`: bounding-box assertions default tolerance changed from ±2px to 0px (exact). Per-element overrides require an explicit `tolerance:` clause in DESIGN_MAP.md with recorded rationale. Cross-reference added to `visual-fidelity-reconciliation` for the strict post-development discipline.
+
+### Added (test coverage)
+- `tests/test_skills.py`: `EXPECTED_SKILLS` includes `visual-fidelity-reconciliation`.
+- `tests/test_commands.py`: `EXPECTED_COMMANDS` includes `visual-qa`.
+
+### Released (v0.5.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.4.0` → `0.5.0`.
+
 ## [0.4.0] — 2026-05-18
 
 ### Added (new skill: design-fidelity-mapping)

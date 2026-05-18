@@ -49,7 +49,7 @@ def _make_payload(task_id: str, status: str) -> dict:
 
 def _valid_evidence(task_id: str) -> dict:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "task_id": task_id,
         "teammate": "backend-test",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -60,6 +60,8 @@ def _valid_evidence(task_id: str) -> dict:
         "demo_artifact": "curl http://example",
         "files_changed": ["src/x.py"],
         "reuse_compliance": "ok",
+        "visual_fidelity_review": "n/a",
+        "visual_fidelity_review_note": "backend-only slice; no frontend files touched",
     }
 
 
@@ -266,3 +268,83 @@ def test_exits_two_when_evidence_json_malformed(script: Path, workspace: Path) -
     r = _run(script, workspace, _make_payload("T-14", "completed"))
     assert r.returncode == 2
     assert "T-14" in r.stderr
+
+
+# v0.5.0 — visual-fidelity-reconciliation enforcement
+
+
+def test_exits_zero_when_visual_fidelity_pass(script: Path, workspace: Path) -> None:
+    """v0.5.0: visual_fidelity_review='pass' is a valid completion."""
+    _write_manifest(workspace, "frontend-test", ["T-V1"])
+    ev = _valid_evidence("T-V1")
+    ev["visual_fidelity_review"] = "pass"
+    ev.pop("visual_fidelity_review_note", None)  # note not required when value is "pass"
+    (workspace / ".architect-team" / "reviews" / "T-V1.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-V1", "completed"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_exits_two_when_visual_fidelity_fail(script: Path, workspace: Path) -> None:
+    """v0.5.0: visual_fidelity_review='fail' must block — teammate must escalate."""
+    _write_manifest(workspace, "frontend-test", ["T-V2"])
+    ev = _valid_evidence("T-V2")
+    ev["visual_fidelity_review"] = "fail"
+    (workspace / ".architect-team" / "reviews" / "T-V2.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-V2", "completed"))
+    assert r.returncode == 2
+    assert "visual_fidelity_review" in r.stderr
+    assert "escalate" in r.stderr.lower() or "handoff" in r.stderr.lower()
+
+
+def test_exits_two_when_visual_fidelity_missing(script: Path, workspace: Path) -> None:
+    """v0.5.0: visual_fidelity_review field absent entirely must block."""
+    _write_manifest(workspace, "frontend-test", ["T-V3"])
+    ev = _valid_evidence("T-V3")
+    ev.pop("visual_fidelity_review", None)
+    ev.pop("visual_fidelity_review_note", None)
+    (workspace / ".architect-team" / "reviews" / "T-V3.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-V3", "completed"))
+    assert r.returncode == 2
+    assert "visual_fidelity_review" in r.stderr
+
+
+@pytest.mark.parametrize("invalid_value", ["yes", "true", "ok", "passed", ""])
+def test_exits_two_when_visual_fidelity_invalid_value(
+    script: Path, workspace: Path, invalid_value: str
+) -> None:
+    """v0.5.0: visual_fidelity_review must be one of pass / n/a / fail."""
+    _write_manifest(workspace, "frontend-test", ["T-V4"])
+    ev = _valid_evidence("T-V4")
+    ev["visual_fidelity_review"] = invalid_value
+    (workspace / ".architect-team" / "reviews" / "T-V4.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-V4", "completed"))
+    assert r.returncode == 2
+    assert "visual_fidelity_review" in r.stderr
+
+
+@pytest.mark.parametrize("missing_or_empty", [None, "", "   "])
+def test_exits_two_when_visual_fidelity_na_without_note(
+    script: Path, workspace: Path, missing_or_empty
+) -> None:
+    """v0.5.0: visual_fidelity_review='n/a' requires a non-empty justification note."""
+    _write_manifest(workspace, "frontend-test", ["T-V5"])
+    ev = _valid_evidence("T-V5")
+    ev["visual_fidelity_review"] = "n/a"
+    if missing_or_empty is None:
+        ev.pop("visual_fidelity_review_note", None)
+    else:
+        ev["visual_fidelity_review_note"] = missing_or_empty
+    (workspace / ".architect-team" / "reviews" / "T-V5.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-V5", "completed"))
+    assert r.returncode == 2
+    assert "visual_fidelity_review_note" in r.stderr or "n/a" in r.stderr

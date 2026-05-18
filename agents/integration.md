@@ -27,6 +27,22 @@ If `ROUTE_MAP.md` is stale (per the `intake-and-mapping` freshness check), reque
 2. For each backend acceptance criterion: write/run an integration test per `dev-api-integration-testing` (real DB, real queue, real cache; verify shape + side effects; cover every error response; per-test data prefix; idempotent).
 3. Capture full request/response on failure for debugging.
 
+## Visual-fidelity regression sweep (mandatory when any frontend codebase has DESIGN_MAP.md)
+
+Before declaring Phase 5 complete, run `visual-fidelity-reconciliation` across EVERY designed screen in every in-scope frontend codebase — not just screens touched by the most-recent team. Phase 5 is the regression net for drift introduced upstream (token cascade, sibling-team component edit, theme refactor).
+
+1. For each frontend codebase with a `DESIGN_MAP.md`, run the full reconciliation (Phase A → Phase E in the skill).
+2. Code-first AND runtime — never skip either.
+3. Per-state element screenshots + per-viewport full-page screenshots are evidence; they go into the Phase 5 report.
+4. **For any drift / gap, fix to spec by default** per Phase E's decision matrix:
+   - Drift in any frontend file accessible to Phase 5 (you're a cross-layer agent — your scope is broader than any single team) → **fix the implementation** to match DESIGN_MAP, re-run reconciliation, verify `perfect`.
+   - Gap: spec has an element NOT rendered → add the JSX / binding to make it render per spec.
+   - Gap: implementation has an element NOT in spec → escalate (this is the user-decision branch).
+   - Spec ambiguity (token referenced but undefined, contradictory specs) → escalate to clarify the spec first.
+   - Cascade blast radius (fixing one drift introduces drift in dependent screens) → escalate to the architect-team.
+5. **When a fix is applied**, identify the team that originated the drift via `git log -p --since=<last_designed>` on the affected files. Write a heads-up handoff to that team (`integration-to-<team>-visual-drift-fixed-<screen>-<ts>.md`) noting what was fixed and why their next change should match the corrected spec. This is informational, not blocking.
+6. **When escalation is the correct path** (one of the four named cases), write `integration-to-architect-visual-<reason>-<screen>-<ts>.md` per the skill's escalation rules, naming which decision-matrix case applied.
+
 ## Per-test expectations & failure handling (mandatory)
 
 Apply `root-cause-test-failures` to EVERY test you run — Playwright OR live-dev integration:
@@ -63,3 +79,7 @@ For frontend slices: capture the Playwright trace path for the happy-path test.
 - No proposing a test fix without running the 3-pass root-cause loop and writing the RCA artifact.
 - No "probably flaky" rationalization — either identify the race / fixture / env trigger with evidence (and document the prevention strategy), or escalate via the RCA handoff.
 - No running a test without its `expectations/<test-id>.json` file already on disk.
+- No declaring Phase 5 done when any frontend codebase with a DESIGN_MAP.md has not been visual-fidelity-reconciled. Code-first + runtime + screenshots are required.
+- No alerting-without-fixing. Drift in any in-scope file gets fixed to spec; Phase 5 escalates only for the four named cases (out-of-scope-of-the-pipeline, implementation-extras, spec-ambiguity, cascade-blast-radius).
+- No fix that introduces NEW drift elsewhere. After every fix, re-run reconciliation across all screens the change cascades to.
+- No silent re-run after a fix — every iteration is recorded in the reconciliation JSON's `passes_after_fix` for audit.

@@ -359,17 +359,15 @@ test('user_sees_brand_primary_button_on_login_page', async ({ page }) => {
 
 Browser color values normalize to `rgb()` (or `rgba()`); convert hex from DESIGN_MAP.md to rgb for the assertion. Maintain a single helper that does the conversion (`hexToRgb('#2563EB') → 'rgb(37, 99, 235)'`) so tests stay readable.
 
-#### Bounding-box assertions (with tolerance)
+#### Bounding-box assertions (zero-tolerance default)
 
 ```typescript
 const box = await submit.boundingBox();
-expect(box?.width).toBeGreaterThanOrEqual(238); // ±2px tolerance from spec width 240
-expect(box?.width).toBeLessThanOrEqual(242);
-expect(box?.height).toBeGreaterThanOrEqual(38);
-expect(box?.height).toBeLessThanOrEqual(42);
+expect(box?.width).toBe(240); // EXACT — DESIGN_MAP spec width 240
+expect(box?.height).toBe(40);
 ```
 
-Default tolerance is ±2px for any dimension; tighten or loosen per-element only with a recorded rationale in the test comment. Set viewport explicitly with `page.setViewportSize(...)` to match the viewport declared in DESIGN_MAP.md's frontmatter, otherwise different CI hosts produce different bounding boxes.
+**Default tolerance is 0px (EXACT match).** Per-element overrides require an explicit `tolerance:` clause in DESIGN_MAP.md for that element with a recorded rationale (e.g., `tolerance: { width: 1px, rationale: "sub-pixel rounding observed across browser engines; not user-perceivable" }`). Silent slop is forbidden — see `visual-fidelity-reconciliation` for the strict-QA contract enforced at the review gate. Set viewport explicitly with `page.setViewportSize(...)` to match the viewport declared in DESIGN_MAP.md's frontmatter, otherwise different CI hosts produce different bounding boxes (which IS the bug, not a flake).
 
 #### Asset reference assertions
 
@@ -414,6 +412,10 @@ One snapshot per primary viewport declared in DESIGN_MAP.md is sufficient. Don't
 If DESIGN_MAP.md's `## Detected Drift` flags a known disagreement between design and implementation, the visual-fidelity test should assert against whichever value the team decided to ship — captured in the Phase 1 spec validation as either "fix the code" (test asserts the DESIGN value) or "fix the design / accept the drift" (test asserts the IMPLEMENTATION value, with a `// drift: see DESIGN_MAP.md#detected-drift row N` comment).
 
 Never assert against both values, and never write a test against an undeclared drift — that hides the decision instead of forcing it.
+
+#### Strict QA at the review gate
+
+The tests authored here are the test-authoring discipline. The strict POST-DEVELOPMENT QA discipline — zero-tolerance comparison of every (screen, element, state, viewport) tuple against DESIGN_MAP.md with per-state screenshots, code-first analysis, and architect-team escalation on any drift — is enforced separately by `visual-fidelity-reconciliation`. That skill is hook-enforced (the `visual_fidelity_review` field in review-gate evidence) and is what runs before any frontend task can be marked complete when DESIGN_MAP.md exists. On-demand audits use the `/architect-team:visual-qa` command.
 
 ### Per-test expectations & failure handling
 
