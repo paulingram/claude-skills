@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] — 2026-05-17
+
+### Added (new skill: root-cause-test-failures)
+- `skills/root-cause-test-failures/SKILL.md`: new mandatory discipline for every Playwright user-flow test and every live dev-API integration test. Three disciplines: (1) predict expected behavior in `<test-output-dir>/expectations/<test-id>.json` BEFORE the test runs, (2) refuse to rationalize a failure — every proposed cause must be evidence-backed, (3) run the 3-pass root-cause loop on every failure (forward data-flow trace → backward call-flow trace → alternative-hypotheses sweep). Produces structured `<test-output-dir>/rca/<test-id>-<ts>.json` with file:line evidence at every hypothesis. Phase C escalation routes `product-bug` findings to the architect via `.architect-team/handoffs/<team>-to-architect-rca-<test-id>-<ts>.md`; `test-author-error` updates the prediction; `env/fixture/race/cache` documents trigger + fix + prevention. Validated by RED/GREEN pressure tests against a simulated failing login test — RED rationalized to one cause in 15 min with symptom-patch SQL fix; GREEN ran all 3 passes, caught a second defect (Banner async-state race) RED missed entirely, refused to inline-fix, escalated via handoff.
+
+### Added (playwright-user-flows hardening — validated by pressure tests)
+- `skills/playwright-user-flows/SKILL.md`: substantial expansion.
+  - New Phase A **Step 0: Identify users and objectives** — four mandatory questions (who / what goal / starting context / success-visible) before reading any code. Includes `user-intent/<feature>.json` schema, "Where to look first" priority list, and a structured escalation question template for when intent cannot be derived from source artifacts. Subagent-context escalation routes via `.architect-team/handoffs/`.
+  - **PROCEED test** — operationalizes "high confidence" by requiring quote-citation for every persona, goal, and success-visible from a source artifact. Result rule is binary: every entry citable → proceed; any one inferred → escalate. Added after pressure testing surfaced that GREEN agents would invent personas while claiming high confidence (Spirit-vs-Letter loophole).
+  - **Tell-tale signs you are inferring, not knowing** — red-flag list (generic role labels not in source, "most likely" interpretation of ambiguous nouns, UI-shaped goal labels, "obviously right" interpretations, persona-describable-but-not-quote-citable, map richer than the brief). Re-test verified PROCEED + tell-tale signs now catch the inference.
+  - New Phase A **Step 6: Build the user-journey map** — bridges inventory mechanics to user-goal tests via a `journeys/<feature>.json` schema.
+  - Phase B reframed: tests organized by user journey, not by inventory entry. New "Test naming reflects user intent" subsection with Yes/No examples. New **State-guard tests** sub-subsection covering disabled-button / loading-spinner / empty-state naming (the secondary slip-through caught in pressure testing).
+  - Phase C coverage check split into user-intent (highest priority) and mechanical layers; gap policy is binary (declare in `out_of_scope[]` with rationale OR escalate).
+  - Nine new anti-pattern rows including the "I can plausibly infer" rationalization, "label personas with role names and move on", the state-guard naming exception, and "user-intent map is overhead — I'll keep it in my head".
+  - Step 2 enumeration tightened into exhaustive categories (links / buttons / form inputs / overlays / drag-touch / keyboard / conditional gates / implicit interactions) with cross-reference back to user-intent tags.
+  - Added "Per-test expectations & failure handling" section pointing at the new `root-cause-test-failures` skill.
+
+### Added (dev-api-integration-testing wiring)
+- `skills/dev-api-integration-testing/SKILL.md`: added "Per-test expectations & failure handling" section mandating expectation files before every integration test and the 3-pass RCA loop on any failure.
+
+### Added (RCA wiring across pipeline and agents)
+- `skills/architect-team-pipeline/SKILL.md`:
+  - Phase 3 review checklist: added item 7 — expectation file per test AND RCA artifact for any failed test (guesses, retries, and symptom patches blocked at the review gate).
+  - Phase 5: integration agent now mandated to follow `root-cause-test-failures` for every test, never silently retry, never patch symptoms; product-bug findings escalate to orchestrator via RCA handoff and a fresh Phase 2 → Phase 5 cycle is spawned for the fix.
+- `agents/integration.md`: new "Per-test expectations & failure handling" section, "Routing failures" updated to reference the RCA artifact, and 2 new hard rules forbidding fix-without-RCA and "probably flaky" rationalization.
+- `agents/backend.md`: new "Per-test expectations & failure handling" section + 2 new hard rules forbidding symptom patches and "probably flaky".
+- `agents/frontend.md`: same as backend, plus rejection of defensive UI fallbacks in place of upstream fixes.
+
+### Added (README — Loops & acceptance criteria documentation)
+- `README.md`: new "Loops & acceptance criteria" section between Usage and Document conventions, documenting all 7 nested loops in execution order (Per-codebase mapping, Integration mapping, Planning validation, Per-task review gate, Cross-layer integration, Outer task-group loop, Master review meta-loop). Each loop has wrapper / mechanism / exit criteria / iteration cap / references-to-source-skills.
+- `README.md`: new Loop 4b documenting the 3-pass RCA loop with all exit criteria, escalation branches by RCA category, and explicit anti-rationalization list.
+- `README.md`: bumped "What you get" from 8 skills to 9.
+
+### Added (test coverage)
+- `tests/test_skills.py`: `EXPECTED_SKILLS` now includes `root-cause-test-failures`; parametrized skill tests bumped from 9 to 10. Total test count: 76 (up from 75 in v0.2.5).
+
+### Released (v0.3.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.2.5` → `0.3.0`.
+
 ## [0.2.5] — 2026-05-16
 
 ### Fixed

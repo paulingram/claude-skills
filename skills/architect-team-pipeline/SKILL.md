@@ -117,6 +117,7 @@ The review must confirm:
 4. **Coverage map satisfied for this team's slice.** Every requirement assigned to this team maps to passing tests.
 5. **Demonstrable feature.** The teammate produces a short demo: a curl/HTTP example or invocation script for backend; a Playwright trace for frontend.
 6. **Reuse-first compliance.** Every file the teammate created or modified matches a Reuse Decision in `design.md`. No silent new files. Grep the diff for new file paths and verify each is sanctioned.
+7. **Expectation files exist per test, and any failed test has been root-caused per `root-cause-test-failures`.** Each test in the teammate's slice references an `expectations/<test-id>.json` file produced BEFORE the test ran. Any failing test produced an `rca/<test-id>-<ts>.json` with three completed passes and an evidence-backed root cause — guesses, retries, and symptom patches are blocked here.
 
 Teammate writes `<cwd>/.architect-team/reviews/<task-id>.json` per the schema in `team-spawning-and-review-gates` BEFORE any `TaskUpdate` flips its task to `completed`. If any check fails, the teammate re-engages on implementation. The `SubagentStop` hook re-checks the review checklist on idle and sends the teammate back to work (exit 2) if any item is unsatisfied.
 
@@ -138,7 +139,8 @@ When a feature spans both layers, integration only begins after **both** layer-t
 1. Spawn an **Integration Agent** (Superpowers-driven, fresh context, using the `integration` subagent definition).
 2. The Integration Agent runs the full integration test suite locally first, then **against the development API with live dev data** — not mocks. Connection details come from the OpenSpec design artifact. Follow `dev-api-integration-testing`.
 3. For any front-end deployment or front-end change, the Integration Agent **must** use Playwright to author and run user-flow tests against the **real running development environment** per the `playwright-user-flows` skill — log in as a real user, click buttons, fill forms, navigate flows, assert visible state. Flows and pass criteria come directly from the Phase 1 acceptance criteria.
-4. The Integration Agent reports per-test pass/fail. The team cannot proceed to the next task group until every defined criterion passes. On failure, the Integration Agent routes back to the responsible team(s) and the cycle resumes at Phase 3 for that slice.
+4. **Every test (Playwright and integration) must have a per-step expectation file written BEFORE the test runs, per `root-cause-test-failures`.** On any failure, the Integration Agent runs the mandatory 3-pass root-cause loop and either fixes the expectation (test-author error), the env / fixture (env category), or escalates to the orchestrator via an RCA handoff (product bug). The Integration Agent NEVER silently retries a test, never proposes a fix without an evidence-backed root cause, and never patches symptoms.
+5. The Integration Agent reports per-test pass/fail. The team cannot proceed to the next task group until every defined criterion passes. On failure routed back to a responsible team, the cycle resumes at Phase 3 for that slice — and the team must consume the RCA handoff as the starting context for the fix.
 
 ## Phase 6 — Outer Loop
 

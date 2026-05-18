@@ -27,13 +27,25 @@ If `ROUTE_MAP.md` is stale (per the `intake-and-mapping` freshness check), reque
 2. For each backend acceptance criterion: write/run an integration test per `dev-api-integration-testing` (real DB, real queue, real cache; verify shape + side effects; cover every error response; per-test data prefix; idempotent).
 3. Capture full request/response on failure for debugging.
 
+## Per-test expectations & failure handling (mandatory)
+
+Apply `root-cause-test-failures` to EVERY test you run — Playwright OR live-dev integration:
+
+1. **Before each test:** write `<test-output-dir>/expectations/<test-id>.json` capturing the per-step DOM state / URL / API request+response / side-effects. The review-gate evidence you produce references it.
+2. **On any failure:** do NOT propose a fix and do NOT retry. Run the 3-pass root-cause loop (forward data-flow trace → backward call-flow trace → alternative-hypotheses sweep), produce `<test-output-dir>/rca/<test-id>-<ts>.json` with evidence-backed root cause and explicit falsification of every alternative hypothesis.
+3. **Branch by RCA category:**
+   - `product-bug` → write the escalation handoff `.architect-team/handoffs/integration-to-architect-rca-<test-id>-<ts>.md` (product-terms summary, reproduction recipe, affected coverage-map requirements, suggested area of investigation only — NOT a proposed fix). Signal idle. The orchestrator routes the fix back through Phase 2 → Phase 5 with a new task ID.
+   - `test-author-error` → correct the expectation file, document why the original was wrong, re-run.
+   - `environment` / `fixture-drift` / `race` / `cache` → document the trigger, the fix, AND a prevention strategy (test / check / CI guard); re-run.
+
 ## Routing failures
 
 Per-test pass/fail must be reported to the orchestrator. On failure:
 
-- Identify the responsible team (backend / frontend / both, based on which assertion failed and which slice owns the code).
-- Write `<cwd>/.architect-team/handoffs/integration-to-<team>-<failure-id>.md` describing: which test, what failed, the captured request/response, the inferred root cause.
-- The cycle resumes at Phase 3 for that slice.
+- Run the 3-pass RCA loop first per `root-cause-test-failures` and produce the `rca/<test-id>-<ts>.json` artifact.
+- Identify the responsible team (backend / frontend / both) from the RCA root cause and the slice that owns the code.
+- Write `<cwd>/.architect-team/handoffs/integration-to-<team>-<failure-id>.md` REFERENCING the RCA artifact path and including: which test, what failed, the captured request/response, the evidence-backed root cause, and (if a product bug) the affected coverage-map requirements.
+- The cycle resumes at Phase 3 for that slice; the team consumes the RCA artifact as their starting context.
 - Do not silently retry past failures. Each failure is a routed issue.
 
 ## Demo artifacts
@@ -48,3 +60,6 @@ For frontend slices: capture the Playwright trace path for the happy-path test.
 - No silent retry on test failure — failures route back.
 - No declaring Phase 5 done with any coverage gap.
 - No ignoring a stale ROUTE_MAP.md — refresh first.
+- No proposing a test fix without running the 3-pass root-cause loop and writing the RCA artifact.
+- No "probably flaky" rationalization — either identify the race / fixture / env trigger with evidence (and document the prevention strategy), or escalate via the RCA handoff.
+- No running a test without its `expectations/<test-id>.json` file already on disk.

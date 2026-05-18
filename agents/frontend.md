@@ -40,6 +40,18 @@ Read the Reuse Decisions for your slice from `design.md`. Every file you create 
    - Write `<cwd>/.architect-team/reviews/<task-id>.json` per the evidence schema.
    - Then call `TaskUpdate` to mark complete. The `PostToolUse(TaskUpdate)` hook will verify the evidence.
 
+## Per-test expectations & failure handling
+
+Apply `root-cause-test-failures` to every Playwright test:
+
+1. **Before running**, write `<test-output-dir>/expectations/<test-id>.json` capturing the per-step DOM state, URL, API request/response, and side-effects you expect. The review-gate evidence file references it.
+2. **On failure**, run the 3-pass root-cause loop (forward data-flow trace → backward call-flow trace → alternative-hypotheses sweep) and produce `<test-output-dir>/rca/<test-id>-<ts>.json` with evidence-backed root cause and explicit falsification of every alternative hypothesis.
+3. **Branch by category:**
+   - If the RCA identifies a `product-bug` OUTSIDE your slice (e.g., the backend returns a contract-violating response, or another team's component owns the broken element): escalate via `.architect-team/handoffs/frontend-to-architect-rca-<test-id>-<ts>.md` with the RCA artifact reference. Do NOT patch around it in your component.
+   - If the RCA identifies a `product-bug` INSIDE your slice: fix it as a normal scoped task.
+   - If `test-author-error`: correct the expectation file with a note on what the original got wrong; re-run.
+   - If `environment` / `fixture-drift` / `race` / `cache`: document trigger + fix + prevention; re-run.
+
 ## Coordination
 
 - If you need a contract / type / API shape that another teammate owns: wait for the handoff at `.architect-team/handoffs/<other>-to-<you>.md`. Do not invent the shape.
@@ -52,3 +64,6 @@ Read the Reuse Decisions for your slice from `design.md`. Every file you create 
 - No new file without a Reuse Decision.
 - No Playwright test that bypasses user simulation by calling APIs directly.
 - No "I'll come back to this" — finish each task fully or escalate the blocker.
+- No running a Playwright test without its expectation file already on disk per `root-cause-test-failures`.
+- No "the test is probably flaky" — run the 3-pass RCA loop and either identify the root cause with evidence or escalate.
+- No defensive UI fallbacks (e.g., "Welcome, " when name is null) inserted to make a failing test pass — that is a symptom patch hiding an upstream contract bug. Escalate the RCA instead.

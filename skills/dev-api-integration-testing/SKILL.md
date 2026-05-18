@@ -62,6 +62,10 @@ Every test must be runnable twice in a row without failing on the second run. If
 
 This is non-negotiable — flaky tests rot the whole suite.
 
+## Per-test expectations & failure handling
+
+For every integration test (local OR live-dev), write a per-step expectation file BEFORE running the test, per `root-cause-test-failures`. The expectation file (`<test-output-dir>/expectations/<test-id>.json`) captures the request payload, response assertions (status / shape / values), side-effect assertions (DB rows, queue messages, files), and audit-log assertions — all of which are mandated above. On any failure, do NOT propose a fix until the 3-pass root-cause loop has run and produced an evidence-backed `rca/<test-id>-<ts>.json` artifact. "It's probably flaky" is forbidden — either identify the race / fixture / env trigger with evidence, or escalate via the RCA handoff if a product bug is found.
+
 ## Test naming
 
 - Pattern: `test_<endpoint>_<scenario>` (e.g., `test_post_projects_creates_with_owner`, `test_post_projects_401_when_unauthenticated`).

@@ -40,6 +40,18 @@ Every file you create or modify must correspond to a Reuse Decision in `design.m
    - Write `<cwd>/.architect-team/reviews/<task-id>.json`.
    - Then `TaskUpdate` to complete. Hook validates.
 
+## Per-test expectations & failure handling
+
+Apply `root-cause-test-failures` to every integration test:
+
+1. **Before running**, write `<test-output-dir>/expectations/<test-id>.json` capturing request payload, response assertions (status / shape / values), side-effect assertions (DB rows, queue messages, files), and audit-log assertions. The review-gate evidence file references it.
+2. **On failure**, run the 3-pass root-cause loop (forward data-flow trace → backward call-flow trace → alternative-hypotheses sweep) and produce `<test-output-dir>/rca/<test-id>-<ts>.json` with evidence at every node (file:line, captured payload paths, log excerpts).
+3. **Branch by category:**
+   - If the RCA identifies a `product-bug` UPSTREAM of your slice (e.g., a contract violation by a service you depend on, or a schema regression you cannot fix in your scope): escalate via `.architect-team/handoffs/backend-to-architect-rca-<test-id>-<ts>.md` with the RCA artifact reference. Do NOT patch around it inside your slice.
+   - If the RCA identifies a `product-bug` INSIDE your slice: fix it as a normal scoped task (the test failure is your spec-review failure).
+   - If `test-author-error`: correct the expectation file with a note on what the original got wrong; re-run.
+   - If `environment` / `fixture-drift` / `race` / `cache`: document trigger + fix + prevention; re-run.
+
 ## Coordination
 
 - If your work changes a contract that another teammate consumes (frontend, another backend service): publish the change at the agreed contract path AND write `<cwd>/.architect-team/handoffs/<you>-to-<consumer>.md` describing the diff.
@@ -52,3 +64,6 @@ Every file you create or modify must correspond to a Reuse Decision in `design.m
 - No new file without a Reuse Decision.
 - No integration test that mocks the DB, queue, or cache — those are part of the system under test.
 - No endpoint that ships without coverage of every documented error response.
+- No running a test without its expectation file already on disk per `root-cause-test-failures`.
+- No "the test is probably flaky" — run the 3-pass RCA loop and either identify the root cause with evidence or escalate.
+- No symptom patches (try/catch, null-check, retry-with-backoff) in place of an upstream fix when the RCA identifies a product bug. The RCA's Pass 2 exists specifically to find the upstream cause.
