@@ -115,6 +115,7 @@ If `overall != PASS` (DRIFT_DETECTED or GAPS_DETECTED — drift required escalat
 - NEVER amend the previous commit.
 - If `git push` fails, surface the error clearly and stop — do NOT escalate to force-push.
 - If the working tree had unstaged user changes BEFORE this command ran, do NOT stage them; surface their presence in the report.
+- **NEVER schedule arbitrary wall-clock wakeups (`ScheduleWakeup`), cron jobs (`CronCreate`), or background timer tools from inside the visual-qa run.** The audit is synchronous and runs in one continuous flow. Subagent dispatches block your turn at the harness level. Polling for dev-server readiness uses a tight in-turn loop, NOT a scheduled wakeup that ends the turn. Do NOT respond to the user with "I scheduled a wakeup" or "I'll come back later" — surface the actual blocker instead.
 
 ## Step 5 — Report to the user
 

@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.2] — 2026-05-18
+
+### Fixed (pipeline discipline — no arbitrary wall-clock wakeups / timers)
+
+User reported that the orchestrator was responding mid-run with deferral language like *"Honest answer: not this exact second — I'd scheduled it as a clean-break wakeup ~22 min out. Since you're asking, I'm not going to wait on that timer — resuming the controlled E2E now."* That behavior was a discipline failure: the pipeline is synchronous, subagent dispatches block the orchestrator's turn at the harness level, and there is no scenario inside a pipeline phase where scheduling a deferred wakeup is appropriate. v0.9.2 closes that loophole.
+
+- `skills/architect-team-pipeline/SKILL.md` — Operating rules section: two new non-negotiable bullets.
+  - First bullet explicitly names `ScheduleWakeup`, `CronCreate`, and `PushNotification` as forbidden tools from inside the pipeline (reserved for `/loop` dynamic mode + user-requested cron triggers only). Clarifies that subagent dispatch is the only "wait" needed (harness blocks the orchestrator's turn until the subagent finishes). Clarifies that `/ralph-loop` and `/loop` manage their own cadence — do not stack timer delays on top. Permits tight bounded in-turn polls for external resources (dev server, build, deploy) — forbids scheduled wakeups that end the turn.
+  - Second bullet bans the verbatim user-facing failure mode: "I scheduled a wakeup for N minutes" and "I'll come back to this later" — directs the orchestrator to surface the actual blocker instead (external state being polled, teammate that needs re-spawning, missing input, manual decision required).
+  - Reinforced the existing "Wait for teammates" rule with explicit "harness-managed, synchronous" framing so the rule doesn't get misread as "schedule something and pause."
+
+- `commands/architect-team.md` — Safety rules: new bullet mirrors the pipeline-skill prohibition with command-level scope. Explicitly names the forbidden tools and the forbidden user-facing phrasing. Permits tight bounded polls for external readiness checks.
+
+- `commands/visual-qa.md` — Safety rules: same prohibition added to the visual-qa run discipline. Notes that polling for dev-server readiness uses a tight in-turn loop, not a scheduled wakeup.
+
+### Tests
+- `tests/test_no_arbitrary_timers.py` — new file. Parametrized structural test asserts the prohibition phrase + named tools (`ScheduleWakeup`, `CronCreate`) appear in the pipeline skill body + both command files. Dedicated test confirms the pipeline skill contains the verbatim "scheduled a wakeup" and "I'll come back to this later" prohibition strings so future edits can't silently drop the discipline.
+
+### Why a documentation rule (not hook enforcement)
+The orchestrator is the top-level Claude session — there is no hook that gates the model's tool calls at that layer (hooks fire on subagent stop / task update / pre-tool, but not on the orchestrator's own ScheduleWakeup invocation). The defense is therefore disciplinary: the rule is documented in the skill the orchestrator follows + the commands that invoke the skill, and the structural tests ensure the rule stays present on every release.
+
+### Released (v0.9.2)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.1` → `0.9.2`.
+
 ## [0.9.1] — 2026-05-18
 
 ### Added (auto-compact prompt at end of pipeline / visual-qa runs — opt-out via --no-compact)
