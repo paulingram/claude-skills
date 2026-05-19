@@ -17,6 +17,7 @@ EXPECTED_SKILLS: set[str] = {
     "root-cause-test-failures",
     "design-fidelity-mapping",
     "visual-fidelity-reconciliation",
+    "diagnostic-research-team",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.3] — 2026-05-19
+
+### Added (diagnostic-research-team — 3 researchers + architect review before fix-team spawn)
+
+When a failing test escalates to the orchestrator via a solution requirement (origin.kind ∈ {`rca-product-bug`, `playwright-failure`, `integration-failure`, `test-completeness-failure`, `visual-fidelity-cascade`}), the orchestrator now triggers a fresh diagnostic pass BEFORE spawning the Phase 2 fix team — three parallel researchers map the full code flow + theorize ranked hypotheses, then the system-architect reviews the set for robustness, and only the architect-approved consolidated plan unlocks the fix-team spawn.
+
+The fix team's first work item is the pre-fix verification checklist in the plan. The fix team cannot patch past the plan; if its evidence contradicts the leading hypothesis, it writes counter-evidence and re-triggers research instead.
+
+#### Skill
+- `skills/diagnostic-research-team/SKILL.md` — new. Documents Phase A (parallel three-researcher dispatch with full code flow + ranked hypotheses, each anchored to file:line evidence + falsification test), Phase B (architect review against a 7-criterion robustness rubric with bounded 3-cycle loop), Phase C (consolidated diagnostic plan with merged trace + re-ranked hypotheses + pre-fix verification checklist + fix-scope guidance + coverage-map impact), Phase D (hand-off to Phase 2 fix-team spawn with the plan path verbatim in the brief).
+- Hard rules: three researchers always (two is not enough — divergence is the falsification mechanism; four is unnecessary); read-only on source; parallel independence during Phase A; every hypothesis carries file:line + falsification test; the architect review is a gate, not a formality; fix team executes the checklist before proposing any fix.
+
+#### Agent
+- `agents/diagnostic-researcher.md` — new. Read-only on source code (Read, Glob, Grep, LS, NotebookRead, Bash, WebFetch, WebSearch, Write to own draft path, TodoWrite). Model: opus. Color: red. Spawned ×3 in parallel; each independently reads maps first, then traces forward + backward through the code flow, captures git-log recent-change window, produces ≥3 hypotheses (one minimum that the originating teammate did not pursue). Output path: `<cwd>/.architect-team/diagnostic-research/<test-id>/researcher-<N>-<ts>.md`. Re-dispatch loop: architect-driven, bounded 3 cycles.
+
+#### Wire-up
+- `skills/architect-team-pipeline/SKILL.md` Phase 3b: SR intake step extended. For test-failure SRs, the orchestrator MUST invoke `diagnostic-research-team` and populate `diagnostic_plan_path` on the SR before the fix team can be spawned. The fix team's brief is extended to include the plan path verbatim and the `"READ THIS PLAN FIRST"` directive. New Phase 3b step (`3b. Counter-evidence re-triggers research`) describes the loop when fix-team evidence contradicts the plan.
+- `agents/system-architect.md`: new `## Diagnostic Plan Review` section. Documents the 7-criterion rubric (coverage / diversity / evidence-quality / falsifiability / recent-change-correlation / cross-team-awareness / test-author-error-consideration), the verdict-file schema, the bounded 3-cycle loop, and the consolidated plan format. Hard rule added: the architect ensures the SET is robust, not picks the right hypothesis; mechanical consolidation is forbidden.
+- `skills/root-cause-test-failures/SKILL.md` Phase C: updated to note that the teammate's RCA becomes a seed input the three researchers verify against — not the override the orchestrator accepts on faith. The fix team is spawned with the consolidated plan, not the teammate's RCA directly.
+
+### Tests
+- `tests/test_skills.py` — `diagnostic-research-team` added to `EXPECTED_SKILLS`.
+- `tests/test_agents.py` — `diagnostic-researcher` added to `EXPECTED_AGENTS`.
+- `tests/test_diagnostic_research_team.py` — new file. 10 test functions (15 runs including parametrization):
+  - skill + agent files exist and non-empty
+  - every test-failure origin.kind value is named in the skill (parametrized)
+  - skill mandates three researchers
+  - skill requires system-architect review for robustness
+  - pipeline Phase 3b invokes the skill + gates on `diagnostic_plan_path`
+  - pipeline explicitly blocks fix-team spawn without plan
+  - system-architect agent documents the Diagnostic Plan Review mode + robustness rubric
+  - root-cause-test-failures references the new skill in Phase C
+  - researcher agent enforces read-only-on-source posture
+  - researcher agent forbids consulting between researchers
+
+### Why a separate skill (not an extension of root-cause-test-failures)
+`root-cause-test-failures` is teammate-facing: the discipline a teammate runs on its own failing test before escalating. `diagnostic-research-team` is orchestrator-facing: the discipline the orchestrator runs AFTER escalation, with fresh full-codebase researchers and no anchor to the originating teammate's hypothesis. They are complementary — one runs inside a slice; the other runs across slices. Combining them in one skill would conflate the two reviewer perspectives and lose the falsification step (the orchestrator-level researchers verify the teammate's RCA rather than just confirming it).
+
+### Released (v0.9.3)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.2` → `0.9.3`.
+
 ## [0.9.2] — 2026-05-18
 
 ### Fixed (pipeline discipline — no arbitrary wall-clock wakeups / timers)

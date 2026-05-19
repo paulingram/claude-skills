@@ -201,11 +201,11 @@ If the RCA category is `product-bug` (the code under test is wrong, not the test
    <cwd>/.architect-team/solution-requirements/SR-<test-id>-<timestamp>.json
    ```
 
-   This is the structured-JSON twin of the markdown handoff — same content, machine-readable. The orchestrator picks the SR up on its next pickup pass and AUTOMATICALLY spawns a Phase 2 fix team using `suggested_team`, `acceptance_criteria`, and `scope.files_to_change`. The originating failing test MUST appear in `acceptance_criteria` so the fix is only complete when the original failure converges to pass.
+   This is the structured-JSON twin of the markdown handoff — same content, machine-readable. The orchestrator picks the SR up on its next pickup pass and routes it through `diagnostic-research-team` (three parallel `diagnostic-researcher` agents + system-architect review) BEFORE spawning the Phase 2 fix team. Your originating RCA is one input among several that the three researchers will independently verify, falsify, or extend. The fix team is then spawned with the consolidated diagnostic plan as a required input.
 
    `origin.kind` is `"rca-product-bug"`. `evidence` includes the RCA artifact path. `acceptance_criteria` lists the test that surfaced the bug plus any related coverage-map requirements the fix must restore.
 
-4. Signal idle. The orchestrator picks up the SR (and the handoff for human context), spawns the fix team automatically, and routes the fix through Phase 2 → Phase 5 with the full review-gate cycle. The failing test is re-run as part of Phase 5; when it passes, the SR is marked `resolved` and the ORIGINATING teammate's task unblocks.
+4. Signal idle. The orchestrator picks up the SR (and the handoff for human context), invokes `diagnostic-research-team` to produce a consolidated diagnostic plan, then spawns the fix team automatically with the plan as a required input. The fix is routed through Phase 2 → Phase 5 with the full review-gate cycle. The failing test is re-run as part of Phase 5; when it passes, the SR is marked `resolved` and the ORIGINATING teammate's task unblocks. Your RCA is not discarded — it is the seed input the three researchers verify against; if the consolidated plan promotes a different root cause, that promotion is backed by independent cross-draft evidence, not a silent override.
 
 If the RCA category is `test-author-error`:
 
