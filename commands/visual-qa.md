@@ -1,6 +1,6 @@
 ---
-description: Run a pixel-perfect post-development visual-QA reconciliation against DESIGN_MAP.md for one or all frontend codebases. Refreshes the design map if stale, runs code-first static analysis, then Playwright runtime verification with per-state screenshots, fixes drift to spec by default, and (unless --no-commit / --no-push is passed) auto-commits any fixes and pushes them.
-argument-hint: "[codebase-path] [--no-commit] [--no-push]"
+description: Run a pixel-perfect post-development visual-QA reconciliation against DESIGN_MAP.md for one or all frontend codebases. Refreshes the design map if stale, runs code-first static analysis, then Playwright runtime verification with per-state screenshots, fixes drift to spec by default, auto-commits + pushes any fixes (unless --no-commit / --no-push), and emits a /compact prompt at the end to free context for the next run (unless --no-compact).
+argument-hint: "[codebase-path] [--no-commit] [--no-push] [--no-compact]"
 ---
 
 # /architect-team:visual-qa — On-Demand Visual Fidelity Reconciliation
@@ -13,9 +13,10 @@ Parse `$ARGUMENTS` into tokens. The FIRST non-flag token is the codebase path (m
 
 - `--no-commit` → `AUTO_COMMIT = false`, `AUTO_PUSH = false`.
 - `--no-push` → `AUTO_COMMIT = true`, `AUTO_PUSH = false`.
-- Neither → `AUTO_COMMIT = true`, `AUTO_PUSH = true` (default).
+- `--no-compact` → `AUTO_COMPACT_PROMPT = false` (default `true`).
+- No flags → all three default to `true`.
 
-Also accept natural-language opt-outs ("don't commit", "no push", "leave it uncommitted"). When ambiguous, default to opt-out and tell the user which interpretation you took.
+Flags are independent. Also accept natural-language opt-outs ("don't commit", "no push", "no compact", "leave it uncommitted"). When ambiguous, default to opt-out and tell the user which interpretation you took.
 
 ## Step 1 — Discover frontend codebases in scope
 
@@ -139,6 +140,29 @@ overall: PASS | DRIFT_DETECTED | GAPS_DETECTED
 If a commit was made in Step 4, include its SHA and the push range; if AUTO_COMMIT was disabled, say so explicitly.
 
 If `overall != PASS`, also list the top 5 highest-severity findings in the terminal output. Direct the user to the summary file and the handoffs for the full evidence.
+
+## Step 6 — Auto-compact prompt (after the Step 5 report)
+
+When `AUTO_COMPACT_PROMPT = true`, emit this block as the very last thing the user sees in this turn:
+
+```
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║  ◆  READY FOR /compact                                         ║
+║                                                                ║
+║  visual-qa complete. Context holds reconciliation state.       ║
+║  Run /compact NOW to free space for the next run. Type:        ║
+║                                                                ║
+║      /compact                                                  ║
+║                                                                ║
+║  (Pass --no-compact next time to suppress this prompt.)        ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+The model cannot programmatically execute `/compact` — slash commands are user-typed REPL events. This block is the maximum-effort prompt: it ends your final reply with the literal command on its own line for one-keystroke confirmation.
+
+If `AUTO_COMPACT_PROMPT = false`: skip the block entirely.
 
 ## Operating rules (non-negotiable)
 

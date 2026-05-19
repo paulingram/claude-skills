@@ -241,6 +241,30 @@ If the working tree had unstaged or staged user changes BEFORE the pipeline star
 - If the repo has detached HEAD or no upstream configured for the current branch, skip the push, mention it in the report, and tell the user how to set the upstream (`git push -u origin <branch>`).
 - Do NOT push to `main` if the change has not been peer-reviewed by a human reviewer AND the repo's branch-protection policy requires reviews — the orchestrator does NOT have judgment to override branch protection. If push is rejected by branch protection, surface the rejection and stop.
 
+### Auto-compact prompt (after the final report; default on)
+
+The invoking command (`/architect-team`) sets `AUTO_COMPACT_PROMPT` from `$ARGUMENTS` (default `true`; opt-out via `--no-compact`). After the Phase 8 final report (and the auto-commit / push output if applicable), emit this block as the very last thing the user sees in this turn:
+
+```
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║  ◆  READY FOR /compact                                         ║
+║                                                                ║
+║  Pipeline complete. Context is now full of build state.        ║
+║  Run /compact NOW to free space for the next architect-team    ║
+║  invocation. Type exactly:                                     ║
+║                                                                ║
+║      /compact                                                  ║
+║                                                                ║
+║  (Pass --no-compact next time to suppress this prompt.)        ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+**Why it is a prompt, not an auto-execution:** the orchestrator runs as a model + tools; `/compact` is a slash command processed by the Claude Code REPL itself, not a tool the model can invoke. This block puts the literal command on its own line so the user can copy-paste or one-keystroke-confirm. Pipeline cycles tend to fill context — running `/compact` immediately is the right hygiene before the next invocation.
+
+If `AUTO_COMPACT_PROMPT = false`: skip the block entirely.
+
 Then clean up the team.
 
 ## Operating rules (non-negotiable)

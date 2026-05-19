@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] — 2026-05-18
+
+### Added (auto-compact prompt at end of pipeline / visual-qa runs — opt-out via --no-compact)
+
+- `commands/architect-team.md` + `commands/visual-qa.md`: argument parsers now accept a `--no-compact` flag (plus natural-language equivalents: "don't compact", "no compact"). Default behavior: AUTO_COMPACT_PROMPT = true. Flag is independent of --no-commit / --no-push (any combination is valid).
+- `skills/architect-team-pipeline/SKILL.md` Phase 8: extended with the auto-compact prompt as the terminal step after the final report + auto-commit + push. Emits a clearly-marked box ending with the literal `/compact` text on its own line so the user can copy or one-keystroke-confirm. `commands/visual-qa.md` Step 6 emits the same block at end of audit.
+- argument-hint frontmatter updated to advertise the new flag.
+
+### Transparency note (why prompt, not auto-execute)
+
+The orchestrator is a model + tools. `/compact` is a slash command processed by the Claude Code REPL itself, not a tool the model has access to. The best the pipeline can do is emit a maximally clear prompt as its final output so the user types `/compact` immediately. v0.9.1 ships that prompt as the discipline; future Claude Code versions exposing a programmatic compact mechanism could upgrade the pipeline to true auto-execution.
+
+### Released (v0.9.1)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.0` → `0.9.1`.
+
 ## [0.9.0] — 2026-05-18
 
 ### Added (test-completeness enforcement — REQ-001 through REQ-005)
