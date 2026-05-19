@@ -33,3 +33,10 @@ scripts/setup/.last-run.json
 test-results/
 playwright-report/
 playwright/.cache/
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json
+
+# MemPalace per-workspace palace data (vector store + sqlite + embeddings)
+.mempalace/

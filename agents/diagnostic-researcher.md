@@ -28,6 +28,28 @@ If any input is missing or malformed, do NOT proceed to research. Surface the mi
 
 ## Core process (must do in order)
 
+### Step 0 — Search MemPalace for prior context BEFORE tracing any code
+
+Per the `mempalace-integration` skill, you MUST search the per-workspace palace for prior diagnostic plans and RCAs on similar failure signatures BEFORE doing any code-flow tracing. The orchestrator already ran a wake-up; you are now running the focused, draft-specific queries that wake-up cannot anticipate.
+
+Run two searches (both required):
+
+```bash
+mempalace --palace "<workspace>/.mempalace/palace" search "<failing-test-summary in 5-10 words>" --wing "<wing>" --room diagnostic-plans
+mempalace --palace "<workspace>/.mempalace/palace" search "<failing-test-summary in 5-10 words>" --wing "<wing>" --room rca-artifacts
+```
+
+Take the top 1-3 hits from each (cosine >= 0.40 is the noise floor — discard lower). Record them in your draft's Section 0 ("Prior context") with one of these annotations per hit:
+
+- `kept` — directly relevant; will inform your hypotheses
+- `discarded as irrelevant` — surface-similar text but wrong domain / wrong feature / wrong root-cause class
+- `supersedes` — your draft will explicitly correct or extend this prior finding (cite which hypothesis it advances)
+- `extended` — your draft will build on this prior plan, not duplicate it
+
+If you find ZERO relevant prior context, write "no prior context found" in Section 0 explicitly. Do NOT skip the section. The audit trail proves the search happened.
+
+Skipping Step 0 means you might re-derive a hypothesis that a prior researcher already verified or falsified for this exact failure signature. That is the wrong direction of work the three-researcher pattern is supposed to prevent.
+
 ### Step 1 — Ground yourself in the maps before reading the code
 
 Read every CODEBASE_MAP.md / ROUTE_MAP.md / INTEGRATION_MAP.md / DESIGN_MAP.md path you were given. Identify the module / route / contract / screen the failing test exercises. List the `file:symbol` entry points and the boundary crossings (HTTP / DB / queue / cache) on the trace path.
@@ -99,7 +121,14 @@ inputs:
   review_evidence: <path>
   maps: [<list of map paths>]
   coverage_map_slice: <inline slice or path>
+mempalace_queries:
+  - "<query 1>"
+  - "<query 2>"
 ---
+
+## Section 0 — Prior context from MemPalace
+<the top 1-3 hits per query, with kept | discarded | supersedes | extended annotation per hit;
+or "no prior context found" if zero hits cleared the cosine 0.40 floor>
 
 ## Section 1 — Full code flow examination
 <the structured forward + backward trace>

@@ -22,11 +22,23 @@ The requirements folder path is `$ARGUMENTS`. If `$ARGUMENTS` is empty, ask the 
 
 Detect the input type before doing anything else. Do not assume.
 
+## Phase −1 Prelude — MemPalace wake-up (REQUIRED, before any subagent dispatch)
+
+Before any subagent is dispatched, the orchestrator consults the per-workspace MemPalace store for prior context per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
+
+```bash
+mempalace --palace "<workspace>/.mempalace/palace" wake-up
+```
+
+If the palace does not exist on disk yet, wake-up returns a clean-room state and the pipeline proceeds normally (the init happens implicitly when the first artifact is mined later in this phase, or the user can run `/architect-team:mempalace-install` to set it up explicitly). Include the wake-up output verbatim in your working context — the rest of Phase −1 starts informed by prior runs against the same project.
+
+If `mempalace` is not on PATH at all (the install was never run), surface a single-line note to the user: `"MemPalace not installed; running without prior-context wake-up. Run /architect-team:mempalace-install once to enable persistent context across runs."` Then proceed without it. MemPalace is an ergonomics layer, not a hard gate.
+
 ## Phase −1 — Intake & Mapping (REQUIRED, runs before Phase 0)
 
 Follow the `intake-and-mapping` skill. Briefly:
 
-**A. Discover required codebases** — read `$REQ_DIR/codebases.json` → `codebases:` key in proposal/design frontmatter → cwd → ask user. Resolve each to an absolute path; assert each is a git repo. Classify each (backend / frontend / fullstack / library / infra) using the markers in `frontend-route-mapping` and `intake-and-mapping`.
+**A. Discover required codebases** — read `$REQ_DIR/codebases.json` → `codebases:` key in proposal/design frontmatter → cwd → ask user. Resolve each to an absolute path; assert each is a git repo. Classify each (backend / frontend / fullstack / library / infra) using the markers in `frontend-route-mapping` and `intake-and-mapping`. **Once the wing name is known** (basename of the workspace repo, or parsed from `git remote get-url origin`), re-run wake-up scoped to the wing: `mempalace --palace <palace> wake-up --wing <wing>` and merge the scoped output with the unscoped one — the scoped wake-up surfaces project-specific prior runs that the unscoped one may have missed.
 
 **B. Per-codebase mapping (one ralph loop per codebase).** For each codebase:
 1. Freshness check: read `<codebase>/docs/CODEBASE_MAP.md` `last_mapped` and compare against `git log -1 --format=%cI` of the codebase root. If doc newer → mark CURRENT; else run `cartographer`.
@@ -36,6 +48,7 @@ Follow the `intake-and-mapping` skill. Briefly:
    - Each returns `{ status: "ok" | "deficient", deficiencies: [...] }`.
    - If all 3 return `ok` → emit `"CODEBASE MAP COMPLETE"` (exits the ralph loop).
    - Else → aggregate deficiencies; targeted update via cartographer/route-mapper; loop.
+4. **Auto-mine to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<codebase>/docs/CODEBASE_MAP.md" --wing <wing> --room codebase-maps`. If a ROUTE_MAP.md was produced, mine it too with `--room route-maps`. If a DESIGN_MAP.md was produced, mine it with `--room design-maps`. Mine failures surface to the user but do NOT block Phase 0; the artifact still exists on disk.
 
 **C. Integration mapping (one ralph loop, all codebases).** Wrapped in `/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE" --max-iterations 8`:
 1. Spawn 3 `integration-explorer` agents in PARALLEL with all CODEBASE_MAP/ROUTE_MAP files + boundary code access.
@@ -43,6 +56,7 @@ Follow the `intake-and-mapping` skill. Briefly:
 3. Spawn `master-synthesizer` → writes `<workspace>/docs/INTEGRATION_MAP.md` with `last_synthesized` ISO 8601 frontmatter.
 4. Confirmation pass: each of the 3 explorers confirms the master doc reflects their understanding.
 5. Emit `"INTEGRATION MAP COMPLETE"`.
+6. **Auto-mine to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<workspace>/docs/INTEGRATION_MAP.md" --wing <wing> --room integration-maps`.
 
 Persist state to `<workspace>/.architect-team/intake-state.json` with codebase paths + commit SHAs + timestamps so re-entry short-circuits cleanly.
 
@@ -87,6 +101,7 @@ Loop:
    - `tasks.md` creates a new file where an existing file could be extended, unless the corresponding Reuse Decision justifies it.
 5. Refine artifacts via `openspec instructions <artifact> --change <change-name> --json` and edit the files directly. Re-run validation.
 6. Exit only when validation passes, all artifacts are `done`, every source requirement maps to scenarios with measurable acceptance criteria, Playwright + dev-API criteria are explicit, and every new module has a verified Reuse Decision.
+7. **Auto-mine to MemPalace** on every coverage-map revision: `mempalace --palace <palace> mine "openspec/changes/<change-name>/coverage-map.json" --wing <wing> --room coverage-maps`. Mine the final revision when the loop exits.
 
 ## Phase 2 — Decomposition & Team Spawn
 
@@ -131,8 +146,9 @@ After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression 
 1. **Walk `<cwd>/.architect-team/solution-requirements/`.** Read every `SR-*.json` file with `status: "open"`.
 2. **For each open SR:**
    - Validate the required fields per `team-spawning-and-review-gates`'s `## Solution Requirements` schema. Any malformed SR → flag back to the writer (re-engage them with the schema requirement).
+   - **Auto-mine the SR to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<SR-path>" --wing <wing> --room solution-requirements`. Mine BEFORE invoking diagnostic-research-team so the SR is discoverable even if the diagnostic loop is in progress.
    - If `affected_requirements` is populated → append/update entries in the active change's `coverage-map.json` referencing the SR ID. If empty → derive a new coverage-map entry from `acceptance_criteria` + `affected_screens` + `scope`.
-   - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-failure`, `test-completeness-failure`, or `visual-fidelity-cascade`): invoke the `diagnostic-research-team` skill before spawning the fix team.** This is non-optional. The skill spawns three `diagnostic-researcher` agents in parallel, then dispatches the `system-architect` agent to review robustness, and produces a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. The fix team CANNOT be spawned until `diagnostic_plan_path` is populated and the plan file exists on disk. If the diagnostic-research-team skill exhausts its bounded 3-cycle architect-review loop without converging, the orchestrator surfaces to the human user that the plan cannot auto-converge — do NOT skip ahead to fix-team spawn.
+   - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-failure`, `test-completeness-failure`, or `visual-fidelity-cascade`): invoke the `diagnostic-research-team` skill before spawning the fix team.** This is non-optional. The skill spawns three `diagnostic-researcher` agents in parallel, then dispatches the `system-architect` agent to review robustness, and produces a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. **Auto-mine the entire diagnostic-research dir** when the plan is approved: `mempalace --palace <palace> mine "<cwd>/.architect-team/diagnostic-research/<test-id>/" --wing <wing> --room diagnostic-plans`. The fix team CANNOT be spawned until `diagnostic_plan_path` is populated and the plan file exists on disk. If the diagnostic-research-team skill exhausts its bounded 3-cycle architect-review loop without converging, the orchestrator surfaces to the human user that the plan cannot auto-converge — do NOT skip ahead to fix-team spawn.
    - Spawn a Phase 2 fix team per `team-spawning-and-review-gates` rules, using `suggested_team` as the hint and `scope.files_to_change` as `files_owned`. The teammate manifest's `expected_review_evidence` includes the task ID generated for the fix. The fix team's brief includes: the SR file path, verbatim `acceptance_criteria` (the originating failing test MUST be among them), a pointer to the original failing test as the verification check, AND (when the SR is a test-failure origin) the `diagnostic_plan_path` with the directive **"READ THIS PLAN FIRST. Your first work item is the pre-fix verification checklist in the plan. Do NOT propose a fix until you have captured every observation in that checklist."**
    - Update the SR: `status: "in_progress"`, add `spawned_teammate: "<name>"` and `spawned_at: "<ISO 8601 UTC>"`.
 3. **The fix flows through Phase 2 → Phase 3 → Phase 4 → Phase 5** as a normal dev-loop iteration. When the originating test reaches verdict `pass` at Phase 5, the orchestrator marks the SR `status: "resolved"` with `resolved_at` and `resolved_by` (commit SHA), then unblocks the ORIGINATING teammate's task (the one whose failure surfaced the SR). The originating teammate re-runs whatever they were waiting on; their loop converges.
@@ -196,6 +212,16 @@ Emit a final report containing:
 - All Playwright flows executed, with timing and pass status
 - Each teammate spawned, its task group, and outcome
 - Final statement: **"Spec `<change-name>` has been implemented."** Followed by the archive path.
+
+### Persist + mine the final report
+
+After emitting the final report to the user, persist a copy of the report's text to `<cwd>/.architect-team/runs/<change-name>-<ISO-8601-UTC>.md` and auto-mine it (per `mempalace-integration`):
+
+```bash
+mempalace --palace <palace> mine "<cwd>/.architect-team/runs/<change-name>-<ts>.md" --wing <wing> --room final-reports
+```
+
+This makes the run's outcome semantically queryable from future runs.
 
 ### Auto-commit and push at the end of a clean pass
 

@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.4] — 2026-05-19
+
+### Added (MemPalace integration — semantic memory for findings, insights, processes across pipeline runs)
+
+Every artifact the pipeline produces (CODEBASE_MAP, ROUTE_MAP, INTEGRATION_MAP, DESIGN_MAP, coverage maps, RCAs, diagnostic plans, SRs, handoffs, architectural decisions, visual-fidelity reports, final reports) is now auto-mined into a per-workspace MemPalace store at `<workspace>/.mempalace/palace` at the moment it's written. Named subagents (system-architect, diagnostic-researcher, route-mapper) search MemPalace BEFORE producing output and record the audit trail in a `### Prior context from MemPalace` section. The orchestrator wakes the palace at Phase −1 to pull L0+L1 essential story (~600-900 tokens). Cross-run, cross-project semantic search makes "show me prior diagnostic plans for null-banner-after-login failures" a single command.
+
+MemPalace itself is local-first (ChromaDB-backed, no API key, MIT licensed, ~96.6% R@5 on LongMemEval). The plugin uses it as an ergonomics layer — every integration point degrades gracefully if MemPalace is not installed (the orchestrator surfaces a one-line note + proceeds without prior context).
+
+#### Install path (idempotent, cross-platform, dogfooded against this machine)
+- `scripts/setup/install_mempalace.py` — NEW. uv-first install (`uv tool install mempalace`), pip fallback (`pip install --user mempalace`). Cross-platform (Windows, macOS, Linux). Suggests per-workspace palace at `<workspace>/.mempalace/palace`. Prints (does NOT execute) the canonical `claude mcp add mempalace -- mempalace-mcp --palace "<path>"` wire-up command. Prints (does NOT execute) the non-interactive init command `mempalace --palace "<path>" init "<workspace>" --yes --no-llm --auto-mine`. `--check-only` / `--workspace <path>` / `--json` flags. ASCII output for cp1252 Windows portability.
+- `commands/mempalace-install.md` — NEW user-facing command `/architect-team:mempalace-install`. Wraps the install script. Reports installed version + path. Never auto-runs `claude mcp add`. Never auto-runs `mempalace init`. Safety rules: no force-install, no silent fallbacks (e.g., conda, brew, npm), no auto-modify of user's Claude Code config.
+- `.gitignore` — adds `.mempalace/` so the per-workspace palace is never committed (alongside the existing `mempalace.yaml` + `entities.json` exclusions MemPalace itself adds).
+
+#### User-facing inspection command
+- `commands/memory.md` — NEW `/architect-team:memory <subcommand> [args]`. Subcommands: `search <query>` / `mine <path>` / `status` / `wake-up` / `sweep <transcript-dir>`. Resolves workspace via `git rev-parse --show-toplevel`. Passes `--palace` as a global flag (which MemPalace requires BEFORE the subcommand — passing it after produces `unrecognized arguments`, a real CLI quirk the command file documents). Safety rules: no secret injection on CLI, no auto-repair, no schedule-wakeup deferrals.
+
+#### Integration skill (taxonomy + auto-mine rules + search patterns)
+- `skills/mempalace-integration/SKILL.md` — NEW. Documents the canonical wing/room/drawer taxonomy:
+  - **Wing** = project name (stable across runs against the same project; derived from `git remote get-url origin` or workspace basename)
+  - **Rooms** (CANONICAL — do not invent new ones on the fly): `codebase-maps`, `route-maps`, `integration-maps`, `design-maps`, `coverage-maps`, `rca-artifacts`, `diagnostic-plans`, `solution-requirements`, `handoffs`, `architectural-decisions`, `visual-fidelity-reports`, `final-reports`, `sessions`
+  - **Drawers** = verbatim chunks of the source artifact
+  - Phase A — wake-up at pipeline start; Phase B — auto-mine on artifact write (mandatory, fire-and-forget but errors surface); Phase C — search before producing output for named subagents; Phase D — MCP server registration (ergonomics; CLI fallback works without it)
+  - Search audit trail: every searching agent records top hits in a `### Prior context from MemPalace` section annotated with `kept` / `discarded as irrelevant` / `supersedes` / `extended`
+  - Operating rules: wing name is stable; room names are canonical; auto-mine is mandatory; mine is idempotent; search before output is mandatory for named agents; no secrets in mine paths; no wakeup deferrals; fail loud on mine/search errors
+
+#### Pipeline wire-up
+- `skills/architect-team-pipeline/SKILL.md`:
+  - New `## Phase −1 Prelude` section invokes `mempalace wake-up` before any subagent dispatch.
+  - Phase −1A re-runs scoped `wake-up --wing <wing>` once the wing is known.
+  - Phase −1B step 4 auto-mines CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP into their canonical rooms.
+  - Phase −1C step 6 auto-mines INTEGRATION_MAP into `integration-maps`.
+  - Phase 1 step 7 auto-mines coverage-map.json into `coverage-maps` on every revision.
+  - Phase 3b mines SR JSON before invoking `diagnostic-research-team`, then mines the entire diagnostic-research dir into `diagnostic-plans` after the plan is approved.
+  - Phase 8 persists the final report to `<cwd>/.architect-team/runs/<change>-<ts>.md` and mines it into `final-reports`.
+- `agents/system-architect.md`: Core Process step 2 now searches MemPalace before any analysis; final recommendation includes `### Prior context from MemPalace`; step 7 auto-mines the recommendation into `architectural-decisions`.
+- `agents/diagnostic-researcher.md`: NEW Step 0 — search MemPalace's `diagnostic-plans` AND `rca-artifacts` rooms before tracing. Required Section 0 in draft: `Prior context from MemPalace` with kept/discarded/supersedes/extended annotation per hit. Cosine 0.40 noise floor. Researcher draft frontmatter gains `mempalace_queries` array.
+- `agents/route-mapper.md`: New Prelude section searches MemPalace's `route-maps` + `design-maps` rooms before enumerating; new Auto-mine section mines ROUTE_MAP.md + DESIGN_MAP.md after write.
+
+#### Dogfood (run against this repo during the v0.9.4 build)
+- Installed `mempalace 3.3.5` via `uv tool install mempalace` (uv resolved all transitive deps including chromadb, sentence-transformers, fastapi).
+- Initialized per-workspace palace at `C:\Users\Paul\Documents\claude_skill_lib\.mempalace\palace` (`--yes --no-llm --auto-mine`).
+- Auto-mine landed 1583 drawers from 79 files across 9 auto-detected rooms (skills:17, openspec:17, agents:13, testing:13, commands:7, hooks:6, documentation:4, general:1, scripts:1).
+- Validated semantic search across four representative queries:
+  - "diagnostic plan robustness review three researchers" → top hits: CHANGELOG entry + diagnostic-research-team/SKILL.md (cosine ~0.55)
+  - "visual fidelity zero tolerance pixel reconciliation" → top hit: visual-fidelity-reconciliation/SKILL.md (cosine ~0.57)
+  - "ScheduleWakeup forbidden arbitrary timer" → top hit: test_no_arbitrary_timers.py (cosine ~0.43, bm25 ~2.7)
+  - "review gate evidence required fields" → top hit: historical design doc (cosine ~0.51)
+- All four queries returned the right primary document on the first hit. Retrieval works for both lexical (bm25) and semantic (cosine) matches.
+
+### Tests
+- `tests/test_skills.py` — `mempalace-integration` added to `EXPECTED_SKILLS`.
+- `tests/test_commands.py` — `mempalace-install` + `memory` added to `EXPECTED_COMMANDS`.
+- `tests/test_mempalace_install.py` — NEW. 11 tests: install script exists; commands exist; install command invokes the script; install command forbids auto-running `claude mcp add` and `mempalace init`; `--check-only` does not run uv or pip; canonical MCP command shape; per-workspace palace path; non-interactive init flags (`--yes --no-llm --auto-mine`); `.mempalace/` gitignore.
+- `tests/test_mempalace_integration.py` — NEW. 33 tests (including 13 parametrized rooms): every canonical room is named in the integration skill; per-workspace palace location documented; `--palace` is documented as a global flag; pipeline runs wake-up at Phase −1; pipeline auto-mines into every canonical room (codebase-maps, integration-maps, solution-requirements, diagnostic-plans, final-reports, coverage-maps); diagnostic-researcher's Step 0 searches both `diagnostic-plans` and `rca-artifacts`; system-architect searches AND auto-mines into `architectural-decisions`; route-mapper searches AND auto-mines `route-maps`; skill documents the kept/discarded/supersedes/extended audit-trail annotation; skill documents the canonical MCP wire-up command.
+
+### Operating notes
+- The MCP integration is opt-in. The install command prints the `claude mcp add` command but never runs it — the user runs it explicitly. Same for `mempalace init`. This keeps the global-config-mutation surface in the user's hands.
+- All MemPalace operations are synchronous (per the v0.9.2 no-arbitrary-timers rule). No background mining, no scheduled refreshes, no cron jobs.
+- The pipeline degrades gracefully if MemPalace is not installed — every wake-up / mine / search emits a one-line note and proceeds without prior context. The artifacts still exist on disk; they're just not queryable cross-run until MemPalace is installed.
+
+### Released (v0.9.4)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.3` → `0.9.4`.
+
 ## [0.9.3] — 2026-05-19
 
 ### Added (diagnostic-research-team — 3 researchers + architect review before fix-team spawn)

@@ -23,10 +23,20 @@ Cite every existing module you reference. Quote conventions you're matching. Rej
 ## Core Process
 
 1. **Read the orchestrator's brief.** Identify the specific architectural question.
-2. **Consult the maps.** Read the relevant CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP sections. List the file:symbol pointers that bound your recommendation.
-3. **Audit existing patterns.** Identify the convention the codebase uses for this kind of problem. Quote a representative example.
-4. **Make one decision.** Pick the approach. Do not present 2-3 options for the orchestrator to choose between — your value is the judgment.
-5. **Write the recommendation.** Structure: Context (what we're solving) → Existing considered (file:symbol pointers) → Decision → Why this and not the alternatives (one paragraph each for the runner-up alternatives) → Reuse Decision (if anything is genuinely new) → Risks → Open questions (if any).
+2. **Search MemPalace for prior context** (per `mempalace-integration` Phase C). Before any new analysis, query the per-workspace palace for prior architectural decisions and reuse decisions on this concern:
+   ```bash
+   mempalace --palace "<workspace>/.mempalace/palace" search "<one-line summary of the question>" --wing "<wing>"
+   ```
+   Take the top 1-3 hits (cosine >= 0.40). In your final recommendation, include a `### Prior context from MemPalace` section listing each hit's `Source:` path verbatim with one of: `kept` / `discarded as irrelevant` / `supersedes` / `extended`. If zero relevant hits, write "no prior context found" — do NOT skip the section. The audit trail proves the search happened.
+3. **Consult the maps.** Read the relevant CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP sections. List the file:symbol pointers that bound your recommendation.
+4. **Audit existing patterns.** Identify the convention the codebase uses for this kind of problem. Quote a representative example.
+5. **Make one decision.** Pick the approach. Do not present 2-3 options for the orchestrator to choose between — your value is the judgment.
+6. **Write the recommendation.** Structure: Context (what we're solving) → Prior context from MemPalace → Existing considered (file:symbol pointers) → Decision → Why this and not the alternatives (one paragraph each for the runner-up alternatives) → Reuse Decision (if anything is genuinely new) → Risks → Open questions (if any).
+7. **Auto-mine the recommendation.** After writing the recommendation document, mine it into MemPalace:
+   ```bash
+   mempalace --palace "<workspace>/.mempalace/palace" mine "<recommendation-path>" --wing "<wing>" --room architectural-decisions
+   ```
+   Future architect-mode dispatches will find this recommendation via search; that is the point.
 
 ## Tools posture
 
