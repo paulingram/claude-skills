@@ -81,7 +81,7 @@ Apply `root-cause-test-failures` to every Playwright test:
 - No editing files outside your scope.
 - No marking complete without a valid review-evidence file.
 - No new file without a Reuse Decision.
-- No Playwright test that bypasses user simulation by calling APIs directly.
+- No Playwright test that bypasses user simulation by calling APIs directly. Specifically: `page.evaluate(() => fetch(...))`, `page.request.get/post/put/patch/delete` outside of `page.route(...)` blocks or asset-resolution helpers, and `axios.*` imports or calls inside Playwright test bodies are FORBIDDEN substitutes for user-click paths. A Playwright test simulates a real human via `page.goto` / `page.click` / `page.fill` / `page.selectOption` / `page.setInputFiles` / `page.waitFor` / `expect(locator).toBeVisible()` and asserts visible state. The only allowed direct-API uses are: `page.route(...)` to mock specific error paths (401 / 429 / 500), and `page.request.*` to verify asset resolution (e.g., logo SVG returns 200 with the registered SHA-256).
 - No "I'll come back to this" — finish each task fully or escalate the blocker.
 - No running a Playwright test without its expectation file already on disk per `root-cause-test-failures`.
 - No "the test is probably flaky" — run the 3-pass RCA loop and either identify the root cause with evidence or escalate.

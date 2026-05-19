@@ -53,7 +53,7 @@ For each in-scope codebase:
    - Verify asset references resolve to entries in the Asset Registry AND the file's SHA-256 matches the registered hash (compute via `sha256sum` / `certutil`).
    - Record `static_verdict` per element per state.
 
-3. **Phase C — Runtime verification with Playwright.** Start a dev server if not running (use the codebase's documented dev command from CODEBASE_MAP.md, e.g., `npm run dev`, `pnpm dev`, `yarn dev`, `next dev`). Wait for it to be ready (poll the dev URL until 200). Then for every (screen, viewport) pair:
+3. **Phase C — Runtime verification with Playwright.** A Playwright test simulates a real human via `page.goto` / `page.click` / `page.fill` / `page.selectOption` / `page.setInputFiles` / `page.waitFor` / `expect(locator).toBeVisible()` and asserts visible state. Direct API calls inside a Playwright test — `page.evaluate(() => fetch(...))`, `page.request.get/post/...`, `axios.*` from inside the test body — are FORBIDDEN substitutes for user-click paths. The only allowed direct-API uses are: `page.route(...)` to mock specific error paths (401 / 429 / 500), and `page.request.*` to verify asset resolution (e.g., logo SVG returns 200 with the registered SHA-256). Start a dev server if not running (use the codebase's documented dev command from CODEBASE_MAP.md, e.g., `npm run dev`, `pnpm dev`, `yarn dev`, `next dev`). Wait for it to be ready (poll the dev URL until 200). Then for every (screen, viewport) pair:
    - Set viewport EXACTLY to the spec.
    - Navigate to the screen.
    - For every (element, state) tuple:

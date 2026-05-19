@@ -56,11 +56,11 @@ Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
 
 The teammate writes this BEFORE its `TaskUpdate` flips the task to `completed`. The `PostToolUse(TaskUpdate)` hook reads it and exits 2 (blocks completion) if it's missing or any field is invalid.
 
-Schema (v2 — v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
+Schema (v3 — v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "task_id": "T-12",
   "teammate": "backend-auth",
   "completed_at": "<ISO 8601 UTC>",
@@ -78,7 +78,9 @@ Schema (v2 — v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity
   "files_changed": ["src/auth/login.py", "src/auth/__init__.py", "tests/auth/test_login.py"],
   "reuse_compliance": "ok",
   "visual_fidelity_review": "n/a",
-  "visual_fidelity_review_note": "backend-only slice; no frontend files touched"
+  "visual_fidelity_review_note": "backend-only slice; no frontend files touched",
+  "test_completeness_review": "n/a",
+  "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice"
 }
 ```
 
@@ -93,6 +95,8 @@ Required field validity:
 - `reuse_compliance` must be `"ok"`.
 - `visual_fidelity_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — drift / gaps detected by `visual-fidelity-reconciliation` MUST be escalated via handoff, not marked complete. Re-run reconciliation after the architect-routed fix and only mark complete when verdict is `"pass"`.
 - `visual_fidelity_review_note` is required (non-empty string) WHEN `visual_fidelity_review == "n/a"`. It must explain which branch applies (no frontend touched, OR no DESIGN_MAP.md exists for the codebase). Not required when value is `"pass"` (the reconciliation JSON paths carry the evidence).
+- `test_completeness_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — test-kind completeness gaps detected by `test-completeness-verifier` MUST be escalated via the SR auto-spawn (`origin.kind: "test-completeness-failure"`), not marked complete. The verifier writes the SR automatically; wait for the orchestrator to re-spawn the fix loop, then re-run the verifier to reach `"pass"`.
+- `test_completeness_review_note` is required (non-empty string) WHEN `test_completeness_review == "n/a"`. It must explain which kind(s) are inapplicable and why (e.g., backend-only slice so Playwright is n/a, OR no testable pure-logic surface for unit tests). Not required when value is `"pass"` (the verifier verdict JSON carries the evidence).
 
 Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry.
 
@@ -139,7 +143,7 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
   "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
   "created_at": "<ISO 8601 UTC>",
   "origin": {
-    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit",
+    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure",
     "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
     "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
     "test_id": "<failing test ID, if applicable>",
@@ -176,7 +180,7 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
 ### Required field validity
 
 - `solution_id` must be unique and `_safe_id()`-compatible.
-- `origin.kind` must be one of the enumerated values; agents MUST NOT invent new kinds.
+- `origin.kind` must be one of the enumerated values (`playwright-failure`, `integration-test-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`); agents MUST NOT invent new kinds.
 - `problem_summary` and `expected_behavior` are non-empty strings.
 - `evidence` is a non-empty array; an SR without evidence is an alert dressed as a requirement.
 - `affected_requirements` may be empty if the problem is in territory not yet covered by the coverage map — but then `affected_screens` (for visual) or `scope.files_to_change` MUST be non-empty so the orchestrator can attribute the fix.
@@ -212,6 +216,7 @@ When the orchestrator resumes (after any subagent signals idle), it MUST:
 - `visual-fidelity-reconciliation` Phase E — every escalation (out-of-scope file, implementation-extras, spec-ambiguity, cascade-blast-radius) writes an SR. Drift that gets autonomously fixed-to-spec does NOT need an SR (the fix happened in-loop).
 - `playwright-user-flows` — when a Playwright test fails AND the RCA verdict is product-bug, the SR is written by RCA (don't duplicate). When a test reveals a UI contract that the implementation never honored (gap in the original spec), write an SR with `origin.kind: "playwright-failure"`.
 - `dev-api-integration-testing` — when an integration test fails against the live dev API with a backend regression (RCA verdict product-bug), the SR is written by RCA. When the failure is in test-author error or env / fixture / race, fix in-loop without an SR (per root-cause-test-failures Phase C).
+- `test-completeness-verifier` agent — every `overall: fail` writes an SR with `origin.kind: "test-completeness-failure"` so the orchestrator re-spawns the originating team with concrete missing-test acceptance criteria. The originating team re-enters Phase 2 to author the missing tests, passes Phase 3, and the verifier re-runs in Phase 5 to confirm.
 
 ### Anti-patterns to reject
 

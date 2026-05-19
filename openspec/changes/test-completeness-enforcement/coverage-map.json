@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "change": "test-completeness-enforcement",
+  "generated_at": "2026-05-18T18:00:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_excerpt": "Audit every reference to Playwright tests / user-flow tests. Every reference must be unambiguous: tests simulate a real human via page.goto / page.click / page.fill / page.waitFor and assert visible state. Direct API calls in place of user clicks are forbidden except page.route for error mocking.",
+      "spec_requirement_id": "test-completeness-enforcement.req-001.language-audit",
+      "scenarios": ["grep-audit-passes-no-ambiguous-language", "explicit-anti-patterns-present"],
+      "acceptance_criteria": [
+        "Grep audit of the 9 named files confirms no remaining ambiguous language around what a Playwright test is.",
+        "Explicit anti-pattern row added to playwright-user-flows naming page.evaluate(fetch) / page.request.* / axios.* as the forbidden patterns.",
+        "Hard rules in agents/frontend.md, agents/integration.md call out the forbidden patterns by name."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_excerpt": "Create agents/test-completeness-verifier.md — read-only agent that verifies unit + integration + Playwright tests all ran AND meet spec acceptance criteria. Tools Read/Glob/Grep/LS/Bash/TodoWrite only. Model sonnet. Color red. Output structured verdict JSON. Escalates via SR auto-spawn on failure.",
+      "spec_requirement_id": "test-completeness-enforcement.req-002.verifier-agent",
+      "scenarios": ["agent-file-exists-with-valid-frontmatter", "presence-test-passes", "body-documents-verdict-schema-and-sr-escalation"],
+      "acceptance_criteria": [
+        "agents/test-completeness-verifier.md exists with all 5 required frontmatter keys (name / description / tools / model / color).",
+        "tools field is read-only set: Read, Glob, Grep, LS, Bash, TodoWrite (no Edit/Write).",
+        "model: sonnet. color: red.",
+        "presence test added to tests/test_agents.py EXPECTED_AGENTS; passes.",
+        "Body documents the verdict JSON schema and the SR-on-failure escalation behavior."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_excerpt": "Hook enforcement of test-kind completeness. Add test_completeness_review field (pass / n/a / fail). fail blocks; n/a requires non-empty test_completeness_review_note; pass allows.",
+      "spec_requirement_id": "test-completeness-enforcement.req-003.hook-enforcement",
+      "scenarios": ["hook-allows-pass", "hook-blocks-fail", "hook-blocks-missing", "hook-blocks-invalid-values", "hook-blocks-na-without-note"],
+      "acceptance_criteria": [
+        "REQUIRED_EVIDENCE_FIELDS includes test_completeness_review.",
+        "VALID_TEST_COMPLETENESS_VALUES constant defined as {pass, n/a, fail}.",
+        "_validate() blocks fail / invalid / n/a-without-note with structured stderr message.",
+        "Hook tests cover all branches (pass / fail / missing / parametrized invalid / parametrized n/a-without-note); all pass."
+      ],
+      "layer": "backend",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_excerpt": "Loop discipline re-uses v0.7.0 SR auto-spawn. Add test-completeness-failure to origin.kind enum; verifier writes SR on any kind failing.",
+      "spec_requirement_id": "test-completeness-enforcement.req-004.sr-loop",
+      "scenarios": ["origin-kind-enum-updated", "verifier-body-documents-sr-spawn"],
+      "acceptance_criteria": [
+        "team-spawning-and-review-gates ## Solution Requirements: origin.kind enum updated to include test-completeness-failure.",
+        "Verifier agent body documents the SR spawn behavior with the exact origin.kind value."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_excerpt": "Tests for the new hook field and new agent. Full pytest suite passes; total ≥ 96.",
+      "spec_requirement_id": "test-completeness-enforcement.req-005.test-coverage",
+      "scenarios": ["all-tests-pass", "new-test-count-meets-threshold"],
+      "acceptance_criteria": [
+        "_valid_evidence helper updated (schema_version 3 + new field with n/a + note).",
+        "≥ 6 new test cases added (mirror v0.5.0 visual_fidelity_review structure).",
+        "EXPECTED_AGENTS in tests/test_agents.py includes test-completeness-verifier.",
+        "Full pytest suite passes; total ≥ 96."
+      ],
+      "layer": "backend",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "source_excerpt": "Documentation refresh: CHANGELOG, README, CODEBASE_MAP, version bump to 0.9.0.",
+      "spec_requirement_id": "test-completeness-enforcement.req-006.docs",
+      "scenarios": ["changelog-entry-present", "readme-updated", "codebase-map-refreshed", "version-bumped"],
+      "acceptance_criteria": [
+        "CHANGELOG.md has v0.9.0 entry covering REQ-001..005.",
+        "README.md banner shows v0.9.0; agent count is 11; Loop 4d entry added.",
+        "CODEBASE_MAP.md agent table includes test-completeness-verifier; tests row updated.",
+        "plugin.json and marketplace.json version: 0.9.0."
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": null,
+      "status": "pending"
+    }
+  ]
+}

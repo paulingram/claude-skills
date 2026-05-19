@@ -16,6 +16,7 @@ EXPECTED_AGENTS: set[str] = {
     "integration-explorer",
     "master-synthesizer",
     "route-mapper",
+    "test-completeness-verifier",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

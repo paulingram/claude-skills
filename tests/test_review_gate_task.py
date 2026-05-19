@@ -49,7 +49,7 @@ def _make_payload(task_id: str, status: str) -> dict:
 
 def _valid_evidence(task_id: str) -> dict:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "task_id": task_id,
         "teammate": "backend-test",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -62,6 +62,8 @@ def _valid_evidence(task_id: str) -> dict:
         "reuse_compliance": "ok",
         "visual_fidelity_review": "n/a",
         "visual_fidelity_review_note": "backend-only slice; no frontend files touched",
+        "test_completeness_review": "n/a",
+        "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice",
     }
 
 
@@ -348,3 +350,83 @@ def test_exits_two_when_visual_fidelity_na_without_note(
     r = _run(script, workspace, _make_payload("T-V5", "completed"))
     assert r.returncode == 2
     assert "visual_fidelity_review_note" in r.stderr or "n/a" in r.stderr
+
+
+# v0.9.0 — test-completeness-review enforcement
+
+
+def test_exits_zero_when_test_completeness_pass(script: Path, workspace: Path) -> None:
+    """v0.9.0: test_completeness_review='pass' is a valid completion."""
+    _write_manifest(workspace, "backend-test", ["T-T1"])
+    ev = _valid_evidence("T-T1")
+    ev["test_completeness_review"] = "pass"
+    ev.pop("test_completeness_review_note", None)  # note not required when value is "pass"
+    (workspace / ".architect-team" / "reviews" / "T-T1.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-T1", "completed"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_exits_two_when_test_completeness_fail(script: Path, workspace: Path) -> None:
+    """v0.9.0: test_completeness_review='fail' must block — teammate must escalate via SR auto-spawn."""
+    _write_manifest(workspace, "backend-test", ["T-T2"])
+    ev = _valid_evidence("T-T2")
+    ev["test_completeness_review"] = "fail"
+    (workspace / ".architect-team" / "reviews" / "T-T2.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-T2", "completed"))
+    assert r.returncode == 2
+    assert "test_completeness_review" in r.stderr
+    assert "escalat" in r.stderr.lower() or "sr" in r.stderr.lower() or "auto-spawn" in r.stderr.lower()
+
+
+def test_exits_two_when_test_completeness_missing(script: Path, workspace: Path) -> None:
+    """v0.9.0: test_completeness_review field absent entirely must block."""
+    _write_manifest(workspace, "backend-test", ["T-T3"])
+    ev = _valid_evidence("T-T3")
+    ev.pop("test_completeness_review", None)
+    ev.pop("test_completeness_review_note", None)
+    (workspace / ".architect-team" / "reviews" / "T-T3.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-T3", "completed"))
+    assert r.returncode == 2
+    assert "test_completeness_review" in r.stderr
+
+
+@pytest.mark.parametrize("invalid_value", ["yes", "true", "ok", "passed", ""])
+def test_exits_two_when_test_completeness_invalid_value(
+    script: Path, workspace: Path, invalid_value: str
+) -> None:
+    """v0.9.0: test_completeness_review must be one of pass / n/a / fail."""
+    _write_manifest(workspace, "backend-test", ["T-T4"])
+    ev = _valid_evidence("T-T4")
+    ev["test_completeness_review"] = invalid_value
+    (workspace / ".architect-team" / "reviews" / "T-T4.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-T4", "completed"))
+    assert r.returncode == 2
+    assert "test_completeness_review" in r.stderr
+
+
+@pytest.mark.parametrize("missing_or_empty", [None, "", "   "])
+def test_exits_two_when_test_completeness_na_without_note(
+    script: Path, workspace: Path, missing_or_empty
+) -> None:
+    """v0.9.0: test_completeness_review='n/a' requires a non-empty justification note."""
+    _write_manifest(workspace, "backend-test", ["T-T5"])
+    ev = _valid_evidence("T-T5")
+    ev["test_completeness_review"] = "n/a"
+    if missing_or_empty is None:
+        ev.pop("test_completeness_review_note", None)
+    else:
+        ev["test_completeness_review_note"] = missing_or_empty
+    (workspace / ".architect-team" / "reviews" / "T-T5.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-T5", "completed"))
+    assert r.returncode == 2
+    assert "test_completeness_review_note" in r.stderr or "n/a" in r.stderr

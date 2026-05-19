@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 8 . 1
+                       ─── T E A M ───   v 0 . 9 . 0
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -20,13 +20,14 @@
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.8.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| ▸ **Auto-commit + push on clean pass** | At the end of a successful Phase 8 (and at the end of `/architect-team:visual-qa` when fixes converged), the pipeline auto-stages its working set, commits with a structured message, and pushes to the current branch's upstream. Opt out per invocation via `--no-commit` / `--no-push` flags (or natural language: "don't commit", "no push"). Never force-pushes; never amends; never skips hooks; never `git add -A`. |
+| ▸ **Test-completeness enforcement (v0.9.0)** | New `test-completeness-verifier` agent confirms unit + integration + Playwright tests all ran and meet acceptance criteria. Hook-enforced `test_completeness_review` evidence field (pass / n/a / fail) blocks completion. "Fail" triggers SR auto-spawn so the orchestrator re-spawns the originating team with concrete missing-test fix scope. Playwright tests are grep-audited for forbidden `page.evaluate(() => fetch(...))` / `page.request.*` / `axios.*` direct-API patterns. |
+| ▸ **Auto-commit + push on clean pass (v0.8.0)** | At the end of a successful Phase 8 (and at the end of `/architect-team:visual-qa` when fixes converged), the pipeline auto-stages its working set, commits with a structured message, and pushes to the current branch's upstream. Opt out per invocation via `--no-commit` / `--no-push` flags (or natural language: "don't commit", "no push"). Never force-pushes; never amends; never skips hooks; never `git add -A`. |
 | ▸ **Solution-Requirement auto-spawn (v0.7.0)** | Every Playwright / integration failure or visual-fidelity drift writes a structured SR; the orchestrator picks it up and auto-spawns a Phase 2 fix team. Alerts that don't trigger remediation are gone. |
 | ▸ **`/architect-team:visual-qa` (v0.5.0)** | On-demand pixel-perfect audit against `DESIGN_MAP.md`. Refreshes the design map if stale, runs code-first + Playwright reconciliation, fixes drift to spec autonomously. |
 | ▸ **Link inference for un-annotated UI (v0.6.0)** | Route-mapper now infers `target_link` for buttons the design didn't annotate, with explicit precedence (explicit > route-match > page-set match > UX convention > escalate) + confidence levels. |
@@ -40,7 +41,7 @@
 ```
 
 ```
-┌─ SKILLS (11) ───────────────────────┬─ AGENTS (10) ─────────────────────┐
+┌─ SKILLS (11) ───────────────────────┬─ AGENTS (11) ─────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect       (opus)   │
 │ ◇ intake-and-mapping                │ ◆ frontend               (opus)   │
 │ ◇ reuse-first-design                │ ◆ backend                (opus)   │
@@ -51,7 +52,8 @@
 │ ◇ dev-api-integration-testing       │ ◆ integration-explorer   (opus)   │
 │ ◇ coverage-mapping                  │ ◆ master-synthesizer     (opus)   │
 │ ◇ team-spawning-and-review-gates    │ ◆ route-mapper           (opus)   │
-│ ◇ root-cause-test-failures          │                                   │
+│ ◇ root-cause-test-failures          │ ◆ test-completeness-verifier      │
+│                                     │                          (sonnet) │
 ├─ COMMANDS (3) ──────────────────────┴─ HOOKS (2) ─────────────────────  │
 │ ▸ /architect-team <path>              ▸ PostToolUse(TaskUpdate)         │
 │ ▸ /architect-team-setup               ▸ SubagentStop                    │
@@ -254,6 +256,14 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 - **Phase E remediation — fix to spec by default.** Escalation reserved for 4 narrow cases: out-of-scope file / implementation-has-element-not-in-spec / spec-ambiguity / cascade-blast-radius. Each escalation writes an SR.
 - **References:** [`skills/visual-fidelity-reconciliation/SKILL.md`](skills/visual-fidelity-reconciliation/SKILL.md), [`skills/design-fidelity-mapping/SKILL.md`](skills/design-fidelity-mapping/SKILL.md).
 
+### ▌ Loop 4d — Test-completeness verification (Phase 3 + Phase 5)
+
+- **Trigger:** end of Phase 3 (after each teammate passes the review gate); end of Phase 5 (cross-layer integration); on-demand when the orchestrator suspects a coverage gap.
+- **Mechanism:** `test-completeness-verifier` agent reads the teammate's `<cwd>/.architect-team/reviews/<task-id>.json` and the coverage-map slice. For each kind (unit / integration / Playwright): checks test arrays are non-empty for applicable layers; grep-audits Playwright source files for forbidden `page.evaluate(() => fetch(...))` / `page.request.*` / `axios.*` direct-API patterns; confirms each acceptance criterion is covered by at least one test.
+- **Verdict JSON:** `<cwd>/.architect-team/test-completeness/<task-id>-<ts>.json` with per-kind `status: "pass" | "n/a" | "fail"` and `forbidden_pattern_audit: "clean" | "violations_found"`.
+- **On `overall: fail`:** writes SR with `origin.kind: "test-completeness-failure"`. Orchestrator picks up the SR, re-spawns the originating team to author the missing tests (or remove forbidden patterns), and the verifier re-runs to confirm.
+- **References:** [`agents/test-completeness-verifier.md`](agents/test-completeness-verifier.md), [`skills/team-spawning-and-review-gates/SKILL.md`](skills/team-spawning-and-review-gates/SKILL.md) §`Solution Requirements`.
+
 ### ▌ Loop 5 — Cross-layer integration (Phase 5)
 
 - **Wrapper:** Orchestrator-internal. Begins after both layer-teams pass Loop 4 + Phase 4 merges cleanly.
@@ -348,7 +358,7 @@ Discovers frontend codebases (from `intake-state.json` or the `$ARGUMENTS` path)
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 11 skill frontmatters; all 10 agent frontmatters (tool names + model names); all 3 commands; hooks.json wiring; hook script logic (review-gate + teammate-idle, including v0.5.0 visual_fidelity_review enforcement and v0.2.3 path-traversal sanitization); setup script logic. **90 tests pass.**
+Tests validate: plugin/marketplace JSON; all 11 skill frontmatters; all 11 agent frontmatters (tool names + model names); all 3 commands; hooks.json wiring; hook script logic (review-gate + teammate-idle, including v0.9.0 test_completeness_review enforcement, v0.5.0 visual_fidelity_review enforcement, and v0.2.3 path-traversal sanitization); setup script logic. **101 tests pass.**
 
 ### Bumping versions
 
@@ -383,7 +393,8 @@ Tests validate: plugin/marketplace JSON; all 11 skill frontmatters; all 10 agent
            v0.6.0 ─ link inference for un-annotated UI
            v0.7.0 ─ solution-requirement auto-spawn
            v0.8.0 ─ auto-commit + push on clean pass
-   ◆       v0.8.1 ─ frontend + backend implementers on opus (current)
+           v0.8.1 ─ frontend + backend implementers on opus
+   ◆       v0.9.0 ─ test-completeness verification (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

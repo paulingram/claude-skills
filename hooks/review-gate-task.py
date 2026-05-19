@@ -28,9 +28,11 @@ REQUIRED_EVIDENCE_FIELDS = {
     "files_changed",
     "reuse_compliance",
     "visual_fidelity_review",
+    "test_completeness_review",
 }
 
 VALID_VISUAL_FIDELITY_VALUES = {"pass", "n/a", "fail"}
+VALID_TEST_COMPLETENESS_VALUES = {"pass", "n/a", "fail"}
 
 
 def _safe_id(value: str) -> str | None:
@@ -199,6 +201,31 @@ def _validate(evidence: dict[str, Any]) -> list[str]:
                 "visual_fidelity_review='n/a' requires a non-empty "
                 "visual_fidelity_review_note explaining why (no frontend files "
                 "touched, OR no DESIGN_MAP.md exists for the codebase)"
+            )
+
+    tcr = evidence.get("test_completeness_review")
+    if tcr not in VALID_TEST_COMPLETENESS_VALUES:
+        gaps.append(
+            f"test_completeness_review={tcr!r} must be one of "
+            f"{sorted(VALID_TEST_COMPLETENESS_VALUES)}"
+        )
+    elif tcr == "fail":
+        gaps.append(
+            "test_completeness_review='fail' — test-kind completeness gaps detected by "
+            "the test-completeness-verifier MUST be escalated via the SR auto-spawn "
+            "(origin.kind: 'test-completeness-failure'), not marked complete. "
+            "The verifier writes the SR automatically; wait for the orchestrator to "
+            "re-spawn the fix loop, then re-run the verifier to reach 'pass'."
+        )
+    elif tcr == "n/a":
+        note = evidence.get("test_completeness_review_note")
+        if not isinstance(note, str) or not note.strip():
+            gaps.append(
+                "test_completeness_review='n/a' requires a non-empty "
+                "test_completeness_review_note explaining which kind(s) are "
+                "inapplicable and why (e.g., backend-only slice with no testable "
+                "pure-logic surface for unit tests, OR no frontend touched so "
+                "Playwright is n/a)"
             )
 
     return gaps

@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] — 2026-05-18
+
+### Added (test-completeness enforcement — REQ-001 through REQ-005)
+
+#### REQ-001 — Language audit and Playwright anti-pattern enforcement
+- `skills/playwright-user-flows/SKILL.md`: added unambiguous "Real-user simulation" clause to Phase B naming the forbidden API-direct-call patterns explicitly: `page.evaluate(() => fetch(...))`, `page.request.get/post/...`, `axios.*` from inside test body are FORBIDDEN substitutes for user-click paths; only `page.route(...)` for error-path mocking and `page.request.*` for asset-resolution verification are allowed. Added new anti-pattern table row: "I'll just hit the endpoint via `page.evaluate(() => fetch())` / `page.request.*` — same result, less brittle" → FORBIDDEN with named discipline.
+- `agents/frontend.md`: new hard rule naming `page.evaluate(() => fetch(...))`, `page.request.*`, and `axios.*` as explicitly forbidden, with the full mandatory phrasing of what a Playwright test IS (real-human simulation via page.click / page.fill / page.waitFor / expect(locator).toBeVisible()).
+- `agents/integration.md`: same hard rule added to the integration agent.
+- `commands/visual-qa.md`: Phase C runtime verification section now leads with the unambiguous Playwright discipline clause, naming forbidden patterns and allowed exceptions.
+
+#### REQ-002 — New `test-completeness-verifier` agent
+- `agents/test-completeness-verifier.md`: new read-only agent (tools: Read, Glob, Grep, LS, Bash, TodoWrite; no Edit/Write; model: sonnet; color: red). Documents: inputs (task_id, review-evidence path, coverage-map slice, test source root); per-kind process (unit / integration / Playwright + grep-audit for forbidden API-direct-call patterns in named Playwright source files); verdict JSON schema at `<cwd>/.architect-team/test-completeness/<task_id>-<ts>.json` with per-kind status (pass / n/a / fail), forbidden_pattern_audit (clean / violations_found), and missing_criteria; escalation on `overall: fail` via SR with `origin.kind: "test-completeness-failure"`; hard rules (read-only, never silent pass, never skip Playwright audit even when count > 0).
+
+#### REQ-003 — Hook enforcement of test-kind completeness
+- `hooks/review-gate-task.py`: added `"test_completeness_review"` to `REQUIRED_EVIDENCE_FIELDS`. Added `VALID_TEST_COMPLETENESS_VALUES = {"pass", "n/a", "fail"}` constant (after `VALID_VISUAL_FIDELITY_VALUES`). Added parallel `_validate()` branch after existing `vfr` branch: invalid value → block with valid-values message; `"fail"` → block with escalation message directing to SR auto-spawn (not manual marking complete); `"n/a"` → require non-empty `test_completeness_review_note`. Evidence schema bumped v2 → v3.
+
+#### REQ-004 — SR origin enum update
+- `skills/team-spawning-and-review-gates/SKILL.md`: added `"test-completeness-failure"` to the `origin.kind` enum in the SR schema (both in the JSON example and in the prose validity rule). Updated `## Mandatory consumers` to add a bullet for `test-completeness-verifier` agent — every `overall: fail` writes an SR so the orchestrator re-spawns the originating team. Review-evidence schema bumped to v3 with `test_completeness_review` and conditional `test_completeness_review_note` documented alongside the existing `visual_fidelity_review` documentation.
+
+#### REQ-005 — Tests
+- `tests/test_review_gate_task.py`: updated `_valid_evidence()` helper to `schema_version: 3` with `test_completeness_review: "n/a"` and `test_completeness_review_note: "backend-only slice; integration tests count as the qualifying kind for this slice"` so all existing tests remain valid. Added 11 new v0.9.0 test cases covering every branch: `test_exits_zero_when_test_completeness_pass`, `test_exits_two_when_test_completeness_fail`, `test_exits_two_when_test_completeness_missing`, `test_exits_two_when_test_completeness_invalid_value` (parametrized over 5 invalid values), `test_exits_two_when_test_completeness_na_without_note` (parametrized over None / "" / "   "). All new cases pass.
+- `tests/test_agents.py`: added `"test-completeness-verifier"` to `EXPECTED_AGENTS`; existing parametrized frontmatter validation covers the new agent automatically.
+
+#### REQ-006 — Documentation refresh
+- `CHANGELOG.md`: this entry.
+- `README.md`: banner version `v0.8.1` → `v0.9.0`; agent count 10 → 11; new agent row in grid; "NEW IN" heading updated to v0.9.0; Loop 4d added for test-completeness verification; status timeline updated.
+- `docs/CODEBASE_MAP.md`: targeted refresh — agent count 10 → 11; test count 90 → 101; mermaid adds AG_VERIFIER node + edges; directory tree adds new agent; agents table adds test-completeness-verifier row; system overview updated.
+- `.claude-plugin/plugin.json`, `marketplace.json`: version `0.8.1` → `0.9.0`.
+
+### Released (v0.9.0)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.8.1` → `0.9.0`.
+
 ## [0.8.1] — 2026-05-18
 
 ### Changed (frontend + backend implementers now run opus)

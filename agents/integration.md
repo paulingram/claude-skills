@@ -72,7 +72,7 @@ For frontend slices: capture the Playwright trace path for the happy-path test.
 
 ## Hard rules
 
-- No "let me just hit the API to verify" in place of a user-flow test for frontend features.
+- No "let me just hit the API to verify" in place of a user-flow test for frontend features. Specifically: `page.evaluate(() => fetch(...))`, `page.request.get/post/put/patch/delete` outside of `page.route(...)` blocks or asset-resolution helpers, and `axios.*` imports or calls inside Playwright test bodies are FORBIDDEN substitutes for user-click paths. A Playwright test simulates a real human via `page.goto` / `page.click` / `page.fill` / `page.selectOption` / `page.setInputFiles` / `page.waitFor` / `expect(locator).toBeVisible()` and asserts visible state. The only allowed direct-API uses are: `page.route(...)` to mock specific error paths (401 / 429 / 500), and `page.request.*` to verify asset resolution (e.g., logo SVG returns 200 with the registered SHA-256).
 - No mocking the DB, queue, or cache in integration tests.
 - No silent retry on test failure — failures route back.
 - No declaring Phase 5 done with any coverage gap.
