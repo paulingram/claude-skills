@@ -132,10 +132,13 @@ def test_system_architect_searches_before_recommendation(plugin_root: Path) -> N
     )
 
 
-def test_system_architect_auto_mines_recommendation(plugin_root: Path) -> None:
+def test_system_architect_recommendation_is_mined_to_architectural_decisions(plugin_root: Path) -> None:
+    """The system-architect's recommendation must reach the architectural-decisions
+    room. As of v0.9.9 the orchestrator performs the mine (mining is
+    orchestrator-serialized) — the agent returns the path."""
     content = _read(plugin_root, SYSTEM_ARCHITECT_PATH)
-    assert "--room architectural-decisions" in content, (
-        "system-architect does not auto-mine its recommendation into architectural-decisions room"
+    assert "architectural-decisions" in content, (
+        "system-architect does not route its recommendation to the architectural-decisions room"
     )
 
 

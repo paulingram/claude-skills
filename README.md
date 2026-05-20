@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 8
+                       ─── T E A M ───   v 0 . 9 . 9
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -22,17 +22,18 @@
 
 ![version](https://img.shields.io/badge/version-0.9.8-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-274%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-309%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.8  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.9  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Logic-implementation review fixes (v0.9.9)** | A critical review of the pipeline's logic surfaced real holes; v0.9.9 closes all three tiers. The two evidence hooks had **drifted** (`teammate-idle-check` validated 8 fields, `review-gate-task` validated 11) — they now import one shared `review_evidence_schema` module, so drift is structurally impossible. A new **`Stop` hook** (`pipeline-completion-audit`) blocks the orchestrator from ending a run that is still incomplete — open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, a blown iteration ceiling — and gates the Phase 8 auto-commit. The editability team gained an independent `system-architect` **robustness review** (Round 3). Plus: a global iteration ceiling + oscillation detection, a documented shared-state concurrency model, map re-validation when a map is found wrong, and a default-branch push guard (`--allow-push-to-default`). See Logic Map C. |
 | ▸ **README styling skill (v0.9.8)** | New `readme-styling` reference skill codifies the bitmap house style — block-letter banner, gradient dividers, box-drawing panels, ASCII flowcharts, **logic maps that show routing + gates**, status timeline, colored badges — so every README an agent authors carries the same flair. This README is its reference implementation. |
 | ▸ **Editability completeness (v0.9.7)** | New `editability-completeness` skill + `editability-reviewer` agent (×3, opus). Confirms every attribute an entity exposes that a user should control is actually editable end-to-end — UI control → state → API → request schema → handler → database → read-back. Catches the case where a `title` displays but has no field to set it. Three reviewers argue to a converged gap list; gaps → SRs; multi-pass until satisfied. `/architect-team:editability-audit` for on-demand audits. |
 | ▸ **Expensive-verification debugging (v0.9.6)** | New `expensive-verification-debugging` skill. When a fix is verified by a slow loop (deploy / rebuild / slow CI), audit the whole failure pathway statically, batch every fix, spend the expensive cycle once — instead of one-fix-per-deploy whack-a-mole. |
@@ -73,9 +74,10 @@
 │ ▸ /architect-team:mempalace-install                                         │
 │ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                  │
 │ ▸ /architect-team:editability-audit [<codebase-path>]                        │
-├─ HOOKS (2) ──────────────────────────────────────────────────────────────────┤
+├─ HOOKS (3) ──────────────────────────────────────────────────────────────────┤
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — 11 fields                 │
-│ ▸ SubagentStop              teammate-idle manifest check                     │
+│ ▸ SubagentStop              teammate-idle review-gate re-check               │
+│ ▸ Stop                      pipeline-completion audit (terminal gate)        │
 ├─ SETUP ───────────────────────────────────────────────────────────────────────┤
 │ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright  │
 │ ▸ scripts/setup/install_mempalace.py MemPalace CLI + MCP server (uv-first)   │
@@ -268,6 +270,33 @@ Every surfaced issue becomes an SR; test-failure origins route through diagnosti
                       (Phase 3 for the slice)             the originating
                                                           teammate unblocks
 ```
+
+### ▌ Logic Map C — the completion audit (Stop hook)
+
+The orchestrator runs as the main session — no hook can gate its mid-run behaviour, but the `Stop` hook gates its **terminal** state: it blocks the orchestrator from ending a run, or auto-committing, while the run is still incomplete.
+
+```
+   orchestrator session ends ──▶ ▣ Stop HOOK · pipeline-completion-audit.py
+            │
+            ▼
+   ◆ does .architect-team/ hold an INCOMPLETE run?
+     · an open / in-progress solution requirement
+     · a test-failure SR with no diagnostic plan
+     · an unsatisfied editability loop   · a test-completeness debt
+     · the dev-loop iteration ceiling (20) exceeded
+        │                                              │
+      no│  (clean — or not an architect-team run)      │ yes
+        ▼                                              ▼
+   ✓ exit 0 — ALLOW the stop          ◆ is .architect-team/escalation-pending.md present?
+                                          │                              │
+                                      yes │  (legitimately                │ no
+                                          ▼   paused for a human)         ▼
+                                 ✓ exit 0 — ALLOW             ✗ exit 2 — BLOCK
+                                                              resolve the gaps, OR write the
+                                                              escalation marker, then stop again
+```
+
+The same audit runs as `pipeline-completion-audit.py --check` before the Phase 8 auto-commit — so "clean pass" is a checked fact, not the orchestrator's self-assessment.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -465,7 +494,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring; hook script logic (review-gate + teammate-idle — 11-field evidence schema v4 with `visual_fidelity` / `test_completeness` / `integration_testing` enforcement + path-traversal sanitization); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling disciplines. **274 tests pass.**
+Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — 11-field evidence schema v4; the `pipeline-completion-audit` Stop hook; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling disciplines. **309 tests pass.**
 
 ### Bumping versions
 
@@ -505,7 +534,8 @@ Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent
            v0.9.5 ─ real backend by default for full-stack tests
            v0.9.6 ─ expensive-verification-debugging
            v0.9.7 ─ editability-completeness review
-   ◆       v0.9.8 ─ readme-styling skill + README refresh (current)
+           v0.9.8 ─ readme-styling skill + README refresh
+   ◆       v0.9.9 ─ logic-implementation review — Tier 1/2/3 hole fixes (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

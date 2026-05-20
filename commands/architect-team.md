@@ -1,6 +1,6 @@
 ---
 description: Spec-to-production multi-agent coding pipeline. Takes a requirements folder (OpenSpec / Superpowers / plain markdown) and drives it end-to-end to tested, integrated production code. Auto-commits and pushes on a clean Phase 8 pass and emits a clear /compact prompt to free context for the next run, unless invoked with --no-commit / --no-push / --no-compact.
-argument-hint: "<path-to-requirements-folder> [--no-commit] [--no-push] [--no-compact]"
+argument-hint: "<path-to-requirements-folder> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default]"
 ---
 
 # Architect-Team Orchestration
@@ -17,7 +17,8 @@ Parse `$ARGUMENTS` into a path component and zero or more flags. Whitespace-sepa
 - `--no-commit` flag → set `AUTO_COMMIT = false`, `AUTO_PUSH = false`.
 - `--no-push` flag → set `AUTO_COMMIT = true`, `AUTO_PUSH = false`.
 - `--no-compact` flag → set `AUTO_COMPACT_PROMPT = false`. (Default `true`.)
-- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`.
+- `--allow-push-to-default` flag → set `ALLOW_PUSH_TO_DEFAULT = true`. (Default `false`.) When false, the pipeline will NOT commit + push unreviewed work straight onto a `main` / `master` branch — it commits to an `architect-team/<change-name>` feature branch instead and tells you to open a PR. Pass this flag only when pushing the pipeline's output directly to the default branch is genuinely what you want.
+- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`.
 
 Flags are independent of each other (e.g., `--no-commit --no-compact` is valid — skips both).
 
@@ -31,14 +32,16 @@ If `$REQ_DIR` resolves to an empty string after parsing, ask the user for the re
 
 Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool with `skill: architect-team-pipeline`) and follow its pipeline exactly against the requirements folder above. The skill begins at Phase −1 (Intake & Mapping) and proceeds through Phase 8 (Final Report).
 
-**Pass the `AUTO_COMMIT` and `AUTO_PUSH` flags to the skill.** The skill's Phase 8 reads these to decide whether to auto-commit and push at the terminal step.
+**Pass the `AUTO_COMMIT`, `AUTO_PUSH`, and `ALLOW_PUSH_TO_DEFAULT` flags to the skill.** The skill's Phase 8 reads these to decide whether to auto-commit, push, and whether it may push straight to a default branch.
 
 ## Default git behavior (when `AUTO_COMMIT = true` and `AUTO_PUSH = true`)
 
 At the end of Phase 8, after the final report emits "Spec `<change-name>` has been implemented." and the archive path:
 
+0. **Run the completion audit FIRST:** `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check` from the repo root. If it exits non-zero, the run is incomplete — do NOT commit; resolve the reported violations or escalate. Only an exit-0 audit proceeds.
 1. `git -C <repo-root> status --porcelain` to enumerate what changed.
 2. `git -C <repo-root> add <files-the-pipeline-touched>` — stage ONLY the files the pipeline created or modified (read from the coverage-map's `implementing_commits`'s working set + `openspec/changes/<change-name>/` + any updated CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP files). Do NOT use `git add -A` — that risks sweeping in unrelated files.
+2b. **Default-branch guard:** if the current branch is `main` / `master` and `ALLOW_PUSH_TO_DEFAULT` is false, `git -C <repo-root> checkout -b architect-team/<change-name>` before committing — the pipeline does not commit unreviewed work straight onto a default branch. Otherwise commit on the current branch.
 3. `git -C <repo-root> commit -m "$(cat <<'EOF'
 <change-name>: <one-line summary from Phase 8 final-statement>
 
@@ -50,8 +53,8 @@ At the end of Phase 8, after the final report emits "Spec `<change-name>` has be
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
 )"` — use the repo's local git config (no `-c user.name=` override here; that override is specific to repos with mis-configured local config).
-4. `git -C <repo-root> push origin <current-branch>` — push to the current branch's upstream.
-5. Report the commit SHA and push range in the final user-facing report.
+4. `git -C <repo-root> push -u origin <branch>` — push the branch the commit landed on (the current branch, or the `architect-team/<change-name>` branch from step 2b).
+5. Report the commit SHA and push range in the final user-facing report. If the commit went to an `architect-team/<change-name>` feature branch, the report MUST say so and recommend opening a PR.
 
 If `AUTO_COMMIT = false`: skip steps 2-5 entirely; mention in the final report that changes were left uncommitted at the user's request.
 

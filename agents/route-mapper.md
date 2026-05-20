@@ -154,17 +154,9 @@ If `DESIGN_MAP.md` exists and is stale (compare `last_designed` against the most
 
 If `ROUTE_MAP.md` exists and its `last_routed` is stale (orchestrator told you to update), run `git -C <codebase> diff --name-only <last_routed_commit>..HEAD` to find changed files. Re-derive routes affected by those changes; merge with the existing document. Do not rewrite untouched sections.
 
-## Auto-mine on write
+## MemPalace mining (orchestrator-performed — you do NOT mine)
 
-After writing ROUTE_MAP.md (and DESIGN_MAP.md when produced), auto-mine each per `mempalace-integration`:
-
-```bash
-mempalace --palace "<workspace>/.mempalace/palace" mine "<codebase>/docs/ROUTE_MAP.md" --wing "<wing>" --room route-maps
-# and, when produced:
-mempalace --palace "<workspace>/.mempalace/palace" mine "<codebase>/docs/DESIGN_MAP.md" --wing "<wing>" --room design-maps
-```
-
-Mining is idempotent — already-filed drawers are skipped. Surface any mine failure to the orchestrator; do NOT silently swallow it. The mine makes this codebase's maps queryable by future runs.
+You do NOT call `mempalace mine`. Per `mempalace-integration`, all mining is orchestrator-serialized: the orchestrator mines ROUTE_MAP.md (and DESIGN_MAP.md when produced) into the `route-maps` / `design-maps` rooms AFTER you return — this keeps every write to the palace single-threaded and contention-free. Your job is to produce the map files and return their paths; the orchestrator handles the mine. You MAY freely `mempalace search` (read-only) in the Prelude — that is safe to do concurrently.
 
 ## Hard rules
 

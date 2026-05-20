@@ -39,8 +39,11 @@ For each codebase:
 
 - Read `<codebase>/docs/CODEBASE_MAP.md` `last_mapped` (YAML frontmatter).
 - Run `git -C <codebase> log -1 --format=%cI` (most recent commit ISO time).
-- If doc exists AND doc-timestamp ≥ latest-commit-timestamp → mark `CURRENT`; skip remap.
+- Read `intake-state.json`'s `map_invalidated` array (codebases flagged as having a known-wrong map).
+- Mark `CURRENT` and skip remap ONLY if all three hold: the doc exists, doc-timestamp ≥ latest-commit-timestamp, AND this codebase is NOT in `map_invalidated`.
 - Else → remap. Cartographer auto-selects full vs update mode based on the change scope it detects.
+
+**Map invalidation (closes the wrong-but-fresh-map hole).** A timestamp newer than the last commit only proves the map is *recent* — not *correct*. If any agent later in the run discovers the map is materially wrong — a teammate finds a module the map never listed, the integration agent finds an integration the map missed, a diagnostic-researcher traces a path the map mis-described — that agent records the codebase in `intake-state.json`'s `map_invalidated` array. That flag forces the NEXT run's Step 1 to re-derive + re-review the map regardless of timestamps, so a wrong map can never silently survive on freshness alone. The flag is cleared for a codebase once its re-derived map passes the Step 3 three-reviewer loop.
 
 ### Step 2: Run cartographer
 

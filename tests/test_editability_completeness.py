@@ -110,6 +110,27 @@ def test_skill_is_multi_pass_and_bounded(plugin_root: Path) -> None:
     )
 
 
+def test_skill_has_architect_robustness_review(plugin_root: Path) -> None:
+    """v0.9.9: the converged map must pass an independent system-architect
+    robustness review (Round 3) — three reviewers converging is not proof
+    they are right; they can share a blind spot."""
+    content = _read(plugin_root, SKILL)
+    assert "Round 3" in content, "editability skill missing the Round 3 architect review"
+    assert "system-architect" in content, (
+        "editability skill's Round 3 does not dispatch the system-architect agent"
+    )
+    assert "robustness" in content.lower(), (
+        "editability skill's Round 3 does not describe a robustness review"
+    )
+
+
+def test_system_architect_documents_editability_review_mode(plugin_root: Path) -> None:
+    content = _read(plugin_root, ("agents", "system-architect.md"))
+    assert "Editability Map Review" in content, (
+        "system-architect agent does not document the Editability Map Review mode"
+    )
+
+
 def test_skill_reviewers_are_analysis_only(plugin_root: Path) -> None:
     """Reviewers must not write feature code — gaps go through the fix loop."""
     content = _read(plugin_root, SKILL)

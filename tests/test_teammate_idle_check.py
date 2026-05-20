@@ -41,8 +41,14 @@ def _run(script: Path, workspace: Path, payload: dict) -> subprocess.CompletedPr
 
 
 def _valid_evidence(task_id: str) -> dict:
+    """Evidence schema v4 — must match hooks/review_evidence_schema.py exactly.
+
+    The idle hook (SubagentStop) and the task hook (PostToolUse) both import
+    that shared module, so this helper carries the SAME 11 required fields the
+    task-hook test helper uses.
+    """
     return {
-        "schema_version": 1,
+        "schema_version": 4,
         "task_id": task_id,
         "teammate": "any",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -53,6 +59,12 @@ def _valid_evidence(task_id: str) -> dict:
         "demo_artifact": "demo",
         "files_changed": ["src/x.py"],
         "reuse_compliance": "ok",
+        "visual_fidelity_review": "n/a",
+        "visual_fidelity_review_note": "backend-only slice; no frontend files touched",
+        "test_completeness_review": "n/a",
+        "test_completeness_review_note": "backend-only slice; integration is the qualifying kind",
+        "integration_testing_review": "n/a",
+        "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
     }
 
 
@@ -132,6 +144,60 @@ def test_exits_two_when_subagent_name_has_path_traversal(
     assert unsafe_name in r.stderr or "path-traversal" in r.stderr, (
         f"stderr should name the rejected id; got: {r.stderr!r}"
     )
+
+
+@pytest.mark.parametrize("review_field", [
+    "visual_fidelity_review",
+    "test_completeness_review",
+    "integration_testing_review",
+])
+def test_idle_hook_enforces_v4_review_fields(
+    script: Path, workspace: Path, review_field: str
+) -> None:
+    """v0.9.9: the SubagentStop hook must enforce ALL 11 fields — including the
+    three review fields added in v0.5.0 / v0.9.0 / v0.9.5. Before v0.9.9 this
+    hook validated only 8 fields and had drifted from review-gate-task.py."""
+    _write_manifest(workspace, "backend-test", ["T-1"])
+    ev = _valid_evidence("T-1")
+    ev.pop(review_field, None)  # drop one required review field
+    ev.pop(f"{review_field}_note", None)
+    (workspace / ".architect-team" / "reviews" / "T-1.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, {"subagent": {"name": "backend-test"}})
+    assert r.returncode == 2, (
+        f"idle hook must block when {review_field} is missing; stderr={r.stderr!r}"
+    )
+    assert review_field in r.stderr
+
+
+def test_idle_hook_blocks_review_field_fail(script: Path, workspace: Path) -> None:
+    """A 'fail' review value must block idle just as it blocks TaskUpdate."""
+    _write_manifest(workspace, "frontend-test", ["T-1"])
+    ev = _valid_evidence("T-1")
+    ev["visual_fidelity_review"] = "fail"
+    (workspace / ".architect-team" / "reviews" / "T-1.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, {"subagent": {"name": "frontend-test"}})
+    assert r.returncode == 2
+    assert "visual_fidelity_review" in r.stderr
+
+
+def test_idle_hook_blocks_on_corrupt_matched_manifest(
+    script: Path, workspace: Path
+) -> None:
+    """v0.9.9: a corrupt manifest whose name matches the subagent is an
+    architect-team artifact failure — the hook must BLOCK, not fail open
+    (a teammate must not escape the idle gate by corrupting its own manifest)."""
+    (workspace / ".architect-team" / "teammates" / "backend-corrupt.json").write_text(
+        "{ this is not valid json", encoding="utf-8"
+    )
+    r = _run(script, workspace, {"subagent": {"name": "backend-corrupt"}})
+    assert r.returncode == 2, (
+        f"corrupt matched manifest must block, not fail open; stderr={r.stderr!r}"
+    )
+    assert "manifest" in r.stderr.lower()
 
 
 def test_subagent_name_flat_payload(script: Path, workspace: Path) -> None:

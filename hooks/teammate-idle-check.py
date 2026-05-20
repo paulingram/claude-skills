@@ -5,6 +5,10 @@ For architect-team teammates (those with a manifest at
 .architect-team/teammates/<name>.json), verify that every task_id in
 expected_review_evidence has a valid review-gate evidence file.
 
+The evidence schema + validation logic live in `review_evidence_schema.py`
+(a sibling module) so this hook and `review-gate-task.py` enforce the SAME
+contract — before v0.9.9 they had drifted (8 fields here vs 11 there).
+
 Exit codes:
 - 0: this is not an architect-team teammate (no manifest), or all evidence is valid
 - 2: required evidence missing or invalid (writes structured stderr describing gaps)
@@ -16,36 +20,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
-REQUIRED_EVIDENCE_FIELDS = {
-    "task_id",
-    "spec_review",
-    "quality_review",
-    "real_not_stubbed",
-    "tests",
-    "demo_artifact",
-    "files_changed",
-    "reuse_compliance",
-}
-
-
-def _safe_id(value: str) -> str | None:
-    """Return value if safe for use in a filesystem path component, else None.
-
-    Rejects empty strings, values containing '/' or '\\', values starting with
-    '.', and the exact string '..'.  These cover every path-traversal vector
-    for the controlled identifier sets (subagent names like 'backend-auth',
-    'frontend-dashboard') that the hooks handle.
-    """
-    if not value:
-        return None
-    if "/" in value or "\\" in value:
-        return None
-    if value.startswith("."):
-        return None
-    if value == "..":
-        return None
-    return value
+from review_evidence_schema import safe_id, validate_evidence
 
 
 def main() -> int:
@@ -59,7 +34,7 @@ def main() -> int:
     if not name:
         return 0  # nothing to check
 
-    if _safe_id(name) is None:
+    if safe_id(name) is None:
         print(
             f"teammate-idle-check: blocking SubagentStop: subagent name {name!r} contains "
             f"path-traversal characters and was rejected.",
@@ -71,25 +46,34 @@ def main() -> int:
     if not manifest_path.exists():
         return 0  # not an architect-team teammate
 
+    # The manifest path matches THIS subagent's name, so it IS an architect-team
+    # teammate. A corrupt manifest here is an architect-team artifact failure —
+    # block rather than fail open (a teammate must not escape the idle gate by
+    # writing garbage to its own manifest).
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         print(
-            f"teammate-idle-check: manifest at {manifest_path} is invalid JSON: {e}",
+            f"teammate-idle-check: blocking idle of teammate {name!r}: its manifest at "
+            f"{manifest_path} is not valid JSON ({e}). Repair the manifest before idling.",
             file=sys.stderr,
         )
-        return 0  # don't block on a corrupt manifest
+        return 2
 
     expected = manifest.get("expected_review_evidence") or []
     if not isinstance(expected, list):
         print(
-            f"teammate-idle-check: manifest expected_review_evidence is not a list",
+            f"teammate-idle-check: blocking idle of teammate {name!r}: manifest "
+            f"expected_review_evidence is not a list.",
             file=sys.stderr,
         )
-        return 0
+        return 2
 
     gaps: list[str] = []
     for task_id in expected:
+        if safe_id(str(task_id)) is None:
+            gaps.append(f"{task_id!r}: task_id contains path-traversal characters")
+            continue
         path = Path.cwd() / ".architect-team" / "reviews" / f"{task_id}.json"
         if not path.exists():
             gaps.append(f"{task_id}: no review evidence at {path}")
@@ -99,7 +83,7 @@ def main() -> int:
         except json.JSONDecodeError:
             gaps.append(f"{task_id}: evidence at {path} is not valid JSON")
             continue
-        item_gaps = _validate(evidence)
+        item_gaps = validate_evidence(evidence)
         if item_gaps:
             gaps.append(f"{task_id}: " + "; ".join(item_gaps))
 
@@ -125,42 +109,6 @@ def _extract_subagent_name(payload: dict[str, Any]) -> str | None:
     if isinstance(n, str) and n:
         return n
     return None
-
-
-def _validate(evidence: dict[str, Any]) -> list[str]:
-    gaps: list[str] = []
-    missing = REQUIRED_EVIDENCE_FIELDS - evidence.keys()
-    if missing:
-        return [f"missing fields: {sorted(missing)}"]
-
-    if evidence.get("spec_review") != "pass":
-        gaps.append(f"spec_review={evidence.get('spec_review')!r}")
-    if evidence.get("quality_review") != "pass":
-        gaps.append(f"quality_review={evidence.get('quality_review')!r}")
-    if evidence.get("real_not_stubbed") is not True:
-        gaps.append("real_not_stubbed not true")
-    if evidence.get("reuse_compliance") != "ok":
-        gaps.append(f"reuse_compliance={evidence.get('reuse_compliance')!r}")
-
-    tests = evidence.get("tests")
-    if not isinstance(tests, dict):
-        gaps.append("tests is not an object")
-    else:
-        added, passing = tests.get("added"), tests.get("passing")
-        if not isinstance(added, int) or not isinstance(passing, int):
-            gaps.append("tests.added/passing not integers")
-        elif added < 1 or added != passing:
-            gaps.append(f"tests.added={added} passing={passing}")
-
-    demo = evidence.get("demo_artifact")
-    if not isinstance(demo, str) or not demo.strip():
-        gaps.append("demo_artifact empty")
-
-    files = evidence.get("files_changed")
-    if not isinstance(files, list) or not files:
-        gaps.append("files_changed empty")
-
-    return gaps
 
 
 if __name__ == "__main__":

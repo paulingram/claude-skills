@@ -93,7 +93,7 @@ Multi-file mines (e.g., the whole `diagnostic-research/<test-id>/` directory): p
 | `visual-fidelity-reconciliation` writes summary or per-screen reports | the summary + JSON reports | `visual-fidelity-reports` |
 | Phase 8 final report | persist to `.architect-team/runs/<change>-<ts>.md` THEN mine | `final-reports` |
 
-The orchestrator coordinates the mine after each phase's terminal commit; named subagents (route-mapper, system-architect, diagnostic-researcher, integration) mine THEIR OWN output as the last step before signaling idle.
+**Mining is orchestrator-serialized — subagents never call `mempalace mine`.** Every `mempalace mine` call is performed by the orchestrator. The orchestrator is single-threaded between subagent dispatches (the harness blocks its turn while a subagent runs), so orchestrator-only mining is naturally serialized — no two `mempalace mine` processes ever contend on the palace's SQLite store. A subagent that produces a mineable artifact (a route-mapper writing ROUTE_MAP.md, a system-architect writing a recommendation, the diagnostic-research team writing its drafts) simply returns the artifact path; the orchestrator mines it after the subagent returns. Subagents may freely `search` the palace (read-only — concurrent reads are safe); they do not `mine`. If a `mempalace mine` call still reports `database is locked`, retry it with a tight bounded in-turn backoff (a few short retries — never a scheduled wakeup, per the v0.9.2 rule); mining is idempotent, so a retry is always safe.
 
 ## Phase C — Search before producing output (named subagents only)
 
@@ -127,7 +127,8 @@ If MCP is registered, subagents that need it use the MCP tools by name (the tool
 - **Search before output for named agents.** The `Prior context from MemPalace` section is mandatory in agent drafts where the table above prescribes a search.
 - **Never put secrets in mine paths.** Audit the path before mining — `.env*`, `credentials*`, `*.pem`, `id_rsa*` files must be excluded by the caller. (MemPalace's miner does NOT have a built-in secrets filter; this responsibility lives at the caller layer.)
 - **Never schedule wakeups / cron / background timers around mine or search.** All operations are synchronous (per the v0.9.2 pipeline-discipline rule).
-- **Fail loud on mine/search errors.** Surface stderr; do NOT silently retry. A failed mine means a missing entry in future searches — treat it as a hard failure of the phase that wrote the artifact.
+- **Fail loud on mine/search errors** — with ONE exception: a `database is locked` error on `mine` gets a tight bounded retry (mining is idempotent and the lock clears quickly). Any other error: surface stderr, do NOT silently retry. A failed mine means a missing entry in future searches — treat it as a hard failure of the phase that wrote the artifact.
+- **Only the orchestrator mines.** Subagents search (read-only) but never call `mempalace mine` — this keeps all writes to the palace single-threaded and contention-free.
 - **Do NOT mine the .architect-team/ runtime state in bulk.** Mine specific artifacts per the room table. Bulk-mining `.architect-team/` would mix transient state (in-progress task files) with persistent artifacts.
 
 ## Quick reference — most-used commands

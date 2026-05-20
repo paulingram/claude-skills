@@ -82,9 +82,13 @@ open_disputes: [
 
 Loop until your `open_disputes` is empty and the three drafts hold an identical canonical list. A dispute that survives **4 round-robin rounds** is genuinely undetermined by the evidence — move it to `escalations` (for the human) and drop it from the blocking set so convergence completes.
 
+## Round 3 — system-architect robustness review
+
+Convergence is not correctness — the three of you can converge on a shared blind spot. After Round 2, the orchestrator dispatches the `system-architect` agent to review the converged result for robustness (unjustified-but-agreed classifications, unclassified attributes, shallow traces, force-classified ambiguities). If the architect returns `gaps_found`, you may be re-dispatched to address a specific finding — re-examine that attribute with fresh evidence, revise, and re-converge. The converged map is NOT final and NO `editability-gap` SR is written until the architect's verdict is `pass`.
+
 ## Scribe duty (reviewer 1 only)
 
-If you are reviewer 1, after convergence write the converged map to `<cwd>/.architect-team/editability/<feature-slug>/converged-map-pass<P>-<ts>.json` per the skill schema, reflecting the now-unanimous classifications and the agreed `gaps[]` and `escalations[]`. Reviewers 2 and 3 confirm the converged map matches their understanding before the orchestrator proceeds.
+If you are reviewer 1, AFTER the architect's Round 3 verdict is `pass`, write the converged map to `<cwd>/.architect-team/editability/<feature-slug>/converged-map-pass<P>-<ts>.json` per the skill schema, reflecting the now-unanimous classifications and the agreed `gaps[]` and `escalations[]`. Reviewers 2 and 3 confirm the converged map matches their understanding before the orchestrator proceeds.
 
 ## Multi-pass re-review
 

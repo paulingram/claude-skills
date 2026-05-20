@@ -44,9 +44,23 @@ After each round-robin round each reviewer emits: `agreement: [<attributes where
 
 This is the "argue until they have a clear list of asks" the team exists to produce.
 
+### Pass P, Round 3 — system-architect robustness review (independent falsifier)
+
+Three reviewers converging is not the same as three reviewers being right. They can converge on the same wrong classification — the classic failure is all three defaulting an ambiguous `status` to `system-managed` because none of them seriously considered it could be `dynamic-via-action`. Convergence-without-an-independent-check is itself a hole. So, after Round 2, the orchestrator dispatches the `system-architect` agent to review the converged editable-surface map for **robustness** — exactly as `diagnostic-research-team` does after its three researchers.
+
+The architect does NOT re-do the enumeration. It asks: is the converged result robust?
+
+- **Shared blind spot.** Did all three reviewers classify some attribute the same way without any of them citing real evidence — a converged guess wearing the costume of consensus? Each `system-managed` / `derived` classification must be justified, not just agreed.
+- **Coverage.** Is there an attribute in the data model or the design that the converged map never classified at all?
+- **Diversity of the editable set.** If the converged map says almost nothing is `user-editable`, is that the product, or three reviewers being conservative in lockstep?
+- **Trace depth.** For every `user-editable` attribute marked `complete`, does the trace actually carry `file:line` evidence at all seven stages, or did the reviewers wave a stage through?
+- **Escalation honesty.** Did a genuinely ambiguous attribute get force-classified to avoid an escalation?
+
+The architect writes a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with specific items routed back to named reviewers. On `gaps_found`, the orchestrator re-dispatches those reviewers to address the architect's findings, then convergence (Round 2) and this review (Round 3) repeat. Bounded at 3 architect-review cycles per pass; an unresolved item after that escalates to the human. Only an architect `pass` unlocks the converged map.
+
 ### Pass P — converged map + gaps become solution requirements
 
-Reviewer-1 (designated scribe) writes the converged map to:
+Once the architect's Round 3 verdict is `pass`, reviewer-1 (designated scribe) writes the converged map to:
 
 ```
 <cwd>/.architect-team/editability/<feature-slug>/converged-map-pass<P>-<ts>.json
@@ -188,6 +202,7 @@ They are complementary. A feature can pass all of the above and still fail this 
 ## Hard rules (non-negotiable)
 
 - Three reviewers, always — independent in Round 1, arguing in Round 2. Two cannot triangulate a judgment call; the third is the tie-break and the falsifier.
+- The Round 3 `system-architect` robustness review is a non-negotiable gate. Three reviewers converging is not proof they are right — they can converge on a shared blind spot. The converged map is not final, and no `editability-gap` SR is written, until the architect's verdict is `pass`.
 - Reviewers are **analysis-only**. They classify, trace, and write the map and the SRs. They do NOT write feature code — adding a field end-to-end is real dev work that must go through Phase 2 → Phase 5 review gates, the reuse-first ladder, and the test requirements. A reviewer that edits a component bypasses every one of those.
 - Every classification carries `reasoning` citing a source (requirements / design / data model). A classification with no citation is a guess.
 - Every trace stage carries `file:line` evidence. "Looks fine" is not a verdict.

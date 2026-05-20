@@ -29,7 +29,9 @@ DIAGNOSTIC_SKILL = ("skills", "diagnostic-research-team", "SKILL.md")
 VERIFIER_AGENT = ("agents", "test-completeness-verifier.md")
 FRONTEND_AGENT = ("agents", "frontend.md")
 INTEGRATION_AGENT = ("agents", "integration.md")
-HOOK = ("hooks", "review-gate-task.py")
+# v0.9.9: the evidence schema + validation moved into the shared module that
+# both review-gate-task.py and teammate-idle-check.py import.
+HOOK = ("hooks", "review_evidence_schema.py")
 
 
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:

@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.9] — 2026-05-20
+
+### Fixed (logic-implementation review — all three tiers of holes closed)
+
+A critical review of the pipeline's logic surfaced real holes across three tiers. v0.9.9 closes them.
+
+#### Tier 1 — concrete bug: the two evidence hooks had drifted
+- `hooks/review_evidence_schema.py` — NEW shared module: the single source of truth for the review-gate evidence contract (the 11 required fields, the valid-value sets, `safe_id()`, `validate_evidence()`). Before v0.9.9, `review-gate-task.py` validated **11** fields while `teammate-idle-check.py` validated only **8** — it was never updated when v0.5.0 / v0.9.0 / v0.9.5 added `visual_fidelity_review` / `test_completeness_review` / `integration_testing_review`, so the `SubagentStop` backstop was weaker than the `PostToolUse` gate.
+- `hooks/review-gate-task.py` + `hooks/teammate-idle-check.py` — both now `import` the shared module. Drift is structurally impossible: there is one schema, used by both. The idle hook now enforces all 11 fields.
+
+#### Tier 2 + Tier 3 — the orchestrator's terminal state is now enforced
+- `hooks/pipeline-completion-audit.py` — NEW `Stop` hook (also runnable standalone as `--check`). No hook can gate the orchestrator's *mid-run* behaviour, but this one gates its *terminal* state: it blocks the orchestrator from ending a run while `.architect-team/` shows it is incomplete — an open / in-progress solution requirement, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness `fail` or `phase_5_integration_debt`, or a blown global iteration ceiling. Safety: it acts only on a genuine architect-team run; `stop_hook_active` and a `.architect-team/escalation-pending.md` marker both make it stand down; any internal error fails open. Wired in `hooks/hooks.json` on the `Stop` event.
+- `skills/architect-team-pipeline/SKILL.md` Phase 8: the auto-commit now runs `pipeline-completion-audit.py --check` FIRST and only commits on exit 0 — "clean pass" becomes a checked fact, not the orchestrator's self-assessment.
+
+#### Tier 2 — design holes
+- **Editability has an independent falsifier.** `editability-completeness` skill + `system-architect` agent (new "Editability Map Review" mode) + `editability-reviewer`: after the three reviewers argue to convergence (Round 2), the `system-architect` agent now reviews the converged map for robustness (Round 3) — shared blind spots, unjustified-but-agreed classifications, uncovered attributes, shallow traces, force-classified ambiguities. The converged map is not final and no `editability-gap` SR is written until the architect's verdict is `pass`. Mirrors `diagnostic-research-team`'s architect gate.
+- **Global iteration ceiling + oscillation detection.** New "Run-state" section in the pipeline skill: a `dev_loop_iterations` counter in `intake-state.json`, a ceiling of 20, and an oscillation rule (the same requirement/file being fixed for the 3rd time → escalate, do not spawn another fix team). The Stop hook enforces the ceiling.
+- **Phase 5 reviews are interdependent.** Phase 5 sub-steps renumbered cleanly (1–10; the old out-of-order `4c`-before-`4b` and the `3b` label that collided with the top-level Phase 3b are gone). New step 10: after ANY Phase 5 fix lands, re-run ALL Phase 5 reviews — a visual-fidelity fix can drift editability and vice-versa; Phase 5 exits only when a full pass produces zero new fixes.
+- **Default-branch push guard.** `commands/architect-team.md` gains `--allow-push-to-default`. By default the pipeline no longer commits + pushes unreviewed work straight onto `main` / `master` — it commits to an `architect-team/<change-name>` feature branch and tells the user to open a PR. Pass the flag to opt in to direct default-branch pushes.
+- **Map re-validation.** `intake-and-mapping` skill + Phase −1B: a `last_mapped` timestamp newer than the last commit proves a map is *recent*, not *correct*. Any agent that finds a map materially wrong records the codebase in `intake-state.json`'s `map_invalidated` array, which forces a full re-derive + re-review on the next run regardless of timestamps — a wrong-but-fresh map can no longer silently survive.
+- **Concurrency model + corrupt-manifest fix.** The pipeline skill now documents the shared-state concurrency model (every subagent artifact has a unique path; `coverage-map.json` / `intake-state.json` / the MemPalace store are orchestrator-write-only and single-threaded). `mempalace-integration` + `route-mapper` + `system-architect`: mining is orchestrator-serialized — subagents search (read-only) but never `mine`; a `database is locked` error gets a tight bounded retry. `teammate-idle-check.py` now BLOCKS on a corrupt manifest whose name matches the subagent (it used to fail open — a teammate could escape the idle gate by corrupting its own manifest).
+
+#### Tier 3 — inherent limits, honestly mitigated
+- The orchestrator cannot be hooked mid-run — the `Stop` hook + the Phase 8 `--check` gate enforce its *terminal* state, which is the enforceable part.
+- The test suite is structural, not behavioural — `tests/test_cross_consistency.py` (NEW) closes the *consistency* blind spot (the two hooks share one schema; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands). Behavioural / integration testing of the live multi-agent pipeline remains outside an automated pytest suite by nature — that limit is irreducible and is stated honestly rather than papered over.
+
+### Tests
+- `tests/test_pipeline_completion_audit.py` — NEW. 27 tests of the Stop hook: not-a-real-run allows, clean run allows, every violation class blocks (`--check` and Stop-hook modes), escalation marker allows, `stop_hook_active` never loops, fail-open on malformed payload, corrupt SR reported not crashed.
+- `tests/test_cross_consistency.py` — NEW. Both evidence hooks import the shared schema; the schema has all 11 fields; the Stop hook's `TEST_FAILURE_ORIGINS` matches the pipeline; no unregistered skills/agents/commands.
+- `tests/test_teammate_idle_check.py` — evidence helper updated to schema v4; new tests for the three review fields + the corrupt-matched-manifest block.
+- `tests/test_hooks_structure.py` — new `Stop`-event wiring test.
+- `tests/test_integration_testing_discipline.py`, `tests/test_mempalace_integration.py`, `tests/test_editability_completeness.py` — updated for the shared schema module + the orchestrator-mines model + the new editability architect review.
+- Full suite: **309 pass** (274 prior + 35 net new).
+
+### Released (v0.9.9)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.8` → `0.9.9`.
+
 ## [0.9.8] — 2026-05-20
 
 ### Added (readme-styling skill — the bitmap house style, with required logic maps)

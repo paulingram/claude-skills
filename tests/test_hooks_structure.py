@@ -33,6 +33,18 @@ def test_hooks_json_wires_subagent_stop(plugin_root: Path) -> None:
     )
 
 
+def test_hooks_json_wires_stop(plugin_root: Path) -> None:
+    """v0.9.9: the Stop event must wire the pipeline-completion-audit hook."""
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries = data["hooks"].get("Stop", [])
+    assert entries, "no Stop hooks defined"
+    cmds = [h["command"] for entry in entries for h in entry["hooks"]]
+    assert any("pipeline-completion-audit.py" in c for c in cmds), (
+        f"no Stop command references pipeline-completion-audit.py; got: {cmds}"
+    )
+
+
 def test_hooks_use_python3(plugin_root: Path) -> None:
     """Every hook command must start with 'python3 ' (trailing space disambiguates from python3-foo)."""
     path = plugin_root / "hooks" / "hooks.json"
