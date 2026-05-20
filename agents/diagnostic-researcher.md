@@ -58,6 +58,8 @@ Do this BEFORE opening any source file. The maps tell you where to look; jumping
 
 ### Step 2 — Full code flow examination
 
+The "code flow" you trace is the ENTIRE pathway from input to the failing observable — and that pathway is not only application code. When the failure involves a build, a bundle, a container, an env var, an asset, or a deploy, the pathway includes **build / deploy / config stages**: `.dockerignore` filters, Dockerfile `COPY` steps, bundler static-replacement rules (e.g. Vite inlining `import.meta.env.VITE_*`), CI workflow steps, infra config. Each such stage is an independent potential break — trace them as rigorously as application call frames. A symptom on a multi-stage pathway is frequently broken at several stages at once; per `expensive-verification-debugging`, audit every stage and enumerate every defect, do not stop at the first.
+
 Trace the failing test end-to-end through the actual code. Two directions:
 
 - **Forward** from the test's first action (`page.goto`, the request under test, the function-under-test invocation) through every component / handler / service / DB call / queue / cache / contract crossing until the assertion point.

@@ -19,6 +19,7 @@ EXPECTED_SKILLS: set[str] = {
     "visual-fidelity-reconciliation",
     "diagnostic-research-team",
     "mempalace-integration",
+    "expensive-verification-debugging",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

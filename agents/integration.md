@@ -51,6 +51,17 @@ Before declaring Phase 5 complete, run `visual-fidelity-reconciliation` across E
 5. **When a fix is applied**, identify the team that originated the drift via `git log -p --since=<last_designed>` on the affected files. Write a heads-up handoff to that team (`integration-to-<team>-visual-drift-fixed-<screen>-<ts>.md`) noting what was fixed and why their next change should match the corrected spec. This is informational, not blocking.
 6. **When escalation is the correct path** (one of the four named cases), write `integration-to-architect-visual-<reason>-<screen>-<ts>.md` per the skill's escalation rules, naming which decision-matrix case applied.
 
+## Expensive verification cycles — audit the pathway, batch the fixes
+
+Phase 5 is where deploy / rollout / rebuild debugging happens, and an expensive verify loop (a container rebuild + ECS / k8s / Cloud Run rolling deploy, a slow CI run) turns one-fix-per-cycle whack-a-mole into a wall-clock disaster. When verifying a fix requires such a cycle, apply `expensive-verification-debugging`:
+
+1. **Price the loop** — state the per-cycle cost; name the cheapest faithful LOCAL artifact that still exhibits the symptom (a local `docker build` + `docker run`, a local `npm run build` bundle). For a build-time bug, the local artifact is identical to the remote one — debug against it.
+2. **Audit the whole failure pathway statically** — every stage from source → build context (`.dockerignore`) → image (`COPY`) → bundler inlining → deploy → runtime. Each stage is an independent potential break. Enumerate EVERY defect, not the first; on a greenfield deploy pipeline multiple simultaneous breaks are the expected case. Persist the pathway-audit artifact at `.architect-team/failure-pathway/<symptom-slug>-<ts>.json`.
+3. **Batch every fix, verify cheap, deploy once** — apply all fixes, confirm against the local artifact, then spend ONE expensive cycle.
+4. **After 2 expensive cycles on one symptom without resolution, STOP** — do not start a third. Complete the pathway audit, or escalate via an SR (`origin.kind: "rca-product-bug"`, pathway-audit artifact attached) routed to `diagnostic-research-team`.
+
+While an unavoidable expensive cycle runs, poll its status with a tight bounded loop — never a scheduled wakeup (per the v0.9.2 rule). Tell the orchestrator the cost and the cycle plan up front; do not narrate one surprise deploy at a time.
+
 ## Per-test expectations & failure handling (mandatory)
 
 Apply `root-cause-test-failures` to EVERY test you run — Playwright OR live-dev integration:
@@ -84,6 +95,7 @@ For frontend slices: capture the Playwright trace path for the happy-path test.
 - No mocking the DB, queue, or cache in integration tests.
 - No mock-backed Playwright for a `both`-layer feature at Phase 5. The happy-path user-flow run exercises the real running backend; `integration_testing_review: "n/a"` is not a valid Phase 5 verdict for a cross-layer feature — the real-backend run is non-negotiable here.
 - No silent retry on test failure — failures route back.
+- No one-fix-per-deploy whack-a-mole. When verifying a fix needs a rebuild / deploy / slow-CI cycle, apply `expensive-verification-debugging` — audit the whole failure pathway statically, batch every defect's fix, confirm against a cheap local artifact, deploy once. After 2 expensive cycles on one symptom, STOP and escalate; never start a third.
 - No declaring Phase 5 done with any coverage gap.
 - No ignoring a stale ROUTE_MAP.md — refresh first.
 - No proposing a test fix without running the 3-pass root-cause loop and writing the RCA artifact.

@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.6] — 2026-05-19
+
+### Added (expensive-verification-debugging — audit the whole pathway, batch the fixes, stop the deploy-loop whack-a-mole)
+
+Reported failure class: an agent debugging a deployed-app bug found three independent Docker/Vite config defects **sequentially**, each verified by a ~3-4 min ECS rolling deploy — burning three expensive cycles. All three defects sat on one pathway ("get a `VITE_` env var into the deployed bundle") and were discoverable up-front by a static stage-by-stage audit plus a free local bundle inspection. The agent named its own mistake: *"I should have spotted #3 first by inspecting the bundle."*
+
+The failure is a debugging-**strategy** error, not a Vite error, with two compounding parts: (1) hunting one root cause at a time when the symptom had multiple independent causes — the expected case on a greenfield pathway where no stage has ever run; (2) spending an expensive verify loop (deploy/rebuild) on each incomplete diagnosis instead of front-loading the analysis. The existing `root-cause-test-failures` skill converges on *the* root cause (singular) and assumes a cheap re-run — it did not cover this.
+
+#### New skill
+- `skills/expensive-verification-debugging/SKILL.md` — NEW. Four disciplines: (1) **Price the loop first** — name the per-cycle cost; an expensive loop demands a complete diagnosis before the first cycle. (2) **Audit the pathway, do not hunt the root cause** — a symptom on a multi-stage pathway can break at any stage, and on a greenfield (never-run) pathway multiple simultaneous breaks are the EXPECTED case; enumerate and statically check every stage. (3) **Find the cheapest faithful artifact** — the remote environment rarely adds diagnostic information a local build/image/container lacks; debug against the cheap local artifact. (4) **Batch the fixes; spend the expensive cycle once.**
+  - Phase 1 (price the loop + name the cheapest faithful artifact + prove whether the bug depends on anything the remote env uniquely provides), Phase 2 (the persisted pathway-audit artifact at `.architect-team/failure-pathway/<symptom-slug>-<ts>.json` — a per-stage static check that makes "I found the bug" singular impossible to write), Phase 3 (batch every fix → confirm against the cheap artifact → one expensive cycle).
+  - Proactive form: audit a greenfield Docker/CI/build pathway BEFORE its first cycle.
+  - Escalation: after 2 expensive cycles on one symptom, STOP — complete the audit or escalate via an SR routed to `diagnostic-research-team` (3 researchers map the whole pathway beats a 4th solo cycle).
+  - "Communicating cost" section: state the cost + defect count + cycle plan up front; while an unavoidable cycle runs, poll with a tight bounded loop, never a scheduled wakeup (per the v0.9.2 rule); never revert a statically-proven fix because the symptom persisted (persistence = MORE defects downstream, not a wrong fix).
+  - Fully-worked example: the real Vite/Docker case — the 4-stage pathway (`.env` → `.dockerignore` → Dockerfile `COPY` → Vite static `import.meta.env` inlining), all 3 defects, the cheap proxy (local `npm run build` + `grep dist/`), 1 expensive cycle instead of 3.
+  - Anti-pattern table (8 rows) + red-flags STOP list (7 items).
+
+#### Cross-references + wire-up
+- `skills/root-cause-test-failures/SKILL.md` — Pass 3 gains a "Multiple simultaneous causes" category: a symptom can have more than one independent root cause; a found defect raises the prior that siblings exist; when the verify loop is expensive, apply `expensive-verification-debugging`. If Pass 3 surfaces additional independent causes, every one is a root cause — record them all.
+- `agents/diagnostic-researcher.md` — Step 2 ("full code flow") explicitly extended to include build / deploy / config pathway stages (`.dockerignore`, Dockerfile `COPY`, bundler static-replacement rules, CI steps, infra config), not only application code.
+- `skills/architect-team-pipeline/SKILL.md` — Phase 5 step 4c: deploy/rollout/rebuild debugging applies `expensive-verification-debugging`; greenfield deploy pipelines get a full static audit before the first cycle; 2-cycle escalation rule.
+- `agents/integration.md` — new "Expensive verification cycles" section + a new hard rule (no one-fix-per-deploy whack-a-mole; 2-cycle STOP).
+- `agents/frontend.md` — new hard rule (Vite-style env-inlining bugs are debugged against the local bundle, not a remote deploy; 2-cycle STOP).
+- `agents/backend.md` — new hard rule (Docker/migration/deploy-config bugs are audited as a whole pathway against a local `docker build`+`docker run`; 2-cycle STOP).
+
+### Tests
+- `tests/test_skills.py` — `expensive-verification-debugging` added to `EXPECTED_SKILLS`.
+- `tests/test_expensive_verification_debugging.py` — NEW. 13 test functions (19 runs w/ parametrization): skill exists; all four disciplines named (parametrized); pathway-audit artifact schema; multiple-simultaneous-causes + greenfield framing; 2-cycle escalation threshold → diagnostic-research-team; the Vite/Docker worked example (`.dockerignore` / `import.meta` / `COPY`); anti-pattern table + red flags; proactive pre-first-cycle form; v0.9.2 no-wakeup reference; RCA cross-reference; pipeline Phase 5 reference; integration/frontend/backend hard rule (parametrized); diagnostic-researcher build/deploy/config pathway.
+- Full suite: 218 pass (199 prior + 19 new).
+
+### Released (v0.9.6)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.5` → `0.9.6`.
+
 ## [0.9.5] — 2026-05-19
 
 ### Fixed (greenfield "tested with Playwright" but testing fake data — real backend by default)
