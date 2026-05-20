@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.5] — 2026-05-19
+
+### Fixed (greenfield "tested with Playwright" but testing fake data — real backend by default)
+
+Reported failure: on a greenfield build the pipeline creates a backend + a frontend, runs Playwright, and reports "tested" — but the Playwright run talked to a **mocked / fake backend** (canned `page.route` happy-path responses, MSW handlers, an in-memory fake API server, or hardcoded fixtures), so the two layers were never once exercised together. The v0.9.0 work forbade calling APIs *directly from the test*; it never forbade the opposite failure — clicking through the UI correctly while the UI talks to a fake backend. v0.9.5 closes that with the same four-layer enforcement pattern v0.9.0 used for test-completeness.
+
+The new default: **for any feature whose coverage-map `layer` is `both` (spans frontend AND backend), the happy-path user-flow tests MUST exercise the real running backend** — real server, real DB / queue / cache, real responses. This is the default; it is overridden only when the requirements folder *explicitly* authorizes isolated / mock-backed testing for a named requirement. Silence in the requirements means integrate, not mock.
+
+#### Layer 1 — playwright-user-flows: a 4th top-level discipline
+- `skills/playwright-user-flows/SKILL.md`: "three disciplines" → "four disciplines"; new discipline 4 — "Test against the real backend, not fake data."
+- New Phase B section "Real backend by default": names the forbidden happy-path substitutes (happy-path `page.route` fulfillment, MSW `setupServer`/`setupWorker`/`rest.*`/`http.*`, in-memory fake API servers — `json-server` / `miragejs` / `nock` / hand-rolled stubs, hardcoded response fixtures); names what stays allowed (`page.route` for *specific error* injection, a real backend on a dev-seeded DB, mocking genuinely-external third parties); documents the Phase 3 → Phase 5 deferral mechanism; adds a "Tell-tale signs the tests are running on fake data" checklist (suite passes with no backend process running, happy-path `page.route` 2xx fulfillment, MSW imports, test data as a verbatim string literal, no test loads the browser AND hits the real backend in one run).
+- New anti-pattern table rows for "frontend+backend built, frontend Playwright passes", "faster to mock", "greenfield backend not wired yet", "requirements didn't say to integration-test."
+- New "Emit the integration_testing_review verdict" subsection in Phase C.
+
+#### Layer 2 — coverage-mapping: planning-time gate
+- `skills/coverage-mapping/SKILL.md`: new Step 4b — every `both`-layer coverage-map entry MUST carry an explicit front-to-back integration acceptance criterion (real-backend happy-path testing). The only opt-out is an explicit requirements authorization recorded verbatim in a new `mock_testing_authorized` entry field. Phase 1 will not exit while a `both`-layer entry lacks the criterion AND lacks `mock_testing_authorized`.
+
+#### Layer 3 — test-completeness-verifier: backend-integration audit
+- `agents/test-completeness-verifier.md`: new Step 3b "Backend-integration audit" — greps the frontend/Playwright test source + config for mock-backend patterns (MSW, fake servers, happy-path `page.route` 2xx fulfillment) and checks whether a real backend is in the loop (`webServer` config, docker-compose, documented dev-API start). New Step 3c computes `integration_testing_review` (pass / n/a / fail) from the audit + layer + phase. Verdict JSON bumped to schema_version 2 with `backend_integration_audit` (clean / mock_backed / indeterminate), `integration_testing_review`, `phase_5_integration_debt`, `layer`, `discovered_in`. New hard rules: no skipping Step 3b for frontend/both slices; no `n/a` for a `both`-layer slice at Phase 5; no accepting `mock_backed` without a quoted requirements authorization. SR `origin.kind` for this failure is `integration-testing-failure`.
+
+#### Layer 4 — review-gate hook: new enforced evidence field
+- `hooks/review-gate-task.py`: new required field `integration_testing_review` (pass / n/a / fail), `VALID_INTEGRATION_TESTING_VALUES` constant, validation branch parallel to `test_completeness_review`. The hook BLOCKS `"fail"` with an actionable message; `"n/a"` requires a non-empty `integration_testing_review_note` giving one of three legitimate reasons (no cross-layer surface / Phase 3 deferral to Phase 5 / explicit requirements authorization). Evidence schema v3 → v4.
+
+#### Pipeline + agent wire-up
+- `skills/architect-team-pipeline/SKILL.md`: Phase 1 loop now continues while any `both`-layer requirement lacks the front-to-back integration criterion; new Phase 5 step 3b mandates the real-backend run and the `test-completeness-verifier` dispatch (an `n/a` for a `both`-layer slice at Phase 5 is a failure — the deferral debt is due); Phase 3b adds `integration-testing-failure` to the test-failure origin list that triggers `diagnostic-research-team`.
+- `skills/diagnostic-research-team/SKILL.md`: `integration-testing-failure` added to the firing-origin list.
+- `skills/team-spawning-and-review-gates/SKILL.md`: evidence schema documented as v4; `integration_testing_review` + `integration_testing_review_note` validity rules; `integration-testing-failure` added to the SR `origin.kind` enum + the mandatory-consumers section.
+- `agents/frontend.md`: new "Integration testing against the real backend" section + two new hard rules (no mock-backed happy-path Playwright for a `both`-layer feature; no claiming "tested with Playwright" when the run never touched the real backend).
+- `agents/integration.md`: new "Real backend, not fake data" Phase 5 section + a new hard rule (no mock-backed Playwright at Phase 5; `n/a` is not a valid Phase 5 verdict for a cross-layer feature).
+
+### Tests
+- `tests/test_review_gate_task.py`: `_valid_evidence()` → schema_version 4 with `integration_testing_review` + note; 10 new cases (`pass` accepted, `fail` blocked, missing blocked, 5 invalid values, 3 n/a-without-note variants). 53 review-gate tests total.
+- `tests/test_integration_testing_discipline.py` — NEW. 17 test functions (20 runs w/ parametrized forbidden-mock-pattern check) asserting the discipline across all four enforcement layers: hook field + fail-block + n/a-note; the 4th discipline + Real-backend section + forbidden-pattern names + tell-tale signs + Phase 3→5 deferral in playwright-user-flows; coverage-mapping default criterion + `mock_testing_authorized`; pipeline Phase 1 gate + Phase 5 mandate; diagnostic-research-team origin; team-spawning field doc + origin enum; verifier audit + phase-5-debt; frontend + integration agent mandates.
+- Full suite: 199 pass (167 prior + 32 new).
+
+### Released (v0.9.5)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.4` → `0.9.5`.
+
 ## [0.9.4] — 2026-05-19
 
 ### Added (MemPalace integration — semantic memory for findings, insights, processes across pipeline runs)

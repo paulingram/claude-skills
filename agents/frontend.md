@@ -59,6 +59,23 @@ If `<codebase>/docs/DESIGN_MAP.md` exists for the codebase you're working in AND
 6. **Verdict** — re-run reconciliation after every fix iteration. When every tuple is `perfect`, set `visual_fidelity_review: "pass"` in your review-gate evidence and reference the reconciliation JSON(s) (including all `passes_after_fix` iterations) in `demo_artifact`. Only when the discipline cannot converge autonomously (one of the four escalation cases above applies) set `visual_fidelity_review: "fail"`, write the handoff AND the solution requirement; signal idle and wait for the architect-routed fix to complete, then re-run reconciliation to `pass` before marking complete.
 7. If no DESIGN_MAP.md exists OR no frontend file was touched, set `visual_fidelity_review: "n/a"` AND `visual_fidelity_review_note: "<one-sentence reason>"`.
 
+## Integration testing against the real backend (mandatory for any cross-layer feature)
+
+If your slice's coverage-map `layer` is `both` (the feature spans frontend AND backend), your Playwright happy-path user-flow tests MUST exercise the **real running backend** — a real server process, real DB / queue / cache, real responses produced by the actual backend code. Clicking through the UI correctly while every API response is a canned mock proves the frontend renders fake data; it proves NOTHING about whether the two layers integrate. On a greenfield build that is the exact failure the user sees: "it's tested with Playwright" but the Playwright run never touched the backend.
+
+Per `playwright-user-flows`'s "Real backend by default" discipline:
+
+- **Forbidden as a happy-path substitute:** `page.route('**/api/**', ...)` returning canned 2xx bodies; MSW (`msw` / `setupServer` / `rest.*` / `http.*`); an in-memory / fake API server (`json-server`, `miragejs`, `nock`, a hand-rolled stub); hardcoded response fixtures imported into the frontend.
+- **Allowed:** `page.route` to force a *specific error response* (401 / 429 / 500); a real backend against a dev-seeded database; mocking a genuinely external third-party (payment processor, email provider).
+
+Set `integration_testing_review` in your review-gate evidence honestly:
+
+- `"pass"` — your happy-path tests ran against the real backend; the `demo_artifact` references the backend start command / `webServer` config that proves it.
+- `"n/a"` — your slice is pure static frontend with no backend, OR the counterpart backend is not yet integrated and you are at the Phase 3 per-team gate. In the second case the `integration_testing_review_note` MUST say exactly "counterpart backend not yet integrated; front-to-back integration testing DEFERRED TO PHASE 5". That `n/a` is a debt Phase 5 settles — it is never a substitute for the real thing.
+- `"fail"` — only when a `both`-layer feature genuinely cannot be integration-tested and you must escalate. The hook blocks `"fail"`; the correct path is to author against the real backend or escalate via an SR (`origin.kind: "integration-testing-failure"`).
+
+Never set `integration_testing_review: "pass"` for a `both`-layer feature whose Playwright run used mocks. That is the dishonesty this field exists to prevent.
+
 ## Per-test expectations & failure handling
 
 Apply `root-cause-test-failures` to every Playwright test:
@@ -87,6 +104,8 @@ Apply `root-cause-test-failures` to every Playwright test:
 - No "the test is probably flaky" — run the 3-pass RCA loop and either identify the root cause with evidence or escalate.
 - No defensive UI fallbacks (e.g., "Welcome, " when name is null) inserted to make a failing test pass — that is a symptom patch hiding an upstream contract bug. Escalate the RCA instead.
 - No marking complete with `visual_fidelity_review: "fail"` — the hook blocks it. The default workflow is fix-to-spec → re-run → `pass`. `"fail"` is only correct when one of the four named escalation cases applies (out-of-scope, implementation-extras, spec-ambiguity, cascade-blast-radius).
+- No mock-backed happy-path Playwright for a `both`-layer feature. The happy path runs against the real running backend. `page.route` is for forcing specific error responses (401/429/500) only — never for faking a 2xx happy-path response. MSW, `json-server`, `miragejs`, `nock`, and hardcoded response fixtures standing in for the backend are FORBIDDEN. Set `integration_testing_review` honestly — `"pass"` only when the real backend was in the loop; the hook blocks `"fail"` and requires a justification note for `"n/a"`.
+- No claiming "tested with Playwright" when the Playwright run never touched the real backend. If killing the backend would not break your happy-path tests, those tests never integration-tested anything — they tested fake data.
 - No alerting the user about drift without first attempting the fix. The discipline converges to the spec; alerting-without-fixing is a process failure.
 - No reconciliation at a viewport other than what DESIGN_MAP.md declares. Different viewport = different verdict.
 - No fix that introduces NEW drift elsewhere. After any fix, re-run reconciliation on EVERY screen the changed file/token cascades to (not just the screen that surfaced the drift). Convergence to spec across all affected screens is the bar.

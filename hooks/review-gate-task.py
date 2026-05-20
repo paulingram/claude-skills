@@ -29,10 +29,12 @@ REQUIRED_EVIDENCE_FIELDS = {
     "reuse_compliance",
     "visual_fidelity_review",
     "test_completeness_review",
+    "integration_testing_review",
 }
 
 VALID_VISUAL_FIDELITY_VALUES = {"pass", "n/a", "fail"}
 VALID_TEST_COMPLETENESS_VALUES = {"pass", "n/a", "fail"}
+VALID_INTEGRATION_TESTING_VALUES = {"pass", "n/a", "fail"}
 
 
 def _safe_id(value: str) -> str | None:
@@ -226,6 +228,39 @@ def _validate(evidence: dict[str, Any]) -> list[str]:
                 "inapplicable and why (e.g., backend-only slice with no testable "
                 "pure-logic surface for unit tests, OR no frontend touched so "
                 "Playwright is n/a)"
+            )
+
+    itr = evidence.get("integration_testing_review")
+    if itr not in VALID_INTEGRATION_TESTING_VALUES:
+        gaps.append(
+            f"integration_testing_review={itr!r} must be one of "
+            f"{sorted(VALID_INTEGRATION_TESTING_VALUES)}"
+        )
+    elif itr == "fail":
+        gaps.append(
+            "integration_testing_review='fail' — this slice's user-flow / "
+            "integration tests ran against a MOCKED or FAKE backend (page.route "
+            "happy-path stubs, MSW handlers, an in-memory fake API server, or "
+            "hardcoded response fixtures) instead of the real running backend. "
+            "For any feature spanning both frontend and backend, the tests MUST "
+            "exercise the real backend with real data flow front-to-back unless "
+            "the requirements explicitly authorize isolated testing. Re-author the "
+            "tests against the real backend (or escalate via SR origin.kind "
+            "'integration-testing-failure'); do not mark complete."
+        )
+    elif itr == "n/a":
+        note = evidence.get("integration_testing_review_note")
+        if not isinstance(note, str) or not note.strip():
+            gaps.append(
+                "integration_testing_review='n/a' requires a non-empty "
+                "integration_testing_review_note giving ONE of the three "
+                "legitimate reasons: (1) this slice has no cross-layer surface "
+                "(pure static frontend with no backend, OR backend-only slice "
+                "with no frontend); (2) Phase 3 per-team gate where the "
+                "counterpart layer is not yet integrated and front-to-back "
+                "testing is explicitly DEFERRED TO PHASE 5 integration; (3) the "
+                "requirements folder explicitly authorizes isolated / mock-backed "
+                "testing for this requirement — quote the authorization."
             )
 
     return gaps

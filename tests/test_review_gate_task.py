@@ -49,7 +49,7 @@ def _make_payload(task_id: str, status: str) -> dict:
 
 def _valid_evidence(task_id: str) -> dict:
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "task_id": task_id,
         "teammate": "backend-test",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -64,6 +64,8 @@ def _valid_evidence(task_id: str) -> dict:
         "visual_fidelity_review_note": "backend-only slice; no frontend files touched",
         "test_completeness_review": "n/a",
         "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice",
+        "integration_testing_review": "n/a",
+        "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface to integration-test front-to-back",
     }
 
 
@@ -430,3 +432,83 @@ def test_exits_two_when_test_completeness_na_without_note(
     r = _run(script, workspace, _make_payload("T-T5", "completed"))
     assert r.returncode == 2
     assert "test_completeness_review_note" in r.stderr or "n/a" in r.stderr
+
+
+# v0.9.5 — integration-testing-review enforcement (real backend, not fake data)
+
+
+def test_exits_zero_when_integration_testing_pass(script: Path, workspace: Path) -> None:
+    """v0.9.5: integration_testing_review='pass' is a valid completion."""
+    _write_manifest(workspace, "fullstack-test", ["T-I1"])
+    ev = _valid_evidence("T-I1")
+    ev["integration_testing_review"] = "pass"
+    ev.pop("integration_testing_review_note", None)  # note not required when value is "pass"
+    (workspace / ".architect-team" / "reviews" / "T-I1.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-I1", "completed"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_exits_two_when_integration_testing_fail(script: Path, workspace: Path) -> None:
+    """v0.9.5: integration_testing_review='fail' must block — tests ran against fake data."""
+    _write_manifest(workspace, "fullstack-test", ["T-I2"])
+    ev = _valid_evidence("T-I2")
+    ev["integration_testing_review"] = "fail"
+    (workspace / ".architect-team" / "reviews" / "T-I2.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-I2", "completed"))
+    assert r.returncode == 2
+    assert "integration_testing_review" in r.stderr
+    assert "real backend" in r.stderr.lower() or "mock" in r.stderr.lower()
+
+
+def test_exits_two_when_integration_testing_missing(script: Path, workspace: Path) -> None:
+    """v0.9.5: integration_testing_review field absent entirely must block."""
+    _write_manifest(workspace, "fullstack-test", ["T-I3"])
+    ev = _valid_evidence("T-I3")
+    ev.pop("integration_testing_review", None)
+    ev.pop("integration_testing_review_note", None)
+    (workspace / ".architect-team" / "reviews" / "T-I3.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-I3", "completed"))
+    assert r.returncode == 2
+    assert "integration_testing_review" in r.stderr
+
+
+@pytest.mark.parametrize("invalid_value", ["yes", "true", "ok", "passed", ""])
+def test_exits_two_when_integration_testing_invalid_value(
+    script: Path, workspace: Path, invalid_value: str
+) -> None:
+    """v0.9.5: integration_testing_review must be one of pass / n/a / fail."""
+    _write_manifest(workspace, "fullstack-test", ["T-I4"])
+    ev = _valid_evidence("T-I4")
+    ev["integration_testing_review"] = invalid_value
+    (workspace / ".architect-team" / "reviews" / "T-I4.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-I4", "completed"))
+    assert r.returncode == 2
+    assert "integration_testing_review" in r.stderr
+
+
+@pytest.mark.parametrize("missing_or_empty", [None, "", "   "])
+def test_exits_two_when_integration_testing_na_without_note(
+    script: Path, workspace: Path, missing_or_empty
+) -> None:
+    """v0.9.5: integration_testing_review='n/a' requires a non-empty justification note."""
+    _write_manifest(workspace, "fullstack-test", ["T-I5"])
+    ev = _valid_evidence("T-I5")
+    ev["integration_testing_review"] = "n/a"
+    if missing_or_empty is None:
+        ev.pop("integration_testing_review_note", None)
+    else:
+        ev["integration_testing_review_note"] = missing_or_empty
+    (workspace / ".architect-team" / "reviews" / "T-I5.json").write_text(
+        json.dumps(ev), encoding="utf-8"
+    )
+    r = _run(script, workspace, _make_payload("T-I5", "completed"))
+    assert r.returncode == 2
+    assert "integration_testing_review_note" in r.stderr or "n/a" in r.stderr

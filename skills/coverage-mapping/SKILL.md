@@ -70,6 +70,12 @@ For each spec requirement, list its scenarios. Scenarios that don't cleanly trac
 - Touches code in multiple codebases or spans the boundary → `both`.
 - Touches deployment / infra config only → `infra`.
 
+### Step 4b: Add the default front-to-back integration criterion for every `both`-layer entry
+
+For EVERY entry with `layer == "both"`, the `acceptance_criteria` array MUST contain an explicit front-to-back integration criterion — a criterion stating that the happy-path user-flow test runs against the **real running backend** (real server, real DB / queue / cache, real responses), NOT mocked / fake data, per `playwright-user-flows`'s "Real backend by default" discipline. This is the DEFAULT — add it whenever you classify an entry as `both`; do not wait to be told.
+
+The ONLY way a `both`-layer entry legitimately lacks this criterion is an explicit statement in `$REQ_DIR` (proposal / design / source brief) authorizing isolated / mock-backed testing for that requirement. When such an authorization exists, record it verbatim in a `mock_testing_authorized` field on the entry (`{ "mock_testing_authorized": "<quoted authorization text + source file>" }`) so the test-completeness-verifier and the review-gate evidence can cite it. Absent that field, the integration criterion is mandatory and Phase 1 will not exit without it.
+
 ## Using the map
 
 ### Phase 1 (planning validation)
@@ -80,7 +86,7 @@ The loop continues if any entry has:
 - Empty / vague `acceptance_criteria`.
 - Wrong/missing `layer`.
 
-For `layer == "frontend"` or `"both"` entries: the spec must include the Playwright user-flow specification per `playwright-user-flows`. For `"backend"` or `"both"`: the spec must include dev-API integration criteria per `dev-api-integration-testing`.
+For `layer == "frontend"` or `"both"` entries: the spec must include the Playwright user-flow specification per `playwright-user-flows`. For `"backend"` or `"both"`: the spec must include dev-API integration criteria per `dev-api-integration-testing`. For `layer == "both"` entries specifically: the loop ALSO continues if the entry lacks the front-to-back integration criterion from Step 4b (real-backend happy-path testing) AND lacks a `mock_testing_authorized` field — front-to-back integration testing against the real backend is the default for full-stack requirements and Phase 1 will not exit without it.
 
 ### Phase 3 (per-team review gate)
 

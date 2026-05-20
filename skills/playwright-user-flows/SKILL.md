@@ -5,11 +5,12 @@ description: Use when authoring or running Playwright tests for any feature with
 
 # Playwright User Flows — White-Box, Real-User
 
-Frontend tests fail in production when they test what the developer remembered, not what the user can actually do — and what the user can actually do is shaped by **who** the user is and **what they are trying to achieve**, not just which elements the developer made interactive. This skill enforces three disciplines:
+Frontend tests fail in production when they test what the developer remembered, not what the user can actually do — and what the user can actually do is shaped by **who** the user is and **what they are trying to achieve**, not just which elements the developer made interactive. This skill enforces four disciplines:
 
 1. **Know the user, know the goal.** Before reading code, establish who the user base is and what each persona is trying to accomplish. If the product docs / requirements / OpenSpec proposal do not make this clear, **ask the user** — do not guess.
 2. **Read the code exhaustively.** Enumerate every interactive element (link, button, form input of every type, modal trigger, drag target, keyboard shortcut, conditional render gate) and every API call the feature touches, from the actual source. No exceptions, no "the obvious ones".
 3. **Test as the user, test the user's goals.** Every test simulates a real human — `page.click`, `page.fill`, `page.waitFor` — and is named after a user achievement, not a widget. Tests are organized by user journey: the sequence a real user follows to accomplish a real goal. Direct API calls are never a substitute for user-flow tests.
+4. **Test against the real backend, not fake data.** For any feature that spans both a frontend and a backend, the user-flow tests MUST exercise the **real running backend** with real data flow front-to-back — the frontend's HTTP calls hit a real server, real DB / queue / cache, real responses. A Playwright test that clicks through the UI correctly but talks to a mocked backend (canned `page.route` happy-path responses, MSW handlers, an in-memory fake API server, or hardcoded response fixtures) has verified nothing about whether the two layers actually work together. This discipline is the DEFAULT — it applies unless the requirements *explicitly* authorize isolated / mock-backed testing for a named requirement. See Phase B → "Real backend by default".
 
 ## Phase A — Examination (mandatory, before any test code)
 
@@ -295,6 +296,39 @@ A Playwright test simulates a real human via `page.goto` / `page.click` / `page.
 - NEVER hit the API directly in place of a user click.
 - NEVER call internal app methods (e.g., `window.app.submitLogin()`).
 
+### Real backend by default (front-to-back integration is the default, not opt-in)
+
+Real-user simulation (clicking through the UI) and real-backend testing (the UI talking to a real server) are TWO different disciplines, and a test can satisfy the first while violating the second. A test that clicks every button correctly but whose every API response is a canned mock has proven the frontend renders fake data nicely — it has proven NOTHING about whether the frontend and backend actually integrate. On a greenfield build where the frontend and backend are written in parallel, this is the dominant failure mode: each layer is built, the frontend mocks the backend, "Playwright passes", and the two layers are never once exercised together.
+
+**The rule:** for any feature whose coverage-map `layer` is `both` (spans frontend AND backend), the happy-path user-flow tests MUST run against the **real running backend** — a real server process, real DB / queue / cache, real responses produced by the actual backend code. This is the DEFAULT. It is overridden ONLY when the requirements folder *explicitly* authorizes isolated / mock-backed testing for a named requirement (and that authorization is quoted in the review-gate evidence's `integration_testing_review_note`).
+
+**Forbidden as a substitute for real-backend testing of the happy path:**
+
+- `page.route('**/api/**', route => route.fulfill({ status: 200, body: <canned JSON> }))` — intercepting the happy-path API and returning hand-written JSON. (Forcing a *specific error* — 401 / 429 / 500 — via `page.route` remains allowed; that is error-path injection, not happy-path faking.)
+- **MSW** (`msw`, `setupServer`, `setupWorker`, `rest.*`, `http.*` request handlers) standing in for the backend during the Playwright run.
+- An **in-memory / fake / stub API server** (`json-server`, a hand-rolled Express stub, `miragejs`, `nock`, a "mock backend" fixture) started instead of the real backend.
+- **Hardcoded response fixtures** imported into the frontend (`fixtures/loginResponse.json`, `__mocks__/api.ts`) and returned by a build-time flag or a test-only code path.
+- A real backend pointed at a **fake / seeded-only datastore that the backend code itself does not own** (e.g., the frontend reads from a static JSON file the backend never writes).
+
+**Allowed:**
+
+- `page.route` to force a *specific error response* (401 / 429 / 500 / network failure) that is hard to trigger naturally — error-path coverage, not happy-path faking.
+- A real backend running against a **dev database seeded with dev fixtures** per `dev-api-integration-testing` — the backend code still produces every response; the seed is just the starting data.
+- Mocking a genuinely external third-party dependency (a payment processor, an email provider) per `dev-api-integration-testing`'s "mock only what's truly external" rule.
+
+**Phase 3 vs Phase 5.** On a greenfield parallel build the frontend teammate may legitimately reach its Phase 3 review gate before the backend is integrated. In that case the frontend teammate sets `integration_testing_review: "n/a"` with a note that says *exactly* "counterpart backend not yet integrated; front-to-back integration testing DEFERRED TO PHASE 5". That `n/a` is a DEBT, not a pass — Phase 5 cross-layer integration MUST settle it by running the user-flow tests against the real backend. A `both`-layer feature that is still `n/a` at the end of Phase 5 is a failure, not a completion.
+
+#### Tell-tale signs the tests are running on fake data
+
+Any one of these means STOP — the happy path is not really integration-tested:
+
+- The Playwright suite passes with **no backend process running** (no `npm run dev:api`, no server in the test's `webServer` config, no docker compose up). If killing the backend doesn't break the happy-path tests, the happy path never touched the backend.
+- A `page.route('**/api/**', ...)` (or `'*/api/*'`, or the feature's specific endpoints) whose `fulfill` body is a hand-written success payload.
+- An `msw` / `setupServer` / `miragejs` / `json-server` import anywhere in the frontend test setup, `playwright.config`, global-setup, or a test fixture.
+- The test data appears verbatim as a string literal in a frontend file or a `fixtures/` JSON, and the same shape is asserted in the test — the test is checking that a constant equals itself.
+- The backend team's endpoints have integration tests, the frontend team's UI has Playwright tests, and NO test loads the frontend in a browser AND hits the real backend in the same run.
+- The review-gate evidence claims "tested with Playwright" but `integration_testing_review` is `pass` while no real backend is referenced anywhere in the test config or the demo artifact.
+
 ### Selector hierarchy (use the highest available)
 
 1. `page.getByRole(...)` — accessible role + name.
@@ -478,6 +512,14 @@ Write `<test-output-dir>/playwright-coverage.json`:
 
 If `gaps` is non-empty, add tests (or escalate to the user for missing goals) until it is empty. Then this file goes into the review-gate evidence.
 
+### Emit the integration_testing_review verdict
+
+When this skill is applied inside the architect-team pipeline, the teammate (or the integration agent) MUST set `integration_testing_review` in the review-gate evidence per `team-spawning-and-review-gates`:
+
+- `"pass"` — the happy-path user-flow tests exercised the real running backend (real server process, real DB / queue / cache, real responses). The demo artifact references the backend start command / `webServer` config that proves a real backend was in the loop.
+- `"n/a"` — ONE of: (1) the slice has no cross-layer surface (pure static frontend with no backend, OR backend-only slice with no frontend); (2) Phase 3 per-team gate and the counterpart layer is not yet integrated — note says DEFERRED TO PHASE 5; (3) the requirements explicitly authorize isolated / mock-backed testing for this requirement — note quotes the authorization. Requires `integration_testing_review_note`.
+- `"fail"` — a `both`-layer feature whose happy-path tests ran against a mocked / fake backend with no explicit authorization. The hook blocks this; re-author against the real backend or escalate via an SR with `origin.kind: "integration-testing-failure"`.
+
 ## Anti-pattern rationalizations to reject
 
 | Rationalization | Rebuttal |
@@ -493,7 +535,11 @@ If `gaps` is non-empty, add tests (or escalate to the user for missing goals) un
 | "The inventory's missing IDs are obviously out of scope" | "Obviously" is the rationalization. Either declare them out-of-scope in `out_of_scope[]` with a written rationale, or escalate to the user. Silent gaps in the inventory become silent gaps in production. |
 | "I'll just hit the endpoint via `page.evaluate(() => fetch())` / `page.request.*` — same result, less brittle" | FORBIDDEN. This is not a Playwright user-flow test — it is an integration test wearing Playwright's clothing. A real user does not call `fetch()` from the browser console; they click buttons. `page.evaluate(() => fetch(...))` and `page.request.(get\|post\|put\|patch\|delete)` outside of `page.route(...)` blocks or asset-resolution helpers are explicit violations of the real-user simulation discipline. Write a `page.click` / `page.fill` path, or declare the gap in `out_of_scope[]` with a rationale. |
 | "I'll just hit the API endpoint to test the same logic" | NO. The user doesn't interact with the API. Untested click paths break in production with frontend regressions. The Phase A inventory exists specifically to prevent this shortcut. |
-| "I'll mock the entire backend in Playwright" | Mock specific error paths only (`page.route` for 401/429/500). Happy-path runs against the real dev API per `dev-api-integration-testing`. |
+| "I'll mock the entire backend in Playwright" | FORBIDDEN for any `both`-layer feature. Mock specific error paths only (`page.route` for 401/429/500). The happy path runs against the real running backend per `dev-api-integration-testing` + the "Real backend by default" section. A mocked happy path proves the frontend renders fake data — nothing about whether the two layers integrate. |
+| "Frontend and backend are built; the frontend's Playwright passes — it's tested" | If the Playwright run did not exercise the real backend, the two layers were never tested together. "Frontend tests pass against mocks" + "backend tests pass" ≠ "the feature works". The integration is the part that breaks. Set `integration_testing_review` honestly: `pass` only if a real backend was in the loop. |
+| "It's faster / less flaky to mock the backend in the frontend tests" | Speed and flake are real, but a green suite that never integrated the layers is a false signal — the most expensive kind. Run the happy path against the real backend; use `page.route` only to inject the specific error responses that are genuinely hard to trigger. If real-backend tests are flaky, that flake IS a finding (race, fixture, env) — root-cause it per `root-cause-test-failures`, do not mock it away. |
+| "The greenfield backend isn't wired up yet, so I'll mock it and call the frontend done" | Legitimate ONLY at the Phase 3 per-team gate, and ONLY if you set `integration_testing_review: "n/a"` with a note that says the integration is DEFERRED TO PHASE 5. That `n/a` is a debt Phase 5 must settle against the real backend. It is never a substitute for the real thing — and it is never valid at Phase 5. |
+| "The requirements didn't say to integration-test, so mocking is fine" | Backwards. Front-to-back integration testing is the DEFAULT for every `both`-layer feature. Mock-backed testing requires the requirements to *explicitly* authorize it for that requirement — and you quote that authorization in `integration_testing_review_note`. Silence means integrate, not mock. |
 | "The interactivity inventory is overkill for a small feature" | If it's small, the inventory is small. Either way, you cannot author tests without it. |
 | "I'll skip the conditional_ui ones — they're rare" | Conditional UI is exactly what breaks silently. Test it. |
 | "Selectors are too brittle" | That's why the hierarchy goes role → testid → text → css. If you're reaching for CSS, the answer is usually to ADD a testid to the component. |
