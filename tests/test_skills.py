@@ -21,6 +21,7 @@ EXPECTED_SKILLS: set[str] = {
     "mempalace-integration",
     "expensive-verification-debugging",
     "editability-completeness",
+    "readme-styling",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.8] — 2026-05-20
+
+### Added (readme-styling skill — the bitmap house style, with required logic maps)
+
+The README had drifted to v0.9.0 while the plugin reached v0.9.7. v0.9.8 brings it fully current AND adds a reusable skill so the house "flair" is codified — every README an agent authors carries the same look.
+
+#### New skill — `readme-styling`
+- `skills/readme-styling/SKILL.md` — NEW reference skill. Codifies the bitmap house aesthetic: the ASCII block-letter banner (≤72 cols), the `█▓▒░`/`░▒▓█` gradient section dividers, box-drawing panels + inventory grids, ASCII flowcharts, **logic maps that show routing and gates**, the `▰`-track status timeline, and colored shields.io badges (`flat-square` to harmonize with the squared art).
+- **Logic maps are a REQUIRED element** (per the user's explicit ask): any project with non-trivial control flow — review gates, conditional routing, validation that can reject, retry/escalation loops — MUST include at least one logic map. The skill defines the logic-map vocabulary distinct from a flowchart: decision nodes (`◆` with labelled branches), gate nodes (`▣`), verdict nodes (`✓` allow / `✗` block), and route-back edges (`◀┄┄`). One map per decision domain, each captioned.
+- Documents the glyph palette (one glyph = one meaning), the key technical rule (ASCII art goes in a **bare** fenced block — a language tag invokes a highlighter that mangles box-drawing/shade glyphs), the consistency rules, an accessibility rule (art is decoration; real Markdown carries the content for screen readers), and an anti-pattern table. Honest note: GitHub Markdown does not render ANSI color — "colorful" = badges + syntax-highlighted code fences + the glyph palette.
+- Points at this plugin's own `README.md` as the reference implementation.
+
+#### README — brought current to v0.9.8
+- `README.md` — full refresh. Banner version `v0.9.0` → `v0.9.8`. New colored badge row. NEW IN table rewritten for v0.9.1 → v0.9.8. Inventory grid rebuilt: **16 skills, 13 agents, 6 commands** (was 11 / 11 / 3). Install section adds the optional `/architect-team:mempalace-install` step. Pipeline flowchart updated (`11 fields`, `real backend`, `editability`, `12 conditions`).
+- **New `LOGIC MAPS — ROUTING & GATES` section** with two logic maps: **Map A** — the Phase 3 review gate (how every `TaskUpdate(completed)` is gated on the 11-field evidence, exit 0 vs exit 2, the retry/escalation route-back); **Map B** — issue → fix routing (how an SR routes by `origin.kind` — test-failure origins through `diagnostic-research-team`, `editability-gap` straight to a fix team — and how the loop closes when the originating check passes).
+- Loops section: added Loop 4e (editability completeness); updated Loop 3b (diagnostic-research routing), Loop 4 (11 hook-enforced fields, evidence schema v4), Loop 4b (multiple-simultaneous-causes + expensive-verification), Loop 5 (real backend + editability), Loop 3/Phase 1 (12 conditions). On-demand commands, document conventions, and the status timeline all brought current.
+
+### Tests
+- `tests/test_skills.py` — `readme-styling` added to `EXPECTED_SKILLS`.
+- `tests/test_readme_styling.py` — NEW. 12 test functions (18 runs w/ parametrization): the skill exists and documents every styling element (banner / divider / panel / flowchart / logic map / timeline / badge — parametrized); logic maps are marked REQUIRED with the gate-node vocabulary; the bare-fence rule; the glyph palette + anti-patterns. Plus README freshness guards: the README has the banner / gradient dividers / inventory grid / logic maps (with the `▣` gate glyph); the banner version matches `plugin.json`; **the inventory grid counts match the real number of skill/agent/command files** — so a future version bump cannot silently leave the README stale.
+- Full suite: 274 pass (256 prior + 18 net new).
+
+### Released (v0.9.8)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.7` → `0.9.8`.
+
 ## [0.9.7] — 2026-05-20
 
 ### Added (editability-completeness — verify every attribute that should be user-controllable actually is, end to end)
