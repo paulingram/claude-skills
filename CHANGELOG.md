@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.7] — 2026-05-20
+
+### Added (editability-completeness — verify every attribute that should be user-controllable actually is, end to end)
+
+Reported gap: the design gets wired up, but not all the options the frontend exposes are actually accounted for in the interactive portions. The canonical case — an entity has a `title`, but `title` is not a field the user can set or edit when adding the thing. No existing gate catches this: `playwright-user-flows` tests that interactive elements *work*, `visual-fidelity-reconciliation` tests how the UI *looks*, `coverage-mapping` works at requirement granularity. The gap lives at the level of the individual *attribute*, and nothing checked it.
+
+v0.9.7 adds a specialist that thinks through, logically, every element of a design: which attributes a user should be able to control, and whether each one is actually wired all the way to the database.
+
+#### New skill — `editability-completeness`
+- `skills/editability-completeness/SKILL.md` — NEW. A three-agent team skill. Three disciplines: (1) **enumerate every attribute** of every entity the feature creates/edits, from the UNION of four sources — DB schema/migrations/ORM models, API request/response schemas, design screens, component code; (2) **classify by who controls it** — `user-editable` / `user-settable-at-create-only` / `system-managed` / `derived` / `dynamic-via-action` / `ambiguous`, reasoning from THIS feature's requirements + design (not the attribute's name), escalating genuine ambiguity to the human; (3) **trace every user-controllable attribute end-to-end** — a seven-stage path: `create_control` → `edit_control` → `control_to_state` → `state_to_request` → `request_schema` → `handler_to_db` → `read_back`.
+- Team process: **Round 1** — three `editability-reviewer` agents spawn in parallel, each independently builds the map; **Round 2** — they argue to convergence (round-robin, evidence-cited; "it feels editable" is not evidence, a cited requirement line is) until all three hold one identical canonical list; disputes surviving 4 rounds escalate to the human rather than stalling.
+- Gap kinds: `missing-control` (the `title`-with-no-field case), `dead-control` (a control whose value never reaches the DB), `orphan-field` (a data-model field reachable from no flow), `no-readback`, `schema-mismatch`.
+- Every gap becomes a solution requirement (`origin.kind: "editability-gap"`) that spawns a fix team **directly** — it does NOT route through `diagnostic-research-team` because the converged map already names the exact attribute, stage, and file (the diagnosis is complete). SR `acceptance_criteria` are end-to-end and mandate a real-backend round-trip integration test (per the v0.9.5 discipline).
+- **Multi-pass**: after the fixes land, the three reviewers re-spawn and re-review from scratch; bounded at 3 passes; exits `satisfied` when the converged map has zero gaps and all three agree; residual gaps after pass 3 escalate to the human.
+- The converged editable-surface map persists at `.architect-team/editability/<feature>/converged-map-pass<P>-<ts>.json` and is auto-mined to MemPalace.
+
+#### New agent — `editability-reviewer`
+- `agents/editability-reviewer.md` — NEW. **Opus** (the user explicitly asked for an Opus AI). Read-only on source code (Read, Glob, Grep, LS, NotebookRead, Bash, Write-own-draft-only, TodoWrite — no Edit/Write of source). Color: yellow. Spawned ×3 in parallel. Documents the independent Round 1, the argued Round 2 convergence with the `agreement` / `open_disputes` round-robin protocol, reviewer-1 scribe duty, the fresh-from-scratch re-review on each pass, and the analysis-only hard rule (a reviewer that edits a component to "just add the field" has bypassed every review gate — gaps go through the fix loop).
+
+#### New command — `/architect-team:editability-audit`
+- `commands/editability-audit.md` — NEW. On-demand editability audit against one or all codebases (parallel to `/architect-team:visual-qa`). Discovers entities with create/edit flows, runs the `editability-completeness` team, reports the converged map + gaps + escalations, writes the SRs. Audits + files the asks; does not fix inline (adding a field end-to-end is reviewed dev work). `--feature <name>` scoping; `--no-compact`; `/compact` prompt at the end.
+
+#### Pipeline + wire-up
+- `skills/architect-team-pipeline/SKILL.md`: Phase 5 step 4d — for any feature with a create or edit flow, the orchestrator runs the full `editability-completeness` team alongside the visual-fidelity regression sweep. Phase 7 master review now confirms the editability team reached `satisfied` for every entity-bearing feature.
+- `skills/team-spawning-and-review-gates/SKILL.md`: `editability-gap` added to the SR `origin.kind` enum; explicit note that `editability-gap` SRs spawn fix teams directly and do NOT route through `diagnostic-research-team`; new mandatory-consumers entry for the editability-completeness team.
+- `skills/mempalace-integration/SKILL.md`: new canonical room `editability-maps`.
+
+### Tests
+- `tests/test_skills.py` / `test_agents.py` / `test_commands.py` — `editability-completeness` / `editability-reviewer` / `editability-audit` added to the EXPECTED lists.
+- `tests/test_editability_completeness.py` — NEW. 20 test functions (35 runs w/ parametrization): skill exists; all 6 classifications, all 7 trace stages, all 5 gap kinds named (parametrized); three-reviewer team; argue-to-convergence round; multi-pass + bounded + `satisfied`; reviewers analysis-only; ambiguous-escalation; the `title` worked example; agent exists + is opus + read-only + Round-1-independent; command exists + invokes the skill; pipeline Phase 5 + Phase 7 wire-up; `editability-gap` origin + direct-spawn (no diagnostic-research-team); `editability-maps` MemPalace room.
+- Full suite: 256 pass (218 prior + 38 new).
+
+### Released (v0.9.7)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.6` → `0.9.7`.
+
 ## [0.9.6] — 2026-05-19
 
 ### Added (expensive-verification-debugging — audit the whole pathway, batch the fixes, stop the deploy-loop whack-a-mole)

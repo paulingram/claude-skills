@@ -147,7 +147,7 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
   "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
   "created_at": "<ISO 8601 UTC>",
   "origin": {
-    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure",
+    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap",
     "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
     "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
     "test_id": "<failing test ID, if applicable>",
@@ -184,7 +184,8 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
 ### Required field validity
 
 - `solution_id` must be unique and `_safe_id()`-compatible.
-- `origin.kind` must be one of the enumerated values (`playwright-failure`, `integration-test-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`, `integration-testing-failure`); agents MUST NOT invent new kinds.
+- `origin.kind` must be one of the enumerated values (`playwright-failure`, `integration-test-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`, `integration-testing-failure`, `editability-gap`); agents MUST NOT invent new kinds.
+- `editability-gap` SRs spawn a fix team DIRECTLY — they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged map already names the exact attribute, the exact trace stage that breaks, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-cascade` — DO route through `diagnostic-research-team` first; `editability-gap` does not.)
 - `problem_summary` and `expected_behavior` are non-empty strings.
 - `evidence` is a non-empty array; an SR without evidence is an alert dressed as a requirement.
 - `affected_requirements` may be empty if the problem is in territory not yet covered by the coverage map — but then `affected_screens` (for visual) or `scope.files_to_change` MUST be non-empty so the orchestrator can attribute the fix.
@@ -221,6 +222,7 @@ When the orchestrator resumes (after any subagent signals idle), it MUST:
 - `playwright-user-flows` — when a Playwright test fails AND the RCA verdict is product-bug, the SR is written by RCA (don't duplicate). When a test reveals a UI contract that the implementation never honored (gap in the original spec), write an SR with `origin.kind: "playwright-failure"`.
 - `dev-api-integration-testing` — when an integration test fails against the live dev API with a backend regression (RCA verdict product-bug), the SR is written by RCA. When the failure is in test-author error or env / fixture / race, fix in-loop without an SR (per root-cause-test-failures Phase C).
 - `test-completeness-verifier` agent — every `overall: fail` writes an SR with `origin.kind: "test-completeness-failure"` so the orchestrator re-spawns the originating team with concrete missing-test acceptance criteria. The originating team re-enters Phase 2 to author the missing tests, passes Phase 3, and the verifier re-runs in Phase 5 to confirm. When the failure is specifically a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (the `backend_integration_audit` is `mock_backed` with no explicit requirements authorization), the verifier instead uses `origin.kind: "integration-testing-failure"` — the orchestrator routes this through `diagnostic-research-team` (it is a test-failure origin) before spawning the fix team, and the `acceptance_criteria` mandate re-authoring the happy path against the real running backend.
+- `editability-completeness` team — every gap in the converged editable-surface map (an attribute a user should be able to control whose end-to-end trace breaks: a `missing-control`, `dead-control`, `orphan-field`, `no-readback`, or `schema-mismatch`) becomes an SR with `origin.kind: "editability-gap"`. The `acceptance_criteria` are end-to-end and concrete: the create/edit flow has a working control for the attribute, the value reaches the database, the read-back returns it, and a real-backend integration test covers the round-trip. The fix team is spawned directly. After the fixes land, the three `editability-reviewer` agents re-spawn and re-review until the converged map has zero gaps.
 
 ### Anti-patterns to reject
 

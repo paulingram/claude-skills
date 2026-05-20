@@ -31,6 +31,7 @@ The architect-team pipeline adopts this fixed taxonomy:
 | `handoffs` | Team-to-team + team-to-architect handoff markdown | `.architect-team/handoffs/*.md` |
 | `architectural-decisions` | system-architect recommendations + reuse decisions | `openspec/changes/<change>/design.md` Reuse Decision sections |
 | `visual-fidelity-reports` | Reconciliation reports + summary markdown | `.architect-team/visual-fidelity-summary-*.md` |
+| `editability-maps` | Converged editable-surface maps from the editability-completeness team | `.architect-team/editability/<feature>/converged-map-*.json` |
 | `final-reports` | Phase 8 final reports | the final-report content emitted at Phase 8 (write to `.architect-team/runs/<change>-<ts>.md` and mine that path) |
 | `sessions` | Mined conversation transcripts | `~/.claude/projects/<project-encoded>/` (only when the user opts in via `/architect-team:memory sweep`) |
 

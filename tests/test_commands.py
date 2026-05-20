@@ -11,6 +11,7 @@ EXPECTED_COMMANDS: set[str] = {
     "visual-qa",
     "mempalace-install",
     "memory",
+    "editability-audit",
 }
 
 REQUIRED_KEYS = {"description"}
