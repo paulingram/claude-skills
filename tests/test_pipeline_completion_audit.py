@@ -196,6 +196,75 @@ def test_latest_verdict_wins(script: Path, workspace: Path) -> None:
     assert _run_check(script, workspace).returncode == 0
 
 
+# --- visual-fidelity: reconciliation ran but no verifier verdict => block ---
+
+def test_reconciliation_without_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
+    """v0.9.11: if visual-fidelity reconciliation ran, an independent
+    visual-fidelity-verifier verdict must exist — a self-reported reconciliation
+    that never rendered the live app does not gate the run."""
+    at = _at(workspace)
+    (at / "visual-fidelity-summary-ts.md").write_text("reconciliation ran", encoding="utf-8")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"reconciliation w/o a verifier verdict must block; stderr={r.stderr!r}"
+    assert "verifier" in r.stderr.lower()
+
+
+def test_failed_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
+    at = _at(workspace)
+    (at / "visual-fidelity-summary-ts.md").write_text("reconciliation ran", encoding="utf-8")
+    vf = at / "visual-fidelity"
+    vf.mkdir()
+    (vf / "verifier-web-ts.json").write_text(
+        json.dumps({"codebase": "web", "verified_at": "2026-05-20T10:00:00Z", "overall": "fail"}),
+        encoding="utf-8",
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "visual-fidelity-verifier" in r.stderr
+
+
+def test_blocked_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
+    at = _at(workspace)
+    (at / "visual-fidelity-summary-ts.md").write_text("reconciliation ran", encoding="utf-8")
+    vf = at / "visual-fidelity"
+    vf.mkdir()
+    (vf / "verifier-web-ts.json").write_text(
+        json.dumps({"codebase": "web", "verified_at": "2026-05-20T10:00:00Z", "overall": "blocked"}),
+        encoding="utf-8",
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+
+
+def test_passing_verifier_verdict_allows(script: Path, workspace: Path) -> None:
+    at = _at(workspace)
+    (at / "visual-fidelity-summary-ts.md").write_text("reconciliation ran", encoding="utf-8")
+    vf = at / "visual-fidelity"
+    vf.mkdir()
+    (vf / "verifier-web-ts.json").write_text(
+        json.dumps({"codebase": "web", "verified_at": "2026-05-20T10:00:00Z", "overall": "pass"}),
+        encoding="utf-8",
+    )
+    assert _run_check(script, workspace).returncode == 0
+
+
+def test_latest_verifier_verdict_wins_per_codebase(script: Path, workspace: Path) -> None:
+    """A later passing verifier verdict supersedes an earlier failing one."""
+    at = _at(workspace)
+    (at / "visual-fidelity-summary-ts.md").write_text("reconciliation ran", encoding="utf-8")
+    vf = at / "visual-fidelity"
+    vf.mkdir()
+    (vf / "verifier-web-early.json").write_text(
+        json.dumps({"codebase": "web", "verified_at": "2026-05-20T09:00:00Z", "overall": "fail"}),
+        encoding="utf-8",
+    )
+    (vf / "verifier-web-late.json").write_text(
+        json.dumps({"codebase": "web", "verified_at": "2026-05-20T12:00:00Z", "overall": "pass"}),
+        encoding="utf-8",
+    )
+    assert _run_check(script, workspace).returncode == 0
+
+
 # --- iteration ceiling => block --------------------------------------------
 
 def test_iteration_ceiling_exceeded_blocks(script: Path, workspace: Path) -> None:

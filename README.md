@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 10
+                       ─── T E A M ───   v 0 . 9 . 11
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -22,17 +22,18 @@
 
 ![version](https://img.shields.io/badge/version-0.9.8-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-322%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-340%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.10  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.11  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Live-app visual verification — the `visual-fidelity-verifier` (v0.9.11)** | The UX agents were not actually comparing designs against the **live running app** — they reasoned about styles from the code, wrote "perfect", cut steps, then apologized. A skill an agent can rationalize past is not enough. v0.9.11 adds an **independent `visual-fidelity-verifier` agent** (opus, read-only) whose entire job is to start the real app and render EVERY `DESIGN_MAP.md` screen itself, measure the real DOM, and compare against the Oracle AND the reconciliation report — catching a `report-fabricated` "perfect" the live app contradicts and a `report-incomplete` skipped screen. It cannot cut the step because rendering-the-live-app IS the job. `visual-fidelity-reconciliation` gains a hard **Phase 0 live-app precondition** (no live app → escalate `blocked`, never substitute static analysis) and a no-cutting-steps / no-apologies discipline. The verifier's verdict — not the self-report — gates Phase 5, and the `Stop` hook blocks a run whose reconciliation was never verified against the live app. |
 | ▸ **Design-baseline-migration awareness (v0.9.10)** | A reported failure: during a Full→V2 design migration, agents skipped reconciling screens that a prior Phase −1B design-recon had classified `UNCHANGED` — so several role-landing-page `h1`s shipped at the old sizes/weights. Root cause: a **classification** ("what changed") was trusted as a **verdict** ("design-compliant"). v0.9.10 adds a 4th visual-fidelity discipline — *verify against the Oracle, never against a classification* — plus a Phase A.0 design-baseline check. The key reasoning fix: during a baseline migration, "unchanged" **inverts** — an implementation that has not been migrated is drifted *by definition*, so "unchanged" is a guaranteed-drift signal, never a skip. `DESIGN_MAP.md` gains a `design_baseline` field; a baseline change forces a full re-derive of every screen, and a Phase 5 / on-demand sweep must reconcile every screen (`screens_reconciled_count == design_map_screen_count`). |
 | ▸ **Logic-implementation review fixes (v0.9.9)** | A critical review of the pipeline's logic surfaced real holes; v0.9.9 closes all three tiers. The two evidence hooks had **drifted** (`teammate-idle-check` validated 8 fields, `review-gate-task` validated 11) — they now import one shared `review_evidence_schema` module, so drift is structurally impossible. A new **`Stop` hook** (`pipeline-completion-audit`) blocks the orchestrator from ending a run that is still incomplete — open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, a blown iteration ceiling — and gates the Phase 8 auto-commit. The editability team gained an independent `system-architect` **robustness review** (Round 3). Plus: a global iteration ceiling + oscillation detection, a documented shared-state concurrency model, map re-validation when a map is found wrong, and a default-branch push guard (`--allow-push-to-default`). See Logic Map C. |
 | ▸ **README styling skill (v0.9.8)** | New `readme-styling` reference skill codifies the bitmap house style — block-letter banner, gradient dividers, box-drawing panels, ASCII flowcharts, **logic maps that show routing + gates**, status timeline, colored badges — so every README an agent authors carries the same flair. This README is its reference implementation. |
@@ -51,7 +52,7 @@
 ```
 
 ```
-┌─ SKILLS (16) ───────────────────────┬─ AGENTS (13) ─────────────────────────┐
+┌─ SKILLS (16) ───────────────────────┬─ AGENTS (14) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -65,7 +66,7 @@
 │ ◇ root-cause-test-failures          │ ◆ test-completeness-verifier (sonnet) │
 │ ◇ diagnostic-research-team          │ ◆ diagnostic-researcher (opus)        │
 │ ◇ mempalace-integration             │ ◆ editability-reviewer (opus)         │
-│ ◇ expensive-verification-debugging  │                                       │
+│ ◇ expensive-verification-debugging  │ ◆ visual-fidelity-verifier (opus)     │
 │ ◇ editability-completeness          │                                       │
 │ ◇ readme-styling                    │                                       │
 ├─ COMMANDS (6) ──────────────────────┴───────────────────────────────────────┤
@@ -495,7 +496,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — 11-field evidence schema v4; the `pipeline-completion-audit` Stop hook; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling, and design-baseline-migration disciplines. **322 tests pass.**
+Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 14 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — 11-field evidence schema v4; the `pipeline-completion-audit` Stop hook; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling, design-baseline-migration, and live-app-visual-verification disciplines. **340 tests pass.**
 
 ### Bumping versions
 
@@ -537,7 +538,8 @@ Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent
            v0.9.7 ─ editability-completeness review
            v0.9.8 ─ readme-styling skill + README refresh
            v0.9.9 ─ logic-implementation review — Tier 1/2/3 hole fixes
-   ◆       v0.9.10 ─ design-baseline-migration awareness (current)
+           v0.9.10 ─ design-baseline-migration awareness
+   ◆       v0.9.11 ─ live-app visual verification (visual-fidelity-verifier) (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

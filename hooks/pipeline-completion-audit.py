@@ -69,6 +69,11 @@ def _is_real_run(at: Path) -> bool:
         d = at / sub
         if d.is_dir() and any(d.iterdir()):
             return True
+    if any(at.glob("visual-fidelity-summary-*.md")):
+        return True
+    vf = at / "visual-fidelity"
+    if vf.is_dir() and any(vf.glob("*.json")):
+        return True
     return False
 
 
@@ -166,6 +171,50 @@ def _audit_test_completeness(at: Path) -> list[str]:
     return violations
 
 
+def _audit_visual_fidelity(at: Path) -> list[str]:
+    """If visual-fidelity reconciliation ran this run, an independent
+    visual-fidelity-verifier verdict must exist and pass — a self-reported
+    reconciliation that never rendered the live app does not gate the run."""
+    violations: list[str] = []
+    summaries = list(at.glob("visual-fidelity-summary-*.md"))
+    vf_dir = at / "visual-fidelity"
+    recon_reports = []
+    if vf_dir.is_dir():
+        recon_reports = [p for p in vf_dir.glob("*.json") if not p.name.startswith("verifier-")]
+    if not summaries and not recon_reports:
+        return violations  # no visual-fidelity reconciliation this run — nothing to gate
+
+    verdict_paths = sorted(vf_dir.glob("verifier-*.json")) if vf_dir.is_dir() else []
+    if not verdict_paths:
+        violations.append(
+            "visual-fidelity reconciliation ran but no visual-fidelity-verifier verdict "
+            "exists — the reconciliation was never independently confirmed against the "
+            "live running app"
+        )
+        return violations
+
+    latest_by_codebase: dict[str, tuple[str, dict]] = {}
+    for vp in verdict_paths:
+        v = _load_json(vp)
+        if not isinstance(v, dict):
+            violations.append(f"visual-fidelity-verifier verdict {vp.name} is unreadable")
+            continue
+        codebase = str(v.get("codebase") or vp.name)
+        key = str(v.get("verified_at") or vp.name)
+        prev = latest_by_codebase.get(codebase)
+        if prev is None or key > prev[0]:
+            latest_by_codebase[codebase] = (key, v)
+    for codebase, (_, v) in sorted(latest_by_codebase.items()):
+        overall = v.get("overall")
+        if overall != "pass":
+            violations.append(
+                f"visual-fidelity-verifier verdict for codebase '{codebase}' is "
+                f"'{overall}' — the live-app comparison did not pass (drift remains, "
+                f"or the live app would not run)"
+            )
+    return violations
+
+
 def _audit_iteration_ceiling(at: Path) -> list[str]:
     state = _load_json(at / "intake-state.json")
     if not isinstance(state, dict):
@@ -188,6 +237,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_solution_requirements(at)
     violations += _audit_editability(at)
     violations += _audit_test_completeness(at)
+    violations += _audit_visual_fidelity(at)
     violations += _audit_iteration_ceiling(at)
     return True, violations
 

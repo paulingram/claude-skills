@@ -26,6 +26,18 @@ Four disciplines:
 - **Phase 5 — Cross-layer integration (automatic).** The integration agent runs reconciliation across ALL screens (not just changed ones) as a regression check that upstream / sibling changes have not drifted the contract.
 - **On-demand audit via `/architect-team:visual-qa` (manual).** Operator invokes the command at any point; the command refreshes DESIGN_MAP.md if stale, then runs reconciliation across all designed screens.
 
+## Phase 0 — Precondition: the LIVE RUNNING APP (a hard gate, before everything)
+
+Visual-fidelity reconciliation compares the **running application a real user would load** against the design Oracle. The live app is the substrate of this entire skill. Before any scoping, any analysis, any verdict:
+
+1. **Start the real app.** Use the documented dev / serve command from CODEBASE_MAP.md, running against the **real backend** (real dev API, real dev data — per `dev-api-integration-testing` and the v0.9.5 real-backend discipline; a data-bearing screen reconciled against fake data is meaningless).
+2. **Confirm it serves.** Poll the app URL until HTTP 200; confirm what loads is the actual application, not a 404 / error overlay / placeholder.
+3. **Confirm you can reach every in-scope screen.** Navigate to each; if a screen is unreachable, that is itself a finding.
+
+**If the live app cannot be made to run, you CANNOT do visual-fidelity reconciliation. STOP and escalate** ("live app not runnable — visual-fidelity blocked"). You do NOT proceed to Phase B. You do NOT substitute static analysis, the design mockups, or Storybook-in-isolation for the live render. Static analysis (Phase B) is a cross-check *layered on top of* the live render — it is never a replacement for it. Reasoning about the code is not rendering the app; the two are not interchangeable, and a reconciliation built only on code-reading has verified nothing about what the user actually sees.
+
+Every verdict this skill produces in Phase D MUST be backed by a screenshot of the LIVE APP captured during this run (Phase C). A tuple verdict with no live screenshot did not happen — it is a guess, not a verdict, and the report is invalid.
+
 ## Phase A — Scope identification
 
 ### Phase A.0 — Establish the design baseline FIRST (before any scoping)
@@ -88,9 +100,11 @@ For each in-scope element:
 
 The static analysis output is a per-element `static_verdict` field captured into the reconciliation JSON before runtime. The runtime in Phase C either confirms it or contradicts it (which itself is a finding — usually means a cascade or runtime computation the static pass missed).
 
-## Phase C — Runtime verification with Playwright
+## Phase C — Runtime verification against the LIVE APP (mandatory — this is the comparison)
 
-After the static pass, run a fresh Playwright session per viewport declared in DESIGN_MAP.md and verify the rendered values for every in-scope tuple.
+After the static pass, run Playwright against the **live running app from Phase 0** — the real application, real backend — per viewport declared in DESIGN_MAP.md, and verify the rendered values for every in-scope tuple. This is not an optional confirmation step layered on Phase B; it IS the reconciliation. Phase B (static) tells you what the code *should* resolve to; Phase C tells you what the user *actually sees*. The two disagree more often than intuition expects (runtime cascade, theme application, dynamic data, hydration) — and when they disagree, Phase C is the truth.
+
+Phase C is the most-cut step in this skill. It is also the only step that actually compares the design to reality. Cutting it — doing Phase B and writing "perfect" without ever rendering the app — is the precise failure this skill exists to prevent. There is no verdict without a live render.
 
 ### Setup per viewport
 
@@ -323,8 +337,18 @@ The hook value `"fail"` is the SAFETY NET, not the default workflow. The default
 - `"n/a"` — either no frontend was touched OR DESIGN_MAP.md does not exist for this codebase. MUST also include `visual_fidelity_review_note` with a one-sentence justification of which branch applies.
 - `"fail"` — reconciliation ran, at least one tuple was `drift` or `gap` AND the discipline could not converge to `pass` autonomously (one of the four escalation cases applies). The hook BLOCKS this value — the teammate has escalated and is waiting for the architect-routed clarification, after which they re-run reconciliation and only mark complete when verdict is `"pass"`.
 
+## Phase F — Independent verification by the `visual-fidelity-verifier`
+
+A reconciliation report is a self-report — and self-reported visual QA fails in one specific, recurring way: the agent reads the code, reasons about the styles, writes "perfect," and never renders the running app. So this report does not stand on its own.
+
+After reconciliation completes (Phase 5 integration, or an on-demand `/architect-team:visual-qa` audit), the orchestrator spawns the **`visual-fidelity-verifier`** agent. The verifier does NOT trust this report. It starts the live app itself, renders every DESIGN_MAP screen itself, measures the real DOM itself, and compares on two axes: against the Oracle, and against this report's claimed values. A report that claimed `perfect` for a screen the verifier finds drifted is flagged `report-fabricated`; a tuple the report never covered is `report-incomplete`. **The verifier's verdict — not this report — is what gates the run.** `visual_fidelity_review` is not truly `pass` until the verifier has independently confirmed it against the live app; a verifier failure writes an SR and routes the drift back through the dev loop.
+
+The practical consequence: producing a thorough, honest reconciliation here is not optional diligence. The verifier WILL render the live app and WILL catch a cut step. The only path to a real `pass` is to have actually done the comparison — every screen, every state, against the live app.
+
 ## Hard rules — non-negotiable
 
+- **Phase 0 + Phase C are not skippable.** No verdict exists without a live render of the running app. Static analysis, design mockups, and Storybook-in-isolation are NOT substitutes for the live render. If the app cannot be made to run, escalate `blocked` — never quietly fall back to code-reading.
+- **No cutting steps, no apologies.** Every (screen, element, state, viewport) tuple in the declared scope gets a live render and a verdict. If you find yourself about to apologize for skipping a screen or a state — STOP and do not skip it. The tuple you are tempted to cut is the one most likely to be drifted. An apology after the fact ships the drift anyway; it is worthless. There is no partial pass.
 - **Zero-tolerance defaults.** No silent slop. Per-element tolerance overrides go in DESIGN_MAP.md with a written rationale, not in test code.
 - **Exhaustive states.** Every state listed or implied must be reconciled. A spec that only covers `default` while the component has hover / focus / disabled is itself a gap (escalate to update DESIGN_MAP first, then re-reconcile).
 - **Exhaustive viewports.** Reconciliation runs at every viewport declared in DESIGN_MAP.md's `viewports_responsive` frontmatter. Different viewport → different verdict.
@@ -349,6 +373,9 @@ The hook value `"fail"` is the SAFETY NET, not the default workflow. The default
 | "The code diff shows these files didn't change, so they're design-compliant" | Code-unchanged ≠ design-compliant. The design can move while the code stands still — that is exactly a baseline migration. And the classification can simply be wrong. Verify against the Oracle, not the diff. |
 | "We're migrating Full→V2 and this screen is UNCHANGED, so it's fine" | Backwards. During a baseline migration, UNCHANGED means NOT MIGRATED — the screen still renders the OLD design and is drifted by definition. "Unchanged" inverts during a migration: it is the loudest call to reconcile-and-fix, never a skip. See Phase A.0. |
 | "These screens weren't touched by the most-recent team, so the regression sweep can skip them" | The Phase 5 / on-demand sweep covers EVERY screen in DESIGN_MAP — that is the whole point of a regression net: it catches drift that no single team's diff would reveal. `screens_reconciled_count` must equal `design_map_screen_count`. |
+| "I'll do the static analysis and reason about the rest — re-rendering every screen is slow" | Static analysis is not the comparison; rendering the live app IS. Phase B without Phase C is a guess wearing a report's clothing. It does not even save effort: the `visual-fidelity-verifier` renders every screen of the live app independently and bounces the cut step straight back. |
+| "I cut a few screens / states for time — I'll note it and apologize in the summary" | An apology is not a substitute for the work — the drift ships regardless of how sorry you are. There is no partial pass: render every tuple in the declared scope, or the reconciliation is incomplete and `pass` is simply not available. |
+| "The app won't run, so I'll verify against the code and the design files" | An app that will not run cannot be visually reconciled — that is a `blocked` escalation, and the unrunnable app is itself a defect to surface. Static analysis is not a live render; never substitute it. |
 | "Snapshot regression is enough; we do not need per-element comparisons" | Snapshots regress on overall pixel diff but mask many computed-style drifts (a wrong font-weight that is within tolerance pixel-wise still ships the wrong contract). Both layers are required. |
 | "Cross-browser differences make 0px impossible" | Run reconciliation in the SAME browser engine as DESIGN_MAP was captured against. If multiple engines are in scope, DESIGN_MAP must declare per-engine variants. |
 | "I will just mark visual_fidelity_review n/a — designs were not provided" | If DESIGN_MAP.md does not exist for the codebase, n/a is correct AND the note must say so explicitly. If it DOES exist, n/a is the wrong call — fix to spec or escalate per the matrix. |
@@ -371,6 +398,10 @@ The hook value `"fail"` is the SAFETY NET, not the default workflow. The default
 - `screens_reconciled_count` < `design_map_screen_count` on a Phase 5 or on-demand run — some screens were skipped.
 - A design-baseline migration is underway and you treated an "unchanged" screen as a skip instead of as a guaranteed drift.
 - You did not run Phase A.0 — you scoped without first checking whether the design baseline moved.
+- You produced a verdict for a tuple without a live-app screenshot captured this run — Phase C did not actually run for it.
+- You skipped Phase 0 / Phase C and reasoned about styles from the code instead of rendering the live app.
+- You are about to apologize for a screen or state you cut — that is the signal to go back and do it, not to apologize.
+- The app would not run and you proceeded with static analysis instead of escalating `blocked`.
 - The `evidence[]` array for any tuple is empty.
 - Static analysis was skipped because "the runtime would catch it anyway".
 - The DESIGN_MAP.md was stale (`last_designed` < latest codebase commit on frontend files) and you proceeded without refreshing it.

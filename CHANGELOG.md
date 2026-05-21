@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.11] — 2026-05-20
+
+### Fixed (force the UX agents to compare designs against the LIVE APP)
+
+Reported failure: the visual-fidelity agents were not actually comparing designs against the **live running app**. They read the code, reasoned about the styles, wrote "perfect", cut steps — and then *apologized* for cutting them. An apology after the fact ships the drift anyway. A skill the agent can rationalize past is not enough.
+
+This is the same shape as the v0.9.0 test-completeness failure ("it says it tests but only runs unit tests"), and it gets the same fix: an **independent verifier agent** that performs the work itself, so the step cannot be cut.
+
+#### New agent — `visual-fidelity-verifier`
+- `agents/visual-fidelity-verifier.md` — NEW. Opus, read-only on source (no Edit — it verdicts, never fixes). Its entire job is to **render the live running app itself**: it starts the real app (against the real backend, per the v0.9.5 discipline), renders EVERY `DESIGN_MAP.md` screen — every state, every viewport, **no sampling** — captures its OWN screenshots, and measures the real DOM. It compares on two axes: against the design Oracle, and against the reconciliation report's claimed values — flagging `report-fabricated` (the report claimed `perfect` for a screen the live app shows drifted) and `report-incomplete` (a screen the reconciliation skipped). Verdict JSON at `.architect-team/visual-fidelity/verifier-<codebase>-<ts>.json`; `overall: pass` requires `screens_rendered_count == design_map_screen_count`. If the app will not run, the verdict is `blocked` (an escalation) — never `pass`, never a fallback to static analysis. It cannot cut the step because rendering-the-live-app IS the job.
+
+#### `visual-fidelity-reconciliation` skill — restructured around the live app
+- New **Phase 0 — Precondition: the live running app.** Before any scoping or analysis, the real app must be started (real backend) and confirmed serving. If it cannot run, you do NOT proceed and you do NOT substitute static analysis / mockups / Storybook — you escalate `blocked`. Phase B (static) is a cross-check layered on the live render, never a replacement.
+- Phase C reframed as "Runtime verification against the LIVE APP" — explicitly the real running app; every tuple verdict MUST be backed by a live-app screenshot captured this run; a verdict with no live screenshot did not happen.
+- New **Phase F — Independent verification by the `visual-fidelity-verifier`**: the reconciliation report is a self-report and does not gate the run on its own; the verifier independently re-renders the live app, and its verdict is what gates.
+- New hard rules (Phase 0 + Phase C unskippable; **no cutting steps, no apologies** — if you are about to apologize for a skipped screen, that is the signal to render it, not to apologize) + anti-pattern rows + red flags.
+
+#### Wire-up + enforcement
+- `skills/architect-team-pipeline/SKILL.md` Phase 5: new step 7b — after the reconciliation sweep the orchestrator spawns the `visual-fidelity-verifier`; its verdict (not the reconciliation report) gates Phase 5; `pass` requires `screens_rendered_count == design_map_screen_count`.
+- `agents/integration.md`: Phase 0 is a hard precondition of the Phase 5 sweep; the sweep hands off to the verifier and passes on the verifier's verdict.
+- `commands/visual-qa.md`: new Step 3b — the verifier is the gate of the on-demand audit (`BLOCKED` if the live app would not run).
+- `skills/team-spawning-and-review-gates/SKILL.md`: `visual-fidelity-verifier` added to the mandatory SR-writing consumers.
+- `hooks/pipeline-completion-audit.py` (the `Stop` hook): new check — if visual-fidelity reconciliation ran this run, a passing `visual-fidelity-verifier` verdict must exist. A reconciliation that was never independently verified against the live app, or whose verifier verdict is `fail` / `blocked`, blocks the run from completing.
+
+### Tests
+- `tests/test_agents.py` — `visual-fidelity-verifier` added to `EXPECTED_AGENTS` (now 14 agents).
+- `tests/test_visual_fidelity_verifier.py` — NEW. 12 tests: the verifier exists + is opus + read-only; it renders the live app, covers every screen with no sampling, treats `blocked` as not-`pass`, catches `report-fabricated`; visual-fidelity-reconciliation has the Phase 0 precondition, the Phase F verifier handoff, and the no-cutting-steps / no-apologies discipline; the pipeline / integration / visual-qa / team-spawning all reference the verifier.
+- `tests/test_pipeline_completion_audit.py` — 5 new tests for the Stop-hook visual-fidelity check (reconciliation without a verifier verdict blocks; `fail` / `blocked` verdict blocks; `pass` allows; latest-verdict-per-codebase wins).
+- Full suite: **340 pass** (322 prior + 18 net new).
+
+### Released (v0.9.11)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.10` → `0.9.11`.
+
 ## [0.9.10] — 2026-05-20
 
 ### Fixed (design-baseline-migration awareness — "unchanged" is not a verdict)

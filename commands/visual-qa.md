@@ -77,6 +77,12 @@ For each in-scope codebase:
 7. **Escalation handoffs** (only for the four named cases above): write `<cwd>/.architect-team/handoffs/visual-qa-to-architect-<reason>-<screen>-<ts>.md` containing: DESIGN_MAP version reconciled against, summary of the drift/gap, the specific decision-matrix case that triggered escalation, links to JSON + screenshots. Identify the team that likely introduced the upstream issue via `git log -p --since=<last_designed> -- <files-involved>` and include `to: <team>` in the frontmatter.
 8. **When a fix is applied**, also write an informational handoff to the team that introduced the drift (`visual-qa-to-<team>-fixed-<screen>-<ts>.md`) — not blocking, just heads-up so their next change matches the corrected spec.
 
+## Step 3b — Independent live-app verification (the gate)
+
+After the reconciliation in Step 3 reports every screen `perfect`, spawn the `visual-fidelity-verifier` agent. It does NOT trust the Step 3 report: it starts the live app itself, renders EVERY `DESIGN_MAP.md` screen itself, measures the real DOM, and compares against both the design Oracle and the Step 3 report's claimed values — catching a `report-fabricated` "perfect" the live app contradicts and a `report-incomplete` screen Step 3 skipped.
+
+**The verifier's verdict gates this command, not the Step 3 report.** Proceed to Step 4 only on `overall: pass` with `screens_rendered_count == design_map_screen_count`. A verifier `fail` → an SR is written (`origin.kind: "visual-fidelity-drift"`) and the overall result is `DRIFT_DETECTED`. A verifier `blocked` (the live app would not run) → the overall result is `BLOCKED`; report it and stop. The audit never passes on a reconciliation that did not render the live app for every screen.
+
 ## Step 4 — Auto-commit and push (default behavior; opt-out via --no-commit / --no-push)
 
 When the run completes with `overall: PASS` (whether by zero-drift-on-arrival OR by fix-to-spec convergence) AND at least one file was modified by the pipeline during fix-to-spec:

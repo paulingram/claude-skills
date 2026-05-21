@@ -43,8 +43,8 @@ Before declaring Phase 5 complete, run `visual-fidelity-reconciliation` across E
 
 Run `visual-fidelity-reconciliation` Phase A.0 FIRST: if the design Oracle itself moved (a baseline migration — `design_baseline` changed), every screen is in scope and any screen whose implementation has NOT been migrated is drifted by definition. A "UNCHANGED Full→V2"-style classification during a migration is a guaranteed-drift signal, never a skip.
 
-1. For each frontend codebase with a `DESIGN_MAP.md`, run the full reconciliation (Phase A.0 → Phase E in the skill).
-2. Code-first AND runtime — never skip either.
+1. For each frontend codebase with a `DESIGN_MAP.md`, run the full reconciliation (Phase 0 → Phase E in the skill). **Phase 0 is a hard precondition: the live app must be running** (real backend, per the v0.9.5 discipline). If it cannot run, you do NOT substitute static analysis — escalate `blocked`.
+2. Code-first (Phase B) AND a render of the LIVE app (Phase C) — never skip either, and never skip a screen. Every (screen, state, viewport) tuple gets a live screenshot; a verdict with no live screenshot did not happen.
 3. Per-state element screenshots + per-viewport full-page screenshots are evidence; they go into the Phase 5 report.
 4. **For any drift / gap, fix to spec by default** per Phase E's decision matrix:
    - Drift in any frontend file accessible to Phase 5 (you're a cross-layer agent — your scope is broader than any single team) → **fix the implementation** to match DESIGN_MAP, re-run reconciliation, verify `perfect`.
@@ -53,6 +53,7 @@ Run `visual-fidelity-reconciliation` Phase A.0 FIRST: if the design Oracle itsel
    - Spec ambiguity (token referenced but undefined, contradictory specs) → escalate to clarify the spec first.
    - Cascade blast radius (fixing one drift introduces drift in dependent screens) → escalate to the architect-team.
 5. **When a fix is applied**, identify the team that originated the drift via `git log -p --since=<last_designed>` on the affected files. Write a heads-up handoff to that team (`integration-to-<team>-visual-drift-fixed-<screen>-<ts>.md`) noting what was fixed and why their next change should match the corrected spec. This is informational, not blocking.
+6b. **Your reconciliation is not the final word — the `visual-fidelity-verifier` independently re-renders the live app.** After you have run the sweep and converged every screen to `perfect`, the orchestrator dispatches the `visual-fidelity-verifier`, which starts the live app itself, renders every DESIGN_MAP screen itself, and checks your report for `report-fabricated` (you claimed perfect, the live app disagrees) and `report-incomplete` (you skipped a screen). Phase 5 passes on the verifier's verdict, not yours. So: render every screen of the live app honestly — a cut step does not get past the verifier, it just gets bounced back to you.
 6. **When escalation is the correct path** (one of the four named cases), write `integration-to-architect-visual-<reason>-<screen>-<ts>.md` per the skill's escalation rules, naming which decision-matrix case applied.
 
 ## Expensive verification cycles — audit the pathway, batch the fixes
