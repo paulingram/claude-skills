@@ -15,10 +15,14 @@ MemPalace organizes content into **wings** (people / projects) → **rooms** (to
 
 The architect-team pipeline adopts this fixed taxonomy:
 
-- **Wing:** the project name. Derived from `git -C <workspace> remote get-url origin` (parsed to repo basename) when available, else from `Path(workspace).name`. Stable across pipeline runs against the same project — never invent a new wing per run.
-- **Rooms:** fixed names per artifact type. The room names below are CANONICAL — pass them explicitly via `--wing <wing> --room <room>` when mining so cross-run queries find the same drawers regardless of which run filed them.
+- **Wing:** the project name. Derived from `git -C <workspace> remote get-url origin` (parsed to repo basename) when available, else from `Path(workspace).name`. Stable across pipeline runs against the same project — never invent a new wing per run. The wing is the ONLY scoping argument `mempalace mine` accepts.
+- **Rooms:** topics WITHIN a wing. **Rooms are NOT a mine-time argument** — `mempalace init` detects them from the directory structure of the corpus, and `mempalace mine` files each drawer into the room implied by its source path's directory layout. The `mempalace mine` subcommand has no `--room` flag (verified against mempalace 3.3.5). The `--room` flag exists only on `mempalace search`, where it narrows a query to one detected room.
 
-| Room | Contains | Source paths typically mined |
+### How the architect-team directory layout maps onto MemPalace's auto-detected rooms
+
+The pipeline writes each artifact type into a stable directory location. When that location is mined, `mempalace init`'s folder-structure detection groups the drawers into rooms accordingly. The categories below are the CONCEPTUAL room taxonomy — they describe how the `.architect-team/` + `openspec/` + `docs/` layout is expected to surface as MemPalace rooms, and they are the room names a `search --room <room>` query targets. They are NOT flags passed to `mine`.
+
+| Conceptual room | Contains | Source path layout that produces it |
 |---|---|---|
 | `codebase-maps` | CODEBASE_MAP.md per codebase | `<codebase>/docs/CODEBASE_MAP.md` |
 | `route-maps` | ROUTE_MAP.md per frontend codebase | `<codebase>/docs/ROUTE_MAP.md` |
@@ -35,7 +39,7 @@ The architect-team pipeline adopts this fixed taxonomy:
 | `final-reports` | Phase 8 final reports | the final-report content emitted at Phase 8 (write to `.architect-team/runs/<change>-<ts>.md` and mine that path) |
 | `sessions` | Mined conversation transcripts | `~/.claude/projects/<project-encoded>/` (only when the user opts in via `/architect-team:memory sweep`) |
 
-If an artifact would not fit any of these rooms, do NOT invent a new room name on the fly — use `general` as a last resort and surface the gap so a future version of this skill can add the missing room canonical name.
+Keep the pipeline's directory layout stable so these rooms stay consistent across runs. Do NOT attempt to force a room at mine time — there is no flag for it; rely on the directory layout. When a `search --room` query targets one of these rooms, use the canonical names above.
 
 ## Per-workspace palace location
 
@@ -71,8 +75,10 @@ When the pipeline writes ANY artifact listed in the room table above, it MUST mi
 ### The canonical mine invocation
 
 ```bash
-mempalace --palace "<workspace>/.mempalace/palace" mine "<artifact-path>" --wing "<wing>" --room "<canonical-room-name>"
+mempalace --palace "<workspace>/.mempalace/palace" mine "<artifact-path>" --wing "<wing>"
 ```
+
+`mine` accepts ONLY `--wing` for scoping (plus `--mode / --no-gitignore / --include-ignored / --agent / --limit / --redetect-origin / --dry-run / --extract`). It has **no `--room` flag** — the room is auto-detected from the artifact path's directory layout by `mempalace init`. Do NOT add `--room` to a `mine` command; mempalace 3.3.5 rejects it with `unrecognized arguments`.
 
 Multi-file mines (e.g., the whole `diagnostic-research/<test-id>/` directory): pass the directory path; MemPalace recurses. Per-file mines are fine too — `mempalace mine` is idempotent for already-filed drawers (already-filed drawers are skipped, reported as "Files skipped (already filed)").
 
@@ -121,7 +127,8 @@ If MCP is registered, subagents that need it use the MCP tools by name (the tool
 ## Operating rules (non-negotiable)
 
 - **Wing name is stable per project.** Do NOT recompute a different wing per pipeline run against the same project. The wing is part of the cross-run search contract.
-- **Room names are canonical.** Use ONLY the room names in the table above. New room names require updating this skill and propagating to all callers.
+- **`mine` takes `--wing` only — never `--room`.** The `mempalace mine` subcommand has no `--room` flag; rooms are auto-detected by `mempalace init` from the mined corpus's directory structure. Adding `--room` to a `mine` command makes mempalace 3.3.5 fail with `unrecognized arguments`. `--room` is valid ONLY on `mempalace search`, to narrow a query to one detected room.
+- **Room names are canonical.** Use ONLY the room names in the taxonomy table above when targeting a `search --room <room>` query. They are detected from the pipeline's directory layout — keep that layout stable rather than inventing new room names; new room names require updating this skill and propagating to all callers.
 - **Auto-mine is mandatory.** Every artifact in the canonical room table gets mined at write time. Skipping mine means future runs cannot find the artifact.
 - **Mine is idempotent.** Re-mining is safe — MemPalace skips already-filed drawers. Do NOT add custom "is this already filed" checks; rely on MemPalace's own idempotency.
 - **Search before output for named agents.** The `Prior context from MemPalace` section is mandatory in agent drafts where the table above prescribes a search.
@@ -142,10 +149,11 @@ WING="$(basename "$WORKSPACE")"  # or parsed from git remote
 # Wake-up at Phase -1 start:
 mempalace --palace "$PALACE" wake-up --wing "$WING"
 
-# Mine after an artifact is written (example: a diagnostic plan):
+# Mine after an artifact is written (example: a diagnostic plan).
+# mine takes --wing only; the room is auto-detected from the path's directory layout:
 mempalace --palace "$PALACE" mine \
     ".architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md" \
-    --wing "$WING" --room diagnostic-plans
+    --wing "$WING"
 
 # Search before producing a system-architect recommendation:
 mempalace --palace "$PALACE" search "auth middleware session token storage" \

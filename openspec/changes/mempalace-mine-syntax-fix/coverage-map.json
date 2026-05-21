@@ -1,0 +1,25 @@
+{
+  "change": "mempalace-mine-syntax-fix",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-1",
+      "spec_requirement_id": "mine-commands-match-installed-cli",
+      "layer": "infra",
+      "task_ids": ["T-1", "T-2", "T-3", "T-4"],
+      "scenarios": [
+        "Every mempalace mine command documented in the plugin runs against mempalace 3.3.5 without an 'unrecognized arguments' error.",
+        "The mempalace-integration skill describes rooms as init-detected from folder structure, not as a mine-time flag.",
+        "A structural test fails if any skill/agent/command reintroduces 'mine ... --room'."
+      ],
+      "acceptance_criteria": [
+        "No file under skills/, agents/, or commands/ contains a 'mempalace ... mine' command with a '--room' argument.",
+        "skills/mempalace-integration/SKILL.md states that mining specifies only --wing and that rooms are auto-detected by 'mempalace init' from directory structure.",
+        "tests/test_mempalace_integration.py has a regression test asserting no skill/agent/command instructs 'mine ... --room'; any prior test pinning the --room form is updated.",
+        "The full pytest suite passes.",
+        "The historical --room references in CHANGELOG.md are left intact (records of v0.9.4)."
+      ],
+      "status": "planned"
+    }
+  ]
+}

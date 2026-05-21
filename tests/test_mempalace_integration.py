@@ -5,7 +5,14 @@ storage taxonomy, the auto-mine rules fire at every required phase of the
 pipeline skill, and the three named subagents (system-architect,
 diagnostic-researcher, route-mapper) document the search-before-output
 discipline.
+
+v0.9.14 — `mempalace mine` accepts only `--wing` (verified against mempalace
+3.3.5; `mine` has no `--room` flag — rooms are auto-detected by `mempalace
+init` from directory structure). The auto-mine assertions therefore check that
+each artifact path is mined, and a regression test guards that no skill /
+agent / command reintroduces a `mine ... --room` command form.
 """
+import re
 from pathlib import Path
 
 import pytest
@@ -40,6 +47,48 @@ def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     return target.read_text(encoding="utf-8")
 
 
+# --- command extraction -----------------------------------------------------
+# Real CLI invocations live in fenced code blocks or inline-code spans. Prose
+# that merely *names* a flag (e.g. the sentence "`mine` has no `--room` flag")
+# never places a full `mempalace ... mine ...` command in a single code unit,
+# so extracting code units and scanning them is immune to prose false matches.
+
+_FENCE_RE = re.compile(r"```[^\n]*\n(.*?)\n```", re.DOTALL)
+_INLINE_RE = re.compile(r"`([^`\n]+)`")
+
+
+def _code_units(content: str) -> list[str]:
+    """Every shell-command-bearing unit in a markdown doc: each fenced code
+    block (line-continuations joined) plus each inline-code span."""
+    units: list[str] = []
+    for block in _FENCE_RE.findall(content):
+        # Join backslash line-continuations so a multi-line command is one unit.
+        joined = re.sub(r"\\\n\s*", " ", block)
+        units.extend(line.strip() for line in joined.splitlines() if line.strip())
+    units.extend(span.strip() for span in _INLINE_RE.findall(content))
+    return units
+
+
+def _commands_with_token(content: str, token: str) -> list[str]:
+    """Return every `mempalace ...` command unit that contains a bare `token`
+    word (e.g. 'mine' or 'search')."""
+    word = re.compile(rf"(?<![\w-]){re.escape(token)}(?![\w-])")
+    return [
+        unit for unit in _code_units(content)
+        if "mempalace" in unit and word.search(unit)
+    ]
+
+
+def _iter_doc_files(plugin_root: Path):
+    """Every .md file under skills/, agents/, commands/."""
+    for sub in ("skills", "agents", "commands"):
+        base = plugin_root / sub
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.md")):
+            yield path
+
+
 @pytest.mark.parametrize("room", CANONICAL_ROOMS)
 def test_skill_names_every_canonical_room(plugin_root: Path, room: str) -> None:
     """The integration skill must explicitly name every canonical room."""
@@ -70,45 +119,56 @@ def test_pipeline_runs_wakeup_at_phase_minus_1(plugin_root: Path) -> None:
     )
 
 
+# Each artifact must still be auto-mined — but `mempalace mine` takes `--wing`
+# only (no `--room`; rooms are init-detected from directory structure). Each
+# test asserts the artifact path is mined and that the mine command carries no
+# `--room` flag.
+
+def _mine_commands(content: str) -> list[str]:
+    """Return every `mempalace ... mine ...` invocation found in code spans /
+    fenced code blocks of a doc, as single-line strings."""
+    return _commands_with_token(content, "mine")
+
+
 def test_pipeline_auto_mines_codebase_maps(plugin_root: Path) -> None:
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
-    assert "--room codebase-maps" in content, (
-        "pipeline skill does not auto-mine CODEBASE_MAP into the codebase-maps room"
+    assert "CODEBASE_MAP.md" in content and 'mine "<codebase>/docs/CODEBASE_MAP.md"' in content, (
+        "pipeline skill does not auto-mine CODEBASE_MAP.md"
     )
 
 
 def test_pipeline_auto_mines_integration_maps(plugin_root: Path) -> None:
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
-    assert "--room integration-maps" in content, (
-        "pipeline skill does not auto-mine INTEGRATION_MAP into the integration-maps room"
+    assert 'mine "<workspace>/docs/INTEGRATION_MAP.md"' in content, (
+        "pipeline skill does not auto-mine INTEGRATION_MAP.md"
     )
 
 
 def test_pipeline_auto_mines_solution_requirements(plugin_root: Path) -> None:
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
-    assert "--room solution-requirements" in content, (
-        "pipeline skill does not auto-mine SRs into the solution-requirements room"
+    assert 'mine "<SR-path>"' in content, (
+        "pipeline skill does not auto-mine SRs"
     )
 
 
 def test_pipeline_auto_mines_diagnostic_plans(plugin_root: Path) -> None:
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
-    assert "--room diagnostic-plans" in content, (
-        "pipeline skill does not auto-mine diagnostic-research dir into diagnostic-plans room"
-    )
+    assert "diagnostic-research/<test-id>/" in content and (
+        'mine "<cwd>/.architect-team/diagnostic-research/<test-id>/"' in content
+    ), "pipeline skill does not auto-mine the diagnostic-research dir"
 
 
 def test_pipeline_auto_mines_final_reports(plugin_root: Path) -> None:
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
-    assert "--room final-reports" in content, (
-        "pipeline skill does not auto-mine Phase 8 final report into final-reports room"
+    assert 'mine "<cwd>/.architect-team/runs/<change-name>-<ts>.md"' in content, (
+        "pipeline skill does not auto-mine the Phase 8 final report"
     )
 
 
 def test_pipeline_auto_mines_coverage_maps(plugin_root: Path) -> None:
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
-    assert "--room coverage-maps" in content, (
-        "pipeline skill does not auto-mine coverage-map.json into coverage-maps room"
+    assert 'mine "openspec/changes/<change-name>/coverage-map.json"' in content, (
+        "pipeline skill does not auto-mine coverage-map.json"
     )
 
 
@@ -175,3 +235,56 @@ def test_skill_documents_search_audit_trail(plugin_root: Path) -> None:
         assert marker in content, (
             f"integration skill does not document the {marker!r} search-audit-trail annotation"
         )
+
+
+# --- v0.9.14 regression guard: `mempalace mine` has no `--room` flag --------
+# mempalace 3.3.5's `mine` subcommand accepts --mode/--wing/--no-gitignore/
+# --include-ignored/--agent/--limit/--redetect-origin/--dry-run/--extract and
+# NOTHING else. Rooms are auto-detected by `mempalace init` from directory
+# structure. A `mine ... --room` command errors with `unrecognized arguments`
+# on every call. These tests fail if any skill / agent / command reintroduces
+# the defect — so it cannot silently return.
+
+def test_no_doc_uses_mine_with_room_flag(plugin_root: Path) -> None:
+    """No skill / agent / command may document a `mempalace ... mine` command
+    carrying a `--room` flag. `mine` takes `--wing` only."""
+    offenders: list[str] = []
+    for path in _iter_doc_files(plugin_root):
+        content = path.read_text(encoding="utf-8")
+        for cmd in _commands_with_token(content, "mine"):
+            # A genuine mine *command* — not a `search` command that happens
+            # to mention 'mine' in prose-free code (search commands are caught
+            # by the token filter only when they contain the word 'mine').
+            if "search" in cmd:
+                continue
+            if "--room" in cmd:
+                rel = path.relative_to(plugin_root).as_posix()
+                offenders.append(f"{rel}: {cmd}")
+    assert not offenders, (
+        "`mempalace mine` has no `--room` flag (mempalace 3.3.5 — rooms are "
+        "init-detected from directory structure). Remove `--room` from these "
+        "mine commands:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_search_room_flag_still_permitted(plugin_root: Path) -> None:
+    """Guard against over-correction: `mempalace search --room` IS valid and
+    the integration skill must keep documenting it for the named agents."""
+    content = _read(plugin_root, SKILL_PATH)
+    search_cmds = _commands_with_token(content, "search")
+    assert any("--room" in cmd for cmd in search_cmds), (
+        "integration skill no longer documents any `search --room` query — "
+        "the room-scoped search contract for named agents was lost"
+    )
+
+
+def test_integration_skill_states_mine_takes_wing_only(plugin_root: Path) -> None:
+    """The operating rules must explicitly record that `mine` takes `--wing`
+    only and that rooms are init-detected — the durable fix for the defect."""
+    content = _read(plugin_root, SKILL_PATH).lower()
+    assert "auto-detect" in content or "auto-detected" in content, (
+        "integration skill does not state rooms are auto-detected"
+    )
+    assert "mempalace init" in content, (
+        "integration skill does not attribute room detection to `mempalace init`"
+    )

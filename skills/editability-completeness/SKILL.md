@@ -181,7 +181,7 @@ A `gap` is any must-be-editable attribute whose trace breaks. Record the kind:
 
 `satisfied` is `true` only when `gaps` is empty and all three reviewers confirmed the converged map.
 
-Per `mempalace-integration`, the orchestrator auto-mines each converged map to MemPalace: `mempalace --palace <palace> mine "<converged-map path>" --wing <wing> --room editability-maps`. Future runs against the same project can then search prior editable-surface maps before re-reviewing.
+Per `mempalace-integration`, the orchestrator auto-mines each converged map to MemPalace: `mempalace --palace <palace> mine "<converged-map path>" --wing <wing>` (`mine` takes `--wing` only — rooms are auto-detected from the mined file's directory layout). Future runs against the same project can then search prior editable-surface maps before re-reviewing.
 
 ## How this differs from neighboring skills
 

@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.14] — 2026-05-21
+
+### Fixed (mempalace-mine-syntax-fix — the plugin's documented `mine` commands match the installed CLI)
+
+The architect-team pipeline auto-mines artifacts to MemPalace at many points. The `mempalace-integration` and `architect-team-pipeline` skills — plus `route-mapper`, `editability-completeness`, and `diagnostic-researcher` — all instructed a `mempalace … mine <path> --wing <w> --room <r>` form. Verified empirically against the installed **mempalace 3.3.5**:
+
+- `mempalace mine --help` → `mine` accepts `--mode / --wing / --no-gitignore / --include-ignored / --agent / --limit / --redetect-origin / --dry-run / --extract`. **There is no `--room` flag.**
+- `mempalace --help` → `init` is *"Detect rooms from your folder structure."* Rooms are auto-detected from directory layout — they are not selected per-mine. (`--room` IS valid on `mempalace search` — that usage is correct and unchanged.)
+
+Result: every `mine … --room` command errored with `unrecognized arguments: --room <room>` on its first attempt and succeeded only on the no-`--room` retry. Every pipeline `mine` call burned a guaranteed-failed attempt.
+
+#### REQ-1 — documented `mine` commands match the installed CLI
+
+- **`--room` removed from every `mempalace … mine` command.** Audited via `grep -rn -- "--room" skills/ agents/ commands/`; the `mine`-command offenders were `skills/architect-team-pipeline/SKILL.md` (7 commands — codebase / route / design / integration / coverage maps, SRs, diagnostic-research dir, final report), `skills/mempalace-integration/SKILL.md` (the canonical mine template + the quick-reference example), and `skills/editability-completeness/SKILL.md` (the converged-map mine). Each command keeps `--palace`, `mine <path>`, and `--wing <wing>`. The `search … --room` commands in `mempalace-integration`, `agents/route-mapper.md`, and `agents/diagnostic-researcher.md` are left intact — `search` does take `--room`.
+- **`skills/mempalace-integration/SKILL.md` room model reconciled.** The room-taxonomy section is reframed: the conceptual artifact categories (codebase-maps, route-maps, coverage-maps, solution-requirements, diagnostic-plans, final-reports, …) are now documented as how the `.architect-team/` + `openspec/` directory layout maps onto MemPalace's `mempalace init`-detected rooms — NOT as `--room` flags. The canonical mine invocation, the quick-reference, and the operating rules state explicitly that `mine` takes `--wing` only and that adding `--room` makes mempalace 3.3.5 fail. The canonical room names remain documented for `search --room <room>` queries.
+- The historical `--room` mentions in this changelog's v0.9.4 entry are left intact — they record what shipped then.
+
+### Tests
+- `tests/test_mempalace_integration.py` — the six `test_pipeline_auto_mines_*` tests previously asserted a `mine … --room <room>` form (pinning the defect); they now assert each artifact path is mined via a `--room`-free command. NEW `test_no_doc_uses_mine_with_room_flag` extracts every `mempalace … mine` command unit from fenced code blocks + inline-code spans across `skills/`, `agents/`, `commands/` and fails if any carries `--room` — so the defect cannot silently return. NEW `test_search_room_flag_still_permitted` guards against over-correction (a `search --room` query must still be documented), and NEW `test_integration_skill_states_mine_takes_wing_only` asserts the skill records that rooms are init-detected.
+- Full suite: **400 pass**.
+
+### Released (v0.9.14)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.13` → `0.9.14`.
+- `README.md`: banner + version badge → `0.9.14`; tests badge → `400 passing`; NEW IN panel + status timeline updated.
+
 ## [0.9.13] — 2026-05-21
 
 ### Fixed (producer-checker-enforcement — close the last two producer-is-own-checker gaps)

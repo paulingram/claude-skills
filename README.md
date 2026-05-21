@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 13
+                       ─── T E A M ───   v 0 . 9 . 14
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -20,19 +20,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.13-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.14-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-388%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-400%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.13  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.14  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **MemPalace `mine` syntax fix (v0.9.14)** | The pipeline auto-mines artifacts to MemPalace at many points, and every `mempalace ... mine` command the plugin documented carried a `--room <room>` argument. But `mempalace mine` (verified against mempalace 3.3.5) has **no `--room` flag** — rooms are auto-detected by `mempalace init` from the mined corpus's directory structure; `--room` is valid only on `mempalace search`. Every `mine ... --room` call errored with `unrecognized arguments` on its first attempt and succeeded only on a no-`--room` retry — a guaranteed-failed call per mine. v0.9.14 removes `--room` from every `mine` command across all skills and agents, reframes the `mempalace-integration` room taxonomy as documentation of how the `.architect-team/` + `openspec/` directory layout maps onto MemPalace's auto-detected rooms (not as `mine` flags), and adds a structural regression test so a `mine ... --room` form cannot silently return. |
 | ▸ **Independent review — close the producer-is-own-checker gaps (v0.9.13)** | Most phases already have an independent checker (3 reviewers check the cartographer's map; the test-completeness-verifier checks a teammate's tests; the system-architect reviews diagnostic plans). Two phases were the exception — the producer checked its own work. **Phase 3:** the teammate wrote the code AND wrote its own `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` — and the hook can only check the evidence file's *shape*, not whether its `"pass"` values are *true*. v0.9.13 adds a read-only **`task-reviewer`** agent (opus, no `Edit`) that independently reads the teammate's diff, re-runs the linters / tests, greps for stubs, checks the Reuse Decisions, and writes an `independent_review` block — and the hook now requires that block with `reviewer != teammate` and `verdict == "pass"`, so the gate **structurally cannot open on self-attestation**. **Phase 7:** the `system-architect` gains a *Master Review Audit* mode — after the orchestrator's own coverage-map walk, an independent system-architect re-verifies every coverage-map entry + every SR and writes a verdict that gates the Phase 8 commit (the `Stop` hook checks it). Evidence schema → v5. |
 | ▸ **Visual verification team — capture / analyze / synthesize (v0.9.12)** | The v0.9.11 single verifier did capture + analysis + verdict in one agent — which means it can still cut a corner *inside itself*. v0.9.12 decomposes it into three roles with a hard artifact boundary between them: **`visual-capture`** agents (×N) start the live app and produce countable artifacts — screenshots + computed-style **data** for every screen; **`visual-analyzer`** agents do the **objective structural analysis** — a deterministic data diff (not an agent eyeballing two images), a pixel diff vs the design reference, a code cross-check; the **`system-architect`** synthesizes the per-screen gaps **holistically**, clustering twelve isolated drifts into one root cause. Analysis cannot start before the capture artifacts exist on disk; synthesis confirms `screens_captured == screens_analyzed == design_map_screen_count`. The boundaries between the roles are the anti-cheat — no one role can cut a step invisibly. |
 | ▸ **Live-app visual verification — the `visual-fidelity-verifier` (v0.9.11)** | The UX agents were not actually comparing designs against the **live running app** — they reasoned about styles from the code, wrote "perfect", cut steps, then apologized. A skill an agent can rationalize past is not enough. v0.9.11 adds an **independent `visual-fidelity-verifier` agent** (opus, read-only) whose entire job is to start the real app and render EVERY `DESIGN_MAP.md` screen itself, measure the real DOM, and compare against the Oracle AND the reconciliation report — catching a `report-fabricated` "perfect" the live app contradicts and a `report-incomplete` skipped screen. It cannot cut the step because rendering-the-live-app IS the job. `visual-fidelity-reconciliation` gains a hard **Phase 0 live-app precondition** (no live app → escalate `blocked`, never substitute static analysis) and a no-cutting-steps / no-apologies discipline. The verifier's verdict — not the self-report — gates Phase 5, and the `Stop` hook blocks a run whose reconciliation was never verified against the live app. |
@@ -562,7 +563,8 @@ Tests validate: plugin/marketplace JSON; all 17 skill frontmatters; all 16 agent
            v0.9.10 ─ design-baseline-migration awareness
            v0.9.11 ─ live-app visual verification (single verifier)
            v0.9.12 ─ visual verification team — capture / analyze / synthesize
-   ◆       v0.9.13 ─ independent review — task-reviewer + master-review audit (current)
+           v0.9.13 ─ independent review — task-reviewer + master-review audit
+   ◆       v0.9.14 ─ MemPalace `mine` syntax fix — drop the invalid `--room` flag (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
