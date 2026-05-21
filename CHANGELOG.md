@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.13] — 2026-05-21
+
+### Fixed (producer-checker-enforcement — close the last two producer-is-own-checker gaps)
+
+Most of the pipeline's phases are already best-in-class: an independent agent or team checks the producer's output — Phase −1B maps (cartographer produces → 3 reviewers check), Phase −1C integration map (3 explorers → round-robin cross-check), Phase 3 test completeness (teammate → test-completeness-verifier), Phase 3b diagnosis (3 researchers → system-architect review), Phase 5 visual fidelity + editability (producers → system-architect synthesis / review). Two phases were the exception — the producer checked its own work:
+
+- **Phase 3 per-task review gate** — the teammate writes the code AND writes `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance`. `team-spawning-and-review-gates` said it outright: *"honesty is enforced by the teammate's own discipline."* The `PostToolUse(TaskUpdate)` hook confirms the evidence file is well-formed JSON with `"pass"` values — it cannot confirm those values are *true*.
+- **Phase 7 master review** — the orchestrator runs the build, then the orchestrator walks the coverage map.
+
+v0.9.13 closes both with the pattern the other phases already use: an independent checker.
+
+#### REQ-1 — Independent Phase 3 review
+
+- `agents/task-reviewer.md` — NEW. **Opus**, read-only on source (`Read, Glob, Grep, LS, Bash, Write, TodoWrite` — NO `Edit`; it verdicts, never fixes). Modeled structurally on `test-completeness-verifier`. Spawned by the orchestrator at Phase 3 after a teammate writes its `self_review` and signals complete: it reads the teammate's `git diff`, confirms each coverage-map acceptance criterion is actually met by the code (`spec_review`), runs the repo's linters / type-checkers / the slice's tests itself (`quality_review`), greps the diff for stubs / `TODO` / `NotImplementedError` / mock returns (`real_not_stubbed`), checks every new file against a Reuse Decision (`reuse_compliance`), and writes an `independent_review` block into the same evidence file — with `reviewer` set to itself, never the teammate. A `fail` verdict sends the task back with per-gap notes (an ordinary review-gate failure — no SR, no diagnostic-research routing).
+- `hooks/review_evidence_schema.py` — evidence schema **v5**. `validate_evidence()` now requires an `independent_review` object — `{ reviewer, verdict, spec_review, quality_review, real_not_stubbed, reuse_compliance, reviewed_at }`. It REJECTS evidence when the block is absent, when `reviewer` is empty, when `reviewer` equals the top-level `teammate` ("the producer cannot be its own checker"), or when `verdict != "pass"` / a sub-review fails. The 11 top-level fields are kept as the teammate's self-review and stay required. Both evidence hooks import the shared module, so the schema cannot drift.
+  - The top-level `teammate` field is now **required whenever `independent_review` is present** (which, in v5, is always): `_validate_independent_review()` rejects evidence whose `teammate` is missing, not a string, or empty/whitespace-only. Previously the `reviewer != teammate` check only ran when `teammate` happened to be a non-empty string, so omitting the field silently no-op'd it — a teammate could set `independent_review.reviewer` to its own name with `verdict: "pass"` and the gate would open. The anti-self-attestation check depends on `teammate`, so the field cannot be optional.
+- `skills/team-spawning-and-review-gates/SKILL.md` — evidence schema documented as v5 with the `independent_review` block; new "Independent review — the task-reviewer" section; the sentence "honesty is enforced by the teammate's own discipline" REPLACED with the independent-reviewer mechanism (the gate cannot open on self-attestation); a hard rule + an anti-pattern row.
+- `skills/architect-team-pipeline/SKILL.md` Phase 3 — after a teammate writes its `self_review` and signals complete, the orchestrator spawns a `task-reviewer` against that task; only a reviewer `verdict: pass` opens the gate.
+
+#### REQ-2 — Independent Phase 7 master-review audit
+
+- `agents/system-architect.md` — new "Master Review Audit" mode (a 4th review mode, exactly as v0.9.3 / v0.9.7 / v0.9.12 added the Diagnostic Plan / Editability Map / Visual Gap Synthesis modes). Dispatched at Phase 7 after the orchestrator's own walk, the system-architect INDEPENDENTLY re-verifies every coverage-map entry (commit + passing tests + demo artifact) and every SR (`resolved`), re-runs `openspec validate`, and writes a verdict JSON to `.architect-team/master-review/audit-<ts>.json` with `overall` (`pass` / `fail`) + per-entry findings.
+- `skills/architect-team-pipeline/SKILL.md` Phase 7 — after the orchestrator's coverage-map walk it dispatches the `system-architect` Master Review Audit; the audit verdict must be `overall: pass` to proceed. Phase 8 — the auto-commit gate now also requires the master-review audit verdict `pass`.
+- `hooks/pipeline-completion-audit.py` — new `_audit_master_review`: if `.architect-team/master-review/audit-*.json` verdicts exist, the latest must be `overall: pass`; if none exist, no violation (conservative — no false blocks). Wired into `audit()`.
+
+### Tests
+- `tests/test_agents.py` — `task-reviewer` added to `EXPECTED_AGENTS` (16 agents).
+- `tests/test_review_gate_task.py` + `tests/test_teammate_idle_check.py` — the valid-evidence helpers bumped to schema v5 with a valid `independent_review` block.
+- `tests/test_independent_review.py` — NEW. The schema requires `independent_review`; `validate_evidence` rejects a missing block, `reviewer == teammate`, `verdict != "pass"`, each missing/failing sub-field, AND evidence whose top-level `teammate` field is missing / empty / non-string (so the `reviewer != teammate` check cannot be bypassed by omission); `agents/task-reviewer.md` exists, is opus, has no `Edit`; team-spawning documents the task-reviewer and no longer says honesty is teammate-discipline alone; `system-architect` has the Master Review Audit mode; the pipeline Phase 3 + Phase 7 wire-up.
+- `tests/test_pipeline_completion_audit.py` — master-review cases: a `fail` verdict blocks, a `pass` allows, no audit files allow, latest verdict wins.
+- `tests/test_integration_testing_discipline.py` — the v4-schema freshness assertion relaxed to accept v4-or-later (the schema is now v5; the exact current version is owned by `test_independent_review`).
+- Full suite: **397 pass**.
+
+### Released (v0.9.13)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.12` → `0.9.13`.
+
 ## [0.9.12] — 2026-05-20
 
 ### Changed (visual verification decomposed into a capture / analyze / synthesize team)

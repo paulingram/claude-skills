@@ -159,8 +159,12 @@ def test_team_spawn_documents_integration_testing_review_field(plugin_root: Path
     assert "integration_testing_review" in content, (
         "team-spawning skill does not document the integration_testing_review evidence field"
     )
-    assert "schema_version\": 4" in content or "v4" in content, (
-        "team-spawning skill evidence schema not bumped to v4"
+    # v0.9.5 introduced integration_testing_review at schema v4; v0.9.13 bumped
+    # the schema to v5 (the independent_review block). The field must still be
+    # documented at v4-or-later — accept any schema_version >= 4. The exact
+    # current version is asserted by test_independent_review::test_team_spawning_schema_is_v5.
+    assert any(f'schema_version": {n}' in content for n in (4, 5, 6, 7, 8, 9)) or "v4" in content, (
+        "team-spawning skill evidence schema not at v4 or later"
     )
 
 

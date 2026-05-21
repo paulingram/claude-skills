@@ -16,8 +16,13 @@ from __future__ import annotations
 
 from typing import Any
 
-# Evidence schema v4 (v0.9.5). Every field below is REQUIRED in a
+# Evidence schema v5 (v0.9.13 added the required `independent_review` block —
+# the verdict of an independent `task-reviewer` agent, so the Phase 3 gate
+# structurally cannot pass on the teammate's self-attestation). The 11 fields
+# below are the teammate's OWN self-review and remain REQUIRED in every
 # .architect-team/reviews/<task-id>.json evidence file.
+SCHEMA_VERSION = 5
+
 REQUIRED_EVIDENCE_FIELDS = {
     "task_id",
     "spec_review",
@@ -35,6 +40,20 @@ REQUIRED_EVIDENCE_FIELDS = {
 VALID_VISUAL_FIDELITY_VALUES = {"pass", "n/a", "fail"}
 VALID_TEST_COMPLETENESS_VALUES = {"pass", "n/a", "fail"}
 VALID_INTEGRATION_TESTING_VALUES = {"pass", "n/a", "fail"}
+
+# v5 (v0.9.13). The `independent_review` block is written by an independent
+# `task-reviewer` agent — NOT the teammate. Its sub-fields below are all
+# REQUIRED, and `reviewer` MUST NOT equal the top-level `teammate` field: the
+# producer cannot be its own checker.
+REQUIRED_INDEPENDENT_REVIEW_FIELDS = {
+    "reviewer",
+    "verdict",
+    "spec_review",
+    "quality_review",
+    "real_not_stubbed",
+    "reuse_compliance",
+    "reviewed_at",
+}
 
 
 def safe_id(value: str) -> str | None:
@@ -61,8 +80,12 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
     dict. An empty list means the evidence is structurally valid.
 
     This is a STRUCTURAL validator — it confirms the fields are present and
-    carry allowed values. It does NOT (and cannot, at hook time) verify that
-    the claims are true; the deeper end-of-run cross-checks live in
+    carry allowed values. It cannot, at hook time, verify the teammate's own
+    self-review CLAIMS are true; that is exactly why the v5 schema requires an
+    `independent_review` block written by a separate `task-reviewer` agent that
+    read the same task's diff — and why this validator enforces
+    `independent_review.reviewer != teammate`: the producer cannot be its own
+    checker. The deeper end-of-run cross-checks live in
     `pipeline-completion-audit.py`.
     """
     gaps: list[str] = []
@@ -181,5 +204,91 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
                 "requirements folder explicitly authorizes isolated / mock-backed "
                 "testing for this requirement — quote the authorization."
             )
+
+    gaps += _validate_independent_review(evidence)
+
+    return gaps
+
+
+def _validate_independent_review(evidence: dict[str, Any]) -> list[str]:
+    """Return gap descriptions for the v5 `independent_review` block.
+
+    The 11 top-level fields are the TEAMMATE's self-review. They are a cheap
+    first pass — a teammate can write a perfectly-conformant self-review that
+    lies, and shape validation cannot tell. The `independent_review` block is
+    the verdict of an independent `task-reviewer` agent that read the same
+    task's diff: it is REQUIRED, and its `reviewer` MUST NOT equal the
+    top-level `teammate` field, so the Phase 3 gate cannot open on
+    self-attestation — the producer cannot be its own checker.
+    """
+    gaps: list[str] = []
+    review = evidence.get("independent_review")
+    if review is None:
+        gaps.append(
+            "missing the required 'independent_review' block — the Phase 3 gate "
+            "cannot open on the teammate's self-review alone; an independent "
+            "task-reviewer agent must review the task's diff and write this block"
+        )
+        return gaps
+    if not isinstance(review, dict):
+        gaps.append("independent_review must be an object")
+        return gaps
+
+    missing = REQUIRED_INDEPENDENT_REVIEW_FIELDS - review.keys()
+    if missing:
+        gaps.append(f"independent_review is missing fields: {sorted(missing)}")
+        return gaps
+
+    # The `reviewer != teammate` check below is the headline anti-self-attestation
+    # guarantee — but it can only run if the evidence carries a usable `teammate`.
+    # `teammate` is NOT in REQUIRED_EVIDENCE_FIELDS, so an evidence file could omit
+    # it and silently no-op the check. Because `independent_review` is always
+    # required in v5, requiring `teammate` here makes it mandatory by design: the
+    # producer-cannot-be-its-own-checker rule has no meaning without it.
+    teammate = evidence.get("teammate")
+    teammate_ok = isinstance(teammate, str) and bool(teammate.strip())
+    if not teammate_ok:
+        gaps.append(
+            "evidence must carry a non-empty 'teammate' field — the "
+            "independent_review.reviewer != teammate check cannot run without it"
+        )
+
+    reviewer = review.get("reviewer")
+    if not isinstance(reviewer, str) or not reviewer.strip():
+        gaps.append("independent_review.reviewer must be a non-empty string")
+    elif teammate_ok and reviewer.strip() == teammate.strip():
+        gaps.append(
+            f"independent_review.reviewer ({reviewer!r}) equals the teammate "
+            f"({teammate!r}) — the producer cannot be its own checker; the "
+            f"independent review must be written by a different agent"
+        )
+
+    if review.get("verdict") != "pass":
+        gaps.append(
+            f"independent_review.verdict={review.get('verdict')!r} (need 'pass') — "
+            f"a non-pass verdict means the task-reviewer found the task incomplete; "
+            f"the teammate must re-engage on the reviewer's per-gap notes"
+        )
+
+    if review.get("spec_review") != "pass":
+        gaps.append(
+            f"independent_review.spec_review={review.get('spec_review')!r} (need 'pass')"
+        )
+    if review.get("quality_review") != "pass":
+        gaps.append(
+            f"independent_review.quality_review={review.get('quality_review')!r} "
+            f"(need 'pass')"
+        )
+    if review.get("real_not_stubbed") is not True:
+        gaps.append("independent_review.real_not_stubbed must be true")
+    if review.get("reuse_compliance") != "ok":
+        gaps.append(
+            f"independent_review.reuse_compliance={review.get('reuse_compliance')!r} "
+            f"(need 'ok')"
+        )
+
+    reviewed_at = review.get("reviewed_at")
+    if not isinstance(reviewed_at, str) or not reviewed_at.strip():
+        gaps.append("independent_review.reviewed_at must be a non-empty string")
 
     return gaps

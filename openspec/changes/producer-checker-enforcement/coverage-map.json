@@ -1,0 +1,44 @@
+{
+  "change": "producer-checker-enforcement",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-1",
+      "spec_requirement_id": "independent-phase-3-review",
+      "layer": "infra",
+      "task_ids": ["T-1", "T-2", "T-3", "T-4"],
+      "scenarios": [
+        "A completed teammate task is independently reviewed by a task-reviewer agent before the Phase 3 gate opens.",
+        "The PostToolUse(TaskUpdate) hook blocks evidence whose independent_review.reviewer equals the teammate.",
+        "The hook blocks evidence missing the independent_review block or with verdict != pass."
+      ],
+      "acceptance_criteria": [
+        "agents/task-reviewer.md exists; model opus; tools are read-only on source (no Edit).",
+        "hooks/review_evidence_schema.py (schema v5) requires an independent_review block with reviewer, verdict, and the four review fields.",
+        "validate_evidence() rejects evidence when independent_review is absent, when reviewer == teammate, or when verdict != pass.",
+        "team-spawning-and-review-gates documents the task-reviewer dispatch and no longer states honesty is enforced by teammate discipline alone.",
+        "architect-team-pipeline Phase 3 spawns the task-reviewer and its verdict populates the gate.",
+        "The full pytest suite passes."
+      ],
+      "status": "planned"
+    },
+    {
+      "source_requirement_id": "REQ-2",
+      "spec_requirement_id": "independent-master-review-audit",
+      "layer": "infra",
+      "task_ids": ["T-5", "T-6", "T-7"],
+      "scenarios": [
+        "After the orchestrator's Phase 7 walk, an independent system-architect audit re-verifies the coverage map and the SRs.",
+        "The Phase 8 auto-commit is gated on the master-review audit verdict overall: pass.",
+        "The Stop hook blocks a run that produced coverage-map progress but no passing master-review audit."
+      ],
+      "acceptance_criteria": [
+        "agents/system-architect.md documents a Master Review Audit mode.",
+        "architect-team-pipeline Phase 7 dispatches the independent audit; Phase 8 commit is gated on overall: pass.",
+        "hooks/pipeline-completion-audit.py checks the master-review audit verdict when a run produced one.",
+        "The full pytest suite passes."
+      ],
+      "status": "planned"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 name: team-spawning-and-review-gates
-description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
+description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v5 — the teammate's self-review plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
 ---
 
 # Team Spawning & Review Gates
@@ -56,11 +56,13 @@ Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
 
 The teammate writes this BEFORE its `TaskUpdate` flips the task to `completed`. The `PostToolUse(TaskUpdate)` hook reads it and exits 2 (blocks completion) if it's missing or any field is invalid.
 
-Schema (v4 — v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
+The 11 top-level review fields are the teammate's OWN **self-review** — a cheap first pass that catches the obvious. They do NOT gate on their own: the `independent_review` block (added in v5) is the verdict of an independent `task-reviewer` agent, and the hook requires it present with `reviewer != teammate` and `verdict == "pass"`. See "## Independent review — the task-reviewer" below.
+
+Schema (v5 — v0.9.13 added the required `independent_review` block — an independent task-reviewer's verdict, so the gate cannot pass on self-attestation; v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
 
 ```json
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "task_id": "T-12",
   "teammate": "backend-auth",
   "completed_at": "<ISO 8601 UTC>",
@@ -82,9 +84,25 @@ Schema (v4 — v0.9.5 added `integration_testing_review` + optional `integration
   "test_completeness_review": "n/a",
   "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice",
   "integration_testing_review": "n/a",
-  "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface to integration-test front-to-back"
+  "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface to integration-test front-to-back",
+  "independent_review": {
+    "reviewer": "task-reviewer",
+    "verdict": "pass",
+    "spec_review": "pass",
+    "quality_review": "pass",
+    "real_not_stubbed": true,
+    "reuse_compliance": "ok",
+    "reviewed_at": "<ISO 8601 UTC>",
+    "criteria_findings": [
+      { "criterion": "<verbatim acceptance criterion>", "met": true, "evidence": "src/auth/login.py:42-57" }
+    ],
+    "checks_run": ["python -m pytest -q tests/auth/", "ruff check src/auth/"],
+    "notes": "independently reviewed the diff; every acceptance criterion is met by the code"
+  }
 }
 ```
+
+The 11 top-level fields are the teammate's self-review. The `independent_review` block is written by the `task-reviewer` agent, NOT the teammate.
 
 Required field validity:
 
@@ -101,8 +119,14 @@ Required field validity:
 - `test_completeness_review_note` is required (non-empty string) WHEN `test_completeness_review == "n/a"`. It must explain which kind(s) are inapplicable and why (e.g., backend-only slice so Playwright is n/a, OR no testable pure-logic surface for unit tests). Not required when value is `"pass"` (the verifier verdict JSON carries the evidence).
 - `integration_testing_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (`page.route` happy-path stubs, MSW, an in-memory fake API server, hardcoded fixtures) instead of the real running backend MUST be re-authored against the real backend, or escalated via the SR auto-spawn (`origin.kind: "integration-testing-failure"`), not marked complete. Front-to-back integration testing is the DEFAULT for every `both`-layer feature per `playwright-user-flows`'s "Real backend by default" discipline — it is overridden only by an explicit authorization in the requirements folder.
 - `integration_testing_review_note` is required (non-empty string) WHEN `integration_testing_review == "n/a"`. It must give ONE of three legitimate reasons: (1) the slice has no cross-layer surface (pure static frontend with no backend, OR backend-only slice with no frontend); (2) Phase 3 per-team gate where the counterpart layer is not yet integrated — the note says the integration test is DEFERRED TO PHASE 5 (a debt Phase 5 must settle against the real backend; `n/a` is never valid for a `both`-layer slice at Phase 5); (3) the requirements folder explicitly authorizes isolated / mock-backed testing for this requirement — the note quotes the authorization. Not required when value is `"pass"` (the verifier verdict JSON + the demo artifact's real-backend reference carry the evidence).
+- `independent_review` is a REQUIRED object — the verdict of the independent `task-reviewer` agent (not the teammate). The hook blocks evidence with no `independent_review` block. Its required sub-fields:
+  - `reviewer` — a non-empty string naming the reviewing agent. It **MUST NOT equal the top-level `teammate` field** — the producer cannot be its own checker. The hook blocks `reviewer == teammate`.
+  - `verdict` — must be `"pass"`. A non-`"pass"` verdict means the `task-reviewer` found the task incomplete; the hook blocks it, and the teammate re-engages on the reviewer's per-gap notes (this is a normal Phase 3 review-gate failure — no SR, no diagnostic-research routing).
+  - `spec_review` and `quality_review` — must be `"pass"`; `real_not_stubbed` — must be `true`; `reuse_compliance` — must be `"ok"`. These are the reviewer's INDEPENDENT findings on the same checks, made after reading the teammate's diff.
+  - `reviewed_at` — a non-empty string (ISO 8601 UTC).
+  - `criteria_findings`, `checks_run`, `notes` are recommended evidence fields (per-criterion trace, the commands the reviewer ran, a summary) — the hook does not require them, but a `task-reviewer` always writes them so the verdict is auditable.
 
-Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry.
+Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry. A failing `independent_review` means re-engage on the reviewer's notes; once fixed, the `task-reviewer` re-reviews and re-writes the block.
 
 ## Teammate manifest
 
@@ -260,14 +284,33 @@ The file MUST contain:
 
 **Note:** this policy is currently enforced by documentation (the teammate's own discipline). Code-level enforcement (counting consecutive rejections in the hook) is a v0.3.0 candidate if real-world data shows teammates ignoring the 3-rejection threshold.
 
+## Independent review — the task-reviewer
+
+The 11 top-level evidence fields are the teammate's **self-review**. A self-review is a producer checking its own work — the last producer-is-own-checker gap in the pipeline. The `PostToolUse(TaskUpdate)` hook does shape validation: it can confirm the evidence file is well-formed JSON with `"pass"` values; it cannot confirm those values are *true*. A teammate could write a perfectly-conformant evidence file that lies, and on shape validation alone the gate would open.
+
+So the gate does not open on the self-review. After the teammate writes its self-review and signals its task complete, the orchestrator dispatches an independent **`task-reviewer`** agent (Phase 3 of `architect-team-pipeline`). The dispatch:
+
+1. The teammate finishes its task, writes the 11-field self-review into `<cwd>/.architect-team/reviews/<task-id>.json`, and signals complete.
+2. The orchestrator spawns a `task-reviewer` agent against that `task_id`, passing the `teammate` name, the coverage-map slice, and the teammate's `files_owned`.
+3. The `task-reviewer` is **read-only on source** (no `Edit`). It reads the teammate's `git diff`, confirms each coverage-map acceptance criterion is actually met by the code, runs the repo's linters / type-checkers / the slice's tests itself, greps the diff for stubs / `TODO` / `NotImplementedError` / mock returns / placeholder data, and checks every new file against a Reuse Decision.
+4. The `task-reviewer` writes the `independent_review` block into the SAME evidence file — `reviewer` is itself (never the teammate), `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` reflect its independent findings.
+5. The hook enforces `independent_review.reviewer != teammate` and `independent_review.verdict == "pass"` — so **the gate structurally cannot open on self-attestation**.
+
+On `verdict: fail`, the `task-reviewer` writes detailed per-gap notes; the teammate re-engages on exactly those gaps and the `task-reviewer` re-reviews. A failed independent review is an ordinary Phase 3 review-gate failure — it does NOT create a Solution Requirement and does NOT route through `diagnostic-research-team` (those are for test failures; a failed review just means the task is not done). The `task-reviewer` never edits source — a gap it finds goes back to the teammate, never patched by the reviewer.
+
+### Hard rule
+
+**The Phase 3 gate never opens on a teammate's self-review alone.** Every completed teammate task gets an independent `task-reviewer` verdict; the evidence file's `independent_review.reviewer` MUST differ from `teammate`, and `independent_review.verdict` MUST be `"pass"`. The orchestrator never writes the `independent_review` block on the teammate's behalf, and a teammate never writes it for itself — the producer cannot be its own checker.
+
 ## Review evidence — what each field means in practice
 
 - `spec_review: "pass"` — teammate has self-reviewed against the acceptance criteria in the coverage map and confirms each criterion is met by their code.
 - `quality_review: "pass"` — teammate has run linters, type checkers, and any project quality tools, all green.
 - `real_not_stubbed: true` — teammate has grep'd its diff for `TODO`, `pass`, `NotImplementedError`, mock returns outside test fixtures, and confirms none exist.
 - `reuse_compliance: "ok"` — every new file in `files_changed` corresponds to a Reuse Decision in `design.md`.
+- `independent_review` — the verdict of the independent `task-reviewer` agent (NOT the teammate); see "## Independent review — the task-reviewer" above. Its `reviewer` must differ from `teammate`.
 
-If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The hook does shape validation; honesty is enforced by the teammate's own discipline + by the orchestrator's spot checks.
+If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The 11 top-level fields are the teammate's self-review; the teammate writes them honestly, then an independent `task-reviewer` agent reviews the same task's diff and writes the `independent_review` block. The hook enforces `independent_review.reviewer != teammate` and `verdict == "pass"` — the gate cannot open on self-attestation; an independent agent's verdict is required.
 
 ## Anti-patterns to reject
 
@@ -277,3 +320,4 @@ If any of these can't be honestly asserted, the teammate goes back to work — i
 | "I can share a file with another teammate this once" | No. Hand off via direct messaging and a contract file owned by one side. |
 | "Plan-approval mode is slowing me down" | It exists for the triggers above for a reason. Auth/schemas/contracts are where silent breakage costs most. |
 | "I'll skip the manifest — the SubagentStop hook is paranoid" | The hook is exactly what keeps idle subagents from leaving work undone. Write the manifest. |
+| "My self-review all says pass — I'll write the `independent_review` block myself and mark complete" | The producer cannot be its own checker. `independent_review.reviewer` must differ from `teammate`; an independent `task-reviewer` agent writes that block after reading your diff. A teammate filling it in itself is the exact self-attestation the hook rejects. |

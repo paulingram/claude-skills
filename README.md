@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 12
+                       ─── T E A M ───   v 0 . 9 . 13
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -20,19 +20,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.8-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.13-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-348%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-388%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.12  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.13  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Independent review — close the producer-is-own-checker gaps (v0.9.13)** | Most phases already have an independent checker (3 reviewers check the cartographer's map; the test-completeness-verifier checks a teammate's tests; the system-architect reviews diagnostic plans). Two phases were the exception — the producer checked its own work. **Phase 3:** the teammate wrote the code AND wrote its own `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` — and the hook can only check the evidence file's *shape*, not whether its `"pass"` values are *true*. v0.9.13 adds a read-only **`task-reviewer`** agent (opus, no `Edit`) that independently reads the teammate's diff, re-runs the linters / tests, greps for stubs, checks the Reuse Decisions, and writes an `independent_review` block — and the hook now requires that block with `reviewer != teammate` and `verdict == "pass"`, so the gate **structurally cannot open on self-attestation**. **Phase 7:** the `system-architect` gains a *Master Review Audit* mode — after the orchestrator's own coverage-map walk, an independent system-architect re-verifies every coverage-map entry + every SR and writes a verdict that gates the Phase 8 commit (the `Stop` hook checks it). Evidence schema → v5. |
 | ▸ **Visual verification team — capture / analyze / synthesize (v0.9.12)** | The v0.9.11 single verifier did capture + analysis + verdict in one agent — which means it can still cut a corner *inside itself*. v0.9.12 decomposes it into three roles with a hard artifact boundary between them: **`visual-capture`** agents (×N) start the live app and produce countable artifacts — screenshots + computed-style **data** for every screen; **`visual-analyzer`** agents do the **objective structural analysis** — a deterministic data diff (not an agent eyeballing two images), a pixel diff vs the design reference, a code cross-check; the **`system-architect`** synthesizes the per-screen gaps **holistically**, clustering twelve isolated drifts into one root cause. Analysis cannot start before the capture artifacts exist on disk; synthesis confirms `screens_captured == screens_analyzed == design_map_screen_count`. The boundaries between the roles are the anti-cheat — no one role can cut a step invisibly. |
 | ▸ **Live-app visual verification — the `visual-fidelity-verifier` (v0.9.11)** | The UX agents were not actually comparing designs against the **live running app** — they reasoned about styles from the code, wrote "perfect", cut steps, then apologized. A skill an agent can rationalize past is not enough. v0.9.11 adds an **independent `visual-fidelity-verifier` agent** (opus, read-only) whose entire job is to start the real app and render EVERY `DESIGN_MAP.md` screen itself, measure the real DOM, and compare against the Oracle AND the reconciliation report — catching a `report-fabricated` "perfect" the live app contradicts and a `report-incomplete` skipped screen. It cannot cut the step because rendering-the-live-app IS the job. `visual-fidelity-reconciliation` gains a hard **Phase 0 live-app precondition** (no live app → escalate `blocked`, never substitute static analysis) and a no-cutting-steps / no-apologies discipline. The verifier's verdict — not the self-report — gates Phase 5, and the `Stop` hook blocks a run whose reconciliation was never verified against the live app. |
 | ▸ **Design-baseline-migration awareness (v0.9.10)** | A reported failure: during a Full→V2 design migration, agents skipped reconciling screens that a prior Phase −1B design-recon had classified `UNCHANGED` — so several role-landing-page `h1`s shipped at the old sizes/weights. Root cause: a **classification** ("what changed") was trusted as a **verdict** ("design-compliant"). v0.9.10 adds a 4th visual-fidelity discipline — *verify against the Oracle, never against a classification* — plus a Phase A.0 design-baseline check. The key reasoning fix: during a baseline migration, "unchanged" **inverts** — an implementation that has not been migrated is drifted *by definition*, so "unchanged" is a guaranteed-drift signal, never a skip. `DESIGN_MAP.md` gains a `design_baseline` field; a baseline change forces a full re-derive of every screen, and a Phase 5 / on-demand sweep must reconcile every screen (`screens_reconciled_count == design_map_screen_count`). |
@@ -53,7 +54,7 @@
 ```
 
 ```
-┌─ SKILLS (17) ───────────────────────┬─ AGENTS (15) ─────────────────────────┐
+┌─ SKILLS (17) ───────────────────────┬─ AGENTS (16) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -69,7 +70,7 @@
 │ ◇ mempalace-integration             │ ◆ editability-reviewer (opus)         │
 │ ◇ expensive-verification-debugging  │ ◆ visual-capture (sonnet)             │
 │ ◇ editability-completeness          │ ◆ visual-analyzer (opus)              │
-│ ◇ readme-styling                    │                                       │
+│ ◇ readme-styling                    │ ◆ task-reviewer (opus)                │
 │ ◇ visual-verification-team          │                                       │
 ├─ COMMANDS (6) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder>                             │
@@ -79,7 +80,7 @@
 │ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                  │
 │ ▸ /architect-team:editability-audit [<codebase-path>]                        │
 ├─ HOOKS (3) ──────────────────────────────────────────────────────────────────┤
-│ ▸ PostToolUse(TaskUpdate)   review-gate evidence — 11 fields                 │
+│ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v5 + independent review   │
 │ ▸ SubagentStop              teammate-idle review-gate re-check               │
 │ ▸ Stop                      pipeline-completion audit (terminal gate)        │
 ├─ SETUP ───────────────────────────────────────────────────────────────────────┤
@@ -224,12 +225,14 @@ Every `TaskUpdate(completed)` on a teammate-owned task is gated; the hook exits 
    not an architect-    reads  .architect-team/reviews/<task_id>.json
    team task; ignored             │
                                   ▼
-        ◆ evidence present · valid JSON · all 11 fields present & valid?
+        ◆ evidence present · valid JSON · all 11 self-review fields valid?
             · spec_review = quality_review = "pass"
             · real_not_stubbed = true · tests added ≥ 1 and == passing
             · reuse_compliance = "ok" · demo_artifact + files_changed non-empty
             · visual_fidelity / test_completeness / integration_testing
               reviews ≠ "fail"
+            · independent_review present · reviewer ≠ teammate ·
+              verdict = "pass"   (written by the task-reviewer agent)
             │                                       │
          no │                                       │ yes
             ▼                                       ▼
@@ -287,6 +290,7 @@ The orchestrator runs as the main session — no hook can gate its mid-run behav
      · an open / in-progress solution requirement
      · a test-failure SR with no diagnostic plan
      · an unsatisfied editability loop   · a test-completeness debt
+     · a master-review audit verdict that is not overall: pass
      · the dev-loop iteration ceiling (20) exceeded
         │                                              │
       no│  (clean — or not an architect-team run)      │ yes
@@ -356,8 +360,8 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4 — Per-task review gate (Phase 3, hook-enforced)
 
 - **Enforcement layer:** `PostToolUse(TaskUpdate)` → [`hooks/review-gate-task.py`](hooks/review-gate-task.py) + `SubagentStop` → [`hooks/teammate-idle-check.py`](hooks/teammate-idle-check.py). See Logic Map A.
-- **Mechanism:** teammate writes `<cwd>/.architect-team/reviews/<task-id>.json` (evidence schema v4) BEFORE any `TaskUpdate(status=completed)`. Exit 0 = allow, exit 2 = block.
-- **Acceptance criteria — 11 hook-enforced fields:**
+- **Mechanism:** teammate writes its self-review into `<cwd>/.architect-team/reviews/<task-id>.json` (evidence schema v5) BEFORE any `TaskUpdate(status=completed)`; an independent `task-reviewer` agent then reads the diff and writes the `independent_review` block. Exit 0 = allow, exit 2 = block.
+- **Acceptance criteria — 11 self-review fields + the `independent_review` block:**
 
   | Field | Required value |
   |---|---|
@@ -372,6 +376,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
   | `visual_fidelity_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks |
   | `test_completeness_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks |
   | `integration_testing_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks |
+  | `independent_review` | object — `reviewer` (≠ `teammate`), `verdict` = `"pass"`, `spec_review` / `quality_review` = `"pass"`, `real_not_stubbed` = `true`, `reuse_compliance` = `"ok"`, `reviewed_at` non-empty. Written by the `task-reviewer` agent — the gate cannot open on the teammate's self-review alone. |
 
 - **Escalation policy:** after 3 consecutive hook rejections on the same `task_id` → teammate stops retrying and writes a `<teammate>-to-orchestrator-stuck-<task_id>` handoff.
 - **References:** [`skills/team-spawning-and-review-gates/SKILL.md`](skills/team-spawning-and-review-gates/SKILL.md), [`hooks/review-gate-task.py`](hooks/review-gate-task.py).
@@ -436,8 +441,8 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 ### ▌ Loop 7 — Master review meta-loop (Phase 7)
 
-- **Mechanism per iteration:** walk every commit; attribute to ≥ 1 requirement via the coverage map; re-run `openspec validate`; walk every coverage-map entry.
-- **Exit criteria — every entry must have:** ≥ 1 commit SHA; passing unit/integration tests; passing Playwright flow(s) where applicable; non-empty `demo_artifact`; the editability team `satisfied` for entity-bearing features. Plus `openspec validate` reports `valid: true`.
+- **Mechanism per iteration:** walk every commit; attribute to ≥ 1 requirement via the coverage map; re-run `openspec validate`; walk every coverage-map entry. Then dispatch the `system-architect` in **Master Review Audit mode** — an independent re-verification of every entry + every SR (the orchestrator's own walk is a producer-is-own-checker step; the audit is the independent checker).
+- **Exit criteria — every entry must have:** ≥ 1 commit SHA; passing unit/integration tests; passing Playwright flow(s) where applicable; non-empty `demo_artifact`; the editability team `satisfied` for entity-bearing features. Plus `openspec validate` reports `valid: true`, AND the independent master-review audit verdict is `overall: pass` (it gates the Phase 8 commit; the `Stop` hook checks it).
 - **On any gap:** re-spawn the appropriate team(s); meta-loop continues until the coverage map is fully green.
 - **Terminal action:** `openspec archive <change-name>`. Phase 8 emits the final report (persisted + mined to MemPalace).
 
@@ -484,7 +489,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 | `<codebase>/docs/DESIGN_MAP.md` | Design-fidelity output (conditional) — tokens, asset registry, per-screen specs, link inference | `last_designed` |
 | `<workspace>/docs/INTEGRATION_MAP.md` | Master-synthesizer's cross-codebase synthesis | `last_synthesized` |
 | `<workspace>/.architect-team/intake-state.json` | Re-entry short-circuit state | — |
-| `<workspace>/.architect-team/reviews/<task-id>.json` | Per-task review-gate evidence (v4 schema, 11 fields) | — |
+| `<workspace>/.architect-team/reviews/<task-id>.json` | Per-task review-gate evidence (v5 schema — 11 self-review fields + the independent `task-reviewer` verdict) | — |
 | `<workspace>/.architect-team/teammates/<name>.json` | Teammate manifests | — |
 | `<workspace>/.architect-team/handoffs/<from>-to-<to>-<ts>.md` | Inter-agent coordination | — |
 | `<workspace>/.architect-team/solution-requirements/SR-<id>-<ts>.json` | Auto-spawn fix-team requirements | — |
@@ -492,6 +497,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 | `<workspace>/.architect-team/editability/<feature>/converged-map-*.json` | Converged editable-surface maps | — |
 | `<workspace>/.architect-team/failure-pathway/<symptom>-<ts>.json` | Pathway-audit artifacts (expensive-verification debugging) | — |
 | `<workspace>/.architect-team/test-completeness/<task-id>-<ts>.json` | Test-completeness verdicts | — |
+| `<workspace>/.architect-team/master-review/audit-<ts>.json` | Phase 7 independent master-review audit verdict (system-architect Master Review Audit mode) | — |
 | `<workspace>/.architect-team/visual-fidelity/` | visual-verification-team artifacts — `capture/` (screenshots + computed-style data), `analysis/` (per-screen gap lists), `verification-verdict-*.json` (consolidated verdict) | — |
 | `<workspace>/.architect-team/escalation-pending.md` | Escalation marker — present while the run is paused for a human (the Stop hook stands down) | — |
 | `<workspace>/.architect-team/runs/<change>-<ts>.md` | Phase 8 final reports | — |
@@ -511,7 +517,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 17 skill frontmatters; all 15 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — 11-field evidence schema v4; the `pipeline-completion-audit` Stop hook; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling, design-baseline-migration, and visual-verification-team disciplines. **348 tests pass.**
+Tests validate: plugin/marketplace JSON; all 17 skill frontmatters; all 16 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v5: 11 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, and producer-checker-enforcement disciplines. **388 tests pass.**
 
 ### Bumping versions
 
@@ -555,7 +561,8 @@ Tests validate: plugin/marketplace JSON; all 17 skill frontmatters; all 15 agent
            v0.9.9 ─ logic-implementation review — Tier 1/2/3 hole fixes
            v0.9.10 ─ design-baseline-migration awareness
            v0.9.11 ─ live-app visual verification (single verifier)
-   ◆       v0.9.12 ─ visual verification team — capture / analyze / synthesize (current)
+           v0.9.12 ─ visual verification team — capture / analyze / synthesize
+   ◆       v0.9.13 ─ independent review — task-reviewer + master-review audit (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

@@ -41,14 +41,15 @@ def _run(script: Path, workspace: Path, payload: dict) -> subprocess.CompletedPr
 
 
 def _valid_evidence(task_id: str) -> dict:
-    """Evidence schema v4 — must match hooks/review_evidence_schema.py exactly.
+    """Evidence schema v5 — must match hooks/review_evidence_schema.py exactly.
 
     The idle hook (SubagentStop) and the task hook (PostToolUse) both import
-    that shared module, so this helper carries the SAME 11 required fields the
-    task-hook test helper uses.
+    that shared module, so this helper carries the SAME 11 required top-level
+    fields the task-hook test helper uses, PLUS the v5 `independent_review`
+    block whose `reviewer` differs from `teammate`.
     """
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "task_id": task_id,
         "teammate": "any",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -65,6 +66,15 @@ def _valid_evidence(task_id: str) -> dict:
         "test_completeness_review_note": "backend-only slice; integration is the qualifying kind",
         "integration_testing_review": "n/a",
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
+        "independent_review": {
+            "reviewer": "task-reviewer",
+            "verdict": "pass",
+            "spec_review": "pass",
+            "quality_review": "pass",
+            "real_not_stubbed": True,
+            "reuse_compliance": "ok",
+            "reviewed_at": "2026-05-16T11:00:00Z",
+        },
     }
 
 

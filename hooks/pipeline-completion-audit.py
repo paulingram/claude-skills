@@ -65,7 +65,7 @@ def _is_real_run(at: Path) -> bool:
         d = at / sub
         if d.is_dir() and any(d.glob("*.json")):
             return True
-    for sub in ("editability", "diagnostic-research"):
+    for sub in ("editability", "diagnostic-research", "master-review"):
         d = at / sub
         if d.is_dir() and any(d.iterdir()):
             return True
@@ -219,6 +219,43 @@ def _audit_visual_fidelity(at: Path) -> list[str]:
     return violations
 
 
+def _audit_master_review(at: Path) -> list[str]:
+    """If a run produced a Phase 7 master-review audit verdict, the latest one
+    must be `overall: pass`. The `system-architect` (Master Review Audit mode)
+    INDEPENDENTLY re-verifies every coverage-map entry + SR after the
+    orchestrator's own Phase 7 walk; a `fail` verdict means the run is not
+    actually complete. If NO audit verdict exists, this returns no violations —
+    conservative: the audit is dispatched at Phase 7, and not every workspace
+    state under `.architect-team/` has reached it, so its absence is not itself
+    a block (the other `_audit_*` checks cover an incomplete run)."""
+    violations: list[str] = []
+    mr_dir = at / "master-review"
+    if not mr_dir.is_dir():
+        return violations
+    verdict_paths = sorted(mr_dir.glob("audit-*.json"))
+    if not verdict_paths:
+        return violations
+    latest_path = verdict_paths[-1]
+    latest_key = latest_path.name
+    latest: dict | None = None
+    for vp in verdict_paths:
+        v = _load_json(vp)
+        if not isinstance(v, dict):
+            violations.append(f"master-review audit verdict {vp.name} is unreadable")
+            continue
+        key = str(v.get("verified_at") or vp.name)
+        if latest is None or key >= latest_key:
+            latest_key = key
+            latest = v
+    if latest is not None and latest.get("overall") != "pass":
+        violations.append(
+            f"master-review audit verdict is '{latest.get('overall')}' — the "
+            f"independent Phase 7 audit did not pass; resolve its findings and "
+            f"re-run the audit before the run completes"
+        )
+    return violations
+
+
 def _audit_iteration_ceiling(at: Path) -> list[str]:
     state = _load_json(at / "intake-state.json")
     if not isinstance(state, dict):
@@ -242,6 +279,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_editability(at)
     violations += _audit_test_completeness(at)
     violations += _audit_visual_fidelity(at)
+    violations += _audit_master_review(at)
     violations += _audit_iteration_ceiling(at)
     return True, violations
 

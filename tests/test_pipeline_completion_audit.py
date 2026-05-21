@@ -265,6 +265,56 @@ def test_latest_verifier_verdict_wins_per_codebase(script: Path, workspace: Path
     assert _run_check(script, workspace).returncode == 0
 
 
+# --- master-review audit verdict => gate -----------------------------------
+
+def test_failed_master_review_audit_blocks(script: Path, workspace: Path) -> None:
+    """v0.9.13: a Phase 7 master-review audit verdict of overall != pass blocks
+    the run — the independent system-architect audit did not pass."""
+    mr = _at(workspace) / "master-review"
+    mr.mkdir()
+    (mr / "audit-2026-05-21T10-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T10:00:00Z", "overall": "fail"}),
+        encoding="utf-8",
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"a failing master-review audit must block; stderr={r.stderr!r}"
+    assert "master-review" in r.stderr.lower()
+    assert _run_stop(script, workspace, {}).returncode == 2
+
+
+def test_passing_master_review_audit_allows(script: Path, workspace: Path) -> None:
+    mr = _at(workspace) / "master-review"
+    mr.mkdir()
+    (mr / "audit-2026-05-21T10-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T10:00:00Z", "overall": "pass"}),
+        encoding="utf-8",
+    )
+    assert _run_check(script, workspace).returncode == 0, _run_check(script, workspace).stderr
+    assert _run_stop(script, workspace, {}).returncode == 0
+
+
+def test_no_master_review_audit_files_allows(script: Path, workspace: Path) -> None:
+    """No master-review audit verdict yet => no violation (conservative — the
+    absence of the Phase 7 verdict is not itself a block)."""
+    _write_sr(workspace, "SR-1", "resolved")
+    assert _run_check(script, workspace).returncode == 0
+
+
+def test_latest_master_review_audit_wins(script: Path, workspace: Path) -> None:
+    """A later passing audit verdict supersedes an earlier failing one."""
+    mr = _at(workspace) / "master-review"
+    mr.mkdir()
+    (mr / "audit-2026-05-21T09-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T09:00:00Z", "overall": "fail"}),
+        encoding="utf-8",
+    )
+    (mr / "audit-2026-05-21T12-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T12:00:00Z", "overall": "pass"}),
+        encoding="utf-8",
+    )
+    assert _run_check(script, workspace).returncode == 0
+
+
 # --- iteration ceiling => block --------------------------------------------
 
 def test_iteration_ceiling_exceeded_blocks(script: Path, workspace: Path) -> None:

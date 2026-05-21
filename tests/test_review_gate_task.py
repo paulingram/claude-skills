@@ -48,8 +48,14 @@ def _make_payload(task_id: str, status: str) -> dict:
 
 
 def _valid_evidence(task_id: str) -> dict:
+    """Evidence schema v5 — must match hooks/review_evidence_schema.py exactly.
+
+    The 11 top-level fields are the teammate's self-review; the
+    `independent_review` block (v5, v0.9.13) is the verdict of an independent
+    task-reviewer agent — `reviewer` must differ from `teammate`.
+    """
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "task_id": task_id,
         "teammate": "backend-test",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -66,6 +72,15 @@ def _valid_evidence(task_id: str) -> dict:
         "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice",
         "integration_testing_review": "n/a",
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface to integration-test front-to-back",
+        "independent_review": {
+            "reviewer": "task-reviewer",
+            "verdict": "pass",
+            "spec_review": "pass",
+            "quality_review": "pass",
+            "real_not_stubbed": True,
+            "reuse_compliance": "ok",
+            "reviewed_at": "2026-05-16T11:00:00Z",
+        },
     }
 
 

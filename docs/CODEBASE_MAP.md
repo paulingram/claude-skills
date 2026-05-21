@@ -1,18 +1,18 @@
 ---
 last_mapped: 2026-05-21T00:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-21 for v0.9.12. The plugin grew substantially since the v0.9.0 map — this is a full rewrite to current reality: 17 skills, 15 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 2 setup scripts, 348 pytest self-tests. Covers v0.9.1 (auto-compact) through v0.9.12 (visual-verification-team).
+note: Doc refresh 2026-05-21 for v0.9.13. The plugin grew substantially since the v0.9.0 map — this is a full rewrite to current reality: 17 skills, 16 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 2 setup scripts, 388 pytest self-tests. Covers v0.9.1 (auto-compact) through v0.9.13 (producer-checker-enforcement — independent task-reviewer + master-review audit).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.12.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.13.
 
 ## 1. System Overview
 
-The `architect-team` Claude Code plugin (v0.9.12) is a spec-to-production multi-agent coding pipeline. It accepts a requirements folder (OpenSpec, Superpowers, or plain markdown) and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
+The `architect-team` Claude Code plugin (v0.9.13) is a spec-to-production multi-agent coding pipeline. It accepts a requirements folder (OpenSpec, Superpowers, or plain markdown) and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
 
-The plugin ships **17 skills, 15 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **2 setup scripts**, and **348 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization.
+The plugin ships **17 skills, 16 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **2 setup scripts**, and **388 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization.
 
 ## 2. Architecture Diagram
 
@@ -44,12 +44,12 @@ graph TB
         SK_README["readme-styling"]
     end
 
-    subgraph "Agents (15)"
+    subgraph "Agents (16)"
         AG_IMPL["frontend / backend (opus implementers)"]
         AG_FLOW["reconciler / integration"]
         AG_MAP["codebase-map-reviewer x3 / route-mapper / integration-explorer x3 / master-synthesizer"]
-        AG_ARCH["system-architect (3 review modes)"]
-        AG_VERIF["test-completeness-verifier / editability-reviewer x3 / diagnostic-researcher x3"]
+        AG_ARCH["system-architect (4 review modes)"]
+        AG_VERIF["task-reviewer / test-completeness-verifier / editability-reviewer x3 / diagnostic-researcher x3"]
         AG_VIS["visual-capture xN / visual-analyzer xN"]
         AG_SCAFFOLD["scaffold-agent"]
     end
@@ -81,7 +81,7 @@ graph TB
 ```
 claude_skill_lib/
 ├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.12)
-├── agents/                  # 15 named subagent definitions (.md with frontmatter)
+├── agents/                  # 16 named subagent definitions (.md with frontmatter)
 ├── commands/                # 6 slash-command bodies (.md with frontmatter)
 ├── hooks/                   # hooks.json wiring + 3 enforcement scripts + 1 shared module
 │   ├── hooks.json           #   wires PostToolUse(TaskUpdate), SubagentStop, Stop
@@ -119,7 +119,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | `playwright-user-flows` | White-box Playwright methodology; real-backend-by-default for `both`-layer features. |
 | `dev-api-integration-testing` | Live-dev-API testing — real DB / queue / cache, side-effect verification. |
 | `coverage-mapping` | `coverage-map.json` schema + lifecycle (Phase 1 / 3 / 7 / 8). |
-| `team-spawning-and-review-gates` | Teammate manifests; the v4 review-gate evidence schema (11 fields); the SR schema. |
+| `team-spawning-and-review-gates` | Teammate manifests; the v5 review-gate evidence schema (11 self-review fields + the independent `task-reviewer` verdict); the independent-review dispatch; the SR schema. |
 | `root-cause-test-failures` | Predict → 3-pass RCA (forward / backward / falsify) → evidence-backed verdict; multiple-simultaneous-causes. |
 | `diagnostic-research-team` | 3 `diagnostic-researcher` agents + `system-architect` robustness review before a test-failure fix team spawns. |
 | `expensive-verification-debugging` | When a verify cycle is expensive (deploy / rebuild / slow CI), audit the whole failure pathway and batch the fixes. |
@@ -127,11 +127,11 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | `mempalace-integration` | Per-workspace MemPalace store — wing/room taxonomy, auto-mine on artifact write, search before output. |
 | `readme-styling` | The bitmap house style for READMEs — banner, dividers, panels, flowcharts, logic maps. |
 
-### Agents (15)
+### Agents (16)
 
 | Agent | Model | Color | One-line purpose |
 |---|---|---|---|
-| system-architect | opus | blue | On-demand architecture; + 3 review modes (Diagnostic Plan, Editability Map, Visual Gap Synthesis). Analysis-only. |
+| system-architect | opus | blue | On-demand architecture; + 4 review modes (Diagnostic Plan, Editability Map, Visual Gap Synthesis, Master Review Audit). Analysis-only. |
 | frontend | opus | cyan | Phase 2 frontend implementer; Playwright + visual-fidelity workflow. |
 | backend | opus | green | Phase 2 backend implementer; live dev-API integration tests. |
 | reconciler | opus | orange | Phase 4 conflict resolution; no feature code. |
@@ -142,6 +142,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | master-synthesizer | opus | purple | Phase −1C final; merges the 3 integration drafts. |
 | route-mapper | opus | cyan | Per frontend codebase in Phase −1B; ROUTE_MAP.md always, DESIGN_MAP.md conditionally. |
 | test-completeness-verifier | sonnet | red | Phase 3 + 5; confirms unit/integration/Playwright kinds ran + the real-backend audit. |
+| task-reviewer | opus | red | Phase 3; independent per-task review of a teammate's diff vs the acceptance criteria; writes the `independent_review` block. Read-only on source. |
 | diagnostic-researcher | opus | red | Spawned ×3 for a test-failure SR; full-pathway trace + ranked hypotheses. |
 | editability-reviewer | opus | yellow | Spawned ×3; enumerate + classify + trace every attribute UI→DB. |
 | visual-capture | sonnet | cyan | Spawned ×N; starts the live app, captures screenshots + computed-style data. Mechanical; no verdicts. |
@@ -159,10 +160,10 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 ### Hooks (3) + shared module
 
 - **`hooks/hooks.json`** — wires `PostToolUse[TaskUpdate]` → `review-gate-task.py`, `SubagentStop[*]` → `teammate-idle-check.py`, `Stop[*]` → `pipeline-completion-audit.py`. All `async: false`.
-- **`hooks/review_evidence_schema.py`** — NOT a hook; the shared single source of truth for the evidence contract (`REQUIRED_EVIDENCE_FIELDS` = 11 fields, the `VALID_*` value sets, `safe_id()`, `validate_evidence()`). Both evidence hooks import it (added v0.9.9 — before that the two hooks carried drifted copies).
+- **`hooks/review_evidence_schema.py`** — NOT a hook; the shared single source of truth for the evidence contract (`SCHEMA_VERSION` = 5, `REQUIRED_EVIDENCE_FIELDS` = the 11 teammate self-review fields, `REQUIRED_INDEPENDENT_REVIEW_FIELDS` for the v5 `independent_review` block, the `VALID_*` value sets, `safe_id()`, `validate_evidence()`). `validate_evidence()` rejects evidence missing the `independent_review` block or whose `independent_review.reviewer == teammate`. Both evidence hooks import it (added v0.9.9 — before that the two hooks carried drifted copies).
 - **`hooks/review-gate-task.py`** — `PostToolUse(TaskUpdate)`. Blocks a teammate task flipping to `completed` without valid review-gate evidence. Exit 0 = allow, 2 = block.
 - **`hooks/teammate-idle-check.py`** — `SubagentStop`. On a teammate going idle, validates every `expected_review_evidence` task. Blocks on a corrupt matched manifest (v0.9.9 — was fail-open).
-- **`hooks/pipeline-completion-audit.py`** — `Stop` hook + standalone `--check`. Gates the orchestrator's terminal state: blocks a stop while `.architect-team/` shows an incomplete run (open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, an unverified visual reconciliation, a blown iteration ceiling). Escalation-marker- and `stop_hook_active`-aware; fails open on any error.
+- **`hooks/pipeline-completion-audit.py`** — `Stop` hook + standalone `--check`. Gates the orchestrator's terminal state: blocks a stop while `.architect-team/` shows an incomplete run (open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, an unverified visual reconciliation, a failing Phase 7 master-review audit verdict, a blown iteration ceiling). Escalation-marker- and `stop_hook_active`-aware; fails open on any error.
 
 ### Setup scripts (2)
 
@@ -188,9 +189,9 @@ sequenceDiagram
     Orch->>Orch: Phase -1 (map) -> Phase 1 (100% coverage gate)
     Orch->>Team: Phase 2 spawn (non-overlapping scope)
     Team->>Gate: TaskUpdate(completed) + reviews/<id>.json
-    Gate-->>Team: exit 0 allow / exit 2 block (11-field schema)
-    Orch->>Verif: Phase 3/5 — test-completeness, editability, visual-verification
-    Verif-->>Orch: verdict JSON (pass / fail -> SR)
+    Gate-->>Team: exit 0 allow / exit 2 block (v5 schema — self-review + independent_review)
+    Orch->>Verif: Phase 3/5 — task-reviewer, test-completeness, editability, visual-verification
+    Verif-->>Orch: verdict JSON (pass / fail -> SR or re-engage)
     Note over Orch: Phase 3b — open SRs auto-spawn fix teams
     Orch->>Orch: Phase 4-7 (reconcile, integrate, master review)
     Orch->>Stop: Phase 8 --check, then session Stop
@@ -210,7 +211,7 @@ sequenceDiagram
 
 **Runtime state (gitignored under `.architect-team/`):** `intake-state.json` (re-entry + `dev_loop_iterations` + `map_invalidated`), `reviews/<task-id>.json` (evidence), `teammates/<name>.json` (manifests), `handoffs/`, `solution-requirements/SR-*.json`, `diagnostic-research/`, `editability/`, `failure-pathway/`, `test-completeness/`, `visual-fidelity/` (`capture/` + `analysis/` + `verification-verdict-*.json`), `runs/`, `escalation-pending.md` (the Stop-hook stand-down marker). MemPalace store at `<workspace>/.mempalace/palace`.
 
-**Review-gate evidence schema (v4 — 11 fields, defined once in `hooks/review_evidence_schema.py`):** `task_id`, `spec_review`, `quality_review`, `real_not_stubbed`, `tests`, `demo_artifact`, `files_changed`, `reuse_compliance`, `visual_fidelity_review`, `test_completeness_review`, `integration_testing_review`. The three `*_review` fields take `pass`/`n/a`/`fail` — `fail` blocks; `n/a` needs a `_note`.
+**Review-gate evidence schema (v5 — defined once in `hooks/review_evidence_schema.py`):** the 11 teammate self-review fields — `task_id`, `spec_review`, `quality_review`, `real_not_stubbed`, `tests`, `demo_artifact`, `files_changed`, `reuse_compliance`, `visual_fidelity_review`, `test_completeness_review`, `integration_testing_review` — PLUS the required `independent_review` block (v0.9.13). The three `*_review` fields take `pass`/`n/a`/`fail` — `fail` blocks; `n/a` needs a `_note`. The `independent_review` block is the verdict of an independent `task-reviewer` agent: it carries `reviewer` / `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` / `reviewed_at`, and `validate_evidence()` rejects it when `reviewer == teammate` — the producer cannot be its own checker.
 
 ## 7. Gotchas (cross-cutting)
 
