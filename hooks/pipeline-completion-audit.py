@@ -172,24 +172,28 @@ def _audit_test_completeness(at: Path) -> list[str]:
 
 
 def _audit_visual_fidelity(at: Path) -> list[str]:
-    """If visual-fidelity reconciliation ran this run, an independent
-    visual-fidelity-verifier verdict must exist and pass — a self-reported
-    reconciliation that never rendered the live app does not gate the run."""
+    """If visual-fidelity reconciliation ran this run, the visual-verification-team
+    must have produced a passing consolidated verdict — a self-reported
+    reconciliation that was never independently verified against the live running
+    app does not gate the run."""
     violations: list[str] = []
     summaries = list(at.glob("visual-fidelity-summary-*.md"))
     vf_dir = at / "visual-fidelity"
     recon_reports = []
     if vf_dir.is_dir():
-        recon_reports = [p for p in vf_dir.glob("*.json") if not p.name.startswith("verifier-")]
+        recon_reports = [
+            p for p in vf_dir.glob("*.json")
+            if not p.name.startswith("verification-verdict-")
+        ]
     if not summaries and not recon_reports:
         return violations  # no visual-fidelity reconciliation this run — nothing to gate
 
-    verdict_paths = sorted(vf_dir.glob("verifier-*.json")) if vf_dir.is_dir() else []
+    verdict_paths = sorted(vf_dir.glob("verification-verdict-*.json")) if vf_dir.is_dir() else []
     if not verdict_paths:
         violations.append(
-            "visual-fidelity reconciliation ran but no visual-fidelity-verifier verdict "
-            "exists — the reconciliation was never independently confirmed against the "
-            "live running app"
+            "visual-fidelity reconciliation ran but the visual-verification-team produced "
+            "no consolidated verdict — the reconciliation was never independently verified "
+            "against the live running app"
         )
         return violations
 
@@ -197,7 +201,7 @@ def _audit_visual_fidelity(at: Path) -> list[str]:
     for vp in verdict_paths:
         v = _load_json(vp)
         if not isinstance(v, dict):
-            violations.append(f"visual-fidelity-verifier verdict {vp.name} is unreadable")
+            violations.append(f"visual-verification-team verdict {vp.name} is unreadable")
             continue
         codebase = str(v.get("codebase") or vp.name)
         key = str(v.get("verified_at") or vp.name)
@@ -208,9 +212,9 @@ def _audit_visual_fidelity(at: Path) -> list[str]:
         overall = v.get("overall")
         if overall != "pass":
             violations.append(
-                f"visual-fidelity-verifier verdict for codebase '{codebase}' is "
+                f"visual-verification-team verdict for codebase '{codebase}' is "
                 f"'{overall}' — the live-app comparison did not pass (drift remains, "
-                f"or the live app would not run)"
+                f"the sweep was incomplete, or the live app would not run)"
             )
     return violations
 

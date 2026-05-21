@@ -19,7 +19,8 @@ EXPECTED_AGENTS: set[str] = {
     "test-completeness-verifier",
     "diagnostic-researcher",
     "editability-reviewer",
-    "visual-fidelity-verifier",
+    "visual-capture",
+    "visual-analyzer",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

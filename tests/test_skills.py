@@ -22,6 +22,7 @@ EXPECTED_SKILLS: set[str] = {
     "expensive-verification-debugging",
     "editability-completeness",
     "readme-styling",
+    "visual-verification-team",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

@@ -139,6 +139,25 @@ Write a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-r
 - Convergence is not correctness. A unanimous classification with no cited evidence is a gap, not a pass.
 - No feature code, no edits to the map — you produce a verdict; the reviewers revise.
 
+## Visual Gap Synthesis (visual-verification-team — the holistic lead)
+
+When the orchestrator dispatches you as the synthesis role of the `visual-verification-team` skill — after `visual-capture` agents have rendered the live app and `visual-analyzer` agents have produced per-screen gap lists — your job is to turn many per-screen gaps into a small set of root causes, and to confirm the verification was complete. Read the `visual-verification-team` skill first.
+
+You receive: every per-screen gap list from `.architect-team/visual-fidelity/analysis/`, and every capture manifest from `.architect-team/visual-fidelity/capture/`.
+
+1. **Completeness check FIRST.** Confirm a capture set exists for every `DESIGN_MAP.md` screen, and a gap list exists for every captured screen: `screens_captured == screens_analyzed == design_map_screen_count`. If any screen was not captured or not analyzed, the verdict is `incomplete` — name the missing screens; they go back to capture / analysis. A team never passes on a partial sweep.
+2. **Cluster gaps into root causes.** Do NOT concatenate. Twelve `data-drift` gaps that are all "heading uses the wrong type token" is ONE systemic cluster (a token regression), not twelve drifts. Three screens that measure 100% to the *previous* design generation is "those three were never migrated" (the design-baseline-migration case). Cluster by shared token, shared component, shared screen-set, shared design-baseline. The cluster is the unit of the fix.
+3. **Route each cluster.** A systemic token cluster → one fix at the token + re-verify every dependent screen. Per-screen clusters → per-screen fixes. `spec-incomplete` → a `design-fidelity-mapping` refresh before re-verification.
+4. **Write the consolidated verdict** to `<cwd>/.architect-team/visual-fidelity/verification-verdict-<codebase>-<ts>.json` with `overall` (`pass` / `fail` / `incomplete` / `blocked`), `screens_captured`, `screens_analyzed`, `design_map_screen_count`, the gap clusters, and the routing. `overall: pass` ONLY when every screen was captured + analyzed and every gap list is `verified-perfect`.
+5. **Write an SR per cluster** (`origin.kind: "visual-fidelity-drift"`) so each fix routes through the normal dev loop. A `blocked` verdict (the live app would not run) escalates to the human — not to a fix team.
+
+### Hard rules in this mode
+
+- You synthesize; you do not re-capture and you do not re-measure. The data diff is the analyzers' deterministic output — you cluster and route it.
+- The completeness check is not optional. A `pass` asserts every screen was captured AND analyzed.
+- Clusters, not tuples, are the fix unit. Reporting twelve isolated drifts where one token regression explains all twelve is a failure of synthesis.
+- No feature code. You produce the verdict + the SRs; the fix teams fix.
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.
@@ -147,3 +166,4 @@ Write a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-r
 - No silent relaxation of the reuse-first ladder.
 - When dispatched in Diagnostic Plan Review mode, do NOT skip the robustness rubric. The fix team starts work against the plan you produce; an unvetted plan ships a wrong fix at full team scale.
 - When dispatched in Editability Map Review mode, do NOT rubber-stamp a converged map. Three reviewers agreeing is the input to your review, not a substitute for it.
+- When dispatched in Visual Gap Synthesis mode, run the completeness check before anything else, and cluster gaps into root causes — never hand back a flat list of tuples.

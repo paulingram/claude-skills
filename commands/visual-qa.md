@@ -79,9 +79,9 @@ For each in-scope codebase:
 
 ## Step 3b — Independent live-app verification (the gate)
 
-After the reconciliation in Step 3 reports every screen `perfect`, spawn the `visual-fidelity-verifier` agent. It does NOT trust the Step 3 report: it starts the live app itself, renders EVERY `DESIGN_MAP.md` screen itself, measures the real DOM, and compares against both the design Oracle and the Step 3 report's claimed values — catching a `report-fabricated` "perfect" the live app contradicts and a `report-incomplete` screen Step 3 skipped.
+After the reconciliation in Step 3 reports every screen `perfect`, run the `visual-verification-team` skill. It does NOT trust the Step 3 report: `visual-capture` agents start the live app and capture screenshots + computed-style data for EVERY `DESIGN_MAP.md` screen; `visual-analyzer` agents run the objective data diff + pixel diff + code cross-check; the `system-architect` synthesizes the gaps holistically — catching a screen Step 3 claimed `perfect` that the live app contradicts, and a screen Step 3 skipped.
 
-**The verifier's verdict gates this command, not the Step 3 report.** Proceed to Step 4 only on `overall: pass` with `screens_rendered_count == design_map_screen_count`. A verifier `fail` → an SR is written (`origin.kind: "visual-fidelity-drift"`) and the overall result is `DRIFT_DETECTED`. A verifier `blocked` (the live app would not run) → the overall result is `BLOCKED`; report it and stop. The audit never passes on a reconciliation that did not render the live app for every screen.
+**The team's consolidated verdict gates this command, not the Step 3 report.** Proceed to Step 4 only on `overall: pass` with `screens_captured == screens_analyzed == design_map_screen_count`. A team `fail` → an SR per gap cluster is written (`origin.kind: "visual-fidelity-drift"`) and the overall result is `DRIFT_DETECTED`. A team `blocked` (the live app would not run) or `incomplete` (the sweep did not cover every screen) → the overall result is `BLOCKED`; report it and stop. The audit never passes on a reconciliation that did not render the live app for every screen.
 
 ## Step 4 — Auto-commit and push (default behavior; opt-out via --no-commit / --no-push)
 

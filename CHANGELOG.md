@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.12] — 2026-05-20
+
+### Changed (visual verification decomposed into a capture / analyze / synthesize team)
+
+v0.9.11 added a single `visual-fidelity-verifier` agent that did capture + analysis + verdict. A single agent doing all three can still cut a corner *inside itself* invisibly. v0.9.12 decomposes it — on a user-proposed pattern — into three roles with a hard artifact boundary between them, so no one role can skip a step undetected.
+
+#### New skill — `visual-verification-team`
+- `skills/visual-verification-team/SKILL.md` — NEW. The `capture → analyze → synthesize` pipeline. Documents the load-bearing rule: **the objective layer is measured DATA, not an agent eyeballing two images.** The 100%-match verdict is established by computed styles / bounding boxes / hex values / hashes (`38px ≠ 26px` is arithmetic). Screenshots serve two *secondary* roles only — a mechanical pixel diff against a design reference image, and a gross-break visual inspection (overflow, clipping, z-order, broken images). An agent forming an impression from two images is never the verdict. Also documents the artifact-boundary anti-cheat: capture sets are countable, analysis cannot precede capture, the verdict is reproducible data, synthesis is independent of both.
+
+#### New agents
+- `agents/visual-capture.md` — NEW (sonnet, read-only on source). Spawned ×N by screen-group. Starts the LIVE app (real backend), and for every assigned DESIGN_MAP screen captures a *capture set* — per-state / per-viewport screenshots PLUS a computed-style + bounding-box data dump from the real DOM — plus the design-side reference. Purely mechanical — it renders and records, it never judges. If the app will not run it reports `blocked`. Output is a countable artifact set + a manifest.
+- `agents/visual-analyzer.md` — NEW (opus, read-only on source). Spawned ×N. The **objective structural analysis**: a deterministic zero-tolerance data diff of the captured values vs the DESIGN_MAP spec (this is the verdict), a pixel diff vs the design reference image, a code cross-check, a gross-break inspection, and a `spec-incomplete` flag for un-specced screens. Produces per-screen gap lists.
+- `agents/system-architect.md` — new "Visual Gap Synthesis" mode: completeness check first (`screens_captured == screens_analyzed == design_map_screen_count`), then clusters the per-screen gaps into root causes (twelve isolated drifts that are one token regression → one cluster), routes each cluster, writes the consolidated verdict + an SR per cluster.
+- `agents/visual-fidelity-verifier.md` — REMOVED. Superseded by the team (the same independent-verification job, decomposed so no role can cut a step inside itself).
+
+#### Rewire
+- `skills/visual-fidelity-reconciliation/SKILL.md` Phase F: now hands off to the `visual-verification-team` (was the single verifier).
+- `skills/architect-team-pipeline/SKILL.md` Phase 5 step 7b: runs the `visual-verification-team`; its consolidated verdict gates Phase 5; `blocked` / `incomplete` does not complete Phase 5.
+- `commands/visual-qa.md` Step 3b, `agents/integration.md`, `skills/team-spawning-and-review-gates/SKILL.md`: all updated to the team.
+- `hooks/pipeline-completion-audit.py` (the `Stop` hook): the visual-fidelity check now keys off the team's consolidated `verification-verdict-*.json` (was the single verifier's `verifier-*.json`).
+
+### Tests
+- `tests/test_agents.py` — `visual-fidelity-verifier` removed, `visual-capture` + `visual-analyzer` added (15 agents). `tests/test_skills.py` — `visual-verification-team` added (17 skills).
+- `tests/test_visual_fidelity_verifier.py` removed; `tests/test_visual_verification_team.py` — NEW (16 tests): the three-role skill, the data-not-images rule, the countable-artifact anti-cheat, holistic clustering; the two new agents (sonnet/mechanical capture, opus/data-first analyzer, both read-only); the Visual Gap Synthesis mode; the old single verifier is gone and every consumer references the team.
+- `tests/test_pipeline_completion_audit.py` — the visual-fidelity Stop-hook tests updated for the `verification-verdict-*.json` artifact name.
+- Full suite: **348 pass**.
+
+### Released (v0.9.12)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.11` → `0.9.12`.
+
 ## [0.9.11] — 2026-05-20
 
 ### Fixed (force the UX agents to compare designs against the LIVE APP)
