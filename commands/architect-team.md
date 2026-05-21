@@ -1,6 +1,6 @@
 ---
-description: Spec-to-production multi-agent coding pipeline. Takes a requirements folder (OpenSpec / Superpowers / plain markdown) and drives it end-to-end to tested, integrated production code. Auto-commits and pushes on a clean Phase 8 pass and emits a clear /compact prompt to free context for the next run, unless invoked with --no-commit / --no-push / --no-compact.
-argument-hint: "<path-to-requirements-folder> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default]"
+description: Spec-to-production multi-agent coding pipeline. Takes EITHER a requirements folder (OpenSpec / Superpowers / plain markdown) OR a plain-language requirement typed directly — a sentence or paragraph describing what to build, fix, change, review, or improve — and drives it end-to-end to tested, integrated production code. Auto-commits and pushes on a clean Phase 8 pass and emits a clear /compact prompt to free context for the next run, unless invoked with --no-commit / --no-push / --no-compact.
+argument-hint: "<requirements-folder | plain-language requirement> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default]"
 ---
 
 # Architect-Team Orchestration
@@ -9,28 +9,40 @@ You are starting the architect-team multi-agent coding pipeline.
 
 **Raw arguments:** $ARGUMENTS
 
-## Argument parsing (do this first, before binding `$REQ_DIR`)
+## Argument parsing (do this first, before invoking the skill)
 
-Parse `$ARGUMENTS` into a path component and zero or more flags. Whitespace-separated tokens:
+**Strip the recognised flags from `$ARGUMENTS` first; everything left is the requirement.**
 
-- The FIRST non-flag token is the requirements folder path. Bind it as `$REQ_DIR`.
-- `--no-commit` flag → set `AUTO_COMMIT = false`, `AUTO_PUSH = false`.
-- `--no-push` flag → set `AUTO_COMMIT = true`, `AUTO_PUSH = false`.
-- `--no-compact` flag → set `AUTO_COMPACT_PROMPT = false`. (Default `true`.)
-- `--allow-push-to-default` flag → set `ALLOW_PUSH_TO_DEFAULT = true`. (Default `false`.) When false, the pipeline will NOT commit + push unreviewed work straight onto a `main` / `master` branch — it commits to an `architect-team/<change-name>` feature branch instead and tells you to open a PR. Pass this flag only when pushing the pipeline's output directly to the default branch is genuinely what you want.
+Flags (each independent — `--no-commit --no-compact` is valid; natural-language opt-outs like "don't commit" / "no push" / "don't compact" / "leave it uncommitted" count as the matching flag):
+
+- `--no-commit` → `AUTO_COMMIT = false`, `AUTO_PUSH = false`.
+- `--no-push` → `AUTO_COMMIT = true`, `AUTO_PUSH = false`.
+- `--no-compact` → `AUTO_COMPACT_PROMPT = false`. (Default `true`.)
+- `--allow-push-to-default` → `ALLOW_PUSH_TO_DEFAULT = true`. (Default `false`.) When false, the pipeline does NOT commit + push unreviewed work straight onto `main` / `master` — it commits to an `architect-team/<change-name>` feature branch and recommends a PR. Pass the flag only when a direct default-branch push is genuinely wanted.
 - No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`.
 
-Flags are independent of each other (e.g., `--no-commit --no-compact` is valid — skips both).
+### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
 
-Also accept natural-language opt-outs in the user's message: phrases like "don't commit", "skip the commit", "no push", "no compact", "don't compact", "leave the changes uncommitted" — treat these as equivalent to the corresponding flag. When in doubt about a natural-language opt-out, default to opting out (safer) and tell the user which interpretation you took.
+| Form | What it is | Bind `$REQ_DIR` to |
+|---|---|---|
+| **Folder** | a filesystem path that resolves to an existing directory (holding OpenSpec artifacts, a Superpowers brief, or plain markdown) | the path |
+| **Plain-language requirement** | prose — a phrase, sentence, or paragraph describing what to build, fix, change, review, or improve | the **entire remaining string, verbatim** |
 
-If `$REQ_DIR` resolves to an empty string after parsing, ask the user for the requirements folder path. Do nothing else until they provide it.
+To tell them apart: if what remains after stripping flags is a single token that resolves to an existing directory → **Folder**. Otherwise → **Plain-language requirement**. **When unsure, it is a plain-language requirement** — ad-hoc prose is the common case.
 
-**IMPORTANT — path binding:** The Claude Code harness does NOT propagate command `$ARGUMENTS` into skill bodies automatically. You MUST treat the bound `$REQ_DIR` value as the input to every reference to `$REQ_DIR` in the `architect-team-pipeline` skill. Before invoking the skill, substitute this value wherever the skill body refers to `$REQ_DIR` or "the requirements folder". Do NOT re-prompt the user for it when the skill body's own placeholder appears empty — you already have it.
+The pipeline's **Phase 0 normalizes a plain-language requirement into an OpenSpec change** — that branch exists precisely for this. A requirements folder is NOT required and never has been.
+
+### Forbidden — the following are bugs, not correct behavior
+
+- **Treating the first word of a plain-language requirement as a path.** `no`, `review`, `add`, `fix`, `lets` are not directories — the *whole string* is the requirement.
+- **Refusing to run** — or telling the user the pipeline "needs a folder" / "only drives a requirements folder" / "I won't run against a non-existent folder" — when given prose. The pipeline accepts a plain-language requirement directly; running it is correct. Refusing a sentence is the bug this section exists to prevent.
+- **Asking the user for a requirements folder.** The only thing you may ask for is the requirement itself, and ONLY when `$ARGUMENTS` (flags stripped) is genuinely **empty** — then ask: "What would you like the architect-team pipeline to build, fix, or change?"
+
+**Binding into the skill:** the harness does NOT propagate `$ARGUMENTS` into skill bodies. Pass the bound `$REQ_DIR` — a folder path OR the verbatim plain-language requirement string — as the input to the `architect-team-pipeline` skill, and substitute it for every `$REQ_DIR` reference in the skill body. When the requirement is plain-language prose, the codebase the pipeline operates on is the current working directory (a git repo) unless the prose names another path. Do NOT re-prompt.
 
 ## Invoke the pipeline
 
-Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool with `skill: architect-team-pipeline`) and follow its pipeline exactly against the requirements folder above. The skill begins at Phase −1 (Intake & Mapping) and proceeds through Phase 8 (Final Report).
+Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool with `skill: architect-team-pipeline`) and follow its pipeline exactly against the requirement above (a folder OR a plain-language requirement — both are valid). The skill begins at Phase −1 (Intake & Mapping) and proceeds through Phase 8 (Final Report).
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, and `ALLOW_PUSH_TO_DEFAULT` flags to the skill.** The skill's Phase 8 reads these to decide whether to auto-commit, push, and whether it may push straight to a default branch.
 

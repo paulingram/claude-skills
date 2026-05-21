@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.17] — 2026-05-21
+
+### Fixed — a plain-language requirement is a first-class `/architect-team` input
+
+Observed bug: `/architect-team <a sentence>` was refused — *"$REQ_DIR parses to 'no', which isn't a path … I'm not going to run the heavyweight pipeline against a non-existent folder."* The pipeline's Phase 0 has always had a `plain` branch that normalizes plain-language input — but the command's argument parser was worded *"the FIRST non-flag token is the requirements folder path"*, so a sentence's first word got bound as `$REQ_DIR`, failed to resolve to a directory, and the model bailed. The capability was there; the wording hid it and primed refusal.
+
+- `commands/architect-team.md` — the **Argument parsing** section rewritten. The requirement is now explicitly **two forms**, both first-class: a *requirements folder* (a path resolving to a directory) OR a *plain-language requirement* (prose typed directly — the entire string is the requirement). A "Forbidden" block bans the three failure modes: treating the first word of prose as a path, refusing to run / telling the user the pipeline "needs a folder", and asking the user for a folder. The pipeline asks for input only when `$ARGUMENTS` is genuinely empty.
+- `skills/architect-team-pipeline/SKILL.md` — the `## Inputs` section rewritten with the same two-forms model and the same prohibitions; the trailing intake line no longer says "ask for the requirements folder path". The `description` + `argument-hint` frontmatter and the Team-Lead intro now say "a folder OR a plain-language requirement".
+
+### Tests
+- `tests/test_plain_language_requirement.py` — NEW (8 cases): the command and the skill each document the two input forms, mark a plain-language requirement first-class, forbid refusing prose, and forbid treating its first word as a path.
+- Full suite: **431 pass** (423 prior + 8 new).
+
+### Released (v0.9.17)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.16` → `0.9.17`.
+
 ## [0.9.16] — 2026-05-21
 
 ### Changed — readme-styling: centering, color, and a theming engine
