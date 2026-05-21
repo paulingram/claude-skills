@@ -1,18 +1,18 @@
 ---
 last_mapped: 2026-05-21T00:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-21 for v0.9.13. The plugin grew substantially since the v0.9.0 map — this is a full rewrite to current reality: 17 skills, 16 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 2 setup scripts, 388 pytest self-tests. Covers v0.9.1 (auto-compact) through v0.9.13 (producer-checker-enforcement — independent task-reviewer + master-review audit).
+note: Doc refresh 2026-05-21 for v0.9.14. Current reality: 17 skills, 16 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 2 setup scripts, 400 pytest self-tests. Covers v0.9.1 (auto-compact) through v0.9.14 (mempalace-mine-syntax-fix).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.13.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.14.
 
 ## 1. System Overview
 
-The `architect-team` Claude Code plugin (v0.9.13) is a spec-to-production multi-agent coding pipeline. It accepts a requirements folder (OpenSpec, Superpowers, or plain markdown) and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
+The `architect-team` Claude Code plugin (v0.9.14) is a spec-to-production multi-agent coding pipeline. It accepts a requirements folder (OpenSpec, Superpowers, or plain markdown) and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
 
-The plugin ships **17 skills, 16 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **2 setup scripts**, and **388 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization.
+The plugin ships **17 skills, 16 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **2 setup scripts**, and **400 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization.
 
 ## 2. Architecture Diagram
 
@@ -80,7 +80,7 @@ graph TB
 
 ```
 claude_skill_lib/
-├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.12)
+├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.14)
 ├── agents/                  # 16 named subagent definitions (.md with frontmatter)
 ├── commands/                # 6 slash-command bodies (.md with frontmatter)
 ├── hooks/                   # hooks.json wiring + 3 enforcement scripts + 1 shared module
@@ -96,7 +96,7 @@ claude_skill_lib/
 │   ├── CODEBASE_MAP.md      # this file
 │   ├── INTEGRATION_MAP.md   # external-integration synthesis (single-codebase degenerate)
 │   └── superpowers/         # historical design doc + plan (read-only reference)
-├── tests/                   # 348 pytest self-tests (~22 test files + conftest + helpers/)
+├── tests/                   # 400 pytest self-tests (~23 test files + conftest + helpers/)
 ├── .scratch/                # working notes (tracked; not part of the installed surface)
 ├── CLAUDE.md  CHANGELOG.md  README.md  LICENSE  pytest.ini  .gitignore
 ```
@@ -124,7 +124,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | `diagnostic-research-team` | 3 `diagnostic-researcher` agents + `system-architect` robustness review before a test-failure fix team spawns. |
 | `expensive-verification-debugging` | When a verify cycle is expensive (deploy / rebuild / slow CI), audit the whole failure pathway and batch the fixes. |
 | `editability-completeness` | 3 `editability-reviewer` agents enumerate every attribute, classify editability, trace UI→DB; architect robustness review; multi-pass. |
-| `mempalace-integration` | Per-workspace MemPalace store — wing/room taxonomy, auto-mine on artifact write, search before output. |
+| `mempalace-integration` | Per-workspace MemPalace store — `--wing` mining (rooms are `init`-detected from directory structure, not a `mine` flag), auto-mine on artifact write, search before output. |
 | `readme-styling` | The bitmap house style for READMEs — banner, dividers, panels, flowcharts, logic maps. |
 
 ### Agents (16)
@@ -170,9 +170,9 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 - **`scripts/setup/setup.py`** — checks Python ≥ 3.10 / Node ≥ 20.19; installs openspec CLI, pytest+pytest-asyncio+httpx, Playwright+chromium; checks for prerequisite plugins.
 - **`scripts/setup/install_mempalace.py`** — uv-first (pip fallback) MemPalace install; prints the `claude mcp add` + `mempalace init` commands; never auto-runs them.
 
-### Tests (348, all PASS)
+### Tests (400, all PASS)
 
-~22 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 17 skill + 15 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit); the setup + MemPalace install scripts; **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); and one structural test file per discipline shipped v0.9.0 → v0.9.12.
+~23 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 17 skill + 16 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit); the setup + MemPalace install scripts; **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); and one structural test file per discipline shipped v0.9.0 → v0.9.14.
 
 ## 5. Data Flow (abridged)
 
