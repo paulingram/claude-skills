@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.10] — 2026-05-20
+
+### Fixed (design-baseline-migration awareness — "unchanged" is not a verdict)
+
+Reported failure: during a Full→V2 design migration, the agents skipped reconciling several role-landing-page screens because a prior Phase −1B design-recon had classified them `UNCHANGED Full→V2`. Three `h1`s shipped at the old Full sizes/weights (`26px/500`, `20px/600`) instead of the V2 Oracle (`38px/400`, `36px/400`) — and the visual-fidelity gate never caught it because those screens were never reconciled.
+
+**Root cause — a classification was trusted as a verdict.** "UNCHANGED" answers *"did the code change?"* (a re-mapping question). It does not answer *"does the implementation match the design Oracle?"* (the fidelity question). The agents conflated the two. Worse: during a design-baseline migration the two questions have OPPOSITE answers — a screen whose code is **unchanged** has **not been migrated** to the new design and is therefore drifted *by definition*. "Unchanged" inverts: in steady state it is a reason to deprioritize; during a migration it is the loudest possible drift signal.
+
+#### `visual-fidelity-reconciliation` skill
+- New **4th discipline**: "Verify against the Oracle, never against a classification." Reconciliation establishes compliance by ONE means — a fresh, direct comparison of the implementation to `DESIGN_MAP.md`, every screen in scope, every run. A code-diff, a prior-run report, an intake design-recon verdict, an "unchanged" label are hints about *where to look first* — never a licence to NOT look.
+- New **Phase A.0 — establish the design baseline FIRST**: before any scoping, read `DESIGN_MAP.md`'s `design_baseline` and compare it to the baseline the implementation was last reconciled clean against. If they differ, a **design-baseline migration** is in progress.
+- New **"Design-baseline migrations — the unchanged inversion"** section: during a migration every screen is in scope regardless of phase, and an implementation that has not changed is drifted by definition. Includes the verbatim role-landing-page failure as the worked example.
+- The Phase 5 / on-demand scope rule is hardened: the reconciliation report records `design_baseline`, `design_map_screen_count`, and `screens_reconciled_count` — and for a regression / on-demand run the latter two MUST be equal. A run that covers fewer screens than DESIGN_MAP has is incomplete, not a pass. Report schema bumped v1 → v2. New anti-pattern rows (4), red flags (4), hard rules (2).
+
+#### `design-fidelity-mapping` skill
+- `DESIGN_MAP.md` frontmatter gains a `design_baseline` field — the label/version of the design generation the map encodes.
+- The Freshness section now distinguishes an **incremental re-run** (same generation — update only affected sections) from a **baseline migration** (the generation itself changed — an incremental update is forbidden; re-derive EVERY screen's spec against the new generation, set the new `design_baseline`, bump `last_designed`).
+
+#### Wire-up
+- `agents/route-mapper.md`: DESIGN_MAP update mode now branches on incremental-vs-baseline-migration; a migration forces a full re-derive; DESIGN_MAP is written with `design_baseline`.
+- `agents/integration.md`: the Phase 5 visual-fidelity sweep runs Phase A.0 first, covers EVERY screen (never narrowed by a code-diff / prior-run report / "unchanged" label), and confirms `screens_reconciled_count == design_map_screen_count`. New hard rule.
+- `agents/frontend.md`: the per-task visual-fidelity step runs Phase A.0 and flags a baseline migration to the orchestrator (the per-task diff-scope is insufficient during a migration).
+- `skills/intake-and-mapping/SKILL.md`: new anti-pattern row — a Phase −1B "what changed" classification is a re-mapping signal, never a fidelity verdict downstream agents may skip a screen on.
+- `commands/visual-qa.md`: the on-demand audit runs the Phase A.0 baseline check, covers every screen, and requires the screen-count completeness check. Step-3 sub-steps renumbered cleanly.
+
+### Tests
+- `tests/test_design_baseline_migration.py` — NEW. 14 tests: the 4th discipline; Phase A.0; the unchanged-inversion + "drifted by definition"; the screen-count completeness rule; anti-patterns reject skip-by-classification; `design_baseline` field + the baseline-migration full-rederive rule; route-mapper / integration / frontend / visual-qa are all migration-aware; integration checks screen-count completeness; intake-and-mapping rejects a classification as a fidelity verdict.
+- Full suite: **322 pass** (309 prior + 13 new).
+
+### Released (v0.9.10)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.9` → `0.9.10`.
+
 ## [0.9.9] — 2026-05-20
 
 ### Fixed (logic-implementation review — all three tiers of holes closed)

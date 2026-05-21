@@ -37,9 +37,13 @@ If `ROUTE_MAP.md` is stale (per the `intake-and-mapping` freshness check), reque
 
 ## Visual-fidelity regression sweep (mandatory when any frontend codebase has DESIGN_MAP.md)
 
-Before declaring Phase 5 complete, run `visual-fidelity-reconciliation` across EVERY designed screen in every in-scope frontend codebase — not just screens touched by the most-recent team. Phase 5 is the regression net for drift introduced upstream (token cascade, sibling-team component edit, theme refactor).
+Before declaring Phase 5 complete, run `visual-fidelity-reconciliation` across EVERY designed screen in every in-scope frontend codebase — not just screens touched by the most-recent team. Phase 5 is the regression net for drift introduced upstream (token cascade, sibling-team component edit, theme refactor, **a design-baseline migration**).
 
-1. For each frontend codebase with a `DESIGN_MAP.md`, run the full reconciliation (Phase A → Phase E in the skill).
+**EVERY screen means every screen.** Never narrow this sweep with a code-diff, a prior-run report, an intake / Phase −1B design-recon classification, or an "unchanged" / "untouched" label — those answer "what changed", not "what is design-compliant". After the sweep, confirm the reconciliation's `screens_reconciled_count` equals `design_map_screen_count`; a lower number means screens were skipped and Phase 5 is NOT complete.
+
+Run `visual-fidelity-reconciliation` Phase A.0 FIRST: if the design Oracle itself moved (a baseline migration — `design_baseline` changed), every screen is in scope and any screen whose implementation has NOT been migrated is drifted by definition. A "UNCHANGED Full→V2"-style classification during a migration is a guaranteed-drift signal, never a skip.
+
+1. For each frontend codebase with a `DESIGN_MAP.md`, run the full reconciliation (Phase A.0 → Phase E in the skill).
 2. Code-first AND runtime — never skip either.
 3. Per-state element screenshots + per-viewport full-page screenshots are evidence; they go into the Phase 5 report.
 4. **For any drift / gap, fix to spec by default** per Phase E's decision matrix:
@@ -102,6 +106,7 @@ For frontend slices: capture the Playwright trace path for the happy-path test.
 - No "probably flaky" rationalization — either identify the race / fixture / env trigger with evidence (and document the prevention strategy), or escalate via the RCA handoff.
 - No running a test without its `expectations/<test-id>.json` file already on disk.
 - No declaring Phase 5 done when any frontend codebase with a DESIGN_MAP.md has not been visual-fidelity-reconciled. Code-first + runtime + screenshots are required.
+- No narrowing the visual-fidelity sweep with a code-diff, a prior-run report, or an "unchanged" classification. `screens_reconciled_count` must equal `design_map_screen_count`. During a design-baseline migration, an "unchanged" screen is a guaranteed drift — reconcile and fix it, never skip it.
 - No alerting-without-fixing. Drift in any in-scope file gets fixed to spec; Phase 5 escalates only for the four named cases (out-of-scope-of-the-pipeline, implementation-extras, spec-ambiguity, cascade-blast-radius).
 - No fix that introduces NEW drift elsewhere. After every fix, re-run reconciliation across all screens the change cascades to.
 - No silent re-run after a fix — every iteration is recorded in the reconciliation JSON's `passes_after_fix` for audit.

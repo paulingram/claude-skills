@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 9
+                       ─── T E A M ───   v 0 . 9 . 10
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -22,17 +22,18 @@
 
 ![version](https://img.shields.io/badge/version-0.9.8-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-309%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-322%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.9  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.10  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Design-baseline-migration awareness (v0.9.10)** | A reported failure: during a Full→V2 design migration, agents skipped reconciling screens that a prior Phase −1B design-recon had classified `UNCHANGED` — so several role-landing-page `h1`s shipped at the old sizes/weights. Root cause: a **classification** ("what changed") was trusted as a **verdict** ("design-compliant"). v0.9.10 adds a 4th visual-fidelity discipline — *verify against the Oracle, never against a classification* — plus a Phase A.0 design-baseline check. The key reasoning fix: during a baseline migration, "unchanged" **inverts** — an implementation that has not been migrated is drifted *by definition*, so "unchanged" is a guaranteed-drift signal, never a skip. `DESIGN_MAP.md` gains a `design_baseline` field; a baseline change forces a full re-derive of every screen, and a Phase 5 / on-demand sweep must reconcile every screen (`screens_reconciled_count == design_map_screen_count`). |
 | ▸ **Logic-implementation review fixes (v0.9.9)** | A critical review of the pipeline's logic surfaced real holes; v0.9.9 closes all three tiers. The two evidence hooks had **drifted** (`teammate-idle-check` validated 8 fields, `review-gate-task` validated 11) — they now import one shared `review_evidence_schema` module, so drift is structurally impossible. A new **`Stop` hook** (`pipeline-completion-audit`) blocks the orchestrator from ending a run that is still incomplete — open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, a blown iteration ceiling — and gates the Phase 8 auto-commit. The editability team gained an independent `system-architect` **robustness review** (Round 3). Plus: a global iteration ceiling + oscillation detection, a documented shared-state concurrency model, map re-validation when a map is found wrong, and a default-branch push guard (`--allow-push-to-default`). See Logic Map C. |
 | ▸ **README styling skill (v0.9.8)** | New `readme-styling` reference skill codifies the bitmap house style — block-letter banner, gradient dividers, box-drawing panels, ASCII flowcharts, **logic maps that show routing + gates**, status timeline, colored badges — so every README an agent authors carries the same flair. This README is its reference implementation. |
 | ▸ **Editability completeness (v0.9.7)** | New `editability-completeness` skill + `editability-reviewer` agent (×3, opus). Confirms every attribute an entity exposes that a user should control is actually editable end-to-end — UI control → state → API → request schema → handler → database → read-back. Catches the case where a `title` displays but has no field to set it. Three reviewers argue to a converged gap list; gaps → SRs; multi-pass until satisfied. `/architect-team:editability-audit` for on-demand audits. |
@@ -494,7 +495,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — 11-field evidence schema v4; the `pipeline-completion-audit` Stop hook; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling disciplines. **309 tests pass.**
+Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — 11-field evidence schema v4; the `pipeline-completion-audit` Stop hook; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, and readme-styling, and design-baseline-migration disciplines. **322 tests pass.**
 
 ### Bumping versions
 
@@ -535,7 +536,8 @@ Tests validate: plugin/marketplace JSON; all 16 skill frontmatters; all 13 agent
            v0.9.6 ─ expensive-verification-debugging
            v0.9.7 ─ editability-completeness review
            v0.9.8 ─ readme-styling skill + README refresh
-   ◆       v0.9.9 ─ logic-implementation review — Tier 1/2/3 hole fixes (current)
+           v0.9.9 ─ logic-implementation review — Tier 1/2/3 hole fixes
+   ◆       v0.9.10 ─ design-baseline-migration awareness (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

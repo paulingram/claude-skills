@@ -13,11 +13,12 @@ This skill is the dual of `design-fidelity-mapping`:
 
 Without this skill, design drift accumulates one PR at a time — each one too small to flag, the cumulative effect too large to ignore.
 
-Three disciplines:
+Four disciplines:
 
 1. **Zero-tolerance defaults.** Bounding boxes match to the pixel. Colors match to the exact computed value. Typography matches family-AND-weight-AND-size-AND-line-height. Border radii, shadows, padding, and margins match exactly. Tolerances are explicit per-element overrides with recorded rationale — never silent global slop.
 2. **Exhaustive state walks.** Every state listed in DESIGN_MAP.md OR implied by the component code gets verified: default, hover, focus, active, disabled, loading, error, empty, plus every responsive breakpoint declared in DESIGN_MAP.md's `viewports_responsive` frontmatter. Missing a state is a gap.
 3. **Fix drift to align to the spec; escalate only for genuine ambiguity or scope barriers.** `DESIGN_MAP.md` is the agreed contract. When reconciliation finds drift, the default action is to CHANGE THE IMPLEMENTATION to match the spec, re-run reconciliation, and verify `perfect`. Escalation is the exception — reserved for cases where (a) the fix requires editing files outside the agent's scope, (b) the spec itself is ambiguous / internally inconsistent / references tokens that don't exist, or (c) the implementation has an element NOT in the spec and the architect-team must decide whether to add to spec or remove from implementation. Alerting the user without fixing is a process failure: the discipline converges to the spec, autonomously, every time.
+4. **Verify against the Oracle, never against a classification.** Reconciliation establishes compliance by ONE means only: a fresh, direct comparison of the running implementation to the design contract (`DESIGN_MAP.md`), for every screen in scope, every run. It NEVER substitutes a classification for that comparison. A code-diff, a prior run's report, an intake / Phase −1B "design-recon" verdict, an "unchanged" / "untouched" / "not migrated" label — these answer *what changed* or *what to re-map*; they are NOT verdicts about *what is design-compliant*. "A prior run classified this screen UNCHANGED, so skip it" is the exact reasoning that lets systemic drift sail through undetected across a whole set of screens at once. A classification is a hint about where to look first — never a licence to NOT look.
 
 ## When to run
 
@@ -26,6 +27,27 @@ Three disciplines:
 - **On-demand audit via `/architect-team:visual-qa` (manual).** Operator invokes the command at any point; the command refreshes DESIGN_MAP.md if stale, then runs reconciliation across all designed screens.
 
 ## Phase A — Scope identification
+
+### Phase A.0 — Establish the design baseline FIRST (before any scoping)
+
+Before scoping anything, answer one question: **has the design Oracle itself moved since the implementation was last reconciled clean?**
+
+1. Read `DESIGN_MAP.md`'s `design_baseline` (the label/version of the design generation it encodes — e.g. `V2`).
+2. Determine the baseline the implementation was last reconciled-`perfect` against — read the `design_baseline` of the most recent reconciliation report. If there is no prior report, treat the last-clean baseline as unknown.
+3. If the two differ — or `DESIGN_MAP.md` was just refreshed in a baseline migration per `design-fidelity-mapping` — a **design-baseline migration** is in progress. Apply "Design-baseline migrations" below.
+4. If they are the same, this is a steady-state reconciliation; proceed to ordinary scoping.
+
+### Design-baseline migrations — when the Oracle moved (the "unchanged" inversion)
+
+When the design generation itself changed — a redesign, a design-system version bump (Full → V2) — the normal intuition **inverts**, and you must reason about it explicitly rather than pattern-match:
+
+- **Every screen with a spec in `DESIGN_MAP.md` is in scope. No exceptions, regardless of phase.** A baseline migration is not a per-team diff event — it is a whole-surface event. Phase 3's diff-scope (below) is *insufficient* during a migration; the every-screen sweep is mandatory.
+- **"Implementation unchanged" is the STRONGEST drift signal — never a skip signal.** In steady state, an unchanged screen is probably still compliant. In a migration, a screen whose implementation has NOT changed has NOT been migrated to the new baseline: it is still rendering the OLD design and is therefore **drifted by definition**. An "unchanged" / "untouched" / "UNCHANGED Full→V2" classification during a migration means "this screen is unfinished work" — it is the LOUDEST possible call to reconcile-and-fix, the literal opposite of "skip."
+- **A classification that says a screen is unchanged is answering the wrong question.** "Did the code change since the last run?" is a re-mapping question. "Does the implementation match the V2 Oracle?" is the reconciliation question. During a migration, those two questions have OPPOSITE answers for every unmigrated screen. Reconcile every screen directly against the V2 Oracle; do not let a code-diff, an intake recon report, or a prior-run classification narrow the set.
+
+*Concrete failure this prevents:* a Full→V2 migration where a prior Phase −1B design-recon classified three role-landing-page screens as `UNCHANGED Full→V2`. Agents read "UNCHANGED" as "skip" and never reconciled those screens — so three `h1`s shipped at the old Full sizes/weights (`26px/500`, `20px/600`) instead of the V2 Oracle (`38px/400`, `36px/400`). The correct reading: `UNCHANGED` during a Full→V2 migration = "not yet migrated" = guaranteed drift = reconcile and fix every one.
+
+### Ordinary scoping (steady state — no baseline migration)
 
 For Phase 3 (per-team), the scope is the set of (screen, element, state) tuples touched by the teammate's diff:
 
@@ -38,7 +60,7 @@ For Phase 3 (per-team), the scope is the set of (screen, element, state) tuples 
    - Storybook story (`*.stories.tsx`) → the component the story covers.
 3. For each affected screen, the relevant rows from DESIGN_MAP.md's `## Per-Screen Visual Specs` table become the in-scope reconciliation checklist. Plus every state listed for those elements + every responsive viewport from the frontmatter.
 
-For Phase 5 (integration regression) and `/architect-team:visual-qa`, the scope is **every screen with a per-screen visual spec in DESIGN_MAP.md**. No exceptions; this is the regression net.
+For Phase 5 (integration regression) and `/architect-team:visual-qa`, the scope is **every screen with a per-screen visual spec in DESIGN_MAP.md**. No exceptions; this is the regression net. "No exceptions" means literally that: the scope is NEVER narrowed by a changed-files list, a code-diff, a prior-run report, an intake recon classification, or an "unchanged" / "untouched" label. The reconciliation report's `screens_reconciled_count` MUST equal `design_map_screen_count` for a Phase 5 / on-demand run — a regression run that covers fewer screens than DESIGN_MAP has is an incomplete reconciliation, not a pass.
 
 ## Phase B — Code-first static analysis (mandatory, BEFORE running the browser)
 
@@ -172,10 +194,11 @@ For each screen reconciled, persist `<test-output-dir>/visual-fidelity/<screen>-
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "screen": "/login",
   "reconciled_at": "<ISO 8601 UTC>",
   "design_map_version": "<DESIGN_MAP.md last_designed timestamp>",
+  "design_baseline": "<DESIGN_MAP.md design_baseline — the design generation reconciled against, e.g. V2>",
   "design_map_sha": "<git blob SHA of DESIGN_MAP.md at reconciliation time>",
   "viewport": { "width": 1440, "height": 900 },
   "engine": "chromium",
@@ -247,7 +270,7 @@ For each screen reconciled, persist `<test-output-dir>/visual-fidelity/<screen>-
 }
 ```
 
-Then aggregate all per-screen JSONs into a single `<cwd>/.architect-team/visual-fidelity-summary-<ts>.md` for the orchestrator and architect-team to read. The summary lists every drift and gap with screen + element + state + delta + severity.
+Then aggregate all per-screen JSONs into a single `<cwd>/.architect-team/visual-fidelity-summary-<ts>.md` for the orchestrator and architect-team to read. The summary lists every drift and gap with screen + element + state + delta + severity. The aggregate summary MUST also record, in its header: the `design_baseline` reconciled against, `design_map_screen_count` (how many screens have a per-screen spec in DESIGN_MAP.md), and `screens_reconciled_count` (how many were actually reconciled in this run). **For a Phase 5 regression run or an on-demand `/architect-team:visual-qa` run, `screens_reconciled_count` MUST equal `design_map_screen_count`.** If it is lower, the reconciliation is incomplete — some screens were skipped — and the run does NOT pass; reconcile the remaining screens. This count check is the mechanical guard against the "a prior run said these were unchanged, so I skipped them" failure.
 
 ## Phase E — Drift / gap remediation (fix to spec by default; escalate only on the narrow exceptions)
 
@@ -311,6 +334,8 @@ The hook value `"fail"` is the SAFETY NET, not the default workflow. The default
 - **Escalation is for the narrow exceptions only.** Out-of-scope files, implementation-has-extras-not-in-spec, spec-ambiguity, cross-screen cascade blast radius. Every escalation handoff names which case triggered it.
 - **Asset SHA-256 always verified at runtime.** A `src` match without a hash match is incomplete — the served bytes are what the user actually sees.
 - **The spec is the contract, not a suggestion.** DESIGN_MAP.md is what was agreed. Implementation drift is a code defect; the fix is code, not negotiation. If the spec is wrong, fix the spec via `design-fidelity-mapping` FIRST (with user / architect-team input), then re-reconcile against the corrected spec.
+- **Verify against the Oracle, never skip on a classification.** A code-diff, a prior-run report, an intake / Phase −1B design-recon verdict, an "unchanged" label — none of these is a compliance verdict. Reconciliation establishes compliance ONLY by a fresh comparison to DESIGN_MAP. Never narrow the scope of a Phase 5 / on-demand run with any of them.
+- **Check the design baseline first.** Phase A.0 — before scoping, determine whether the design Oracle itself moved. During a baseline migration EVERY screen is in scope, and an implementation that has not changed is drifted by definition (it was never migrated). "Unchanged" is a skip signal in steady state and a drift signal during a migration — reason about which you are in.
 
 ## Anti-pattern rationalizations to reject
 
@@ -320,6 +345,10 @@ The hook value `"fail"` is the SAFETY NET, not the default workflow. The default
 | "The hover state is not critical" | Then it should not be in DESIGN_MAP — and the reconciliation will not check it. If it IS in DESIGN_MAP, it is a tuple that must verdict. |
 | "I'll just alert the user about this drift; they can decide" | No. Alerting without fixing is the failure mode this skill exists to prevent. DESIGN_MAP.md is the agreed contract; the discipline converges to it. Fix when you can; escalate only on the four named exceptions (out-of-scope, implementation-extras, spec-ambiguity, cascade-blast-radius). |
 | "The design changed; the implementation is right" | Then update DESIGN_MAP first via `design-fidelity-mapping` to capture the new design, then re-reconcile. Order matters: design → map → implement → reconcile. NEVER assume the implementation is right when it disagrees with the captured spec. |
+| "A prior run / the Phase −1B design-recon classified these screens UNCHANGED, so I'll skip them" | A classification answers "what changed / what to re-map" — it is NOT a verdict on design compliance, and it is from another run / another context. Reconciliation verifies compliance by ONE means: a fresh comparison to the Oracle. Skipping a screen on a classification is how systemic drift sails through a whole set of screens at once. Reconcile every screen in scope. |
+| "The code diff shows these files didn't change, so they're design-compliant" | Code-unchanged ≠ design-compliant. The design can move while the code stands still — that is exactly a baseline migration. And the classification can simply be wrong. Verify against the Oracle, not the diff. |
+| "We're migrating Full→V2 and this screen is UNCHANGED, so it's fine" | Backwards. During a baseline migration, UNCHANGED means NOT MIGRATED — the screen still renders the OLD design and is drifted by definition. "Unchanged" inverts during a migration: it is the loudest call to reconcile-and-fix, never a skip. See Phase A.0. |
+| "These screens weren't touched by the most-recent team, so the regression sweep can skip them" | The Phase 5 / on-demand sweep covers EVERY screen in DESIGN_MAP — that is the whole point of a regression net: it catches drift that no single team's diff would reveal. `screens_reconciled_count` must equal `design_map_screen_count`. |
 | "Snapshot regression is enough; we do not need per-element comparisons" | Snapshots regress on overall pixel diff but mask many computed-style drifts (a wrong font-weight that is within tolerance pixel-wise still ships the wrong contract). Both layers are required. |
 | "Cross-browser differences make 0px impossible" | Run reconciliation in the SAME browser engine as DESIGN_MAP was captured against. If multiple engines are in scope, DESIGN_MAP must declare per-engine variants. |
 | "I will just mark visual_fidelity_review n/a — designs were not provided" | If DESIGN_MAP.md does not exist for the codebase, n/a is correct AND the note must say so explicitly. If it DOES exist, n/a is the wrong call — fix to spec or escalate per the matrix. |
@@ -338,6 +367,10 @@ The hook value `"fail"` is the SAFETY NET, not the default workflow. The default
 - You alerted the user about a drift without first attempting (or completing) the fix per the decision matrix.
 - You ran reconciliation at the wrong viewport because "1440 vs 1366 doesn't matter".
 - The reconciliation JSON has fewer tuples than `screens_in_scope × elements_per_screen × states_per_element × viewports`.
+- You narrowed reconciliation scope using a code-diff, a prior-run report, an intake design-recon classification, or an "unchanged" / "untouched" label.
+- `screens_reconciled_count` < `design_map_screen_count` on a Phase 5 or on-demand run — some screens were skipped.
+- A design-baseline migration is underway and you treated an "unchanged" screen as a skip instead of as a guaranteed drift.
+- You did not run Phase A.0 — you scoped without first checking whether the design baseline moved.
 - The `evidence[]` array for any tuple is empty.
 - Static analysis was skipped because "the runtime would catch it anyway".
 - The DESIGN_MAP.md was stale (`last_designed` < latest codebase commit on frontend files) and you proceeded without refreshing it.

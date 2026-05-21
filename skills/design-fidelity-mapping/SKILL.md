@@ -29,6 +29,10 @@ If none of the above exist, this skill is skipped. The codebase-map-reviewer mus
   ```yaml
   ---
   last_designed: 2026-05-18T10:30:00Z
+  design_baseline: V2   # label/version of the design GENERATION this map encodes
+                        # (a redesign codename, a design-system version, a Figma
+                        # file version). When this changes, the design Oracle
+                        # itself moved — see Freshness → baseline migration.
   codebase: /abs/path/to/frontend
   framework: nextjs-15-app-router
   design_sources:
@@ -381,9 +385,11 @@ See `playwright-user-flows` "Visual-fidelity tests" subsection in Phase B for th
 
 ## Freshness
 
-- `last_designed` set by route-mapper at write time, ISO 8601 UTC.
+- `last_designed` set by route-mapper at write time, ISO 8601 UTC. `design_baseline` is the label/version of the design generation the map encodes.
 - Stale checks: compare `last_designed` against the most recent modification time of any file in `$REQ_DIR/designs/`, the codebase's tokens file, and any asset under `public/images/`. If any is newer → re-run.
-- On re-run, scope the diff (which screens changed, which tokens changed, which assets changed) and update only the affected sections. Recompute SHA-256 for changed assets.
+- **Incremental re-run vs. baseline migration — decide which you are doing BEFORE touching the map. This distinction is load-bearing.**
+  - **Incremental re-run** — the design *generation* is the SAME (`design_baseline` unchanged); a few screens / tokens / assets were tweaked. Scope the diff and update ONLY the affected sections. Recompute SHA-256 for changed assets.
+  - **Baseline migration** — the design generation itself changed: a redesign, a design-system version bump (e.g. Full → V2), a new Figma file. The incoming `design_baseline` differs from what the map currently records. An incremental update here is WRONG twice over: it produces a half-old / half-new map, AND it lets screens that look "unchanged" pass as current when their spec is actually still the OLD generation. On a baseline migration you MUST: (1) re-derive EVERY screen's spec against the new design generation — not just the screens whose source files happened to change; (2) set the new `design_baseline`; (3) bump `last_designed`. Then every screen is in scope for `visual-fidelity-reconciliation`, where — critically — an implementation that has NOT changed since the migration began is **drifted by definition** (it was never migrated). "Unchanged" after a baseline migration is unfinished work, never a clean bill of health.
 
 ## Anti-patterns to reject
 

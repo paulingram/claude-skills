@@ -45,16 +45,17 @@ State the freshness result explicitly to the user: "DESIGN_MAP.md for <codebase>
 
 For each in-scope codebase:
 
-1. **Phase A — Scope identification.** All screens with a per-screen visual spec in DESIGN_MAP.md are in scope (this is an audit, not a per-team gate). All states listed for each element are in scope. All viewports in `viewports_responsive` are in scope.
+1. **Phase A.0 — Design-baseline check.** Read DESIGN_MAP.md's `design_baseline` and compare it to the baseline the most recent reconciliation report was run against. If they differ, a **design-baseline migration** is in progress: per `visual-fidelity-reconciliation`'s Phase A.0, every screen is in scope and an implementation that has NOT been migrated to the new baseline is drifted by definition — an "unchanged" screen is a guaranteed drift, never a skip.
+2. **Phase A — Scope identification.** All screens with a per-screen visual spec in DESIGN_MAP.md are in scope (this is an audit, not a per-team gate). All states listed for each element are in scope. All viewports in `viewports_responsive` are in scope. The scope is NEVER narrowed by a code-diff, a prior-run report, an intake design-recon classification, or an "unchanged" label — the audit's `screens_reconciled_count` MUST equal `design_map_screen_count`, and a lower number means the audit is incomplete, not passing.
 
-2. **Phase B — Code-first static analysis.** For every in-scope element:
+3. **Phase B — Code-first static analysis.** For every in-scope element:
    - Locate the component source (`grep` the testid / role-name).
    - Trace every styling layer (inline styles, Tailwind classes resolved via the config, CSS modules, CSS-in-JS, theme variables, cascade from parents).
    - Compare each resolved style to the DESIGN_MAP spec.
    - Verify asset references resolve to entries in the Asset Registry AND the file's SHA-256 matches the registered hash (compute via `sha256sum` / `certutil`).
    - Record `static_verdict` per element per state.
 
-3. **Phase C — Runtime verification with Playwright.** A Playwright test simulates a real human via `page.goto` / `page.click` / `page.fill` / `page.selectOption` / `page.setInputFiles` / `page.waitFor` / `expect(locator).toBeVisible()` and asserts visible state. Direct API calls inside a Playwright test — `page.evaluate(() => fetch(...))`, `page.request.get/post/...`, `axios.*` from inside the test body — are FORBIDDEN substitutes for user-click paths. The only allowed direct-API uses are: `page.route(...)` to mock specific error paths (401 / 429 / 500), and `page.request.*` to verify asset resolution (e.g., logo SVG returns 200 with the registered SHA-256). Start a dev server if not running (use the codebase's documented dev command from CODEBASE_MAP.md, e.g., `npm run dev`, `pnpm dev`, `yarn dev`, `next dev`). Wait for it to be ready (poll the dev URL until 200). Then for every (screen, viewport) pair:
+4. **Phase C — Runtime verification with Playwright.** A Playwright test simulates a real human via `page.goto` / `page.click` / `page.fill` / `page.selectOption` / `page.setInputFiles` / `page.waitFor` / `expect(locator).toBeVisible()` and asserts visible state. Direct API calls inside a Playwright test — `page.evaluate(() => fetch(...))`, `page.request.get/post/...`, `axios.*` from inside the test body — are FORBIDDEN substitutes for user-click paths. The only allowed direct-API uses are: `page.route(...)` to mock specific error paths (401 / 429 / 500), and `page.request.*` to verify asset resolution (e.g., logo SVG returns 200 with the registered SHA-256). Start a dev server if not running (use the codebase's documented dev command from CODEBASE_MAP.md, e.g., `npm run dev`, `pnpm dev`, `yarn dev`, `next dev`). Wait for it to be ready (poll the dev URL until 200). Then for every (screen, viewport) pair:
    - Set viewport EXACTLY to the spec.
    - Navigate to the screen.
    - For every (element, state) tuple:
@@ -65,16 +66,16 @@ For each in-scope codebase:
    - Compare every captured value to DESIGN_MAP using zero-tolerance defaults (per the skill's tolerance table).
    - Record `runtime_verdict` per tuple.
 
-4. **Phase D — Reconciliation report.** Persist `<test-output-dir>/visual-fidelity/<screen>-<viewport>-<timestamp>.json` per (screen, viewport). Persist a single aggregated `<cwd>/.architect-team/visual-fidelity-summary-<ts>.md` for the run.
+5. **Phase D — Reconciliation report.** Persist `<test-output-dir>/visual-fidelity/<screen>-<viewport>-<timestamp>.json` per (screen, viewport). Persist a single aggregated `<cwd>/.architect-team/visual-fidelity-summary-<ts>.md` for the run — its header records `design_baseline`, `design_map_screen_count`, and `screens_reconciled_count` (which MUST be equal for this audit).
 
-5. **Phase E — Remediation (fix to spec by default).** For each tuple with verdict `drift` or `gap`, consult `visual-fidelity-reconciliation`'s decision matrix:
+6. **Phase E — Remediation (fix to spec by default).** For each tuple with verdict `drift` or `gap`, consult `visual-fidelity-reconciliation`'s decision matrix:
    - **Drift in any frontend file** → fix the implementation (className / inline style / token / asset reference) to produce the spec value. Re-run Phase B + Phase C for the affected tuples. Loop until `perfect`. The reconciliation JSON records every iteration in `passes_after_fix`.
    - **Gap: element specified but not rendered** → add the JSX / binding to render per spec; re-run.
    - **Gap: element rendered but not in spec** → escalate (user decision required: add to spec or remove from implementation).
    - **Spec ambiguity** (token referenced but undefined, contradictory specs) → escalate to fix the spec first via `design-fidelity-mapping`, then re-reconcile.
    - **Cascade blast radius** (the fix introduces drift in dependent screens) → escalate to the architect-team to plan the cascade.
-6. **Escalation handoffs** (only for the four named cases above): write `<cwd>/.architect-team/handoffs/visual-qa-to-architect-<reason>-<screen>-<ts>.md` containing: DESIGN_MAP version reconciled against, summary of the drift/gap, the specific decision-matrix case that triggered escalation, links to JSON + screenshots. Identify the team that likely introduced the upstream issue via `git log -p --since=<last_designed> -- <files-involved>` and include `to: <team>` in the frontmatter.
-7. **When a fix is applied**, also write an informational handoff to the team that introduced the drift (`visual-qa-to-<team>-fixed-<screen>-<ts>.md`) — not blocking, just heads-up so their next change matches the corrected spec.
+7. **Escalation handoffs** (only for the four named cases above): write `<cwd>/.architect-team/handoffs/visual-qa-to-architect-<reason>-<screen>-<ts>.md` containing: DESIGN_MAP version reconciled against, summary of the drift/gap, the specific decision-matrix case that triggered escalation, links to JSON + screenshots. Identify the team that likely introduced the upstream issue via `git log -p --since=<last_designed> -- <files-involved>` and include `to: <team>` in the frontmatter.
+8. **When a fix is applied**, also write an informational handoff to the team that introduced the drift (`visual-qa-to-<team>-fixed-<screen>-<ts>.md`) — not blocking, just heads-up so their next change matches the corrected spec.
 
 ## Step 4 — Auto-commit and push (default behavior; opt-out via --no-commit / --no-push)
 
