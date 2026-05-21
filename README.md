@@ -1,13 +1,14 @@
 # architect-team
+<!-- architect-team:readme-theme=midnight -->
 
 ```
- █████  ██████   ██████ ██   ██ ██ ████████ ███████  ██████ ████████
-██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
-███████ ██████  ██      ███████ ██    ██    █████   ██         ██
-██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
-██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
+      █████  ██████   ██████ ██   ██ ██ ████████ ███████  ██████ ████████
+     ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
+     ███████ ██████  ██      ███████ ██    ██    █████   ██         ██
+     ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
+     ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 15
+                            ─── T E A M ───   v 0 . 9 . 16
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -20,19 +21,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.15-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.16-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-418%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-423%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.15  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v0.9.16  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **README visual designer — centering, color, themes (v0.9.16)** | The `readme-styling` skill gains a **canvas-width + centering model** (one width; every element built to it or centered within it — no more crooked, left-listing pages), **pipe-table and ASCII-graph alignment rules**, a **two-world color model** (GitHub-safe — themed badges + colored Mermaid diagrams — plus a separate ANSI-colored variant for terminals), and a **theming engine**: six preset themes (`midnight` / `phosphor` / `amber` / `synthwave` / `crimson` / `mono`), each a badge palette + accent + ANSI palette + Mermaid colors, chosen once via an interactive picker at first setup and recorded in a `<!-- architect-team:readme-theme=... -->` marker so a project's look stays consistent. This README is re-styled as the reference implementation. |
 | ▸ **Documentation-currency gate (v0.9.15)** | The pipeline shipped code but left documentation behind — `README.md` + `CHANGELOG.md` got updated, while the maps, `CLAUDE.md`, and `INTEGRATION_MAP.md` drifted. v0.9.15 adds a **Phase 8 documentation-currency gate** — the last step before the GitHub push. The orchestrator updates every doc the change affects (the maps `CODEBASE_MAP` / `ROUTE_MAP` / `DESIGN_MAP` / `INTEGRATION_MAP`, plus `README.md`, `CHANGELOG.md`, `CLAUDE.md`); then the `system-architect` **independently audits** them in a new *Documentation Currency Audit* mode — verifying, against the actual diff, that every doc that should have been updated *was*, and accurately, and that every map's freshness frontmatter is current. The audit verdict gates the commit; `pipeline-completion-audit.py` blocks a push on a stale-docs verdict. Producer/checker, per v0.9.13 — the orchestrator updates, an independent agent confirms. New `documentation-currency` skill. |
 | ▸ **MemPalace `mine` syntax fix (v0.9.14)** | The pipeline auto-mines artifacts to MemPalace at many points, and every `mempalace ... mine` command the plugin documented carried a `--room <room>` argument. But `mempalace mine` (verified against mempalace 3.3.5) has **no `--room` flag** — rooms are auto-detected by `mempalace init` from the mined corpus's directory structure; `--room` is valid only on `mempalace search`. Every `mine ... --room` call errored with `unrecognized arguments` on its first attempt and succeeded only on a no-`--room` retry — a guaranteed-failed call per mine. v0.9.14 removes `--room` from every `mine` command across all skills and agents, reframes the `mempalace-integration` room taxonomy as documentation of how the `.architect-team/` + `openspec/` directory layout maps onto MemPalace's auto-detected rooms (not as `mine` flags), and adds a structural regression test so a `mine ... --room` form cannot silently return. |
 | ▸ **Independent review — close the producer-is-own-checker gaps (v0.9.13)** | Most phases already have an independent checker (3 reviewers check the cartographer's map; the test-completeness-verifier checks a teammate's tests; the system-architect reviews diagnostic plans). Two phases were the exception — the producer checked its own work. **Phase 3:** the teammate wrote the code AND wrote its own `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` — and the hook can only check the evidence file's *shape*, not whether its `"pass"` values are *true*. v0.9.13 adds a read-only **`task-reviewer`** agent (opus, no `Edit`) that independently reads the teammate's diff, re-runs the linters / tests, greps for stubs, checks the Reuse Decisions, and writes an `independent_review` block — and the hook now requires that block with `reviewer != teammate` and `verdict == "pass"`, so the gate **structurally cannot open on self-attestation**. **Phase 7:** the `system-architect` gains a *Master Review Audit* mode — after the orchestrator's own coverage-map walk, an independent system-architect re-verifies every coverage-map entry + every SR and writes a verdict that gates the Phase 8 commit (the `Stop` hook checks it). Evidence schema → v5. |
@@ -50,9 +52,9 @@
 | ▸ **Auto-compact prompt (v0.9.1)** | At the end of a clean pipeline / visual-qa run, a clearly-marked `/compact` prompt frees context for the next run. Opt out with `--no-compact`. |
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  WHAT YOU GET  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ```
@@ -80,25 +82,25 @@
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
 │ ▸ /architect-team:mempalace-install                                         │
-│ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                  │
-│ ▸ /architect-team:editability-audit [<codebase-path>]                        │
-├─ HOOKS (3) ──────────────────────────────────────────────────────────────────┤
-│ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v5 + independent review   │
-│ ▸ SubagentStop              teammate-idle review-gate re-check               │
-│ ▸ Stop                      pipeline-completion audit (terminal gate)        │
-├─ SETUP ───────────────────────────────────────────────────────────────────────┤
-│ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright  │
-│ ▸ scripts/setup/install_mempalace.py MemPalace CLI + MCP server (uv-first)   │
-└────────────────────────────────────────────────────────────────────────────┘
+│ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                 │
+│ ▸ /architect-team:editability-audit [<codebase-path>]                       │
+├─ HOOKS (3) ─────────────────────────────────────────────────────────────────┤
+│ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v5 + independent review  │
+│ ▸ SubagentStop              teammate-idle review-gate re-check              │
+│ ▸ Stop                      pipeline-completion audit (terminal gate)       │
+├─ SETUP ─────────────────────────────────────────────────────────────────────┤
+│ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright │
+│ ▸ scripts/setup/install_mempalace.py MemPalace CLI + MCP server (uv-first)  │
+└─────────────────────────────────────────────────────────────────────────────┘
 
       * = activates only when design inputs exist (screenshots / Figma /
           tokens / Storybook / brand docs / assets directory)
 ```
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  INSTALL  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ### ▸ Prerequisites (must be on your machine)
@@ -152,9 +154,9 @@ Installs the MemPalace CLI (uv-first, pip fallback) and prints the `claude mcp a
 ```
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  USAGE  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ```bash
@@ -168,46 +170,46 @@ The requirements folder may contain OpenSpec artifacts (`proposal.md`, `specs/`,
 ### The pipeline at a glance
 
 ```
-   ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-   │   PHASE −1      │    │   PHASE 0–1     │    │    PHASE 2      │
-   │  Intake & Map   │───▶│  Detect & Plan  │───▶│  Team Spawn     │
-   │  · CODEBASE_MAP │    │  · openspec     │    │  · parallel     │
-   │  · ROUTE_MAP    │    │  · coverage-map │    │  · non-overlap  │
-   │  · DESIGN_MAP * │    │  · reuse-first  │    │  · plan-approval│
-   │  · INTEGR_MAP   │    │  100% gate      │    │    triggers     │
-   └─────────────────┘    └─────────────────┘    └────────┬────────┘
-        3-reviewer            12 conditions               │
-        ralph loop            hard gate                   ▼
-                                                ┌─────────────────┐
-                                                │    PHASE 3      │
-                                                │  Review Gate    │
-   ┌─────────────────┐    ┌─────────────────┐   │  · hook-enforced│
-   │   PHASE 5       │    │   PHASE 4       │   │  · 11 fields    │
-   │  Integration    │◀───│  Reconciliation │◀──│  · visual-fid   │
-   │  · real backend │    │  · shared bounds│   │    review       │
-   │  · playwright   │    │  · contract sync│   │  · RCA on fail  │
-   │  · visual-fid   │    │  · no feature   │   │  · auto-spawn   │
-   │  · editability  │    │    code         │   │    SR on issue  │
-   └────────┬────────┘    └─────────────────┘   └─────────────────┘
-            │
-            ▼
-   ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-   │   PHASE 6       │    │   PHASE 7       │    │   PHASE 8       │
-   │  Outer Loop     │───▶│  Master Review  │───▶│  Final Report   │
-   │  · per-task-grp │    │  · coverage map │    │  · per req →    │
-   │  · dep graph    │    │    fully green  │    │    commit →     │
-   │  · ledger       │    │  · re-spawn on  │    │    test → demo  │
-   │                 │    │    gap          │    │  · openspec     │
-   │                 │    │                 │    │    archive      │
-   └─────────────────┘    └─────────────────┘    └─────────────────┘
+       ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+       │   PHASE −1      │    │   PHASE 0–1     │    │    PHASE 2      │
+       │  Intake & Map   │───▶│  Detect & Plan  │───▶│  Team Spawn     │
+       │  · CODEBASE_MAP │    │  · openspec     │    │  · parallel     │
+       │  · ROUTE_MAP    │    │  · coverage-map │    │  · non-overlap  │
+       │  · DESIGN_MAP * │    │  · reuse-first  │    │  · plan-approval│
+       │  · INTEGR_MAP   │    │  100% gate      │    │    triggers     │
+       └─────────────────┘    └─────────────────┘    └────────┬────────┘
+            3-reviewer            12 conditions               │
+            ralph loop            hard gate                   ▼
+                                                     ┌─────────────────┐
+                                                     │    PHASE 3      │
+                                                     │  Review Gate    │
+       ┌─────────────────┐    ┌─────────────────┐    │  · hook-enforced│
+       │   PHASE 5       │    │   PHASE 4       │    │  · 11 fields    │
+       │  Integration    │◀───│  Reconciliation │◀───│  · visual-fid   │
+       │  · real backend │    │  · shared bounds│    │    review       │
+       │  · playwright   │    │  · contract sync│    │  · RCA on fail  │
+       │  · visual-fid   │    │  · no feature   │    │  · auto-spawn   │
+       │  · editability  │    │    code         │    │    SR on issue  │
+       └────────┬────────┘    └─────────────────┘    └─────────────────┘
+                │
+                ▼
+       ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+       │   PHASE 6       │    │   PHASE 7       │    │   PHASE 8       │
+       │  Outer Loop     │───▶│  Master Review  │───▶│  Final Report   │
+       │  · per-task-grp │    │  · coverage map │    │  · per req →    │
+       │  · dep graph    │    │    fully green  │    │    commit →     │
+       │  · ledger       │    │  · re-spawn on  │    │    test → demo  │
+       │                 │    │    gap          │    │  · openspec     │
+       │                 │    │                 │    │    archive      │
+       └─────────────────┘    └─────────────────┘    └─────────────────┘
 
-   * DESIGN_MAP only when design inputs exist
+       * DESIGN_MAP only when design inputs exist
 ```
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  LOGIC MAPS — ROUTING & GATES  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 The flowchart above shows *what happens next*. These two logic maps show *how flow is decided* — the decision points (`◆`), the gates (`▣`), the verdicts (`✓` allow / `✗` block), and the route-back edges (`◀┄┄`).
@@ -310,9 +312,9 @@ The orchestrator runs as the main session — no hook can gate its mid-run behav
 The same audit runs as `pipeline-completion-audit.py --check` before the Phase 8 auto-commit — so "clean pass" is a checked fact, not the orchestrator's self-assessment.
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  THE LOOPS & ACCEPTANCE CRITERIA  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 The pipeline is a stack of nested loops, each with explicit exit criteria. Listed in execution order; the README enumerates only the contract — skill files are the source of truth.
@@ -450,9 +452,9 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 - **Terminal action:** `openspec archive <change-name>`. Phase 8 then runs the **documentation-currency gate** — every doc the change touched (the maps, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) is updated and then independently audited by the `system-architect` (Documentation Currency Audit mode) — emits the final report (persisted + mined to MemPalace), and auto-commits + pushes.
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  ON-DEMAND COMMANDS  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ### `/architect-team <path>`
@@ -480,9 +482,9 @@ Ad-hoc interaction with the per-workspace MemPalace store at `<workspace>/.mempa
 On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4e), reports the converged editable-surface map + gaps + escalations, and writes the `editability-gap` SRs.
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  DOCUMENT CONVENTIONS  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Path | Purpose | Frontmatter |
@@ -510,9 +512,9 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 | `openspec/changes/<change>/coverage-map.json` | Coverage map (Phase 1 → 8 spine) | — |
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  DEVELOPMENT  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ```bash
@@ -533,13 +535,13 @@ Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent
 4. Refresh this README per [`skills/readme-styling/SKILL.md`](skills/readme-styling/SKILL.md) — banner version, badges, inventory counts, NEW IN, the timeline.
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  STATUS  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 ```
-   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 
            v0.1.0 ─ initial release
            v0.2.0 ─ orchestrator skill rename (command/skill collision)
@@ -567,23 +569,24 @@ Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent
            v0.9.12 ─ visual verification team — capture / analyze / synthesize
            v0.9.13 ─ independent review — task-reviewer + master-review audit
            v0.9.14 ─ MemPalace `mine` syntax fix — drop the invalid `--room` flag
-   ◆       v0.9.15 ─ documentation-currency gate — docs updated + audited before push (current)
+           v0.9.15 ─ documentation-currency gate
+   ◆       v0.9.16 ─ readme-styling: centering + color + themes (current)
 
-   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
+   ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
 
 Full design history: [`docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md`](docs/superpowers/specs/2026-05-16-architect-team-plugin-design.md). Full changelog: [`CHANGELOG.md`](CHANGELOG.md).
 
 ```
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  LICENSE  ◆  ░▒▓█
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 MIT — see [`LICENSE`](LICENSE).
 
 ```
-                ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-                █  Built with Claude Code · Opus 4.7  █
-                ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+                  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+                  █  Built with Claude Code · Opus 4.7  █
+                  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 ```

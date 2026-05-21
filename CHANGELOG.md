@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.16] — 2026-05-21
+
+### Changed — readme-styling: centering, color, and a theming engine
+
+The `readme-styling` skill ("the README visual designer") gained four capabilities, and the plugin's own `README.md` was re-styled as the reference implementation.
+
+- **Canvas + centering model.** The skill now fixes ONE canvas width per document; every full-width element (dividers, the timeline track, panel borders) is built to exactly that width, and every narrower element (banner, flowcharts, logic maps, footer) is centered within it via a computed indent — no more crooked, left-listing pages.
+- **Pipe-table & ASCII-graph alignment.** Explicit rules: every column padded to its widest cell so every `│` separator lands on a straight vertical, and the whole table/graph centered on the canvas.
+- **Two-world color model.** GitHub-safe color = themed shields.io badges + colored Mermaid diagrams (` ```mermaid ` fences render with `classDef` fill/stroke color on GitHub). A separate **ANSI-colored variant** is defined for terminal display — never the committed `.md` (raw ANSI is junk on GitHub).
+- **Theming engine.** Six preset themes (`midnight` / `phosphor` / `amber` / `synthwave` / `crimson` / `mono`) — each a badge palette + accent + ANSI palette + Mermaid colors. The theme is chosen once via an interactive picker at first setup and recorded in a `<!-- architect-team:readme-theme=<name> -->` marker so a project's look stays consistent across refreshes.
+
+- `skills/readme-styling/SKILL.md` — rewritten with all four; new sections (canvas/centering, pipe alignment, the color model, the theming engine), updated consistency rules + anti-patterns.
+- `README.md` — re-styled to the v0.9.16 skill: theme marker (`midnight`), one 79-column canvas (all 22 dividers + both timeline tracks + every grid row conformed), banner / flowchart / footer re-centered, a crooked flowchart box fixed.
+
+### Tests
+- `tests/test_readme_styling.py` — 5 new tests: the skill documents canvas/centering, pipe-and-graph alignment, both color models, and the theming engine; the README carries the theme marker.
+- Full suite: **423 pass** (418 prior + 5 new).
+
+### Released (v0.9.16)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.15` → `0.9.16`.
+
 ## [0.9.15] — 2026-05-21
 
 ### Added — the Phase 8 documentation-currency gate

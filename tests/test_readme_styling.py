@@ -72,6 +72,43 @@ def test_skill_has_glyph_palette_and_anti_patterns(plugin_root: Path) -> None:
     assert "Consistency rules" in content, "skill lacks the consistency rules"
 
 
+# --- v0.9.16: canvas / centering, color, theming engine --------------------
+
+def test_skill_documents_canvas_and_centering(plugin_root: Path) -> None:
+    """v0.9.16: one canvas width; every element built to it or centered within it."""
+    content = _read(plugin_root, SKILL).lower()
+    assert "canvas" in content, "readme-styling skill does not define a canvas width"
+    assert "center" in content, "readme-styling skill does not document centering"
+
+
+def test_skill_documents_pipe_and_graph_alignment(plugin_root: Path) -> None:
+    """v0.9.16: pipe tables + ASCII graphs must be column-aligned and centered."""
+    content = _read(plugin_root, SKILL).lower()
+    assert "align" in content and ("pipe table" in content or "ascii table" in content), (
+        "readme-styling skill does not document pipe-table / ASCII-graph alignment"
+    )
+
+
+def test_skill_documents_color_models(plugin_root: Path) -> None:
+    """v0.9.16: both GitHub-safe color (badges + Mermaid) and the ANSI variant."""
+    content = _read(plugin_root, SKILL)
+    assert "Mermaid" in content, "readme-styling skill does not cover Mermaid (GitHub color)"
+    assert "ANSI" in content, "readme-styling skill does not cover the ANSI terminal variant"
+
+
+def test_skill_documents_theming_engine(plugin_root: Path) -> None:
+    """v0.9.16: preset themes + the interactive picker + the theme marker."""
+    content = _read(plugin_root, SKILL)
+    assert "readme-theme" in content, (
+        "readme-styling skill does not define the readme-theme marker"
+    )
+    assert "picker" in content.lower(), (
+        "readme-styling skill does not document the interactive theme picker"
+    )
+    for theme in ("midnight", "phosphor", "amber"):
+        assert theme in content, f"readme-styling skill is missing the {theme!r} preset theme"
+
+
 # --- the README applies the style ------------------------------------------
 
 def test_readme_has_block_letter_banner(plugin_root: Path) -> None:
@@ -98,6 +135,14 @@ def test_readme_includes_logic_maps(plugin_root: Path) -> None:
     assert "LOGIC MAP" in content.upper(), "README has no LOGIC MAPS section"
     assert "▣" in content, (
         "README logic maps do not use the gate-node glyph (▣) — gates are not shown"
+    )
+
+
+def test_readme_has_theme_marker(plugin_root: Path) -> None:
+    """v0.9.16: the README records its theme in the architect-team:readme-theme marker."""
+    content = _read(plugin_root, README)
+    assert "architect-team:readme-theme=" in content, (
+        "README is missing the <!-- architect-team:readme-theme=... --> marker"
     )
 
 
