@@ -225,6 +225,14 @@ Emit a final report containing:
 - Each teammate spawned, its task group, and outcome
 - Final statement: **"Spec `<change-name>` has been implemented."** Followed by the archive path.
 
+### Documentation-currency gate (the first action of Phase 8 — before the final report and the commit)
+
+Per the `documentation-currency` skill, the run does NOT push with stale documentation. As the first action of Phase 8 — before the final report is emitted and before the auto-commit:
+
+1. **Update.** Walk the `documentation-currency` inventory. For every doc the run's change affects — the maps (`CODEBASE_MAP.md`, `ROUTE_MAP.md`, `DESIGN_MAP.md`, `INTEGRATION_MAP.md`), `README.md` (per `readme-styling`), `CHANGELOG.md`, and `CLAUDE.md` / `AGENTS.md` if present — bring it current with the shipped change. Maps get a **targeted refresh** of the sections the change altered, not a blanket re-map. The orchestrator performs the updates: it holds the full run context (every commit, every changed file, the coverage map).
+2. **Audit.** Dispatch the `system-architect` agent in **Documentation Currency Audit** mode. It independently walks the `documentation-currency` inventory against the run's diff + the coverage map and writes a verdict to `<cwd>/.architect-team/documentation-currency/audit-<ISO-8601-UTC>.json` (`overall: pass | fail` + per-doc findings). The orchestrator produced the doc updates; it does NOT audit its own work — the `system-architect` is the independent checker (producer/checker, per the v0.9.13 discipline).
+3. **Gate.** A `fail` verdict names the exact stale docs — update them and re-dispatch the audit. The auto-commit below does not proceed until the latest documentation-currency audit verdict is `overall: pass`; `pipeline-completion-audit.py` enforces this. This is non-negotiable: a stale map breaks the next run's reuse-first design, and a stale README ships a lie.
+
 ### Persist + mine the final report
 
 After emitting the final report to the user, persist a copy of the report's text to `<cwd>/.architect-team/runs/<change-name>-<ISO-8601-UTC>.md` and auto-mine it (per `mempalace-integration`):
@@ -241,7 +249,7 @@ The invoking command (`/architect-team`) sets `AUTO_COMMIT` and `AUTO_PUSH` flag
 
 If `AUTO_COMMIT = true`:
 
-0. **Run the completion audit FIRST — it gates the commit.** From the repo root, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. This is the same audit the `Stop` hook runs; running it here, before staging anything, converts "clean pass" from the orchestrator's self-assessment into a checked fact. If it exits non-zero, the run is NOT complete (an open SR, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness debt, a failing master-review audit verdict, or a blown iteration ceiling) — do NOT auto-commit. Resolve every reported violation and re-run the audit, OR escalate per the run-state rules below. Only an exit-0 audit may proceed to step 1. The auto-commit also requires the Phase 7 **master-review audit** verdict to be `overall: pass` — `pipeline-completion-audit.py` enforces this: if a `.architect-team/master-review/audit-*.json` verdict exists, its latest `overall` must be `pass`, alongside the existing checks.
+0. **Run the completion audit FIRST — it gates the commit.** From the repo root, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. This is the same audit the `Stop` hook runs; running it here, before staging anything, converts "clean pass" from the orchestrator's self-assessment into a checked fact. If it exits non-zero, the run is NOT complete (an open SR, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness debt, a failing master-review audit verdict, a failing **documentation-currency audit** verdict, or a blown iteration ceiling) — do NOT auto-commit. Resolve every reported violation and re-run the audit, OR escalate per the run-state rules below. Only an exit-0 audit may proceed to step 1. The auto-commit also requires the Phase 7 **master-review audit** AND the Phase 8 **documentation-currency audit** verdicts to be `overall: pass` — `pipeline-completion-audit.py` enforces both: if a `.architect-team/master-review/audit-*.json` or a `.architect-team/documentation-currency/audit-*.json` verdict exists, its latest `overall` must be `pass`, alongside the existing checks.
 1. `git -C <repo-root> status --porcelain` — enumerate what changed during the run.
 2. Identify the pipeline's working set: every file under `openspec/changes/<change-name>/`, every CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP touched, every file referenced in any review-gate evidence's `files_changed`, and any test files added. Do NOT use `git add -A` — explicitly enumerate.
 3. `git -C <repo-root> add <enumerated-files>`.
@@ -348,6 +356,7 @@ Whenever the orchestrator stops a turn to wait on a human decision (a Phase 1 am
 - Respect the global iteration ceiling (20) and the oscillation rule — escalate, never grind past them.
 - Never end a run silently on incomplete work: either the `pipeline-completion-audit` runs clean, or you have written `.architect-team/escalation-pending.md`. The `Stop` hook enforces this.
 - Run `pipeline-completion-audit.py --check` before the Phase 8 auto-commit; an exit-2 audit blocks the commit.
+- Never push with stale documentation. Phase 8's documentation-currency gate (update every affected doc per `documentation-currency`, then an independent `system-architect` Documentation Currency Audit) runs before the auto-commit; its verdict must be `overall: pass`.
 
 ---
 

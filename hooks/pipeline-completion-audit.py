@@ -65,7 +65,7 @@ def _is_real_run(at: Path) -> bool:
         d = at / sub
         if d.is_dir() and any(d.glob("*.json")):
             return True
-    for sub in ("editability", "diagnostic-research", "master-review"):
+    for sub in ("editability", "diagnostic-research", "master-review", "documentation-currency"):
         d = at / sub
         if d.is_dir() and any(d.iterdir()):
             return True
@@ -256,6 +256,42 @@ def _audit_master_review(at: Path) -> list[str]:
     return violations
 
 
+def _audit_documentation_currency(at: Path) -> list[str]:
+    """If a run produced a Phase 8 documentation-currency audit verdict, the
+    latest one must be `overall: pass`. The `system-architect` (Documentation
+    Currency Audit mode) INDEPENDENTLY verifies the maps / README / CHANGELOG /
+    CLAUDE.md reflect the shipped change; a `fail` verdict means the run is
+    about to push stale documentation. If NO audit verdict exists, this returns
+    no violations — conservative, mirroring `_audit_master_review`: the audit is
+    dispatched at Phase 8, and the other `_audit_*` checks cover an incomplete
+    run."""
+    violations: list[str] = []
+    dc_dir = at / "documentation-currency"
+    if not dc_dir.is_dir():
+        return violations
+    verdict_paths = sorted(dc_dir.glob("audit-*.json"))
+    if not verdict_paths:
+        return violations
+    latest_key = verdict_paths[-1].name
+    latest: dict | None = None
+    for vp in verdict_paths:
+        v = _load_json(vp)
+        if not isinstance(v, dict):
+            violations.append(f"documentation-currency audit verdict {vp.name} is unreadable")
+            continue
+        key = str(v.get("verified_at") or vp.name)
+        if latest is None or key >= latest_key:
+            latest_key = key
+            latest = v
+    if latest is not None and latest.get("overall") != "pass":
+        violations.append(
+            f"documentation-currency audit verdict is '{latest.get('overall')}' — the "
+            f"independent Phase 8 audit found stale documentation; update the docs "
+            f"and re-run the audit before the run pushes"
+        )
+    return violations
+
+
 def _audit_iteration_ceiling(at: Path) -> list[str]:
     state = _load_json(at / "intake-state.json")
     if not isinstance(state, dict):
@@ -280,6 +316,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_test_completeness(at)
     violations += _audit_visual_fidelity(at)
     violations += _audit_master_review(at)
+    violations += _audit_documentation_currency(at)
     violations += _audit_iteration_ceiling(at)
     return True, violations
 

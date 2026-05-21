@@ -315,6 +315,56 @@ def test_latest_master_review_audit_wins(script: Path, workspace: Path) -> None:
     assert _run_check(script, workspace).returncode == 0
 
 
+# --- documentation-currency audit verdict => gate --------------------------
+
+def test_failed_documentation_currency_audit_blocks(script: Path, workspace: Path) -> None:
+    """v0.9.15: a Phase 8 documentation-currency audit verdict of overall != pass
+    blocks the run — the independent system-architect audit found stale docs."""
+    dc = _at(workspace) / "documentation-currency"
+    dc.mkdir()
+    (dc / "audit-2026-05-21T10-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T10:00:00Z", "overall": "fail"}),
+        encoding="utf-8",
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"a failing documentation-currency audit must block; stderr={r.stderr!r}"
+    assert "documentation-currency" in r.stderr.lower()
+    assert _run_stop(script, workspace, {}).returncode == 2
+
+
+def test_passing_documentation_currency_audit_allows(script: Path, workspace: Path) -> None:
+    dc = _at(workspace) / "documentation-currency"
+    dc.mkdir()
+    (dc / "audit-2026-05-21T10-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T10:00:00Z", "overall": "pass"}),
+        encoding="utf-8",
+    )
+    assert _run_check(script, workspace).returncode == 0, _run_check(script, workspace).stderr
+    assert _run_stop(script, workspace, {}).returncode == 0
+
+
+def test_no_documentation_currency_audit_files_allows(script: Path, workspace: Path) -> None:
+    """No documentation-currency audit verdict yet => no violation (conservative,
+    mirroring the master-review check)."""
+    _write_sr(workspace, "SR-1", "resolved")
+    assert _run_check(script, workspace).returncode == 0
+
+
+def test_latest_documentation_currency_audit_wins(script: Path, workspace: Path) -> None:
+    """A later passing doc-currency audit supersedes an earlier failing one."""
+    dc = _at(workspace) / "documentation-currency"
+    dc.mkdir()
+    (dc / "audit-2026-05-21T09-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T09:00:00Z", "overall": "fail"}),
+        encoding="utf-8",
+    )
+    (dc / "audit-2026-05-21T12-00-00Z.json").write_text(
+        json.dumps({"change": "x", "verified_at": "2026-05-21T12:00:00Z", "overall": "pass"}),
+        encoding="utf-8",
+    )
+    assert _run_check(script, workspace).returncode == 0
+
+
 # --- iteration ceiling => block --------------------------------------------
 
 def test_iteration_ceiling_exceeded_blocks(script: Path, workspace: Path) -> None:

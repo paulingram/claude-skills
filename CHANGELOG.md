@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.15] — 2026-05-21
+
+### Added — the Phase 8 documentation-currency gate
+
+Pipeline runs shipped code but left documentation behind: a change would update `README.md` and `CHANGELOG.md` and let the maps, `CLAUDE.md`, and `INTEGRATION_MAP.md` drift (observed directly — three docs had to be hand-synced after the v0.9.13 / v0.9.14 runs). v0.9.15 makes "the docs reflect the code" a gated, independently-verified step of every run — the last thing before the GitHub push.
+
+- `skills/documentation-currency/SKILL.md` — NEW skill. Defines the documentation inventory (the four maps `CODEBASE_MAP` / `ROUTE_MAP` / `DESIGN_MAP` / `INTEGRATION_MAP`, plus `README.md`, `CHANGELOG.md`, `CLAUDE.md`), what "current" means for each, the Phase 8 update-then-audit flow, and the producer/checker split — the orchestrator updates, the `system-architect` independently audits.
+- `agents/system-architect.md` — new **Documentation Currency Audit** mode (its 5th review mode). At Phase 8, after the orchestrator has updated the docs, the system-architect independently walks the inventory against the run's diff and writes a verdict (`overall: pass | fail` + per-doc findings) to `.architect-team/documentation-currency/audit-<ts>.json`.
+- `skills/architect-team-pipeline/SKILL.md` — Phase 8 gains the documentation-currency gate as its first action: update every affected doc → dispatch the independent audit → the auto-commit is gated on `overall: pass`. New operating-rule bullet.
+- `hooks/pipeline-completion-audit.py` — new `_audit_documentation_currency`: if a run produced a documentation-currency audit verdict, the latest must be `overall: pass` (mirrors the master-review audit check). The `Stop` hook and the Phase 8 `--check` gate block a push on a stale-docs verdict.
+
+### Tests
+- `tests/test_documentation_currency.py` — NEW (13 tests): the skill names the whole doc inventory + the producer/checker split + the Phase 8 gate; the system-architect mode; the pipeline wiring; the Stop-hook check.
+- `tests/test_pipeline_completion_audit.py` — 4 new documentation-currency audit cases (fail blocks, pass allows, no-files allows, latest-wins).
+- `tests/test_skills.py` — `documentation-currency` added to `EXPECTED_SKILLS` (now 18 skills).
+- Full suite: **418 pass** (400 prior + 18 net new).
+
+### Released (v0.9.15)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.14` → `0.9.15`.
+
 ## [0.9.14] — 2026-05-21
 
 ### Fixed (mempalace-mine-syntax-fix — the plugin's documented `mine` commands match the installed CLI)

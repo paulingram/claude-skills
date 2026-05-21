@@ -7,7 +7,7 @@
 ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
 ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                       ─── T E A M ───   v 0 . 9 . 14
+                       ─── T E A M ───   v 0 . 9 . 15
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -20,19 +20,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.14-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.15-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-400%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-418%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.14  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.15  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Documentation-currency gate (v0.9.15)** | The pipeline shipped code but left documentation behind — `README.md` + `CHANGELOG.md` got updated, while the maps, `CLAUDE.md`, and `INTEGRATION_MAP.md` drifted. v0.9.15 adds a **Phase 8 documentation-currency gate** — the last step before the GitHub push. The orchestrator updates every doc the change affects (the maps `CODEBASE_MAP` / `ROUTE_MAP` / `DESIGN_MAP` / `INTEGRATION_MAP`, plus `README.md`, `CHANGELOG.md`, `CLAUDE.md`); then the `system-architect` **independently audits** them in a new *Documentation Currency Audit* mode — verifying, against the actual diff, that every doc that should have been updated *was*, and accurately, and that every map's freshness frontmatter is current. The audit verdict gates the commit; `pipeline-completion-audit.py` blocks a push on a stale-docs verdict. Producer/checker, per v0.9.13 — the orchestrator updates, an independent agent confirms. New `documentation-currency` skill. |
 | ▸ **MemPalace `mine` syntax fix (v0.9.14)** | The pipeline auto-mines artifacts to MemPalace at many points, and every `mempalace ... mine` command the plugin documented carried a `--room <room>` argument. But `mempalace mine` (verified against mempalace 3.3.5) has **no `--room` flag** — rooms are auto-detected by `mempalace init` from the mined corpus's directory structure; `--room` is valid only on `mempalace search`. Every `mine ... --room` call errored with `unrecognized arguments` on its first attempt and succeeded only on a no-`--room` retry — a guaranteed-failed call per mine. v0.9.14 removes `--room` from every `mine` command across all skills and agents, reframes the `mempalace-integration` room taxonomy as documentation of how the `.architect-team/` + `openspec/` directory layout maps onto MemPalace's auto-detected rooms (not as `mine` flags), and adds a structural regression test so a `mine ... --room` form cannot silently return. |
 | ▸ **Independent review — close the producer-is-own-checker gaps (v0.9.13)** | Most phases already have an independent checker (3 reviewers check the cartographer's map; the test-completeness-verifier checks a teammate's tests; the system-architect reviews diagnostic plans). Two phases were the exception — the producer checked its own work. **Phase 3:** the teammate wrote the code AND wrote its own `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` — and the hook can only check the evidence file's *shape*, not whether its `"pass"` values are *true*. v0.9.13 adds a read-only **`task-reviewer`** agent (opus, no `Edit`) that independently reads the teammate's diff, re-runs the linters / tests, greps for stubs, checks the Reuse Decisions, and writes an `independent_review` block — and the hook now requires that block with `reviewer != teammate` and `verdict == "pass"`, so the gate **structurally cannot open on self-attestation**. **Phase 7:** the `system-architect` gains a *Master Review Audit* mode — after the orchestrator's own coverage-map walk, an independent system-architect re-verifies every coverage-map entry + every SR and writes a verdict that gates the Phase 8 commit (the `Stop` hook checks it). Evidence schema → v5. |
 | ▸ **Visual verification team — capture / analyze / synthesize (v0.9.12)** | The v0.9.11 single verifier did capture + analysis + verdict in one agent — which means it can still cut a corner *inside itself*. v0.9.12 decomposes it into three roles with a hard artifact boundary between them: **`visual-capture`** agents (×N) start the live app and produce countable artifacts — screenshots + computed-style **data** for every screen; **`visual-analyzer`** agents do the **objective structural analysis** — a deterministic data diff (not an agent eyeballing two images), a pixel diff vs the design reference, a code cross-check; the **`system-architect`** synthesizes the per-screen gaps **holistically**, clustering twelve isolated drifts into one root cause. Analysis cannot start before the capture artifacts exist on disk; synthesis confirms `screens_captured == screens_analyzed == design_map_screen_count`. The boundaries between the roles are the anti-cheat — no one role can cut a step invisibly. |
@@ -55,7 +56,7 @@
 ```
 
 ```
-┌─ SKILLS (17) ───────────────────────┬─ AGENTS (16) ─────────────────────────┐
+┌─ SKILLS (18) ───────────────────────┬─ AGENTS (16) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -73,6 +74,7 @@
 │ ◇ editability-completeness          │ ◆ visual-analyzer (opus)              │
 │ ◇ readme-styling                    │ ◆ task-reviewer (opus)                │
 │ ◇ visual-verification-team          │                                       │
+│ ◇ documentation-currency            │                                       │
 ├─ COMMANDS (6) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder>                             │
 │ ▸ /architect-team-setup                                                     │
@@ -445,7 +447,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 - **Mechanism per iteration:** walk every commit; attribute to ≥ 1 requirement via the coverage map; re-run `openspec validate`; walk every coverage-map entry. Then dispatch the `system-architect` in **Master Review Audit mode** — an independent re-verification of every entry + every SR (the orchestrator's own walk is a producer-is-own-checker step; the audit is the independent checker).
 - **Exit criteria — every entry must have:** ≥ 1 commit SHA; passing unit/integration tests; passing Playwright flow(s) where applicable; non-empty `demo_artifact`; the editability team `satisfied` for entity-bearing features. Plus `openspec validate` reports `valid: true`, AND the independent master-review audit verdict is `overall: pass` (it gates the Phase 8 commit; the `Stop` hook checks it).
 - **On any gap:** re-spawn the appropriate team(s); meta-loop continues until the coverage map is fully green.
-- **Terminal action:** `openspec archive <change-name>`. Phase 8 emits the final report (persisted + mined to MemPalace).
+- **Terminal action:** `openspec archive <change-name>`. Phase 8 then runs the **documentation-currency gate** — every doc the change touched (the maps, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) is updated and then independently audited by the `system-architect` (Documentation Currency Audit mode) — emits the final report (persisted + mined to MemPalace), and auto-commits + pushes.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -518,7 +520,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 17 skill frontmatters; all 16 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v5: 11 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, and mempalace-mine-syntax disciplines. **400 tests pass.**
+Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v5: 11 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, and documentation-currency disciplines. **418 tests pass.**
 
 ### Bumping versions
 
@@ -564,7 +566,8 @@ Tests validate: plugin/marketplace JSON; all 17 skill frontmatters; all 16 agent
            v0.9.11 ─ live-app visual verification (single verifier)
            v0.9.12 ─ visual verification team — capture / analyze / synthesize
            v0.9.13 ─ independent review — task-reviewer + master-review audit
-   ◆       v0.9.14 ─ MemPalace `mine` syntax fix — drop the invalid `--room` flag (current)
+           v0.9.14 ─ MemPalace `mine` syntax fix — drop the invalid `--room` flag
+   ◆       v0.9.15 ─ documentation-currency gate — docs updated + audited before push (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
