@@ -28,6 +28,31 @@ A plain-language requirement is fully supported — **Phase 0's `plain` branch n
 
 If `$REQ_DIR` is a **folder** (form 1), it contains one of: **OpenSpec artifacts** (an `openspec/` directory, `proposal.md`, `specs/`, `design.md`, or `tasks.md`); a **Superpowers brief** (Superpowers-formatted metadata/headers); or **plain text / markdown** (anything else describing a feature). If `$REQ_DIR` is a **plain-language requirement string** (form 2), treat it as the `plain` input type directly. Detect the input type before doing anything else — do not assume.
 
+## Notifications (per-project email events — opt-in, best-effort)
+
+A pipeline run is a long, mostly-unattended sequence of phases. The plugin ships an **opt-in per-project email notifier** so a configured list of stakeholders is kept informed as a run progresses. It is wired throughout the phases below.
+
+**How it works:** if the target project's repository root contains a `.architect-team-notify.json` config file, the orchestrator emits notification events by invoking the notifier CLI at the wiring points marked below. The notifier is a CLI the orchestrator invokes — **not a harness hook** — so it is driven by the same trust-based-Markdown mechanism as every other phase discipline. If the target project has **no** `.architect-team-notify.json`, the notifier is a silent no-op and the run behaves exactly as before; the feature is entirely opt-in.
+
+**Invocation form** — run from the target project's repository root:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
+```
+
+`<event>` is one of the five recognized types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`. The interpreter is `python3`, matching the plugin-script convention used by every command in `hooks/hooks.json`.
+
+**Best-effort, never gating — non-negotiable.** Every notifier invocation in this skill is **best-effort**: the notifier always exits 0, and a notification failure (missing config, missing provider secret, SMTP/network error, malformed input) NEVER blocks, fails, or alters a pipeline run. The orchestrator invokes the notifier and proceeds immediately to the next pipeline step regardless of the notifier's output — these invocations are notifications about pipeline progress, never preconditions for it. Do not gate, retry, or wait on a notifier invocation.
+
+**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every phase below.** At the **start of each phase** (Phase −1, 0, 1, 2, 3, 3b, 4, 5, 6, 7, 8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the phase name:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
+```
+
+These two phase-boundary invocations are best-effort exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at the specific phase steps marked inline below.
+
 ## Phase −1 Prelude — MemPalace wake-up (REQUIRED, before any subagent dispatch)
 
 Before any subagent is dispatched, the orchestrator consults the per-workspace MemPalace store for prior context per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
@@ -157,6 +182,13 @@ After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression 
 1. **Walk `<cwd>/.architect-team/solution-requirements/`.** Read every `SR-*.json` file with `status: "open"`.
 2. **For each open SR:**
    - Validate the required fields per `team-spawning-and-review-gates`'s `## Solution Requirements` schema. Any malformed SR → flag back to the writer (re-engage them with the schema requirement).
+   - **Emit an `issue_discovered` notification** (best-effort; see `## Notifications`) when a new, not-yet-actioned SR is picked up — the orchestrator invokes the notifier from the target project's root, passing the SR's issue summary, then proceeds immediately regardless of the notifier's outcome:
+
+     ```bash
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's issue summary>"
+     ```
+
+     This invocation is best-effort and NEVER blocks or alters the SR intake — a notifier failure does not stop the SR from being processed.
    - **Auto-mine the SR to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<SR-path>" --wing <wing>`. Mine BEFORE invoking diagnostic-research-team so the SR is discoverable even if the diagnostic loop is in progress.
    - If `affected_requirements` is populated → append/update entries in the active change's `coverage-map.json` referencing the SR ID. If empty → derive a new coverage-map entry from `acceptance_criteria` + `affected_screens` + `scope`.
    - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, or `visual-fidelity-cascade`): invoke the `diagnostic-research-team` skill before spawning the fix team.** This is non-optional. The skill spawns three `diagnostic-researcher` agents in parallel, then dispatches the `system-architect` agent to review robustness, and produces a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. **Auto-mine the entire diagnostic-research dir** when the plan is approved: `mempalace --palace <palace> mine "<cwd>/.architect-team/diagnostic-research/<test-id>/" --wing <wing>`. The fix team CANNOT be spawned until `diagnostic_plan_path` is populated and the plan file exists on disk. If the diagnostic-research-team skill exhausts its bounded 3-cycle architect-review loop without converging, the orchestrator surfaces to the human user that the plan cannot auto-converge — do NOT skip ahead to fix-team spawn.
@@ -184,7 +216,13 @@ When two or more teammates have completed parallel work that touches a shared bo
 When a feature spans both layers, integration only begins after **both** layer-teams have passed Phase 3 and Phase 4 has merged their work cleanly.
 
 1. Spawn an **Integration Agent** (Superpowers-driven, fresh context, using the `integration` subagent definition).
-2. The Integration Agent runs the full integration test suite locally first, then **against the development API with live dev data** — not mocks. Connection details come from the OpenSpec design artifact. Follow `dev-api-integration-testing`.
+2. The Integration Agent runs the full integration test suite locally first, then **against the development API with live dev data** — not mocks. Connection details come from the OpenSpec design artifact. Follow `dev-api-integration-testing`. **When the live dev environment is brought up** — the running dev instance someone can see, against which the integration + Playwright suites run — the orchestrator emits a `deploy` notification (best-effort; see `## Notifications`), passing `--layer` for the layer being brought up (e.g. `backend`, `frontend`, `fullstack`). It invokes the notifier from the target project's root and proceeds immediately:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer>
+   ```
+
+   This `deploy` invocation is best-effort and NEVER blocks, fails, or delays bringing the dev environment up — a notifier failure does not affect the deploy or the integration run.
 3. For any front-end deployment or front-end change, the Integration Agent **must** use Playwright to author and run user-flow tests against the **real running development environment** per the `playwright-user-flows` skill — log in as a real user, click buttons, fill forms, navigate flows, assert visible state. Flows and pass criteria come directly from the Phase 1 acceptance criteria.
 4. **Front-to-back integration is the entire point of Phase 5 — settle every deferred integration-testing debt here.** For every `both`-layer feature, the Phase 5 Playwright run MUST exercise the **real running backend** (real server process, real DB / queue / cache, real responses) — NOT `page.route` happy-path stubs, NOT MSW, NOT an in-memory fake API server, NOT hardcoded fixtures, per `playwright-user-flows`'s "Real backend by default" discipline. A frontend team may have legitimately reached its Phase 3 gate with `integration_testing_review: "n/a"` because the backend was not yet integrated (the note said "DEFERRED TO PHASE 5") — that deferral debt is now DUE. After the Phase 5 run, dispatch the `test-completeness-verifier` agent; for every `both`-layer slice it MUST produce `integration_testing_review: "pass"` (real backend was in the loop). An `n/a` verdict for a `both`-layer slice at Phase 5 is a failure — the real-backend run did not happen. A `mock_backed` audit verdict with no explicit requirements authorization → the verifier writes an SR with `origin.kind: "integration-testing-failure"` and the orchestrator routes it through `diagnostic-research-team` then a fix team.
 5. **Every test (Playwright and integration) must have a per-step expectation file written BEFORE the test runs, per `root-cause-test-failures`.** On any failure, the Integration Agent runs the mandatory 3-pass root-cause loop and either fixes the expectation (test-author error), the env / fixture (env category), or escalates to the orchestrator via an RCA handoff (product bug). The Integration Agent NEVER silently retries a test, never proposes a fix without an evidence-backed root cause, and never patches symptoms.
@@ -274,6 +312,13 @@ If `AUTO_COMMIT = true`:
 
 4b. **Default-branch guard — decide the target branch BEFORE committing.** Run `git -C <repo-root> rev-parse --abbrev-ref HEAD`. If the current branch is `main` or `master` AND `--allow-push-to-default` was NOT passed: the pipeline does NOT commit unreviewed work straight onto a default branch. Create and check out a feature branch first — `git -C <repo-root> checkout -b architect-team/<change-name>` — so the commit (step 5) and push (steps 6-8) land there, and the final report tells the user the work is on `architect-team/<change-name>` awaiting their review + a PR. If the current branch is NOT a default branch, OR `--allow-push-to-default` was passed, commit on the current branch as-is.
 5. `git -C <repo-root> commit -m "<message>"` using the repo's local git config (no `-c user.name=` override; the override is specific to repos with broken local config — most repos do not need it).
+5b. **Immediately after the commit succeeds**, the orchestrator emits a `git_commit` notification (best-effort; see `## Notifications`), passing `--commit` with the new commit SHA. It invokes the notifier from the target project's root and proceeds immediately:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
+   ```
+
+   This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.
 
 If `AUTO_PUSH = true` (and the commit succeeded):
 
@@ -363,6 +408,7 @@ Whenever the orchestrator stops a turn to wait on a human decision (a Phase 1 am
 - Never end a run silently on incomplete work: either the `pipeline-completion-audit` runs clean, or you have written `.architect-team/escalation-pending.md`. The `Stop` hook enforces this.
 - Run `pipeline-completion-audit.py --check` before the Phase 8 auto-commit; an exit-2 audit blocks the commit.
 - Never push with stale documentation. Phase 8's documentation-currency gate (update every affected doc per `documentation-currency`, then an independent `system-architect` Documentation Currency Audit) runs before the auto-commit; its verdict must be `overall: pass`.
+- Notifier invocations (the five `phase_start` / `phase_complete` / `issue_discovered` / `git_commit` / `deploy` events wired per `## Notifications`) are strictly best-effort: the notifier always exits 0, and a notification failure NEVER blocks, fails, or alters a pipeline run. Never gate, retry, or wait on a notifier invocation; if the target project has no `.architect-team-notify.json` the notifier is a silent no-op.
 
 ---
 

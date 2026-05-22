@@ -1,0 +1,22 @@
+{
+  "provider": "gmail",
+  "from_address": "ci-bot@your-domain.example",
+  "from_name": "Architect Team CI",
+  "gmail": {
+    "username": "ci-bot@your-domain.example",
+    "app_password_env": "ARCHITECT_GMAIL_APP_PASSWORD"
+  },
+  "sendgrid": {
+    "api_key_env": "ARCHITECT_SENDGRID_API_KEY"
+  },
+  "recipients": [
+    {
+      "email": "tech-lead@your-domain.example",
+      "events": ["all"]
+    },
+    {
+      "email": "qa@your-domain.example",
+      "events": ["phase_complete", "issue_discovered", "deploy"]
+    }
+  ]
+}

@@ -46,6 +46,10 @@ Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool 
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, and `ALLOW_PUSH_TO_DEFAULT` flags to the skill.** The skill's Phase 8 reads these to decide whether to auto-commit, push, and whether it may push straight to a default branch.
 
+## Project email notifications (opt-in)
+
+If the target project's repository root contains a `.architect-team-notify.json` config file, the pipeline emits **opt-in, per-project email notifications** as a run progresses — five event types (`phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`) delivered via Gmail or SendGrid to a configured recipient list, each recipient choosing which events they receive. Notifications are strictly **best-effort**: the notifier always exits 0, and a notification failure never blocks, fails, or alters a pipeline run. With no `.architect-team-notify.json` present the notifier is a silent no-op and the pipeline behaves exactly as before. See the "Project email notifications" section of `README.md` for the config schema and provider setup; the wiring lives in the `architect-team-pipeline` skill's `## Notifications` section.
+
 ## Default git behavior (when `AUTO_COMMIT = true` and `AUTO_PUSH = true`)
 
 At the end of Phase 8, after the final report emits "Spec `<change-name>` has been implemented." and the archive path:

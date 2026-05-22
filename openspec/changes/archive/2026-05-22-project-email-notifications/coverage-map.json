@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "change_name": "project-email-notifications",
+  "generated_at": "2026-05-21T22:30:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "project-email-notifications/Per-project recipient configuration",
+      "summary": "Committed .architect-team-notify.json recipient config + shipped example file; absent config = silent no-op",
+      "scenarios": [
+        "Valid config is loaded",
+        "Absent config is a silent no-op",
+        "Malformed config does not break the run",
+        "Shipped example config is itself valid"
+      ],
+      "acceptance_criteria": [
+        "scripts/notify/notify.py loads .architect-team-notify.json from the project root and parses provider, from_address, optional from_name, provider settings, and recipients[] (each with email + events[])",
+        "When the config file is absent the notifier sends nothing and exits 0 with no stderr output",
+        "When the config is invalid JSON or missing a required field the notifier writes a stderr warning, sends nothing, and exits 0",
+        ".architect-team-notify.example.json exists at the repo root, parses as JSON, and contains every required field"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-core",
+      "task_ids": ["1.1", "1.2", "1.3", "1.4", "1.5"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "project-email-notifications/Email provider abstraction",
+      "summary": "Stdlib-only Gmail (SMTP) + SendGrid (HTTP API) providers selected by config; secrets from env vars only",
+      "scenarios": [
+        "Gmail provider builds an authenticated SMTP message",
+        "SendGrid provider builds an authenticated API request",
+        "Missing provider secret is handled gracefully",
+        "Secret value is never disclosed"
+      ],
+      "acceptance_criteria": [
+        "A provider abstraction with GmailProvider and SendGridProvider is selected by the config provider field",
+        "GmailProvider transmits via smtp.gmail.com over STARTTLS, authenticated with the app password from the env var named in config",
+        "SendGridProvider POSTs to https://api.sendgrid.com/v3/mail/send with the API key from the env var named in config as a Bearer header",
+        "scripts/notify/notify.py imports only the Python standard library — zero new third-party dependencies",
+        "A missing secret env var causes the send to be skipped with a stderr warning naming the variable and exit 0",
+        "The resolved secret value never appears in any stdout/stderr line (asserted by a test)"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-core",
+      "task_ids": ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "project-email-notifications/Notification event types and per-recipient filtering",
+      "summary": "Five event types with per-recipient subscription filtering and context-bearing subject/body",
+      "scenarios": [
+        "Event reaches only subscribed recipients",
+        "The \"all\" shorthand subscribes to every event",
+        "Unknown event type is rejected without sending",
+        "Event context appears in the email"
+      ],
+      "acceptance_criteria": [
+        "Exactly five event types are recognized: phase_start, phase_complete, issue_discovered, git_commit, deploy",
+        "A dispatched event reaches only recipients whose events array includes that type or the shorthand \"all\"",
+        "An unknown event type produces a stderr error, sends nothing, and exits 0",
+        "Each event's subject and body include its context — deploy includes the layer, git_commit includes the commit SHA, issue_discovered includes the issue summary, phase events include the phase name"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-core",
+      "task_ids": ["3.1", "3.2", "3.3", "3.4"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "project-email-notifications/Notifier CLI and best-effort failure isolation",
+      "summary": "argparse CLI at scripts/notify/notify.py; every failure path exits 0; module importable for tests",
+      "scenarios": [
+        "Successful event emission via the CLI",
+        "Provider/network error never escalates",
+        "Invalid CLI arguments do not block the pipeline",
+        "Module is importable for testing"
+      ],
+      "acceptance_criteria": [
+        "scripts/notify/notify.py runs as `python scripts/notify/notify.py <event> [options]` accepting --project, --phase, --summary, --commit, --layer, --config",
+        "Every failure path — missing config, missing secret, provider error, network error, invalid arguments — results in exit code 0",
+        "The module is importable by pytest and exposes callable config/provider/dispatch/notify entry points without running the CLI",
+        "main() never returns a non-zero exit code"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-core",
+      "task_ids": ["4.1", "4.2", "4.3", "4.4"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "project-email-notifications/Pipeline wiring emits notification events",
+      "summary": "architect-team-pipeline skill emits all five events; wiring declared best-effort/non-blocking; structural test",
+      "scenarios": [
+        "Skill body emits every event type",
+        "Wiring declares notifications non-blocking",
+        "Structural test enforces the wiring"
+      ],
+      "acceptance_criteria": [
+        "skills/architect-team-pipeline/SKILL.md contains a notifier invocation for each of phase_start, phase_complete, issue_discovered, git_commit, deploy",
+        "The wiring text states notifier invocations are best-effort and never block or fail a pipeline run",
+        "commands/architect-team.md notes the project email-notification feature",
+        "tests/test_notify_wiring.py asserts the five notifier invocations and the non-blocking statement are present in the pipeline skill"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-wiring-docs",
+      "task_ids": ["5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7"]
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "project-email-notifications/Test coverage for the notifier",
+      "summary": "pytest coverage of config/providers/dispatch/CLI/failure with smtplib + urllib mocked",
+      "scenarios": [
+        "Notifier test file exists and covers the module",
+        "Provider tests perform no real I/O",
+        "Full suite passes with the new tests"
+      ],
+      "acceptance_criteria": [
+        "tests/test_notify.py exists and covers config load/validate, Gmail + SendGrid message construction, event dispatch with per-recipient filtering, secret resolution, CLI parsing, and failure isolation",
+        "smtplib.SMTP and urllib.request.urlopen are mocked in provider tests — no real SMTP or network connection is opened",
+        "python -m pytest -v passes from the repo root with all new notifier tests and no regression in the pre-existing 431 tests"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-core",
+      "task_ids": ["6.1", "6.2", "6.3", "6.4", "6.5", "6.6"]
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "spec_requirement_id": "project-email-notifications/Documentation and release",
+      "summary": "README + CHANGELOG + maps + CLAUDE.md updated; version bump 0.9.17 to 0.9.18",
+      "scenarios": [
+        "README documents the feature",
+        "CHANGELOG and version are consistent",
+        "Maps reflect the new module and integrations"
+      ],
+      "acceptance_criteria": [
+        "README.md contains a section documenting the email-notification feature, the .architect-team-notify.json schema, the five event types, and env-var secret handling",
+        "CHANGELOG.md has a `## [0.9.18]` entry referencing the project-email-notifications requirements",
+        ".claude-plugin/plugin.json and .claude-plugin/marketplace.json both report version 0.9.18",
+        "docs/CODEBASE_MAP.md documents the scripts/notify/ module and .architect-team-notify.json; docs/INTEGRATION_MAP.md documents Gmail SMTP + SendGrid API; CLAUDE.md mentions the notifier"
+      ],
+      "layer": "infra",
+      "owning_team": "notify-wiring-docs",
+      "task_ids": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8"]
+    }
+  ],
+  "uncovered_source_requirements": [],
+  "reuse_decisions": [
+    {
+      "decision": "build-new",
+      "rationale": "No existing email/notification capability anywhere in the codebase — repo-wide grep for `smtplib|sendgrid|notifier|send_email` returns zero hits, and docs/INTEGRATION_MAP.md lists no email integration. There is nothing to extend, compose, or reuse for the capability itself. Reuse is applied at every other level (see below).",
+      "codebase_map_anchor": "docs/INTEGRATION_MAP.md external-integration list; docs/CODEBASE_MAP.md §3 directory tree + §4 Module Guide",
+      "verified": true
+    },
+    {
+      "decision": "extend",
+      "rationale": "The notifier is placed under the existing scripts/ directory as scripts/notify/notify.py (sibling to scripts/setup/setup.py), invoked as a path-addressed script exactly like setup.py — no new top-level directory. Event wiring extends the existing skills/architect-team-pipeline/SKILL.md; tests extend the existing pytest suite. No new skill, agent, command, or hook — the EXPECTED_SKILLS/AGENTS/COMMANDS registries and hooks/hooks.json are untouched.",
+      "codebase_map_anchor": "docs/CODEBASE_MAP.md §3 (scripts/setup/), §4 Setup scripts, §4 Skills, §8 navigation guide",
+      "verified": true
+    },
+    {
+      "decision": "reuse",
+      "rationale": "Transport uses only the Python standard library — smtplib + email.message + ssl for Gmail, urllib.request for SendGrid — adding zero third-party dependencies, mirroring the archived python3-portability change's 'no new dependencies' outcome. Config is JSON via stdlib json, the format already hand-edited for hooks.json and plugin.json; no YAML parser is introduced.",
+      "codebase_map_anchor": "docs/INTEGRATION_MAP.md 'Affected dependencies'; docs/CODEBASE_MAP.md §3 (.claude-plugin/*.json, hooks/hooks.json)",
+      "verified": true
+    }
+  ],
+  "notes": {
+    "no_frontend": "The plugin has zero frontend surface; Playwright user-flow tests, DESIGN_MAP, visual-fidelity, and editability reviews do not apply.",
+    "no_backend_api": "The plugin has zero HTTP API surface; the feature is a CLI + library. Test discipline = pytest unit + structural. Gmail SMTP and the SendGrid HTTP API are genuinely external and non-deterministic, so they are the only mocked surfaces (smtplib.SMTP, urllib.request.urlopen) per dev-api-integration-testing's 'mock only what is truly external'. No requirement is layer=both, so no front-to-back integration criterion applies.",
+    "teams": "Two sequential task groups, one teammate each. notify-core (REQ-001..004, 006) owns scripts/notify/notify.py + .architect-team-notify.example.json + tests/test_notify.py. notify-wiring-docs (REQ-005, 007) owns skills/architect-team-pipeline/SKILL.md + commands/architect-team.md + tests/test_notify_wiring.py + README.md + CHANGELOG.md + docs/CODEBASE_MAP.md + docs/INTEGRATION_MAP.md + CLAUDE.md + .claude-plugin/plugin.json + .claude-plugin/marketplace.json. File scopes are non-overlapping; notify-wiring-docs depends on notify-core (the CLI must exist to wire and document it), so the groups run sequentially — no reconciliation phase needed."
+  }
+}

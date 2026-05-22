@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.18] — 2026-05-21
+
+### Added — project email notifications (`project-email-notifications`)
+
+An architect-team pipeline run is a long, mostly-unattended sequence of phases — yet the people who care about a project had no way to follow along without watching the terminal. v0.9.18 adds an **opt-in, per-project email-notification system** so a configured list of recipients is kept informed of pipeline progress in real time. The feature is entirely opt-in: with no `.architect-team-notify.json` in a project, the notifier is a silent no-op and the pipeline behaves exactly as before. Implements requirements REQ-001..007 of the `project-email-notifications` OpenSpec change.
+
+#### REQ-001 — per-project recipient configuration
+
+- `scripts/notify/notify.py` — NEW. Loads a committed `.architect-team-notify.json` from the target project's repository root: parses `provider`, `from_address`, optional `from_name`, the provider-settings object, and a non-empty `recipients[]` (each with `email` + `events[]`). An absent config is a silent no-op (exit 0, no stderr); an invalid-JSON or missing-required-field config writes a stderr warning, sends nothing, and exits 0.
+- `.architect-team-notify.example.json` — NEW. A documented, schema-valid example config at the repo root — the template a project copies — with both a `gmail` and a `sendgrid` settings block and two sample recipients carrying differing `events` lists.
+
+#### REQ-002 — email provider abstraction (Gmail SMTP + SendGrid API)
+
+- A provider abstraction with `GmailProvider` and `SendGridProvider`, selected by the config `provider` field. `GmailProvider` transmits via `smtp.gmail.com:587` over STARTTLS (stdlib `smtplib` + `email.message` + `ssl`); `SendGridProvider` POSTs to `https://api.sendgrid.com/v3/mail/send` with the API key as a Bearer header (stdlib `urllib.request`).
+- `scripts/notify/notify.py` imports **only the Python standard library** — zero new third-party dependencies, mirroring the `python3-portability` "no new dependencies" discipline.
+- Provider secrets are read **solely** from the environment variable named in config (`gmail.app_password_env` / `sendgrid.api_key_env`) — never from the config file, never written to any log line. A missing secret env var skips the send with a stderr warning naming the variable and exits 0.
+
+#### REQ-003 — five event types with per-recipient filtering
+
+- Exactly five recognized event types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`. A dispatched event reaches only recipients whose `events` array includes that type or the `"all"` shorthand. An unknown event type produces a stderr error, sends nothing, and exits 0. Each email's subject and body carry the event context — phase name, commit SHA, issue summary, or deploy layer.
+
+#### REQ-004 — notifier CLI and best-effort failure isolation
+
+- An `argparse` CLI: positional `event`; options `--project`, `--phase`, `--summary`, `--commit`, `--layer`, `--config`. **Every failure path** — missing config, missing secret, provider error, network error, invalid arguments — results in exit code 0; a notification failure can never block or fail a pipeline run. The module exposes importable config/provider/dispatch/notify entry points so pytest drives it without invoking the CLI.
+
+#### REQ-005 — pipeline wiring emits notification events
+
+- `skills/architect-team-pipeline/SKILL.md` — a new **Notifications** subsection; the orchestrator emits `phase_start` / `phase_complete` at every phase boundary, `issue_discovered` in the Phase 3b solution-requirement intake, `git_commit` immediately after the Phase 8 commit, and `deploy` when Phase 5 brings up the live dev environment. The notifier is a CLI the orchestrator invokes (design D2 — **not** a new harness hook); the wiring states explicitly, and a new operating-rule bullet repeats, that the invocations are best-effort and never block, gate, or fail a run. Invocation form: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> ...`, matching the `python3` interpreter convention of `hooks/hooks.json`.
+- `commands/architect-team.md` — a new "Project email notifications" note describing the opt-in feature.
+
+#### REQ-006 — test coverage for the notifier
+
+- `tests/test_notify.py` — NEW. Covers config load/validate (incl. the shipped example), Gmail + SendGrid message construction with `smtplib.SMTP` / `urllib.request.urlopen` mocked (no real SMTP or network I/O), event dispatch with per-recipient filtering, secret resolution from the environment (and that the secret value never appears in captured output), CLI parsing, and failure isolation.
+
+#### REQ-007 — documentation and release
+
+- `README.md` — new "Project email notifications" section: feature overview, the `.architect-team-notify.json` schema, the five event types, env-var secret handling, and Gmail app-password / SendGrid API-key provider setup.
+- `docs/CODEBASE_MAP.md`, `docs/INTEGRATION_MAP.md`, `CLAUDE.md` — refreshed: the `scripts/notify/` module and `.architect-team-notify.json` config are catalogued; Gmail SMTP and the SendGrid v3 API are added as external integrations.
+
+### Tests
+- `tests/test_notify.py` — NEW: notifier module coverage (config / providers / dispatch / secrets / CLI / failure isolation).
+- `tests/test_notify_wiring.py` — NEW (12 cases): the pipeline skill carries a notifier invocation for each of the five events, declares the wiring best-effort / non-blocking / opt-in, and the command notes the feature.
+- Full suite: **496 pass** (431 prior + 65 new notifier + wiring).
+
+### Released (v0.9.18)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.17` → `0.9.18`.
+- `README.md`: banner + version badge → `0.9.18`; tests badge → `496 passing`; NEW IN panel + status timeline updated.
+
 ## [0.9.17] — 2026-05-21
 
 ### Fixed — a plain-language requirement is a first-class `/architect-team` input

@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 17
+                            ─── T E A M ───   v 0 . 9 . 18
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,19 +21,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.17-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.18-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-431%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-496%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.17  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.18  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Project email notifications (v0.9.18)** | A pipeline run is a long, mostly-unattended sequence of phases — until now nobody could follow along without watching the terminal. v0.9.18 adds an **opt-in, per-project email-notification system**. A project drops a committed `.architect-team-notify.json` at its repo root naming the email provider (**Gmail** SMTP or **SendGrid** API), the sender identity, the env-var that holds the provider secret, and a recipient list — each recipient subscribing to whichever of the **five event types** they want: `phase_start`, `phase_complete`, `issue_discovered` (a new solution requirement), `git_commit`, and `deploy` (a live dev instance brought up). The notifier (`scripts/notify/notify.py`, **standard library only** — `smtplib` / `urllib`, zero new dependencies) is a CLI the orchestrator invokes at those five moments. It is strictly **best-effort**: every failure path — missing config, missing secret, provider / network error — exits 0, so a notification failure can never block, fail, or alter a run. Provider secrets are read only from the named environment variable, never committed, never logged. With no `.architect-team-notify.json` present the notifier is a silent no-op. |
 | ▸ **Plain-language requirements are first-class (v0.9.17)** | `/architect-team` takes a requirement in **two forms** — a requirements folder OR a **plain-language requirement typed directly** (a sentence or paragraph describing what to build, fix, change, review, or improve). Phase 0 has always normalized plain-language input, but the command's argument parser was worded *"the first token is the requirements folder path"* — so a sentence's first word (`no`, `review`, `fix`) got mistaken for a path and models refused with *"I won't run against a non-existent folder."* v0.9.17 rewrites the command's argument parser and the skill's `Inputs` section: two clearly-labelled input forms, both first-class; refusing prose — or treating its first word as a path — is now explicitly forbidden; the pipeline asks for input only when the argument is genuinely empty. |
 | ▸ **README visual designer — centering, color, themes (v0.9.16)** | The `readme-styling` skill gains a **canvas-width + centering model** (one width; every element built to it or centered within it — no more crooked, left-listing pages), **pipe-table and ASCII-graph alignment rules**, a **two-world color model** (GitHub-safe — themed badges + colored Mermaid diagrams — plus a separate ANSI-colored variant for terminals), and a **theming engine**: six preset themes (`midnight` / `phosphor` / `amber` / `synthwave` / `crimson` / `mono`), each a badge palette + accent + ANSI palette + Mermaid colors, chosen once via an interactive picker at first setup and recorded in a `<!-- architect-team:readme-theme=... -->` marker so a project's look stays consistent. This README is re-styled as the reference implementation. |
 | ▸ **Documentation-currency gate (v0.9.15)** | The pipeline shipped code but left documentation behind — `README.md` + `CHANGELOG.md` got updated, while the maps, `CLAUDE.md`, and `INTEGRATION_MAP.md` drifted. v0.9.15 adds a **Phase 8 documentation-currency gate** — the last step before the GitHub push. The orchestrator updates every doc the change affects (the maps `CODEBASE_MAP` / `ROUTE_MAP` / `DESIGN_MAP` / `INTEGRATION_MAP`, plus `README.md`, `CHANGELOG.md`, `CLAUDE.md`); then the `system-architect` **independently audits** them in a new *Documentation Currency Audit* mode — verifying, against the actual diff, that every doc that should have been updated *was*, and accurately, and that every map's freshness frontmatter is current. The audit verdict gates the commit; `pipeline-completion-audit.py` blocks a push on a stale-docs verdict. Producer/checker, per v0.9.13 — the orchestrator updates, an independent agent confirms. New `documentation-currency` skill. |
@@ -514,6 +515,118 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  PROJECT EMAIL NOTIFICATIONS  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+A pipeline run is long and mostly unattended. The **project email-notification
+system** (v0.9.18) keeps a configured list of stakeholders informed as a run
+progresses — opt-in, per-project, and strictly best-effort.
+
+### ▸ How it works
+
+The feature is **entirely opt-in**: a project enables it by committing a
+`.architect-team-notify.json` file at its repository root. If that file is
+absent the notifier is a **silent no-op** and the pipeline behaves exactly as
+before. When the file is present, the orchestrator invokes the notifier CLI
+(`scripts/notify/notify.py`) at five points in the pipeline; each invocation is
+**best-effort** — the notifier always exits 0, and a notification failure never
+blocks, fails, or alters a run.
+
+### ▸ The five event types
+
+| Event | Emitted when | Context in the email |
+|---|---|---|
+| `phase_start` | at the start of each pipeline phase | the phase name |
+| `phase_complete` | at the end of each pipeline phase | the phase name |
+| `issue_discovered` | a new solution requirement is picked up (Phase 3b) | the issue summary |
+| `git_commit` | immediately after the Phase 8 git commit | the commit SHA |
+| `deploy` | when Phase 5 brings up a live dev instance | the deploy layer |
+
+Each recipient subscribes to whichever events they want — or to the `"all"`
+shorthand for every event.
+
+### ▸ The `.architect-team-notify.json` schema
+
+A committed JSON file at the **target project's** repository root. Copy
+[`.architect-team-notify.example.json`](.architect-team-notify.example.json)
+and edit it:
+
+```jsonc
+{
+  "provider": "gmail",                       // "gmail" or "sendgrid"
+  "from_address": "ci-bot@your-domain.example",
+  "from_name": "Architect Team CI",          // optional display name
+
+  "gmail": {                                  // settings for the gmail provider
+    "username": "ci-bot@your-domain.example", // SMTP login (defaults to from_address)
+    "app_password_env": "ARCHITECT_GMAIL_APP_PASSWORD"   // env-var NAME, not the secret
+  },
+  "sendgrid": {                               // settings for the sendgrid provider
+    "api_key_env": "ARCHITECT_SENDGRID_API_KEY"          // env-var NAME, not the secret
+  },
+
+  "recipients": [
+    { "email": "tech-lead@your-domain.example", "events": ["all"] },
+    { "email": "qa@your-domain.example",
+      "events": ["phase_complete", "issue_discovered", "deploy"] }
+  ]
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `provider` | yes | `"gmail"` or `"sendgrid"` — selects the send transport |
+| `from_address` | yes | the sender email address |
+| `from_name` | no | optional sender display name |
+| `gmail.username` | no | SMTP login; defaults to `from_address` |
+| `gmail.app_password_env` | for gmail | **name** of the env var holding the Gmail app password |
+| `sendgrid.api_key_env` | for sendgrid | **name** of the env var holding the SendGrid API key |
+| `recipients[]` | yes (non-empty) | one entry per recipient |
+| `recipients[].email` | yes | the recipient address |
+| `recipients[].events[]` | yes (non-empty) | the event types this recipient receives, or `["all"]` |
+
+The config file is `.json` (parsed with the standard-library `json` module) and
+holds **only** the *name* of an environment variable for each provider secret —
+never the secret value itself.
+
+### ▸ Secret handling — environment variables only
+
+Provider secrets are **never committed and never logged**. The config names an
+environment variable (`gmail.app_password_env` / `sendgrid.api_key_env`); the
+notifier reads `os.environ[<that name>]` at send time. If the variable is unset,
+the send is skipped with a one-line stderr warning that names the variable but
+never echoes a secret — and the process still exits 0. The recipient email
+addresses themselves do live in the committed config (the project's explicit
+choice — ordinary practice, as with `CODEOWNERS`).
+
+### ▸ Provider setup
+
+**Gmail** — transmits via `smtp.gmail.com:587` over STARTTLS (standard-library
+`smtplib`). Gmail requires an **app password**, not your account password:
+enable 2-Step Verification on the sending Google account, then create an app
+password at <https://myaccount.google.com/apppasswords>. Export it under the
+name your config gives in `gmail.app_password_env`:
+
+```bash
+export ARCHITECT_GMAIL_APP_PASSWORD="<the 16-character app password>"
+```
+
+**SendGrid** — POSTs to the SendGrid v3 mail-send API
+(`https://api.sendgrid.com/v3/mail/send`) with the API key as a Bearer header
+(standard-library `urllib.request`). Create an API key in the SendGrid console
+(Settings → API Keys, Mail Send permission) and export it under the name your
+config gives in `sendgrid.api_key_env`:
+
+```bash
+export ARCHITECT_SENDGRID_API_KEY="<the SendGrid API key>"
+```
+
+The notifier uses **only the Python standard library** for both providers —
+zero new third-party dependencies.
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  DEVELOPMENT  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
@@ -523,7 +636,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v5: 11 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, and documentation-currency disciplines. **418 tests pass.**
+Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v5: 11 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, and project-email-notifications disciplines. **496 tests pass.**
 
 ### Bumping versions
 
@@ -572,7 +685,8 @@ Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent
            v0.9.14 ─ MemPalace `mine` syntax fix — drop the invalid `--room` flag
            v0.9.15 ─ documentation-currency gate
            v0.9.16 ─ readme-styling: centering + color + themes
-   ◆       v0.9.17 ─ plain-language requirements are a first-class input (current)
+           v0.9.17 ─ plain-language requirements are a first-class input
+   ◆       v0.9.18 ─ project email notifications — Gmail / SendGrid, five events (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

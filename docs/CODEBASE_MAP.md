@@ -1,18 +1,18 @@
 ---
-last_mapped: 2026-05-21T00:00:00Z
+last_mapped: 2026-05-21T23:30:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-21 for v0.9.17. Current reality: 18 skills, 16 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 2 setup scripts, 431 pytest self-tests. Covers v0.9.1 (auto-compact) through v0.9.17 (plain-language requirements are a first-class /architect-team input).
+note: Doc refresh 2026-05-21 for v0.9.18 (project-email-notifications) — the new scripts/notify/ notifier module + .architect-team-notify.json config catalogued in §3/§4, test-file count now 25 (test_notify.py + test_notify_wiring.py added). Current reality - 18 skills, 16 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 496 pytest self-tests across 25 test files. Covers v0.9.1 (auto-compact) through v0.9.18 (per-project email notifications).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.17.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.18.
 
 ## 1. System Overview
 
-The `architect-team` Claude Code plugin (v0.9.17) is a spec-to-production multi-agent coding pipeline. It accepts a requirements folder (OpenSpec, Superpowers, or plain markdown) and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
+The `architect-team` Claude Code plugin (v0.9.18) is a spec-to-production multi-agent coding pipeline. It accepts EITHER a requirements folder (OpenSpec, Superpowers, or plain markdown) OR a plain-language requirement typed directly as prose (v0.9.17), and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
 
-The plugin ships **18 skills, 16 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **2 setup scripts**, and **431 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization.
+The plugin ships **18 skills, 16 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **496 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
 
 ## 2. Architecture Diagram
 
@@ -22,7 +22,8 @@ graph TB
         CMD_AT["/architect-team"]
         CMD_SETUP["/architect-team-setup"]
         CMD_VQA["/architect-team:visual-qa"]
-        CMD_MEM["/architect-team:memory + mempalace-install"]
+        CMD_MEM["/architect-team:memory"]
+        CMD_MEMINST["/architect-team:mempalace-install"]
         CMD_EDIT["/architect-team:editability-audit"]
     end
 
@@ -48,7 +49,7 @@ graph TB
         AG_IMPL["frontend / backend (opus implementers)"]
         AG_FLOW["reconciler / integration"]
         AG_MAP["codebase-map-reviewer x3 / route-mapper / integration-explorer x3 / master-synthesizer"]
-        AG_ARCH["system-architect (4 review modes)"]
+        AG_ARCH["system-architect (5 review modes)"]
         AG_VERIF["task-reviewer / test-completeness-verifier / editability-reviewer x3 / diagnostic-researcher x3"]
         AG_VIS["visual-capture xN / visual-analyzer xN"]
         AG_SCAFFOLD["scaffold-agent"]
@@ -62,7 +63,7 @@ graph TB
     end
 
     subgraph "External"
-        EXT["superpowers / cartographer / ralph-loop / openspec CLI / pytest+httpx / Playwright+chromium / MemPalace (optional)"]
+        EXT["superpowers / cartographer / ralph-loop / openspec CLI / pytest+httpx / Playwright+chromium / MemPalace (optional) / Gmail SMTP + SendGrid API (opt-in notifier)"]
     end
 
     CMD_AT --> SK_PIPELINE
@@ -80,7 +81,8 @@ graph TB
 
 ```
 claude_skill_lib/
-├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.17)
+├── .claude/                 # OpenSpec-installed workspace commands + skills (opsx/* commands + openspec-* skills; tracked)
+├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.18)
 ├── agents/                  # 16 named subagent definitions (.md with frontmatter)
 ├── commands/                # 6 slash-command bodies (.md with frontmatter)
 ├── hooks/                   # hooks.json wiring + 3 enforcement scripts + 1 shared module
@@ -89,15 +91,18 @@ claude_skill_lib/
 │   ├── review-gate-task.py         # PostToolUse(TaskUpdate) gate
 │   ├── teammate-idle-check.py      # SubagentStop gate
 │   └── pipeline-completion-audit.py # Stop gate + standalone --check pre-commit gate
-├── scripts/setup/           # setup.py (deps) + install_mempalace.py (MemPalace CLI/MCP)
+├── scripts/
+│   ├── setup/               # setup.py (deps) + install_mempalace.py (MemPalace CLI/MCP)
+│   └── notify/              # notify.py — best-effort per-project email notifier (v0.9.18)
 ├── skills/                  # 18 skill directories, each containing SKILL.md
-├── openspec/                # OpenSpec workspace (tracked); changes/ + archive/ + specs/
+├── openspec/                # OpenSpec workspace (tracked); config.yaml + changes/ (archive/ nested inside) + specs/
 ├── docs/
 │   ├── CODEBASE_MAP.md      # this file
 │   ├── INTEGRATION_MAP.md   # external-integration synthesis (single-codebase degenerate)
 │   └── superpowers/         # historical design doc + plan (read-only reference)
-├── tests/                   # 431 pytest self-tests (~24 test files + conftest + helpers/)
+├── tests/                   # 496 pytest self-tests (25 test files + conftest + helpers/)
 ├── .scratch/                # working notes (tracked; not part of the installed surface)
+├── .architect-team-notify.example.json   # template per-project email-notification config (v0.9.18)
 ├── CLAUDE.md  CHANGELOG.md  README.md  LICENSE  pytest.ini  .gitignore
 ```
 
@@ -132,7 +137,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 
 | Agent | Model | Color | One-line purpose |
 |---|---|---|---|
-| system-architect | opus | blue | On-demand architecture; + 4 review modes (Diagnostic Plan, Editability Map, Visual Gap Synthesis, Master Review Audit). Analysis-only. |
+| system-architect | opus | blue | On-demand architecture; + 5 review modes (Diagnostic Plan, Editability Map, Visual Gap Synthesis, Master Review Audit, Documentation Currency Audit). Analysis-only. |
 | frontend | opus | cyan | Phase 2 frontend implementer; Playwright + visual-fidelity workflow. |
 | backend | opus | green | Phase 2 backend implementer; live dev-API integration tests. |
 | reconciler | opus | orange | Phase 4 conflict resolution; no feature code. |
@@ -151,7 +156,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 
 ### Commands (6)
 
-- `architect-team` — runs the Phase −1 → 8 pipeline. Flags: `--no-commit` / `--no-push` / `--no-compact` / `--allow-push-to-default`.
+- `architect-team` — runs the Phase −1 → 8 pipeline against EITHER a requirements folder OR a plain-language requirement typed directly as prose (v0.9.17). Flags: `--no-commit` / `--no-push` / `--no-compact` / `--allow-push-to-default`.
 - `architect-team-setup` — installs openspec CLI, pytest+httpx, Playwright+chromium.
 - `visual-qa` — on-demand visual-fidelity audit → the visual-verification-team gate.
 - `mempalace-install` — installs the MemPalace CLI + prints the MCP wire-up.
@@ -164,16 +169,22 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 - **`hooks/review_evidence_schema.py`** — NOT a hook; the shared single source of truth for the evidence contract (`SCHEMA_VERSION` = 5, `REQUIRED_EVIDENCE_FIELDS` = the 11 teammate self-review fields, `REQUIRED_INDEPENDENT_REVIEW_FIELDS` for the v5 `independent_review` block, the `VALID_*` value sets, `safe_id()`, `validate_evidence()`). `validate_evidence()` rejects evidence missing the `independent_review` block or whose `independent_review.reviewer == teammate`. Both evidence hooks import it (added v0.9.9 — before that the two hooks carried drifted copies).
 - **`hooks/review-gate-task.py`** — `PostToolUse(TaskUpdate)`. Blocks a teammate task flipping to `completed` without valid review-gate evidence. Exit 0 = allow, 2 = block.
 - **`hooks/teammate-idle-check.py`** — `SubagentStop`. On a teammate going idle, validates every `expected_review_evidence` task. Blocks on a corrupt matched manifest (v0.9.9 — was fail-open).
-- **`hooks/pipeline-completion-audit.py`** — `Stop` hook + standalone `--check`. Gates the orchestrator's terminal state: blocks a stop while `.architect-team/` shows an incomplete run (open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, an unverified visual reconciliation, a failing Phase 7 master-review audit verdict, a blown iteration ceiling). Escalation-marker- and `stop_hook_active`-aware; fails open on any error.
+- **`hooks/pipeline-completion-audit.py`** — `Stop` hook + standalone `--check`. Gates the orchestrator's terminal state: blocks a stop while `.architect-team/` shows an incomplete run (open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, an unverified visual reconciliation, a failing Phase 7 master-review audit verdict, a failing Phase 8 documentation-currency audit verdict, a blown iteration ceiling). Escalation-marker- and `stop_hook_active`-aware; fails open on any error.
 
-### Setup scripts (2)
+### Setup & support scripts (3)
 
 - **`scripts/setup/setup.py`** — checks Python ≥ 3.10 / Node ≥ 20.19; installs openspec CLI, pytest+pytest-asyncio+httpx, Playwright+chromium; checks for prerequisite plugins.
 - **`scripts/setup/install_mempalace.py`** — uv-first (pip fallback) MemPalace install; prints the `claude mcp add` + `mempalace init` commands; never auto-runs them.
+- **`scripts/notify/notify.py`** — the **best-effort per-project email notifier** (v0.9.18). A path-addressed CLI (invoked exactly like `setup.py`) that the orchestrator runs at five pipeline moments — `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`. Single stdlib-only module: config loader, two interchangeable providers (`GmailProvider` over `smtp.gmail.com:587` STARTTLS via `smtplib`; `SendGridProvider` POSTing to `https://api.sendgrid.com/v3/mail/send` via `urllib.request`), per-recipient event filtering, an `argparse` CLI. Opt-in (a `.architect-team-notify.json` at the target project root) and best-effort by construction — every failure path (missing config, missing secret, provider/network error, bad arguments) exits 0, so a notification can never block, fail, or alter a run. Provider secrets are read only from the env var named in config, never committed, never logged.
 
-### Tests (431, all PASS)
+### Config files
 
-~24 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 18 skill + 16 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit incl. the master-review + documentation-currency audit checks); the setup + MemPalace install scripts; **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); and one structural test file per discipline shipped v0.9.0 → v0.9.17.
+- **`.architect-team-notify.json`** (in a *target* project's repo root — NOT in this plugin) — the opt-in per-project email-notification config (v0.9.18) consumed by `scripts/notify/notify.py`: `provider` (`gmail`/`sendgrid`), `from_address`, optional `from_name`, the provider-settings object naming the secret env var, and a non-empty `recipients[]` (each with `email` + an `events[]` subscription list, or the `"all"` shorthand). Absent config ⇒ the notifier is a silent no-op.
+- **`.architect-team-notify.example.json`** (this repo's root) — the documented, schema-valid template a project copies to enable notifications.
+
+### Tests (496, all PASS)
+
+25 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 18 skill + 16 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit incl. the master-review + documentation-currency audit checks); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier module (`test_notify.py` — config load/validate, Gmail + SendGrid message construction with `smtplib`/`urllib` mocked, dispatch + per-recipient filtering, secret resolution, CLI + failure isolation) and its pipeline wiring (`test_notify_wiring.py` — the five wired events + the best-effort/non-blocking statement); **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); and one structural test file per discipline shipped v0.9.0 → v0.9.18.
 
 ## 5. Data Flow (abridged)
 
@@ -186,7 +197,7 @@ sequenceDiagram
     participant Verif as verifier agents/teams
     participant Stop as pipeline-completion-audit.py
 
-    User->>Orch: /architect-team <path>
+    User->>Orch: /architect-team <folder or plain-language requirement>
     Orch->>Orch: Phase -1 (map) -> Phase 1 (100% coverage gate)
     Orch->>Team: Phase 2 spawn (non-overlapping scope)
     Team->>Gate: TaskUpdate(completed) + reviews/<id>.json
@@ -210,7 +221,7 @@ sequenceDiagram
 
 **Map artifacts:** `<codebase>/docs/CODEBASE_MAP.md` (`last_mapped`), `ROUTE_MAP.md` (`last_routed`), `DESIGN_MAP.md` (`last_designed` + `design_baseline`), `<workspace>/docs/INTEGRATION_MAP.md` (`last_synthesized`).
 
-**Runtime state (gitignored under `.architect-team/`):** `intake-state.json` (re-entry + `dev_loop_iterations` + `map_invalidated`), `reviews/<task-id>.json` (evidence), `teammates/<name>.json` (manifests), `handoffs/`, `solution-requirements/SR-*.json`, `diagnostic-research/`, `editability/`, `failure-pathway/`, `test-completeness/`, `visual-fidelity/` (`capture/` + `analysis/` + `verification-verdict-*.json`), `runs/`, `escalation-pending.md` (the Stop-hook stand-down marker). MemPalace store at `<workspace>/.mempalace/palace`.
+**Runtime state (gitignored under `.architect-team/`):** `intake-state.json` (re-entry + `dev_loop_iterations` + `map_invalidated`), `reviews/<task-id>.json` (evidence), `teammates/<name>.json` (manifests), `handoffs/`, `solution-requirements/SR-*.json`, `diagnostic-research/`, `editability/`, `master-review/`, `documentation-currency/`, `failure-pathway/`, `test-completeness/`, `visual-fidelity/` (`capture/` + `analysis/` + `verification-verdict-*.json`), `runs/`, `escalation-pending.md` (the Stop-hook stand-down marker). MemPalace store at `<workspace>/.mempalace/palace`.
 
 **Review-gate evidence schema (v5 — defined once in `hooks/review_evidence_schema.py`):** the 11 teammate self-review fields — `task_id`, `spec_review`, `quality_review`, `real_not_stubbed`, `tests`, `demo_artifact`, `files_changed`, `reuse_compliance`, `visual_fidelity_review`, `test_completeness_review`, `integration_testing_review` — PLUS the required `independent_review` block (v0.9.13). The three `*_review` fields take `pass`/`n/a`/`fail` — `fail` blocks; `n/a` needs a `_note`. The `independent_review` block is the verdict of an independent `task-reviewer` agent: it carries `reviewer` / `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` / `reviewed_at`, and `validate_evidence()` rejects it when `reviewer == teammate` — the producer cannot be its own checker.
 
