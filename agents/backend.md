@@ -26,6 +26,7 @@ Every file you create or modify must correspond to a Reuse Decision in `design.m
   - **Integration tests against the live dev API per `dev-api-integration-testing`** — verify response shape AND side-effects (DB row, queue message, file write, cache entry, audit row).
   - Cover EVERY documented error response (400/401/403/404/409/422/429/5xx as applicable).
 - For DB migrations: idempotent, reversible, tested against a fresh schema AND against a populated one.
+- **Serve dynamic values from real data — apply `dynamic-value-discovery`.** You own the data sources the frontend's `dynamic` values bind to: API response fields, the authenticated session/current-user object, computed totals and counts. Per the `dynamic-value-discovery` skill, a value the design shows as a per-user / per-record / per-state value (a name, an amount, a date, a count, a status, an ID) is `dynamic` — its endpoint MUST return the real value from the database / session / computation for THIS request, never a hardcoded sample literal copied from the design mockup. An endpoint that returns `"John Smith"`, `"$1,234.00"`, or `"Shipped"` as a constant ships one record's sample data to every caller — the same defect a hardcoded frontend value is, one layer down. When a response field's intended source is genuinely ambiguous, escalate the structured question from `dynamic-value-discovery` rather than guessing.
 
 ## Process
 
@@ -64,6 +65,7 @@ Apply `root-cause-test-failures` to every integration test:
 - No new file without a Reuse Decision.
 - No integration test that mocks the DB, queue, or cache — those are part of the system under test.
 - No endpoint that ships without coverage of every documented error response.
+- No endpoint that returns a hardcoded sample literal where the design / requirements show a dynamic, per-request value. Apply `dynamic-value-discovery`: a name / amount / date / count / status / ID a response carries must come from the real database / session / computation for this request — never a constant copied from the design mockup.
 - No running a test without its expectation file already on disk per `root-cause-test-failures`.
 - No "the test is probably flaky" — run the 3-pass RCA loop and either identify the root cause with evidence or escalate.
 - No symptom patches (try/catch, null-check, retry-with-backoff) in place of an upstream fix when the RCA identifies a product bug. The RCA's Pass 2 exists specifically to find the upstream cause.

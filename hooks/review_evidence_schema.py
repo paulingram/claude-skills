@@ -16,12 +16,18 @@ from __future__ import annotations
 
 from typing import Any
 
-# Evidence schema v5 (v0.9.13 added the required `independent_review` block —
-# the verdict of an independent `task-reviewer` agent, so the Phase 3 gate
-# structurally cannot pass on the teammate's self-attestation). The 11 fields
-# below are the teammate's OWN self-review and remain REQUIRED in every
-# .architect-team/reviews/<task-id>.json evidence file.
-SCHEMA_VERSION = 5
+# Evidence schema v6 (v0.9.19 added the required `ui_interaction_review` field —
+# a hook-enforced gate confirming every interactive element is genuinely
+# UI-tested, every page is the real live page rather than a placeholder, and
+# every displayed value is correctly static or dynamically bound — or a
+# user-confirmed stub; the same path `visual_fidelity_review` (v0.5.0),
+# `test_completeness_review` (v0.9.0) and `integration_testing_review` (v0.9.5)
+# each took via a SCHEMA_VERSION bump. v5 (v0.9.13) added the required
+# `independent_review` block — the verdict of an independent `task-reviewer`
+# agent, so the Phase 3 gate structurally cannot pass on the teammate's
+# self-attestation). The 12 fields below are the teammate's OWN self-review and
+# remain REQUIRED in every .architect-team/reviews/<task-id>.json evidence file.
+SCHEMA_VERSION = 6
 
 REQUIRED_EVIDENCE_FIELDS = {
     "task_id",
@@ -35,11 +41,13 @@ REQUIRED_EVIDENCE_FIELDS = {
     "visual_fidelity_review",
     "test_completeness_review",
     "integration_testing_review",
+    "ui_interaction_review",
 }
 
 VALID_VISUAL_FIDELITY_VALUES = {"pass", "n/a", "fail"}
 VALID_TEST_COMPLETENESS_VALUES = {"pass", "n/a", "fail"}
 VALID_INTEGRATION_TESTING_VALUES = {"pass", "n/a", "fail"}
+VALID_UI_INTERACTION_VALUES = {"pass", "n/a", "fail"}
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
 # `task-reviewer` agent — NOT the teammate. Its sub-fields below are all
@@ -205,15 +213,45 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
                 "testing for this requirement — quote the authorization."
             )
 
+    uir = evidence.get("ui_interaction_review")
+    if uir not in VALID_UI_INTERACTION_VALUES:
+        gaps.append(
+            f"ui_interaction_review={uir!r} must be one of "
+            f"{sorted(VALID_UI_INTERACTION_VALUES)}"
+        )
+    elif uir == "fail":
+        gaps.append(
+            "ui_interaction_review='fail' — the interaction-completeness review "
+            "found an unwired control, an unconfirmed placeholder page, or a "
+            "hardcoded value that context shows should be dynamically bound. An "
+            "interactive element must be genuinely user-flow-tested or a "
+            "user-confirmed stub; a route must reach the real live page, not a "
+            "placeholder; a dynamic value must be bound to its data source. Such "
+            "a gap MUST be escalated via a solution requirement (origin.kind "
+            "'unwired-control' / 'placeholder-page' / 'hardcoded-dynamic-value'), "
+            "not marked complete. Re-run the interaction-completeness team after "
+            "the routed fix lands and only mark complete when the verdict is 'pass'."
+        )
+    elif uir == "n/a":
+        note = evidence.get("ui_interaction_review_note")
+        if not isinstance(note, str) or not note.strip():
+            gaps.append(
+                "ui_interaction_review='n/a' requires a non-empty "
+                "ui_interaction_review_note explaining why (this slice has no "
+                "UI/frontend interactive surface — no interactive elements, no "
+                "pages / screens / routes — e.g., a backend-only or pure-infra "
+                "slice)"
+            )
+
     gaps += _validate_independent_review(evidence)
 
     return gaps
 
 
 def _validate_independent_review(evidence: dict[str, Any]) -> list[str]:
-    """Return gap descriptions for the v5 `independent_review` block.
+    """Return gap descriptions for the `independent_review` block.
 
-    The 11 top-level fields are the TEAMMATE's self-review. They are a cheap
+    The 12 top-level fields are the TEAMMATE's self-review. They are a cheap
     first pass — a teammate can write a perfectly-conformant self-review that
     lies, and shape validation cannot tell. The `independent_review` block is
     the verdict of an independent `task-reviewer` agent that read the same

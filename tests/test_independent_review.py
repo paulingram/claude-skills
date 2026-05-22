@@ -39,10 +39,19 @@ def _read(plugin_root: Path, *parts: str) -> str:
 
 
 def _valid_v5_evidence() -> dict:
-    """A structurally-valid schema-v5 evidence dict (teammate self-review +
-    an independent_review block whose reviewer differs from the teammate)."""
+    """A structurally-valid review-evidence dict — the current schema (v6) with
+    the teammate self-review fields plus an independent_review block whose
+    reviewer differs from the teammate.
+
+    The helper keeps its historical `_valid_v5_evidence` name because every
+    independent-review test below exercises the v5-introduced
+    `independent_review` block; the dict itself is kept current with the shared
+    schema so these tests construct VALID evidence and the independent-review
+    assertions are not masked by a stale missing-field gap. v0.9.19 (schema v6)
+    added the required `ui_interaction_review` field.
+    """
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "task_id": "T-1",
         "teammate": "backend-auth",
         "completed_at": "2026-05-21T10:00:00Z",
@@ -59,6 +68,8 @@ def _valid_v5_evidence() -> dict:
         "test_completeness_review_note": "backend-only slice; integration is the qualifying kind",
         "integration_testing_review": "n/a",
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
+        "ui_interaction_review": "n/a",
+        "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface",
         "independent_review": {
             "reviewer": "task-reviewer",
             "verdict": "pass",
@@ -73,10 +84,13 @@ def _valid_v5_evidence() -> dict:
 
 # --- the schema requires the independent_review block ----------------------
 
-def test_schema_version_is_5(plugin_root: Path) -> None:
+def test_schema_version_is_6(plugin_root: Path) -> None:
+    """v0.9.19 bumped the shared evidence schema v5 -> v6 to add the required
+    `ui_interaction_review` field. The `independent_review` block (v5) is
+    unchanged and remains required at v6."""
     module = _import_schema(plugin_root)
-    assert getattr(module, "SCHEMA_VERSION", None) == 5, (
-        "review_evidence_schema.SCHEMA_VERSION must be 5"
+    assert getattr(module, "SCHEMA_VERSION", None) == 6, (
+        "review_evidence_schema.SCHEMA_VERSION must be 6"
     )
 
 
@@ -98,11 +112,12 @@ def test_valid_v5_evidence_passes(plugin_root: Path) -> None:
     assert gaps == [], f"a structurally-valid v5 evidence dict must pass; gaps={gaps}"
 
 
-def test_keeps_all_eleven_top_level_self_review_fields(plugin_root: Path) -> None:
-    """The 11 top-level fields are the teammate's self-review and stay required."""
+def test_keeps_all_top_level_self_review_fields(plugin_root: Path) -> None:
+    """The top-level fields are the teammate's self-review and stay required.
+    v0.9.19 (schema v6) added `ui_interaction_review`, bringing the count to 12."""
     module = _import_schema(plugin_root)
-    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 11, (
-        f"expected 11 top-level required fields, got {sorted(module.REQUIRED_EVIDENCE_FIELDS)}"
+    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 12, (
+        f"expected 12 top-level required fields, got {sorted(module.REQUIRED_EVIDENCE_FIELDS)}"
     )
 
 
@@ -319,10 +334,16 @@ def test_team_spawning_no_longer_says_honesty_by_teammate_discipline(plugin_root
     )
 
 
-def test_team_spawning_schema_is_v5(plugin_root: Path) -> None:
+def test_team_spawning_schema_is_v5_or_later(plugin_root: Path) -> None:
+    """The team-spawning skill's evidence example must carry the
+    `independent_review` block, which was introduced at schema v5. Later schema
+    bumps (v6 added `ui_interaction_review` in v0.9.19) keep the block, so the
+    example is accepted at v5-or-later — the same cross-version tolerance
+    `test_integration_testing_discipline.py` already applies to its
+    schema-version content check."""
     content = _read(plugin_root, "skills", "team-spawning-and-review-gates", "SKILL.md")
-    assert '"schema_version": 5' in content, (
-        "team-spawning-and-review-gates evidence example must be schema v5"
+    assert any(f'"schema_version": {n}' in content for n in (5, 6, 7, 8, 9)), (
+        "team-spawning-and-review-gates evidence example must be schema v5 or later"
     )
 
 

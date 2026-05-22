@@ -41,15 +41,16 @@ def _run(script: Path, workspace: Path, payload: dict) -> subprocess.CompletedPr
 
 
 def _valid_evidence(task_id: str) -> dict:
-    """Evidence schema v5 — must match hooks/review_evidence_schema.py exactly.
+    """Evidence schema v6 — must match hooks/review_evidence_schema.py exactly.
 
     The idle hook (SubagentStop) and the task hook (PostToolUse) both import
-    that shared module, so this helper carries the SAME 11 required top-level
-    fields the task-hook test helper uses, PLUS the v5 `independent_review`
-    block whose `reviewer` differs from `teammate`.
+    that shared module, so this helper carries the SAME 12 required top-level
+    fields the task-hook test helper uses (the 11 v5 fields plus the v6
+    `ui_interaction_review`), PLUS the v5 `independent_review` block whose
+    `reviewer` differs from `teammate`.
     """
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "task_id": task_id,
         "teammate": "any",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -66,6 +67,8 @@ def _valid_evidence(task_id: str) -> dict:
         "test_completeness_review_note": "backend-only slice; integration is the qualifying kind",
         "integration_testing_review": "n/a",
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
+        "ui_interaction_review": "n/a",
+        "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface",
         "independent_review": {
             "reviewer": "task-reviewer",
             "verdict": "pass",
@@ -160,13 +163,16 @@ def test_exits_two_when_subagent_name_has_path_traversal(
     "visual_fidelity_review",
     "test_completeness_review",
     "integration_testing_review",
+    "ui_interaction_review",
 ])
-def test_idle_hook_enforces_v4_review_fields(
+def test_idle_hook_enforces_review_fields(
     script: Path, workspace: Path, review_field: str
 ) -> None:
-    """v0.9.9: the SubagentStop hook must enforce ALL 11 fields — including the
-    three review fields added in v0.5.0 / v0.9.0 / v0.9.5. Before v0.9.9 this
-    hook validated only 8 fields and had drifted from review-gate-task.py."""
+    """v0.9.9: the SubagentStop hook must enforce ALL 12 fields — including the
+    four review fields added in v0.5.0 / v0.9.0 / v0.9.5 / v0.9.19. Before
+    v0.9.9 this hook validated only 8 fields and had drifted from
+    review-gate-task.py; the v6 `ui_interaction_review` field must flow through
+    the shared schema module to this hook with no per-hook code change."""
     _write_manifest(workspace, "backend-test", ["T-1"])
     ev = _valid_evidence("T-1")
     ev.pop(review_field, None)  # drop one required review field

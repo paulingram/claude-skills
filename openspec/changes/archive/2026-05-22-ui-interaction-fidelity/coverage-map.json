@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "change_name": "ui-interaction-fidelity",
+  "generated_at": "2026-05-22T05:25:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "ui-interaction-fidelity/Interaction-completeness verification skill",
+      "summary": "New interaction-completeness skill — judgment-heavy 3-reviewer verification of interactive elements AND pages, modeled on editability-completeness",
+      "scenarios": [
+        "Skill file exists and is well-formed",
+        "Skill mandates the three-reviewer converging structure",
+        "Skill covers both interactive elements and pages"
+      ],
+      "acceptance_criteria": [
+        "skills/interaction-completeness/SKILL.md exists with valid frontmatter (name: interaction-completeness, quoted description)",
+        "The skill body mandates 3 interaction-reviewer agents in parallel, a round-robin convergence step, a system-architect Round-3 robustness review, and a bounded multi-pass outer loop",
+        "The skill defines an element wiring-classification rubric (endpoint-backed, client-only, confirmed-stub, ambiguous) AND a page-classification rubric (live, placeholder, confirmed-stub)",
+        "The skill scope covers every interactive element and every page/screen/route; the element->endpoint trace and the genuine-user-driven test-authenticity audit are defined"
+      ],
+      "layer": "infra",
+      "owning_team": "interaction-discipline",
+      "task_ids": ["1.1", "1.2", "1.3", "1.4", "1.5"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "ui-interaction-fidelity/Interaction-reviewer agent",
+      "summary": "New interaction-reviewer agent — spawned x3, independent, analysis-only; enumerates elements AND pages; mirrors editability-reviewer",
+      "scenarios": [
+        "Agent file exists with valid frontmatter",
+        "Agent is analysis-only"
+      ],
+      "acceptance_criteria": [
+        "agents/interaction-reviewer.md has the 5 required frontmatter keys, model: opus, and every tool from the valid tool set",
+        "The agent's tools do NOT include Edit — it is analysis-only (classifies, traces, writes verdict/SR artifacts; never edits feature code)",
+        "The agent body covers independent enumeration of interactive elements AND pages, element wiring classification, page live/placeholder/confirmed-stub classification, element-to-endpoint trace, test-authenticity audit, hardcoded-dynamic-value detection, and round-robin convergence"
+      ],
+      "layer": "infra",
+      "owning_team": "interaction-discipline",
+      "task_ids": ["2.1", "2.2"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "ui-interaction-fidelity/Confirmed-stub mechanism",
+      "summary": "An intentionally-inert element OR placeholder page is confirmed-stub ONLY with explicit user confirmation; unconfirmed ones are gaps",
+      "scenarios": [
+        "Unconfirmed inert control is a gap",
+        "Confirmed stub is accepted without a user-flow test",
+        "Reviewer escalates rather than guessing"
+      ],
+      "acceptance_criteria": [
+        "skills/interaction-completeness/SKILL.md defines confirmed-stub — an inert element OR an intentional placeholder page — as requiring explicit user confirmation, with a structured escalation question",
+        "A confirmed stub is recorded in the converged interaction map and in the change's coverage-map.json confirmed_stubs[] list",
+        "An inert interactive element with no user confirmation is reported as an unwired-control gap; an unconfirmed placeholder page is reported as a placeholder-page gap; both are routed as solution requirements",
+        "A confirmed stub does not require a user-flow test but is tracked, not silently ignored"
+      ],
+      "layer": "infra",
+      "owning_team": "interaction-discipline",
+      "task_ids": ["3.1", "3.2", "3.3"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "ui-interaction-fidelity/ui_interaction_review review-gate field",
+      "summary": "Evidence schema v5 to v6 — new hook-enforced ui_interaction_review field (pass/n/a/fail)",
+      "scenarios": [
+        "Evidence missing the field is blocked",
+        "A fail value is blocked",
+        "An n/a value requires a note",
+        "A pass value with the field present validates"
+      ],
+      "acceptance_criteria": [
+        "hooks/review_evidence_schema.py SCHEMA_VERSION is 6 and ui_interaction_review is in REQUIRED_EVIDENCE_FIELDS",
+        "validate_evidence() returns a gap when ui_interaction_review is missing",
+        "validate_evidence() returns a gap when ui_interaction_review is 'fail'",
+        "validate_evidence() requires a non-empty ui_interaction_review_note when the value is 'n/a'",
+        "Both review-gate-task.py and teammate-idle-check.py enforce the field via the shared schema module with no drifted copy"
+      ],
+      "layer": "infra",
+      "owning_team": "schema-verifier",
+      "task_ids": ["4.1", "4.2", "4.3"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "ui-interaction-fidelity/Strengthened test-completeness-verifier Playwright audit",
+      "summary": "test-completeness-verifier additionally flags vacuous-flow tests and cross-checks the interactivity inventory",
+      "scenarios": [
+        "A navigate-and-assert test masquerading as a flow is flagged",
+        "An inventory element with no covering test is flagged"
+      ],
+      "acceptance_criteria": [
+        "agents/test-completeness-verifier.md instructs the agent to flag a Playwright test with page.goto + assertions but no genuine user-interaction calls (page.click/fill/selectOption/check/press/setInputFiles)",
+        "agents/test-completeness-verifier.md instructs the agent to cross-check evidence-listed Playwright tests against the interactivity inventory and flag uncovered elements",
+        "The verifier's verdict-JSON schema in the agent doc records the vacuous-flow and uncovered-element findings"
+      ],
+      "layer": "infra",
+      "owning_team": "schema-verifier",
+      "task_ids": ["5.1", "5.2", "5.3"]
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "ui-interaction-fidelity/Pipeline and discipline wiring",
+      "summary": "Pipeline Phase 3+5 invoke the interaction-completeness team; playwright-user-flows / frontend / integration / team-spawning reference the v6 field + stub mechanism + placeholder detection",
+      "scenarios": [
+        "Pipeline skill invokes the interaction-completeness team",
+        "The v6 evidence schema is documented",
+        "Frontend and integration agents emit the field"
+      ],
+      "acceptance_criteria": [
+        "skills/architect-team-pipeline/SKILL.md Phase 5 invokes the interaction-completeness team for in-scope frontend slices and Phase 3 names the ui_interaction_review field",
+        "skills/playwright-user-flows/SKILL.md references the ui_interaction_review field, the confirmed-stub mechanism, placeholder-page detection, and the interaction-completeness team",
+        "skills/team-spawning-and-review-gates/SKILL.md documents ui_interaction_review as a v6 field with pass/n/a/fail semantics and the n/a-note rule",
+        "agents/frontend.md and agents/integration.md instruct the agent to set ui_interaction_review and honor the confirmed-stub mechanism and the no-unconfirmed-placeholder-pages rule"
+      ],
+      "layer": "infra",
+      "owning_team": "wiring-tests-docs",
+      "task_ids": ["6.1", "6.2", "6.3", "6.4"]
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "spec_requirement_id": "ui-interaction-fidelity/Test coverage for the interaction-fidelity change",
+      "summary": "pytest coverage of the two new skills + agent registration, the v6 schema, hook enforcement, placeholder + dynamic-value rubrics, and the strengthened verifier",
+      "scenarios": [
+        "New test files exist and pass",
+        "Full suite passes with no regression"
+      ],
+      "acceptance_criteria": [
+        "tests/test_interaction_completeness.py exists and asserts skill+agent registration, the skill's structural mandates, and the element + page classification rubrics",
+        "tests/test_ui_interaction_review.py exists and asserts the v6 field's required/valid/n-a-note behavior and SCHEMA_VERSION == 6",
+        "tests/test_dynamic_value_discovery.py exists and asserts the dynamic-value-discovery skill is well-formed, defines the context-classification rubric, and is referenced by the developer/architect/evaluator agents and skills",
+        "tests/test_skills.py EXPECTED_SKILLS includes interaction-completeness and dynamic-value-discovery; tests/test_agents.py EXPECTED_AGENTS includes interaction-reviewer",
+        "tests/test_review_gate_task.py and tests/test_teammate_idle_check.py evidence helpers are updated in lockstep for v6 and pass",
+        "python -m pytest -v passes from the repo root with all new tests and no regression in the pre-existing 496"
+      ],
+      "layer": "infra",
+      "owning_team": "wiring-tests-docs",
+      "task_ids": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7"]
+    },
+    {
+      "source_requirement_id": "REQ-008",
+      "spec_requirement_id": "ui-interaction-fidelity/Documentation and release",
+      "summary": "README + CHANGELOG + maps + CLAUDE.md updated; version bump 0.9.18 to 0.9.19",
+      "scenarios": [
+        "README documents the new gate",
+        "CHANGELOG and version are consistent",
+        "Maps reflect the new skills and agent"
+      ],
+      "acceptance_criteria": [
+        "README.md documents the interaction-completeness gate, the ui_interaction_review field, the confirmed-stub mechanism, placeholder-page detection, and dynamic-value discovery",
+        "CHANGELOG.md has a `## [0.9.19]` entry referencing the ui-interaction-fidelity requirements REQ-001..011",
+        ".claude-plugin/plugin.json and .claude-plugin/marketplace.json both report version 0.9.19",
+        "docs/CODEBASE_MAP.md documents 20 skills (incl. interaction-completeness and dynamic-value-discovery), 17 agents (incl. interaction-reviewer), and the evidence schema at v6; docs/INTEGRATION_MAP.md and CLAUDE.md are consistent"
+      ],
+      "layer": "infra",
+      "owning_team": "wiring-tests-docs",
+      "task_ids": ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6", "8.7"]
+    },
+    {
+      "source_requirement_id": "REQ-009",
+      "spec_requirement_id": "ui-interaction-fidelity/Placeholder-vs-live-page detection",
+      "summary": "The interaction-completeness verification classifies every page live/placeholder/confirmed-stub; an unconfirmed placeholder wired where a live page belongs is a gap",
+      "scenarios": [
+        "A route wired to a placeholder where a live page is specified is a gap",
+        "A user-confirmed placeholder page is accepted",
+        "The skill defines a placeholder-signal rubric",
+        "An ambiguous page escalates rather than being guessed"
+      ],
+      "acceptance_criteria": [
+        "skills/interaction-completeness/SKILL.md defines page/screen/route enumeration and the live/placeholder/confirmed-stub page-classification rubric",
+        "The skill defines a placeholder-signal rubric — component/file naming (Placeholder, ComingSoon, Stub, Mock, Demo, WIP), coming-soon/under-construction/lorem content, a data-driven page that makes no API calls, a near-empty route shell, a route-table entry pointing at a placeholder while the real component is specified-but-unwired",
+        "The verification cross-checks every page against the design / requirements / ROUTE_MAP.md; a route wired to a placeholder where a live page is specified is reported as a placeholder-page gap and routed as a solution requirement",
+        "agents/interaction-reviewer.md includes page enumeration, the live/placeholder/confirmed-stub classification, and the design/ROUTE_MAP cross-check in the reviewer's job",
+        "An unconfirmed placeholder page is a gap; a user-confirmed placeholder page is classified confirmed-stub and is not a gap; an ambiguous page escalates to the human"
+      ],
+      "layer": "infra",
+      "owning_team": "interaction-discipline",
+      "task_ids": ["9.1", "9.2", "9.3", "9.4"]
+    },
+    {
+      "source_requirement_id": "REQ-010",
+      "spec_requirement_id": "ui-interaction-fidelity/Dynamic-value-discovery skill",
+      "summary": "New dynamic-value-discovery skill — a cross-role discipline distinguishing static literals from sample-data standing in for dynamic, data-bound values",
+      "scenarios": [
+        "Skill file exists and is well-formed",
+        "The skill classifies from context, not from the literal",
+        "Dynamic values must be bound to a data source",
+        "An ambiguous value escalates rather than being guessed"
+      ],
+      "acceptance_criteria": [
+        "skills/dynamic-value-discovery/SKILL.md exists with valid frontmatter (name: dynamic-value-discovery, quoted description) and is registered in tests/test_skills.py EXPECTED_SKILLS",
+        "The skill states that a value is classified static-vs-dynamic FROM CONTEXT (position, the value's nature, the requirements/design language) — the same literal can be static in one place and dynamic in another",
+        "The skill lists dynamic signals (person names, dates, currency, counts, statuses, a value in a record-detail view or a repeating list row, a greeting with a name) and static signals (nav labels, button text, headings, fixed helper text, brand strings)",
+        "The skill mandates that every value classified dynamic is bound to a named data source — never the design's hardcoded sample literal — and requires escalation to the human when a classification is genuinely ambiguous"
+      ],
+      "layer": "infra",
+      "owning_team": "interaction-discipline",
+      "task_ids": ["10.1", "10.2", "10.3", "10.4"]
+    },
+    {
+      "source_requirement_id": "REQ-011",
+      "spec_requirement_id": "ui-interaction-fidelity/Dynamic-value discovery wired into developer, architect, and evaluator",
+      "summary": "dynamic-value-discovery referenced by developer (frontend/backend), architect (system-architect/design-fidelity-mapping), evaluator (interaction-reviewer/interaction-completeness); hardcoded-dynamic-value gap kind",
+      "scenarios": [
+        "Developer agents bind dynamic values",
+        "Architect classifies values at planning",
+        "Evaluator flags hardcoded dynamic values"
+      ],
+      "acceptance_criteria": [
+        "agents/frontend.md and agents/backend.md instruct the agent to apply dynamic-value-discovery — bind every dynamic value to its data source and never hardcode design sample data",
+        "agents/system-architect.md instructs the architect to consult dynamic-value-discovery when reviewing specs and designs, and skills/design-fidelity-mapping/SKILL.md has the DESIGN_MAP per-screen specs classify each value static/dynamic and name the data source",
+        "agents/interaction-reviewer.md and skills/interaction-completeness/SKILL.md instruct the evaluator to apply dynamic-value-discovery and report a hardcoded value the context shows should be dynamic as a hardcoded-dynamic-value gap",
+        "A hardcoded-dynamic-value gap is routed as a solution requirement and surfaces through the ui_interaction_review field"
+      ],
+      "layer": "infra",
+      "owning_team": "wiring-tests-docs",
+      "task_ids": ["11.1", "11.2", "11.3", "11.4"]
+    }
+  ],
+  "uncovered_source_requirements": [],
+  "reuse_decisions": [
+    {
+      "decision": "build-new",
+      "rationale": "No existing component independently verifies interactive-element coverage, Playwright test authenticity, placeholder-vs-live pages, or hardcoded-vs-dynamic values. test-completeness-verifier is a mechanical sonnet grep (wrong kind of agent for judgment-heavy work); editability-completeness is attribute-granularity (wrong granularity). Two new skills (interaction-completeness, dynamic-value-discovery) and one new agent (interaction-reviewer) are a justified build-new.",
+      "codebase_map_anchor": "docs/CODEBASE_MAP.md §4 Skills + Agents; the gap is named in skills/editability-completeness/SKILL.md ('the existing gates do not catch this')",
+      "verified": true
+    },
+    {
+      "decision": "reuse",
+      "rationale": "interaction-completeness reuses the editability-completeness STRUCTURE verbatim — three reviewers in parallel, round-robin convergence, system-architect Round-3 robustness review, bounded multi-pass, gaps-as-solution-requirements; interaction-reviewer mirrors editability-reviewer (opus, analysis-only, x3). dynamic-value-discovery reuses the reuse-first-design PATTERN — a principle-skill consulted cross-role by the architect, developers, and evaluators, wired into existing agents with no new agent. Placeholder-page detection (REQ-009) reuses the same interaction-completeness skill, agent, reviewer team, confirmed-stub mechanism, and ui_interaction_review gate field — a page-level dimension, not a new component.",
+      "codebase_map_anchor": "docs/CODEBASE_MAP.md §4 (editability-completeness skill + editability-reviewer agent; reuse-first-design skill)",
+      "verified": true
+    },
+    {
+      "decision": "extend",
+      "rationale": "The ui_interaction_review field is added to the existing shared hooks/review_evidence_schema.py module — the same path visual_fidelity_review (v0.5.0), test_completeness_review (v0.9.0), and integration_testing_review (v0.9.5) each took via a SCHEMA_VERSION bump; no new file, both hooks import the shared module. The verifier strengthening extends agents/test-completeness-verifier.md. The pipeline/discipline/dynamic-value wiring extends existing SKILL.md and agent files (architect-team-pipeline, playwright-user-flows, team-spawning-and-review-gates, design-fidelity-mapping; frontend, backend, integration, system-architect). Tests extend the existing pytest suite. Beyond the two new skills + one new agent above, there is no new command, no new hook, and no new third-party dependency.",
+      "codebase_map_anchor": "docs/CODEBASE_MAP.md §4 Hooks (review_evidence_schema.py, evidence schema v5), §6 conventions, §8 navigation guide",
+      "verified": true
+    }
+  ],
+  "notes": {
+    "no_frontend": "The architect-team plugin has zero frontend surface; Playwright user-flow tests, DESIGN_MAP, visual-fidelity, and editability reviews do not apply to THIS change. (The change is ABOUT Playwright/UI testing and design-fidelity discipline in target projects, but the plugin itself is verified structurally.)",
+    "no_backend_api": "The plugin has zero HTTP API surface; test discipline = pytest unit + structural. No requirement is layer=both, so no front-to-back integration criterion applies.",
+    "run_mode": "proposal-first — the orchestrator pauses after Phase 1 to present this proposal/design/specs/tasks/coverage-map package for user review before Phase 2 implementation begins. Revised twice: REQ-009 (placeholder-vs-live-page detection) and REQ-010/011 (dynamic-value discovery, cross-role) added per user feedback.",
+    "teams": "Phase 2 will finalize team boundaries. Provisional decomposition: interaction-discipline (REQ-001/002/003/009/010 — skills/interaction-completeness/SKILL.md, agents/interaction-reviewer.md, skills/dynamic-value-discovery/SKILL.md) and schema-verifier (REQ-004/005 — hooks/review_evidence_schema.py, agents/test-completeness-verifier.md) touch disjoint files and can run in parallel; wiring-tests-docs (REQ-006/007/008/011) depends on both and runs after — it owns the cross-role wiring edits and ALL test-file edits (incl. registering the new skills/agent), so each shared file has a single owner."
+  }
+}

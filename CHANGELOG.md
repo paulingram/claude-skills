@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.19] — 2026-05-22
+
+### Added — UI interaction fidelity (`ui-interaction-fidelity`)
+
+The pipeline kept shipping frontend work that was not what it claimed to be — and the verification did not catch it. Three failure modes shared one root cause: a Playwright "user-flow" test could pass without ever driving the UI (a direct `page.request.*` call, or a vacuous navigate-and-assert masquerading as a flow); a route could be wired to a placeholder / "coming soon" / skeleton / mock page in place of the real live page; and a hardcoded literal could ship where a dynamic, data-bound value belongs (`"John Smith"` rendered for every user). The `playwright-user-flows` discipline and the `frontend` agent's "no placeholder data" rule were *written* but **under-enforced** — trust-based Markdown a grep cannot police. v0.9.19 makes "every interactive element is genuinely user-flow-tested, every page is the real live page, and every displayed value is correctly static or dynamically bound — or an explicit user-confirmed stub" a **structural, hook-enforced gate**. Implements requirements REQ-001..011 of the `ui-interaction-fidelity` OpenSpec change.
+
+#### REQ-001 / REQ-002 — the interaction-completeness verification team
+
+- `skills/interaction-completeness/SKILL.md` — NEW. A judgment-heavy verification discipline modeled on `editability-completeness`: for any slice with UI/UX surface it independently (re-)enumerates every interactive element AND every page / screen / route, classifies each element by how it is wired and each page `live` / `placeholder` / `confirmed-stub`, verifies every non-stub element has a genuine user-driven Playwright test exercising the real UI path, and traces each element to the endpoint or client behavior it drives. Runs as a three-reviewer parallel-then-converge loop with a `system-architect` Round-3 robustness review and a bounded multi-pass outer loop; gaps become solution requirements.
+- `agents/interaction-reviewer.md` — NEW. Spawned ×3 in parallel, independent, analysis-only (no `Edit` of feature code); enumerates interactive elements and pages, classifies element wiring and page genuineness, traces element→endpoint, audits Playwright test authenticity, detects placeholder pages and hardcoded-should-be-dynamic values, and converges round-robin with the other two. Mirrors `editability-reviewer` (opus, ×3, read-only on source).
+
+#### REQ-003 — the confirmed-stub mechanism
+
+- An interactive element OR a page that is intentionally inert / a placeholder MUST be classified `confirmed-stub`, which REQUIRES explicit user confirmation: the reviewer escalates a structured question, the user confirms, and the confirmed stub is recorded durably in the converged interaction map and in the change's `coverage-map.json` `confirmed_stubs[]` list. An unconfirmed inert control is an `unwired-control` gap; an unconfirmed placeholder page is a `placeholder-page` gap — never a silent pass. A confirmed stub does not require a user-flow test but is tracked, not ignored.
+
+#### REQ-004 — the `ui_interaction_review` review-gate field (evidence schema v5 → v6)
+
+- `hooks/review_evidence_schema.py` — `SCHEMA_VERSION` 5 → 6; the new required `ui_interaction_review` field added to `REQUIRED_EVIDENCE_FIELDS` with a `VALID_UI_INTERACTION_VALUES` set and `validate_evidence()` enforcement — `pass` / `n/a` / `fail`, `fail` blocks, `n/a` requires a non-empty `ui_interaction_review_note`. The field is defined once in the shared module; both `review-gate-task.py` and `teammate-idle-check.py` import it, so the bump flows through with no per-hook drift — the exact path `visual_fidelity_review` (v0.5.0), `test_completeness_review` (v0.9.0) and `integration_testing_review` (v0.9.5) each took.
+
+#### REQ-005 — strengthened test-completeness-verifier Playwright audit
+
+- `agents/test-completeness-verifier.md` — the Playwright audit additionally flags a "user-flow test" with no / near-zero genuine user interaction (a navigate-and-assert with `page.goto` + assertions but no `page.click` / `page.fill` / `page.selectOption` / `page.check` / `page.press` / `page.setInputFiles`), and cross-checks the evidence-listed Playwright tests against the interactivity inventory so an element with no covering test is flagged mechanically before the judgment team runs. The verdict JSON records the vacuous-flow and uncovered-element findings.
+
+#### REQ-006 — pipeline and discipline wiring
+
+- `skills/architect-team-pipeline/SKILL.md` — Phase 3 names the `ui_interaction_review` field; Phase 5 invokes the interaction-completeness team for any in-scope frontend slice.
+- `skills/playwright-user-flows/SKILL.md`, `agents/frontend.md`, `agents/integration.md`, `skills/team-spawning-and-review-gates/SKILL.md` — reference the v6 field, the confirmed-stub mechanism, placeholder-page detection, and the `interaction-completeness` team.
+
+#### REQ-009 — placeholder-vs-live-page detection
+
+- `skills/interaction-completeness/SKILL.md` — page / screen / route enumeration and a `live` / `placeholder` / `confirmed-stub` page-classification rubric, with a placeholder-signal rubric (component / file naming — `Placeholder`, `ComingSoon`, `Stub`, `Mock`, `Demo`, `WIP`; "coming soon" / "under construction" / lorem-ipsum content; a data-driven page that makes no API calls; a near-empty route shell; a route-table entry pointing at a placeholder while the real component is specified-but-unwired). The verification cross-checks every page against the design / requirements / `ROUTE_MAP.md`; an unconfirmed placeholder where a live page is specified is a `placeholder-page` gap; an ambiguous page escalates to the human.
+
+#### REQ-010 / REQ-011 — dynamic-value discovery, a cross-role discipline
+
+- `skills/dynamic-value-discovery/SKILL.md` — NEW. A cross-role discipline for telling a genuine static literal from sample data standing in for a dynamic, data-bound value. It classifies a displayed value `static` vs. `dynamic` FROM CONTEXT (position, the value's nature, the requirements / design language — the same literal is static in one place and dynamic in another), lists dynamic signals (person names, dates, currency, counts, statuses, a value in a record-detail view or repeating list row, a greeting with a name) and static signals (nav labels, button text, headings, fixed helper text, brand strings), mandates that every dynamic value is bound to a named data source, and requires escalation when a classification is genuinely ambiguous. Modeled on `reuse-first-design` as a principle-skill every role consults.
+- Wired into the three roles — `agents/frontend.md` / `agents/backend.md` (bind dynamic values, never hardcode design sample data); `agents/system-architect.md` and `skills/design-fidelity-mapping/SKILL.md` (the DESIGN_MAP per-screen specs classify each value `static` / `dynamic` and name its data source; spec acceptance criteria require the bindings); `agents/interaction-reviewer.md` and `skills/interaction-completeness/SKILL.md` (flag a hardcoded value the context shows should be dynamic as a `hardcoded-dynamic-value` gap, routed as a solution requirement through the `ui_interaction_review` field).
+
+#### REQ-007 — test coverage
+
+- `tests/test_interaction_completeness.py` — NEW: the `interaction-completeness` skill + `interaction-reviewer` agent register correctly and carry the structural mandates and the element + page classification rubrics.
+- `tests/test_ui_interaction_review.py` — NEW: the v6 `ui_interaction_review` field's required / valid / `n/a`-note behavior and `SCHEMA_VERSION == 6`; both hooks enforce it.
+- `tests/test_dynamic_value_discovery.py` — NEW: the `dynamic-value-discovery` skill is well-formed, defines the context-classification rubric, and is referenced by the developer / architect / evaluator agents and skills.
+- `tests/test_ui_fidelity_wiring.py` — NEW: the pipeline + discipline wiring carries the v6 field, the confirmed-stub mechanism, and the interaction-completeness team references.
+- `tests/test_skills.py` `EXPECTED_SKILLS` gains `interaction-completeness` + `dynamic-value-discovery`; `tests/test_agents.py` `EXPECTED_AGENTS` gains `interaction-reviewer`; `tests/test_cross_consistency.py`'s shared-schema test now expects 12 required evidence fields (renamed `test_shared_schema_has_all_twelve_required_fields`); `tests/test_review_gate_task.py` + `tests/test_teammate_idle_check.py` evidence helpers updated in lockstep for v6.
+
+#### REQ-008 — documentation and release
+
+- `README.md` — new "UI interaction fidelity" section (the `interaction-completeness` verification gate, the `ui_interaction_review` field, the confirmed-stub mechanism, placeholder-page detection, dynamic-value discovery); banner + version badge → `0.9.19`; inventory counts → 20 skills / 17 agents; NEW IN panel + status timeline updated.
+- `docs/CODEBASE_MAP.md`, `docs/INTEGRATION_MAP.md`, `CLAUDE.md` — refreshed: 20 skills, 17 agents, evidence schema v6; the new `interaction-completeness` / `dynamic-value-discovery` skills and the `interaction-reviewer` agent catalogued.
+
+### Released (v0.9.19)
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`: version bumped `0.9.18` → `0.9.19`.
+
 ## [0.9.18] — 2026-05-21
 
 ### Added — project email notifications (`project-email-notifications`)

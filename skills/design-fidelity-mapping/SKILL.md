@@ -172,6 +172,24 @@ For every screen / route that has a corresponding design artifact, the expected 
 
 For every interactive element listed in the ROUTE_MAP.md and corresponding `playwright-user-flows` interactivity inventory, this section MUST define its computed-style spec. An element in the inventory without a row in this table is a gap (declared in `## Coverage & Gaps`).
 
+#### Static-vs-dynamic value classification (apply `dynamic-value-discovery`)
+
+A design mockup is full of sample data — `"John Smith"`, `"$1,234.00"`, `"2 hours ago"`, `"Welcome back, Sarah"`, `"3 items"`, `"Shipped"`. A per-screen visual spec that simply records the mockup's literal lets a literal implementation ship that one sample datum to every user — the UI then shows one person's data to everyone. So the per-screen visual specs do not just capture how a value LOOKS; they classify, for **every displayed value on the screen**, what KIND of value it is, by applying the `dynamic-value-discovery` skill — read it before authoring this section.
+
+For each displayed value, add a `value_class` field — `static` or `dynamic` — classified FROM CONTEXT (the value's position, its nature, and the requirements / design language) and NEVER from the literal itself, since the same string is `static` in one place and `dynamic` in another (a `"Dashboard"` page heading is `static`; `"Dashboard"` as one row in a list of the user's saved report names is `dynamic`). Per the `dynamic-value-discovery` rubrics: person names, dates, currency amounts, counts, statuses, IDs, a greeting with a name, and any value in a record-detail view or a repeating list row are `dynamic`; nav labels, button text, section headings, fixed helper text, and brand strings are `static`.
+
+For every value classified `dynamic`, the spec MUST also record a `data_source` — the named source the value binds to (`session.user.name`, `order.total` from `GET /orders/:id`, a route parameter, a store/context value, a derived computation). "It comes from the backend" is not a named source. A value table row for a screen looks like:
+
+| Value (on screen) | value_class | data_source |
+|---|---|---|
+| user-name in header | `dynamic` | `session.user.name` (auth session) |
+| page heading "Reports" | `static` | — |
+| order total | `dynamic` | `order.total` from `GET /api/orders/:id` |
+| "Save" button label | `static` | — |
+| order status badge | `dynamic` | `order.status` from `GET /api/orders/:id` |
+
+When a value's static-vs-dynamic classification genuinely cannot be determined from the requirements, design, or code, do NOT default-guess — record it in `## Coverage & Gaps` with `escalate: true` and the structured question from `dynamic-value-discovery`. The Phase 1 spec's acceptance criteria then REQUIRE the binding for every `dynamic` value — so "render the user's name from the session", not "render John Smith", is in the spec from the start, and the `interaction-completeness` evaluator can later flag any `dynamic` value shipped as the hardcoded sample literal as a `hardcoded-dynamic-value` gap.
+
 ### `## Link Inference for Un-Annotated Interactive Elements`
 
 Designers often skip explicit link annotations on obvious buttons — "Sign in" rarely gets an arrow because everyone "knows" where it goes. The route-mapper agent is EMPOWERED to INFER the most likely link target when a design artifact lacks an explicit annotation. Inference is bounded: only when no explicit annotation exists, and only when a confident candidate can be identified from context. Silent "blank link" is forbidden.

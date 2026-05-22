@@ -1,6 +1,6 @@
 ---
 name: team-spawning-and-review-gates
-description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v5 — the teammate's self-review plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
+description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v6 — the teammate's self-review plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
 ---
 
 # Team Spawning & Review Gates
@@ -56,13 +56,13 @@ Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
 
 The teammate writes this BEFORE its `TaskUpdate` flips the task to `completed`. The `PostToolUse(TaskUpdate)` hook reads it and exits 2 (blocks completion) if it's missing or any field is invalid.
 
-The 11 top-level review fields are the teammate's OWN **self-review** — a cheap first pass that catches the obvious. They do NOT gate on their own: the `independent_review` block (added in v5) is the verdict of an independent `task-reviewer` agent, and the hook requires it present with `reviewer != teammate` and `verdict == "pass"`. See "## Independent review — the task-reviewer" below.
+The 12 top-level review fields are the teammate's OWN **self-review** — a cheap first pass that catches the obvious. They do NOT gate on their own: the `independent_review` block (added in v5) is the verdict of an independent `task-reviewer` agent, and the hook requires it present with `reviewer != teammate` and `verdict == "pass"`. See "## Independent review — the task-reviewer" below.
 
-Schema (v5 — v0.9.13 added the required `independent_review` block — an independent task-reviewer's verdict, so the gate cannot pass on self-attestation; v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
+Schema (v6 — v0.9.19 added the required `ui_interaction_review` field + optional `ui_interaction_review_note`; v0.9.13 added the required `independent_review` block — an independent task-reviewer's verdict, so the gate cannot pass on self-attestation; v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
 
 ```json
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "task_id": "T-12",
   "teammate": "backend-auth",
   "completed_at": "<ISO 8601 UTC>",
@@ -85,6 +85,8 @@ Schema (v5 — v0.9.13 added the required `independent_review` block — an inde
   "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice",
   "integration_testing_review": "n/a",
   "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface to integration-test front-to-back",
+  "ui_interaction_review": "n/a",
+  "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface — no interactive elements, no pages",
   "independent_review": {
     "reviewer": "task-reviewer",
     "verdict": "pass",
@@ -102,7 +104,7 @@ Schema (v5 — v0.9.13 added the required `independent_review` block — an inde
 }
 ```
 
-The 11 top-level fields are the teammate's self-review. The `independent_review` block is written by the `task-reviewer` agent, NOT the teammate.
+The 12 top-level fields are the teammate's self-review. The `independent_review` block is written by the `task-reviewer` agent, NOT the teammate.
 
 Required field validity:
 
@@ -119,6 +121,8 @@ Required field validity:
 - `test_completeness_review_note` is required (non-empty string) WHEN `test_completeness_review == "n/a"`. It must explain which kind(s) are inapplicable and why (e.g., backend-only slice so Playwright is n/a, OR no testable pure-logic surface for unit tests). Not required when value is `"pass"` (the verifier verdict JSON carries the evidence).
 - `integration_testing_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (`page.route` happy-path stubs, MSW, an in-memory fake API server, hardcoded fixtures) instead of the real running backend MUST be re-authored against the real backend, or escalated via the SR auto-spawn (`origin.kind: "integration-testing-failure"`), not marked complete. Front-to-back integration testing is the DEFAULT for every `both`-layer feature per `playwright-user-flows`'s "Real backend by default" discipline — it is overridden only by an explicit authorization in the requirements folder.
 - `integration_testing_review_note` is required (non-empty string) WHEN `integration_testing_review == "n/a"`. It must give ONE of three legitimate reasons: (1) the slice has no cross-layer surface (pure static frontend with no backend, OR backend-only slice with no frontend); (2) Phase 3 per-team gate where the counterpart layer is not yet integrated — the note says the integration test is DEFERRED TO PHASE 5 (a debt Phase 5 must settle against the real backend; `n/a` is never valid for a `both`-layer slice at Phase 5); (3) the requirements folder explicitly authorizes isolated / mock-backed testing for this requirement — the note quotes the authorization. Not required when value is `"pass"` (the verifier verdict JSON + the demo artifact's real-backend reference carry the evidence).
+- `ui_interaction_review` must be one of `"pass"` / `"n/a"` / `"fail"` (evidence schema v6, added in v0.9.19). It is the gate that every interactive element the slice ships is genuinely user-flow-tested (a real `page.click` / `page.fill` path, not a `page.request.*` direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value — or a user-confirmed stub. It gates a genuinely orthogonal axis to `integration_testing_review` (real-interaction-vs-fake-interaction, not real-backend-vs-mock — a test can be real-backend + fake-interaction, or mock-backed + real-interaction). The hook BLOCKS `"fail"` — an unwired control, an unconfirmed placeholder page, or a hardcoded value the context shows should be dynamically bound, detected by the `interaction-completeness` team, MUST be escalated via a solution requirement (`origin.kind: "unwired-control"` / `"placeholder-page"` / `"hardcoded-dynamic-value"`), not marked complete. Re-run the interaction-completeness team after the routed fix lands and only mark complete when the verdict is `"pass"`.
+- `ui_interaction_review_note` is required (non-empty string) WHEN `ui_interaction_review == "n/a"`. It must explain why — the slice has no UI/frontend interactive surface (no interactive elements, no pages / screens / routes — e.g., a backend-only or pure-infra slice). Not required when value is `"pass"` (the interaction-completeness team's converged map carries the evidence).
 - `independent_review` is a REQUIRED object — the verdict of the independent `task-reviewer` agent (not the teammate). The hook blocks evidence with no `independent_review` block. Its required sub-fields:
   - `reviewer` — a non-empty string naming the reviewing agent. It **MUST NOT equal the top-level `teammate` field** — the producer cannot be its own checker. The hook blocks `reviewer == teammate`.
   - `verdict` — must be `"pass"`. A non-`"pass"` verdict means the `task-reviewer` found the task incomplete; the hook blocks it, and the teammate re-engages on the reviewer's per-gap notes (this is a normal Phase 3 review-gate failure — no SR, no diagnostic-research routing).
@@ -171,7 +175,7 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
   "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
   "created_at": "<ISO 8601 UTC>",
   "origin": {
-    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap",
+    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap" | "unwired-control" | "placeholder-page" | "hardcoded-dynamic-value",
     "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
     "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
     "test_id": "<failing test ID, if applicable>",
@@ -208,8 +212,8 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
 ### Required field validity
 
 - `solution_id` must be unique and `_safe_id()`-compatible.
-- `origin.kind` must be one of the enumerated values (`playwright-failure`, `integration-test-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`, `integration-testing-failure`, `editability-gap`); agents MUST NOT invent new kinds.
-- `editability-gap` SRs spawn a fix team DIRECTLY — they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged map already names the exact attribute, the exact trace stage that breaks, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-cascade` — DO route through `diagnostic-research-team` first; `editability-gap` does not.)
+- `origin.kind` must be one of the enumerated values (`playwright-failure`, `integration-test-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`, `integration-testing-failure`, `editability-gap`, `unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`); agents MUST NOT invent new kinds.
+- `editability-gap` SRs — and the three interaction-gap kinds (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) — spawn a fix team DIRECTLY; they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged editable-surface map, and the `interaction-completeness` team's converged interaction map, each already name the exact attribute / control / page / value, the exact trace stage or gap kind, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-cascade` — DO route through `diagnostic-research-team` first; the converged-map-origin kinds do not.)
 - `problem_summary` and `expected_behavior` are non-empty strings.
 - `evidence` is a non-empty array; an SR without evidence is an alert dressed as a requirement.
 - `affected_requirements` may be empty if the problem is in territory not yet covered by the coverage map — but then `affected_screens` (for visual) or `scope.files_to_change` MUST be non-empty so the orchestrator can attribute the fix.
@@ -247,6 +251,7 @@ When the orchestrator resumes (after any subagent signals idle), it MUST:
 - `dev-api-integration-testing` — when an integration test fails against the live dev API with a backend regression (RCA verdict product-bug), the SR is written by RCA. When the failure is in test-author error or env / fixture / race, fix in-loop without an SR (per root-cause-test-failures Phase C).
 - `test-completeness-verifier` agent — every `overall: fail` writes an SR with `origin.kind: "test-completeness-failure"` so the orchestrator re-spawns the originating team with concrete missing-test acceptance criteria. The originating team re-enters Phase 2 to author the missing tests, passes Phase 3, and the verifier re-runs in Phase 5 to confirm. When the failure is specifically a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (the `backend_integration_audit` is `mock_backed` with no explicit requirements authorization), the verifier instead uses `origin.kind: "integration-testing-failure"` — the orchestrator routes this through `diagnostic-research-team` (it is a test-failure origin) before spawning the fix team, and the `acceptance_criteria` mandate re-authoring the happy path against the real running backend.
 - `editability-completeness` team — every gap in the converged editable-surface map (an attribute a user should be able to control whose end-to-end trace breaks: a `missing-control`, `dead-control`, `orphan-field`, `no-readback`, or `schema-mismatch`) becomes an SR with `origin.kind: "editability-gap"`. The `acceptance_criteria` are end-to-end and concrete: the create/edit flow has a working control for the attribute, the value reaches the database, the read-back returns it, and a real-backend integration test covers the round-trip. The fix team is spawned directly. After the fixes land, the three `editability-reviewer` agents re-spawn and re-review until the converged map has zero gaps.
+- `interaction-completeness` team — every gap in the converged interaction map becomes an SR whose `origin.kind` is the gap kind: an `unwired-control` (an interactive element that drives no endpoint and no client behavior, with no user confirmation it is an intentional stub — also the kind for a correctly-wired control whose only break is a missing or vacuous user-flow test), a `placeholder-page` (a route wired to a placeholder / "coming soon" / skeleton / mock page where a live page is specified, unconfirmed), or a `hardcoded-dynamic-value` (a value hardcoded as the design's sample literal where the context shows it should be dynamically bound). The `acceptance_criteria` are precise: an `unwired-control` is wired end-to-end (or confirmed as a stub); a `placeholder-page` is replaced by the real live page the design specifies (or confirmed); a `hardcoded-dynamic-value` is bound to its named data source per `dynamic-value-discovery`; and in every case a genuine user-driven Playwright test (real `page.click` / `page.fill`, real UI path, real backend) covers the fix. The fix team is spawned directly. After the fixes land, the three `interaction-reviewer` agents re-spawn and re-review until the converged map has zero gaps. These gaps surface through the `ui_interaction_review` review-gate evidence field.
 - `visual-verification-team` (the `system-architect` Visual Gap Synthesis role) — spawned in Phase 5 (and by `/architect-team:visual-qa`). After the team's `visual-capture` agents render the LIVE app and its `visual-analyzer` agents produce per-screen gap lists, the synthesis clusters the gaps into root causes and writes one SR per gap cluster with `origin.kind: "visual-fidelity-drift"`. The `acceptance_criteria` mandate that the live app match the DESIGN_MAP Oracle for every screen in the cluster, re-verified by the team against the running app. A team `blocked` verdict (the live app would not run) or `incomplete` (the sweep did not cover every screen) escalates to the human, not a fix team — an unrunnable app or an incomplete sweep is a prerequisite defect, not a fix-team task.
 
 ### Anti-patterns to reject
@@ -286,11 +291,11 @@ The file MUST contain:
 
 ## Independent review — the task-reviewer
 
-The 11 top-level evidence fields are the teammate's **self-review**. A self-review is a producer checking its own work — the last producer-is-own-checker gap in the pipeline. The `PostToolUse(TaskUpdate)` hook does shape validation: it can confirm the evidence file is well-formed JSON with `"pass"` values; it cannot confirm those values are *true*. A teammate could write a perfectly-conformant evidence file that lies, and on shape validation alone the gate would open.
+The 12 top-level evidence fields are the teammate's **self-review**. A self-review is a producer checking its own work — the last producer-is-own-checker gap in the pipeline. The `PostToolUse(TaskUpdate)` hook does shape validation: it can confirm the evidence file is well-formed JSON with `"pass"` values; it cannot confirm those values are *true*. A teammate could write a perfectly-conformant evidence file that lies, and on shape validation alone the gate would open.
 
 So the gate does not open on the self-review. After the teammate writes its self-review and signals its task complete, the orchestrator dispatches an independent **`task-reviewer`** agent (Phase 3 of `architect-team-pipeline`). The dispatch:
 
-1. The teammate finishes its task, writes the 11-field self-review into `<cwd>/.architect-team/reviews/<task-id>.json`, and signals complete.
+1. The teammate finishes its task, writes the 12-field self-review into `<cwd>/.architect-team/reviews/<task-id>.json`, and signals complete.
 2. The orchestrator spawns a `task-reviewer` agent against that `task_id`, passing the `teammate` name, the coverage-map slice, and the teammate's `files_owned`.
 3. The `task-reviewer` is **read-only on source** (no `Edit`). It reads the teammate's `git diff`, confirms each coverage-map acceptance criterion is actually met by the code, runs the repo's linters / type-checkers / the slice's tests itself, greps the diff for stubs / `TODO` / `NotImplementedError` / mock returns / placeholder data, and checks every new file against a Reuse Decision.
 4. The `task-reviewer` writes the `independent_review` block into the SAME evidence file — `reviewer` is itself (never the teammate), `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` reflect its independent findings.
@@ -310,7 +315,7 @@ On `verdict: fail`, the `task-reviewer` writes detailed per-gap notes; the teamm
 - `reuse_compliance: "ok"` — every new file in `files_changed` corresponds to a Reuse Decision in `design.md`.
 - `independent_review` — the verdict of the independent `task-reviewer` agent (NOT the teammate); see "## Independent review — the task-reviewer" above. Its `reviewer` must differ from `teammate`.
 
-If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The 11 top-level fields are the teammate's self-review; the teammate writes them honestly, then an independent `task-reviewer` agent reviews the same task's diff and writes the `independent_review` block. The hook enforces `independent_review.reviewer != teammate` and `verdict == "pass"` — the gate cannot open on self-attestation; an independent agent's verdict is required.
+If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The 12 top-level fields are the teammate's self-review; the teammate writes them honestly, then an independent `task-reviewer` agent reviews the same task's diff and writes the `independent_review` block. The hook enforces `independent_review.reviewer != teammate` and `verdict == "pass"` — the gate cannot open on self-attestation; an independent agent's verdict is required.
 
 ## Anti-patterns to reject
 

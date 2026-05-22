@@ -24,6 +24,8 @@ EXPECTED_SKILLS: set[str] = {
     "readme-styling",
     "visual-verification-team",
     "documentation-currency",
+    "interaction-completeness",
+    "dynamic-value-discovery",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

@@ -26,6 +26,15 @@ Read the Reuse Decisions for your slice from `design.md`. Every file you create 
   - Component tests for rendering and interaction (the project's component test framework).
   - Playwright user-flow tests per the `playwright-user-flows` skill for end-to-end paths.
 - The Playwright workflow is non-negotiable: examine the code, build the interactivity inventory, author tests that simulate the real user, verify coverage. NEVER substitute API calls for user-flow tests.
+- **Bind every dynamic value to its data source — apply `dynamic-value-discovery`.** A design mockup is full of sample data: `"John Smith"`, `"$1,234.00"`, `"2 hours ago"`, `"Welcome back, Sarah"`, `"3 items"`, `"Shipped"`. Before you render any value, classify it `static` or `dynamic` FROM CONTEXT (its position, its nature, the requirements / design language) per the `dynamic-value-discovery` skill — never from the literal itself. Ship a genuine `static` literal as a literal; bind every `dynamic` value to its named data source (the auth session, an API response field, a route param, a store/context value, a prop). NEVER copy a mockup's sample datum into the code as the shipped value — a hardcoded name / balance / date / status shows one person's data to everyone. When a value's classification is genuinely ambiguous, escalate the structured question from `dynamic-value-discovery` rather than guessing.
+
+## Interactive elements: real wiring, genuine tests, no unconfirmed placeholders
+
+Every interactive element you ship — every button, form, link, toggle, menu — must genuinely work: wired to a real endpoint or a real client behavior, and covered by a genuine user-driven Playwright test (a real `page.click` / `page.fill` path, never a `page.request.*` direct API call standing in for a click, never a vacuous navigate-and-assert). Every page / screen / route you ship must be the real live page the design / requirements specify — not a placeholder, "coming soon", skeleton, or mock page.
+
+- **Honor the confirmed-stub mechanism.** If an interactive element is intentionally inert for this release, or a route is intentionally a placeholder, that is a `confirmed-stub` — and a `confirmed-stub` REQUIRES explicit user confirmation. Do NOT ship an inert control or a placeholder page on your own judgment. Surface a structured question to the orchestrator for the user to confirm; an inert control or placeholder page with no confirmation is a gap, not a silent pass.
+- **No unconfirmed placeholder pages.** Wiring a route to a `ComingSoon` / `Stub` / `Mock` / skeleton / lorem-ipsum page where the design specifies a real live page is a `placeholder-page` defect — never a substitute for building the real page. If the real page genuinely cannot be built this slice, escalate for a confirmed-stub decision; do not quietly ship the placeholder.
+- This is independently verified at Phase 5 by the `interaction-completeness` team, and it surfaces through the `ui_interaction_review` review-gate evidence field — see below.
 
 ## Process
 
@@ -76,6 +85,16 @@ Set `integration_testing_review` in your review-gate evidence honestly:
 
 Never set `integration_testing_review: "pass"` for a `both`-layer feature whose Playwright run used mocks. That is the dishonesty this field exists to prevent.
 
+## Setting the ui_interaction_review evidence field (evidence schema v6)
+
+Set `ui_interaction_review` in your review-gate evidence honestly. It is the gate — orthogonal to `integration_testing_review` — that every interactive element your slice ships is genuinely user-flow-tested with a real `page.click` / `page.fill` path and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value (per `dynamic-value-discovery`) — or a user-confirmed stub.
+
+- `"pass"` — every interactive element in the slice is genuinely UI-tested (a real user-interaction call drives it, not a `page.request.*` direct API call, not a vacuous navigate-and-assert) and correctly wired; every page / route is live; every dynamic value is bound to its data source; any intentionally-inert control or placeholder page is a user-confirmed stub recorded in `coverage-map.json` `confirmed_stubs[]`.
+- `"n/a"` — your slice has no UI/frontend interactive surface (no interactive elements, no pages / screens / routes — e.g., a pure-logic or config-only slice). Requires a non-empty `ui_interaction_review_note` saying so.
+- `"fail"` — the `interaction-completeness` team found an `unwired-control`, an unconfirmed `placeholder-page`, or a `hardcoded-dynamic-value` gap. The hook BLOCKS `"fail"` — the gap MUST be escalated through a solution requirement (`origin.kind: "unwired-control"` / `"placeholder-page"` / `"hardcoded-dynamic-value"`), not marked complete. Wait for the routed fix, re-run the interaction-completeness verification, and only mark complete when the verdict is `"pass"`.
+
+Never set `ui_interaction_review: "pass"` when a control is wired but only reached via `page.request.*`, when a route is wired to a placeholder, or when a value is hardcoded where the context shows it should be dynamic. That is the dishonesty this field exists to prevent.
+
 ## Per-test expectations & failure handling
 
 Apply `root-cause-test-failures` to every Playwright test:
@@ -107,6 +126,10 @@ Apply `root-cause-test-failures` to every Playwright test:
 - No marking complete with `visual_fidelity_review: "fail"` — the hook blocks it. The default workflow is fix-to-spec → re-run → `pass`. `"fail"` is only correct when one of the four named escalation cases applies (out-of-scope, implementation-extras, spec-ambiguity, cascade-blast-radius).
 - No mock-backed happy-path Playwright for a `both`-layer feature. The happy path runs against the real running backend. `page.route` is for forcing specific error responses (401/429/500) only — never for faking a 2xx happy-path response. MSW, `json-server`, `miragejs`, `nock`, and hardcoded response fixtures standing in for the backend are FORBIDDEN. Set `integration_testing_review` honestly — `"pass"` only when the real backend was in the loop; the hook blocks `"fail"` and requires a justification note for `"n/a"`.
 - No claiming "tested with Playwright" when the Playwright run never touched the real backend. If killing the backend would not break your happy-path tests, those tests never integration-tested anything — they tested fake data.
+- No interactive element shipped without a genuine user-driven Playwright test (`page.click` / `page.fill` / `page.selectOption` / `page.check` / `page.press` / `page.setInputFiles`). A `page.request.*` direct API call standing in for a click, and a navigate-and-assert with zero interaction calls, are both vacuous flows — not a test of the control.
+- No route wired to a placeholder / "coming soon" / skeleton / mock page where the design specifies a real live page. An intentionally-inert control or placeholder page is a `confirmed-stub` ONLY with explicit user confirmation — surface the structured question; never self-confirm a stub.
+- No dynamic value shipped as the design's hardcoded sample literal. Apply `dynamic-value-discovery`: a name / balance / date / status / count the context shows is per-user / per-record must be bound to a named data source, never the mockup datum.
+- No marking complete with `ui_interaction_review: "fail"` — the hook blocks it. An `unwired-control`, an unconfirmed `placeholder-page`, or a `hardcoded-dynamic-value` gap routes through a solution requirement; re-run the interaction-completeness verification to `"pass"`. Set `ui_interaction_review` honestly — `"pass"` only when every control is genuinely tested and wired, every page is live, every value is correctly static or dynamic; `"n/a"` (with a note) only for a slice with no interactive surface.
 - No alerting the user about drift without first attempting the fix. The discipline converges to the spec; alerting-without-fixing is a process failure.
 - No reconciliation at a viewport other than what DESIGN_MAP.md declares. Different viewport = different verdict.
 - No fix that introduces NEW drift elsewhere. After any fix, re-run reconciliation on EVERY screen the changed file/token cascades to (not just the screen that surfaced the drift). Convergence to spec across all affected screens is the bar.

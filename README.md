@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 18
+                            ─── T E A M ───   v 0 . 9 . 19
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,19 +21,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.18-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.19-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-496%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-647%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.18  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.19  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **UI interaction fidelity — every control genuinely tested, every page live (v0.9.19)** | The pipeline kept shipping frontend work that was not what it claimed to be — a Playwright "user-flow" test passing without ever driving the UI (a direct `page.request.*` call, or a vacuous navigate-and-assert), a route wired to a **placeholder** / "coming soon" / mock page in place of the real live page, a hardcoded `"John Smith"` rendered for every user where a dynamic value belongs. v0.9.19 makes "every interactive element is genuinely user-flow-tested, every page is the real live page, and every displayed value is correctly static or dynamically bound — or an explicit user-confirmed stub" a **structural, hook-enforced gate**. A new judgment-heavy verification team — the **`interaction-completeness`** skill + the **`interaction-reviewer`** agent (×3, opus, analysis-only, modeled on `editability-completeness`) — independently re-enumerates every interactive element AND every page, classifies element wiring and page genuineness, audits each Playwright test for genuine user-driven interaction, and traces every element to its endpoint. A first-class **confirmed-stub mechanism** gives an intentionally-inert control or placeholder page a durable, user-confirmed status (escalate-don't-guess); an unconfirmed one is a gap. A new hook-enforced **`ui_interaction_review`** evidence field (schema v5 → **v6**) gates the axis — `pass` / `n/a` / `fail`. A new **`dynamic-value-discovery`** skill — a cross-role discipline wired into the developer, architect, and evaluator — distinguishes a genuine static literal from sample data standing in for a dynamic, data-bound value, classifying every displayed value FROM CONTEXT and binding every dynamic one. The `test-completeness-verifier` is strengthened to flag a vacuous "flow" test and cross-check the interactivity inventory. |
 | ▸ **Project email notifications (v0.9.18)** | A pipeline run is a long, mostly-unattended sequence of phases — until now nobody could follow along without watching the terminal. v0.9.18 adds an **opt-in, per-project email-notification system**. A project drops a committed `.architect-team-notify.json` at its repo root naming the email provider (**Gmail** SMTP or **SendGrid** API), the sender identity, the env-var that holds the provider secret, and a recipient list — each recipient subscribing to whichever of the **five event types** they want: `phase_start`, `phase_complete`, `issue_discovered` (a new solution requirement), `git_commit`, and `deploy` (a live dev instance brought up). The notifier (`scripts/notify/notify.py`, **standard library only** — `smtplib` / `urllib`, zero new dependencies) is a CLI the orchestrator invokes at those five moments. It is strictly **best-effort**: every failure path — missing config, missing secret, provider / network error — exits 0, so a notification failure can never block, fail, or alter a run. Provider secrets are read only from the named environment variable, never committed, never logged. With no `.architect-team-notify.json` present the notifier is a silent no-op. |
 | ▸ **Plain-language requirements are first-class (v0.9.17)** | `/architect-team` takes a requirement in **two forms** — a requirements folder OR a **plain-language requirement typed directly** (a sentence or paragraph describing what to build, fix, change, review, or improve). Phase 0 has always normalized plain-language input, but the command's argument parser was worded *"the first token is the requirements folder path"* — so a sentence's first word (`no`, `review`, `fix`) got mistaken for a path and models refused with *"I won't run against a non-existent folder."* v0.9.17 rewrites the command's argument parser and the skill's `Inputs` section: two clearly-labelled input forms, both first-class; refusing prose — or treating its first word as a path — is now explicitly forbidden; the pipeline asks for input only when the argument is genuinely empty. |
 | ▸ **README visual designer — centering, color, themes (v0.9.16)** | The `readme-styling` skill gains a **canvas-width + centering model** (one width; every element built to it or centered within it — no more crooked, left-listing pages), **pipe-table and ASCII-graph alignment rules**, a **two-world color model** (GitHub-safe — themed badges + colored Mermaid diagrams — plus a separate ANSI-colored variant for terminals), and a **theming engine**: six preset themes (`midnight` / `phosphor` / `amber` / `synthwave` / `crimson` / `mono`), each a badge palette + accent + ANSI palette + Mermaid colors, chosen once via an interactive picker at first setup and recorded in a `<!-- architect-team:readme-theme=... -->` marker so a project's look stays consistent. This README is re-styled as the reference implementation. |
@@ -60,7 +61,7 @@
 ```
 
 ```
-┌─ SKILLS (18) ───────────────────────┬─ AGENTS (16) ─────────────────────────┐
+┌─ SKILLS (20) ───────────────────────┬─ AGENTS (17) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -77,8 +78,10 @@
 │ ◇ expensive-verification-debugging  │ ◆ visual-capture (sonnet)             │
 │ ◇ editability-completeness          │ ◆ visual-analyzer (opus)              │
 │ ◇ readme-styling                    │ ◆ task-reviewer (opus)                │
-│ ◇ visual-verification-team          │                                       │
+│ ◇ visual-verification-team          │ ◆ interaction-reviewer (opus)         │
 │ ◇ documentation-currency            │                                       │
+│ ◇ interaction-completeness          │                                       │
+│ ◇ dynamic-value-discovery           │                                       │
 ├─ COMMANDS (6) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder>                             │
 │ ▸ /architect-team-setup                                                     │
@@ -87,7 +90,7 @@
 │ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                 │
 │ ▸ /architect-team:editability-audit [<codebase-path>]                       │
 ├─ HOOKS (3) ─────────────────────────────────────────────────────────────────┤
-│ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v5 + independent review  │
+│ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v6 + independent review  │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │
 │ ▸ Stop                      pipeline-completion audit (terminal gate)       │
 ├─ SETUP ─────────────────────────────────────────────────────────────────────┤
@@ -186,12 +189,12 @@ The requirements folder may contain OpenSpec artifacts (`proposal.md`, `specs/`,
                                                      │    PHASE 3      │
                                                      │  Review Gate    │
        ┌─────────────────┐    ┌─────────────────┐    │  · hook-enforced│
-       │   PHASE 5       │    │   PHASE 4       │    │  · 11 fields    │
+       │   PHASE 5       │    │   PHASE 4       │    │  · 12 fields    │
        │  Integration    │◀───│  Reconciliation │◀───│  · visual-fid   │
-       │  · real backend │    │  · shared bounds│    │    review       │
+       │  · real backend │    │  · shared bounds│    │  · ui-interactn │
        │  · playwright   │    │  · contract sync│    │  · RCA on fail  │
        │  · visual-fid   │    │  · no feature   │    │  · auto-spawn   │
-       │  · editability  │    │    code         │    │    SR on issue  │
+       │  · ui-interactn │    │    code         │    │    SR on issue  │
        └────────┬────────┘    └─────────────────┘    └─────────────────┘
                 │
                 ▼
@@ -232,12 +235,12 @@ Every `TaskUpdate(completed)` on a teammate-owned task is gated; the hook exits 
    not an architect-    reads  .architect-team/reviews/<task_id>.json
    team task; ignored             │
                                   ▼
-        ◆ evidence present · valid JSON · all 11 self-review fields valid?
+        ◆ evidence present · valid JSON · all 12 self-review fields valid?
             · spec_review = quality_review = "pass"
             · real_not_stubbed = true · tests added ≥ 1 and == passing
             · reuse_compliance = "ok" · demo_artifact + files_changed non-empty
-            · visual_fidelity / test_completeness / integration_testing
-              reviews ≠ "fail"
+            · visual_fidelity / test_completeness / integration_testing /
+              ui_interaction reviews ≠ "fail"
             · independent_review present · reviewer ≠ teammate ·
               verdict = "pass"   (written by the task-reviewer agent)
             │                                       │
@@ -252,11 +255,12 @@ Every `TaskUpdate(completed)` on a teammate-owned task is gated; the hook exits 
 
 ### ▌ Logic Map B — issue → fix routing (Solution Requirements)
 
-Every surfaced issue becomes an SR; test-failure origins route through diagnostic research first, editability gaps go straight to a fix team; the loop closes when the originating check passes.
+Every surfaced issue becomes an SR; test-failure origins route through diagnostic research first, editability + interaction gaps go straight to a fix team; the loop closes when the originating check passes.
 
 ```
-   an issue surfaces   (failed test · visual drift · editability gap)
-            │
+   an issue surfaces  (failed test · visual drift · editability /
+            │           interaction gap — unwired control, placeholder
+            │           page, hardcoded dynamic value)
             ▼   the discovering agent writes a Solution Requirement (SR)
    ◆ route by  SR.origin.kind
         │
@@ -267,11 +271,12 @@ Every surfaced issue becomes an SR; test-failure origins route through diagnosti
         │  failure · visual-fidelity-cascade         robustness → consolidated
         │                                            diagnostic plan
         │                                                     │
-        └─ editability-gap ──────────────────┐                │
-           the converged editable-surface    │                │
-           map is already the full           │                │
-           diagnosis — research is skipped    │                │
-                                              ▼                ▼
+        └─ editability-gap / unwired-control / ───┐            │
+           placeholder-page / hardcoded-          │            │
+           dynamic-value — the converged map      │            │
+           is already the full diagnosis,         │            │
+           research is skipped                    │            │
+                                                  ▼            ▼
                                        ▣ FIX TEAM  —  spawned in Phase 2,
                                        runs the Phase 2 → 3 → 4 → 5 loop
                                                      │
@@ -367,8 +372,8 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4 — Per-task review gate (Phase 3, hook-enforced)
 
 - **Enforcement layer:** `PostToolUse(TaskUpdate)` → [`hooks/review-gate-task.py`](hooks/review-gate-task.py) + `SubagentStop` → [`hooks/teammate-idle-check.py`](hooks/teammate-idle-check.py). See Logic Map A.
-- **Mechanism:** teammate writes its self-review into `<cwd>/.architect-team/reviews/<task-id>.json` (evidence schema v5) BEFORE any `TaskUpdate(status=completed)`; an independent `task-reviewer` agent then reads the diff and writes the `independent_review` block. Exit 0 = allow, exit 2 = block.
-- **Acceptance criteria — 11 self-review fields + the `independent_review` block:**
+- **Mechanism:** teammate writes its self-review into `<cwd>/.architect-team/reviews/<task-id>.json` (evidence schema v6) BEFORE any `TaskUpdate(status=completed)`; an independent `task-reviewer` agent then reads the diff and writes the `independent_review` block. Exit 0 = allow, exit 2 = block.
+- **Acceptance criteria — 12 self-review fields + the `independent_review` block:**
 
   | Field | Required value |
   |---|---|
@@ -383,6 +388,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
   | `visual_fidelity_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks |
   | `test_completeness_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks |
   | `integration_testing_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks |
+  | `ui_interaction_review` | `"pass"` / `"n/a"` (+ non-empty `_note`) — `"fail"` blocks (v6 — every interactive element genuinely user-flow-tested, every page live, every value correctly static/dynamic, or a confirmed stub) |
   | `independent_review` | object — `reviewer` (≠ `teammate`), `verdict` = `"pass"`, `spec_review` / `quality_review` = `"pass"`, `real_not_stubbed` = `true`, `reuse_compliance` = `"ok"`, `reviewed_at` non-empty. Written by the `task-reviewer` agent — the gate cannot open on the teammate's self-review alone. |
 
 - **Escalation policy:** after 3 consecutive hook rejections on the same `task_id` → teammate stops retrying and writes a `<teammate>-to-orchestrator-stuck-<task_id>` handoff.
@@ -410,8 +416,8 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4d — Test-completeness verification (Phase 3 + Phase 5)
 
 - **Trigger:** end of Phase 3 / Phase 5; on-demand when the orchestrator suspects a coverage gap.
-- **Mechanism:** `test-completeness-verifier` confirms unit + integration + Playwright tests all ran for the applicable layers; grep-audits Playwright source for forbidden `page.evaluate(() => fetch(...))` / `page.request.*` / `axios.*` direct-API patterns; runs the backend-integration audit (real backend vs mock-backed); confirms each acceptance criterion is covered.
-- **Verdict JSON:** per-kind `status` + `backend_integration_audit` + `integration_testing_review`.
+- **Mechanism:** `test-completeness-verifier` confirms unit + integration + Playwright tests all ran for the applicable layers; grep-audits Playwright source for forbidden `page.evaluate(() => fetch(...))` / `page.request.*` / `axios.*` direct-API patterns; flags a "user-flow test" that navigates and asserts with no genuine user-interaction call (a vacuous flow); cross-checks the evidence-listed Playwright tests against the interactivity inventory so an uncovered element is flagged; runs the backend-integration audit (real backend vs mock-backed); confirms each acceptance criterion is covered.
+- **Verdict JSON:** per-kind `status` + `backend_integration_audit` + `integration_testing_review` + the vacuous-flow + uncovered-element findings.
 - **On `overall: fail`:** writes an SR (`test-completeness-failure` or `integration-testing-failure`); orchestrator re-spawns the originating team.
 - **References:** [`agents/test-completeness-verifier.md`](agents/test-completeness-verifier.md).
 
@@ -433,11 +439,20 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 - **Exit criteria:** the team's consolidated verdict — not the reconciliation self-report — is `overall: pass`. Each gap cluster → an SR; `blocked` (live app won't run) / `incomplete` escalates. The `Stop` hook blocks a run whose reconciliation was never verified by the team.
 - **References:** [`skills/visual-verification-team/SKILL.md`](skills/visual-verification-team/SKILL.md), [`agents/visual-capture.md`](agents/visual-capture.md), [`agents/visual-analyzer.md`](agents/visual-analyzer.md).
 
+### ▌ Loop 4g — Interaction completeness (Phase 3 + Phase 5)
+
+- **Trigger:** any slice with UI/UX interactive surface, at the Phase 3 review gate and the Phase 5 cross-layer pass. The independent VERIFICATION gate that the `playwright-user-flows` authoring discipline was followed — the sibling of Loop 4e (editability), at the granularity of controls and pages instead of attributes.
+- **Mechanism:** three `interaction-reviewer` agents (opus, analysis-only) spawn in parallel. Each independently re-enumerates every interactive element (the union of the design / `DESIGN_MAP`, the `ROUTE_MAP.md`, the route table, and the component code) AND every page / screen / route; classifies each element `endpoint-backed` / `client-only` / `confirmed-stub` / `ambiguous` and each page `live` / `placeholder` / `confirmed-stub`; verifies every non-stub element has a genuine user-driven Playwright test (real `page.click` / `page.fill` — not a `page.request.*` direct call, not a vacuous navigate-and-assert); traces each element to its endpoint or client behavior; and applies `dynamic-value-discovery` to flag a hardcoded value the context shows should be dynamic.
+- **Convergence:** the three argue round-robin (evidence-cited) to one identical converged interaction map; a `system-architect` Round-3 robustness review checks for a shared blind spot; bounded multi-pass until all three agree the interactive surface is genuine.
+- **Confirmed-stub mechanism:** an intentionally-inert control or a placeholder page is `confirmed-stub` ONLY with explicit user confirmation — the reviewer escalates a structured question, never guesses. A confirmed stub is recorded in the converged map and in `coverage-map.json` `confirmed_stubs[]`; it needs no user-flow test but is tracked.
+- **Gaps → SRs:** every gap (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) becomes an SR — spawns a fix team directly; surfaces through the `ui_interaction_review` evidence field.
+- **References:** [`skills/interaction-completeness/SKILL.md`](skills/interaction-completeness/SKILL.md), [`agents/interaction-reviewer.md`](agents/interaction-reviewer.md), [`skills/dynamic-value-discovery/SKILL.md`](skills/dynamic-value-discovery/SKILL.md).
+
 ### ▌ Loop 5 — Cross-layer integration (Phase 5)
 
 - **Wrapper:** Orchestrator-internal. Begins after both layer-teams pass Loop 4 + Phase 4 merges cleanly.
-- **Mechanism:** integration agent runs the full suite locally then against the **live dev API with real dev data** (never mocks). For frontend: Playwright user-flow tests against the **real running dev environment** — and for `both`-layer features the run exercises the **real backend** (no `page.route` happy-path stubs, no MSW, no fake API server). Visual-fidelity regression sweep (Loop 4c), its independent verification by the visual-verification-team (Loop 4f), and the editability-completeness review (Loop 4e) all run here.
-- **Exit criteria:** every Phase 1 acceptance criterion passes; every documented error response exercised; every interactive element covered by a user-flow test; the editability team reaches `satisfied`.
+- **Mechanism:** integration agent runs the full suite locally then against the **live dev API with real dev data** (never mocks). For frontend: Playwright user-flow tests against the **real running dev environment** — and for `both`-layer features the run exercises the **real backend** (no `page.route` happy-path stubs, no MSW, no fake API server). Visual-fidelity regression sweep (Loop 4c), its independent verification by the visual-verification-team (Loop 4f), the editability-completeness review (Loop 4e), and the interaction-completeness review (Loop 4g) all run here.
+- **Exit criteria:** every Phase 1 acceptance criterion passes; every documented error response exercised; every interactive element covered by a genuine user-flow test and every page verified live (the interaction-completeness team agrees the interactive surface is genuine); the editability team reaches `satisfied`.
 - **On failure:** SR auto-spawn → Logic Map B.
 - **References:** [`skills/dev-api-integration-testing/SKILL.md`](skills/dev-api-integration-testing/SKILL.md), [`skills/playwright-user-flows/SKILL.md`](skills/playwright-user-flows/SKILL.md), [`agents/integration.md`](agents/integration.md).
 
@@ -496,7 +511,7 @@ On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4
 | `<codebase>/docs/DESIGN_MAP.md` | Design-fidelity output (conditional) — tokens, asset registry, per-screen specs, link inference | `last_designed` |
 | `<workspace>/docs/INTEGRATION_MAP.md` | Master-synthesizer's cross-codebase synthesis | `last_synthesized` |
 | `<workspace>/.architect-team/intake-state.json` | Re-entry short-circuit state | — |
-| `<workspace>/.architect-team/reviews/<task-id>.json` | Per-task review-gate evidence (v5 schema — 11 self-review fields + the independent `task-reviewer` verdict) | — |
+| `<workspace>/.architect-team/reviews/<task-id>.json` | Per-task review-gate evidence (v6 schema — 12 self-review fields + the independent `task-reviewer` verdict) | — |
 | `<workspace>/.architect-team/teammates/<name>.json` | Teammate manifests | — |
 | `<workspace>/.architect-team/handoffs/<from>-to-<to>-<ts>.md` | Inter-agent coordination | — |
 | `<workspace>/.architect-team/solution-requirements/SR-<id>-<ts>.json` | Auto-spawn fix-team requirements | — |
@@ -627,6 +642,110 @@ zero new third-party dependencies.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  UI INTERACTION FIDELITY  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+The pipeline kept shipping frontend work that was not what it claimed to be —
+and the verification did not catch it. v0.9.19 makes the genuineness of a
+shipped UI a **structural, hook-enforced gate** rather than trust-based
+Markdown. Three failure modes, one enforcement layer.
+
+### ▸ The three failure modes it closes
+
+| Failure mode | What shipped | How v0.9.19 catches it |
+|---|---|---|
+| **Fake user-flow test** | A Playwright "user-flow" test passes without driving the UI — a direct `page.request.post('/api/...')` call, or a navigate-and-assert with zero `page.click`. `integration_testing_review` gates real-backend-vs-mock, a different axis; a grep finds *present* bad patterns, not an *absent* genuine interaction. | The interaction-completeness team audits every Playwright test for genuine user-driven interaction; the strengthened `test-completeness-verifier` flags a vacuous flow mechanically. |
+| **Placeholder page** | A route is wired to a `ComingSoon` / skeleton / mock page where the design specifies a real live page — and a Playwright test clicks happily through it. | Every page / screen / route is enumerated and classified `live` / `placeholder` / `confirmed-stub`, cross-checked against the design / requirements / `ROUTE_MAP.md`. |
+| **Hardcoded dynamic value** | The design mockup's sample data — `"John Smith"`, `"$1,234.00"`, `"Welcome back, Sarah"` — is copied literally into the code, so one person's sample data ships to everyone. | `dynamic-value-discovery` classifies every displayed value `static` vs. `dynamic` FROM CONTEXT; a hardcoded value the context shows should be bound is a `hardcoded-dynamic-value` gap. |
+
+### ▸ The `interaction-completeness` verification gate
+
+A new judgment-heavy verification discipline — the `interaction-completeness`
+skill — modeled on the proven `editability-completeness` pattern. For any slice
+with UI/UX surface it runs at the **Phase 3** review gate and the **Phase 5**
+cross-layer pass: three `interaction-reviewer` agents (opus, analysis-only)
+spawn **in parallel** and each independently re-enumerates **every interactive
+element** (buttons, links, inputs, selects, toggles, menus, drag handles,
+file-uploads) AND **every page / screen / route** — the union of the design /
+`DESIGN_MAP`, the `ROUTE_MAP.md`, the route table, and the component code.
+Each reviewer classifies how each element is wired, classifies each page, and
+audits whether each non-stub element has a genuine user-driven Playwright test.
+The three then **argue round-robin to a converged interaction map**; the
+`system-architect` performs a Round-3 robustness review; a bounded multi-pass
+outer loop re-reviews after fixes land — the exact relationship
+`editability-completeness` has to `playwright-user-flows`, applied to controls
+and pages instead of attributes.
+
+### ▸ The classification rubrics
+
+Each **interactive element** is classified — from THIS feature's requirements
+and design, never from a name alone:
+
+- `endpoint-backed` — drives an API call (control → handler → HTTP client → endpoint).
+- `client-only` — pure client behavior (navigation / state change / overlay).
+- `confirmed-stub` — intentionally inert, **user-confirmed** (see below).
+- `ambiguous` — the requirements do not determine it → **escalate to the human**.
+
+Each **page / screen / route** is classified `live`, `placeholder`, or
+`confirmed-stub`. The skill carries a **placeholder-signal rubric** — component
+/ file naming (`Placeholder`, `ComingSoon`, `Stub`, `Mock`, `Demo`, `WIP`),
+"coming soon" / "under construction" / lorem-ipsum content, a data-driven page
+that makes no API calls, a near-empty route shell, a route-table entry pointing
+at a placeholder while the real component is specified-but-unwired.
+
+### ▸ The confirmed-stub mechanism
+
+An interactive element OR a page that is **intentionally inert** is classified
+`confirmed-stub` **ONLY with explicit user confirmation**. A reviewer that finds
+an inert control or a placeholder page does **not guess** — it escalates a
+structured question to the human via the orchestrator. Once confirmed, the stub
+is recorded durably in the converged interaction map AND in the change's
+`coverage-map.json` `confirmed_stubs[]` list; it does not require a user-flow
+test (testing an intentionally-inert control is meaningless) but it **is
+tracked**, never silently ignored. An **unconfirmed** inert control is an
+`unwired-control` gap; an **unconfirmed** placeholder page is a
+`placeholder-page` gap — each routed as a solution requirement.
+
+### ▸ The `ui_interaction_review` review-gate field (evidence schema v6)
+
+The shared review-gate evidence schema is bumped **v5 → v6** with a new
+hook-enforced field — `ui_interaction_review`, taking `pass` / `n/a` / `fail`:
+
+- `pass` — every interactive element in the slice is genuinely UI-tested, every page is live, every displayed value is correctly static or dynamically bound, or a confirmed stub.
+- `n/a` — the slice has no UI/frontend interactive surface; **requires** a non-empty `ui_interaction_review_note`.
+- `fail` — **blocked by the hook**; an `unwired-control` / `placeholder-page` / `hardcoded-dynamic-value` gap must be escalated via a solution requirement, not marked complete.
+
+It is a **separate** field from `integration_testing_review` because it gates a
+genuinely orthogonal axis — a test can be real-backend + fake-interaction, or
+mock-backend + real-interaction. The field is defined once in
+`hooks/review_evidence_schema.py`; both evidence hooks import that module, so
+the bump flows through with no per-hook drift — exactly as
+`visual_fidelity_review` (v0.5.0), `test_completeness_review` (v0.9.0), and
+`integration_testing_review` (v0.9.5) were each added.
+
+### ▸ Dynamic-value discovery — a cross-role discipline
+
+A hardcoded value that should be dynamic cannot be caught by a single gate — it
+has to be *prevented* at planning, *avoided* at implementation, and *caught* at
+review. So v0.9.19 adds the `dynamic-value-discovery` skill — a cross-role
+discipline, modeled on `reuse-first-design`, wired into all three roles:
+
+- **Architect** — `system-architect` and `design-fidelity-mapping` consult it: the `DESIGN_MAP`'s per-screen specs classify each value `static` / `dynamic` and name the data source for each dynamic value.
+- **Developer** — `frontend` and `backend` consult it: bind every dynamic value to its data source; never hardcode design sample data.
+- **Evaluator** — the `interaction-reviewer`, guided by it, flags a hardcoded value the context shows should be dynamic.
+
+The core rule: **classify FROM CONTEXT, never from the literal** — the same
+string is `dynamic` beside an avatar and `static` in a nav bar; the value alone
+never decides. Person names, dates, currency amounts, counts, statuses, a value
+in a record-detail view or a repeating list row, a greeting with a name are
+`dynamic` signals; nav labels, button text, section headings, fixed helper
+text, brand strings are `static` signals. Every value classified `dynamic` is
+bound to a **named data source**; a genuinely ambiguous classification
+escalates to the human.
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  DEVELOPMENT  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
@@ -636,7 +755,7 @@ zero new third-party dependencies.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v5: 11 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, and project-email-notifications disciplines. **496 tests pass.**
+Tests validate: plugin/marketplace JSON; all 20 skill frontmatters; all 17 agent frontmatters (tool + model names); all 6 commands; hooks.json wiring for all three events; hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v6: 12 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, and ui-interaction-fidelity disciplines. **647 tests pass.**
 
 ### Bumping versions
 
@@ -686,7 +805,8 @@ Tests validate: plugin/marketplace JSON; all 18 skill frontmatters; all 16 agent
            v0.9.15 ─ documentation-currency gate
            v0.9.16 ─ readme-styling: centering + color + themes
            v0.9.17 ─ plain-language requirements are a first-class input
-   ◆       v0.9.18 ─ project email notifications — Gmail / SendGrid, five events (current)
+           v0.9.18 ─ project email notifications — Gmail / SendGrid, five events
+   ◆       v0.9.19 ─ UI interaction fidelity — genuine controls, live pages, dynamic values (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

@@ -1,18 +1,18 @@
 ---
-last_mapped: 2026-05-21T23:30:00Z
+last_mapped: 2026-05-22T18:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-21 for v0.9.18 (project-email-notifications) — the new scripts/notify/ notifier module + .architect-team-notify.json config catalogued in §3/§4, test-file count now 25 (test_notify.py + test_notify_wiring.py added). Current reality - 18 skills, 16 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 496 pytest self-tests across 25 test files. Covers v0.9.1 (auto-compact) through v0.9.18 (per-project email notifications).
+note: Doc refresh 2026-05-22 for v0.9.19 (ui-interaction-fidelity) — the new skills/interaction-completeness/ + skills/dynamic-value-discovery/ skills and agents/interaction-reviewer.md agent catalogued in §3/§4; review-gate evidence schema bumped v5 → v6 (the new ui_interaction_review field); test-file count now 29 (test_interaction_completeness.py + test_ui_interaction_review.py + test_dynamic_value_discovery.py + test_ui_fidelity_wiring.py added). Current reality - 20 skills, 17 agents, 6 commands, 3 enforcement hooks + 1 shared schema module, 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 647 pytest self-tests across 29 test files. Covers v0.9.1 (auto-compact) through v0.9.19 (UI interaction fidelity).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-21 for v0.9.18.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-22 for v0.9.19.
 
 ## 1. System Overview
 
-The `architect-team` Claude Code plugin (v0.9.18) is a spec-to-production multi-agent coding pipeline. It accepts EITHER a requirements folder (OpenSpec, Superpowers, or plain markdown) OR a plain-language requirement typed directly as prose (v0.9.17), and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
+The `architect-team` Claude Code plugin (v0.9.19) is a spec-to-production multi-agent coding pipeline. It accepts EITHER a requirements folder (OpenSpec, Superpowers, or plain markdown) OR a plain-language requirement typed directly as prose (v0.9.17), and drives it end-to-end through eight-and-a-bit phases: intake & mapping (Phase −1), detection & normalization (Phase 0), a 100%-coverage planning-validation gate (Phase 1), parallel team decomposition & spawn (Phase 2), hook-enforced per-team review gates (Phase 3), continuous solution-requirement intake (Phase 3b), reconciliation (Phase 4), cross-layer integration (Phase 5) with its visual-fidelity and editability and interaction-completeness and live-app-verification sub-gates, the outer task-group loop (Phase 6), master review (Phase 7), and the final report + auto-commit (Phase 8).
 
-The plugin ships **18 skills, 16 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **496 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
+The plugin ships **20 skills, 17 named agent definitions, 6 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **647 pytest self-tests** that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, interactive-element-and-page genuineness, and visual fidelity against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
 
 ## 2. Architecture Diagram
 
@@ -31,7 +31,7 @@ graph TB
         SK_PIPELINE["skill: architect-team-pipeline (Phase -1 -> 8)"]
     end
 
-    subgraph "Skills (18)"
+    subgraph "Skills (20)"
         SK_INTAKE["intake-and-mapping"]
         SK_PLAN["coverage-mapping / reuse-first-design"]
         SK_MAP["frontend-route-mapping / design-fidelity-mapping"]
@@ -40,17 +40,18 @@ graph TB
         SK_RCA["root-cause-test-failures / expensive-verification-debugging"]
         SK_DRT["diagnostic-research-team"]
         SK_VFR["visual-fidelity-reconciliation / visual-verification-team"]
-        SK_EDIT["editability-completeness"]
+        SK_EDIT["editability-completeness / interaction-completeness"]
+        SK_DVD["dynamic-value-discovery"]
         SK_MEMP["mempalace-integration"]
         SK_README["readme-styling / documentation-currency"]
     end
 
-    subgraph "Agents (16)"
+    subgraph "Agents (17)"
         AG_IMPL["frontend / backend (opus implementers)"]
         AG_FLOW["reconciler / integration"]
         AG_MAP["codebase-map-reviewer x3 / route-mapper / integration-explorer x3 / master-synthesizer"]
         AG_ARCH["system-architect (5 review modes)"]
-        AG_VERIF["task-reviewer / test-completeness-verifier / editability-reviewer x3 / diagnostic-researcher x3"]
+        AG_VERIF["task-reviewer / test-completeness-verifier / editability-reviewer x3 / interaction-reviewer x3 / diagnostic-researcher x3"]
         AG_VIS["visual-capture xN / visual-analyzer xN"]
         AG_SCAFFOLD["scaffold-agent"]
     end
@@ -67,7 +68,7 @@ graph TB
     end
 
     CMD_AT --> SK_PIPELINE
-    SK_PIPELINE --> SK_INTAKE & SK_PLAN & SK_TEAM & SK_RCA & SK_DRT & SK_VFR & SK_EDIT & SK_MEMP
+    SK_PIPELINE --> SK_INTAKE & SK_PLAN & SK_TEAM & SK_RCA & SK_DRT & SK_VFR & SK_EDIT & SK_DVD & SK_MEMP
     SK_INTAKE --> AG_MAP
     SK_PIPELINE --> AG_IMPL & AG_FLOW & AG_ARCH & AG_VERIF & AG_VIS
     AG_IMPL --> H_GATE & H_IDLE
@@ -82,8 +83,8 @@ graph TB
 ```
 claude_skill_lib/
 ├── .claude/                 # OpenSpec-installed workspace commands + skills (opsx/* commands + openspec-* skills; tracked)
-├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.18)
-├── agents/                  # 16 named subagent definitions (.md with frontmatter)
+├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.19)
+├── agents/                  # 17 named subagent definitions (.md with frontmatter)
 ├── commands/                # 6 slash-command bodies (.md with frontmatter)
 ├── hooks/                   # hooks.json wiring + 3 enforcement scripts + 1 shared module
 │   ├── hooks.json           #   wires PostToolUse(TaskUpdate), SubagentStop, Stop
@@ -94,13 +95,13 @@ claude_skill_lib/
 ├── scripts/
 │   ├── setup/               # setup.py (deps) + install_mempalace.py (MemPalace CLI/MCP)
 │   └── notify/              # notify.py — best-effort per-project email notifier (v0.9.18)
-├── skills/                  # 18 skill directories, each containing SKILL.md
+├── skills/                  # 20 skill directories, each containing SKILL.md
 ├── openspec/                # OpenSpec workspace (tracked); config.yaml + changes/ (archive/ nested inside) + specs/
 ├── docs/
 │   ├── CODEBASE_MAP.md      # this file
 │   ├── INTEGRATION_MAP.md   # external-integration synthesis (single-codebase degenerate)
 │   └── superpowers/         # historical design doc + plan (read-only reference)
-├── tests/                   # 496 pytest self-tests (25 test files + conftest + helpers/)
+├── tests/                   # 647 pytest self-tests (29 test files + conftest + helpers/)
 ├── .scratch/                # working notes (tracked; not part of the installed surface)
 ├── .architect-team-notify.example.json   # template per-project email-notification config (v0.9.18)
 ├── CLAUDE.md  CHANGELOG.md  README.md  LICENSE  pytest.ini  .gitignore
@@ -110,7 +111,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 
 ## 4. Module Guide
 
-### Skills (18)
+### Skills (20)
 
 | Skill | Role |
 |---|---|
@@ -124,16 +125,18 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | `playwright-user-flows` | White-box Playwright methodology; real-backend-by-default for `both`-layer features. |
 | `dev-api-integration-testing` | Live-dev-API testing — real DB / queue / cache, side-effect verification. |
 | `coverage-mapping` | `coverage-map.json` schema + lifecycle (Phase 1 / 3 / 7 / 8). |
-| `team-spawning-and-review-gates` | Teammate manifests; the v5 review-gate evidence schema (11 self-review fields + the independent `task-reviewer` verdict); the independent-review dispatch; the SR schema. |
+| `team-spawning-and-review-gates` | Teammate manifests; the v6 review-gate evidence schema (12 self-review fields incl. `ui_interaction_review` + the independent `task-reviewer` verdict); the independent-review dispatch; the SR schema. |
 | `root-cause-test-failures` | Predict → 3-pass RCA (forward / backward / falsify) → evidence-backed verdict; multiple-simultaneous-causes. |
 | `diagnostic-research-team` | 3 `diagnostic-researcher` agents + `system-architect` robustness review before a test-failure fix team spawns. |
 | `expensive-verification-debugging` | When a verify cycle is expensive (deploy / rebuild / slow CI), audit the whole failure pathway and batch the fixes. |
 | `editability-completeness` | 3 `editability-reviewer` agents enumerate every attribute, classify editability, trace UI→DB; architect robustness review; multi-pass. |
+| `interaction-completeness` | The judgment-heavy VERIFICATION gate that `playwright-user-flows` was followed (v0.9.19) — 3 `interaction-reviewer` agents independently re-enumerate every interactive element AND every page/screen/route, classify element wiring + page `live`/`placeholder`/`confirmed-stub`, audit Playwright test authenticity, trace element→endpoint, flag hardcoded-should-be-dynamic values; architect Round-3; bounded multi-pass; gaps → SRs. The sibling of `editability-completeness` at the granularity of controls and pages. |
+| `dynamic-value-discovery` | A cross-role discipline (v0.9.19) for telling a genuine static literal from sample data standing in for a dynamic, data-bound value — classify every displayed value `static`/`dynamic` FROM CONTEXT, bind every dynamic one to a named data source, escalate genuine ambiguity. Modeled on `reuse-first-design`; consulted by the architect, the developers, and the evaluator. |
 | `mempalace-integration` | Per-workspace MemPalace store — `--wing` mining (rooms are `init`-detected from directory structure, not a `mine` flag), auto-mine on artifact write, search before output. |
 | `readme-styling` | The bitmap house style for READMEs — canvas/centering, pipe-table + ASCII-graph alignment, banner / dividers / panels / flowcharts / logic maps, the GitHub-safe + ANSI color model, and the theming engine (6 preset themes + an interactive picker + the `readme-theme` marker). |
 | `documentation-currency` | The Phase 8 docs-reflect-the-code gate — the doc inventory (maps + README + CHANGELOG + CLAUDE.md), what "current" means, the orchestrator-updates-then-system-architect-audits flow. |
 
-### Agents (16)
+### Agents (17)
 
 | Agent | Model | Color | One-line purpose |
 |---|---|---|---|
@@ -153,6 +156,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | editability-reviewer | opus | yellow | Spawned ×3; enumerate + classify + trace every attribute UI→DB. |
 | visual-capture | sonnet | cyan | Spawned ×N; starts the live app, captures screenshots + computed-style data. Mechanical; no verdicts. |
 | visual-analyzer | opus | red | Spawned ×N; the objective data diff + pixel diff + code cross-check. |
+| interaction-reviewer | opus | yellow | Spawned ×3 (v0.9.19); independently enumerates every interactive element AND page, classifies element wiring + page genuineness, traces element→endpoint, audits Playwright test authenticity, flags hardcoded-dynamic values; round-robin convergence. Analysis-only — read-only on source, no `Edit` of feature code. |
 
 ### Commands (6)
 
@@ -166,7 +170,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 ### Hooks (3) + shared module
 
 - **`hooks/hooks.json`** — wires `PostToolUse[TaskUpdate]` → `review-gate-task.py`, `SubagentStop[*]` → `teammate-idle-check.py`, `Stop[*]` → `pipeline-completion-audit.py`. All `async: false`.
-- **`hooks/review_evidence_schema.py`** — NOT a hook; the shared single source of truth for the evidence contract (`SCHEMA_VERSION` = 5, `REQUIRED_EVIDENCE_FIELDS` = the 11 teammate self-review fields, `REQUIRED_INDEPENDENT_REVIEW_FIELDS` for the v5 `independent_review` block, the `VALID_*` value sets, `safe_id()`, `validate_evidence()`). `validate_evidence()` rejects evidence missing the `independent_review` block or whose `independent_review.reviewer == teammate`. Both evidence hooks import it (added v0.9.9 — before that the two hooks carried drifted copies).
+- **`hooks/review_evidence_schema.py`** — NOT a hook; the shared single source of truth for the evidence contract (`SCHEMA_VERSION` = 6, `REQUIRED_EVIDENCE_FIELDS` = the 12 teammate self-review fields incl. `ui_interaction_review` (v0.9.19), `REQUIRED_INDEPENDENT_REVIEW_FIELDS` for the v5 `independent_review` block, the `VALID_*` value sets incl. `VALID_UI_INTERACTION_VALUES`, `safe_id()`, `validate_evidence()`). `validate_evidence()` rejects evidence missing the `independent_review` block or whose `independent_review.reviewer == teammate`, blocks a `*_review` field set to `fail`, and requires the `_note` on an `n/a`. Both evidence hooks import it (added v0.9.9 — before that the two hooks carried drifted copies).
 - **`hooks/review-gate-task.py`** — `PostToolUse(TaskUpdate)`. Blocks a teammate task flipping to `completed` without valid review-gate evidence. Exit 0 = allow, 2 = block.
 - **`hooks/teammate-idle-check.py`** — `SubagentStop`. On a teammate going idle, validates every `expected_review_evidence` task. Blocks on a corrupt matched manifest (v0.9.9 — was fail-open).
 - **`hooks/pipeline-completion-audit.py`** — `Stop` hook + standalone `--check`. Gates the orchestrator's terminal state: blocks a stop while `.architect-team/` shows an incomplete run (open SRs, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, a test-completeness debt, an unverified visual reconciliation, a failing Phase 7 master-review audit verdict, a failing Phase 8 documentation-currency audit verdict, a blown iteration ceiling). Escalation-marker- and `stop_hook_active`-aware; fails open on any error.
@@ -182,9 +186,9 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 - **`.architect-team-notify.json`** (in a *target* project's repo root — NOT in this plugin) — the opt-in per-project email-notification config (v0.9.18) consumed by `scripts/notify/notify.py`: `provider` (`gmail`/`sendgrid`), `from_address`, optional `from_name`, the provider-settings object naming the secret env var, and a non-empty `recipients[]` (each with `email` + an `events[]` subscription list, or the `"all"` shorthand). Absent config ⇒ the notifier is a silent no-op.
 - **`.architect-team-notify.example.json`** (this repo's root) — the documented, schema-valid template a project copies to enable notifications.
 
-### Tests (496, all PASS)
+### Tests (647, all PASS)
 
-25 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 18 skill + 16 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit incl. the master-review + documentation-currency audit checks); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier module (`test_notify.py` — config load/validate, Gmail + SendGrid message construction with `smtplib`/`urllib` mocked, dispatch + per-recipient filtering, secret resolution, CLI + failure isolation) and its pipeline wiring (`test_notify_wiring.py` — the five wired events + the best-effort/non-blocking statement); **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); and one structural test file per discipline shipped v0.9.0 → v0.9.18.
+29 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 20 skill + 17 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit incl. the master-review + documentation-currency audit checks); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier module (`test_notify.py` — config load/validate, Gmail + SendGrid message construction with `smtplib`/`urllib` mocked, dispatch + per-recipient filtering, secret resolution, CLI + failure isolation) and its pipeline wiring (`test_notify_wiring.py` — the five wired events + the best-effort/non-blocking statement); the v0.9.19 ui-interaction-fidelity discipline (`test_interaction_completeness.py` — skill + agent registration + the structural mandates + the element/page rubrics; `test_ui_interaction_review.py` — the v6 `ui_interaction_review` field's required/valid/`n/a`-note behavior + `SCHEMA_VERSION == 6`; `test_dynamic_value_discovery.py` — the dynamic-value-discovery skill + its context-classification rubric + the cross-role references; `test_ui_fidelity_wiring.py` — the pipeline + discipline wiring); **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands; the shared schema has 12 required evidence fields); and one structural test file per discipline shipped v0.9.0 → v0.9.19.
 
 ## 5. Data Flow (abridged)
 
@@ -201,7 +205,7 @@ sequenceDiagram
     Orch->>Orch: Phase -1 (map) -> Phase 1 (100% coverage gate)
     Orch->>Team: Phase 2 spawn (non-overlapping scope)
     Team->>Gate: TaskUpdate(completed) + reviews/<id>.json
-    Gate-->>Team: exit 0 allow / exit 2 block (v5 schema — self-review + independent_review)
+    Gate-->>Team: exit 0 allow / exit 2 block (v6 schema — self-review + independent_review)
     Orch->>Verif: Phase 3/5 — task-reviewer, test-completeness, editability, visual-verification
     Verif-->>Orch: verdict JSON (pass / fail -> SR or re-engage)
     Note over Orch: Phase 3b — open SRs auto-spawn fix teams
@@ -223,7 +227,7 @@ sequenceDiagram
 
 **Runtime state (gitignored under `.architect-team/`):** `intake-state.json` (re-entry + `dev_loop_iterations` + `map_invalidated`), `reviews/<task-id>.json` (evidence), `teammates/<name>.json` (manifests), `handoffs/`, `solution-requirements/SR-*.json`, `diagnostic-research/`, `editability/`, `master-review/`, `documentation-currency/`, `failure-pathway/`, `test-completeness/`, `visual-fidelity/` (`capture/` + `analysis/` + `verification-verdict-*.json`), `runs/`, `escalation-pending.md` (the Stop-hook stand-down marker). MemPalace store at `<workspace>/.mempalace/palace`.
 
-**Review-gate evidence schema (v5 — defined once in `hooks/review_evidence_schema.py`):** the 11 teammate self-review fields — `task_id`, `spec_review`, `quality_review`, `real_not_stubbed`, `tests`, `demo_artifact`, `files_changed`, `reuse_compliance`, `visual_fidelity_review`, `test_completeness_review`, `integration_testing_review` — PLUS the required `independent_review` block (v0.9.13). The three `*_review` fields take `pass`/`n/a`/`fail` — `fail` blocks; `n/a` needs a `_note`. The `independent_review` block is the verdict of an independent `task-reviewer` agent: it carries `reviewer` / `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` / `reviewed_at`, and `validate_evidence()` rejects it when `reviewer == teammate` — the producer cannot be its own checker.
+**Review-gate evidence schema (v6 — defined once in `hooks/review_evidence_schema.py`):** the 12 teammate self-review fields — `task_id`, `spec_review`, `quality_review`, `real_not_stubbed`, `tests`, `demo_artifact`, `files_changed`, `reuse_compliance`, `visual_fidelity_review`, `test_completeness_review`, `integration_testing_review`, `ui_interaction_review` (v0.9.19) — PLUS the required `independent_review` block (v0.9.13). The four `*_review` fields take `pass`/`n/a`/`fail` — `fail` blocks; `n/a` needs a `_note`. `ui_interaction_review` gates the genuineness of a shipped UI — every interactive element genuinely user-flow-tested, every page live not a placeholder, every displayed value correctly static or dynamically bound, or a confirmed stub. The `independent_review` block is the verdict of an independent `task-reviewer` agent: it carries `reviewer` / `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` / `reviewed_at`, and `validate_evidence()` rejects it when `reviewer == teammate` — the producer cannot be its own checker.
 
 ## 7. Gotchas (cross-cutting)
 
