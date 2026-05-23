@@ -30,12 +30,69 @@ def test_pipeline_skill_has_phase_2_section(plugin_root: Path) -> None:
 
 
 def test_phase_2_precedes_phase_1(plugin_root: Path) -> None:
-    """Phase −2 must appear BEFORE the Phase −1 Prelude in the skill body."""
+    """Phase −2 must appear BEFORE Phase −1 — Intake & Mapping in the skill body.
+
+    (Pre-v0.9.24 this test compared Phase −2 against a `## Phase −1 Prelude` section
+    that held the MemPalace wake-up. v0.9.24 promoted the wake-up to a precondition
+    section that precedes Phase −2 — see test_mempalace_wakeup_precedes_phase_2 below.)
+    """
     body = _read_body(plugin_root, "skills/architect-team-pipeline/SKILL.md")
     p2 = body.find("## Phase −2")
-    p1_prelude = body.find("## Phase −1 Prelude")
-    assert p2 >= 0 and p1_prelude >= 0
-    assert p2 < p1_prelude, "Phase −2 must precede Phase −1 Prelude in the skill body"
+    p1_intake = body.find("## Phase −1 — Intake")
+    assert p2 >= 0 and p1_intake >= 0
+    assert p2 < p1_intake, "Phase −2 must precede Phase −1 — Intake & Mapping in the skill body"
+    # The old Phase −1 Prelude header must NOT be present anymore (its content moved to
+    # the precondition MemPalace wake-up section above Phase −2).
+    assert "## Phase −1 Prelude" not in body, (
+        "v0.9.24 removed the `## Phase −1 Prelude` header — the wake-up is now a precondition "
+        "section above Phase −2, not labeled as a phase. See the MemPalace wake-up section."
+    )
+
+
+def test_mempalace_wakeup_precedes_phase_2(plugin_root: Path) -> None:
+    """v0.9.24 — the MemPalace wake-up section MUST appear before Phase −2.
+
+    Invariant: the wake-up is a precondition that runs before ANY subagent dispatch,
+    including the Phase −2 bug-classifier. The section must be lexically above Phase −2
+    in the skill body (since the pipeline runs top-to-bottom).
+    """
+    body = _read_body(plugin_root, "skills/architect-team-pipeline/SKILL.md")
+    wakeup = body.find("## MemPalace wake-up")
+    p2 = body.find("## Phase −2")
+    assert wakeup >= 0, "skill body must have a `## MemPalace wake-up` section"
+    assert p2 >= 0, "skill body must have a `## Phase −2` section"
+    assert wakeup < p2, (
+        "MemPalace wake-up section must lexically precede Phase −2 — the wake-up runs before "
+        "any subagent dispatch including the bug-classifier"
+    )
+
+
+def test_mempalace_wakeup_section_states_invariant(plugin_root: Path) -> None:
+    """The wake-up section must state that it runs before ANY subagent dispatch."""
+    body = _read_body(plugin_root, "skills/architect-team-pipeline/SKILL.md")
+    start = body.find("## MemPalace wake-up")
+    assert start >= 0
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    # The header itself names the invariant.
+    assert "before ANY subagent" in section or "before any subagent" in section.lower(), (
+        "MemPalace wake-up section must state the 'before any subagent dispatch' invariant"
+    )
+    # And it must reference the Phase −2 bug-classifier as a specific consumer of this rule.
+    assert "bug-classifier" in section, (
+        "MemPalace wake-up section must explicitly name the Phase −2 bug-classifier as a subagent it precedes"
+    )
+
+
+def test_bug_fix_pipeline_has_mempalace_wakeup_section(plugin_root: Path) -> None:
+    """The bug-fix-pipeline (when invoked directly via /architect-team:bug-fix) must
+    have its own MemPalace wake-up section running before Phase B−1."""
+    body = _read_body(plugin_root, "skills/bug-fix-pipeline/SKILL.md")
+    wakeup = body.find("## MemPalace wake-up")
+    pb1 = body.find("## Phase B−1")
+    assert wakeup >= 0, "bug-fix-pipeline must have a `## MemPalace wake-up` section"
+    assert pb1 >= 0, "bug-fix-pipeline must have a `## Phase B−1` section"
+    assert wakeup < pb1, "MemPalace wake-up section must precede Phase B−1 in the bug-fix-pipeline skill"
 
 
 def test_phase_2_names_bug_classifier(plugin_root: Path) -> None:

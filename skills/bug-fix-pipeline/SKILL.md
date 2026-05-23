@@ -38,6 +38,20 @@ Same as `architect-team-pipeline` v0.9.20: **drive end-to-end, gates are opt-in 
 
 Process gates (proposal-first pause, "do you want me to proceed?", obvious-answer clarifying questions) follow the same opt-in rule as the main pipeline.
 
+## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)
+
+When the bug-fix pipeline is invoked DIRECTLY via `/architect-team:bug-fix` (not routed in from the main pipeline's Phase −2), the MemPalace wake-up is the earliest action — same discipline as `architect-team-pipeline`'s wake-up section. Before ANY subagent is dispatched, the orchestrator consults the per-workspace MemPalace store per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
+
+```bash
+mempalace --palace "<workspace>/.mempalace/palace" wake-up
+```
+
+If the palace does not exist on disk yet, wake-up returns a clean-room state and the pipeline proceeds normally (init happens implicitly on the first artifact mine, or via `/architect-team:mempalace-install`). Include the wake-up output verbatim in your working context — the bug-fix loop benefits from prior-context recall (past bug-replications mined to `bug-replications`, past QA-replay verdicts mined to `qa-replays`, past architect generalization-audit verdicts mined to `bug-fix-audits` — these inform the current run's classification, replication, and generalization decisions).
+
+If `mempalace` is not on PATH (the install was never run), surface a single-line note to the user: `"MemPalace not installed; running without prior-context wake-up. Run /architect-team:mempalace-install once to enable persistent context across runs."` Then proceed without it.
+
+**When the bug-fix pipeline is reached via the main pipeline's Phase −2 routing** (the classifier returned `bug` or `mixed`), the unscoped wake-up has ALREADY run there — this section is a no-op in that case. A SECOND, **wing-scoped** wake-up (`--wing <wing>`) runs from inside Phase B−1A (which reuses `intake-and-mapping`'s Phase −1A flow) once the wing name is discovered, regardless of entry path.
+
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
 Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence; same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.

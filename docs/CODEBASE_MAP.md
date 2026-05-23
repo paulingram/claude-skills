@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-23T04:00:00Z
+last_mapped: 2026-05-23T06:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-23 for v0.9.23 (doc-updater-agent) — the new agents/doc-updater.md agent catalogued in §3/§4; the Phase 8 documentation-currency gate's "Update" step now dispatches the `doc-updater` agent (replaces the prior "orchestrator performs the updates" sentence); the bug-fix-pipeline Phase B8 inherits the same dispatch with identical audit + gate enforcement; documentation-currency skill body modified to name the new agent + document the producer/checker pairing + cite v0.9.13's discipline; test-file count now 40 (test_doc_updater_agent.py + test_doc_updater_wiring.py added). The agent is opus, with bounded Write ONLY to the documentation-currency inventory (NO Edit, NO source-code writes, NO `.claude-plugin/plugin.json` / `marketplace.json` writes — those are version-source-of-truth, orchestrator-bumped). Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 858 pytest self-tests across 40 test files. Covers v0.9.1 (auto-compact) through v0.9.23 (automatic documentation currency via dedicated doc-updater agent).
+note: Doc refresh 2026-05-23 for v0.9.24 (mempalace-wakeup-first) — fixed the v0.9.22/v0.9.23 ordering bug where the Phase −1 Prelude (MemPalace wake-up) was lexically AFTER Phase −2 (Triage & Routing) but claimed "REQUIRED, before any subagent dispatch." v0.9.24 promotes the wake-up to a precondition section (un-numbered, NOT labeled as a phase) in BOTH skills/architect-team-pipeline/SKILL.md AND skills/bug-fix-pipeline/SKILL.md, lexically before each pipeline's earliest phase. skills/mempalace-integration/SKILL.md Phase A renamed accordingly and documents the two-pass pattern (unscoped first, wing-scoped from Phase −1A). 4 new/changed tests in tests/test_triage_dispatch_wiring.py assert the ordering invariant. No new agents, no new skills, no new commands. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 861 pytest self-tests across 40 test files. Covers v0.9.1 (auto-compact) through v0.9.24 (MemPalace wake-up runs at the earliest phase).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.23.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.24.
 
 ## 1. System Overview
 

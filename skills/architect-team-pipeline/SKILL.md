@@ -68,11 +68,27 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --projec
 
 These two phase-boundary invocations are best-effort exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at the specific phase steps marked inline below.
 
-## Phase −2 — Triage & Routing (REQUIRED, runs before the Phase −1 Prelude)
+## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch, including the Phase −2 bug-classifier)
+
+Before ANY subagent is dispatched — including the Phase −2 `bug-classifier` immediately below — the orchestrator consults the per-workspace MemPalace store for prior context per `mempalace-integration`. This is the earliest action of every run (after static input parsing + the notifier setup); every subsequent phase, every classification, every subagent dispatch benefits from it. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
+
+```bash
+mempalace --palace "<workspace>/.mempalace/palace" wake-up
+```
+
+If the palace does not exist on disk yet, wake-up returns a clean-room state and the pipeline proceeds normally (the init happens implicitly when the first artifact is mined later in this run, or the user can run `/architect-team:mempalace-install` to set it up explicitly). Include the wake-up output verbatim in your working context — Phase −2 and the rest of the run start informed by prior runs against the same project (including past `triage-verdicts` that calibrate the `bug-classifier`).
+
+If `mempalace` is not on PATH at all (the install was never run), surface a single-line note to the user: `"MemPalace not installed; running without prior-context wake-up. Run /architect-team:mempalace-install once to enable persistent context across runs."` Then proceed without it. MemPalace is an ergonomics layer, not a hard gate.
+
+A SECOND, **wing-scoped** wake-up (`mempalace --palace <palace> wake-up --wing <wing>`) runs from inside Phase −1A once the workspace's wing name is discovered — see the `intake-and-mapping` skill. This unscoped initial wake-up is independent of and precedes the scoped one.
+
+**Why this section is placed here, not under any phase number:** the wake-up is a precondition, not a phase. The skill's invariant *"before any subagent dispatch"* requires it to run before Phase −2 (which dispatches the bug-classifier as its first subagent). Earlier versions placed it under a "Phase −1 Prelude" header, which created a structural conflict once Phase −2 was added in v0.9.22; v0.9.24 fixes the ordering.
+
+## Phase −2 — Triage & Routing (REQUIRED, runs first after the MemPalace wake-up)
 
 Before Phase −1's intake-and-mapping runs, the orchestrator classifies the incoming requirement and routes it to the right pipeline. v0.9.22 introduced the `bug-fix-pipeline` skill as a sibling — faster, bug-focused, replicate-first-then-propose — and a `bug-classifier` agent that tells the main orchestrator whether the user's request is a bug, a feature, both, or unclear. The triage layer is purely additive; the existing Phase −1 → 8 behavior is unchanged when the verdict is `feature`.
 
-**Skip condition.** If the spawning context already set `triage_done: true` (the main pipeline spawned this run as a subagent for the feature-portion of a `mixed` request, and the parent already classified), skip Phase −2 entirely and proceed to the Phase −1 Prelude. This bounds the recursion at depth 1 — a spawned feature-pipeline subagent does NOT re-classify and re-spawn.
+**Skip condition.** If the spawning context already set `triage_done: true` (the main pipeline spawned this run as a subagent for the feature-portion of a `mixed` request, and the parent already classified), skip Phase −2 entirely and proceed to Phase −1 — Intake & Mapping. The MemPalace wake-up above STILL runs regardless of `triage_done` — it precedes the triage step. This bounds the recursion at depth 1 — a spawned feature-pipeline subagent does NOT re-classify and re-spawn.
 
 **Explicit-flag overrides.**
 
@@ -96,11 +112,11 @@ When no flag forces the verdict, proceed to step 1.
 
 2. **Route per the verdict.**
 
-   - **`kind: bug`** — invoke the `bug-fix-pipeline` skill against the requirement. Do NOT continue to the Phase −1 Prelude or any subsequent main-pipeline phase. The bug-fix pipeline handles intake-and-mapping itself (it reuses this skill's Phase B−1).
+   - **`kind: bug`** — invoke the `bug-fix-pipeline` skill against the requirement. Do NOT continue to Phase −1 or any subsequent main-pipeline phase. The bug-fix pipeline handles intake-and-mapping itself (it reuses this skill's Phase B−1). The MemPalace wake-up has already run; bug-fix-pipeline's own wake-up section is a no-op here (the palace is already consulted).
 
      If `confidence: low` on a `bug` verdict, the orchestrator emits a soft-route confirmation to the user — *"classified as bug with low confidence; if this is actually a feature, reply `--feature-only` and I'll re-route. Proceeding with bug-fix pipeline."* — and waits one beat for the user to override; if no override comes in the next user message, proceeds with the bug-fix route.
 
-   - **`kind: feature`** — proceed to the Phase −1 Prelude as before. No behavior change for feature runs.
+   - **`kind: feature`** — proceed to Phase −1 — Intake & Mapping. No behavior change for feature runs.
 
    - **`kind: mixed`** — spawn TWO subagents IN PARALLEL in a single message:
      - One running the `bug-fix-pipeline` skill against `bug_portion` (the bug-specific scope).
@@ -116,19 +132,7 @@ When no flag forces the verdict, proceed to step 1.
 
 3. **Auto-mine the verdict + the routing decision** to MemPalace at `--room triage-verdicts` for prior-context recall. The classifier's signal calibration improves run-over-run as the corpus grows.
 
-The triage layer is bounded at depth 1: a `mixed` spawn sets `triage_done: true` on the feature-pipeline subagent, which skips Phase −2 and proceeds to Phase −1 Prelude. A `mixed` spawn does NOT spawn another `mixed` (the spawned feature-pipeline can't itself triage).
-
-## Phase −1 Prelude — MemPalace wake-up (REQUIRED, before any subagent dispatch)
-
-Before any subagent is dispatched, the orchestrator consults the per-workspace MemPalace store for prior context per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
-
-```bash
-mempalace --palace "<workspace>/.mempalace/palace" wake-up
-```
-
-If the palace does not exist on disk yet, wake-up returns a clean-room state and the pipeline proceeds normally (the init happens implicitly when the first artifact is mined later in this phase, or the user can run `/architect-team:mempalace-install` to set it up explicitly). Include the wake-up output verbatim in your working context — the rest of Phase −1 starts informed by prior runs against the same project.
-
-If `mempalace` is not on PATH at all (the install was never run), surface a single-line note to the user: `"MemPalace not installed; running without prior-context wake-up. Run /architect-team:mempalace-install once to enable persistent context across runs."` Then proceed without it. MemPalace is an ergonomics layer, not a hard gate.
+The triage layer is bounded at depth 1: a `mixed` spawn sets `triage_done: true` on the feature-pipeline subagent, which skips Phase −2 and proceeds directly to Phase −1 — Intake & Mapping. A `mixed` spawn does NOT spawn another `mixed` (the spawned feature-pipeline can't itself triage). The MemPalace wake-up (above this section) STILL runs in spawned subagents — it is unconditional.
 
 ## Phase −1 — Intake & Mapping (REQUIRED, runs before Phase 0)
 

@@ -54,19 +54,33 @@ The path is passed to every `mempalace` invocation via the GLOBAL `--palace` fla
 mempalace --palace "<workspace>/.mempalace/palace" <subcommand> <args>
 ```
 
-## Phase A — Wake-up at pipeline start (Phase -1 prelude)
+## Phase A — Wake-up at pipeline start (runs BEFORE any phase, before any subagent dispatch)
 
-Before Phase -1 intake/mapping begins, the orchestrator runs:
+Before ANY pipeline phase runs — including Phase −2 (Triage & Routing, v0.9.22) in the main pipeline and Phase B−1 (Intake & Mapping) in the bug-fix pipeline — the orchestrator consults the MemPalace store. **This is the earliest action of every architect-team run, regardless of pipeline.** The wake-up provides prior-context recall for every subsequent step, including the Phase −2 `bug-classifier`'s past triage-verdict calibration.
+
+The wake-up runs in TWO passes.
+
+**Pass 1 — initial unscoped wake-up (runs first, before everything else):**
+
+```bash
+mempalace --palace "<workspace>/.mempalace/palace" wake-up
+```
+
+The wing name is not yet known at this point (the codebase classification happens in Phase −1A), so `--wing` is omitted from this first call.
+
+**Pass 2 — scoped wake-up (runs once the wing name is discovered in Phase −1A):**
 
 ```bash
 mempalace --palace "<workspace>/.mempalace/palace" wake-up --wing "<wing>"
 ```
 
-(If `--wing` is not yet known because the wing-name resolution happens later, omit `--wing` for an unscoped wake-up; the orchestrator can re-run scoped to the wing after Phase -1A's repo classification.)
+The orchestrator merges the scoped output with the unscoped output to surface project-specific prior runs that the unscoped wake-up may have missed.
 
-The wake-up returns ~600-900 tokens of L0+L1 essential story. The orchestrator includes this verbatim in its working context so the rest of Phase -1 starts informed by prior runs against the same project.
+The wake-up returns ~600-900 tokens of L0+L1 essential story. The orchestrator includes this verbatim in its working context so the rest of the run starts informed by prior runs against the same project.
 
-If the palace does not exist on disk (no prior init for this workspace), wake-up returns a clean-room state and the pipeline proceeds normally. The init happens implicitly on the first mine of Phase -1 (see Phase B below).
+If the palace does not exist on disk (no prior init for this workspace), wake-up returns a clean-room state and the pipeline proceeds normally. The init happens implicitly on the first mine of Phase −1 (see Phase B below).
+
+**Why this section moved (v0.9.24).** In v0.9.22 the main pipeline added Phase −2 (Triage & Routing) that dispatches the `bug-classifier` subagent — but the existing wake-up section was labeled "Phase −1 Prelude" with the invariant *"before any subagent dispatch."* That created a structural conflict: Phase −2 dispatched a subagent before the prelude ran. v0.9.24 fixed it by promoting the unscoped wake-up to a precondition section that precedes Phase −2 in both pipelines (architect-team-pipeline and bug-fix-pipeline). The wake-up is no longer numbered as a phase; it is a precondition every phase depends on.
 
 ## Phase B — Auto-mine on artifact write (continuous, throughout the pipeline)
 

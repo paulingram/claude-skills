@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.24] — 2026-05-23
+
+### Fixed — MemPalace wake-up runs at the earliest phase, before any subagent dispatch
+
+A v0.9.23 cohesion-review finding: the main `architect-team-pipeline` skill had a section labeled `## Phase −1 Prelude — MemPalace wake-up (REQUIRED, before any subagent dispatch)`, but v0.9.22's `## Phase −2 — Triage & Routing` was placed LEXICALLY ABOVE it and dispatched the `bug-classifier` subagent FIRST — directly violating the prelude's stated invariant. The conflict was latent (the cached v0.9.12 plugin doesn't have Phase −2, so no real run had hit it) but on the next consumer `/plugin update` the bug-classifier would have dispatched without the wake-up running, and the classifier's expected past-triage-verdict calibration via `--room triage-verdicts` would have been empty.
+
+#### What changed
+
+- **`skills/architect-team-pipeline/SKILL.md`** — removed the `## Phase −1 Prelude — MemPalace wake-up` section; added a new `## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch, including the Phase −2 bug-classifier)` section IMMEDIATELY BEFORE Phase −2. The wake-up is now a precondition (un-numbered, NOT labeled as a phase) — every phase depends on it. The body of Phase −2 was updated to remove the four references to "Phase −1 Prelude" (the skip-condition path, the bug-route's "do not continue", the feature-route's "proceed to", and the recursion-bound clarification all now reference "Phase −1 — Intake & Mapping").
+- **`skills/bug-fix-pipeline/SKILL.md`** — added a `## MemPalace wake-up` section before Phase B−1. When `bug-fix-pipeline` is invoked DIRECTLY via `/architect-team:bug-fix` (not routed in from the main pipeline's Phase −2), this is the earliest action. When reached via Phase −2 routing, the unscoped wake-up has already run there and this section is a no-op. The wing-scoped wake-up still runs from inside Phase B−1A (which reuses `intake-and-mapping`'s Phase −1A flow) once the wing name is discovered, regardless of entry path.
+- **`skills/mempalace-integration/SKILL.md`** — Phase A renamed from "Wake-up at pipeline start (Phase -1 prelude)" to "Wake-up at pipeline start (runs BEFORE any phase, before any subagent dispatch)". The body documents the TWO-pass pattern explicitly: pass 1 = unscoped wake-up first, pass 2 = wing-scoped wake-up from inside Phase −1A. The "Why this section moved (v0.9.24)" paragraph records the rationale.
+
+#### Tests
+
+- **`tests/test_triage_dispatch_wiring.py`** — 4 cases changed/added:
+  - `test_phase_2_precedes_phase_1` — updated to compare Phase −2 against `## Phase −1 — Intake` (the prelude header is gone); also asserts the old `## Phase −1 Prelude` header is no longer present.
+  - `test_mempalace_wakeup_precedes_phase_2` — NEW. Asserts the `## MemPalace wake-up` section lexically precedes Phase −2 in the pipeline skill.
+  - `test_mempalace_wakeup_section_states_invariant` — NEW. The wake-up section names the "before any subagent dispatch" invariant AND explicitly names the Phase −2 bug-classifier as a subagent it precedes.
+  - `test_bug_fix_pipeline_has_mempalace_wakeup_section` — NEW. The bug-fix-pipeline skill body has its own `## MemPalace wake-up` section that precedes Phase B−1.
+- Pre-existing `tests/test_mempalace_integration.py::test_no_doc_uses_mine_with_room_flag` caught a false-positive briefly during this change (a regex parsing bug where indented triple-backtick fences inside numbered-list items were treated as one giant code block by the test's `_FENCE_RE`). Resolved by un-indenting the bash fences in the mempalace-integration skill's wake-up examples.
+
+#### Docs
+
+- README banner / version badge / tests badge (861) / NEW IN panel header bumped + new v0.9.24 row / timeline `(current)` moved to v0.9.24.
+- CODEBASE_MAP / CLAUDE.md / INTEGRATION_MAP frontmatter timestamps + version references bumped.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.24"`.
+
+#### Tests
+
+- 861 pass / 0 fail. +3 net new tests against the v0.9.23 baseline of 858.
+
+#### Note
+
+This was identified in a manual cohesion review (issue #1 of 10). Issues #2–#10 from that review remain tracked debt; #2 (bug-fix Phase B3 vs. Phase 1 conditions) and #3 (system-architect Write tool) are the next-highest-priority items.
+
 ## [0.9.23] — 2026-05-23
 
 ### Added — automatic documentation currency via a dedicated `doc-updater` agent (`doc-updater-agent`)
