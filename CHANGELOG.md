@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.25] — 2026-05-23
+
+### Fixed — bug-fix-pipeline Phase B3 gets its own planning-validation gate (Path A of issue #2 from the cohesion review)
+
+A v0.9.23 cohesion-review finding (issue #2 of 10): the v0.9.22 `bug-fix-pipeline` skill's Phase B3 said *"Run `openspec validate --strict` and the Phase 1 planning-validation gate (the same gate as `architect-team-pipeline` Phase 1, applied to this change)"* — but the main pipeline's Phase 1 loop conditions are shaped for FEATURE work. They expect proposals to author NEW Playwright user-flow specifications, NEW dev-API integration criteria, NEW Reuse Decisions for new files. A bug-fix proposal doesn't fit that shape — the replication artifact from B2 IS the Playwright flow (already authored, already failing), the fix typically extends existing handlers (not new files), and the proposal's verification target is a path reference, not a new criterion authoring. A literal reading of Phase 1's conditions would have spun a backend-only bug fix on "missing Playwright criteria"; the liberal reading the orchestrator used in practice was fragile handwaving.
+
+v0.9.25 gives the bug-fix pipeline its OWN slim planning-validation gate. **Path A** from the cohesion review's two options — building the bug-fix-pipeline a fit-for-purpose gate rather than adding a `bug_fix_mode` softener to Phase 1's gate — was chosen because (1) the two pipelines diverge meaningfully at this point and coupling them via a mode flag means every future change to either has to keep both consistent, (2) the bug-fix gate's conditions are *different in kind* from feature ones (verify replication-artifact paths exist; verify backend diagnostic exists for frontend bugs; verify reuse acknowledgments for extended existing files), and (3) v0.9.22 deliberately separated `bug-fix-pipeline` as a sibling for the same reason — its discipline differs. Adding its own validation gate completes that separation.
+
+#### What changed
+
+- **`skills/bug-fix-pipeline/SKILL.md` Phase B3** — removed the prior delegation language (*"the Phase 1 planning-validation gate (the same gate as `architect-team-pipeline` Phase 1, applied to this change)"*). Added a new `### Bug-fix planning-validation gate (Phase B3 exit criterion)` sub-section enumerating SEVEN conditions:
+  1. **OpenSpec validates** — `openspec validate --strict --json` reports `valid: true`.
+  2. **Every artifact is done** — proposal / design / specs / tasks all `status: done`.
+  3. **At least one source requirement** in the coverage map (the bug description itself).
+  4. **Replication artifact paths recorded** as `acceptance_criteria` in the coverage map — BOTH the Playwright user-flow path AND the backend diagnostic script path for `frontend` or `both`-layer bugs; the backend script path alone for `backend`-only bugs.
+  5. **Reuse-first compliance** — every NEW file has a Reuse Decision citing CODEBASE_MAP.md; every EXTENDED existing file has the one-line *"extends `<function>` at `<path>:<line>`"* acknowledgment. Bug fixes that touch no new files satisfy this trivially.
+  6. **The WHY cites the replication evidence verbatim** — `proposal.md`'s `## Why` quotes the artifact's failing output (per Phase B2's evidence requirement). A bug-fix proposal without quoted evidence is fiction.
+  7. **The proposed fix is class-scoped** — `design.md`'s `## Proposed fix` section describes the *class* of bug the fix addresses, not just the specific failing input. (B3's gate confirms the *attempt*; Phase B4's Bug-Fix Generalization Audit is the rigorous verdict.)
+- A "Why not reuse Phase 1's gate?" rationale paragraph closes the section, explaining the literal-reading-fail vs. liberal-reading-pass tradeoff that motivated the change.
+- The validated coverage map is auto-mined to MemPalace at the end of the gate (parity with the main pipeline's Phase 1 mining).
+
+#### Tests
+
+- **`tests/test_bug_fix_validation_gate.py`** — NEW. 15 cases:
+  - `test_phase_b3_no_longer_delegates_to_phase_1_gate` — asserts the prior delegation language is gone.
+  - `test_phase_b3_explicitly_says_do_not_delegate` — asserts the new language says "Do NOT delegate" + explains why.
+  - `test_bug_fix_validation_gate_section_exists` — asserts the new `### Bug-fix planning-validation gate` sub-section is present.
+  - `test_gate_documents_seven_conditions` — asserts "seven" is stated AND all 7 numbered markers (`1. **`, `2. **`, ... `7. **`) appear.
+  - 7 parametrized `test_gate_condition_present[...]` cases — one per condition's key phrase (`OpenSpec validates`, `Every artifact is done`, `at least one source requirement`, `replication artifact paths`, `Reuse-first compliance`, `WHY cites the replication evidence`, `class*-scoped`).
+  - `test_gate_distinguishes_frontend_vs_backend_artifact_requirements` — asserts the `BOTH` keyword is used for frontend/both-layer bugs + that Playwright AND backend-diagnostic/backend-script are both named.
+  - `test_gate_loop_exit_behavior_documented` — asserts the loops-until-pass behavior + the exit-to-Phase-B4 transition.
+  - `test_gate_explains_why_not_phase_1` — asserts the rationale block is present.
+  - `test_gate_auto_mines_coverage_map` — asserts the MemPalace mine command for the validated coverage map.
+
+#### Docs
+
+- README banner / version badge / tests badge (876) / NEW IN panel header bumped + new v0.9.25 row / timeline `(current)` moved to v0.9.25.
+- CODEBASE_MAP / CLAUDE.md / INTEGRATION_MAP frontmatter timestamps + counts bumped.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.25"`.
+
+#### Tests
+
+- 876 pass / 0 fail. +15 net new tests against the v0.9.24 baseline of 861.
+
+#### Status of cohesion-review issues
+
+- Issue #1 (MemPalace wake-up ordering) — fixed in v0.9.24.
+- **Issue #2 (bug-fix Phase B3 vs. Phase 1 conditions) — fixed in v0.9.25 via Path A.**
+- Issues #3 (system-architect Write tool), #4 (bug-fix notifications), #5 (`confirmed_stubs[]` cross-reference), #6-#10 (cosmetic / process oddities) remain tracked debt. #3 is the next highest priority.
+
 ## [0.9.24] — 2026-05-23
 
 ### Fixed — MemPalace wake-up runs at the earliest phase, before any subagent dispatch

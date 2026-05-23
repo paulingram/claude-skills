@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-23T06:00:00Z
+last_mapped: 2026-05-23T08:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-23 for v0.9.24 (mempalace-wakeup-first) — fixed the v0.9.22/v0.9.23 ordering bug where the Phase −1 Prelude (MemPalace wake-up) was lexically AFTER Phase −2 (Triage & Routing) but claimed "REQUIRED, before any subagent dispatch." v0.9.24 promotes the wake-up to a precondition section (un-numbered, NOT labeled as a phase) in BOTH skills/architect-team-pipeline/SKILL.md AND skills/bug-fix-pipeline/SKILL.md, lexically before each pipeline's earliest phase. skills/mempalace-integration/SKILL.md Phase A renamed accordingly and documents the two-pass pattern (unscoped first, wing-scoped from Phase −1A). 4 new/changed tests in tests/test_triage_dispatch_wiring.py assert the ordering invariant. No new agents, no new skills, no new commands. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 861 pytest self-tests across 40 test files. Covers v0.9.1 (auto-compact) through v0.9.24 (MemPalace wake-up runs at the earliest phase).
+note: Doc refresh 2026-05-23 for v0.9.25 (bug-fix-validation-gate) — fixed cohesion-review issue #2 (bug-fix-pipeline Phase B3 used to delegate to architect-team-pipeline Phase 1's feature-shaped validation gate; the conditions misfit bug-fix-shaped work). v0.9.25 gives bug-fix-pipeline its own slim planning-validation gate with 7 fit-for-purpose conditions: (1) openspec validates, (2) every artifact is done, (3) at least one source requirement in the coverage map, (4) replication artifact paths recorded (both Playwright AND backend diagnostic for frontend/both-layer bugs; backend script alone for backend-only), (5) reuse-first compliance, (6) WHY cites verbatim evidence, (7) fix is class-scoped. New tests/test_bug_fix_validation_gate.py with 15 cases asserts the gate's structure + the absence of the prior Phase 1 delegation language + the "Why not reuse Phase 1?" rationale block. No new agents, no new skills, no new commands. Test-file count now 41. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 876 pytest self-tests across 41 test files. Covers v0.9.1 (auto-compact) through v0.9.25 (bug-fix-pipeline's own planning-validation gate).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.24.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.25.
 
 ## 1. System Overview
 

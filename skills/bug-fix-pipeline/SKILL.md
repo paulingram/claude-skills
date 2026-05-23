@@ -113,7 +113,25 @@ Author a slim OpenSpec change at `openspec/changes/<bug-slug>/`. The artifact ch
 - **Proposes the fix.** The fix targets the root cause, not the symptom. State the class of bug being addressed (not just the failing input).
 - **Includes Reuse Decisions** per `reuse-first-design` for any new file the fix introduces. A bug fix that extends an existing function gets a one-line Reuse Decision; a bug fix that needs a new module gets a full one.
 
-Run `openspec validate --strict` and the Phase 1 planning-validation gate (the same gate as `architect-team-pipeline` Phase 1, applied to this change). The gate's frontend / backend / both-layer test criteria still apply — the replication artifacts from B2 ARE the criteria.
+Run `openspec validate --strict`. **Do NOT delegate to `architect-team-pipeline` Phase 1's validation gate** — its conditions are shaped for feature work (authoring NEW Playwright user-flows, NEW dev-API integration criteria, NEW Reuse Decisions for new files) and trip on bug-fix-shaped work (the replication artifact from B2 IS the Playwright flow; the fix typically extends existing handlers, not new ones). v0.9.25 gave the bug-fix pipeline its OWN slim planning-validation gate, named below.
+
+### Bug-fix planning-validation gate (Phase B3 exit criterion)
+
+The gate loops until ALL seven conditions below are true. Each iteration refines `proposal.md` / `design.md` / `coverage-map.json` and re-runs the gate; the gate exits when all seven pass, and Phase B4 (Bug-Fix Generalization Audit) runs next.
+
+1. **OpenSpec validates.** `openspec validate --strict --json` reports `valid: true` with no errors.
+2. **Every artifact is done.** `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md` all report `status: done` per `openspec status --change <bug-slug> --json`.
+3. **The coverage map has at least one source requirement** — the bug description itself (as `REQ-001` typically).
+4. **The coverage map records the replication artifact paths from Phase B2 as the verification target:**
+   - For `frontend` or `both`-layer bugs: BOTH the Playwright user-flow path (`tests/e2e/bug-fix-<bug-slug>/<flow>.spec.ts` or equivalent) AND the backend diagnostic script path (`tests/bug-fix-<bug-slug>/<script>.py` or equivalent) are recorded as `acceptance_criteria` entries.
+   - For `backend`-only bugs: the backend script path is recorded as the `acceptance_criteria` entry.
+5. **Reuse-first compliance.** Every NEW file `design.md` introduces has a Reuse Decision citing CODEBASE_MAP.md per `reuse-first-design`; every EXISTING file the fix extends has a one-line acknowledgment of which existing function/handler/route it extends (the bug-fix typical *"extends `<function>` at `<path>:<line>`"* pattern). A bug fix that touches no new files and only extends existing handlers satisfies this trivially.
+6. **The proposal's WHY cites the replication evidence verbatim.** `proposal.md`'s `## Why` section quotes the artifact's verbatim failing output (per Phase B2's evidence requirement). A bug-fix proposal without quoted evidence is fiction.
+7. **The proposed fix is *class*-scoped in the design.** `design.md`'s `## Proposed fix` section describes the *class* of bug the fix addresses, not just the specific failing input. (Note: this is the *attempt* check — the architect's Bug-Fix Generalization Audit at Phase B4 is the rigorous verdict. B3's gate confirms the proposal *tries* to reason at the class level; B4 confirms the reasoning is correct.)
+
+**Auto-mine** the validated coverage map: `mempalace --palace <palace> mine "openspec/changes/<bug-slug>/coverage-map.json" --wing <wing>`.
+
+**Why not reuse Phase 1's gate?** Phase 1's loop has feature-shaped conditions like *"Any front-end requirement lacks an explicit Playwright user-flow specification (URL or route, login state, selectors, input data, expected visible assertions)"*. For a bug fix, the Playwright flow IS the replication artifact from B2 — already authored, already failing. Forcing the same loop conditions trips the bug-fix path on either (a) a literal-reading-fail (the Playwright spec doesn't exist as new authoring), or (b) a liberal-reading-pass (the orchestrator handwaves *"the replication artifact IS the criterion"*). The first burns iterations; the second is fragile. The bug-fix gate names its conditions in bug-fix terms, so the check is exact.
 
 ## Phase B4 — Bug-Fix Generalization Audit
 
