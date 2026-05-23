@@ -26,6 +26,7 @@ EXPECTED_SKILLS: set[str] = {
     "documentation-currency",
     "interaction-completeness",
     "dynamic-value-discovery",
+    "interaction-intuition",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

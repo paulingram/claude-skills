@@ -23,6 +23,7 @@ EXPECTED_AGENTS: set[str] = {
     "visual-analyzer",
     "task-reviewer",
     "interaction-reviewer",
+    "interaction-intuiter",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

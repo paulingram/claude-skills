@@ -401,6 +401,10 @@ Test naming follows the user-intent convention from `playwright-user-flows` — 
 
 See `playwright-user-flows` "Visual-fidelity tests" subsection in Phase B for the full test patterns and tolerance defaults.
 
+## Downstream consumer: interaction-intuition (Phase −1D)
+
+DESIGN_MAP.md is a Phase −1B output and a Phase −1D input. At Phase −1D the `interaction-intuiter` agent reads DESIGN_MAP.md (alongside ROUTE_MAP.md and INTEGRATION_MAP.md) per the `interaction-intuition` skill and produces `<codebase>/docs/INTERACTION_INTUITION_MAP.md` — a per-element intuition of "what action does this control take and which endpoint does it call" with confidence high / medium / low / unknown. The per-screen specs in this map drive the intuiter's enumeration order and the surrounding-controls reasoning; the per-screen `value_class` classifications (static / dynamic from `dynamic-value-discovery`) inform the intuiter's evidence trail when reasoning about which displayed values back which endpoints. When DESIGN_MAP.md is absent (no design inputs detected), the intuiter falls back to enumerating from the route table — and the resulting intuition map will be `medium`/`low`-heavy at the Phase −1D bulk-verify gate.
+
 ## Freshness
 
 - `last_designed` set by route-mapper at write time, ISO 8601 UTC. `design_baseline` is the label/version of the design generation the map encodes.

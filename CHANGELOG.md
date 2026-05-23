@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.21] — 2026-05-22
+
+### Added — interaction intuition at Phase −1 + bulk-verify gate (`interaction-intuition-discovery`)
+
+User directive: *"lets have that same level of phase 5 intuiting for interactions as part of the phase 1 discovery. we need to make sure we analyze all designs so that when we do our route map and link the API to the front end, we have areas we know must be interactive and have guesses as to what they do. we need to present the user with a list of the mapping elements we have questions about (where its not sufficiently clear) and as a list, the user can sleect correct or not, then we ask about the ones we werent correct on."*
+
+The pipeline already produces three structural artifacts at Phase −1 (`ROUTE_MAP.md` per frontend codebase, `DESIGN_MAP.md` when design inputs exist, `INTEGRATION_MAP.md` across codebases) — but it had no upstream step answering the question the Phase 5 `interaction-completeness` team eventually asks: *for each element on each designed screen, what action does it take, and which endpoint does it call?* That question was being paid for at Phase 5, against a built running app — months after the proposal, where every wiring gap is a full cycle. v0.9.21 lifts the same rigor into discovery. Implements requirements REQ-001..011 of the `interaction-intuition-discovery` OpenSpec change.
+
+#### REQ-001 / REQ-002 — the interaction-intuition skill and the interaction-intuiter agent
+
+- `skills/interaction-intuition/SKILL.md` — NEW. The discovery-phase enforcement layer. For each frontend codebase in scope at Phase −1D, cross-walks `ROUTE_MAP.md` × `DESIGN_MAP.md` × `INTEGRATION_MAP.md` and produces a per-codebase `INTERACTION_INTUITION_MAP.md` carrying, for every interactive element on every designed screen: an `intuited_action` in user-effect terms, `candidate_endpoints[]` (each with a `match_kind` — `exact-by-label` / `exact-by-action-noun` / `plausible-by-design-intent` / `inferred-from-similar-route`), explicit `confidence` (`high` / `medium` / `low` / `unknown`), citation `evidence[]`, and — for everything below `high` — a precise `ambiguity_question` that names the concrete candidates and the user-visible behavioral difference between them.
+- `agents/interaction-intuiter.md` — NEW. Spawned per frontend codebase during the new Phase −1D, opus, analysis-only with respect to feature code: the only file the agent writes is `INTERACTION_INTUITION_MAP.md`. Tools allowlist contains `Read`, `Glob`, `Grep`, `LS`, `Bash`, `Write`, `TodoWrite`; explicitly NO `Edit`.
+
+#### REQ-003 / REQ-004 — the artifact schema and the confidence rubric
+
+- `INTERACTION_INTUITION_MAP.md` schema documented in the skill body's `## Artifact schema` section. Frontmatter: `last_intuited`, `confirmed`, `confirmed_at`, `producer`, `inputs`, `covers_screens`, `covers_elements`, `confidence_summary` (the four label counts sum to `covers_elements`). Per-element: `element_id` (stable kebab-case), `route`, `element_label`, `element_kind`, `design_source`, `intuited_action`, `candidate_endpoints[]`, `confidence`, `evidence[]`, `ambiguity_question`, plus post-gate fields `user_verdict`, `correction_note`, `confirmed_action`, `confirmed_endpoint`, `superseded_by`.
+- Confidence rubric: `high` (clear label AND `exact-by-*` endpoint match AND aligned design context); `medium` (one of {clear label, exact match} OR multiple plausible candidates); `low` (unclear label OR no obvious candidate OR conflicting signals); `unknown` (element exists in design; neither route nor API points to an action). `low` and `unknown` MUST surface to the Phase −1D gate. `medium` surfaces only when the agent populated a non-null `ambiguity_question`. The rubric biases toward `high` when the evidence supports it — producing hundreds of `low` items for an exact-match-heavy design wastes the user's pass and breaks the signal-to-noise of the gate.
+
+#### REQ-005 / REQ-006 — the Phase −1D bulk-verify gate and drill-down round
+
+- `skills/architect-team-pipeline/SKILL.md` — new `**D. Phase −1D — Interaction intuition (per-codebase production + bulk-verify gate)**` sub-section under `## Phase −1 — Intake & Mapping`, between section C and Phase 0. Six steps: per-codebase intuiter dispatch (parallel across frontend codebases), auto-mine each map, bulk-verify present (numbered list of every `low` + `unknown` + flagged-`medium`), parse the reply (three deterministic heuristics: `all correct` / integer list / `all incorrect`; anything else re-prompts), drill-down (`AskUserQuestion` batched 4-questions-per-message when the candidate set fits; free-form otherwise), persist + close (flip `confirmed: true`, re-mine, exit).
+- `skills/intake-and-mapping/SKILL.md` — companion Phase −1D section that documents the same six steps from the intake skill's perspective.
+- Auto-confirmation rule: items the user did NOT flag get `user_verdict: confirmed`, `confirmed_action: <intuited_action>`, `confirmed_endpoint: candidate_endpoints[0]` (when a candidate exists).
+
+#### REQ-007 — the binding-input rule for Phase 0 and Phase 1
+
+- `skills/architect-team-pipeline/SKILL.md` Phase 0 — every `confirmed: true` intuition map is a **binding input** to OpenSpec spec authoring. Proposal / spec text MUST reflect every `confirmed_action` / `confirmed_endpoint` triple verbatim. Contradicting a confirmed intuition without an explicit override (`superseded_by: REQ-XXX` recorded on the entry on an explicit user override) is a Phase 1 gate failure.
+- Phase 1 — new loop condition: every `frontend` or `both`-layer requirement that touches a designed screen MUST include every confirmed element-action-endpoint triple from `INTERACTION_INTUITION_MAP.md` as an explicit acceptance criterion in the coverage map. Absent intuition map → N/A with the authorization recorded.
+
+#### REQ-008 — domain-gate carve-out
+
+- `skills/architect-team-pipeline/SKILL.md` `## Default mode of operation` (added in v0.9.20) — new paragraph distinguishing **process gates** (the v0.9.20 opt-in target: `--proposal-first`, approval prompts, obvious-answer clarifying questions) from **domain gates** (user-input steps that ARE the deliverable: the Phase −1D bulk-verify, the `editability-completeness` `ambiguous` attribute escalation, the `interaction-completeness` `ambiguous` element escalation). Domain gates fire whenever the user's factual input is required to produce the deliverable correctly, regardless of `--proposal-first`.
+- `commands/architect-team.md` — the `--proposal-first` flag bullet extended with a one-line clarification of the carve-out, naming Phase −1D as a domain gate.
+
+#### REQ-009 — pipeline + discipline wiring
+
+- `skills/intake-and-mapping/SKILL.md` — names `interaction-intuiter` + `INTERACTION_INTUITION_MAP.md` as a Phase −1D step.
+- `skills/frontend-route-mapping/SKILL.md` — names `interaction-intuition` as a Phase −1D consumer of `ROUTE_MAP.md`.
+- `skills/design-fidelity-mapping/SKILL.md` — names `interaction-intuition` as a Phase −1D consumer of `DESIGN_MAP.md`.
+- `agents/route-mapper.md` — notes that its output feeds `interaction-intuiter` at Phase −1D and that `awaiting_confirmation: true` annotations on interactive elements feed the intuiter's low-confidence surfacing.
+
+#### REQ-010 — test coverage
+
+- `tests/test_interaction_intuition_skill.py` — NEW. Frontmatter validity; required sections (`## Inputs`, `## Outputs`, `## Confidence rubric`, `## Per-element intuition`, `## Artifact schema`, `## Escalate-don't-guess`, `## Domain-gate carve-out`); the four confidence labels parametrized in the rubric; the must-surface rule; the bias-toward-`high` calibration guidance; the domain-gate carve-out's process-vs-domain distinction; intuiter and artifact references.
+- `tests/test_interaction_intuiter_agent.py` — NEW. Five required frontmatter keys; `model: opus`; `Edit` NOT in tools allowlist; `Write` IS; the seven canonical tools; five required body sections; the Write-scope-documented assertion.
+- `tests/test_phase_minus_1d_bulk_verify_wiring.py` — NEW. Pipeline skill has the `**D. Phase −1D` sub-section, names the intuiter, names all three reply formats (`all correct` / integer list / `all incorrect`), states the auto-confirmation rule; Phase 0 reads the confirmed map as a binding input with the `superseded_by` override; Phase 1 loop condition names the intuition map; `## Default mode of operation` distinguishes process vs. domain gates. intake-and-mapping, frontend-route-mapping, design-fidelity-mapping, route-mapper, and the `/architect-team` command's `--proposal-first` bullet all carry the required references.
+- `tests/test_interaction_intuition_map_schema.py` — NEW. Every frontmatter field name + every per-element field name + every `match_kind` value parametrized and asserted present in the skill body's `## Artifact schema` section; element_id stability documented; confidence_summary arithmetic invariant documented.
+- `tests/test_skills.py` `EXPECTED_SKILLS` += `interaction-intuition`; `tests/test_agents.py` `EXPECTED_AGENTS` += `interaction-intuiter`.
+
+#### REQ-011 — documentation + release v0.9.21
+
+- `README.md` — banner `v 0 . 9 . 21`; version badge `0.9.21`; tests badge `730 passing`; NEW IN panel header bumped to `NEW IN v0.9.21`; new rows at the top of the panel for v0.9.21 (interaction intuition) and v0.9.20 (gates opt-in — was missed at v0.9.20 release); timeline `(current)` moved to v0.9.21; inventory grid shows `SKILLS (21)` + `AGENTS (18)` with `interaction-intuition` and `interaction-intuiter (opus)` rows.
+- `docs/CODEBASE_MAP.md` — `last_mapped` bumped; skill count 20 → 21; agent count 17 → 18; new sections for `skills/interaction-intuition/` and `agents/interaction-intuiter.md`; §1 references v0.9.21.
+- `docs/INTEGRATION_MAP.md` — `last_synthesized` bumped; new per-codebase artifact `INTERACTION_INTUITION_MAP.md` named alongside `ROUTE_MAP.md` / `DESIGN_MAP.md`.
+- `CLAUDE.md` — frontmatter counts updated (21 skills, 18 agents); brief mention of interaction intuition + Phase −1D.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version `0.9.20` → `0.9.21`.
+
+#### Tests
+
+- 730 pass / 0 fail (`python -m pytest -q`). +81 net new tests against the v0.9.20 baseline of 649: structural coverage of the new skill / agent / artifact schema / pipeline wiring, plus the new entries in the existing `EXPECTED_SKILLS` and `EXPECTED_AGENTS` parametrizations.
+
 ## [0.9.20] — 2026-05-22
 
 ### Changed — gates are opt-in by default; the orchestrator drives end-to-end without asking obvious questions

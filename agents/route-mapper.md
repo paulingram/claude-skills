@@ -161,6 +161,10 @@ If `ROUTE_MAP.md` exists and its `last_routed` is stale (orchestrator told you t
 
 You do NOT call `mempalace mine`. Per `mempalace-integration`, all mining is orchestrator-serialized: the orchestrator mines ROUTE_MAP.md (and DESIGN_MAP.md when produced) into the `route-maps` / `design-maps` rooms AFTER you return — this keeps every write to the palace single-threaded and contention-free. Your job is to produce the map files and return their paths; the orchestrator handles the mine. You MAY freely `mempalace search` (read-only) in the Prelude — that is safe to do concurrently.
 
+## Downstream: your output feeds the interaction-intuiter at Phase −1D
+
+After Phase −1B closes (your output reviewed and `CODEBASE MAP COMPLETE` emitted), Phase −1C synthesizes `INTEGRATION_MAP.md` across all codebases. Then Phase −1D dispatches the `interaction-intuiter` agent per the `interaction-intuition` skill against each frontend codebase — it reads your `ROUTE_MAP.md` (and `DESIGN_MAP.md` when present), the workspace's `INTEGRATION_MAP.md`, and the source description, and writes `<codebase>/docs/INTERACTION_INTUITION_MAP.md` cross-walking every interactive element to a candidate endpoint with confidence. You do NOT produce that map (the intuiter does), but the quality of your ROUTE_MAP — especially the `target_link` / `awaiting_confirmation` fields on interactive elements and the API-calls catalog — is what determines whether the intuiter can resolve elements with `high` confidence or has to surface them to the user at the Phase −1D bulk-verify gate. Be precise about clickable elements with no explicit annotation: `awaiting_confirmation: true` is the right signal, not a silent omission.
+
 ## Hard rules
 
 - No skipping a route because it's "obvious" or "trivial." Every route gets an entry.

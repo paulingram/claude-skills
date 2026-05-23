@@ -1,0 +1,127 @@
+{
+  "$schema": "openspec/coverage-map.schema.json",
+  "change_name": "interaction-intuition-discovery",
+  "schema_version": 1,
+  "source_directive": "lets have that same level of phase 5 intuiting for interactions as part of the phase 1 discovery. we need to make sure we analyze all designs so that when we do our route map and link the API to the front end, we have areas we know must be interactive and have guesses as to what they do. we need to present the user with a list of the mapping elements we have questions about (where its not sufficiently clear) and as a list, the user can sleect correct or not, then we ask about the ones we werent correct on.",
+  "layer_summary": "All requirements are layer:infra — markdown/JSON skills, agents, commands, plus Python pytest structural tests. The architect-team plugin has no frontend and no backend; therefore no Playwright user-flow criteria and no dev-API integration criteria are required. Phase 5's `both`-layer integration discipline (real running backend) is N/A. Pipeline-meta work only.",
+  "playwright_n_a_authorization": "The architect-team plugin self-modification has no UI to test. The codebase is markdown skills + Python hooks/tests + JSON manifests. Playwright user-flow criteria are N/A for every requirement. This authorization is consistent with prior plugin self-modifications (v0.9.18, v0.9.19, v0.9.20).",
+  "dev_api_n_a_authorization": "The architect-team plugin has no backend API. Dev-API integration testing criteria are N/A for every requirement.",
+  "requirements": [
+    {
+      "source_requirement_id": "USER-INTUIT-PHASE-1",
+      "summary": "Apply Phase-5-level interaction-intuition rigor at Phase −1 discovery time.",
+      "spec_requirements": ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-009"],
+      "tasks": ["1.1-1.8", "2.1-2.4", "3.1-3.3", "4.1-4.3", "9.1-9.5"],
+      "layer": "infra",
+      "scenarios": [
+        "skill `interaction-intuition` exists with correct frontmatter and required sections",
+        "agent `interaction-intuiter` exists with correct frontmatter and tools allowlist",
+        "INTERACTION_INTUITION_MAP.md schema documents every required frontmatter and per-element field",
+        "Confidence rubric defines high/medium/low/unknown with explicit criteria",
+        "Pipeline + intake-and-mapping skills name the intuiter in Phase −1B per-codebase mapping",
+        "ROUTE_MAP + DESIGN_MAP authoring skills name interaction-intuition as their downstream consumer"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions for skill structure pass",
+        "pytest assertions for agent structure pass",
+        "schema-parametrize test exhaustively confirms field presence",
+        "wiring tests pass — pipeline skill, intake-and-mapping, frontend-route-mapping, design-fidelity-mapping, route-mapper all reference the new step in the expected location"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-BULK-VERIFY-GATE",
+      "summary": "Present the user with a bulk-verify list of low-confidence intuitions; user picks the wrong ones; we drill down on those.",
+      "spec_requirements": ["REQ-005", "REQ-006"],
+      "tasks": ["5.1-5.5", "6.1-6.4"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase −1D section exists in pipeline skill with the canonical name",
+        "Trigger condition: gate fires iff at least one element is low/unknown/flagged-medium",
+        "Presentation format: numbered list with the documented per-item fields",
+        "Reply parser: three formats — `all correct`, integer list, `all incorrect`",
+        "Auto-confirmation: unflagged items get user_verdict=confirmed",
+        "Drill-down: one targeted question per flagged item, AskUserQuestion-batched 4-at-a-time, free-form fallback",
+        "Persist + re-mine when every flagged item resolved"
+      ],
+      "acceptance_criteria": [
+        "pytest wiring test asserts all of the above clauses are present in the pipeline skill body",
+        "skill body documents the three-format parser deterministically (regex-fallback-reprompt order)"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-CONFIRMED-FEEDS-DOWNSTREAM",
+      "summary": "Confirmed intuitions become a binding input to Phase 0 + Phase 1.",
+      "spec_requirements": ["REQ-007"],
+      "tasks": ["7.1-7.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase 0 binding-input rule stated in pipeline skill",
+        "Override mechanism (`superseded_by`) defined",
+        "Phase 1 coverage-map enrichment rule for frontend/both-layer requirements stated"
+      ],
+      "acceptance_criteria": [
+        "pytest wiring test asserts the Phase 0 binding-input language is present",
+        "pytest wiring test asserts the Phase 1 coverage-map enrichment language is present"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-RULE-COHERENCE",
+      "summary": "The new bulk-verify gate does not contradict the v0.9.20 gates-are-opt-in rule.",
+      "spec_requirements": ["REQ-008"],
+      "tasks": ["8.1-8.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Pipeline skill's `## Default mode of operation` section distinguishes process gates from domain gates",
+        "Phase −1D, editability `ambiguous`, and interaction `ambiguous` escalations are explicitly named as domain gates",
+        "`commands/architect-team.md` --proposal-first flag bullet adds the one-line clarification"
+      ],
+      "acceptance_criteria": [
+        "pytest structural test parses `## Default mode of operation` and asserts the distinction is stated",
+        "pytest structural test asserts the command file's --proposal-first bullet contains the clarification"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-TEST-COVERAGE",
+      "summary": "Structural pytest coverage of the new skill, agent, schema, and pipeline wiring.",
+      "spec_requirements": ["REQ-010"],
+      "tasks": ["10.1-10.7"],
+      "layer": "infra",
+      "scenarios": [
+        "tests/test_interaction_intuition_skill.py passes",
+        "tests/test_interaction_intuiter_agent.py passes",
+        "tests/test_phase_minus_1d_bulk_verify_wiring.py passes",
+        "tests/test_interaction_intuition_map_schema.py passes",
+        "test_skills.py EXPECTED_SKILLS includes interaction-intuition",
+        "test_agents.py EXPECTED_AGENTS includes interaction-intuiter",
+        "Full suite at v0.9.21 baseline > 649; no regression"
+      ],
+      "acceptance_criteria": [
+        "`python -m pytest -q` exits 0",
+        "Total test count is strictly greater than 649 (the v0.9.20 baseline)"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-RELEASE",
+      "summary": "Documentation currency + release as v0.9.21.",
+      "spec_requirements": ["REQ-011"],
+      "tasks": ["11.1-11.8", "12.1"],
+      "layer": "infra",
+      "scenarios": [
+        "README banner / version badge / tests badge / timeline current marker reflect v0.9.21 (with the test-asserted ones strict)",
+        "CHANGELOG carries the [0.9.21] entry quoting the user verbatim",
+        "CODEBASE_MAP counts: 21 skills, 18 agents",
+        "INTEGRATION_MAP names the new per-codebase artifact",
+        "CLAUDE.md frontmatter counts updated",
+        "plugin.json + marketplace.json carry 0.9.21",
+        "Documentation-currency audit at Phase 8 returns clean"
+      ],
+      "acceptance_criteria": [
+        "tests/test_readme_styling.py banner + badge tests pass at v0.9.21",
+        "Documentation-currency audit (Phase 8) returns exit-0"
+      ]
+    }
+  ],
+  "implementing_commits": [],
+  "confirmed_stubs": [],
+  "solution_requirements": []
+}

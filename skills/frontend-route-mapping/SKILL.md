@@ -109,6 +109,10 @@ Reviewers must spot-check by sampling components and confirming claims.
 
 When design artifacts are present in `$REQ_DIR` (screenshots, Figma exports) OR design tokens / Storybook / assets exist in the codebase, the route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill. ROUTE_MAP.md captures STRUCTURAL surface (routes, navigation, API calls, modals); DESIGN_MAP.md captures VISUAL surface (design tokens, asset registry, per-screen visual specs, detected drift). Both are produced in the same Phase −1B pass when applicable; DESIGN_MAP.md's absence is not a gap when no design inputs exist.
 
+## Downstream consumer: interaction-intuition (Phase −1D)
+
+ROUTE_MAP.md is a Phase −1B output and a Phase −1D input. At Phase −1D the `interaction-intuiter` agent reads ROUTE_MAP.md (alongside DESIGN_MAP.md and INTEGRATION_MAP.md) per the `interaction-intuition` skill and produces `<codebase>/docs/INTERACTION_INTUITION_MAP.md` — a per-element intuition of "what action does this control take and which endpoint does it call" with confidence high / medium / low / unknown. Every interactive element in the route table feeds that cross-walk; route entries with `awaiting_confirmation: true` flags or no explicit `target_link` annotation become high-priority `low` or `unknown` items in the intuition map, surfacing them to the Phase −1D bulk-verify gate.
+
 ## Anti-patterns to reject
 
 | Rationalization | Rebuttal |

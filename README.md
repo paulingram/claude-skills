@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 20
+                            ─── T E A M ───   v 0 . 9 . 21
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,19 +21,21 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.20-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.21-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-649%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-730%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.19  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.21  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Interaction intuition at Phase −1 — every control mapped before code is written (v0.9.21)** | The Phase 5 `interaction-completeness` team catches drift against a *built, running* app — by then the proposal is months old and a wiring gap costs a full cycle. v0.9.21 lifts that same rigor into discovery: for every frontend codebase in scope, a new **`interaction-intuiter`** agent (per-codebase, opus, analysis-only) cross-walks `ROUTE_MAP.md` × `DESIGN_MAP.md` × `INTEGRATION_MAP.md` and produces a per-codebase **`INTERACTION_INTUITION_MAP.md`** carrying, for every interactive element on every designed screen, an intuited action in user-effect terms, candidate endpoints with `match_kind` (exact-by-label / exact-by-action-noun / plausible-by-design-intent / inferred-from-similar-route), explicit confidence (`high` / `medium` / `low` / `unknown`), citation evidence, and — for everything below `high` — a precise ambiguity question that names the concrete candidates and the user-visible behavioral difference between them. Then a new **Phase −1D bulk-verify gate** fires before Phase 0: every `low`/`unknown` (and any flagged `medium`) is presented to the user as a **single numbered list**, the user replies in one of three formats (`all correct` / a list of incorrect indices / `all incorrect`), and a targeted drill-down resolves only the flagged items — `AskUserQuestion` batched 4-per-message when the candidate set fits, free-form otherwise. Items the user did NOT flag are auto-`confirmed`. The `confirmed: true` map is then a **binding input** to Phase 0 spec authoring (the proposal must reflect every confirmed action→endpoint triple verbatim; `superseded_by: REQ-XXX` is the only override) and Phase 1 (every confirmed wiring becomes an acceptance criterion). The gate is a **domain gate** (the user-confirmation step IS the deliverable), so it fires regardless of `--proposal-first` — the pipeline skill's `## Default mode of operation` carve-out makes this distinction explicit alongside the v0.9.20 gates-opt-in rule for process gates. |
+| ▸ **Gates are opt-in — orchestrator drives end-to-end (v0.9.20)** | A user-reported defect: the pipeline kept asking obvious clarifying questions ("How should I fix this bug?") when the answer was obviously "fix it properly". v0.9.20 embeds the rule as a non-negotiable in the pipeline skill — drive Phases −1 → 8 to completion, pick sensible defaults, state the pick in one line, proceed. **Process gates** (proposal-first pause, "do you want me to proceed?", clarifying `AskUserQuestion` calls whose answer is obvious) engage ONLY when the user explicitly requests one ("propose first" / "review before implementing" / `--proposal-first`) or a genuinely material fork exists where the answer is not obvious. A new opt-in `--proposal-first` flag formalizes the explicit request channel (with natural-language phrasings). An obvious clarifying question is itself a defect; catch it before sending. Bugs and clear-fix scenarios get fixed at the right scale (small edit / focused commit / full pipeline) — sized by the work, not by asking. |
 | ▸ **UI interaction fidelity — every control genuinely tested, every page live (v0.9.19)** | The pipeline kept shipping frontend work that was not what it claimed to be — a Playwright "user-flow" test passing without ever driving the UI (a direct `page.request.*` call, or a vacuous navigate-and-assert), a route wired to a **placeholder** / "coming soon" / mock page in place of the real live page, a hardcoded `"John Smith"` rendered for every user where a dynamic value belongs. v0.9.19 makes "every interactive element is genuinely user-flow-tested, every page is the real live page, and every displayed value is correctly static or dynamically bound — or an explicit user-confirmed stub" a **structural, hook-enforced gate**. A new judgment-heavy verification team — the **`interaction-completeness`** skill + the **`interaction-reviewer`** agent (×3, opus, analysis-only, modeled on `editability-completeness`) — independently re-enumerates every interactive element AND every page, classifies element wiring and page genuineness, audits each Playwright test for genuine user-driven interaction, and traces every element to its endpoint. A first-class **confirmed-stub mechanism** gives an intentionally-inert control or placeholder page a durable, user-confirmed status (escalate-don't-guess); an unconfirmed one is a gap. A new hook-enforced **`ui_interaction_review`** evidence field (schema v5 → **v6**) gates the axis — `pass` / `n/a` / `fail`. A new **`dynamic-value-discovery`** skill — a cross-role discipline wired into the developer, architect, and evaluator — distinguishes a genuine static literal from sample data standing in for a dynamic, data-bound value, classifying every displayed value FROM CONTEXT and binding every dynamic one. The `test-completeness-verifier` is strengthened to flag a vacuous "flow" test and cross-check the interactivity inventory. |
 | ▸ **Project email notifications (v0.9.18)** | A pipeline run is a long, mostly-unattended sequence of phases — until now nobody could follow along without watching the terminal. v0.9.18 adds an **opt-in, per-project email-notification system**. A project drops a committed `.architect-team-notify.json` at its repo root naming the email provider (**Gmail** SMTP or **SendGrid** API), the sender identity, the env-var that holds the provider secret, and a recipient list — each recipient subscribing to whichever of the **five event types** they want: `phase_start`, `phase_complete`, `issue_discovered` (a new solution requirement), `git_commit`, and `deploy` (a live dev instance brought up). The notifier (`scripts/notify/notify.py`, **standard library only** — `smtplib` / `urllib`, zero new dependencies) is a CLI the orchestrator invokes at those five moments. It is strictly **best-effort**: every failure path — missing config, missing secret, provider / network error — exits 0, so a notification failure can never block, fail, or alter a run. Provider secrets are read only from the named environment variable, never committed, never logged. With no `.architect-team-notify.json` present the notifier is a silent no-op. |
 | ▸ **Plain-language requirements are first-class (v0.9.17)** | `/architect-team` takes a requirement in **two forms** — a requirements folder OR a **plain-language requirement typed directly** (a sentence or paragraph describing what to build, fix, change, review, or improve). Phase 0 has always normalized plain-language input, but the command's argument parser was worded *"the first token is the requirements folder path"* — so a sentence's first word (`no`, `review`, `fix`) got mistaken for a path and models refused with *"I won't run against a non-existent folder."* v0.9.17 rewrites the command's argument parser and the skill's `Inputs` section: two clearly-labelled input forms, both first-class; refusing prose — or treating its first word as a path — is now explicitly forbidden; the pipeline asks for input only when the argument is genuinely empty. |
@@ -61,7 +63,7 @@
 ```
 
 ```
-┌─ SKILLS (20) ───────────────────────┬─ AGENTS (17) ─────────────────────────┐
+┌─ SKILLS (21) ───────────────────────┬─ AGENTS (18) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -82,6 +84,7 @@
 │ ◇ documentation-currency            │                                       │
 │ ◇ interaction-completeness          │                                       │
 │ ◇ dynamic-value-discovery           │                                       │
+│ ◇ interaction-intuition             │ ◆ interaction-intuiter (opus)         │
 ├─ COMMANDS (6) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder>                             │
 │ ▸ /architect-team-setup                                                     │
@@ -807,7 +810,8 @@ Tests validate: plugin/marketplace JSON; all 20 skill frontmatters; all 17 agent
            v0.9.17 ─ plain-language requirements are a first-class input
            v0.9.18 ─ project email notifications — Gmail / SendGrid, five events
            v0.9.19 ─ UI interaction fidelity — genuine controls, live pages, dynamic values
-   ◆       v0.9.20 ─ gates are opt-in — orchestrator drives end-to-end without asking obvious questions (current)
+           v0.9.20 ─ gates are opt-in — orchestrator drives end-to-end without asking obvious questions
+   ◆       v0.9.21 ─ interaction intuition at Phase −1 — every control mapped before code is written (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
