@@ -183,9 +183,16 @@ On `bug-resolved` at B6:
 
 ## Phase B8 — Commit + push
 
-Same flow as `architect-team-pipeline` Phase 8 — completion audit gate, default-branch guard (the work lands on `architect-team/<bug-slug>` feature branch unless `--allow-push-to-default`), commit with the standard message template, push to the feature branch, recommend a PR. Auto-compact prompt at the very end (unless `--no-compact`).
+Same flow as `architect-team-pipeline` Phase 8 — **documentation-currency gate first** (the `doc-updater` agent dispatch + the `system-architect` Documentation Currency Audit + the commit-blocking gate, per v0.9.23 — same dispatch, same audit, same enforcement as the main pipeline), then completion audit gate, default-branch guard (the work lands on `architect-team/<bug-slug>` feature branch unless `--allow-push-to-default`), commit with the standard message template, push to the feature branch, recommend a PR. Auto-compact prompt at the very end (unless `--no-compact`).
 
-The completion audit verifies the bug-fix loop closed cleanly — every iteration's SR resolved, the final QA-replay verdict is `bug-resolved`, the master-review audit verdict at B7 (if any) is `pass`, no escalation marker pending.
+**Documentation-currency gate at Phase B8 (per the `documentation-currency` skill + v0.9.23's `doc-updater` agent):**
+
+0. **Bump version first** — the orchestrator updates `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` to the target version. The bug-fix pipeline's typical version bump is a patch (e.g., `0.9.22` → `0.9.23`) since a bug-fix loop ships a small slice; the orchestrator decides the level.
+1. **Update — dispatch the `doc-updater` agent** (v0.9.23, opus, bounded `Write` only to the documentation-currency inventory paths). Same dispatch as the main pipeline's Phase 8. The agent reads the bug-fix loop's `git diff` (typically small — one or two files plus the new test artifact) and updates whatever inventory docs the diff invalidated. For a tiny bug-fix diff the agent walks the inventory, finds zero stale sections, writes a report with `updates: []` (or a minimal CHANGELOG entry), and exits cheaply. The cost of the dispatch is negligible; the value is structural — bug fixes are not exempt from the doc-currency gate.
+2. **Audit — dispatch the `system-architect` agent** in Documentation Currency Audit mode (unchanged from v0.9.15). Independent verification.
+3. **Gate.** `pipeline-completion-audit.py` blocks the commit until the audit verdict is `overall: pass` — same enforcement as the main pipeline.
+
+The completion audit verifies the bug-fix loop closed cleanly — every iteration's SR resolved, the final QA-replay verdict is `bug-resolved`, the master-review audit verdict at B7 (if any) is `pass`, the doc-currency audit verdict is `pass`, no escalation marker pending.
 
 The commit message format:
 
@@ -235,7 +242,7 @@ The bug-fix pipeline inherits every operating rule from `architect-team-pipeline
 - `dev-api-integration-testing` (Phase B1 backend, B2 backend diagnostic, B6 QA replay) — same.
 - `root-cause-test-failures` — applies when B1 returns `could-not-reproduce` or when B6 returns an unclear `bug-still-present` (the diagnostic loop runs through the orchestrator's normal channels).
 - `coverage-mapping` + `reuse-first-design` (Phase B3) — same authoring disciplines as a feature proposal.
-- `documentation-currency` (Phase B8) — the doc-currency gate runs before the auto-commit, same as the main pipeline.
+- `documentation-currency` (Phase B8) — the doc-currency gate runs before the auto-commit, same as the main pipeline. v0.9.23 promoted the update step to the dedicated `doc-updater` agent; the audit (system-architect Documentation Currency Audit mode) and the commit-blocking enforcement are unchanged.
 
 ## Same input forms as architect-team-pipeline
 

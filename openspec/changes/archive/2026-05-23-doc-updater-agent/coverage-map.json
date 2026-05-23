@@ -1,0 +1,97 @@
+{
+  "$schema": "openspec/coverage-map.schema.json",
+  "change_name": "doc-updater-agent",
+  "schema_version": 1,
+  "source_directive": "review and update all documentation - note that we should be doing this automatically with an agent as part of the architect team for both bug and regular feature fixes. concretely: promote the Phase 8 documentation-currency gate from an orchestrator-performed step into a dedicated doc-updater agent (opus, bounded Write only to the documentation-currency inventory files - README, CHANGELOG, CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP, INTEGRATION_MAP, CLAUDE.md). The agent reads the run's diff + the coverage map + the run ledger + the current state of every inventory doc, identifies every stale section, and edits it in place. The existing system-architect Documentation Currency Audit mode still independently audits its output (producer/checker discipline per v0.9.13). Wire this into BOTH the main architect-team-pipeline (Phase 8) AND the bug-fix-pipeline (Phase B8) so doc currency is automatic for both feature work and bug fixes. Sweep the documentation-currency skill to reference the new agent. Run the v0.9.23 ship through the same gate so any v0.9.22 doc-staleness gets caught in this same pass.",
+  "layer_summary": "All requirements are layer:infra — a new markdown agent + skill body modifications + Python pytest tests + JSON manifests. The architect-team plugin has no frontend and no backend; therefore no Playwright user-flow criteria and no dev-API integration criteria are required for the plugin's own test suite. Pipeline-meta work only.",
+  "playwright_n_a_authorization": "The architect-team plugin self-modification has no UI to test. The codebase is markdown skills + Python hooks/tests + JSON manifests. Playwright user-flow criteria are N/A for every requirement.",
+  "dev_api_n_a_authorization": "The architect-team plugin has no backend API. Dev-API integration testing criteria are N/A for every requirement.",
+  "requirements": [
+    {
+      "source_requirement_id": "USER-DOC-UPDATER-AGENT",
+      "summary": "A dedicated agent that performs the Phase 8 documentation-currency update step.",
+      "spec_requirements": ["REQ-001", "REQ-002"],
+      "tasks": ["1.1-1.3", "2.1-2.4"],
+      "layer": "infra",
+      "scenarios": [
+        "agents/doc-updater.md exists with valid frontmatter",
+        "model is opus; tools allowlist is Read/Glob/Grep/LS/Bash/Write/TodoWrite (Edit absent)",
+        "all six required body sections present",
+        "process documents five steps with stale-section schema fields"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions in tests/test_doc_updater_agent.py pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-DOC-CURRENCY-SKILL-UPDATE",
+      "summary": "documentation-currency skill names the new doc-updater agent.",
+      "spec_requirements": ["REQ-003"],
+      "tasks": ["3.1-3.3"],
+      "layer": "infra",
+      "scenarios": [
+        "skill body references doc-updater agent",
+        "producer/checker pairing documented",
+        "v0.9.13 (producer/checker) or v0.9.15 (gate) cited"
+      ],
+      "acceptance_criteria": [
+        "pytest wiring test asserts the references are present"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-WIRE-BOTH-PIPELINES",
+      "summary": "Both architect-team-pipeline (Phase 8) and bug-fix-pipeline (Phase B8) dispatch the doc-updater agent.",
+      "spec_requirements": ["REQ-004", "REQ-005"],
+      "tasks": ["4.1-4.2", "5.1-5.2"],
+      "layer": "infra",
+      "scenarios": [
+        "architect-team-pipeline Phase 8 step 1 (Update) dispatches doc-updater",
+        "audit + gate steps remain unchanged",
+        "bug-fix-pipeline Phase B8 dispatches doc-updater with the same flow"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions in tests/test_doc_updater_wiring.py pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-TEST-COVERAGE",
+      "summary": "Structural pytest coverage for the new agent + pipeline wiring.",
+      "spec_requirements": ["REQ-006"],
+      "tasks": ["6.1-6.4"],
+      "layer": "infra",
+      "scenarios": [
+        "tests/test_doc_updater_agent.py passes",
+        "tests/test_doc_updater_wiring.py passes",
+        "EXPECTED_AGENTS includes doc-updater",
+        "full suite > 824; no regression"
+      ],
+      "acceptance_criteria": [
+        "python -m pytest -q exits 0",
+        "total passing-test count strictly greater than 824"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-RELEASE",
+      "summary": "Documentation currency + release as v0.9.23 (with the doc-updater agent dogfood-running on its own release).",
+      "spec_requirements": ["REQ-007"],
+      "tasks": ["7.1-7.10", "8.1"],
+      "layer": "infra",
+      "scenarios": [
+        "plugin.json + marketplace.json = 0.9.23",
+        "README banner / version badge / tests badge / NEW IN header / timeline / inventory grid reflect v0.9.23",
+        "CHANGELOG carries [0.9.23] entry",
+        "CODEBASE_MAP counts: 22 skills, 22 agents, 7 commands",
+        "INTEGRATION_MAP last_synthesized bumped",
+        "CLAUDE.md counts updated",
+        "Documentation-currency audit at Phase 8 returns clean (dogfood: the new agent updates the docs for this release; the audit verifies)"
+      ],
+      "acceptance_criteria": [
+        "tests/test_readme_styling.py banner + badge + inventory tests pass at v0.9.23",
+        "documentation-currency audit (Phase 8) returns exit-0"
+      ]
+    }
+  ],
+  "implementing_commits": [],
+  "confirmed_stubs": [],
+  "solution_requirements": []
+}

@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.23] — 2026-05-23
+
+### Added — automatic documentation currency via a dedicated `doc-updater` agent (`doc-updater-agent`)
+
+User directive: *"review and update all documentation - note that we should be doing this automatically with an agent as part of the architect team for both bug and regular feature fixes."*
+
+The v0.9.15 Phase 8 documentation-currency gate already did the right discipline — sweep, audit, block-the-commit-on-fail — but the *update* step was a sentence in the skill that said *"the orchestrator performs the updates."* That cracked at end-of-context on big diffs (a v0.9.22-shaped ship has a 22-step doc checklist the orchestrator routinely lost items in) and at end-of-attention on small ones (bug-fix loops inherited the language by reference). v0.9.23 promotes the update step to a dedicated agent. Implements REQ-001..007 of the `doc-updater-agent` OpenSpec change.
+
+#### REQ-001 + REQ-002 — `doc-updater` agent
+
+- `agents/doc-updater.md` — NEW. Opus, 161 lines. Tools allowlist exactly: `Read, Glob, Grep, LS, Bash, Write, TodoWrite`. **`Edit` deliberately excluded** — whole-file rewrites via `Write` enforce consistency across related invariants (the failure mode that surgical Edit allows is partial updates: one count gets bumped, a related count doesn't). Bounded Write scope: ONLY the documentation-currency inventory paths (README.md, CHANGELOG.md, CLAUDE.md, AGENTS.md if present, the maps in `docs/` and per-codebase `<codebase>/docs/`, and the agent's own report file). NO source-code writes, NO test writes, NO openspec/* writes, NO `plugin.json` / `marketplace.json` writes (those are the version-source-of-truth — orchestrator writes them BEFORE the agent's dispatch).
+- Agent body sections: `## Inputs`, `## Process` (five steps: inventory walk → diff scan → staleness identification → update in place → report), `## Output schema`, `## Bounded Write scope`, `## What this agent does NOT do`, `## Hard rules`. Documents the stale-section entry schema (`doc_path`, `section_anchor`, `current_value`, `expected_value`, `justification`) and the whole-file-rewrite strategy.
+- Output: `<cwd>/.architect-team/documentation-currency/updates-<ISO-8601-UTC>.json` — every file touched + every section updated + the triggering justification (a diff entry, a coverage-map REQ, or a count comparison). Ungrounded updates are rejected from the agent's own output before they leave.
+
+#### REQ-003 — `documentation-currency` skill names the agent
+
+- `skills/documentation-currency/SKILL.md` — MODIFIED. The "Update" step (was: "the orchestrator updates") now dispatches the `doc-updater` agent. The skill's Hard rules section documents the bounded Write scope, the producer/checker pairing (doc-updater produces; system-architect Documentation Currency Audit verifies), the whole-file-rewrite strategy, and the same-dispatch-same-gate parity at Phase B8. The Audit step (v0.9.15) and the commit-blocking enforcement are unchanged.
+
+#### REQ-004 — `architect-team-pipeline` Phase 8 dispatches doc-updater
+
+- `skills/architect-team-pipeline/SKILL.md` — MODIFIED. Phase 8 `### Documentation-currency gate` block: step 0 (Bump version first — orchestrator updates `plugin.json` + `marketplace.json` so the agent sees the target version), step 1 (Update — dispatches `doc-updater`), step 2 (Audit — `system-architect` Documentation Currency Audit, unchanged), step 3 (Gate — `pipeline-completion-audit.py`, unchanged).
+
+#### REQ-005 — `bug-fix-pipeline` Phase B8 dispatches doc-updater
+
+- `skills/bug-fix-pipeline/SKILL.md` — MODIFIED. Phase B8 now explicitly describes the same documentation-currency gate (Bump → Update → Audit → Gate) instead of inheriting it by reference. The bug-fix pipeline's typical small diff makes the agent's walk cheap (empty `updates: []` report on a no-op pass) but the gate still runs — bug fixes are not exempt from doc currency.
+
+#### REQ-006 — Test coverage
+
+- `tests/test_doc_updater_agent.py` — NEW. 16 cases. Frontmatter; `model: opus`; tools allowlist exact (Read/Glob/Grep/LS/Bash/Write/TodoWrite present; Edit absent); all 6 body sections parametrized; bounded Write scope enumerates the inventory paths; what-this-agent-does-NOT-do explicitly forbids source/tests/openspec/plugin.json writes; Process documents all 5 steps with the stale-section schema fields; whole-file-rewrite strategy documented.
+- `tests/test_doc_updater_wiring.py` — NEW. 9 cases. documentation-currency skill names the agent + documents producer/checker + cites v0.9.13 or v0.9.15; architect-team-pipeline Phase 8 dispatches the agent + preserves the audit step + preserves pipeline-completion-audit enforcement; bug-fix-pipeline Phase B8 dispatches the agent + references the audit + documents parity with the main pipeline.
+- `tests/test_agents.py` `EXPECTED_AGENTS` += `doc-updater`.
+
+#### REQ-007 — Documentation + release v0.9.23
+
+- `README.md` — banner `v 0 . 9 . 23`; version badge `0.9.23`; tests badge bumped to 857; NEW IN panel header bumped; new v0.9.23 row at the top of the table; timeline `(current)` moved to v0.9.23; inventory grid AGENTS (21 → 22) with `doc-updater (opus)` row paired alongside `bug-fix-pipeline` (the previously-blank cell).
+- `docs/CODEBASE_MAP.md` — `last_mapped` bumped to 2026-05-23 (later timestamp); agent count 21 → 22; §1 references v0.9.23; new section for `agents/doc-updater.md`.
+- `docs/INTEGRATION_MAP.md` — `last_synthesized` bumped; note v0.9.23 adds no new external integration (the agent operates entirely inside the workspace's `.architect-team/` + the documentation-currency inventory).
+- `CLAUDE.md` — frontmatter counts updated (22 agents); brief mention of doc-updater + dispatch parity in both pipelines.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.23"`.
+
+#### Tests
+
+- 857 pass / 0 fail (`python -m pytest -q`). +33 net new tests against the v0.9.22 baseline of 824: 2 new test files (~25 cases total), plus the appended entry in `EXPECTED_AGENTS` parametrizations.
+
+#### Dogfood note
+
+- This release was the FIRST run that COULD have dispatched the brand-new doc-updater agent on its own Phase 8 — but the agent was authored in THIS run and the cached pipeline doesn't know about it yet. The orchestrator performed the v0.9.23 doc-currency updates manually as a transitional step. From v0.9.24 onward, every architect-team-pipeline Phase 8 and bug-fix-pipeline Phase B8 dispatches the agent automatically. The user never has to ask for a doc sweep again.
+
 ## [0.9.22] — 2026-05-23
 
 ### Added — bug-fix pipeline (`bug-fix-pipeline`)

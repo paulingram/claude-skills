@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 22
+                            ─── T E A M ───   v 0 . 9 . 23
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,19 +21,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.22-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.23-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-815%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-858%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.22  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.23  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Automatic documentation currency via a dedicated `doc-updater` agent (v0.9.23)** | The v0.9.15 Phase 8 documentation-currency gate did the right discipline — sweep, audit, block-the-commit-on-fail — but the *update* step was a sentence in the skill that said "the orchestrator performs the updates." That cracked at end-of-context on big diffs (a 30-file v0.9.22-shaped ship has a 22-step doc checklist the orchestrator routinely lost items in) and at end-of-attention on small ones (bug-fix loops inherit the language by reference). v0.9.23 promotes the update step to a dedicated **`doc-updater`** agent (opus, bounded `Write` ONLY to the documentation-currency inventory — README / CHANGELOG / CLAUDE.md / AGENTS.md / CODEBASE_MAP / INTEGRATION_MAP / ROUTE_MAP / DESIGN_MAP / INTERACTION_INTUITION_MAP — and explicitly **NO `Edit`**, **NO source-code writes**, **NO `plugin.json`/`marketplace.json` writes**). The agent reads the run's `git diff` against the merge base + the coverage map + the run ledger + the current state of every inventory doc, identifies every stale section with a triggering `justification` citing a specific diff entry, and edits each in place via **whole-file rewrites** (Edit is excluded by design — partial-update inconsistency where one count gets bumped but a related count doesn't is the failure mode this prevents). Output: a structured report at `.architect-team/documentation-currency/updates-<ts>.json` enumerating every file touched + every section updated with its justification. The existing `system-architect` **Documentation Currency Audit** mode (unchanged from v0.9.15) independently re-verifies; the **audit's verdict** — not the agent's self-report — is what gates the commit (producer/checker discipline, per v0.9.13). **Wired into BOTH pipelines**: the main `architect-team-pipeline` Phase 8 step 1 dispatches `doc-updater` (replacing "orchestrator performs the updates"); the `bug-fix-pipeline` Phase B8 dispatches the same agent with the same audit and the same enforcement. Bug fixes are not exempt from doc currency; small diffs walk the inventory cheaply, produce an empty `updates: []` report, and exit. The user never has to ask for a doc sweep again. |
 | ▸ **Bug-fix pipeline — replicate, propose, fix, QA-replay against live dev (v0.9.22)** | The main `architect-team-pipeline` is optimized for greenfield features; for a known-bug-with-a-clear-symptom — *"the row-action menu's Delete button doesn't actually delete; clicking it just closes the menu"* — its 100%-coverage planning gate, parallel team spawn, six Phase 5 review teams, and master-review audit are weight a 30-line fix doesn't need. v0.9.22 ships a sibling **`bug-fix-pipeline`** skill + **`/architect-team:bug-fix`** command with five non-negotiable disciplines: **replicate first** (Playwright user-flow for frontend bugs, backend script for backend bugs, ambiguity-escalation question for unclear bugs — *"How did you experience the bug? What did you click? What did you expect vs. what actually happened?"*); **reproduction IS the regression test** (frontend bugs ALSO author a backend diagnostic so the regression is covered on both layers); **generalize, never symptom-patch** (the new `system-architect` **Bug-Fix Generalization Audit** mode rejects fixes that special-case the failing input — a literal user-id in a conditional, a hard-coded category — unless the user explicitly authorized a hotfix with words like *"hard-code it for now"*); **QA replay against live dev** (the new **`qa-replayer`** agent re-runs the reproduction artifacts verbatim against the deployed dev fix and the pass criterion is "the originating symptom is gone end-to-end," not "the test passes"); **live-dev-environment-by-default** (Phase B5 ALWAYS deploys to the dev environment first; production is an opt-in exception that escalates). Phases B−1 → B8 mirror the main pipeline's structural points (intake-and-mapping reuse, OpenSpec proposal, doc-currency gate, default-branch guard) and replace Phase 2-5 with a tight replicate → reproduce-test → propose → fix → QA-replay loop bounded at 10 local iterations. **Auto-routing at the main `/architect-team`** — a new Phase −2 triage step dispatches the new **`bug-classifier`** agent (sonnet, analysis-only) to classify the incoming requirement as `bug` / `feature` / `mixed` / `unclear`; pure-bug routes to the bug-fix pipeline, pure-feature continues to the existing flow, `mixed` spawns BOTH in parallel (a `triage_done` flag bounds the recursion at depth 1), `unclear` emits a structured question to the user. New `--bug-fix` and `--feature-only` flags on `/architect-team` force the classifier verdict. Both the bug-fix command and the bug-fix-pipeline skill accept the SAME two input forms as the main `/architect-team` — folder OR plain-language prose — with the v0.9.17 anti-pattern forbidance (never refuse prose, never path-treat the first word) applied verbatim. |
 | ▸ **Interaction intuition at Phase −1 — every control mapped before code is written (v0.9.21)** | The Phase 5 `interaction-completeness` team catches drift against a *built, running* app — by then the proposal is months old and a wiring gap costs a full cycle. v0.9.21 lifts that same rigor into discovery: for every frontend codebase in scope, a new **`interaction-intuiter`** agent (per-codebase, opus, analysis-only) cross-walks `ROUTE_MAP.md` × `DESIGN_MAP.md` × `INTEGRATION_MAP.md` and produces a per-codebase **`INTERACTION_INTUITION_MAP.md`** carrying, for every interactive element on every designed screen, an intuited action in user-effect terms, candidate endpoints with `match_kind` (exact-by-label / exact-by-action-noun / plausible-by-design-intent / inferred-from-similar-route), explicit confidence (`high` / `medium` / `low` / `unknown`), citation evidence, and — for everything below `high` — a precise ambiguity question that names the concrete candidates and the user-visible behavioral difference between them. Then a new **Phase −1D bulk-verify gate** fires before Phase 0: every `low`/`unknown` (and any flagged `medium`) is presented to the user as a **single numbered list**, the user replies in one of three formats (`all correct` / a list of incorrect indices / `all incorrect`), and a targeted drill-down resolves only the flagged items — `AskUserQuestion` batched 4-per-message when the candidate set fits, free-form otherwise. Items the user did NOT flag are auto-`confirmed`. The `confirmed: true` map is then a **binding input** to Phase 0 spec authoring (the proposal must reflect every confirmed action→endpoint triple verbatim; `superseded_by: REQ-XXX` is the only override) and Phase 1 (every confirmed wiring becomes an acceptance criterion). The gate is a **domain gate** (the user-confirmation step IS the deliverable), so it fires regardless of `--proposal-first` — the pipeline skill's `## Default mode of operation` carve-out makes this distinction explicit alongside the v0.9.20 gates-opt-in rule for process gates. |
 | ▸ **Gates are opt-in — orchestrator drives end-to-end (v0.9.20)** | A user-reported defect: the pipeline kept asking obvious clarifying questions ("How should I fix this bug?") when the answer was obviously "fix it properly". v0.9.20 embeds the rule as a non-negotiable in the pipeline skill — drive Phases −1 → 8 to completion, pick sensible defaults, state the pick in one line, proceed. **Process gates** (proposal-first pause, "do you want me to proceed?", clarifying `AskUserQuestion` calls whose answer is obvious) engage ONLY when the user explicitly requests one ("propose first" / "review before implementing" / `--proposal-first`) or a genuinely material fork exists where the answer is not obvious. A new opt-in `--proposal-first` flag formalizes the explicit request channel (with natural-language phrasings). An obvious clarifying question is itself a defect; catch it before sending. Bugs and clear-fix scenarios get fixed at the right scale (small edit / focused commit / full pipeline) — sized by the work, not by asking. |
@@ -64,7 +65,7 @@
 ```
 
 ```
-┌─ SKILLS (22) ───────────────────────┬─ AGENTS (21) ─────────────────────────┐
+┌─ SKILLS (22) ───────────────────────┬─ AGENTS (22) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -86,7 +87,7 @@
 │ ◇ interaction-completeness          │ ◆ qa-replayer (opus)                  │
 │ ◇ dynamic-value-discovery           │ ◆ bug-classifier (sonnet)             │
 │ ◇ interaction-intuition             │ ◆ interaction-intuiter (opus)         │
-│ ◇ bug-fix-pipeline                  │                                       │
+│ ◇ bug-fix-pipeline                  │ ◆ doc-updater (opus)                  │
 ├─ COMMANDS (7) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder>                             │
 │ ▸ /architect-team-setup                                                     │
@@ -815,7 +816,8 @@ Tests validate: plugin/marketplace JSON; all 20 skill frontmatters; all 17 agent
            v0.9.19 ─ UI interaction fidelity — genuine controls, live pages, dynamic values
            v0.9.20 ─ gates are opt-in — orchestrator drives end-to-end without asking obvious questions
            v0.9.21 ─ interaction intuition at Phase −1 — every control mapped before code is written
-   ◆       v0.9.22 ─ bug-fix pipeline — replicate, propose, fix, QA-replay against live dev (current)
+           v0.9.22 ─ bug-fix pipeline — replicate, propose, fix, QA-replay against live dev
+   ◆       v0.9.23 ─ automatic documentation currency via a dedicated doc-updater agent (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

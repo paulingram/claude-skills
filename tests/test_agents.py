@@ -27,6 +27,7 @@ EXPECTED_AGENTS: set[str] = {
     "bug-replicator",
     "qa-replayer",
     "bug-classifier",
+    "doc-updater",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
