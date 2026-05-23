@@ -38,6 +38,31 @@ Same as `architect-team-pipeline` v0.9.20: **drive end-to-end, gates are opt-in 
 
 Process gates (proposal-first pause, "do you want me to proceed?", obvious-answer clarifying questions) follow the same opt-in rule as the main pipeline.
 
+## Notifications (per-project email events — opt-in, best-effort)
+
+Same opt-in, best-effort discipline as the main `architect-team-pipeline`'s `## Notifications` section (v0.9.18). If the target project's repository root contains a `.architect-team-notify.json` config file, the bug-fix-pipeline emits notification events by invoking the notifier CLI at the wiring points marked below. Every invocation is **best-effort**: the notifier always exits 0, and a notification failure NEVER blocks, fails, or alters a bug-fix-pipeline run. With no `.architect-team-notify.json` present the notifier is a silent no-op and the bug-fix flow behaves exactly as before; the feature is entirely opt-in.
+
+**Invocation form** — run from the target project's repository root, identical to the main pipeline:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
+```
+
+`<event>` is one of the five recognized types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy` — same set as the main pipeline.
+
+**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every B-phase.** At the **start of each phase** (Phase B−1, B0, B1, B2, B3, B4, B5, B6, B7, B8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name (e.g., `"Phase B3 — OpenSpec proposal authoring"`):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication"
+```
+
+These two phase-boundary invocations are best-effort, exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below:
+
+- **`issue_discovered`** — fires at **Phase B6** when the `qa-replayer` returns `bug-still-present` and the orchestrator writes a fresh solution requirement back to the loop. `--summary` carries the SR's failure-mode description (verbatim from the qa-replayer's verdict's `symptom_check.gap_if_not_gone` field).
+- **`git_commit`** — fires at **Phase B8** immediately after the bug-fix commit succeeds, with `--commit <SHA>`. Same wiring point as the main pipeline's Phase 8 commit.
+- **`deploy`** — fires at **Phase B5** when the fix is deployed to the dev environment, with `--layer <layer>` (e.g., `frontend` / `backend` / `fullstack`). The bug-fix pipeline is "deploy-by-default" (per Phase B5); production deploys are gated on the `--environment production` escalation and the user's explicit go, so a `--environment production` invocation emits this notification only AFTER the user confirms.
+
 ## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)
 
 When the bug-fix pipeline is invoked DIRECTLY via `/architect-team:bug-fix` (not routed in from the main pipeline's Phase −2), the MemPalace wake-up is the earliest action — same discipline as `architect-team-pipeline`'s wake-up section. Before ANY subagent is dispatched, the orchestrator consults the per-workspace MemPalace store per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
@@ -193,7 +218,13 @@ The replayer's process:
 The replayer's verdict is one of:
 
 - **`bug-resolved`** — the artifacts pass and the originating symptom is gone. Proceed to B7.
-- **`bug-still-present`** — the artifacts fail (or pass technically but the symptom is still observable). The replayer writes a solution requirement back to the orchestrator with the new evidence (the current failing output, the differences from the pre-fix failing output). The loop returns to B3 — a FRESH OpenSpec proposal authored on the new evidence (not an amendment to the previous proposal; the previous proposal is closed and a new one opened to keep the audit trail clean). The loop continues.
+- **`bug-still-present`** — the artifacts fail (or pass technically but the symptom is still observable). The replayer writes a solution requirement back to the orchestrator with the new evidence (the current failing output, the differences from the pre-fix failing output). The loop returns to B3 — a FRESH OpenSpec proposal authored on the new evidence (not an amendment to the previous proposal; the previous proposal is closed and a new one opened to keep the audit trail clean). **Notification (best-effort, per `## Notifications`):** the orchestrator emits an `issue_discovered` event with the SR's failure-mode description as `--summary` immediately before re-entering B3. It invokes the notifier from the target project's root and proceeds immediately regardless of the notifier's outcome:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's failure-mode description>"
+  ```
+
+  This `issue_discovered` invocation is best-effort and NEVER blocks or alters the bug-fix loop — a notifier failure does not stop the next iteration. The loop continues.
 - **`env-failure`** — the artifacts couldn't run (the dev environment is down, the deploy didn't apply, the browser is mis-configured). Routes to the implementing team for env diagnosis, NOT to the architect. The env issue must be resolved before re-running the replay — but the fix isn't on trial; the env is.
 
 **Loop bounds:** the bug-fix loop is bounded at **10 iterations locally** (a tighter signal than the global 20-step ceiling — most bug fixes should converge in 1-3 iterations; 10 is an early-escalation threshold). The global `dev_loop_iterations` counter in `intake-state.json` increments every B3 → B6 cycle, against the same 20-step absolute ceiling as the main pipeline. Oscillation detection applies: a fix that keeps re-breaking the same symptom (or the same proposal landing 3 times) escalates to the user.
@@ -240,6 +271,14 @@ The commit message format:
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
+
+**Notification (best-effort, per `## Notifications`):** immediately after the commit succeeds and BEFORE the push, the orchestrator emits a `git_commit` event with the new commit's SHA. Same wiring as the main pipeline's Phase 8 commit notification:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
+```
+
+This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.
 
 ## Operating rules (non-negotiable)
 

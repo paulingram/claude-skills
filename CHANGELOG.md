@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.27] — 2026-05-23
+
+### Fixed — bug-fix-pipeline gets full notification wiring (cohesion-review issue #4)
+
+A v0.9.23 cohesion-review finding (issue #4 of 10): the main `architect-team-pipeline`'s `## Notifications` section (v0.9.18) mandates `phase_start` + `phase_complete` notifier calls at every phase boundary (Phase −1, 0, 1, ..., 8), plus `issue_discovered` at SR creation points (Phase 3b), `git_commit` at Phase 8 after the commit succeeds, and `deploy` at Phase 5 when the dev environment is brought up — five event types covering the full feature-pipeline flow. The v0.9.22 `bug-fix-pipeline` skill carried only ONE notification line: the `deploy` event at Phase B5. Phase B−1, B0, B1, B2, B3, B4, B6, B7, B8 had no documented `phase_start`/`phase_complete` wiring; `issue_discovered` was never wired (despite Phase B6's `bug-still-present` branch writing a fresh SR — exactly the case `issue_discovered` exists to surface); `git_commit` was never wired (despite Phase B8 producing a commit on success). Subscribers to a target project's `.architect-team-notify.json` got verbose coverage of feature runs but silent bug-fix runs.
+
+v0.9.27 closes the gap by adding a full `## Notifications` section to `bug-fix-pipeline` paralleling the main pipeline's coverage, plus inline wiring at the two missing event points.
+
+#### What changed
+
+- **`skills/bug-fix-pipeline/SKILL.md` — new `## Notifications` section** inserted between `## Default mode of operation` and `## MemPalace wake-up`. Parallels the main pipeline's structure verbatim: same opt-in / best-effort / never-blocking discipline; same invocation form (`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [...]`); same five recognized event types; same `phase_start`/`phase_complete` rule applied to every B-phase (B−1, B0, B1, B2, B3, B4, B5, B6, B7, B8); same three special-event wiring points listed inline (`issue_discovered` at B6, `git_commit` at B8, `deploy` at B5).
+- **`skills/bug-fix-pipeline/SKILL.md` Phase B6 `bug-still-present` branch** — added an inline `issue_discovered` notifier invocation, fired immediately after the qa-replayer's verdict and BEFORE the orchestrator re-enters Phase B3 with the fresh SR. `--summary` carries the SR's failure-mode description (verbatim from the qa-replayer's `symptom_check.gap_if_not_gone` field).
+- **`skills/bug-fix-pipeline/SKILL.md` Phase B8 commit-succeeded step** — added an inline `git_commit` notifier invocation, fired immediately AFTER the commit succeeds and BEFORE the push. `--commit <SHA>`. Same wiring point as the main pipeline's Phase 8.
+- The pre-existing `deploy` event at Phase B5 (v0.9.22) is unchanged.
+
+#### Tests
+
+- **`tests/test_bug_fix_pipeline_notifications.py`** — NEW. 22 cases:
+  - `test_notifications_section_exists` — the section is present.
+  - `test_notifications_section_documents_opt_in_best_effort` — opt-in + best-effort + never-blocks + `always exits 0` discipline phrases.
+  - `test_notifications_section_documents_invocation_form` — python3 + scripts/notify/notify.py + ${CLAUDE_PLUGIN_ROOT}.
+  - 5 parametrized `test_notifications_section_lists_event[...]` — phase_start, phase_complete, issue_discovered, git_commit, deploy.
+  - 10 parametrized `test_notifications_section_names_b_phase[...]` — every B-phase (B−1 through B8) appears in the phase-boundary wiring list (the test accepts both `Phase Bn` and bare `Bn` in a comma-list).
+  - `test_phase_b6_bug_still_present_documents_issue_discovered` — Phase B6's bug-still-present branch has `issue_discovered` + notify.py + `--summary` references.
+  - `test_phase_b8_documents_git_commit_notification` — Phase B8 has `git_commit` + `--commit` references.
+  - `test_phase_b5_still_documents_deploy_notification` — pre-existing v0.9.22 `deploy` event reference + `.architect-team-notify.json` mention preserved (no regression).
+  - `test_notifications_parity_with_main_pipeline_invocation_form` — both bug-fix and main pipeline use the same notifier path, the same env var, and name all five events.
+
+#### Docs
+
+- README banner / version badge / tests badge (912) / NEW IN panel header + new v0.9.27 row / timeline `(current)` moved to v0.9.27.
+- CODEBASE_MAP / CLAUDE.md / INTEGRATION_MAP frontmatter timestamps bumped.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.27"`.
+
+#### Tests
+
+- 912 pass / 0 fail. +22 net new tests against the v0.9.26 baseline of 890.
+
+#### Cohesion-review status
+
+- ✅ #1 (v0.9.24): MemPalace wake-up ordering.
+- ✅ #2 (v0.9.25): bug-fix Phase B3 vs Phase 1 conditions (Path A).
+- ✅ #3 (v0.9.26): system-architect bounded Write for audit verdicts.
+- **✅ #4 (v0.9.27): bug-fix-pipeline notification wiring.**
+- #5 (`confirmed_stubs[]` cross-reference between Phase −1D and Phase 5), #6-#10 (cosmetic / process oddities) remain tracked debt. #5 is the next-highest priority — it's a user-experience improvement (the same element user-confirmed-stub'd at Phase −1D pre-populates Phase 5's expectations so the user isn't asked twice).
+
 ## [0.9.26] — 2026-05-23
 
 ### Fixed — system-architect agent gets bounded `Write` for its 7 audit verdicts (cohesion-review issue #3)

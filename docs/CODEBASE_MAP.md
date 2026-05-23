@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-23T10:00:00Z
+last_mapped: 2026-05-23T12:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-23 for v0.9.26 (system-architect-bounded-write) — fixed cohesion-review issue #3 (the system-architect agent's 7 audit modes documented writing verdict JSON/MD files to `<cwd>/.architect-team/.../audit-<ts>.{json,md}`, but the agent's tools allowlist had no Write; the Tools posture section said "NO Edit or Write access" — internally contradicting). v0.9.26 adds Write to the allowlist with bounded scope to `.architect-team/` paths only; new `## Bounded Write scope` section enumerates the 7 allowed paths (one per audit mode); Tools posture rewritten; Edit remains excluded (whole-file verdict writes, same discipline as doc-updater v0.9.23). New tests/test_system_architect_write_scope.py with 14 cases. No new agents, no new skills, no new commands. Test-file count now 42. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 890 pytest self-tests across 42 test files. Covers v0.9.1 (auto-compact) through v0.9.26 (system-architect bounded Write for audit verdicts).
+note: Doc refresh 2026-05-23 for v0.9.27 (bug-fix-pipeline-notifications) — fixed cohesion-review issue #4 (the v0.9.22 bug-fix-pipeline skill mentioned ONE notifier call — the deploy event at Phase B5 — but said nothing about phase_start/phase_complete at the other 9 B-phase boundaries, nothing about issue_discovered at Phase B6's bug-still-present SR creation, nothing about git_commit at Phase B8's successful commit). v0.9.27 adds a full `## Notifications` section to skills/bug-fix-pipeline/SKILL.md paralleling the main pipeline's v0.9.18 coverage, plus inline issue_discovered wiring at Phase B6 + inline git_commit wiring at Phase B8. All five event types now fire on bug-fix runs with the same opt-in / best-effort / never-blocks discipline. New tests/test_bug_fix_pipeline_notifications.py with 22 cases. No new agents, no new skills, no new commands. Test-file count now 43. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 912 pytest self-tests across 43 test files. Covers v0.9.1 (auto-compact) through v0.9.27 (bug-fix-pipeline notification wiring).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.26.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.27.
 
 ## 1. System Overview
 
