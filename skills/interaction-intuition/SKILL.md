@@ -132,7 +132,7 @@ The Phase −1D gate fires whenever the union of low-confidence intuitions is no
 
 ## Relationship to other skills
 
-- `interaction-completeness` (Phase 5) — verifies built code matches the confirmed intuitions. The two skills are bookends: this one promises an intuition; `interaction-completeness` checks the promise was kept.
+- `interaction-completeness` (Phase 5) — verifies built code matches the confirmed intuitions. The two skills are bookends: this one promises an intuition; `interaction-completeness` checks the promise was kept. **`user_verdict: confirmed-stub` entries in `INTERACTION_INTUITION_MAP.md` flow downstream to Phase 5** — `interaction-completeness` reads the map before enumerating, pre-populates the converged map's `confirmed_stubs[]` and the active change's `coverage-map.json` `confirmed_stubs[]` for every pre-confirmed element (keyed on `element_id`), and does NOT re-escalate the same question to the user. The cross-reference is bidirectional with the v0.9.21 binding-input rule: `confirmed`-action entries flow to Phase 0 spec authoring + Phase 1 coverage criteria; `confirmed-stub` entries flow to Phase 5's interaction-completeness team. See v0.9.28 (cohesion-review issue #5).
 - `frontend-route-mapping` + `design-fidelity-mapping` (Phase −1B) — produce the inputs (`ROUTE_MAP.md`, `DESIGN_MAP.md`). The intuiter consumes them.
 - `intake-and-mapping` (Phase −1) — orchestrates the per-codebase pipeline including the intuiter dispatch.
 - `dynamic-value-discovery` (cross-role) — the intuiter applies this discipline when reasoning about labels that might be dynamic data ("Account balance: $1,240.00" — the literal IS a dynamic-value-binding signal).

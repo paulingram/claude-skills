@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-23T12:00:00Z
+last_mapped: 2026-05-23T14:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-23 for v0.9.27 (bug-fix-pipeline-notifications) — fixed cohesion-review issue #4 (the v0.9.22 bug-fix-pipeline skill mentioned ONE notifier call — the deploy event at Phase B5 — but said nothing about phase_start/phase_complete at the other 9 B-phase boundaries, nothing about issue_discovered at Phase B6's bug-still-present SR creation, nothing about git_commit at Phase B8's successful commit). v0.9.27 adds a full `## Notifications` section to skills/bug-fix-pipeline/SKILL.md paralleling the main pipeline's v0.9.18 coverage, plus inline issue_discovered wiring at Phase B6 + inline git_commit wiring at Phase B8. All five event types now fire on bug-fix runs with the same opt-in / best-effort / never-blocks discipline. New tests/test_bug_fix_pipeline_notifications.py with 22 cases. No new agents, no new skills, no new commands. Test-file count now 43. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 912 pytest self-tests across 43 test files. Covers v0.9.1 (auto-compact) through v0.9.27 (bug-fix-pipeline notification wiring).
+note: Doc refresh 2026-05-23 for v0.9.28 (cohesion-review-closeout) — closes the remaining 6 cohesion-review issues. #5 (UX) wires confirmed-stubs cross-reference between Phase −1D and Phase 5's interaction-completeness team (pre-population on element_id; stale-intuition handling); the cross-reference is bidirectional with v0.9.21's binding-input rule. #6 marks the v0.9.23 doc-updater dogfood asymmetry as historical. #7 documents the Phase −1D H2-vs-sub-section structural choice as intentional. #8 adds 3 H3 sub-headings within the Default mode of operation section (navigability). #9 adds an Audit modes index near the top of agents/system-architect.md. #10 documents the plugin-cache vs source-on-disk lag in §7 Gotchas. New tests/test_confirmed_stubs_cross_reference.py with 12 cases covers #5 + asserts polish items #7-#10. No new agents, no new skills, no new commands. Test-file count now 44. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 924 pytest self-tests across 44 test files. Covers v0.9.1 (auto-compact) through v0.9.28 (cohesion-review close-out — issues #1-#10 all addressed across v0.9.24-v0.9.28).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.27.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.28.
 
 ## 1. System Overview
 
@@ -242,6 +242,8 @@ sequenceDiagram
 - **No arbitrary wakeups.** The pipeline runs synchronously; `ScheduleWakeup` / `CronCreate` / timer tools are forbidden inside a pipeline phase (v0.9.2).
 - **`$ARGUMENTS` does not propagate** from a command into the skill it invokes — `commands/architect-team.md` binds `$REQ_DIR` explicitly.
 - **Scaffold-agent does not update `EXPECTED_AGENTS`** — `test_cross_consistency.py::test_no_unregistered_agents` catches an unregistered agent.
+- **Plugin-cache vs. source-on-disk lag (operational reality, v0.9.28 note).** The Claude Code plugin cache lives at `~/.claude/plugins/cache/architect-team-marketplace/architect-team/<version>/`. When `/architect-team` or `/architect-team:bug-fix` is invoked, the harness loads the cached version's skill bodies — NOT the source-on-disk in the development repo. After a `git pull` (or after a dogfood `git push` to main), consumers must run `/plugin marketplace update` → `/plugin update architect-team` → `/reload-plugins` to pick up the new skills/agents/commands. The repo never validates "the cached skill matches the source" — it can't, by design. For dogfood runs: the orchestrator reads source-on-disk via the `Read` tool (so the LATEST skill bodies are honored during the build) but the harness's Skill-tool dispatch uses the cached version's body for the orchestrator's own behavior. This explains why some dogfood-shipped features only take effect on the NEXT consumer run after their release commit lands. Closes cohesion-review issue #10.
+- **One-time v0.9.23 dogfood asymmetry (historical, v0.9.28 note).** v0.9.23 shipped the `doc-updater` agent, but the agent didn't yet exist in the cached plugin when its own Phase 8 doc-currency gate ran — the orchestrator typed the v0.9.23 doc updates manually as a transition step. From v0.9.24 onward, every Phase 8 / Phase B8 dispatches the agent automatically. Closes cohesion-review issue #6.
 
 ## 8. Navigation Guide
 

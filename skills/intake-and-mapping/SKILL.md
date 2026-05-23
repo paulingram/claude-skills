@@ -89,6 +89,9 @@ If the loop hits the iteration cap without "CODEBASE MAP COMPLETE", surface this
 
 ## Phase −1D — Interaction intuition (per-frontend-codebase production + bulk-verify gate)
 
+> **Nomenclature note.** In this skill, Phase −1D is presented as its own H2 section (the focus here is the per-codebase mapping flow's late steps). In `architect-team-pipeline/SKILL.md`'s `## Phase −1 — Intake & Mapping` super-section, Phase −1D appears as sub-section D under that single H2 (the focus there is the entire pipeline). Both refer to the same orchestration step with the identical canonical name "Phase −1D"; the structural-level difference is an aesthetic choice (focus follows nesting). Tests assert the identifier "Phase −1D" appears in both files; the H2/H3 distinction is intentional.
+
+
 After every codebase has a complete map AND `INTEGRATION_MAP.md` is synthesized (next section), Phase −1D runs once per frontend codebase to cross-walk routes × design × integration into an explicit per-element intuition of "what action does this control take and which endpoint does it call". When no frontend codebase exists in scope, Phase −1D is a silent no-op.
 
 Per the `interaction-intuition` skill:

@@ -131,6 +131,20 @@ Once the user confirms "yes, that is an intentional stub / placeholder for this 
 
 A confirmed stub does NOT require a user-flow test — testing an intentionally-inert control or placeholder page is meaningless — but it IS tracked: the `ui_interaction_review` gate can report "3 confirmed stubs" rather than silently ignoring them. An inert element with NO confirmation is an `unwired-control` gap; an unconfirmed `placeholder` page is a `placeholder-page` gap. Both route as solution requirements. **An unconfirmed inert control or unconfirmed placeholder page is never a silent pass.**
 
+### Pre-population from Phase −1D (don't ask the user twice)
+
+Phase −1D's interaction-intuition bulk-verify gate (v0.9.21) ALSO collects user-confirmed stubs — when an intuited interactive element comes back from the user with `user_verdict: confirmed-stub` (the user explicitly said "this is a stub for now / defer this to implementation"), that confirmation is recorded in the per-codebase `INTERACTION_INTUITION_MAP.md` for the element. It would be a poor user experience to ask the same question again at Phase 5.
+
+**Before enumerating elements**, each `interaction-reviewer` MUST:
+
+1. Read every in-scope frontend codebase's `<codebase>/docs/INTERACTION_INTUITION_MAP.md` (when present — Phase −1D may have been a no-op if no frontend had design inputs).
+2. For every entry with `user_verdict: confirmed-stub`, pre-populate the converged interaction map's `confirmed_stubs[]` AND the active change's `coverage-map.json` `confirmed_stubs[]` with that element. The element's classification in the converged map is `confirmed-stub` (NOT `ambiguous` and NOT `unwired-control`).
+3. During the enumeration's Round 1, **NEVER re-escalate** an element that was already user-confirmed-stub at Phase −1D. The pre-population resolves it.
+
+The cross-reference is keyed on the intuition map's `element_id` (the stable `<route-slug>__<region>__<label-slug>__<ordinal>` kebab id). The interaction-completeness reviewer matches that id against its enumerated element list and applies the pre-population. An element that exists in the intuition map but NOT in the enumeration (e.g., the design changed since Phase −1D and the element is no longer present) is a separate signal — record it as an `escalations[]` entry with reason `stale-intuition-confirmation` and let the orchestrator surface it; do NOT silently drop the user's prior confirmation.
+
+This cross-reference is the **bidirectional partner** to the v0.9.21 binding-input rule (Phase 0 spec authoring + Phase 1 coverage criteria read the confirmed intuition map). The intuition map's `confirmed-stub` decisions flow downstream to Phase 5 just as the `confirmed`-action decisions flowed downstream to Phase 0.
+
 ### Escalating an ambiguous element or page
 
 When a reviewer (or the converged team) cannot determine an element's wiring, a page's live-vs-placeholder state, or whether an inert element / placeholder page is intentional, write a structured question — never a vague one — and surface it to the human via the orchestrator:

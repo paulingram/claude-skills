@@ -2,6 +2,93 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.28] — 2026-05-23
+
+### Fixed — cohesion-review close-out: confirmed-stubs cross-reference + polish (issues #5-#10)
+
+Closes the remaining 6 issues from the v0.9.23 cohesion review (issues #1-#4 fixed in v0.9.24-v0.9.27) in one release.
+
+#### Issue #5 — confirmed-stubs cross-reference between Phase −1D and Phase 5 (UX)
+
+Before v0.9.28, Phase −1D's bulk-verify gate recorded user-confirmed stubs in `INTERACTION_INTUITION_MAP.md` (`user_verdict: confirmed-stub`), and Phase 5's `interaction-completeness` team independently recorded confirmed stubs in `coverage-map.json` `confirmed_stubs[]`. The two surfaces didn't cross-reference each other, so the same `confirmed-stub` question the user had answered at Phase −1D would get re-escalated at Phase 5 — a poor UX on multi-pass runs.
+
+v0.9.28 wires the pre-population:
+
+- **`skills/interaction-completeness/SKILL.md`** — new `### Pre-population from Phase −1D (don't ask the user twice)` section. Before enumerating, each `interaction-reviewer` reads every in-scope frontend codebase's `INTERACTION_INTUITION_MAP.md` and pre-populates the converged map's `confirmed_stubs[]` AND the active change's `coverage-map.json` `confirmed_stubs[]` for every element with `user_verdict: confirmed-stub`. The element's classification is set to `confirmed-stub` (NOT `ambiguous` and NOT `unwired-control`). The reviewer NEVER re-escalates a pre-confirmed element. Cross-reference is keyed on the intuition map's stable `element_id`. Stale-intuition handling (the element exists in the map but no longer in the enumeration) is documented — record it as an `escalations[]` entry with reason `stale-intuition-confirmation` and let the orchestrator surface it; never silently drop the user's prior confirmation.
+- **`skills/interaction-intuition/SKILL.md`** — `## Relationship to other skills` updated to note that `confirmed-stub` entries flow downstream to Phase 5 (bidirectional partner to v0.9.21's binding-input rule, which already flows `confirmed`-action entries to Phase 0 spec authoring + Phase 1 coverage criteria).
+- **`skills/architect-team-pipeline/SKILL.md`** Phase 5 step 8b updated — references the pre-population mechanism, citing the `interaction-completeness` skill's dedicated section.
+
+#### Issue #6 — v0.9.23 doc-updater dogfood asymmetry (historical, closed)
+
+The v0.9.23 release shipped the `doc-updater` agent, but the agent didn't yet exist in the cached plugin when its own Phase 8 doc-currency gate ran — the orchestrator typed the v0.9.23 doc updates manually as a transition step. From v0.9.24 onward, every Phase 8 / Phase B8 dispatches the agent automatically. v0.9.28 adds an explicit reference to this one-time bootstrap event in `docs/CODEBASE_MAP.md`'s `§7. Gotchas (cross-cutting)` section so future readers don't trip on the inconsistency.
+
+#### Issue #7 — Phase −1D nomenclature structural-level choice
+
+The `architect-team-pipeline` skill places Phase −1D as **sub-section D under `## Phase −1 — Intake & Mapping`** (the focus there is the entire pipeline). The `intake-and-mapping` skill places it as **its own `## Phase −1D` H2 header** (the focus there is the per-codebase mapping flow). Both files use the identical canonical label "Phase −1D" in prose, so all existing structural tests pass — but the markdown-level difference looked inconsistent on a careful read. v0.9.28 adds a `> Nomenclature note` blockquote to the intake-and-mapping skill explaining the H2-vs-sub-section choice is intentional (focus follows nesting).
+
+#### Issue #8 — `## Default mode of operation` sub-headings (navigability)
+
+The pipeline skill's `## Default mode of operation` section is ~50 lines covering 5+ topics (drive end-to-end; opt-in trigger sets; process vs. domain gate carve-out; proposal-first mode; domain-gate-fires-with-proposal-first parenthetical). Coherent but dense. v0.9.28 adds three H3 sub-headings within the existing content (no content removed, just structural markers added):
+
+- `### Gates are opt-in (process gates)` — the existing opt-in trigger list.
+- `### Process gates vs. domain gates` — the existing carve-out paragraph.
+- `### Proposal-first mode` — the existing pause-after-Phase-1 description.
+
+Existing tests that check for specific text in the section still pass; the section is now navigable via TOC / heading collapse.
+
+#### Issue #9 — `system-architect.md` Audit modes index (navigability)
+
+`agents/system-architect.md` is ~400 lines documenting 8 distinct dispatch modes (1 default architectural-recommendation mode + 7 audit modes). Finding the right mode-section requires scrolling. v0.9.28 adds an `## Audit modes` index table near the top (immediately after the agent's role intro and before the Reuse-First Mandate section). The table lists all 8 modes with (a) their triggering context and (b) their verdict file location (or "Returns prose to the orchestrator" for the default mode). The agent body's deeper mode-section text is unchanged.
+
+#### Issue #10 — plugin-cache vs. source-on-disk lag (operational reality)
+
+The Claude Code plugin cache lives at `~/.claude/plugins/cache/architect-team-marketplace/architect-team/<version>/`. When `/architect-team` or `/architect-team:bug-fix` is invoked, the harness loads the cached version's skill bodies — NOT the source-on-disk. After a `git pull` (or after a dogfood `git push` to main), consumers must run `/plugin marketplace update` → `/plugin update architect-team` → `/reload-plugins` to pick up new skills/agents/commands. This is operational reality (not a bug); v0.9.28 documents it in `docs/CODEBASE_MAP.md`'s `§7. Gotchas (cross-cutting)` section so users + future agents understand why a release commit doesn't immediately change runtime behavior on the next `/architect-team` invocation.
+
+#### Tests
+
+- **`tests/test_confirmed_stubs_cross_reference.py`** — NEW. 12 cases:
+  - `test_interaction_completeness_references_intuition_map`
+  - `test_interaction_completeness_documents_pre_population` (asserts the `### Pre-population from Phase −1D` section header)
+  - `test_interaction_completeness_says_not_re_escalated` (asserts the NEVER-re-escalate promise + the `element_id` key)
+  - `test_interaction_completeness_handles_stale_intuition` (asserts the stale-intuition-confirmation handling)
+  - `test_interaction_intuition_documents_downstream_pre_population` (asserts the downstream-flow note in Relationship section)
+  - `test_interaction_intuition_cross_reference_is_bidirectional` (asserts the bidirectional-partner language)
+  - `test_pipeline_phase_5_step_8b_documents_pre_population` (asserts Phase 5 step 8b cites the pre-population)
+  - `test_default_mode_section_has_sub_headings` (issue #8 — all 3 H3 sub-headings present)
+  - `test_system_architect_has_audit_modes_index` (issue #9 — index exists, precedes first mode section, lists all 7 audit modes)
+  - `test_intake_skill_documents_phase_1d_nomenclature` (issue #7 — Nomenclature note present)
+  - `test_codebase_map_documents_cached_plugin_lag` (issue #10 — operational reality documented)
+  - `test_codebase_map_marks_v0_9_23_dogfood_historical` (issue #6 — historical marker)
+
+#### Docs
+
+- README banner / version badge / tests badge (924) / NEW IN panel header + new v0.9.28 row / timeline `(current)` moved to v0.9.28.
+- CODEBASE_MAP frontmatter timestamps bumped + two new gotcha bullets (plugin-cache lag + v0.9.23 dogfood historical).
+- CLAUDE.md frontmatter counts + version bumped.
+- INTEGRATION_MAP frontmatter timestamps bumped.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.28"`.
+
+#### Tests
+
+- 924 pass / 0 fail. +12 net new tests against the v0.9.27 baseline of 912.
+
+#### Cohesion-review status — CLOSED
+
+All 10 issues from the v0.9.23 cohesion review are now addressed:
+
+- ✅ #1 — MemPalace wake-up ordering (v0.9.24)
+- ✅ #2 — bug-fix Phase B3 vs. Phase 1 conditions (v0.9.25)
+- ✅ #3 — system-architect Write tool (v0.9.26)
+- ✅ #4 — bug-fix-pipeline notifications (v0.9.27)
+- ✅ #5 — confirmed-stubs cross-reference (v0.9.28)
+- ✅ #6 — v0.9.23 dogfood asymmetry (historical, documented in v0.9.28)
+- ✅ #7 — Phase −1D nomenclature consistency (v0.9.28)
+- ✅ #8 — Default mode of operation navigability (v0.9.28)
+- ✅ #9 — system-architect audit-modes index (v0.9.28)
+- ✅ #10 — plugin-cache vs. source-on-disk lag (v0.9.28)
+
+The cohesion review is complete. Time to do another one whenever the next batch of versions ships and we want fresh eyes on cross-cutting concerns.
+
 ## [0.9.27] — 2026-05-23
 
 ### Fixed — bug-fix-pipeline gets full notification wiring (cohesion-review issue #4)
