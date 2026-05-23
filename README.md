@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 19
+                            ─── T E A M ───   v 0 . 9 . 20
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,9 +21,9 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.19-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.20-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-647%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-649%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -806,7 +806,8 @@ Tests validate: plugin/marketplace JSON; all 20 skill frontmatters; all 17 agent
            v0.9.16 ─ readme-styling: centering + color + themes
            v0.9.17 ─ plain-language requirements are a first-class input
            v0.9.18 ─ project email notifications — Gmail / SendGrid, five events
-   ◆       v0.9.19 ─ UI interaction fidelity — genuine controls, live pages, dynamic values (current)
+           v0.9.19 ─ UI interaction fidelity — genuine controls, live pages, dynamic values
+   ◆       v0.9.20 ─ gates are opt-in — orchestrator drives end-to-end without asking obvious questions (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

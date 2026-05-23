@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.20] — 2026-05-22
+
+### Changed — gates are opt-in by default; the orchestrator drives end-to-end without asking obvious questions
+
+User feedback: *"I never want to be asked obvious things — unless I specifically ask for gates, it should always move to fix bugs and stuff."* Embeds that as a non-negotiable rule directly in the `architect-team-pipeline` skill's instructions and the `/architect-team` command, so every future pipeline invocation defaults to forward motion (driving Phases −1 → 8 to completion) and does NOT ask the user clarifying questions when one path is obviously right — an obvious clarifying question (*"How should I fix this bug? → Fix it properly"*) is itself a defect, caught before sending.
+
+- `skills/architect-team-pipeline/SKILL.md` — new `## Default mode of operation — drive end-to-end, don't ask obvious things` section right after the intro; new first bullet in `## Operating rules (non-negotiable)`. Proposal-first pauses, `AskUserQuestion` calls, and "do you want me to proceed?" prompts engage ONLY when the user explicitly requests a gate (the new `--proposal-first` flag, or natural-language phrasings like *"propose first"* / *"review before implementing"* / *"show me the plan first"* / *"stop after the proposal"*) OR a genuinely material fork exists where the user's answer changes what is built AND the answer is not obvious. Bugs and clear-fix scenarios get fixed at the right scale (small edit / focused commit / full pipeline) — sized by the work, not by asking.
+- `commands/architect-team.md` — new `--proposal-first` opt-in flag (with the natural-language phrasings above) in the flags list; flags-section intro generalized to cover both opt-outs and the new opt-in; `argument-hint` updated.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version `0.9.19` → `0.9.20`.
+
 ## [0.9.19] — 2026-05-22
 
 ### Added — UI interaction fidelity (`ui-interaction-fidelity`)

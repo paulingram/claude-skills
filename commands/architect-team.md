@@ -1,6 +1,6 @@
 ---
 description: Spec-to-production multi-agent coding pipeline. Takes EITHER a requirements folder (OpenSpec / Superpowers / plain markdown) OR a plain-language requirement typed directly — a sentence or paragraph describing what to build, fix, change, review, or improve — and drives it end-to-end to tested, integrated production code. Auto-commits and pushes on a clean Phase 8 pass and emits a clear /compact prompt to free context for the next run, unless invoked with --no-commit / --no-push / --no-compact.
-argument-hint: "<requirements-folder | plain-language requirement> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default]"
+argument-hint: "<requirements-folder | plain-language requirement> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first]"
 ---
 
 # Architect-Team Orchestration
@@ -13,13 +13,14 @@ You are starting the architect-team multi-agent coding pipeline.
 
 **Strip the recognised flags from `$ARGUMENTS` first; everything left is the requirement.**
 
-Flags (each independent — `--no-commit --no-compact` is valid; natural-language opt-outs like "don't commit" / "no push" / "don't compact" / "leave it uncommitted" count as the matching flag):
+Flags (each independent — `--no-commit --no-compact` is valid; natural-language phrasings count as the matching flag — opt-outs: "don't commit" / "no push" / "don't compact" / "leave it uncommitted"; opt-in: "propose first" / "review before implementing" / "show me the plan first" / "stop after the proposal" trigger `--proposal-first`):
 
 - `--no-commit` → `AUTO_COMMIT = false`, `AUTO_PUSH = false`.
 - `--no-push` → `AUTO_COMMIT = true`, `AUTO_PUSH = false`.
 - `--no-compact` → `AUTO_COMPACT_PROMPT = false`. (Default `true`.)
 - `--allow-push-to-default` → `ALLOW_PUSH_TO_DEFAULT = true`. (Default `false`.) When false, the pipeline does NOT commit + push unreviewed work straight onto `main` / `master` — it commits to an `architect-team/<change-name>` feature branch and recommends a PR. Pass the flag only when a direct default-branch push is genuinely wanted.
-- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`.
+- `--proposal-first` → `PROPOSAL_FIRST = true`. (Default `false`.) The pipeline runs Phase −1 → 1 (intake + the validated OpenSpec proposal / design / specs / tasks package), then PAUSES for the user to review before Phase 2 implementation begins. Resume Phases 2 → 8 when the user replies "proceed" (or revises). Default `false` — the pipeline drives end-to-end without asking. See the `architect-team-pipeline` skill's `## Default mode of operation` section.
+- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false` (drive end-to-end).
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
 
