@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-23T08:00:00Z
+last_mapped: 2026-05-23T10:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-23 for v0.9.25 (bug-fix-validation-gate) — fixed cohesion-review issue #2 (bug-fix-pipeline Phase B3 used to delegate to architect-team-pipeline Phase 1's feature-shaped validation gate; the conditions misfit bug-fix-shaped work). v0.9.25 gives bug-fix-pipeline its own slim planning-validation gate with 7 fit-for-purpose conditions: (1) openspec validates, (2) every artifact is done, (3) at least one source requirement in the coverage map, (4) replication artifact paths recorded (both Playwright AND backend diagnostic for frontend/both-layer bugs; backend script alone for backend-only), (5) reuse-first compliance, (6) WHY cites verbatim evidence, (7) fix is class-scoped. New tests/test_bug_fix_validation_gate.py with 15 cases asserts the gate's structure + the absence of the prior Phase 1 delegation language + the "Why not reuse Phase 1?" rationale block. No new agents, no new skills, no new commands. Test-file count now 41. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 876 pytest self-tests across 41 test files. Covers v0.9.1 (auto-compact) through v0.9.25 (bug-fix-pipeline's own planning-validation gate).
+note: Doc refresh 2026-05-23 for v0.9.26 (system-architect-bounded-write) — fixed cohesion-review issue #3 (the system-architect agent's 7 audit modes documented writing verdict JSON/MD files to `<cwd>/.architect-team/.../audit-<ts>.{json,md}`, but the agent's tools allowlist had no Write; the Tools posture section said "NO Edit or Write access" — internally contradicting). v0.9.26 adds Write to the allowlist with bounded scope to `.architect-team/` paths only; new `## Bounded Write scope` section enumerates the 7 allowed paths (one per audit mode); Tools posture rewritten; Edit remains excluded (whole-file verdict writes, same discipline as doc-updater v0.9.23). New tests/test_system_architect_write_scope.py with 14 cases. No new agents, no new skills, no new commands. Test-file count now 42. Current reality - 22 skills, 22 agents, 7 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 890 pytest self-tests across 42 test files. Covers v0.9.1 (auto-compact) through v0.9.26 (system-architect bounded Write for audit verdicts).
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.25.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.26.
 
 ## 1. System Overview
 

@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.26] — 2026-05-23
+
+### Fixed — system-architect agent gets bounded `Write` for its 7 audit verdicts (cohesion-review issue #3)
+
+A v0.9.23 cohesion-review finding (issue #3 of 10): the `agents/system-architect.md` body documented seven audit modes — Diagnostic Plan Review, Editability Map Review, Interaction Map Review, Visual Gap Synthesis, Master Review Audit, Documentation Currency Audit (v0.9.15), and Bug-Fix Generalization Audit (v0.9.22) — each ending with instructions to *"Write a verdict to `<cwd>/.architect-team/.../audit-<ts>.json`"*. But the agent's tools allowlist had no `Write`, and the `## Tools posture` section explicitly said *"You have NO Edit or Write access. If you find that producing the recommendation requires writing code, surface that to the orchestrator and stop."* The seven audit-mode sections internally contradicted the tools posture.
+
+The workaround was `Bash` heredoc (`cat > <path> << 'EOF' ... EOF`), which works but creates a pattern inconsistent with every other verdict-producing agent in the plugin — `doc-updater` (v0.9.23), `route-mapper`, `interaction-intuiter` (v0.9.21), `bug-replicator` (v0.9.22) all use `Write` with a bounded scope documented in the agent body. The discipline pattern was established; `system-architect` was the outlier.
+
+v0.9.26 resolves the contradiction by adding `Write` to the agent's tools allowlist with a bounded scope: verdict paths under `<cwd>/.architect-team/` only, enumerated in a new `## Bounded Write scope` section. `Edit` remains excluded — whole-file verdict writes enforce consistency across the verdict's related fields (same discipline as `doc-updater`'s v0.9.23 design; partial-update inconsistency where one field is bumped but a related one is not is the failure mode this prevents).
+
+#### What changed
+
+- **`agents/system-architect.md` frontmatter** — `tools` allowlist updated:
+  - Old: `Read, Grep, Glob, LS, NotebookRead, Bash, WebFetch, WebSearch, TodoWrite`
+  - New: `Read, Grep, Glob, LS, NotebookRead, Bash, WebFetch, WebSearch, Write, TodoWrite`
+- **`## Tools posture` section rewritten** — the `Write` bullet now describes the bounded scope explicitly + cross-references the new `## Bounded Write scope` section below. The pre-v0.9.26 *"You have NO Edit or Write access"* language is gone. The `Edit` exclusion is preserved with new phrasing — *"Edit: NOT in your allowlist. Audit verdicts are whole-file writes — produce the complete verdict in one Write, never a partial Edit."*
+- **New `## Bounded Write scope` section** — inserted between `## Tools posture` and `## Output`. Enumerates the 7 allowed Write paths in a table, one per audit mode:
+  - Diagnostic Plan Review: `<cwd>/.architect-team/diagnostic-research/<test-id>/architect-review-<ts>.md` + `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`
+  - Editability Map Review: `<cwd>/.architect-team/editability/<feature-slug>/architect-review-pass<P>-<ts>.md`
+  - Interaction Map Review: `<cwd>/.architect-team/interaction/<feature-slug>/architect-review-pass<P>-<ts>.md`
+  - Visual Gap Synthesis: `<cwd>/.architect-team/visual-fidelity/verification-verdict-<codebase>-<ts>.json`
+  - Master Review Audit: `<cwd>/.architect-team/master-review/audit-<ISO-8601-UTC>.json`
+  - Documentation Currency Audit: `<cwd>/.architect-team/documentation-currency/audit-<ISO-8601-UTC>.json`
+  - Bug-Fix Generalization Audit: `<cwd>/.architect-team/bug-fix-audits/<bug-slug>-<iteration>-<ts>.json`
+- Explicitly forbids: source code (`.py` / `.ts` / `.tsx` / `.js` / `.vue` / `.svelte` / `.css` / `.scss`), tests, `openspec/*` artifacts, the documentation-currency inventory (README / CHANGELOG / maps / CLAUDE.md / AGENTS.md — that's `doc-updater`'s scope per v0.9.23), `.claude-plugin/plugin.json` / `marketplace.json` (version source-of-truth, orchestrator-bumped), or any non-`.architect-team/` path. The Phase 7 / Phase 8 commit-audit cross-checks the agent's diff against this allowlist.
+- Documents the whole-file-write discipline + the rationale (avoiding partial-update inconsistency, same reasoning as `doc-updater` v0.9.23).
+
+#### Tests
+
+- **`tests/test_system_architect_write_scope.py`** — NEW. 14 cases:
+  - `test_agent_tools_has_write` — asserts `Write` is in the allowlist.
+  - `test_agent_tools_still_no_edit` — asserts `Edit` is NOT in the allowlist.
+  - `test_tools_posture_documents_bounded_write` — asserts the Tools posture section names Write + describes it as bounded scope + explicitly forbids source-code writes + cross-references `doc-updater`.
+  - `test_tools_posture_no_longer_says_no_write` — asserts the pre-v0.9.26 *"NO Edit or Write access"* language is removed.
+  - `test_bounded_write_scope_section_exists` — asserts the `## Bounded Write scope` section is present.
+  - 7 parametrized `test_bounded_scope_documents_each_audit_mode[...]` cases — one per audit mode, asserting both the mode name and its `.architect-team/<subdir>/` path prefix are in the scope section.
+  - `test_bounded_scope_forbids_non_architect_team_paths` — asserts the scope section explicitly forbids the 5 categories (source code, tests, openspec, doc-updater-owned inventory, plugin.json).
+  - `test_bounded_scope_states_whole_file_writes` — asserts the whole-file-write discipline + the rationale (parity with `doc-updater`).
+
+#### Docs
+
+- README banner / version badge / tests badge (890) / NEW IN panel header + new v0.9.26 row / timeline `(current)` moved to v0.9.26.
+- CODEBASE_MAP / CLAUDE.md / INTEGRATION_MAP frontmatter timestamps bumped.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.26"`.
+
+#### Tests
+
+- 890 pass / 0 fail. +14 net new tests against the v0.9.25 baseline of 876.
+
+#### Cohesion-review status
+
+- ✅ #1 (v0.9.24): MemPalace wake-up ordering.
+- ✅ #2 (v0.9.25): bug-fix Phase B3 planning-validation gate (Path A).
+- **✅ #3 (v0.9.26): system-architect bounded `Write` for audit verdicts.**
+- #4 (bug-fix-pipeline notifications), #5 (`confirmed_stubs[]` cross-reference), #6-#10 (cosmetic / process oddities) remain tracked debt. #4 is the next-highest priority — explicit phase_start / phase_complete notification wiring at Phase B−1..B8 to parallel the main pipeline's notification coverage.
+
 ## [0.9.25] — 2026-05-23
 
 ### Fixed — bug-fix-pipeline Phase B3 gets its own planning-validation gate (Path A of issue #2 from the cohesion review)
