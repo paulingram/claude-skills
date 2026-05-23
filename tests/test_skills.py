@@ -27,6 +27,7 @@ EXPECTED_SKILLS: set[str] = {
     "interaction-completeness",
     "dynamic-value-discovery",
     "interaction-intuition",
+    "bug-fix-pipeline",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

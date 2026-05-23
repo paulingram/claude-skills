@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.22] — 2026-05-23
+
+### Added — bug-fix pipeline (`bug-fix-pipeline`)
+
+User directive: *"the current architect team is fantastic for implementing greenfield or even building new features. but I need a slightly faster version for fixing quick bugs. … we keep the prescan and ensure all the documentaiton provided is as recent as the most recent commit … the first thing is to try to replicate the result … create either a backend script (if backend only) or a front end playwright test … and then also a diagnostic test for the backend … then you will create an openspec proposal to fix the bug. Then your architect will review the proposal against the bug and confirm it fixes the bug but also is a generalized fix. unless told otherwise, fixes need to be generalized … then once the bug is fixed, a QA agent will re-execute the playwright flow and / or backend test code and confirm success. If fail, return to architect … Loop until successful. Criteria is bug resolves entirely. … unless informed otherwise, you must always test against the live site … the only time you cant do this is if someone calls this but indicates the environment is production. … also, if architect team main skill is called but it is a bug fix or a bug fix is mixed in, spin up the correct sessions, either directing to bugfix, or running bugfix in parallel."*
+
+The main `architect-team-pipeline` is excellent for greenfield features. For a known-bug-with-a-clear-symptom (a 30-line fix) its 100%-coverage planning gate, parallel team spawn, six Phase 5 review teams, and master-review audit are weight a small fix doesn't need — and the discipline that catches symptom-patches lives in review teams that aren't relevant to most bug fixes. v0.9.22 ships a sibling **`bug-fix-pipeline`** with the discipline shaped to the bug-fix workflow. Implements requirements REQ-001..015 of the `bug-fix-pipeline` OpenSpec change.
+
+#### REQ-001 — bug-fix-pipeline skill
+
+- `skills/bug-fix-pipeline/SKILL.md` — NEW. Sibling orchestrator playbook. Ten phases — **Phase B−1** (Intake & Mapping; reuses `intake-and-mapping` verbatim — same freshness pre-scan, same maps, no shortcut), **Phase B0** (Detection & Normalization; same `plain`/`openspec`/`superpowers` classification; bug-slug derivation), **Phase B1** (Bug Replication; dispatches `bug-replicator`; Playwright for frontend / backend script for backend / ambiguity-escalation question for unclear), **Phase B2** (Reproduction-artifact promotion + backend diagnostic for frontend bugs), **Phase B3** (OpenSpec proposal authoring with the replication evidence cited verbatim; Phase 1 validation gate runs), **Phase B4** (Bug-Fix Generalization Audit via `system-architect`), **Phase B5** (Implement + deploy to dev environment; builds confirmed green; production is opt-in escalation), **Phase B6** (QA replay against live dev via `qa-replayer`), **Phase B7** (Archive + Report), **Phase B8** (Commit + push with the default-branch guard). Five non-negotiable disciplines: replicate-first; reproduction-is-the-regression-test (frontend bugs ALSO get a backend diagnostic); generalize, never symptom-patch (user-authorized override is explicit); QA-replay-against-live-dev (pass criterion is "the originating symptom is gone end-to-end"); live-dev-environment-by-default. Local 10-iteration ceiling; global 20-step ceiling caps absolutely; oscillation detection same as the main pipeline.
+
+#### REQ-002 + REQ-010 — `/architect-team:bug-fix` command + same-input-forms guarantee
+
+- `commands/bug-fix.md` — NEW. Slash command that invokes `bug-fix-pipeline`. Argument-parsing block mirrors `/architect-team` verbatim — accepts BOTH input forms (a requirements folder OR a plain-language requirement typed directly as prose); v0.9.17 anti-patterns (refusing prose, path-treating the first word, asking for a folder) are explicitly forbidden. Recognized flags: `--no-commit`, `--no-push`, `--no-compact`, `--allow-push-to-default`, `--proposal-first`, `--environment production`, `--force-bug`, `--no-deploy`.
+
+#### REQ-003 — Freshness pre-scan
+
+- Phase B−1 reuses `intake-and-mapping` verbatim — same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence, same freshness check against `git log -1 --format=%cI`, same integration mapping. `skills/intake-and-mapping/SKILL.md` documents `bug-fix-pipeline` as a consumer of this skill alongside `architect-team-pipeline`. A bug fix proposed against a stale map is the second-worst class of bug fix (after one proposed without replication).
+
+#### REQ-004 + REQ-011 — Bug replication discipline + `bug-replicator` agent
+
+- `agents/bug-replicator.md` — NEW. Opus, analysis + bounded test-file writes (no `Edit`; `Write` only for the reproduction artifacts). Reads bug description + the maps; spawns Playwright OR a backend script against the live dev environment; reports verdict `reproduced` (proceed), `could-not-reproduce` (escalate; bug may already be fixed), `needs-clarification` (canonical question: *"How did you experience the bug? What did you click? What did you expect to see vs. what you saw?"*). Hard rule: the artifact MUST currently fail; if it passes, exit `could-not-reproduce` — NEVER fabricate a failure.
+
+#### REQ-005 — Reproduction-artifact promotion + backend diagnostic
+
+- Phase B2 promotes the replication artifact into the target codebase's test directory as the regression test. For frontend bugs, the agent ALSO authors a backend diagnostic test that exercises the same flow from the backend's view — catching a regression that the Playwright flow alone might miss (a UI that appears to succeed but doesn't actually update the data).
+
+#### REQ-006 — OpenSpec proposal authoring
+
+- Phase B3 authors a slim OpenSpec change (`openspec/changes/<bug-slug>/`) with the same artifact chain as a feature change (`proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`, `coverage-map.json`); proposal cites the replication evidence verbatim; the Phase 1 planning-validation gate runs.
+
+#### REQ-007 — Generalized-fix architect review
+
+- `agents/system-architect.md` gains a new `## Bug-Fix Generalization Audit` mode (Phase B4) alongside its existing audit modes (Master Review Audit, Documentation Currency Audit, etc.). Returns one of `pass | needs-generalization | needs-replacement`. **Symptom patches are REJECTED** — a literal user-id in a conditional, a hard-coded category name in a switch, a localized patch where the underlying logic is broken for a class of inputs. User-authorized override is explicit: phrasings like *"hard-code it for now"*, *"hotfix"*, *"just for now"* in the original requirement are recorded verbatim and let a targeted fix proceed. Silence is NOT authorization. Genuinely-narrow classes (class size = 1) are general for their class; the audit's reasoning field cites the class size.
+
+#### REQ-008 + REQ-012 — QA-replay loop + `qa-replayer` agent
+
+- `agents/qa-replayer.md` — NEW. Opus, read-only on source (no `Edit`, no `Write` — the verdict JSON goes via Bash heredoc). Re-runs the reproduction artifacts from Phase B2 against the live dev environment, verbatim — no edits. Confirms the deploy applied (SHA-match) BEFORE running. Three exit verdicts: `bug-resolved` (proceed to archive), `bug-still-present` (write SR with new evidence; orchestrator routes back to Phase B3 for a FRESH proposal), `env-failure` (route to implementing team for env diagnosis — the fix is not on trial). **Pass criterion: the originating symptom is gone end-to-end** (not "the test passes" — the original failure mode is no longer reproducible). Local 10-iteration ceiling.
+
+#### REQ-009 — Live-dev-environment-by-default
+
+- Phase B5 ALWAYS deploys the fix to the dev environment (per the target project's `design.md` `## Dev Environment` section) BEFORE Phase B6 testing. Builds confirmed green first via a tight in-turn poll. The ONLY exception is `--environment production` (or the user's prose naming production as the target) — in which case the orchestrator escalates a structured question and does not deploy automatically. A failed build is a Phase B5 escalation that routes back to the implementing team — it is NOT a QA-replay failure (a deploy failure is not a fix failure).
+
+#### REQ-013 — `bug-classifier` agent + main-pipeline triage dispatch
+
+- `agents/bug-classifier.md` — NEW. Sonnet (lightweight — classification, not deep reasoning), analysis-only (Read / Glob / Grep / TodoWrite only — NO Bash, NO Edit, NO Write). Returns `{ kind: bug|feature|mixed|unclear, bug_portion, feature_portion, confidence, reasoning }`. Method: lex-pass on bug-keywords / feature-keywords + structural read of the prose.
+- `skills/architect-team-pipeline/SKILL.md` — gains a new `## Phase −2 — Triage & Routing` section BEFORE the existing Phase −1 Prelude. Dispatches `bug-classifier`; routes per the verdict — `bug` invokes `bug-fix-pipeline` directly (skips Phase −1 onward); `feature` continues to the existing flow; **`mixed` spawns TWO subagents IN PARALLEL** (one `bug-fix-pipeline` against `bug_portion`, one `architect-team-pipeline` against `feature_portion` with `triage_done: true` to prevent recursion); `unclear` emits a structured question to the user (a domain gate). The `triage_done` flag bounds the recursion at depth 1 — a spawned feature-pipeline subagent skips Phase −2 entirely.
+- `commands/architect-team.md` — gains explicit `--bug-fix` and `--feature-only` flag overrides (with natural-language phrasings recognized at parse time: *"this is a bug"* / *"it's a hotfix"* / *"this is a feature"* / *"feature, not a bug"*).
+
+#### REQ-014 — Test coverage
+
+- `tests/test_bug_fix_pipeline_skill.py` — NEW. Frontmatter; all 10 phase sections (B−1..B8); five non-negotiable disciplines; Phase B1 Playwright/backend-script presence; Phase B1 three verdicts; canonical ambiguity question; Phase B2 backend diagnostic mandate; Phase B4 audit + 3 verdicts; Phase B5 deploy-to-dev + production exception; Phase B6 symptom-gone pass criterion + 3 qa-replayer verdicts; 10-iteration local ceiling; same-input-forms guarantee.
+- `tests/test_bug_replicator_agent.py` — NEW. Frontmatter; `model: opus`; tools allowlist (Edit NOT, Write IS, Bash IS); body sections; 3 exit verdicts; references to `playwright-user-flows` + `dev-api-integration-testing`; artifact-must-fail rule.
+- `tests/test_qa_replayer_agent.py` — NEW. Frontmatter; `model: opus`; tools allowlist (Edit NOT, Write NOT, Bash IS); 3 exit verdicts; symptom-gone-end-to-end pass criterion; env-failure-routes-to-implementing-team rule; verbatim/no-edits discipline.
+- `tests/test_bug_classifier_agent.py` — NEW. Frontmatter; `model: sonnet`; tools allowlist EXACTLY `{Read, Glob, Grep, TodoWrite}`; all 4 verdict kinds + all 5 schema fields; lex-pass method + keyword lists documented; --bug-fix / --feature-only flag overrides documented.
+- `tests/test_triage_dispatch_wiring.py` — NEW. Cross-cutting test. Phase −2 section present + precedes Phase −1; classifier dispatched; all 4 verdict kinds documented as routing branches; `triage_done` recursion-prevention flag named; parallel-spawn pattern documented; intake-and-mapping names bug-fix-pipeline; `/architect-team` documents `--bug-fix` and `--feature-only` flags with natural-language phrasings; `/architect-team:bug-fix` documents both input forms + forbids refusing prose + invokes bug-fix-pipeline; system-architect documents Bug-Fix Generalization Audit with 3 verdicts + user override.
+- `tests/test_skills.py` `EXPECTED_SKILLS` += `bug-fix-pipeline`.
+- `tests/test_agents.py` `EXPECTED_AGENTS` += `bug-replicator`, `qa-replayer`, `bug-classifier`.
+- `tests/test_commands.py` `EXPECTED_COMMANDS` += `bug-fix`.
+
+#### REQ-015 — Documentation + release v0.9.22
+
+- `README.md` — banner `v 0 . 9 . 22`; version badge `0.9.22`; tests badge bumped; NEW IN panel header bumped to `v0.9.22`; new v0.9.22 row covering the bug-fix pipeline + triage; timeline `(current)` moved to v0.9.22; inventory grid shows `SKILLS (22)` / `AGENTS (21)` / `COMMANDS (7)` with the new rows (bug-replicator, qa-replayer, bug-classifier; bug-fix-pipeline; /architect-team:bug-fix).
+- `docs/CODEBASE_MAP.md` — `last_mapped` bumped; counts (22 skills, 21 agents, 7 commands, 38 test files, 824 tests); §1 references v0.9.22; new sections for the new skill / 3 agents / command.
+- `docs/INTEGRATION_MAP.md` — `last_synthesized` bumped; the bug-fix pipeline reuses ALL existing external integrations (no new ones — Playwright, openspec, dev-API, MemPalace are all consumed at their existing surfaces).
+- `CLAUDE.md` — frontmatter counts updated; brief mention of bug-fix-pipeline + Phase −2 triage.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.22"`.
+
+#### Tests
+
+- 824 pass / 0 fail (`python -m pytest -q`). +94 net new tests against the v0.9.21 baseline of 730: 5 new structural test files (~90 cases across the new skill / 3 agents / cross-cutting wiring), plus the appended entries in `EXPECTED_SKILLS`, `EXPECTED_AGENTS`, `EXPECTED_COMMANDS` parametrizations.
+
 ## [0.9.21] — 2026-05-22
 
 ### Added — interaction intuition at Phase −1 + bulk-verify gate (`interaction-intuition-discovery`)

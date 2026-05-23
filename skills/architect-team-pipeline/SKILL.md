@@ -68,6 +68,56 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --projec
 
 These two phase-boundary invocations are best-effort exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at the specific phase steps marked inline below.
 
+## Phase −2 — Triage & Routing (REQUIRED, runs before the Phase −1 Prelude)
+
+Before Phase −1's intake-and-mapping runs, the orchestrator classifies the incoming requirement and routes it to the right pipeline. v0.9.22 introduced the `bug-fix-pipeline` skill as a sibling — faster, bug-focused, replicate-first-then-propose — and a `bug-classifier` agent that tells the main orchestrator whether the user's request is a bug, a feature, both, or unclear. The triage layer is purely additive; the existing Phase −1 → 8 behavior is unchanged when the verdict is `feature`.
+
+**Skip condition.** If the spawning context already set `triage_done: true` (the main pipeline spawned this run as a subagent for the feature-portion of a `mixed` request, and the parent already classified), skip Phase −2 entirely and proceed to the Phase −1 Prelude. This bounds the recursion at depth 1 — a spawned feature-pipeline subagent does NOT re-classify and re-spawn.
+
+**Explicit-flag overrides.**
+
+- `--bug-fix` (or natural-language phrasings: *"this is a bug"* / *"just fix the bug"* / *"hotfix"*) → forces `kind: bug`, skips the classifier.
+- `--feature-only` (or *"this is a feature"* / *"build this as a feature"*) → forces `kind: feature`, skips the classifier.
+- Invocation via `/architect-team:bug-fix` → forced `kind: bug`, classifier skipped.
+
+When no flag forces the verdict, proceed to step 1.
+
+1. **Dispatch the `bug-classifier` agent** with the source description (the prose from `$REQ_DIR`, OR the contents of the requirements folder). The classifier is lightweight (sonnet, analysis-only, no Bash) and returns a structured verdict:
+
+   ```json
+   { "kind": "bug" | "feature" | "mixed" | "unclear",
+     "bug_portion": "<the bug-portion of the requirement, or null>",
+     "feature_portion": "<the feature-portion of the requirement, or null>",
+     "confidence": "high" | "medium" | "low",
+     "reasoning": "<one-line citation of the language signals>" }
+   ```
+
+   The verdict is persisted at `<cwd>/.architect-team/triage/<run-id>-<ts>.json` and mined to MemPalace for prior-context recall in future runs.
+
+2. **Route per the verdict.**
+
+   - **`kind: bug`** — invoke the `bug-fix-pipeline` skill against the requirement. Do NOT continue to the Phase −1 Prelude or any subsequent main-pipeline phase. The bug-fix pipeline handles intake-and-mapping itself (it reuses this skill's Phase B−1).
+
+     If `confidence: low` on a `bug` verdict, the orchestrator emits a soft-route confirmation to the user — *"classified as bug with low confidence; if this is actually a feature, reply `--feature-only` and I'll re-route. Proceeding with bug-fix pipeline."* — and waits one beat for the user to override; if no override comes in the next user message, proceeds with the bug-fix route.
+
+   - **`kind: feature`** — proceed to the Phase −1 Prelude as before. No behavior change for feature runs.
+
+   - **`kind: mixed`** — spawn TWO subagents IN PARALLEL in a single message:
+     - One running the `bug-fix-pipeline` skill against `bug_portion` (the bug-specific scope).
+     - One running the `architect-team-pipeline` skill against `feature_portion`, **with `triage_done: true` set in its context** to prevent infinite recursion (the spawned subagent's Phase −2 will see the flag and skip directly to Phase −1).
+
+     Await both. If either reports a `scope-conflict` (the two portions touch overlapping files), abort the parallel-spawn and sequence: run the bug-fix-pipeline first (it's the faster one), then the feature pipeline takes over. Integrate the two commit ranges in the final report. The orchestrator emits a single combined `/compact` prompt at the very end.
+
+   - **`kind: unclear`** — emit a structured question to the user:
+
+     *"I want to make sure I understand the scope before I start. Is this: (a) a bug to fix (something broken that should already work), (b) a new capability to build (something the system doesn't do yet), or (c) both? A one-line clarification or a `--bug-fix` / `--feature-only` flag would help. Reasoning behind the classification: `<the classifier's reasoning field, verbatim>`."*
+
+     Pause. This is a **domain gate** (per the v0.9.21 process-vs-domain-gate carve-out in `## Default mode of operation`) — the user's answer changes what is built, so the gate fires regardless of `--proposal-first`. Resume on the user's reply: re-run the classifier with the clarification, OR honor the explicit flag.
+
+3. **Auto-mine the verdict + the routing decision** to MemPalace at `--room triage-verdicts` for prior-context recall. The classifier's signal calibration improves run-over-run as the corpus grows.
+
+The triage layer is bounded at depth 1: a `mixed` spawn sets `triage_done: true` on the feature-pipeline subagent, which skips Phase −2 and proceeds to Phase −1 Prelude. A `mixed` spawn does NOT spawn another `mixed` (the spawned feature-pipeline can't itself triage).
+
 ## Phase −1 Prelude — MemPalace wake-up (REQUIRED, before any subagent dispatch)
 
 Before any subagent is dispatched, the orchestrator consults the per-workspace MemPalace store for prior context per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:

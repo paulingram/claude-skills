@@ -1,0 +1,201 @@
+{
+  "$schema": "openspec/coverage-map.schema.json",
+  "change_name": "bug-fix-pipeline",
+  "schema_version": 1,
+  "source_directive": "the current architect team is fantastic for implementing greenfield or even building new features. but I need a slightly faster version for fixing quick bugs. For this, what I'd like to do is have the following: we keep the prescan and ensure all the documentaiton provided is as recent as the most recent commit (same rules as we have, not stale). Then for the bug, if it is a bugfix, the first thing is to try to replicate the result. If there is a front end, review the users inputs and start by attempting a playwright flow that gets there. if there is ambiguity in the bug itself, ask the user 'how did you experience the bug' or some variant to get clarity on the steps taken. then create either a backend script (if backend only) or a front end playwright test (if bug originates from user interacting on front end) and then also a diagnostic test for the backend after you experience the front end bug. then you will create an openspec proposal to fix the bug. Then your architect will review the proposal against the bug and confirm it fixes the bug but also is a generalized fix. unless told otherwise, fixes need to be generalized , not hard coded stuff that fixes a bug. then once the bug is fixed, a QA agent will re-execute the playwright flow and / or backend test code and confirm success. If fail, return to architect who will review, create new openspec proposal, deploy and attempt fix again. Loop until successful. Criteria is bug resolves entirely. Then once clear, ytou may inform user and push to branch. It is important to note that unless informed otherwise, you must always test against the live site as most of the time, you will have a dev environemnt with real dev dpeloyment urls. as such, fixes are to be deployed to the dev environment urls, confirm builds are good, and then tested as they sit in the true environment. the only time you cant do this is if someone calls this but indicates the environment is production. // ADDITION: the skill can accept the same inbound prompts as the architect team original skill. make sure thats known. also, if architect team main skill is called but it is a bug fix or a bug fix is mixed in, spin up the correct sessions, either directing to bugfix, or running bugfix in parallel.",
+  "layer_summary": "All requirements are layer:infra — markdown/JSON skills, agents, commands, plus Python pytest structural tests. The architect-team plugin has no frontend and no backend; therefore no Playwright user-flow criteria and no dev-API integration criteria are required for the plugin's own test suite. Pipeline-meta work only.",
+  "playwright_n_a_authorization": "The architect-team plugin self-modification has no UI to test. The codebase is markdown skills + Python hooks/tests + JSON manifests. Playwright user-flow criteria are N/A for every requirement. (Note: the bug-fix-pipeline's BUG-REPLICATION discipline mandates Playwright flows AGAINST TARGET PROJECTS' frontend codebases — not against the plugin itself; that discipline is documented in the skill body, not exercised against the plugin's own test suite.)",
+  "dev_api_n_a_authorization": "The architect-team plugin has no backend API. Dev-API integration testing criteria are N/A for every requirement. (Same note as Playwright — the bug-fix-pipeline's BACKEND-SCRIPT discipline applies to target projects, not to the plugin itself.)",
+  "requirements": [
+    {
+      "source_requirement_id": "USER-FASTER-BUG-FIX-PIPELINE",
+      "summary": "A faster bug-focused orchestrator playbook with intake-and-mapping pre-scan, OpenSpec proposal, and the QA-replay loop.",
+      "spec_requirements": ["REQ-001", "REQ-003", "REQ-006"],
+      "tasks": ["1.1-1.6", "3.1-3.2", "6.1-6.3"],
+      "layer": "infra",
+      "scenarios": [
+        "bug-fix-pipeline skill exists with valid frontmatter",
+        "skill body documents every B−1 through B8 phase section",
+        "Phase B−1 cites intake-and-mapping for the freshness pre-scan",
+        "Phase B3 cites the replication evidence and runs the Phase 1 validation gate"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions for skill structure pass",
+        "phase-section presence checked by parametrized test"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-REPLICATE-FIRST",
+      "summary": "Replicate the bug first — Playwright for frontend, backend script for backend, ambiguity-escalation when unclear.",
+      "spec_requirements": ["REQ-004", "REQ-005"],
+      "tasks": ["4.1-4.3", "5.1-5.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase B1 names Playwright for frontend and a backend script for backend",
+        "Phase B1 names the ambiguity-escalation question pattern (verbatim phrasing)",
+        "Phase B1 names all three exit verdicts (reproduced / could-not-reproduce / needs-clarification)",
+        "Phase B2 promotes the replication artifact to the target codebase's test directory",
+        "Phase B2 mandates a backend diagnostic test for frontend bugs"
+      ],
+      "acceptance_criteria": [
+        "structural assertions in tests/test_bug_fix_pipeline_skill.py pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-GENERALIZED-FIX",
+      "summary": "The architect reviews the proposal — confirms it fixes the bug AND is a generalized fix; reject hardcoded patches unless explicitly authorized.",
+      "spec_requirements": ["REQ-007"],
+      "tasks": ["7.1-7.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase B4 dispatches system-architect in Bug-Fix Generalization Audit mode",
+        "Phase B4 lists all three verdicts (pass / needs-generalization / needs-replacement)",
+        "Phase B4 names the user-authorized-override exception",
+        "system-architect agent body documents the new audit mode"
+      ],
+      "acceptance_criteria": [
+        "pytest wiring test asserts the audit mode is named in both the skill and the agent",
+        "the user-override exception is documented in the skill body"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-QA-REPLAY-LOOP",
+      "summary": "QA agent re-runs the reproduction tests; on fail → architect → new proposal → deploy → repeat; until bug resolves entirely.",
+      "spec_requirements": ["REQ-008", "REQ-012"],
+      "tasks": ["8.1-8.3", "12.1-12.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase B6 names the qa-replayer agent and the symptom-gone-end-to-end pass criterion",
+        "Phase B6 documents the on-fail loop (fresh proposal at B3, NOT amended)",
+        "Phase B6 names the local 10-iteration ceiling and the global 20-step ceiling",
+        "qa-replayer agent has the correct tools allowlist (no Edit, no Write)",
+        "qa-replayer body documents the three exit verdicts and their downstream routing"
+      ],
+      "acceptance_criteria": [
+        "pytest tests for agent + skill structure pass",
+        "on-fail routing rules explicitly stated"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-LIVE-DEV-BY-DEFAULT",
+      "summary": "Test against the live dev environment; deploy fixes to dev URLs and confirm builds before testing; production is opt-in.",
+      "spec_requirements": ["REQ-009"],
+      "tasks": ["9.1-9.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase B5 names the deploy-to-dev rule as the default action",
+        "Phase B5 names the --environment production exception",
+        "Phase B5 names the build-failure-routes-to-implementing-team rule"
+      ],
+      "acceptance_criteria": [
+        "structural assertions in tests/test_bug_fix_pipeline_skill.py pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-BUG-FIX-COMMAND",
+      "summary": "A `/architect-team:bug-fix` slash command that invokes the new skill.",
+      "spec_requirements": ["REQ-010"],
+      "tasks": ["10.1-10.4"],
+      "layer": "infra",
+      "scenarios": [
+        "commands/bug-fix.md exists with valid frontmatter",
+        "command body invokes bug-fix-pipeline via the Skill tool",
+        "command is registered in tests/test_commands.py EXPECTED_COMMANDS"
+      ],
+      "acceptance_criteria": [
+        "tests for command registration + invocation pattern pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-BUG-REPLICATOR",
+      "summary": "An agent that drives the bug replication.",
+      "spec_requirements": ["REQ-011"],
+      "tasks": ["11.1-11.3"],
+      "layer": "infra",
+      "scenarios": [
+        "bug-replicator agent registers with the correct frontmatter",
+        "Edit is NOT in tools allowlist; Write IS",
+        "body names all three exit verdicts"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions in tests/test_bug_replicator_agent.py pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-TRIAGE-DISPATCH",
+      "summary": "Main /architect-team auto-triages bug vs feature; routes pure-bug to bug-fix-pipeline; spawns both in parallel for mixed.",
+      "spec_requirements": ["REQ-013"],
+      "tasks": ["13.1-13.5"],
+      "layer": "infra",
+      "scenarios": [
+        "bug-classifier agent registers with correct frontmatter (model: sonnet, tools restricted)",
+        "agent body documents the verdict schema",
+        "architect-team-pipeline gains a Phase −2 — Triage & Routing section BEFORE Phase −1",
+        "Phase −2 names all four routing branches (bug / feature / mixed / unclear)",
+        "Phase −2 documents the triage_done flag for recursion-prevention",
+        "commands/architect-team.md documents --bug-fix and --feature-only flags"
+      ],
+      "acceptance_criteria": [
+        "tests in tests/test_triage_dispatch_wiring.py pass",
+        "section ordering test confirms Phase −2 precedes Phase −1"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-SAME-INPUT-FORMS",
+      "summary": "The bug-fix skill accepts the same inbound prompts as the main architect-team skill (folder OR plain-language prose).",
+      "spec_requirements": ["REQ-002"],
+      "tasks": ["2.1-2.2"],
+      "layer": "infra",
+      "scenarios": [
+        "skill body documents both input forms (folder OR plain-language prose)",
+        "command body mirrors the v0.9.17 argument-parsing rules verbatim",
+        "the forbidden behaviors (refuse prose / path-treat first word / ask for folder) are explicitly forbidden in both"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions on input-form documentation pass in both files"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-TEST-COVERAGE",
+      "summary": "Structural pytest coverage for the new skill, agents, command, and pipeline wiring.",
+      "spec_requirements": ["REQ-014"],
+      "tasks": ["14.1-14.9"],
+      "layer": "infra",
+      "scenarios": [
+        "tests/test_bug_fix_pipeline_skill.py passes",
+        "tests/test_bug_replicator_agent.py passes",
+        "tests/test_qa_replayer_agent.py passes",
+        "tests/test_bug_classifier_agent.py passes",
+        "tests/test_triage_dispatch_wiring.py passes",
+        "EXPECTED_SKILLS / EXPECTED_AGENTS / EXPECTED_COMMANDS sets include the new entries",
+        "Full suite at v0.9.22 baseline > 730; no regression"
+      ],
+      "acceptance_criteria": [
+        "python -m pytest -q exits 0",
+        "total passing-test count strictly greater than 730"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-RELEASE",
+      "summary": "Documentation currency + release as v0.9.22.",
+      "spec_requirements": ["REQ-015"],
+      "tasks": ["15.1-15.10", "16.1"],
+      "layer": "infra",
+      "scenarios": [
+        "README banner / version badge / tests badge / NEW IN panel header / timeline / inventory grid reflect v0.9.22",
+        "CHANGELOG carries the [0.9.22] entry quoting the user verbatim",
+        "CODEBASE_MAP counts: 22 skills, 21 agents, 7 commands",
+        "INTEGRATION_MAP frontmatter bumped; no new external integration",
+        "CLAUDE.md frontmatter counts updated",
+        "plugin.json + marketplace.json carry 0.9.22"
+      ],
+      "acceptance_criteria": [
+        "tests/test_readme_styling.py banner + badge tests pass at v0.9.22",
+        "Documentation-currency audit at Phase 8 returns clean"
+      ]
+    }
+  ],
+  "implementing_commits": [],
+  "confirmed_stubs": [],
+  "solution_requirements": []
+}

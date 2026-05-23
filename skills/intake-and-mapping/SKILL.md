@@ -7,6 +7,8 @@ description: Use when entering Phase −1 of the architect-team pipeline, when a
 
 The pipeline cannot reason about a codebase it has not mapped. This skill defines how the orchestrator builds, validates, and refreshes the structural knowledge it needs before any planning or implementation work begins.
 
+**Consumers.** This skill is the Phase −1 discipline for both `architect-team-pipeline` and `bug-fix-pipeline` (v0.9.22). The bug-fix pipeline's Phase B−1 reuses this skill VERBATIM — same codebase discovery, same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence, same map-freshness rules, same integration mapping, same MemPalace mining. A bug fix proposed against a stale map is the second-worst class of bug fix (after one proposed without replication) — so no shortcut, no abbreviated version. The freshness pre-scan applies identically to both pipelines.
+
 ## Codebase discovery
 
 Resolve the set of codebases the work will touch, in priority order:

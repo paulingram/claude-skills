@@ -1,0 +1,249 @@
+---
+name: bug-fix-pipeline
+description: "Use when a bug needs to be fixed end-to-end faster than the full architect-team-pipeline can deliver, but with the same rigor where it matters. A sibling orchestrator playbook with five non-negotiable disciplines: replicate first (Playwright for frontend, backend script for backend, ambiguity-escalation when unclear); reproduction IS the regression test (frontend bugs also author a backend diagnostic; the artifact that demonstrated the bug is the artifact the QA replay verifies); generalized fix (the system-architect Bug-Fix Generalization Audit rejects symptom patches unless explicitly authorized); QA replay against the live dev environment (real deploys, real URLs; the pass criterion is the originating symptom is gone end-to-end); live-dev-environment-by-default (fixes deployed to the dev URLs before testing; production is an explicit opt-in exception). Phases B−1 through B8 mirror the main pipeline's structural points and replace Phase 2-5's parallel-team-spawn / 6-team-review with a tight replicate → reproduce-test → propose → fix → QA-replay loop. Accepts the same two input forms as the main /architect-team — a requirements folder OR a plain-language requirement typed directly as prose."
+---
+
+# bug-fix-pipeline
+
+The `architect-team-pipeline` is excellent for greenfield features and substantial new capability work. For a known-bug-with-a-clear-symptom — *"the row-action menu's Delete button doesn't actually delete; clicking it just closes the menu"* — its 100%-coverage planning gate, parallel team spawn, six Phase 5 review teams, and master-review audit are weight a 30-line fix doesn't need. The `bug-fix-pipeline` keeps the discipline that matters (maps must be fresh; the proposal must be real; the fix must be generalized; testing must be against the live system) and replaces what doesn't apply to a bug fix with the discipline specific to one.
+
+You are the **Team Lead** for the bug-fix variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a tight loop that takes a bug — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution against the live dev environment.
+
+## Five non-negotiable disciplines
+
+1. **Replicate first.** Phase B1 reproduces the symptom — a Playwright user-flow for frontend bugs, a backend script for backend bugs — against the live dev environment, BEFORE any fix is proposed. A fix without a replication is a guess and gets rejected at the architect review (Phase B4).
+2. **Reproduction IS the regression test.** The Playwright flow / backend script that demonstrated the bug becomes the test the QA replay verifies against post-fix. No "now write a test" second step. For frontend bugs the agent ALSO writes a **backend diagnostic test** so the regression is covered on both sides of the contract.
+3. **Generalize, never symptom-patch.** The `system-architect` Bug-Fix Generalization Audit at Phase B4 rejects fixes that special-case the failing input — a literal user-id in a conditional, a hard-coded category name in a switch. The override is explicit: the user has to say *"hard-code it"* / *"hotfix this one"* / equivalent. Silence is NOT authorization.
+4. **QA replay against live dev.** Phase B6 dispatches the `qa-replayer` against the deployed fix, re-running the original replication artifacts verbatim. The pass criterion is *"the originating symptom is gone end-to-end"* — not "the test passes," but the original failure mode is no longer reproducible.
+5. **Live-dev-environment-by-default.** Phase B5 ALWAYS deploys the fix to the dev environment (per the target project's `design.md` `## Dev Environment` section) before Phase B6 testing. Builds confirmed green first. Production is an explicit opt-in exception (`--environment production`) that escalates a structured question to the user.
+
+## Inputs
+
+`$REQ_DIR` (bound by `/architect-team:bug-fix` from the user's argument) is the **bug**. It comes in ONE of two forms — **both first-class, fully-supported inputs**, identical to the main `/architect-team`:
+
+1. **A requirements folder** — a filesystem path that resolves to an existing directory holding bug-report artifacts, screenshots, prior diagnostic notes, or an OpenSpec brief.
+2. **A plain-language requirement** — prose typed directly as the argument: a sentence or paragraph describing the symptom, the user's experience, expected vs. actual behavior. The prose ITSELF is the requirement; it is NOT a path.
+
+The v0.9.17 same-input-forms rules apply verbatim — **do NOT refuse plain-language prose**, **do NOT treat the first word of a sentence as a path**, **do NOT ask the user for a folder when prose was given**. Ask only when `$REQ_DIR` is genuinely empty. The codebase the bug applies to is the cwd (a git repo) unless the prose explicitly names another path.
+
+**Detect the form:** if `$REQ_DIR` is a single token resolving to an existing directory → form 1 (folder). Otherwise → form 2 (plain-language). When unsure, it is form 2.
+
+## Default mode of operation
+
+Same as `architect-team-pipeline` v0.9.20: **drive end-to-end, gates are opt-in for *process* gates, fire for *domain* gates** (per the v0.9.21 carve-out). The bug-fix pipeline's domain gates — fire regardless of `--proposal-first`:
+
+- **Phase B1 ambiguity-escalation question** — when the bug description is genuinely incomplete (no screen named, no steps named, no expected-vs-actual). The agent does NOT guess; it asks. This is part of the deliverable.
+- **`needs-clarification` verdict in any phase** — a structured ask to the user is the right move when the work cannot proceed responsibly.
+- **`--environment production` escalation** — production deploys are user decisions.
+
+Process gates (proposal-first pause, "do you want me to proceed?", obvious-answer clarifying questions) follow the same opt-in rule as the main pipeline.
+
+## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
+
+Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence; same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.
+
+**The freshness pre-scan is non-negotiable.** A bug fix proposed against a stale map is the second-worst class of bug fix (after one proposed without replication). If the maps are current per the freshness rules, Phase B−1 short-circuits cleanly and the loop moves to B0 quickly.
+
+Per the v0.9.21 Phase −1D step in `intake-and-mapping`: if any frontend codebase is in scope and a low-confidence interaction-intuition union exists at the end of Phase −1, the bulk-verify gate fires before B0. This is a domain gate; it applies here too.
+
+## Phase B0 — Detection & Normalization
+
+Same as `architect-team-pipeline` Phase 0 — `plain` / `openspec` / `superpowers` classification, openspec init if needed, kebab `<bug-slug>` derived from the description.
+
+For `plain` (the common case for a bug report), pick a `<bug-slug>` that names the symptom plainly: `fix-row-delete-button`, `fix-analysis-totals-zero`, `fix-login-redirect-loop`. Avoid generic names (`bugfix`, `quickfix`). The slug names the OpenSpec change AND the eventual feature branch.
+
+The change-name convention: bug-fix changes get the same `architect-team/<bug-slug>` feature-branch pattern; the OpenSpec change lives at `openspec/changes/<bug-slug>/`.
+
+## Phase B1 — Bug Replication
+
+Dispatch the `bug-replicator` agent (one agent per affected codebase; usually just one). Inputs to the agent:
+
+- The bug description (the source prose OR the bug-report artifacts).
+- The relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP / INTERACTION_INTUITION_MAP (when present).
+- The dev-environment URL(s) from the target project's `design.md` `## Dev Environment` section.
+
+The agent's process:
+
+1. **Identify the failing path** from the description + maps. For frontend bugs: which route, which component, which interactive element. For backend bugs: which endpoint, which payload shape, which side-effect.
+2. **Write the replication artifact** at the appropriate location in the target codebase:
+   - Frontend bugs → a Playwright user-flow per `playwright-user-flows` at `tests/e2e/bug-fix-<bug-slug>/<flow>.spec.ts` (or the codebase's e2e convention). The flow exercises the real UI path — real `page.click`, real `page.fill`, real `page.waitFor` — against the live dev URL.
+   - Backend bugs → a script (Python with `httpx`, or Node, per the target's conventions) at `tests/bug-fix-<bug-slug>/<script>.py` that calls the failing endpoint(s) against the live dev API and asserts the failing condition.
+3. **Run the artifact** against the live dev environment. Capture the output verbatim. **The artifact MUST currently fail** — that is the replication. If it passes (the bug isn't actually present), exit with `could-not-reproduce`.
+4. **Report a verdict**: one of `reproduced` (bug confirmed; proceed to B2), `could-not-reproduce` (the bug isn't present; escalate to the user with the evidence — the bug may already be fixed, or the description may be incomplete), `needs-clarification` (the description is genuinely ambiguous; emit a structured question and pause).
+
+**The canonical ambiguity-escalation question (Phase B1):**
+
+*"I need a bit more detail to replicate this — can you describe how you experienced the bug? Specifically: (1) what page or screen were you on, (2) what did you click / type / submit, (3) what did you expect to see, and (4) what actually happened? A screenshot or video would help if you have one."*
+
+The replicator does NOT guess at the steps. A guessed replication that doesn't reproduce the bug burns an iteration; an honest `needs-clarification` saves the loop.
+
+**Hard rule:** Phase B1 does NOT proceed to B2 without a `reproduced` verdict. "We'll figure it out at QA" is forbidden.
+
+## Phase B2 — Reproduction-artifact promotion + backend diagnostic
+
+The replication artifact from B1 IS the regression test. Move it to its permanent location in the target codebase's test directory if it isn't already there. The pair the QA replayer will run at B6:
+
+- **Frontend bug:** the Playwright user-flow AT `tests/e2e/bug-fix-<bug-slug>/<flow>.spec.ts` PLUS a **backend diagnostic test** the same agent (still `bug-replicator`) authors next. The backend diagnostic exercises the SAME flow from the backend's view — it calls the endpoint(s) the Playwright flow drove and asserts the data-layer outcome (the row was actually deleted from the DB, the user's permission grant actually persisted, etc.). The backend diagnostic catches a regression that the Playwright flow alone might miss (a UI that appears to succeed but doesn't actually update the data).
+- **Backend-only bug:** the backend script alone suffices.
+
+Both artifacts must currently fail (they are reproducing the bug). Phase B6 will re-run them post-fix and require them to pass — that is the regression contract.
+
+Persist the artifacts under `<target-codebase>/tests/bug-fix-<bug-slug>/` (or the codebase's convention) and stage them; they become part of the same commit the fix lands in at Phase B7.
+
+## Phase B3 — OpenSpec proposal authoring
+
+Author a slim OpenSpec change at `openspec/changes/<bug-slug>/`. The artifact chain is the same as a feature change: `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`, `coverage-map.json`. The proposal:
+
+- **Cites the replication evidence verbatim.** Quote the artifact's failing output as the source of the failure-mode statement.
+- **Names the root cause** if known from the replication (a missing await, a broken contract assumption, a stale cached value). If the root cause is genuinely unclear after the replication, route through `diagnostic-research-team` per the main pipeline's Phase 3b discipline — same flow, same plan, same architect-review gate.
+- **Proposes the fix.** The fix targets the root cause, not the symptom. State the class of bug being addressed (not just the failing input).
+- **Includes Reuse Decisions** per `reuse-first-design` for any new file the fix introduces. A bug fix that extends an existing function gets a one-line Reuse Decision; a bug fix that needs a new module gets a full one.
+
+Run `openspec validate --strict` and the Phase 1 planning-validation gate (the same gate as `architect-team-pipeline` Phase 1, applied to this change). The gate's frontend / backend / both-layer test criteria still apply — the replication artifacts from B2 ARE the criteria.
+
+## Phase B4 — Bug-Fix Generalization Audit
+
+Dispatch the `system-architect` agent in **Bug-Fix Generalization Audit** mode. Inputs:
+
+- The source description (the bug report).
+- The replication evidence (the artifact paths + their failing output).
+- The proposal + `design.md` + the diff of the proposed fix (when the fix is implementation-ready) OR the spec'd approach (when the fix isn't yet implemented).
+- The relevant CODEBASE_MAP + INTEGRATION_MAP.
+
+The audit's verdict is one of:
+
+- **`pass`** — the fix addresses the *class* of bug and is correctly scoped. No special-casing of the failing input. The architect cites the class explicitly: *"This fix addresses the class of bugs where a soft-delete is treated as a hard-delete by the row-action handler; the change to the handler correctly affects every row, not just the one the user reported."*
+- **`needs-generalization`** — the proposal special-cases the failing input. The architect cites the offending pattern (the literal user-id, the hard-coded category, the targeted conditional) and describes the underlying class of bug. The proposal returns to authoring (back to Phase B3) for revision.
+- **`needs-replacement`** — the proposed approach is wrong (treats a symptom while leaving the root cause; uses the wrong layer; introduces a worse defect). The architect cites a better alternative; back to B3.
+
+**The user-authorized override.** If the source description explicitly authorized a targeted fix — phrasings like *"hard-code it for now"*, *"just for this one user"*, *"hotfix before the demo"*, *"patch it just temporarily"* — the architect records the authorization verbatim in the verdict and lets a targeted fix proceed. The architect does NOT extrapolate authorization from silence; a description that doesn't address generalization is NOT authorization. The audit verdict's reasoning field carries the authorization quote.
+
+**Genuinely-narrow classes are NOT generalization gaps.** A bug whose class is exactly one input (a singleton config issue, an enum value that doesn't exist anywhere else, a one-time data fix) is general for its class. The audit's reasoning field cites the class size when relevant.
+
+The audit verdict gates Phase B5: the implementing team does NOT touch code until the verdict is `pass`.
+
+## Phase B5 — Implement + deploy to dev
+
+Spawn ONE focused fix team (a `frontend` or `backend` agent depending on layer; for `both`-layer bugs, sequence them or run them in parallel with non-overlapping file scope per the main pipeline's Phase 2 rules — usually a bug fix is single-layer or has a clear primary). Brief includes:
+
+- The OpenSpec change name + the relevant tasks from `tasks.md`.
+- The proposed approach from `design.md` (architect-approved at B4).
+- The replication artifacts (the failing flow / script) as the verification target.
+- The acceptance criterion: the replication artifacts pass when re-run against the deployed fix.
+
+The team writes Phase 3 review-gate evidence per the existing schema (v6) — `code_real_not_stubbed`, `tests_passing`, `integration_wired`, `coverage_satisfied`, `demonstrable`, `reuse_compliance`, `expectations_and_rca`, `visual_fidelity_review` (for frontend touches), `ui_interaction_review`. The `task-reviewer` independently re-reviews and writes the `independent_review` block; only its `verdict: pass` opens the Phase 3 gate. (Same gate as the main pipeline — bug fixes don't skip review-gate evidence.)
+
+**After local tests pass, deploy to the dev environment.** Read the target project's `design.md` `## Dev Environment` section for the deploy command (`npm run deploy:dev`, `make dev-deploy`, `gh workflow run ...`, etc.) and the dev URL. Run the deploy, then poll the dev environment's health endpoint or build-status URL with a tight bounded in-turn loop until builds are green. A failed build is a Phase B5 escalation that routes back to the implementing team for diagnosis (probably a build-config issue, a missing env var, a dependency drift) — it is NOT a QA-replay failure. The bug-fix loop must never confuse a deploy failure with a fix failure.
+
+**The `--environment production` exception.** If the run was invoked with `--environment production` (or the user's prose names the target as production), the orchestrator escalates a structured question:
+
+*"This run is targeting production. A production deploy is your decision, not mine. The fix is implemented and verified locally; please confirm: (a) deploy to production now, (b) deploy to a staging environment first, or (c) hold for manual review."*
+
+Phase B5 does NOT auto-deploy to production. The user's answer is the green light.
+
+**Notification (best-effort, per the v0.9.18 notifier):** if the target project supplies `.architect-team-notify.json`, emit a `deploy` event at the start of the dev deploy.
+
+## Phase B6 — QA replay against live dev
+
+Dispatch the `qa-replayer` agent. Inputs:
+
+- The path(s) to the reproduction artifact(s) from B2.
+- The dev environment URL(s).
+- The bug description (for the symptom-gone-end-to-end verification).
+
+The replayer's process:
+
+1. Re-run the Playwright flow against the live dev environment, verbatim (no edits to the flow).
+2. Re-run the backend diagnostic script against the live dev API, verbatim (no edits).
+3. Compare the output against the original failing output captured in B1.
+4. Verify the originating symptom — what the USER experienced — is gone end-to-end. NOT just "the test passes" — the failure mode is no longer reproducible.
+
+The replayer's verdict is one of:
+
+- **`bug-resolved`** — the artifacts pass and the originating symptom is gone. Proceed to B7.
+- **`bug-still-present`** — the artifacts fail (or pass technically but the symptom is still observable). The replayer writes a solution requirement back to the orchestrator with the new evidence (the current failing output, the differences from the pre-fix failing output). The loop returns to B3 — a FRESH OpenSpec proposal authored on the new evidence (not an amendment to the previous proposal; the previous proposal is closed and a new one opened to keep the audit trail clean). The loop continues.
+- **`env-failure`** — the artifacts couldn't run (the dev environment is down, the deploy didn't apply, the browser is mis-configured). Routes to the implementing team for env diagnosis, NOT to the architect. The env issue must be resolved before re-running the replay — but the fix isn't on trial; the env is.
+
+**Loop bounds:** the bug-fix loop is bounded at **10 iterations locally** (a tighter signal than the global 20-step ceiling — most bug fixes should converge in 1-3 iterations; 10 is an early-escalation threshold). The global `dev_loop_iterations` counter in `intake-state.json` increments every B3 → B6 cycle, against the same 20-step absolute ceiling as the main pipeline. Oscillation detection applies: a fix that keeps re-breaking the same symptom (or the same proposal landing 3 times) escalates to the user.
+
+## Phase B7 — Archive + Report
+
+On `bug-resolved` at B6:
+
+1. Run `openspec archive <bug-slug>` to merge the spec deltas into `openspec/specs/`.
+2. Emit the final report:
+   - The bug description (one line).
+   - The replication evidence path(s) + the original failing output (one line per).
+   - The fix's commit SHA(s) + the implementing team's name.
+   - The Phase B4 generalization-audit verdict (`pass` + the architect's reasoning quote).
+   - The Phase B5 deploy verification (the dev URL + the build-green confirmation).
+   - The Phase B6 QA-replay evidence (the now-passing artifacts + the symptom-gone confirmation).
+   - The total iteration count (typically 1 or 2; flag if ≥ 5).
+   - Final statement: **"Bug `<bug-slug>` has been resolved."** Followed by the archive path.
+
+## Phase B8 — Commit + push
+
+Same flow as `architect-team-pipeline` Phase 8 — completion audit gate, default-branch guard (the work lands on `architect-team/<bug-slug>` feature branch unless `--allow-push-to-default`), commit with the standard message template, push to the feature branch, recommend a PR. Auto-compact prompt at the very end (unless `--no-compact`).
+
+The completion audit verifies the bug-fix loop closed cleanly — every iteration's SR resolved, the final QA-replay verdict is `bug-resolved`, the master-review audit verdict at B7 (if any) is `pass`, no escalation marker pending.
+
+The commit message format:
+
+```
+<bug-slug>: <one-line bug-resolved summary>
+
+- Bug class: <the class of bug addressed>
+- Replication: <artifact path(s)>
+- Generalization-audit verdict: pass (<one-line architect reasoning>)
+- QA-replay verdict: bug-resolved end-to-end (<dev URL>)
+- Iterations: <N>
+- Phases B−1 → B8 complete; openspec archive landed at <archive-path>
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+```
+
+## Operating rules (non-negotiable)
+
+The bug-fix pipeline inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — including the no-arbitrary-timers rule, the iteration ceiling, the shared-state concurrency model, the escalation-marker discipline, the safety rules for the auto-commit step, and the documentation-currency gate. **Plus**:
+
+- **Replicate before propose.** Phase B1 MUST return `reproduced` before B3 can run. A proposal authored on an un-reproduced bug is the failure mode this skill exists to prevent.
+- **Reproduction is the regression test.** No "now write the test" second step. The replication artifact IS the test.
+- **Frontend bugs MUST have a backend diagnostic.** Phase B2's backend-diagnostic mandate is non-negotiable for `frontend` and `both`-layer bug-fix runs. A regression that one layer catches and the other misses is the failure mode the dual artifact prevents.
+- **Generalization is non-negotiable.** The Phase B4 audit's verdict gates B5. A `needs-generalization` or `needs-replacement` verdict returns the proposal to B3; the implementing team does NOT proceed until the architect's verdict is `pass`.
+- **QA replay against live dev.** Phase B6 runs against the deployed dev environment, not against local code. The pass criterion is symptom-gone-end-to-end.
+- **Production deploys escalate.** Phase B5 NEVER auto-deploys to production. The `--environment production` flag triggers an explicit user-confirmation question.
+- **Local 10-iteration bound, global 20-step ceiling.** A bug-fix loop that reaches 10 iterations escalates to the user; one that reaches 20 hard-stops.
+
+## Anti-patterns to reject
+
+| Rationalization | Rebuttal |
+|---|---|
+| "I'll skip replication and just propose the fix; the bug description is clear." | A description is not a replication. A clear description with a wrong-by-one-step replication is exactly the failure mode that produces a fix that doesn't actually address the bug. Replicate first. |
+| "The Playwright flow is enough for a frontend bug — I'll skip the backend diagnostic." | A UI that appears to succeed but doesn't update the data is a class of bug the Playwright flow alone can miss. The backend diagnostic catches it. |
+| "Hard-coding the user-id is fine — it's just to unblock them." | If the user explicitly said *"hard-code it"* the architect records the authorization and lets the fix proceed. If the user didn't say so, that is symptom-patching the architect REJECTS. |
+| "The test passes now — the bug is fixed." | The test passing is necessary, not sufficient. The pass criterion is the originating symptom is gone end-to-end. Verify against the symptom, not just the test. |
+| "I'll deploy to production directly — it's a small fix." | Production deploys escalate. Even a small fix can break in production for reasons local + dev didn't surface. The user confirms or the orchestrator stops. |
+| "The QA replay failed — let me tweak the test." | NEVER edit the reproduction artifact at QA replay. If the replay fails, route back to architect with the new evidence. The artifact IS the contract. |
+| "I'll skip the freshness check — it's a quick fix." | A stale map produces a fix proposal against an out-of-date understanding of the codebase. Same rule as the main pipeline; no shortcut. |
+| "This is a feature, not a bug — but I'll run the bug-fix pipeline anyway because it's faster." | The classifier guards against this at the main-pipeline triage. For an explicit `/architect-team:bug-fix` invocation, Phase B0 examines the description with the same classifier and warns on a `feature` verdict. |
+
+## Relationship to other skills
+
+- `architect-team-pipeline` (sibling) — same orchestration discipline, different shape. Bug-fix pipeline is reached via `/architect-team:bug-fix` (explicit) or via the main pipeline's Phase −2 triage when the classifier returns `bug` (or in parallel for `mixed`).
+- `intake-and-mapping` (Phase B−1) — reused verbatim. Same maps, same freshness rules.
+- `playwright-user-flows` (Phase B1 frontend, B6 QA replay) — the bug-replicator drives Playwright per this skill; the QA replayer re-runs it the same way.
+- `dev-api-integration-testing` (Phase B1 backend, B2 backend diagnostic, B6 QA replay) — same.
+- `root-cause-test-failures` — applies when B1 returns `could-not-reproduce` or when B6 returns an unclear `bug-still-present` (the diagnostic loop runs through the orchestrator's normal channels).
+- `coverage-mapping` + `reuse-first-design` (Phase B3) — same authoring disciplines as a feature proposal.
+- `documentation-currency` (Phase B8) — the doc-currency gate runs before the auto-commit, same as the main pipeline.
+
+## Same input forms as architect-team-pipeline
+
+This skill's input rules are IDENTICAL to `architect-team-pipeline`'s. The v0.9.17 same-input-forms rules apply verbatim:
+
+- **Folder OR plain-language prose, both first-class.** Either form is a valid invocation.
+- **Never refuse plain-language prose.** A sentence describing a bug is a fully-supported input. Do NOT tell the user the skill "needs a folder."
+- **Never treat the first word of a sentence as a path.** `no`, `the`, `fix`, `delete`, `clicking` are not directories — the entire sentence is the requirement.
+- **Ask only when input is genuinely empty.** Then ask: *"What bug should the bug-fix pipeline replicate and resolve?"* — NOT *"give me a requirements folder."*
+
+When the input is plain-language prose, the codebase the bug applies to is the cwd (a git repo) unless the prose explicitly names another path.

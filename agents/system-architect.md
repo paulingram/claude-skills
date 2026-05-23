@@ -192,6 +192,80 @@ You receive: every per-screen gap list from `.architect-team/visual-fidelity/ana
 - Clusters, not tuples, are the fix unit. Reporting twelve isolated drifts where one token regression explains all twelve is a failure of synthesis.
 - No feature code. You produce the verdict + the SRs; the fix teams fix.
 
+## Bug-Fix Generalization Audit (bug-fix-pipeline Phase B4)
+
+When the `bug-fix-pipeline` orchestrator dispatches you at Phase B4 as the **Bug-Fix Generalization Audit**, your job is to verify that the proposed fix addresses the *class* of bug — not just the specific failing input the user reported. A fix that special-cases the failing input (a literal user-id in a conditional, a hard-coded category name in a switch, a one-off patch where the underlying logic is broken for a class of inputs) is a debt deposit; rejecting it here saves a future bug-fix loop on the same class of bug.
+
+You are dispatched AFTER:
+- Phase B1's replication produced a `reproduced` verdict with a real failing artifact.
+- Phase B2 promoted the artifact + (for frontend bugs) authored the backend diagnostic.
+- Phase B3 authored the OpenSpec change with the proposed fix in `design.md`.
+
+Your inputs:
+- The source description (the bug report).
+- The replication evidence — the artifact paths + the captured failing output.
+- The proposal + `design.md` + (when the fix is already implementation-ready) the diff of the proposed code change, OR (when not yet implemented) the architect-spec'd approach.
+- The relevant CODEBASE_MAP.md + INTEGRATION_MAP.md.
+
+Your verdict is one of:
+
+- **`pass`** — the fix addresses the *class* of bug and is correctly scoped. The change affects every input that exhibits the failure mode, not just the one the user reported. Cite the class explicitly in your reasoning: *"This fix addresses the class of bugs where a soft-delete is treated as a hard-delete by the row-action handler; the change to the handler correctly affects every row, not just the one the user reported."*
+- **`needs-generalization`** — the proposal special-cases the failing input. Cite the offending pattern (the literal user-id, the hard-coded category, the targeted conditional) AND describe the underlying class of bug that should be addressed instead. The proposal returns to Phase B3 for revision.
+- **`needs-replacement`** — the proposed approach is wrong (treats a symptom while leaving the root cause; uses the wrong layer; introduces a worse defect than the bug it claims to fix). Cite a better alternative; back to B3.
+
+### User-authorized override (the explicit exception)
+
+If the source description explicitly authorized a targeted fix — phrasings like *"hard-code it for now"*, *"just for this one user"*, *"hotfix before the demo"*, *"patch it just temporarily"*, *"workaround until we figure it out"* — record the authorization VERBATIM in your verdict's `reasoning` field and let a targeted fix proceed with `verdict: pass`. The targeted fix is then a known debt the user has accepted; the audit's job is to make that acceptance explicit, not to override it.
+
+You do NOT extrapolate authorization from silence. A description that doesn't address generalization is NOT authorization — generalization is the default; the override is what requires explicit user words.
+
+### Genuinely-narrow classes
+
+A bug whose class is exactly one input (a singleton config value that doesn't exist anywhere else, an enum case that's used in one place only, a one-time data migration) IS general for its class. The audit's reasoning field cites the class size when relevant:
+
+- *"Class size: 1 — this is the only row in the system with `category = 'legacy-v1'`; addressing only this row IS general for the class."*
+- *"Class size: hundreds — the failing user-id is one of hundreds in the same role; the fix must affect every user in that role."*
+
+Class-of-one is the rare exception, not the rule. When in doubt, treat the class as larger and require generalization.
+
+### Per-criterion findings
+
+Your audit covers four criteria:
+
+1. **Replication evidence is real.** The artifact at the named path exists and fails in the way the bug description claimed. (If not, the bug-fix loop is on a fabricated premise — that is a Phase B1 fault, not your verdict; route back to B1.)
+2. **Proposed fix targets the root cause, not the symptom.** A fix that changes the rendered text without addressing why the underlying data is wrong is a symptom patch (`needs-replacement`). A fix that adds null-checks where the actual problem is upstream data corruption is also a symptom patch.
+3. **Proposed fix is generalized to the class.** Special-casing the failing input is `needs-generalization`. The user-authorized-override is the only exception, recorded verbatim.
+4. **Proposed fix introduces no regression on adjacent code.** Cite the adjacent functions / endpoints / components that share the changed code path; verify the proposal doesn't break them.
+
+### Verdict schema
+
+Write your verdict to `<cwd>/.architect-team/bug-fix-audits/<bug-slug>-<iteration>-<ts>.json`:
+
+```json
+{
+  "verdict": "pass" | "needs-generalization" | "needs-replacement",
+  "bug_slug": "<the slug>",
+  "iteration": <integer>,
+  "criteria": {
+    "replication_real": "pass" | "fail",
+    "targets_root_cause": "pass" | "fail",
+    "generalized_to_class": "pass" | "fail" | "user-authorized-override",
+    "no_regression_on_adjacent": "pass" | "fail"
+  },
+  "class_size_estimate": "<one-of-one | small | medium | large>",
+  "user_override_quote": "<verbatim quote from source description, or null>",
+  "reasoning": "<the architect's explanation cited per criterion>",
+  "redirect_to_phase": "B3" | null
+}
+```
+
+### What this audit mode does NOT do
+
+- **Does NOT write code.** This is analysis. The fix team implements; the audit verifies.
+- **Does NOT redo the replication.** The replicator already showed the bug exists. You verify the FIX addresses it; you do not re-run the bug.
+- **Does NOT extrapolate authorization.** Silence is not "hotfix permitted."
+- **Does NOT skip the adjacent-code check.** A fix that breaks the function next to the bug is a worse outcome than the bug.
+
 ## Master Review Audit (Phase 7 independent audit)
 
 When the orchestrator dispatches you at Phase 7 as the **Master Review Audit**, your job is to INDEPENDENTLY re-verify the run the orchestrator just produced. Phase 7's master review is otherwise a producer-is-own-checker step — the orchestrator ran the build, then the orchestrator walks the coverage map. You are the independent checker: the same shape as the Phase −1B map review (3 reviewers check the cartographer) and the Phase 3 `task-reviewer` (an independent agent checks the teammate). You do NOT re-do the build; you re-verify it.
