@@ -40,3 +40,6 @@ entities.json
 
 # MemPalace per-workspace palace data (vector store + sqlite + embeddings)
 .mempalace/
+
+# Claude Code per-machine local settings (permission grants, etc. — never commit)
+.claude/settings.local.*
