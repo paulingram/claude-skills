@@ -27,10 +27,10 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS
 If `python` is unavailable, retry with `python3`:
 
 ```!
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS
 ```
 
-(`python` is the canonical name on Windows; `python3` on most macOS/Linux distros. The script's logic is identical under either invocation.)
+The `|| python ...` fallback runs when `python3` isn't on PATH — the canonical Unix idiom is `python3` (Linux/macOS), the canonical Windows idiom is `python` (and `python3` there triggers the Microsoft Store shim by default). The script's logic is identical under either invocation; the fallback never fires on systems where `python3` works.
 
 ## After the script runs, summarize:
 

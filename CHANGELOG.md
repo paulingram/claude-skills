@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.30] — 2026-05-23
+
+### Fixed — cross-platform Python hook invocation (Windows Store-shim bug)
+
+Hot-fix for a real user error surfaced in v0.9.29:
+
+> *"● Ran 2 stop hooks (ctrl+o to expand)  ⎿  Stop hook error: Failed with non-blocking status code: Python was not found; run without arguments to install from the Microsoft Store, or disable this shortcut from Settings > Apps > Advanced app settings > App execution aliases."*
+
+**Root cause.** `hooks/hooks.json` and every plugin-script invocation in skill bodies + commands used the bare command `python3`. On default Windows python.org installs only `python` is on PATH — `python3` triggers the Microsoft Store shim ("Python was not found…"). The shim exits non-zero, so Claude Code surfaced it as a hook failure even though the user had Python 3.12.10 installed and working as `python`. The v0.9.16 portability work added a *detection* hint to `scripts/setup/setup.py`, but didn't actually make the hooks robust to the gap — a user who hadn't run setup, or had ignored its WARN row, still hit the Store shim.
+
+**Fix.** Every plugin-script invocation is now polyglot: `python3 X.py args || python X.py args`. The `||` runs the second form only when the first exits non-zero. On Unix the first form succeeds and the shell short-circuits (the fallback never fires); on Windows-without-`python3` the first form errors out (Store shim) and the fallback runs `X.py` with `python`, which succeeds. The `||` operator is supported by cmd.exe, POSIX sh, bash, zsh, fish, and PowerShell 7+ — covering every shell Claude Code is likely to dispatch hooks through.
+
+**Files touched (16 invocations across 8 files):**
+
+- `hooks/hooks.json` — 3 hooks (PostToolUse / SubagentStop / Stop).
+- `skills/architect-team-pipeline/SKILL.md` — 6 invocations (notify.py × 5 + pipeline-completion-audit.py --check × 1). Added a "Cross-platform Python invocation" convention paragraph documenting the polyglot pattern.
+- `skills/bug-fix-pipeline/SKILL.md` — 5 invocations (notify.py × 4 + the prose-only doc example × 1). Added the same convention paragraph.
+- `commands/architect-team.md` — 1 invocation (audit `--check`).
+- `commands/bug-fix.md` — 1 invocation (audit `--check`).
+- `commands/ux-test.md` — 1 invocation (audit `--check`).
+- `commands/architect-team-setup.md` — 1 invocation (setup.py).
+- `commands/mempalace-install.md` — 1 invocation (install_mempalace.py).
+
+**Tests:**
+
+- `tests/test_hooks_structure.py::test_hooks_use_polyglot_python_fallback` — NEW. Verifies every hook command contains the `|| python ...` fallback AND that both sides invoke the same `.py` script (catches typos where the fallback's target diverges from the primary's).
+- `tests/test_hooks_structure.py::test_hooks_use_python3` — UNCHANGED. The primary `python3 ` prefix invariant is preserved; the new test ADDS the fallback invariant on top of it.
+- `tests/test_commands.py::test_setup_command_uses_python3` — UPDATED. The old assertion was *"must NOT contain bare ' python '"* — that's now wrong because the polyglot fallback IS a bare-`python` invocation by design. The new assertion requires the fallback to be present.
+
+1016 tests / 0 failures (was 1015 in v0.9.29; +1 for the new fallback contract test).
+
+### Notes on the convention
+
+- The fallback's `python` is expected to be Python 3.10+. On modern Linux distros that don't ship an unversioned `python` (Debian 12, Ubuntu 22.04, RHEL 9), the fallback path won't be exercised because `python3` is on PATH and succeeds first. On Windows where the python.org installer registers `python.exe`, the fallback runs cleanly. On macOS Homebrew both names work.
+- On systems with neither `python3` NOR `python` on PATH, both attempts fail and the hook reports a non-blocking error (same behavior as before this fix — at that point the user genuinely has no Python install, which `scripts/setup/setup.py` would have warned about).
+- This is a **portability fix**, not a behavior change — every existing skill discipline, gate, evidence schema, and review-gate rule is unchanged.
+
 ## [0.9.29] — 2026-05-23
 
 ### Added — `ux-test-builder` capability + `bug-fix-pipeline` Phase B6b Logical Sensibility Check

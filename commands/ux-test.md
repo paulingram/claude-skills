@@ -59,7 +59,7 @@ Invoke the `ux-test-builder` skill from this plugin (use the Skill tool with `sk
 
 At the end of Phase U9, after the final report emits **"UX test plan for persona `<persona-slug>` against `<target>` executed. ..."** and the bug-fix-pipeline dispatch references:
 
-0. **Run the completion audit FIRST:** `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. If it exits non-zero, the run is incomplete — do NOT commit; resolve violations or escalate.
+0. **Run the completion audit FIRST:** `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check || python "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. The `|| python ...` fallback handles default Windows python.org installs where only `python` is on PATH (`python3` triggers the Microsoft Store shim there); on Unix the first form succeeds and the fallback never fires. If the final exit is non-zero, the run is incomplete — do NOT commit; resolve violations or escalate.
 1. `git -C <repo-root> status --porcelain` — enumerate what changed.
 2. `git -C <repo-root> add <files-the-pipeline-touched>` — stage ONLY the pipeline-touched files (the `.architect-team/ux-tests/<persona-slug>/` artifacts + any SR files written; do NOT include the bug-fix-pipeline's own work — those are queued in separate bug-fix runs).
 2b. **Default-branch guard:** if the current branch is `main` / `master` AND `ALLOW_PUSH_TO_DEFAULT` is false, `git -C <repo-root> checkout -b architect-team/ux-test-<persona-slug>` before committing.

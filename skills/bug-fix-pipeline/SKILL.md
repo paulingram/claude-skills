@@ -45,16 +45,18 @@ Same opt-in, best-effort discipline as the main `architect-team-pipeline`'s `## 
 **Invocation form** — run from the target project's repository root, identical to the main pipeline:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...] || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
 ```
 
 `<event>` is one of the five recognized types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy` — same set as the main pipeline.
 
+**Cross-platform Python invocation.** Every plugin-script call in this skill uses the polyglot pattern `python3 X.py args || python X.py args` (the same convention as `architect-team-pipeline`'s `## Notifications` section and `hooks/hooks.json`). The fallback `|| python ...` handles default Windows python.org installs where only `python` is on PATH and `python3` triggers the Microsoft Store shim. When you copy a `python3 ...` invocation from this skill body into a Bash call, copy the `|| python ...` fallback with it.
+
 **Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every B-phase.** At the **start of each phase** (Phase B−1, B0, B1, B2, B3, B4, B5, B6, B7, B8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name (e.g., `"Phase B3 — OpenSpec proposal authoring"`):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication"
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication"
 ```
 
 These two phase-boundary invocations are best-effort, exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below:
@@ -221,7 +223,7 @@ The replayer's verdict is one of:
 - **`bug-still-present`** — the artifacts fail (or pass technically but the symptom is still observable). The replayer writes a solution requirement back to the orchestrator with the new evidence (the current failing output, the differences from the pre-fix failing output). The loop returns to B3 — a FRESH OpenSpec proposal authored on the new evidence (not an amendment to the previous proposal; the previous proposal is closed and a new one opened to keep the audit trail clean). **Notification (best-effort, per `## Notifications`):** the orchestrator emits an `issue_discovered` event with the SR's failure-mode description as `--summary` immediately before re-entering B3. It invokes the notifier from the target project's root and proceeds immediately regardless of the notifier's outcome:
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's failure-mode description>"
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's failure-mode description>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's failure-mode description>"
   ```
 
   This `issue_discovered` invocation is best-effort and NEVER blocks or alters the bug-fix loop — a notifier failure does not stop the next iteration. The loop continues.
@@ -316,7 +318,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 **Notification (best-effort, per `## Notifications`):** immediately after the commit succeeds and BEFORE the push, the orchestrator emits a `git_commit` event with the new commit's SHA. Same wiring as the main pipeline's Phase 8 commit notification:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
 ```
 
 This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.

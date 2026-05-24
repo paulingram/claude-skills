@@ -60,3 +60,46 @@ def test_hooks_use_python3(plugin_root: Path) -> None:
         assert cmd.startswith("python3 "), (
             f"hook command does not start with 'python3 ': {cmd!r}"
         )
+
+
+def test_hooks_use_polyglot_python_fallback(plugin_root: Path) -> None:
+    """Every hook command must include a `|| python ...` fallback after the `python3 ...` form.
+
+    Default Windows python.org installs put only `python` on PATH (not `python3`); the
+    `python3` form there triggers the Microsoft Store shim, which prints a confusing
+    error and exits non-zero. The fallback runs the same script with `python`, which
+    succeeds. On Unix where `python3` works, the first form returns 0 and the shell
+    short-circuits the fallback. This contract is the v0.9.30 cross-platform-hook fix.
+    """
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for event, entries in data["hooks"].items():
+        for entry in entries:
+            for h in entry.get("hooks", []):
+                cmd = h.get("command", "")
+                assert " || python " in cmd, (
+                    f"{event} hook command missing the `|| python ...` polyglot fallback: {cmd!r}"
+                )
+                # The target script path must appear on BOTH sides of the `||` — if the
+                # fallback script path differs from the primary, the fallback is wrong.
+                left, _, right = cmd.partition(" || ")
+                # Extract the .py path (between first `"` and last `"`) on each side.
+                def _py_path(side: str) -> str:
+                    start = side.find('"')
+                    end = side.rfind('"')
+                    assert start >= 0 and end > start, f"no quoted path in: {side!r}"
+                    return side[start + 1 : end]
+                # The right side often has args after the path; rough check: the .py
+                # path is the first quoted span.
+                def _first_py_quoted(side: str) -> str:
+                    idx = side.find(".py")
+                    assert idx >= 0, f"no .py in: {side!r}"
+                    # Walk backwards from .py to find the opening quote.
+                    q = side.rfind('"', 0, idx)
+                    assert q >= 0, f"no opening quote before .py: {side!r}"
+                    return side[q + 1 : idx + 3]
+                lp, rp = _first_py_quoted(left), _first_py_quoted(right)
+                assert lp == rp, (
+                    f"{event} hook fallback targets a different script "
+                    f"({lp!r} vs {rp!r}) — both halves must invoke the same .py: {cmd!r}"
+                )

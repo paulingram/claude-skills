@@ -45,16 +45,23 @@ def test_command_frontmatter_valid(plugin_root: Path, cmd_name: str) -> None:
 
 
 def test_setup_command_uses_python3(plugin_root: Path) -> None:
-    """architect-team-setup.md must invoke python3 and must NOT contain bare ' python '."""
+    """architect-team-setup.md must invoke python3 with the polyglot `|| python ...` fallback.
+
+    v0.9.30: the convention changed from "use python3 exclusively" to "use python3 with a
+    `|| python` Windows-compat fallback". The fallback handles default Windows python.org
+    installs where only `python` is on PATH (`python3` there triggers the Microsoft Store
+    shim). On Unix where `python3` resolves, the shell short-circuits and the fallback
+    never fires. So `python3` must still appear, AND the `|| python ` fallback must
+    appear, AND every bare-`python` occurrence must be inside a `|| python ...` clause
+    or in plain prose (not as a standalone invocation).
+    """
     path = plugin_root / "commands" / "architect-team-setup.md"
     assert path.exists(), f"{path} missing"
     content = path.read_text(encoding="utf-8")
     assert "python3" in content, "setup command does not reference python3"
-    # Bare ' python ' (space on both sides) must not appear outside comment context.
-    # We check the whole file — comments in this file would be unusual and the
-    # spec says there should be zero bare-python hits after the fix.
-    assert " python " not in content, (
-        "setup command still contains bare ' python ' (space-delimited) — should be python3"
+    assert "|| python " in content, (
+        "setup command missing the `|| python ...` polyglot fallback "
+        "(v0.9.30 cross-platform-hook fix)"
     )
 
 

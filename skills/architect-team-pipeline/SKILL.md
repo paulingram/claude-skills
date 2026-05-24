@@ -58,18 +58,21 @@ A pipeline run is a long, mostly-unattended sequence of phases. The plugin ships
 **Invocation form** — run from the target project's repository root:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...] || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
+# (the `|| python ...` fallback handles Windows installs where `python3` triggers the Microsoft Store shim instead of an installed interpreter — see "Cross-platform Python invocation" below)
 ```
 
-`<event>` is one of the five recognized types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`. The interpreter is `python3`, matching the plugin-script convention used by every command in `hooks/hooks.json`.
+`<event>` is one of the five recognized types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`.
+
+**Cross-platform Python invocation.** Every plugin-script call in this skill (and in `hooks/hooks.json`) uses the polyglot pattern `python3 X.py args || python X.py args`. The `python3` form is the Unix idiom (Linux/macOS); the `|| python ...` fallback handles default Windows python.org installs where only `python` is on PATH and `python3` triggers the Microsoft Store shim. On systems where `python3` is callable the fallback never fires (the shell short-circuits); on systems where it isn't, the second attempt runs with `python` and the hook/notifier still succeeds. This is the binding convention — when you copy a `python3 ...` invocation from this skill body into a Bash call, copy the `|| python ...` fallback with it.
 
 **Best-effort, never gating — non-negotiable.** Every notifier invocation in this skill is **best-effort**: the notifier always exits 0, and a notification failure (missing config, missing provider secret, SMTP/network error, malformed input) NEVER blocks, fails, or alters a pipeline run. The orchestrator invokes the notifier and proceeds immediately to the next pipeline step regardless of the notifier's output — these invocations are notifications about pipeline progress, never preconditions for it. Do not gate, retry, or wait on a notifier invocation.
 
 **Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every phase below.** At the **start of each phase** (Phase −1, 0, 1, 2, 3, 3b, 4, 5, 6, 7, 8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the phase name:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
 ```
 
 These two phase-boundary invocations are best-effort exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at the specific phase steps marked inline below.
@@ -272,7 +275,7 @@ After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression 
    - **Emit an `issue_discovered` notification** (best-effort; see `## Notifications`) when a new, not-yet-actioned SR is picked up — the orchestrator invokes the notifier from the target project's root, passing the SR's issue summary, then proceeds immediately regardless of the notifier's outcome:
 
      ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's issue summary>"
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's issue summary>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's issue summary>"
      ```
 
      This invocation is best-effort and NEVER blocks or alters the SR intake — a notifier failure does not stop the SR from being processed.
@@ -306,7 +309,7 @@ When a feature spans both layers, integration only begins after **both** layer-t
 2. The Integration Agent runs the full integration test suite locally first, then **against the development API with live dev data** — not mocks. Connection details come from the OpenSpec design artifact. Follow `dev-api-integration-testing`. **When the live dev environment is brought up** — the running dev instance someone can see, against which the integration + Playwright suites run — the orchestrator emits a `deploy` notification (best-effort; see `## Notifications`), passing `--layer` for the layer being brought up (e.g. `backend`, `frontend`, `fullstack`). It invokes the notifier from the target project's root and proceeds immediately:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer>
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer>
    ```
 
    This `deploy` invocation is best-effort and NEVER blocks, fails, or delays bringing the dev environment up — a notifier failure does not affect the deploy or the integration run.
@@ -383,7 +386,7 @@ The invoking command (`/architect-team`) sets `AUTO_COMMIT` and `AUTO_PUSH` flag
 
 If `AUTO_COMMIT = true`:
 
-0. **Run the completion audit FIRST — it gates the commit.** From the repo root, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. This is the same audit the `Stop` hook runs; running it here, before staging anything, converts "clean pass" from the orchestrator's self-assessment into a checked fact. If it exits non-zero, the run is NOT complete (an open SR, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness debt, a failing master-review audit verdict, a failing **documentation-currency audit** verdict, or a blown iteration ceiling) — do NOT auto-commit. Resolve every reported violation and re-run the audit, OR escalate per the run-state rules below. Only an exit-0 audit may proceed to step 1. The auto-commit also requires the Phase 7 **master-review audit** AND the Phase 8 **documentation-currency audit** verdicts to be `overall: pass` — `pipeline-completion-audit.py` enforces both: if a `.architect-team/master-review/audit-*.json` or a `.architect-team/documentation-currency/audit-*.json` verdict exists, its latest `overall` must be `pass`, alongside the existing checks.
+0. **Run the completion audit FIRST — it gates the commit.** From the repo root, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check || python "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. This is the same audit the `Stop` hook runs; running it here, before staging anything, converts "clean pass" from the orchestrator's self-assessment into a checked fact. If it exits non-zero, the run is NOT complete (an open SR, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness debt, a failing master-review audit verdict, a failing **documentation-currency audit** verdict, or a blown iteration ceiling) — do NOT auto-commit. Resolve every reported violation and re-run the audit, OR escalate per the run-state rules below. Only an exit-0 audit may proceed to step 1. The auto-commit also requires the Phase 7 **master-review audit** AND the Phase 8 **documentation-currency audit** verdicts to be `overall: pass` — `pipeline-completion-audit.py` enforces both: if a `.architect-team/master-review/audit-*.json` or a `.architect-team/documentation-currency/audit-*.json` verdict exists, its latest `overall` must be `pass`, alongside the existing checks.
 1. `git -C <repo-root> status --porcelain` — enumerate what changed during the run.
 2. Identify the pipeline's working set: every file under `openspec/changes/<change-name>/`, every CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP touched, every file referenced in any review-gate evidence's `files_changed`, and any test files added. Do NOT use `git add -A` — explicitly enumerate.
 3. `git -C <repo-root> add <enumerated-files>`.
@@ -405,7 +408,7 @@ If `AUTO_COMMIT = true`:
 5b. **Immediately after the commit succeeds**, the orchestrator emits a `git_commit` notification (best-effort; see `## Notifications`), passing `--commit` with the new commit SHA. It invokes the notifier from the target project's root and proceeds immediately:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
    ```
 
    This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.

@@ -56,7 +56,7 @@ Invoke the `bug-fix-pipeline` skill from this plugin (use the Skill tool with `s
 
 At the end of Phase B8, after the final report emits **"Bug `<bug-slug>` has been resolved."** and the archive path:
 
-0. **Run the completion audit FIRST:** `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check` from the repo root. If it exits non-zero, the run is incomplete — do NOT commit. Resolve violations or escalate.
+0. **Run the completion audit FIRST:** `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check || python "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check` from the repo root. The `|| python ...` fallback handles default Windows python.org installs where only `python` is on PATH (`python3` triggers the Microsoft Store shim there); on Unix the first form succeeds and the fallback never fires. If the final exit is non-zero, the run is incomplete — do NOT commit. Resolve violations or escalate.
 1. `git -C <repo-root> status --porcelain` to enumerate what changed.
 2. `git -C <repo-root> add <files-the-pipeline-touched>` — stage ONLY the files the pipeline created or modified (the openspec change folder, the reproduction artifacts, the fix's source-code changes, any updated maps). Do NOT use `git add -A`.
 2b. **Default-branch guard:** if the current branch is `main` / `master` and `ALLOW_PUSH_TO_DEFAULT` is false, `git -C <repo-root> checkout -b architect-team/<bug-slug>` before committing.
