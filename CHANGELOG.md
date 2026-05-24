@@ -2,6 +2,80 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.29] — 2026-05-23
+
+### Added — `ux-test-builder` capability + `bug-fix-pipeline` Phase B6b Logical Sensibility Check
+
+Two related additions that ship together: a NEW persona-driven UX-test orchestrator that finds bugs by walking a persona's flow tree, AND a missing verification gate in the existing bug-fix pipeline that closes a real-world cohesion gap (the *"auth-unavailable after the Sign-Back-In fix"* case).
+
+#### User directive 1 (UX test builder)
+
+> *"ok now I want a new capability, a ux test builder which leverages playwright. We can specify the credentials and the site, and the objectives of a person. The first thing is the description is captured, then the full site map is either produced (if not updated) using the skills where we go and map out all flows and interactivity and linkages, or it is reviewed and the AI first attempts to make as literal of a flow as the user describes and then also spins up 3 AI who take into account all the available site interactivity and then come up with 10-15 additional user flows that would enhance / improve the users request. … Their inputs are aggregated and distilled to a unique list. Then that unique list is converted one by one into distinct playwright flows operating on the website infra provided. … then it executes these and documents successes or failures. 3 agents spin up to execute the flows and document how they work. The results are pooled. Any flow with disagreements is reexamined again until consensus is found. Bugs are documented clearly and then at the end, passed to our bug fix routine for resolution."*
+
+#### User directive 2 (post-deploy sensibility check)
+
+> *"we also need to fix this — sometimes despite using bugfix, it introduces bad logic. Example: 'why am I seeing Sign-in is unavailable — the authentication service is not configured for this build when it clearly is? how did this make it out of your fix module and why didnt you catch this. The fix correctly routes Sign Back In to /login, but the deployed bundle is hermetic (no VITE_\* baked), so the LoginScreen shows auth-unavailable.' There needs to be a post deployment check for sensibility on all elements touched."*
+
+The two are related: the UX test builder is the upstream-discovery end of "what's broken on this site"; the bug-fix Phase B6b sensibility check is the downstream-verification end of "did our fix re-break something the QA-replay's narrow contract didn't catch." Both ride on the same Playwright execution infrastructure; both feed the same bug-fix-pipeline. Implements requirements REQ-001..018 of the `ux-test-builder` OpenSpec change.
+
+#### REQ-001 + REQ-002 — `ux-test-builder` skill + `/architect-team:ux-test` command
+
+- `skills/ux-test-builder/SKILL.md` — NEW. The orchestrator playbook with phases U0 → U9. Five non-negotiable disciplines: real-site testing, 3-agent convergence at expansion + execution, literal-first-then-expand, bug-route-not-just-document, explorer-expansion-is-context-aware.
+- `commands/ux-test.md` — NEW. `/architect-team:ux-test`. Same input-form discipline as `/architect-team`. New flags: `--site <URL>`, `--dev`, `--credentials <ENV_VAR>`, `--persona`, `--objectives`. Includes a credential-discipline section that REJECTS inline raw secrets and only accepts env-var NAMES.
+
+#### REQ-003..012 — Phases U0 → U9
+
+- **U0 (Intake)** — credentials stored as env-var-name only; raw secrets NEVER persisted. Vague-input escalation as domain gate.
+- **U1 (Site mapping)** — reuses `intake-and-mapping` verbatim; Phase −1D bulk-verify gate fires when low-confidence intuitions surface.
+- **U2 (Literal flow)** — one Playwright `.spec.ts` matching the user's request verbatim. Becomes flow #1.
+- **U3 (Flow expansion)** — 3 `flow-explorer` agents in parallel; each proposes 10-15 additional adjacent flows; they do NOT consult each other; explicitly forbidden to rephrase the literal.
+- **U4 (Distillation)** — orchestrator-serialized semantic dedup; produces a unique flow set with `source_explorers` attribution.
+- **U5 (Playwright authoring)** — one `.spec.ts` per distilled flow; per-step expectations per `root-cause-test-failures`.
+- **U6 (Parallel execution)** — 3 `flow-executor` agents in parallel; each runs every flow once (3N executions; the redundancy IS the consensus mechanism).
+- **U7 (Consensus)** — pool the 3 verdicts; unanimous → consensus; disagreement → 3-cycle bounded re-examination; post-bound escalates as a domain gate.
+- **U8 (Bug routing)** — each `fail` flow becomes a structured bug artifact + an SR with `origin.kind: "ux-flow-failure"` that auto-routes through `bug-fix-pipeline`. UX test builder does NOT block on bug fixes.
+- **U9 (Final report)** — summary at `.architect-team/runs/ux-test-<slug>-<ts>.md`; auto-commit + push per the default-branch guard discipline.
+
+#### REQ-013 — `flow-explorer` agent
+
+- `agents/flow-explorer.md` — NEW. Opus, bounded `Write` to expansions/ directory; reads persona + maps + literal flow; proposes 10-15 ADDITIONAL flows (not rephrasing the literal). Documents the do-not-consult-others rule + the canonical adjacency-discovery example (the *"secretary uploading files"* case: 3 upload paths + parsed data on 10 pages).
+
+#### REQ-014 — `flow-executor` agent
+
+- `agents/flow-executor.md` — NEW. Opus, `Bash` (Playwright execution) + bounded `Write` to executions/ directory. Per-flow verdicts: `pass | fail | flaky | env-failure`. Documents the 3-executor redundancy rationale + the per-flow result schema + the no-credential-leakage discipline.
+
+#### REQ-016 — `bug-fix-pipeline` Phase B6b — Logical Sensibility Check (directive 2)
+
+- `skills/bug-fix-pipeline/SKILL.md` — MODIFIED. New `## Phase B6b — Logical Sensibility Check` section inserted between B6 (QA replay) and B7 (Archive). Quotes the user's *"auth-unavailable / hermetic bundle / VITE_*"* case verbatim as the rationale. Documents the impact-set computation (changed files + their importers + their nav destinations + their endpoints), the four verdict values (`sensible | nonsensical | env-failure | not-reachable`), the recursive routing of `nonsensical` items as fresh SRs with `origin.kind: "fix-regression"`, the bounded-recursion rule (3 consecutive fix-regression SRs escalates), and the `--no-deploy` skip-with-note behavior. Also adds the SR origin-kind table documenting `ux-flow-failure` (v0.9.29 from ux-test-builder) and `fix-regression` (v0.9.29 from B6b).
+
+#### REQ-017 — `fix-sensibility-checker` agent
+
+- `agents/fix-sensibility-checker.md` — NEW. Opus, `Bash` + bounded `Write` to `.architect-team/sensibility/<bug-slug>/`. Has a dedicated `## Impact-set computation` section documenting the git-grep heuristics (UI components + one-level importers + nav destinations + endpoints). Authors minimal Playwright sensibility flows per impact-set item; runs against the deployed dev environment; per-item verdict. The `not-reachable` verdict is logged but doesn't generate an SR (the item can't be exercised so the fix can't have broken it from the user's view).
+
+#### REQ-015 — Test coverage
+
+- `tests/test_ux_test_builder_skill.py` — NEW. Frontmatter; all 10 phase headers (U0-U9); five disciplines; intake-schema fields; credentials-env-var-only rule; literal-as-flow-1; 3-explorer independent rule + 10-15 directive + do-not-rephrase rule; semantic dedup + source_explorers; 3-executor redundancy + 4 verdicts; 3-cycle bounded convergence + domain-gate escalation; ux-flow-failure routing.
+- `tests/test_flow_explorer_agent.py` — NEW. Frontmatter; opus; tools (no Edit, Write present); 10-15 directive; do-not-rephrase rule; proposal-entry schema fields.
+- `tests/test_flow_executor_agent.py` — NEW. Frontmatter; opus; tools (no Edit, Bash + Write present); 4 verdicts; redundancy rationale; per-flow result path; do-not-consult rule; no-credential-leakage rule.
+- `tests/test_fix_sensibility_checker_agent.py` — NEW. Frontmatter; opus; tools (no Edit, Bash + Write present); Impact-set computation section; 4 verdicts (sensible/nonsensical/env-failure/not-reachable); impact-set kinds (ui-component/importer/nav-destination/api-endpoint); one-level importer bound; deployed-dev-environment discipline; verdict-file path.
+- `tests/test_ux_test_builder_wiring.py` — NEW. Cross-cutting wiring tests: command registered; command invokes the skill; command documents new flags + credential discipline + same-input-forms; bug-fix-pipeline documents ux-flow-failure origin; ux-test-builder references bug-fix-pipeline + intake-and-mapping + playwright-user-flows + root-cause-test-failures.
+- `tests/test_bug_fix_phase_b6b_sensibility.py` — NEW. Cross-cutting: Phase B6b section exists; lexically between B6 and B7; dispatches fix-sensibility-checker; documents impact-set computation; names 4 verdicts; names fix-regression origin; documents --no-deploy skip + bounded recursion + recursive routing; references the auth-unavailable case.
+- `tests/test_skills.py`, `tests/test_agents.py`, `tests/test_commands.py` — MODIFIED. EXPECTED_* sets += the new entries.
+
+#### REQ-018 — Documentation + release v0.9.29
+
+- README: banner / version badge / tests badge (1014) / NEW IN panel header + new v0.9.29 row / timeline `(current)` moved to v0.9.29 / inventory grid (SKILLS 22→23, AGENTS 22→25, COMMANDS 7→8).
+- CODEBASE_MAP / CLAUDE.md / INTEGRATION_MAP frontmatter timestamps + counts updated.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — `version: "0.9.29"`.
+
+#### Tests
+
+- **1014 pass / 0 fail** (`python -m pytest -q`). +90 net new tests against the v0.9.28 baseline of 924: 6 new structural test files + the appended entries in EXPECTED_SKILLS, EXPECTED_AGENTS (×3), EXPECTED_COMMANDS parametrizations.
+
+#### The full chain
+
+Persona description → UX test builder discovers flows → Playwright executes → bugs found → bug-fix-pipeline routes each → fix proposed → fix verified at B6 (QA-replay) AND at B6b (sensibility check) → fix archived → consumer never sees a half-baked fix that re-broke something else.
+
 ## [0.9.28] — 2026-05-23
 
 ### Fixed — cohesion-review close-out: confirmed-stubs cross-reference + polish (issues #5-#10)

@@ -13,6 +13,7 @@ EXPECTED_COMMANDS: set[str] = {
     "memory",
     "editability-audit",
     "bug-fix",
+    "ux-test",
 }
 
 REQUIRED_KEYS = {"description"}

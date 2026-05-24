@@ -229,6 +229,47 @@ The replayer's verdict is one of:
 
 **Loop bounds:** the bug-fix loop is bounded at **10 iterations locally** (a tighter signal than the global 20-step ceiling — most bug fixes should converge in 1-3 iterations; 10 is an early-escalation threshold). The global `dev_loop_iterations` counter in `intake-state.json` increments every B3 → B6 cycle, against the same 20-step absolute ceiling as the main pipeline. Oscillation detection applies: a fix that keeps re-breaking the same symptom (or the same proposal landing 3 times) escalates to the user.
 
+## Phase B6b — Logical Sensibility Check (v0.9.29)
+
+After Phase B6 returns `bug-resolved` and BEFORE Phase B7's archive, the orchestrator runs a logical sensibility check on the impact set of the fix. Closes a real-world gap surfaced by user feedback:
+
+> *"Why am I seeing 'Sign-in is unavailable — the authentication service is not configured for this build' when it clearly is? How did this make it out of your fix module and why didn't you catch this. The fix correctly routes Sign Back In to /login, but the deployed bundle is hermetic (no VITE_* baked), so the LoginScreen shows 'auth-unavailable.' There needs to be a post deployment check for sensibility on all elements touched."*
+
+B6's QA-replay verifies the ORIGINAL symptom is gone (clicking Sign Back In routes to `/login` — necessary). The user's experience was still broken because `/login` itself rendered "auth-unavailable" — the fix didn't break the route, but the route's destination was broken independently and the QA-replay's narrow scope didn't catch it. B6b widens the verification: the agent reads the fix's git diff, computes the **impact set** (changed files + their importers + nav destinations + endpoints), and runs minimal Playwright sensibility flows on each impact-set item against the deployed dev environment.
+
+**Why a new phase, not an enhancement to B6:** B6's `qa-replayer` runs the SPECIFIC reproduction artifact from B2. Its scope is intentionally narrow — "is the user's reported symptom gone?" Widening B6 would muddy that contract. B6b adds a separate phase + a separate agent (`fix-sensibility-checker`) so each role's responsibility stays crisp.
+
+### Process
+
+1. **Compute the impact set.** The orchestrator (or the dispatched `fix-sensibility-checker` agent — the canonical impact-set computation is in the agent body's `## Impact-set computation` section) reads `git diff <merge-base>..<fix-commit-sha> --name-only` and classifies each changed file (UI component / page / API endpoint / style / config). For each changed file, the agent expands to importers (one level — `git grep` for the file's import paths) + nav destinations (for changed pages — `<Link to=` / `router.push(` / `navigate(` patterns) + endpoints (for changed API handlers).
+2. **Dispatch the `fix-sensibility-checker` agent** with the impact set + the deployed dev URL + the credentials env-var.
+3. **The agent authors minimal Playwright sensibility flows per impact-set item.** Each flow is small (5-10 lines): navigate to the page / load the component / call the endpoint, and assert it renders without an error banner ("auth-unavailable", "service-unavailable", "configuration-missing", "could not load", "500", "404"), without console errors, without broken auth surfaces, without missing-data placeholders.
+4. **The agent runs the sensibility flows against the deployed dev environment** (per `playwright-user-flows` — same real-running-app discipline as B6).
+5. **Per-item verdict:** one of `sensible` / `nonsensical` / `env-failure` / `not-reachable`. Persisted in the agent's verdict file at `<cwd>/.architect-team/sensibility/<bug-slug>/checker-<ts>.json`.
+6. **The orchestrator pools the verdicts:**
+   - **All `sensible`** → B6b passes; proceed to B7.
+   - **Any `nonsensical`** → the orchestrator writes a FRESH solution requirement for each `nonsensical` item with `origin.kind: "fix-regression"`, the failing impact-set item as the symptom, the captured trace + screenshots as evidence. The new SR routes back through the bug-fix-pipeline (recursive — a new B−1 → B8 loop on the new bug). The CURRENT fix is NOT marked complete; the new SR resolves first, then B6 + B6b re-run on the new state.
+   - **Any `env-failure`** → routes to the implementing team for env diagnosis (parity with B6's `env-failure` handling).
+   - **Any `not-reachable`** → logged in the verdict file as an audit-trail item; no SR generated (the item being not-reachable means the fix can't have broken it from the user's view).
+
+### Bounded recursion
+
+The fix-regression loop counts against the global 20-step iteration ceiling per `architect-team-pipeline`'s run-state rules. **Plus** a tighter local rule: **3 consecutive fix-regression SRs on the same bug-fix run escalates to the user** (the original bug likely has a deeper architectural issue that needs human attention; auto-fixing further is wasted effort until the human reviews the chain). Track the fix-regression-cycle counter in the SR ledger.
+
+### The --no-deploy skip
+
+If the user invoked the bug-fix run with `--no-deploy` (the dev environment is hand-managed), B6b is SKIPPED with a note in the final report: *"Logical Sensibility Check (Phase B6b) was skipped because `--no-deploy` was set. The QA-replay at Phase B6 verified the original symptom is gone, but the impact set was NOT independently sensibility-checked. Consider re-running the bug-fix without `--no-deploy` for the full verification."* Phase B7 then runs without B6b's verdict.
+
+### SR origin kinds the bug-fix-pipeline now recognizes
+
+Phase B3b's SR intake (when a bug-fix run is itself spawned by an SR, vs. directly via `/architect-team:bug-fix`) recognizes these SR origin kinds:
+
+| `origin.kind` | Source phase | Routing |
+|---|---|---|
+| `ux-flow-failure` | `ux-test-builder` Phase U8 (v0.9.29) | Normal bug-fix-pipeline flow B−1 → B8, with the failing flow as the regression-test contract |
+| `fix-regression` | bug-fix-pipeline Phase B6b (v0.9.29) | Same as above — recursive on the original bug-fix run |
+| (other existing kinds — `rca-product-bug`, `playwright-failure`, etc.) | Various (v0.9.22 and prior) | Same |
+
 ## Phase B7 — Archive + Report
 
 On `bug-resolved` at B6:

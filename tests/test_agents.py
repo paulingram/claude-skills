@@ -28,6 +28,9 @@ EXPECTED_AGENTS: set[str] = {
     "qa-replayer",
     "bug-classifier",
     "doc-updater",
+    "flow-explorer",
+    "flow-executor",
+    "fix-sensibility-checker",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

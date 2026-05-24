@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 28
+                            ─── T E A M ───   v 0 . 9 . 29
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,19 +21,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.28-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.29-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-924%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-1014%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.28  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.29  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **UX test builder — persona-driven flow discovery → execution → bug-routing, plus a Phase B6b post-deploy sensibility check in the bug-fix pipeline (v0.9.29)** | The plugin's Playwright disciplines (`playwright-user-flows`, `interaction-intuition`, `interaction-completeness`) all operated on *the system being built*. None answered: *"given a persona + objective + a target site, does the site let the person do what they need AND the adjacent things they'd realistically need without breaking?"* v0.9.29 ships that — the new **`ux-test-builder`** skill (10 phases U0-U9, reached via `/architect-team:ux-test`) takes a persona description + objectives + target site (URL or `--dev`) + credentials (env-var reference, never the secret), maps the site (reuses `intake-and-mapping`), drafts a literal Playwright flow matching the user's exact ask at U2, dispatches 3 new **`flow-explorer`** agents at U3 to propose 10-15 adjacent flows each (the *"user said 'upload files' but the site has 3 upload paths and parsed data on 10 pages"* case — explorers find what the literal description missed), distills semantically at U4, authors one `.spec.ts` per flow at U5, dispatches 3 new **`flow-executor`** agents at U6 to run every flow once in parallel against the live target (3 × N executions; the redundancy IS the consensus mechanism), pools verdicts at U7 with 3-cycle bounded convergence on disagreements, and at U8 documents every `fail` flow as a bug + auto-routes through the existing `bug-fix-pipeline` with `origin.kind: "ux-flow-failure"`. **Also closes a real-world bug-fix-pipeline gap (cohesion-issue from a user report):** *"The fix correctly routes Sign Back In to /login, but the deployed bundle is hermetic (no VITE_* baked), so the LoginScreen shows 'auth-unavailable.' There needs to be a post deployment check for sensibility on all elements touched."* v0.9.29 adds **`## Phase B6b — Logical Sensibility Check`** in the bug-fix-pipeline (between B6 QA-replay and B7 archive) + the new **`fix-sensibility-checker`** agent that computes the impact set from the fix's git diff (changed files + their importers + nav destinations + endpoints), authors minimal Playwright sensibility flows per impact-set item, runs them against the deployed dev environment, and routes any `nonsensical` item as a fresh SR with `origin.kind: "fix-regression"` for recursive bug-fix-pipeline processing. The full chain: persona → flows discovered → flows executed → bugs found → bug-fix applied → QA-replay verifies symptom-gone → **B6b sensibility-checks the impact set → any new regression auto-loops** → finally archive. Bounded — 3 consecutive fix-regression SRs escalates. |
 | ▸ **Cohesion-review close-out: confirmed-stubs cross-reference + polish (v0.9.28)** | Closes the remaining 6 issues from the v0.9.23 cohesion review in one release. **Issue #5 (UX)** — Phase −1D's `user_verdict: confirmed-stub` entries now flow downstream to Phase 5's `interaction-completeness` team: before enumerating, each reviewer reads `<codebase>/docs/INTERACTION_INTUITION_MAP.md`, pre-populates the converged map's `confirmed_stubs[]` for every pre-confirmed element (keyed on `element_id`), and does NOT re-ask the user. Stale-intuition handling (the element exists in the map but no longer in the enumeration) is documented as an `escalations[]` entry. The cross-reference is bidirectional with v0.9.21's binding-input rule. **Issue #6** — the v0.9.23 doc-updater dogfood asymmetry (the agent didn't exist when its own release ran) is now explicitly marked historical in CODEBASE_MAP. **Issue #7** — the Phase −1D structural-level choice (sub-section D in the main pipeline; its own H2 in intake-and-mapping) is intentionally aesthetic; a clarifying note documents this in both files. **Issue #8** — the `## Default mode of operation` section in the pipeline skill gains three H3 sub-headings (`### Gates are opt-in (process gates)`, `### Process gates vs. domain gates`, `### Proposal-first mode`) for navigability. **Issue #9** — `system-architect.md` gains an `## Audit modes` index table near the top listing all 7 audit modes + their verdict file locations + their default-mode counterpart, so the agent body is navigable at first glance. **Issue #10** — CODEBASE_MAP documents the plugin-cache vs. source-on-disk lag (cached plugin loads pinned-version skill bodies; consumer must `/plugin marketplace update` + `/plugin update architect-team` + `/reload-plugins` after a release commit lands). New `tests/test_confirmed_stubs_cross_reference.py` (12 cases) covers #5 + asserts the polish items #7-#10 landed. |
 | ▸ **bug-fix-pipeline gets full notification wiring (v0.9.27)** | A v0.9.23 cohesion-review finding (issue #4): the main `architect-team-pipeline` mandates `phase_start` / `phase_complete` notifier calls at every phase boundary (Phase −1, 0, 1, ..., 8), plus `issue_discovered` / `git_commit` / `deploy` at specific phase steps. The v0.9.22 `bug-fix-pipeline` skill carried only ONE notification line — the `deploy` event at Phase B5. Phase B−1, B0, B1, B2, B3, B4, B6, B7, B8 had no documented `phase_start`/`phase_complete` wiring; the `issue_discovered` event was never wired (despite Phase B6's `bug-still-present` branch writing a fresh SR — exactly what `issue_discovered` exists to surface); the `git_commit` event was never wired (despite Phase B8 producing a commit). Subscribers to a target project's `.architect-team-notify.json` got verbose coverage of feature runs but silent bug-fix runs. v0.9.27 adds a full `## Notifications` section to `skills/bug-fix-pipeline/SKILL.md` paralleling the main pipeline's coverage, plus inline `issue_discovered` wiring at Phase B6's `bug-still-present` branch and inline `git_commit` wiring at Phase B8 immediately after the commit succeeds. All five event types (`phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`) now fire on bug-fix runs with the same opt-in / best-effort / never-blocking discipline as the main pipeline. New `tests/test_bug_fix_pipeline_notifications.py` (22 cases) asserts the section structure + the inline wiring + that every B-phase appears in the phase-boundary wiring list + parity with the main pipeline's CLI invocation form. |
 | ▸ **system-architect agent gets bounded `Write` for its 7 audit verdicts (v0.9.26)** | A v0.9.23 cohesion-review finding (issue #3): the `system-architect` agent's body documented seven audit modes (Diagnostic Plan Review, Editability Map Review, Interaction Map Review, Visual Gap Synthesis, Master Review Audit, Documentation Currency Audit, Bug-Fix Generalization Audit) each ending with *"Write a verdict to `<cwd>/.architect-team/.../audit-<ts>.json`"* — but the agent's tools allowlist had no `Write`, and the Tools posture section explicitly said *"You have NO Edit or Write access."* The audit modes were internally contradicting the tools posture. Workaround was `Bash` heredoc — but every other verdict-producing agent in the plugin (`doc-updater`, `route-mapper`, `interaction-intuiter`, `bug-replicator`) uses `Write` with a bounded scope. v0.9.26 adds `Write` to the system-architect's allowlist with a bounded scope (verdict paths under `<cwd>/.architect-team/` only — NEVER source code, tests, openspec/* artifacts, the documentation-currency inventory (that's `doc-updater`'s scope per v0.9.23), `.claude-plugin/plugin.json` / `marketplace.json` (version source-of-truth), or any path outside `.architect-team/`). A new `## Bounded Write scope` section enumerates the 7 allowed paths in a table (one per audit mode). `Edit` remains excluded — whole-file verdict writes enforce consistency across the verdict's related fields (same discipline as `doc-updater`'s v0.9.23 design). New `tests/test_system_architect_write_scope.py` (14 cases) asserts `Write` is present, `Edit` is absent, the Tools posture documents the bounded scope (citing `doc-updater` for inventory ownership), the `## Bounded Write scope` section exists with each of the 7 audit modes + path prefixes documented, source-code / tests / openspec / inventory / plugin.json writes are explicitly forbidden, whole-file-writes rationale is documented. The pre-v0.9.26 *"NO Edit or Write access"* language is gone. |
@@ -70,7 +71,7 @@
 ```
 
 ```
-┌─ SKILLS (22) ───────────────────────┬─ AGENTS (22) ─────────────────────────┐
+┌─ SKILLS (23) ───────────────────────┬─ AGENTS (25) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -93,7 +94,10 @@
 │ ◇ dynamic-value-discovery           │ ◆ bug-classifier (sonnet)             │
 │ ◇ interaction-intuition             │ ◆ interaction-intuiter (opus)         │
 │ ◇ bug-fix-pipeline                  │ ◆ doc-updater (opus)                  │
-├─ COMMANDS (7) ──────────────────────┴───────────────────────────────────────┤
+│ ◇ ux-test-builder                   │ ◆ flow-explorer (opus)                │
+│                                     │ ◆ flow-executor (opus)                │
+│                                     │ ◆ fix-sensibility-checker (opus)      │
+├─ COMMANDS (8) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder>                             │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -101,6 +105,7 @@
 │ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                 │
 │ ▸ /architect-team:editability-audit [<codebase-path>]                       │
 │ ▸ /architect-team:bug-fix <bug-description | requirements-folder>           │
+│ ▸ /architect-team:ux-test <persona + objectives + --site or --dev>          │
 ├─ HOOKS (3) ─────────────────────────────────────────────────────────────────┤
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v6 + independent review  │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │
@@ -827,7 +832,8 @@ Tests validate: plugin/marketplace JSON; all 20 skill frontmatters; all 17 agent
            v0.9.25 ─ bug-fix-pipeline gets its own planning-validation gate at Phase B3
            v0.9.26 ─ system-architect agent gets bounded Write for its 7 audit verdicts
            v0.9.27 ─ bug-fix-pipeline gets full notification wiring
-   ◆       v0.9.28 ─ cohesion-review close-out: confirmed-stubs cross-reference + polish (current)
+           v0.9.28 ─ cohesion-review close-out: confirmed-stubs cross-reference + polish
+   ◆       v0.9.29 ─ UX test builder + bug-fix Phase B6b post-deploy sensibility check (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

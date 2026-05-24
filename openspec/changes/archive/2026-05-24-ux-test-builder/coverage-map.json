@@ -1,0 +1,157 @@
+{
+  "$schema": "openspec/coverage-map.schema.json",
+  "change_name": "ux-test-builder",
+  "schema_version": 1,
+  "source_directive": "ok now I want a new capability, a ux test builder which leverages playwright. We can specify the credentials and the site, and the objectives of a person. The first thing is the description is captured, then the full site map is either produced (if not updated) using the skills where we go and map out all flows and interactivity and linkages, or it is reviewed and the AI first attempts to make as literal of a flow as the user describes and then also spins up 3 AI who take into account all the available site interactivity and then come up with 10-15 additional user flows that would enhance / improve the users request. Their inputs are aggregated and distilled to a unique list. Then that unique list is converted one by one into distinct playwright flows operating on the website infra provided. This can be a URL or it can be told to test on DEV. Then it executes these and documents successes or failures. 3 agents spin up to execute the flows and document how they work. The results are pooled. Any flow with disagreements is reexamined again until consensus is found. Bugs are documented clearly and then at the end, passed to our bug fix routine for resolution. // ADDITION: we also need to fix this — sometimes despite using bugfix, it introduces bad logic — we need a checker such that any fixes agree logically. Example: 'why am I seeing Sign-in is unavailable — the authentication service is not configured for this build when it clearly is? how did this make it out of your fix module and why didnt you catch this. The fix correctly routes Sign Back In to /login, but the deployed bundle is hermetic (no VITE_* baked), so the LoginScreen shows auth-unavailable. There needs to be a post deployment check for sensibility on all elements touched.'",
+  "layer_summary": "All requirements are layer:infra — new markdown skill + agents + command + Python pytest structural tests + JSON manifests. The architect-team plugin has no frontend and no backend; therefore no Playwright user-flow criteria and no dev-API integration criteria are required for the plugin's own test suite. The new ux-test-builder and the new fix-sensibility-checker are themselves Playwright-orchestrating capabilities that operate against EXTERNAL target sites — the plugin defines the discipline; consumer projects' dev environments are what the agents run against.",
+  "playwright_n_a_authorization": "The architect-team plugin self-modification has no UI to test. The codebase is markdown skills + Python hooks/tests + JSON manifests. Playwright user-flow criteria are N/A for every requirement of THIS change. (Note: the ux-test-builder + fix-sensibility-checker disciplines MANDATE Playwright flows against TARGET projects' sites — that discipline is documented in the skill/agent bodies, not exercised against the plugin's own test suite.)",
+  "dev_api_n_a_authorization": "The architect-team plugin has no backend API. Dev-API integration testing criteria are N/A for every requirement of THIS change.",
+  "requirements": [
+    {
+      "source_requirement_id": "USER-UX-TEST-ORCHESTRATOR",
+      "summary": "A persona-driven UX test orchestrator with 10 phases U0-U9.",
+      "spec_requirements": ["REQ-001", "REQ-002"],
+      "tasks": ["1.1-1.5", "2.1-2.5"],
+      "layer": "infra",
+      "scenarios": [
+        "skills/ux-test-builder/SKILL.md exists with valid frontmatter",
+        "skill body contains all ten phase headers U0-U9",
+        "five non-negotiable disciplines named",
+        "commands/ux-test.md exists with valid frontmatter",
+        "command argument-parsing mirrors /architect-team",
+        "command documents the five new flags (--site, --dev, --credentials, --persona, --objectives)"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions for skill + command structure pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-INTAKE-SCHEMA",
+      "summary": "Phase U0 intake schema with credential-env-var-only handling.",
+      "spec_requirements": ["REQ-003"],
+      "tasks": ["3.1-3.3"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase U0 documents every required intake-schema field",
+        "raw credential secrets are NEVER persisted (only env-var names)",
+        "U0 escalates on vague persona/objectives (domain gate)"
+      ],
+      "acceptance_criteria": [
+        "pytest assertion that the intake schema section is present + the env-var-only rule is stated"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-LITERAL-THEN-EXPAND",
+      "summary": "U2 drafts the literal flow first; U3 dispatches 3 explorer agents to propose 10-15 ADDITIONAL flows; U4 distills.",
+      "spec_requirements": ["REQ-004", "REQ-005", "REQ-006", "REQ-007", "REQ-013"],
+      "tasks": ["4.1-4.2", "5.1-5.3", "6.1-6.4", "7.1-7.3", "13.1-13.4"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase U1 cites intake-and-mapping",
+        "Phase U2 documents literal-flow-as-flow-1 + cites playwright-user-flows",
+        "Phase U3 documents 3-explorer parallel dispatch + 10-15-additional-flows + do-not-rephrase-literal",
+        "explorers do NOT consult each other during U3",
+        "Phase U4 documents semantic dedup + source_explorers attribution",
+        "flow-explorer agent registered + frontmatter valid + tools (no Edit, Write present) + body documents directives"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions across the literal-then-expand phases pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-PARALLEL-EXEC-CONSENSUS",
+      "summary": "U5 authors Playwright per flow; U6 dispatches 3 executor agents to run every flow independently; U7 resolves disagreements via bounded convergence; U8 routes bugs to bug-fix-pipeline.",
+      "spec_requirements": ["REQ-008", "REQ-009", "REQ-010", "REQ-011", "REQ-014"],
+      "tasks": ["8.1-8.2", "9.1-9.4", "10.1-10.4", "11.1-11.4", "14.1-14.5"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase U5 cites playwright-user-flows + root-cause-test-failures",
+        "Phase U6 documents 3-executor parallel + every-flow-once redundancy",
+        "Phase U6 names all four verdict values",
+        "Phase U7 documents 3-cycle bounded convergence + post-bound escalation as domain gate",
+        "Phase U8 names origin.kind: ux-flow-failure + bug-fix-pipeline routing + does-NOT-block discipline",
+        "flow-executor agent registered + frontmatter valid + tools (Bash + Write present, no Edit) + body documents four verdict values"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions across the parallel-exec-consensus phases pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-FINAL-REPORT",
+      "summary": "U9 emits the final report + auto-commits + pushes per the default-branch guard.",
+      "spec_requirements": ["REQ-012"],
+      "tasks": ["12.1-12.2"],
+      "layer": "infra",
+      "scenarios": [
+        "Phase U9 specifies the summary fields",
+        "Phase U9 references the default-branch guard"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions for the U9 section pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-POST-DEPLOY-SENSIBILITY",
+      "summary": "Address user's case ('auth-unavailable' after Sign-Back-In fix): add Phase B6b Logical Sensibility Check + fix-sensibility-checker agent.",
+      "spec_requirements": ["REQ-016", "REQ-017"],
+      "tasks": ["15.1-15.9", "16.1-16.5"],
+      "layer": "infra",
+      "scenarios": [
+        "bug-fix-pipeline skill has the Phase B6b section between B6 and B7",
+        "Phase B6b names the fix-sensibility-checker dispatch",
+        "Phase B6b documents impact-set computation (changed files + importers + nav destinations + endpoints)",
+        "Phase B6b names all four verdict values (sensible / nonsensical / env-failure / not-reachable)",
+        "Phase B6b documents the nonsensical → SR with origin.kind: fix-regression → recursive routing",
+        "Phase B6b documents --no-deploy skip-with-note + bounded-recursion rule",
+        "fix-sensibility-checker agent registered + frontmatter valid + tools (Bash + Write present, no Edit) + body has Impact-set computation section"
+      ],
+      "acceptance_criteria": [
+        "pytest assertions across the sensibility check pass"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-TEST-COVERAGE",
+      "summary": "Structural pytest coverage for the new skill, agents, command, pipeline wiring.",
+      "spec_requirements": ["REQ-015"],
+      "tasks": ["17.1-17.10"],
+      "layer": "infra",
+      "scenarios": [
+        "tests/test_ux_test_builder_skill.py passes",
+        "tests/test_flow_explorer_agent.py passes",
+        "tests/test_flow_executor_agent.py passes",
+        "tests/test_fix_sensibility_checker_agent.py passes",
+        "tests/test_ux_test_builder_wiring.py passes",
+        "tests/test_bug_fix_phase_b6b_sensibility.py passes",
+        "EXPECTED_SKILLS / EXPECTED_AGENTS / EXPECTED_COMMANDS include new entries",
+        "full suite > 924 (v0.9.28 baseline)"
+      ],
+      "acceptance_criteria": [
+        "python -m pytest -q exits 0",
+        "total passing test count strictly greater than 924"
+      ]
+    },
+    {
+      "source_requirement_id": "USER-RELEASE",
+      "summary": "Documentation currency + release as v0.9.29.",
+      "spec_requirements": ["REQ-018"],
+      "tasks": ["18.1-18.10", "19.1"],
+      "layer": "infra",
+      "scenarios": [
+        "README banner / version badge / tests badge / NEW IN panel / timeline / inventory grid reflect v0.9.29",
+        "CHANGELOG carries the [0.9.29] entry quoting both user directives verbatim",
+        "CODEBASE_MAP counts: 23 skills, 25 agents, 8 commands",
+        "INTEGRATION_MAP last_synthesized bumped",
+        "CLAUDE.md frontmatter counts updated",
+        "plugin.json + marketplace.json carry 0.9.29",
+        "Documentation-currency audit at U9 / Phase 8 returns clean"
+      ],
+      "acceptance_criteria": [
+        "tests/test_readme_styling.py banner + badge + inventory tests pass at v0.9.29",
+        "Documentation-currency audit (Phase 8 / Phase B8) returns exit-0"
+      ]
+    }
+  ],
+  "implementing_commits": [],
+  "confirmed_stubs": [],
+  "solution_requirements": []
+}

@@ -28,6 +28,7 @@ EXPECTED_SKILLS: set[str] = {
     "dynamic-value-discovery",
     "interaction-intuition",
     "bug-fix-pipeline",
+    "ux-test-builder",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
