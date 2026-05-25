@@ -24,8 +24,17 @@ Phase 5 exists to verify the layers actually integrate. For every `both`-layer f
 ## Two-phase Playwright workflow (when frontend is in scope)
 
 1. **Examine.** Read `<frontend-codebase>/docs/ROUTE_MAP.md`. For each route in the flow under test, enumerate every interactive element + API call + error response from the actual code. Write `<test-output-dir>/interactivity/<feature>.json` per the `playwright-user-flows` schema.
-2. **Author.** One test per `interactivity` entry + one per `conditional_ui` entry + traversal tests for every navigation edge. Use selectors in this priority: `getByRole` > `getByTestId` > `getByText` > CSS. Auth via storage state files. `page.route` only for forcing specific error paths.
+2. **Author.** One test per `interactivity` entry + one per `conditional_ui` entry + traversal tests for every navigation edge. Use selectors in this priority: `getByRole` > `getByTestId` > `getByText` > CSS. Auth via storage state files. `page.route` only for forcing specific error paths. **Every action-call selector must carry a selector witness assertion (`.toBeVisible()` + `.toBeEnabled()` + a disambiguating role / attribute check) immediately before the action — same v0.9.32 discipline as the bug-replicator (see `agents/bug-replicator.md`); the failure mode is identical.**
 3. **Verify coverage.** Write `<test-output-dir>/playwright-coverage.json`. Every inventory ID must appear in ≥1 test. Every endpoint in the inventory must be exercised. Every navigation must be traversed.
+4. **Code-path execution witness (v0.9.32) — MANDATORY for every test run.** After authoring, run the suite with `trace: 'on'` AND tail the dev API access log for the test window. For each feature in scope, identify the IMPLEMENTING HANDLERS from the coverage map's `implementing_commits[]` (the commits that added the feature's code — new endpoints, new handlers, new functions). Derive an invocation fingerprint per handler:
+   - **`network_request`** (preferred for frontend handlers) — the endpoint the handler calls must appear in the Playwright trace's network log.
+   - **`api_access_log`** (for backend endpoints) — the endpoint+method must appear in the dev API access log during the test window.
+   - **`dom_state_change`** (for handlers with no network call) — a uniquely-identifiable post-condition the handler sets.
+   - **`console_sentinel`** (for pure-logic handlers) — a `console.log` line in the diff.
+
+   After the run, cross-check observed fingerprints against `implementing_handlers[]`. At least ONE handler with a derivable fingerprint must be `invoked`. If ANY handler with a derivable fingerprint is `not_invoked`, the integration tests technically passed but FAILED TO EXERCISE THE FEATURE — the verdict is `feature-tests-did-not-exercise-implementation` (parallel to `qa-replayer`'s `test-did-not-exercise-fix`). Route the team back to **test re-authoring** (the implementing team's Playwright work was the culprit, NOT the feature's implementation — distinguish carefully). The witness output is written to `<test-output-dir>/code-path-witness.json` with the same schema as the qa-replayer's `code_path_witness` block.
+
+   Same failure mode as Phase B6's bug-fix witness: a Playwright test can pass via an unintended code path (selector misidentification, precondition skip, sibling-handler entry) and the feature's implementing handlers are never called. The v0.9.31 qa-replayer caught this for bug fixes; v0.9.32 extends it to feature tests at Phase 5.
 
 If `ROUTE_MAP.md` is stale (per the `intake-and-mapping` freshness check), request re-mapping BEFORE authoring tests. Tests built on stale assumptions are worse than no tests.
 

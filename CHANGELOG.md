@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.32] — 2026-05-25
+
+### Added — Full generalization of the wrong-code-path-witness discipline across all three Playwright-running sites
+
+A user-flagged generalization gap on v0.9.31. Direct verbatim:
+
+> *"the fixes you made were entirely generalizable right?"*
+
+The honest audit answer was **no**: v0.9.31 added the code-path execution witness only at Phase B6's `qa-replayer` — but the underlying failure mode (*"a Playwright test passes via an unintended code path"*) exists at three other sites. v0.9.32 closes all three sites with the parallel witness discipline:
+
+| Site | Failure mode | Witness | Verdict on fail |
+|---|---|---|---|
+| **Phase B2 — `bug-replicator`** (AUTHORING) | `text=Alabama` resolves to a state filter at test-write time; test runs, wrong element is clicked, no early failure | **Selector witness** — `.toBeVisible()` + `.toBeEnabled()` + disambiguating role/attribute check before every action call | Early test FAIL with self-diagnosing message |
+| **Phase B6 — `qa-replayer`** (BUG-FIX QA-REPLAY) | Test passes via wrong code path; bug-fix declared resolved while fix's handler was never invoked | **Code-path execution witness** (v0.9.31) | `test-did-not-exercise-fix` |
+| **Phase 5 — `integration`** (FEATURE INTEGRATION) | Same wrong-path failure for FEATURE tests; feature's implementing handlers never exercised | **Code-path execution witness** (adapted to `implementing_commits[]`) | `feature-tests-did-not-exercise-implementation` |
+| **Phase U6 — `flow-executor`** (UX-TEST EXECUTION) | UX flow "passes" Playwright assertion but persona's actual user-effect didn't happen (file not uploaded, login not landed, row not deleted) | **Flow-effect witness** — verify the U5-authored `expected_user_effect` actually occurred | `failure_reason: "flow-effect-not-witnessed"` → `origin.kind: "flow-effect-gap"` |
+
+The Phase B2 selector witness is the **earliest gate** — it catches the failure at test-authoring time before any cycle is wasted. The Phase B6 / Phase 5 / Phase U6 witnesses are **later gates** that catch the failure at verification time when the early gate was somehow bypassed (a witness assertion that itself was wrong, a selector that resolved correctly at first but the element changed by the time the action ran). Both layers are needed.
+
+**Files (6 modified across the three sites + their pipeline skills + tests):**
+
+- `agents/bug-replicator.md` — new selector witness sub-step in Step 2 + Hard rules entry. Pattern shown with the v0.9.30 *"text=Alabama"* case named verbatim so the discipline's purpose is unambiguous.
+- `agents/integration.md` — new Step 4 in the two-phase Playwright workflow (code-path execution witness for feature tests, adapted to `implementing_commits[]` instead of `fix's git diff`). New verdict `feature-tests-did-not-exercise-implementation`. Selector witness requirement added to Step 2.
+- `agents/flow-executor.md` — new Step 3.5 (flow-effect witness, the UX-domain variant). `expected_user_effect` consumed from U5; new `failure_reason: "flow-effect-not-witnessed"` discriminator + `origin.kind: "flow-effect-gap"` for downstream routing. Result schema extended with `flow_effect_witness` block.
+- `skills/bug-fix-pipeline/SKILL.md` — Phase B2 references the bug-replicator's new selector witness with a one-paragraph summary of the discipline (full pattern in the agent body).
+- `skills/architect-team-pipeline/SKILL.md` — Phase 5 step 3 references both the selector witness AND the new code-path witness with the new verdict named.
+- `skills/ux-test-builder/SKILL.md` — Phase U5 mandates the `expected_user_effect` block per flow; Phase U6 documents the flow-effect witness + the per-flow result schema update.
+
+**Tests:**
+
+- `tests/test_bug_replicator_agent.py` — 4 new tests covering selector-witness discipline / three-failure-modes coverage / v0.9.30 production-case lineage / placement in Hard rules.
+- `tests/test_integration_testing_discipline.py` — 4 new tests covering code-path witness step / four fingerprint kinds / new verdict / selector-witness requirement.
+- `tests/test_flow_executor_agent.py` — 6 new tests covering Step 3.5 / `expected_user_effect` consumption / four effect kinds / schema update / new failure_reason + origin.kind / v0.9.30 lineage.
+
+**1028 → 1042 passing (+14).** All structural.
+
+### Honest caveat (echoes v0.9.31's, applies to all four sites now)
+
+The 1042 tests verify the discipline is documented and demanded at every site. They cannot run an actual agent at runtime against a real Playwright trace. RUNTIME correctness depends on agents applying the discipline when invoked. The mitigations are the same as v0.9.31: mandatory schema fields, Hard rules forbidding skip/fabrication, structural tests that block landing future agent edits that remove the discipline.
+
+This is now the truly-generalized fix the v0.9.31 ship should have been. The failure mode (*"a Playwright test passes via an unintended code path"*) is structurally closed at every Phase-with-Playwright in the plugin.
+
 ## [0.9.31] — 2026-05-24
 
 ### Added — Phase B6 code-path execution witness + `test-did-not-exercise-fix` verdict (qa-replayer discipline upgrade)

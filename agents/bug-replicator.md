@@ -45,6 +45,26 @@ Author the flow at `<codebase>/tests/e2e/bug-fix-<bug-slug>/<flow-name>.spec.ts`
 - **Real user-interaction calls.** `page.goto(<dev-url>)` → `page.click(...)` / `page.fill(...)` / `page.selectOption(...)` / `page.press(...)` / `page.setInputFiles(...)` — NOT `page.request.*` and NOT a vacuous navigate-and-assert. The flow must drive the UI the way a user would.
 - **Real login state.** If the bug requires a logged-in user, log in via the UI's login form (or via a dev-seeded session if the project documents one) — NOT via a backdoor.
 - **Per-step expectations.** Before the test runs, write `expectations/<test-id>.json` per `root-cause-test-failures` — every step's expected post-state in concrete terms. The expectations file is the source of truth on failure mode.
+- **Selector witness assertions (v0.9.32) — MANDATORY for every interactive selector.** Before every `page.click()`, `page.fill()`, `page.selectOption()`, `page.press()`, `page.setInputFiles()`, `page.check()`, `page.uncheck()`, `page.hover()`, `page.dragTo()` — the action call — instrument the test with witness assertions that prove the selector resolved to the element you INTEND to act on. The pattern (Playwright `expect`'s second-arg message names the author's intent so the failure is self-diagnosing):
+
+  ```typescript
+  // Author intent: select Anna Tech, a real technician from the dispatcher's tech list.
+  const techRow = page.getByRole('button', { name: /^Anna Tech$/ });
+  await expect(techRow,
+    'tech selector must resolve to Anna Tech (button); a state filter labeled "Alabama" or a tooltip with similar text would fail this assertion'
+  ).toBeVisible();
+  await expect(techRow,
+    'tech selector must be enabled — if disabled, the tech list may not have loaded or the selector grabbed a non-actionable element'
+  ).toBeEnabled();
+  await techRow.click();
+  ```
+
+  The witness covers three failure modes:
+  - **Resolution wrong** — `.toBeVisible()` catches selectors that resolved to a hidden / detached / non-existent element.
+  - **Action not possible** — `.toBeEnabled()` catches selectors that resolved to an actionable element that is currently disabled (the *"Schedule button stayed disabled because no tech was selected"* failure mode from v0.9.30 production).
+  - **Wrong element with similar text** — when the selector uses a permissive text match (`text=Anna`), add `.toHaveAttribute(...)` or a role/structure assertion to disambiguate from siblings with overlapping text.
+
+  Every action-call selector that lacks a preceding witness assertion is a test-authoring defect — the test can pass via a wrong code path with no early diagnostic. The witness is the structural mitigation. Skipping it because "the selector looks obvious" is exactly the failure mode v0.9.32 closes; the v0.9.30 *"text=Alabama"* case looked obvious too.
 - **Assert the failing condition** as the test's final assertion. The test should currently FAIL because the bug is present. That failure IS the replication.
 
 #### Backend bugs (script)
@@ -121,6 +141,7 @@ Write your verdict to `<cwd>/.architect-team/bug-replications/<bug-slug>-<ts>.js
 
 - **Read-only on source code.** Read / Glob / Grep / LS / Bash for analysis; Bash for executing the artifact you wrote; Write for the test files you author. NEVER `Edit` a source file.
 - **Real interaction calls only (Playwright).** `page.click` / `page.fill` / `page.selectOption` / `page.press` / `page.setInputFiles` — never `page.request.*`, never a vacuous navigate-and-assert.
+- **Selector witness before every action (v0.9.32).** Every action-call selector must be preceded by witness assertions (`.toBeVisible()` + `.toBeEnabled()` + a disambiguating role / attribute check when the text match is permissive) with descriptive `expect(..., message)` strings naming the author's intent. Skipping the witness is a test-authoring defect — the v0.9.30 *"text=Alabama resolved to a state filter"* case is exactly what this rule closes.
 - **Real dev URL, real backend.** No mocks, no `page.route` happy-path stubs, no MSW. The artifact runs against the live dev environment.
 - **The artifact must currently fail.** If it passes, exit `could-not-reproduce`. NEVER fabricate a failure.
 - **For frontend bugs, ALSO write the backend diagnostic.** Phase B2 mandates the dual artifact.

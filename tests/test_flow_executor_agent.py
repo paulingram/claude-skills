@@ -87,3 +87,64 @@ def test_no_credential_leakage_rule(plugin_root: Path) -> None:
     assert "credential" in body.lower() and "process.env" in body, (
         "agent must document the credential-env-var-only discipline"
     )
+
+
+# --- v0.9.32 — flow-effect witness ------------------------------------------
+
+
+def test_flow_effect_witness_step_exists(plugin_root: Path) -> None:
+    """v0.9.32 — flow-executor must declare Step 3.5 (the flow-effect witness)."""
+    _, body = _read(plugin_root)
+    assert "Step 3.5" in body, "flow-executor must declare Step 3.5"
+    assert "flow-effect witness" in body.lower(), (
+        "flow-executor must name the 'flow-effect witness' step"
+    )
+
+
+def test_flow_effect_witness_uses_expected_user_effect(plugin_root: Path) -> None:
+    """The witness consumes the U5-authored `expected_user_effect` block."""
+    _, body = _read(plugin_root)
+    assert "expected_user_effect" in body, (
+        "flow-executor body must reference the U5-authored `expected_user_effect` field"
+    )
+
+
+def test_flow_effect_witness_four_effect_kinds(plugin_root: Path) -> None:
+    """The four effect kinds (DOM / network / URL / console) must be named."""
+    _, body = _read(plugin_root)
+    for kind in ("dom_state_change", "network_request", "url_change", "console_sentinel"):
+        assert kind in body, (
+            f"flow-executor must name the '{kind}' effect kind in the witness step"
+        )
+
+
+def test_flow_effect_witness_in_result_schema(plugin_root: Path) -> None:
+    """The per-flow result schema must include a `flow_effect_witness` block."""
+    _, body = _read(plugin_root)
+    assert '"flow_effect_witness"' in body, (
+        "the per-flow result schema must declare the `flow_effect_witness` field"
+    )
+    # And the failure_reason discriminator
+    assert '"failure_reason"' in body or "failure_reason" in body, (
+        "the per-flow result schema must declare the `failure_reason` discriminator field"
+    )
+
+
+def test_flow_effect_not_witnessed_routes_via_origin_kind(plugin_root: Path) -> None:
+    """A witness-fail forces verdict 'fail' with `origin.kind: flow-effect-gap` for downstream routing."""
+    _, body = _read(plugin_root)
+    assert "flow-effect-not-witnessed" in body, (
+        "flow-executor must name the 'flow-effect-not-witnessed' failure_reason discriminator"
+    )
+    assert "flow-effect-gap" in body, (
+        "flow-executor must name the 'flow-effect-gap' origin.kind for downstream bug-routing"
+    )
+
+
+def test_flow_effect_witness_v0_9_30_lineage(plugin_root: Path) -> None:
+    """The witness body must reference its v0.9.30/v0.9.31 lineage so the discipline's purpose is clear."""
+    _, body = _read(plugin_root)
+    # Either references v0.9.30 (the Alabama case) or v0.9.31 (the qa-replayer's code-path witness)
+    assert "v0.9.30" in body or "v0.9.31" in body or "Schedule" in body, (
+        "flow-executor's witness should reference its origin (v0.9.30 Alabama case or v0.9.31 qa-replayer pattern)"
+    )

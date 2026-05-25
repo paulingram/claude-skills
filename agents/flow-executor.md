@@ -69,12 +69,41 @@ For each flow, read the per-step expectation files at `<persona-slug>/playwright
 
 A `match: false` step DOES NOT automatically mean `verdict: fail` — the overall flow's verdict is the test's assertion outcome, not the per-step expectation match. The expectation deltas are EVIDENCE for U7's consensus reasoning; they help the orchestrator (and the user, on escalation) understand WHY a flow failed and whether the per-step trajectory matched the intended path.
 
+### Step 3.5 — Flow-effect witness (v0.9.32) — MANDATORY
+
+This is the UX-test variant of the v0.9.31 code-path witness and v0.9.32's bug-replicator selector witness — adapted for a domain where there's no "fix" diff or "feature" diff to check against. The witness here proves the PERSONA'S INTENDED USER-EFFECT actually occurred.
+
+Each distilled flow at U5 carries an `expected_user_effect` field — the concrete observable outcome the persona accomplishes by running the flow. Examples:
+
+- *"secretary uploads file 'invoice-2024.pdf'"* → `expected_user_effect: { kind: "dom_state_change", value: "file 'invoice-2024.pdf' appears in #uploaded-files-list" } + { kind: "network_request", value: "POST /api/files/upload returned 2xx" }`
+- *"user logs in as alice@example.com"* → `expected_user_effect: { kind: "url_change", value: "post-login URL matches /dashboard" } + { kind: "network_request", value: "GET /api/me returned alice's profile" }`
+- *"delete row with id=42"* → `expected_user_effect: { kind: "dom_state_change", value: "tr[data-row-id='42'] is removed from the DOM" } + { kind: "network_request", value: "DELETE /api/items/42 returned 204" }`
+
+If the flow's `.spec.ts` was authored without an `expected_user_effect` block (the U5 orchestrator should always emit one; if missing, the flow's spec is incomplete), record `flow_effect_witness: { verdict: "n/a", reason: "no expected_user_effect declared at U5" }` and skip the witness — the flow's verdict falls back to Playwright's assertion outcome alone. Surface the missing-effect case in `notes` so U5 re-authoring catches it.
+
+For each declared effect:
+
+1. **Capture the observed value** from the Playwright trace + the dev API access log (same data already collected at Step 2's `--trace=on`):
+   - `dom_state_change` → query the trace's final DOM snapshot for the element / class / attribute change.
+   - `network_request` → scan the trace's network log for a matching method + URL + status.
+   - `url_change` → read the trace's final URL.
+   - `console_sentinel` → grep the trace's console log.
+2. **Cross-check**: every declared `expected_user_effect` entry must have a matching observed value. The witness verdict is:
+   - **`pass`** — every declared effect was observed.
+   - **`fail`** — at least one declared effect was NOT observed.
+   - **`n/a`** — no `expected_user_effect` declared (record reason).
+3. **Record** the witness output as a `flow_effect_witness` block in the per-flow result file (Step 5 schema below).
+
+A `flow_effect_witness: { verdict: "fail" }` forces the flow's overall verdict to `fail` even when Playwright's assertion reported pass — because the user-effect did NOT happen. This is the failure mode the witness exists to close: a flow's `.spec.ts` final assertion can succeed via an unintended path (a selector that grabbed a sibling element; a navigation that landed on a similar-looking page; a happy-path notification that masked the real failure) while the persona's actual objective was never accomplished. **The witness is the UX-test analog of the v0.9.30 *"Schedule click never actually happened but the test passed via the Unschedule path"* case.**
+
+Set the `failure_reason` discriminator in Step 4's verdict to `"flow-effect-not-witnessed"` when the witness fail forced the overall verdict to `fail`. The orchestrator's U8 bug-routing reads this discriminator and writes the SR with `origin.kind: "flow-effect-gap"` (parallel to `test-coverage-gap`) so the receiving bug-fix-pipeline run knows the flow's path was wrong, not just that "something didn't work."
+
 ### Step 4 — Assign the per-flow verdict
 
 The four verdicts:
 
-- **`pass`** — Playwright reported the test passed (the final assertion succeeded) AND no per-step `match: false` deltas surface a CRITICAL deviation from the expected path. Critical: an entirely different page rendered, an unexpected error banner appeared, the wrong endpoint was hit. Minor per-step mismatches (button text differs by a word; a non-blocking notification text differs) are acceptable when the final assertion succeeded.
-- **`fail`** — Playwright reported the test failed (the final assertion did NOT succeed). Capture the failing assertion message verbatim in the result's `notes` field.
+- **`pass`** — Playwright reported the test passed (the final assertion succeeded) AND no per-step `match: false` deltas surface a CRITICAL deviation from the expected path AND the flow-effect witness (Step 3.5) verdict is `pass` or `n/a`. Critical: an entirely different page rendered, an unexpected error banner appeared, the wrong endpoint was hit. Minor per-step mismatches (button text differs by a word; a non-blocking notification text differs) are acceptable when the final assertion succeeded.
+- **`fail`** — Playwright reported the test failed (the final assertion did NOT succeed) OR the flow-effect witness (Step 3.5) verdict is `fail`. Capture the failing assertion message verbatim in the result's `notes` field. When the witness forced the fail (Playwright reported pass but the user-effect didn't happen), set `failure_reason: "flow-effect-not-witnessed"` so U8 bug-routing writes the SR with `origin.kind: "flow-effect-gap"`.
 - **`flaky`** — the test exhibited inconsistent behavior. The bug-fix-pipeline-spawned re-runs (B6 + B6b) hit different outcomes on the same flow with no code changes. For YOUR single executor run, you can't observe flakiness directly — but if your run hit a transient issue (a single screenshot showed an intermediate state different from a stable end state, a network timeout that resolved on Playwright's built-in retry), flag the verdict as `flaky` rather than `pass` or `fail`. The U7 consensus step is where flakiness is confirmed (when the 3 executors disagree).
 - **`env-failure`** — Playwright couldn't run the test. Browser binary missing, network failure, target unreachable, dev environment 5xx response that's not a flow-induced bug. Captured in the result's `notes` field for U7 + bug-fix-pipeline routing (env-failures route to the implementing team for env diagnosis, NOT to bug fix).
 
@@ -94,6 +123,15 @@ For each flow, write to `<cwd>/.architect-team/ux-tests/<persona-slug>/execution
     ...
   ],
   "expectation_deltas": [<from Step 3>],
+  "flow_effect_witness": {
+    "verdict": "pass" | "fail" | "n/a",
+    "expected_user_effects": [
+      { "kind": "dom_state_change" | "network_request" | "url_change" | "console_sentinel", "value": "<the expected observable>", "observed": true | false }
+    ],
+    "reason_if_na": "<for n/a only: why no witness was applicable>",
+    "gap_if_failed": "<for fail only: which expected effects were not observed and why we believe the flow did not exercise the persona's intent>"
+  },
+  "failure_reason": "<one of: flow-effect-not-witnessed | playwright-assertion-failed | env-failure | null on pass>",
   "playwright_assertion_message": "<verbatim from Playwright stdout on fail; null on pass>",
   "duration_ms": <int>,
   "executed_at": "<ISO 8601 UTC>",

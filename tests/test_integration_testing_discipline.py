@@ -214,3 +214,43 @@ def test_integration_agent_mandates_real_backend(plugin_root: Path) -> None:
     assert "Real backend, not fake data" in content, (
         "integration agent is missing the real-backend Phase 5 mandate section"
     )
+
+
+# --- v0.9.32 — code-path execution witness for feature tests ----------------
+
+
+def test_integration_agent_has_code_path_witness(plugin_root: Path) -> None:
+    """v0.9.32 — integration agent must document the code-path execution witness for feature tests."""
+    content = _read(plugin_root, INTEGRATION_AGENT)
+    assert "code-path execution witness" in content.lower(), (
+        "integration agent must declare the 'code-path execution witness' step"
+    )
+    # The witness reads the coverage map's implementing_commits to identify feature handlers
+    assert "implementing_commits" in content or "implementing_handlers" in content, (
+        "integration agent must derive feature handlers from the coverage map's `implementing_commits[]`"
+    )
+
+
+def test_integration_agent_names_four_fingerprint_kinds(plugin_root: Path) -> None:
+    """The four fingerprint kinds must be named (parallel to qa-replayer's discipline)."""
+    content = _read(plugin_root, INTEGRATION_AGENT)
+    for kind in ("network_request", "api_access_log", "dom_state_change", "console_sentinel"):
+        assert kind in content, (
+            f"integration agent must name the '{kind}' fingerprint kind (parallel to qa-replayer's v0.9.31 witness)"
+        )
+
+
+def test_integration_agent_names_feature_test_verdict(plugin_root: Path) -> None:
+    """The new verdict for feature tests that didn't exercise implementation must be named."""
+    content = _read(plugin_root, INTEGRATION_AGENT)
+    assert "feature-tests-did-not-exercise-implementation" in content, (
+        "integration agent must name the 'feature-tests-did-not-exercise-implementation' verdict"
+    )
+
+
+def test_integration_agent_mandates_selector_witness(plugin_root: Path) -> None:
+    """v0.9.32 — integration agent's Playwright authoring must require selector witness assertions."""
+    content = _read(plugin_root, INTEGRATION_AGENT)
+    assert "selector witness" in content.lower(), (
+        "integration agent must require the v0.9.32 selector witness on every action-call selector"
+    )

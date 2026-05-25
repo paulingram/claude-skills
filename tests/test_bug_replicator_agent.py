@@ -95,3 +95,54 @@ def test_agent_must_currently_fail_rule(plugin_root: Path) -> None:
     assert "must currently fail" in body.lower() or "MUST currently fail" in body, (
         "agent body must state the artifact must currently fail (= the replication)"
     )
+
+
+# --- v0.9.32 — selector witness at authoring time ---------------------------
+
+
+def test_selector_witness_discipline_documented(plugin_root: Path) -> None:
+    """v0.9.32 — the agent body must mandate selector witness assertions on every action-call selector."""
+    _, body = _read(plugin_root)
+    body_lower = body.lower()
+    assert "selector witness" in body_lower, (
+        "bug-replicator must name the 'selector witness' discipline"
+    )
+    # The witness must be MANDATORY for every interactive selector — not "best practice"
+    assert "mandatory" in body_lower, (
+        "the selector witness must be MANDATORY (not optional / best-practice)"
+    )
+
+
+def test_selector_witness_covers_three_failure_modes(plugin_root: Path) -> None:
+    """The witness assertions cover (a) resolution wrong, (b) action not possible (disabled), (c) wrong-element-with-similar-text."""
+    _, body = _read(plugin_root)
+    # The discipline must reference each of the three Playwright assertions
+    assert "toBeVisible" in body, "the selector witness must include `.toBeVisible()`"
+    assert "toBeEnabled" in body, (
+        "the selector witness must include `.toBeEnabled()` (catches the disabled-button case from v0.9.30 production)"
+    )
+    # The role / attribute disambiguation step must be documented
+    body_lower = body.lower()
+    assert "role" in body_lower and ("attribute" in body_lower or "tohaveattribute" in body_lower), (
+        "the selector witness must document a role / attribute disambiguation step"
+    )
+
+
+def test_selector_witness_quotes_v0_9_30_production_case(plugin_root: Path) -> None:
+    """The agent body must quote the v0.9.30 production case that motivated the witness."""
+    _, body = _read(plugin_root)
+    # The case quote names "Alabama" (the wrong-resolution element)
+    assert "Alabama" in body or "state filter" in body, (
+        "the agent body must reference the v0.9.30 'text=Alabama → state filter' production case"
+    )
+
+
+def test_selector_witness_in_hard_rules(plugin_root: Path) -> None:
+    """The witness must appear in the 'Hard rules (non-negotiable)' section so it's structurally enforced."""
+    _, body = _read(plugin_root)
+    hard_rules_start = body.find("## Hard rules")
+    assert hard_rules_start > 0, "agent must have a 'Hard rules' section"
+    hard_rules_section = body[hard_rules_start:]
+    assert "elector witness" in hard_rules_section, (
+        "the selector witness must appear in the 'Hard rules' section (structural enforcement, not just guidance)"
+    )

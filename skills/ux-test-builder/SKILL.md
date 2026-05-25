@@ -126,8 +126,20 @@ One `.spec.ts` per distilled flow at `<cwd>/.architect-team/ux-tests/<persona-sl
 - Real interaction calls.
 - Real login.
 - Per-step expectation files at `<cwd>/.architect-team/ux-tests/<persona-slug>/playwright/expectations/<flow-N>-<step-N>.json`, per `root-cause-test-failures`.
+- **Selector witness assertions (v0.9.32) — MANDATORY for every action-call selector** (`.toBeVisible()` + `.toBeEnabled()` + a disambiguating role / attribute check). Same authoring discipline as the bug-replicator's `agents/bug-replicator.md` Step 2.
+- **`expected_user_effect` block (v0.9.32) — MANDATORY per flow.** The U5 orchestrator emits an `expected_user_effect` field on every flow's spec (placed in a `<flow-N>-<slug>.effect.json` companion file at the same path) describing the concrete observable outcome the persona accomplishes by running this flow. The field is the input to U6's **flow-effect witness** (a flow that passes Playwright's assertion but didn't actually achieve the persona's intent is the failure mode the witness closes). Each effect is one of `dom_state_change` (an element appears/disappears/changes), `network_request` (a specific endpoint was called with a specific status), `url_change` (the URL landed at a specific route), or `console_sentinel` (a sentinel logged). Examples:
 
-The literal flow at U2 is already authored; this phase authors flows #2-N from the distilled set.
+  ```json
+  {
+    "flow_id": "flow-3",
+    "expected_user_effects": [
+      { "kind": "network_request", "value": "POST /api/files/upload returned 2xx" },
+      { "kind": "dom_state_change", "value": "file 'invoice-2024.pdf' appears in #uploaded-files-list" }
+    ]
+  }
+  ```
+
+The literal flow at U2 is already authored; this phase authors flows #2-N from the distilled set. Re-author the literal at U2 to add its `expected_user_effect` block too (it inherits the same v0.9.32 witness discipline).
 
 ## Phase U6 — Parallel execution (3 `flow-executor` agents)
 
@@ -148,6 +160,12 @@ Each executor persists per-flow results at `<cwd>/.architect-team/ux-tests/<pers
   "trace_path": "<...>/traces/<flow-N>.zip",
   "screenshots": ["<path>", ...],
   "expectation_deltas": [{step, expected, actual, match: bool}, ...],
+  "flow_effect_witness": {
+    "verdict": "pass" | "fail" | "n/a",
+    "expected_user_effects": [{kind, value, observed: bool}, ...],
+    "gap_if_failed": "<for fail: which effects were not observed>"
+  },
+  "failure_reason": "flow-effect-not-witnessed" | "playwright-assertion-failed" | "env-failure" | null,
   "duration_ms": <int>,
   "executed_at": "<ISO 8601 UTC>",
   "notes": "<one-line summary>"
@@ -155,6 +173,8 @@ Each executor persists per-flow results at `<cwd>/.architect-team/ux-tests/<pers
 ```
 
 3 executors × N flows = 3N total executions. The redundancy IS the consensus mechanism — flakiness, intermittent UI states, race conditions, and environment dependencies surface as DISAGREEMENTS rather than silently passing.
+
+**Flow-effect witness (v0.9.32) — MANDATORY per flow.** Each executor runs Step 3.5 of `agents/flow-executor.md`: for every flow with an `expected_user_effect` block (authored at U5), the executor verifies the declared effects actually occurred — by scanning the captured trace's network log + DOM snapshot + console log + final URL. A flow's Playwright assertion can pass via a wrong code path (a selector that grabbed a sibling button labeled "Upload" but pointing at a different endpoint; a redirect that landed on a similar-looking page) while the persona's actual user-effect never happened. The witness catches that. A `flow_effect_witness: { verdict: "fail" }` forces the flow's overall verdict to `fail` with `failure_reason: "flow-effect-not-witnessed"` — even if Playwright reported pass. U8 bug-routing reads `failure_reason` and writes the SR with `origin.kind: "flow-effect-gap"` so the receiving bug-fix run knows the flow's path was wrong, not just that "something didn't work." Parallel discipline to Phase B6's `test-did-not-exercise-fix` (v0.9.31) and Phase 5's `feature-tests-did-not-exercise-implementation` (v0.9.32) — same underlying failure mode, adapted to the UX domain where there's no fix-diff or feature-commit but there IS a persona's declared intent.
 
 ## Phase U7 — Consensus on disagreements
 

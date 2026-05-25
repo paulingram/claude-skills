@@ -129,6 +129,8 @@ The replication artifact from B1 IS the regression test. Move it to its permanen
 
 Both artifacts must currently fail (they are reproducing the bug). Phase B6 will re-run them post-fix and require them to pass — that is the regression contract.
 
+**Selector witness assertions (v0.9.32) — MANDATORY in every Playwright artifact.** The `bug-replicator` instruments every action-call selector (`page.click`, `page.fill`, `page.selectOption`, `page.press`, `page.setInputFiles`, `page.check`, `page.hover`, `page.dragTo`) with witness assertions immediately preceding the action — `await expect(locator, '<author intent message>').toBeVisible()` + `.toBeEnabled()` + a disambiguating role / attribute check when the text match is permissive. The witness produces an EARLY, self-diagnosing failure when a selector resolves wrong — preventing the wasted B3→B4→B5→B6 cycle when a `text=Alabama` grabs a state filter instead of the intended tech name (the v0.9.30 production case). The full pattern + the three failure modes the witness covers live in `agents/bug-replicator.md`. The witness is the structural complement to Phase B6's code-path execution witness (v0.9.31): B2 catches the failure at AUTHORING time, B6 catches it at QA-replay time — both gates are needed because either alone leaves residual failure modes.
+
 Persist the artifacts under `<target-codebase>/tests/bug-fix-<bug-slug>/` (or the codebase's convention) and stage them; they become part of the same commit the fix lands in at Phase B7.
 
 ## Phase B3 — OpenSpec proposal authoring
