@@ -2,6 +2,84 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.33] — 2026-05-25
+
+### Added — Proposal Refiner: conversational pre-pipeline prompt refinement with codebase-grounded clarity grading
+
+A new upstream capability the user explicitly asked for:
+
+> *"a proposal refiner that takes in a text prompt and helps the user clarify and enhance the prompt in a way that is optimized for our architect-team pipelines (all types). Finally, we will need to ensure that this skill is called on top of any prompt given that isn't an already planned out spec (i.e. a free text prompt). This first should review it, clarify it, ask the user to read and converse until satisfied. The agent can leverage knowledge of all codebases through the codemaps etc. to help refine and make prompt strategy more effective and will grade it for the user to help them understand if it is clear enough. Then it can either be written to a markdown or the rest of the pipe will continue, depending if the pipe skill was called vs. just the prompt optimizer."*
+
+v0.9.33 ships exactly that:
+
+#### REQ-001 — New `proposal-refiner` skill (10 phases R1-R6)
+
+`skills/proposal-refiner/SKILL.md` — the orchestrator playbook. Six phases:
+
+- **R1 — Intake + codebase context discovery.** Read the free-text prompt verbatim; resolve a slug; discover codebases (from `intake-state.json`, `codebases.json`, or one-time user prompt); load every existing CODEBASE_MAP.md / ROUTE_MAP.md / DESIGN_MAP.md / INTERACTION_INTUITION_MAP.md / INTEGRATION_MAP.md; run a **read-only** MemPalace wake-up to surface prior-run context.
+- **R2 — Initial clarity audit + grade.** Dispatch the `prompt-refiner` agent which scores the prompt on five axes (Clarity / Scope / Acceptance / Codebase grounding / Conflict — each 1-10 with verbatim-prompt-quoting rationales), computes a 0-100 weighted score (clarity 0.25 + scope 0.20 + acceptance 0.25 + grounding 0.20 + conflict 0.10) × 10, maps to letter A-F (A: 90+, B: 75-89, C: 60-74, D: 45-59, F: <45), and generates 2-5 prioritized codebase-anchored clarifying questions per iteration. Verdict written to `<cwd>/.architect-team/refined-prompts/<slug>-<ts>/r2-grade-<iter>.json`.
+- **R3 — Display grade + questions.** Render the grade table for the user (5 axes with rationales + overall score + letter); ask 1-3 questions via `AskUserQuestion` (`choose-one` for finite enumerable options; `free-form` for open-ended).
+- **R4 — Conversational refinement loop.** Update the `working_prompt` with the user's answers; re-spawn the grader for a fresh grade; display per-axis deltas vs. previous iteration. Loop terminates on `user-confirmed` (natural-language `ship it` / `proceed` / `good` / `go`), `a-grade-reached` (≥90 with no pending questions), or `iteration-ceiling` (5 iterations max).
+- **R5 — Compose the final refined prompt.** Structured sections: `## Goal` / `## Scope (in)` / `## Scope (out)` / `## Acceptance criteria` / `## Codebase touchpoints` / `## Open questions` / `## Refinement log` (a table of per-iteration overall scores + key changes).
+- **R6 — Output the markdown.** Write to `<cwd>/.architect-team/refined-prompts/<slug>-<ts>.md` with frontmatter (`refined-by: proposal-refiner` / `refined-at` / `original-prompt` / `final-grade-score` / `final-grade-letter` / `mode` / `codebases-considered` / `iterations` / `exit-reason`). Pipeline mode returns the path so the downstream pipeline rebinds `$REQ_DIR`; standalone mode prints the path and exits.
+
+#### REQ-002 — New `prompt-refiner` agent (opus, read-only)
+
+`agents/prompt-refiner.md` — the grader. Tools: Read / Glob / Grep / LS / Bash / Write / TodoWrite. **No Edit** — strictly read-only on source. **Bounded Write** to `.architect-team/refined-prompts/` only. Hard rules:
+
+- **Never invent codebase entities.** Every cited route / endpoint / file / function must trace to a map entry. Fabricated citations are forbidden — the failure mode the rule closes.
+- **Always cite the map + section/line.** Bare `"handleSchedule"` is rejected; `"CODEBASE_MAP.md → SchedulePanel.tsx, lines 42-65"` is accepted.
+- **Cross-reference INTERACTION_INTUITION_MAP.md** to avoid re-asking elements the user already confirmed at Phase −1D.
+- **Use MemPalace context** when the wake-up returned non-empty.
+- **Cap 5 questions per iteration**; residuals captured in `residual_gaps` for the final markdown's `## Open questions`.
+- **Score every axis every iteration** — even at iteration 5 with near-A grade.
+
+The agent never interacts with the user directly — it emits a structured JSON verdict the orchestrator consumes; the orchestrator runs `AskUserQuestion` for the user dialogue.
+
+#### REQ-003 — New `/architect-team:refine-prompt` command (standalone mode)
+
+`commands/refine-prompt.md` — invokes the skill in `standalone` mode. Refines the prompt, writes the markdown, exits. No downstream pipeline runs. Flags:
+
+- `--out <path>` — override the default output path.
+- `--codebases <comma-list>` — explicit codebase paths to ground against.
+- `--no-mempalace` — skip the read-only MemPalace consult.
+- `--max-iterations <int>` — override the default 5-iteration ceiling (clamped 1-10).
+
+After the skill exits, prints the markdown path + one-line summary + the three downstream commands the user can then invoke on the refined brief.
+
+#### REQ-004..006 — Wired into all three existing pipeline commands
+
+`commands/architect-team.md`, `commands/bug-fix.md`, `commands/ux-test.md` — each now has a `## Pre-pipeline refinement` section that:
+
+1. Detects whether `$REQ_DIR` is a directory (skip), an already-refined markdown (skip — `refined-by: proposal-refiner` frontmatter), or `--no-refine` was passed (skip).
+2. Otherwise sets `$REFINER_MODE = "pipeline"` and invokes the `proposal-refiner` skill on the verbatim prose.
+3. After the skill exits, rebinds `$REQ_DIR` to the absolute path of the refined-prompt markdown.
+4. Proceeds to invoke the downstream pipeline skill (architect-team-pipeline / bug-fix-pipeline / ux-test-builder) with the refined brief as input.
+
+Each command also documents the `--no-refine` flag as an opt-out.
+
+#### REQ-007..009 — Five new structural test files + inventory updates
+
+- `tests/test_proposal_refiner_skill.py` — NEW. Skill file exists, frontmatter valid, R1-R6 phase headers present, 5 grade axes named, weighted-average formula documented, letter-grade thresholds documented, 5-iteration ceiling documented, 'ship it' / 'proceed' confirm signals listed, output path under `.architect-team/refined-prompts/`, frontmatter schema documented, pipeline vs. standalone outcomes distinguished, domain-gate classification, 3 skip conditions documented, all 5 maps consulted, MemPalace consult is read-only, no-invention rule documented.
+- `tests/test_prompt_refiner_agent.py` — NEW. Agent file exists, opus model, no Edit, bounded Write to refined-prompts/, all 5 axes named, score-range anchors documented, verdict schema fields, question schema fields, 3 question forms (choose-one / free-form / yes-no), 5-question cap, no-invented-entities rule, must-cite-map-section rule, INTERACTION_INTUITION cross-reference, MemPalace consumption, agent does NOT interact directly with user (orchestrator runs AskUserQuestion), agent does NOT edit working_prompt, verbatim-quoting requirement.
+- `tests/test_refine_prompt_command.py` — NEW. Command file exists, frontmatter valid, declares standalone mode, invokes proposal-refiner via Skill tool, sets `$REFINER_MODE = "standalone"`, documents --out / --codebases / --max-iterations flags, refuses already-refined input, declares does-NOT-trigger-pipeline, declares no-auto-commit, documents safety rules (no ScheduleWakeup, no invention).
+- `tests/test_pipeline_refiner_wiring.py` — NEW. Verifies each of the 3 pipeline commands (architect-team / bug-fix / ux-test): documents `--no-refine` flag, invokes proposal-refiner, sets `$REFINER_MODE = "pipeline"`, documents the 3 skip conditions, rebinds `$REQ_DIR` after refiner exits, classifies as DOMAIN gate, has `## Pre-pipeline refinement` section, refiner invocation appears BEFORE the 'Invoke the pipeline' section (textual ordering check).
+- `tests/test_skills.py`, `tests/test_agents.py`, `tests/test_commands.py` — UPDATED. `EXPECTED_SKILLS` += `proposal-refiner`. `EXPECTED_AGENTS` += `prompt-refiner`. `EXPECTED_COMMANDS` += `refine-prompt`.
+
+**Tests:** 1042 → **1139** passing (+97, including the new EXPECTED_*-driven parametrized tests).
+
+### Inventory grid
+
+| | v0.9.32 | v0.9.33 |
+|---|---|---|
+| Skills | 23 | **24** (+`proposal-refiner`) |
+| Agents | 25 | **26** (+`prompt-refiner`) |
+| Commands | 8 | **9** (+`refine-prompt`) |
+
+### Honest caveat (same shape as v0.9.31 / v0.9.32)
+
+The 1139 tests are STRUCTURAL — they verify the skill / agent / command bodies have the right sections, the right axes, the right verdict schemas, and that the three pipeline commands invoke the refiner before the pipeline. They cannot run the refiner at runtime against a real free-text prompt with a real user. RUNTIME correctness depends on the agent applying the no-invention rule, the orchestrator running the question loop faithfully, and the user genuinely engaging. The mitigations are the same: mandatory schema fields, hard rules forbidding fabrication, structural tests that block landing future edits that remove the discipline.
+
 ## [0.9.32] — 2026-05-25
 
 ### Added — Full generalization of the wrong-code-path-witness discipline across all three Playwright-running sites

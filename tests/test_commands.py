@@ -14,6 +14,7 @@ EXPECTED_COMMANDS: set[str] = {
     "editability-audit",
     "bug-fix",
     "ux-test",
+    "refine-prompt",
 }
 
 REQUIRED_KEYS = {"description"}

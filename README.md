@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 0 . 9 . 32
+                            ─── T E A M ───   v 0 . 9 . 33
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -21,19 +21,20 @@
 > learns in a local searchable memory**, and **auto-commits and pushes on a
 > clean pass** — the dev loop closes itself end-to-end.
 
-![version](https://img.shields.io/badge/version-0.9.32-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-0.9.33-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-1042%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-1139%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v0.9.32  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v0.9.33  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
+| ▸ **Proposal Refiner — conversational pre-pipeline prompt refinement with codebase-grounded clarity grading (v0.9.33)** | A new upstream capability the user explicitly asked for: *"a proposal refiner that takes in a text prompt and helps the user clarify and enhance the prompt in a way that is optimized for our architect-team pipelines (all types)... reviews it, clarifies it, asks the user to read and converse until satisfied. The agent can leverage knowledge of all codebases through the codemaps etc.. to help refine and make prompt strategy more effective and will grade it for the user to help them understand if it is clear enough."* v0.9.33 ships exactly that: a new **`proposal-refiner`** skill (6 phases R1-R6) + a new **`prompt-refiner`** agent (opus, read-only on source, bounded Write to `.architect-team/refined-prompts/`) + a new standalone command **`/architect-team:refine-prompt`** + automatic upstream invocation in all three existing pipeline commands (`/architect-team`, `/architect-team:bug-fix`, `/architect-team:ux-test`) when their input is free-text prose. The skill conversationally refines a prompt by (1) loading the codebase maps (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP, INTERACTION_INTUITION_MAP, INTEGRATION_MAP) + a read-only MemPalace wake-up for prior-run context; (2) grading the prompt on five axes — **Clarity / Scope / Acceptance / Codebase grounding / Conflict** — each 1-10 with verbatim-prompt-quoting rationales; (3) computing a 0-100 weighted score mapped to letter grade A-F; (4) generating 2-5 codebase-anchored clarifying questions per iteration (every cited route / endpoint / file must exist in the loaded maps — fabrication is forbidden); (5) iterating with the user (5-iteration ceiling) until they confirm `ship it` / `proceed` / `good` OR the grade reaches A; (6) writing a structured refined-prompt markdown with `## Goal` / `## Scope (in)` / `## Scope (out)` / `## Acceptance criteria` / `## Codebase touchpoints` / `## Open questions` / `## Refinement log`. Two output modes: **pipeline-integrated** (the downstream pipeline rebinds `$REQ_DIR` to the refined markdown and proceeds to Phase −2) and **standalone** (`/architect-team:refine-prompt` — writes the markdown and exits, no downstream phases). Classified as a **DOMAIN gate** (v0.9.21 carve-out) — the user-confirmation step IS the deliverable; `--no-refine` is the explicit opt-out. **97 new tests** (across 4 new test files + inventory updates in `test_skills.py` / `test_agents.py` / `test_commands.py`); 1042 → **1139** passing. |
 | ▸ **Full generalization of the wrong-code-path-witness discipline across all 3 Playwright-running sites (v0.9.32)** | A user-flagged generalization gap on v0.9.31. *"the fixes you made were entirely generalizable right?"* — honest audit answer was **no**: v0.9.31 added the witness only at Phase B6's `qa-replayer`; the underlying failure mode (*"a Playwright test passes via an unintended code path"*) lived unfixed at three other sites. v0.9.32 closes all of them: (1) **Phase B2 `bug-replicator`** gets a **selector witness** — `.toBeVisible()` + `.toBeEnabled()` + a disambiguating role/attribute check before every action call — catching the failure at AUTHORING time before any cycle is wasted; (2) **Phase 5 `integration` agent** gets the **code-path execution witness** adapted to feature tests (reads `implementing_commits[]` from the coverage map instead of the fix's git diff) with the new verdict **`feature-tests-did-not-exercise-implementation`** routing teams back to test re-authoring; (3) **Phase U6 `flow-executor`** gets a **flow-effect witness** — a UX-domain variant that verifies the U5-authored `expected_user_effect` block (DOM state change, network request, URL change, or console sentinel) actually occurred; a flow that passes Playwright's assertion but didn't achieve the persona's intent now fails with `failure_reason: "flow-effect-not-witnessed"` and routes through bug-fix as `origin.kind: "flow-effect-gap"`. The B2 selector witness is the EARLIEST gate (catches at authoring time); B6 / Phase 5 / U6 witnesses are LATER gates (catch at verification time). Both layers needed. 14 new structural tests (4 + 4 + 6 across the three agents' test files); 1028 → **1042** passing (was 1016 in v0.9.30, 924 in v0.9.29). Same honest caveat as v0.9.31 applies: tests are structural — they verify the discipline is documented and demanded at every site, but runtime correctness depends on the LLM agents applying the discipline when invoked. The failure mode is now structurally closed at every Phase-with-Playwright in the plugin. |
 | ▸ **Phase B6 code-path execution witness — qa-replayer catches tests that pass via the wrong path (v0.9.31)** | A real-world QA gap surfaced by a v0.9.30 production run. Direct quote from the orchestrator's honest post-mortem on a `bug-resolved` verdict that turned out to be wrong: *"My Playwright never actually completed a Schedule click. The test's tech-selector grabbed 'Alabama' (a state filter) instead of a real tech, so the Schedule button stayed disabled — and I declared REQ-001 PASS based only on the Unschedule path's panel-stayed-open assertion. The Unschedule path goes through `handleUnschedule`; the Schedule path goes through `handleSchedule` where the fix lives. The test never invoked `handleSchedule` at all."* The qa-replayer's Step 4 (`symptom-gone-end-to-end`) verifies the user's reported symptom appears resolved, but it never asks *"did the test actually INVOKE the handler the fix touched?"* A Playwright flow with a misidentified selector can satisfy a panel-stayed-open assertion via an irrelevant code path while the fix's actual buggy handler is never called. v0.9.31 adds **Step 4.5 — code-path execution witness** to the `qa-replayer`: it identifies buggy handlers from the fix's git diff (new input #6), derives an invocation fingerprint per handler (`network_request` / `api_access_log` / `dom_state_change` / `console_sentinel`), captures observed fingerprints from the Playwright trace (`trace: 'on'` mandated) + the dev API access log, and cross-checks. The trace's network log + the access log are the witness data. New 4th verdict **`test-did-not-exercise-fix`** routes to **Phase B2** (re-author the test) with `origin.kind: "test-coverage-gap"` — distinct from `bug-still-present` (route to B3, fix is wrong) and `env-failure` (route to env diagnosis, env is wrong). Three on-trial axes now structurally distinct: FIX / TEST / ENV. Oscillation-bounded — 3 consecutive `test-did-not-exercise-fix` verdicts on the same bug escalates to the user. 12 new structural tests (8 in `test_qa_replayer_agent.py`, 4 in `test_bug_fix_pipeline_skill.py`) — total 1028 passing (was 1016 in v0.9.30). **Honest caveat:** the tests are structural; they verify the discipline is documented and demanded, not that an LLM agent runs it correctly at runtime. The mitigation is the verdict-schema mandatory `code_path_witness` field + the Hard rules forbidding skip/fabrication of the witness. |
 | ▸ **Cross-platform Python hook invocation — Windows Store-shim fix (v0.9.30)** | A real user error after the v0.9.29 ship: *"● Ran 2 stop hooks ⎿ Stop hook error: Failed with non-blocking status code: Python was not found; run without arguments to install from the Microsoft Store…"* — the user had Python 3.12.10 installed and working as `python`, but the plugin's hooks and skill bodies invoked the script as `python3`. On default Windows python.org installs only `python` is on PATH; `python3` triggers the Microsoft Store shim, which prints that error and exits non-zero. The v0.9.16 portability work added a *detection* hint to `setup.py` but didn't make the hooks robust. v0.9.30 changes every plugin-script invocation in `hooks/hooks.json` (3 hooks), `skills/architect-team-pipeline/SKILL.md` (6 calls), `skills/bug-fix-pipeline/SKILL.md` (5 calls), and 4 commands (`architect-team`, `bug-fix`, `ux-test`, `architect-team-setup`, `mempalace-install`) to the polyglot pattern `python3 X.py args \|\| python X.py args`. On Unix the first form succeeds and the shell short-circuits (fallback never fires); on Windows-without-`python3` the shim's non-zero exit triggers the `\|\| python ...` fallback, which runs the script with the installed `python` and succeeds. The `\|\|` operator is supported by cmd.exe, POSIX sh, bash, zsh, fish, and PowerShell 7+ — covering every shell Claude Code dispatches hooks through. New `tests/test_hooks_structure.py::test_hooks_use_polyglot_python_fallback` (1 case) asserts every hook command carries the fallback AND that both sides target the same `.py` script. `tests/test_commands.py::test_setup_command_uses_python3` updated to require the fallback (the old *"must NOT contain bare ' python '"* assertion inverted because the polyglot fallback IS a bare-`python` invocation by design). 1016 tests / 0 failures (was 1015 in v0.9.29). |
@@ -74,7 +75,7 @@
 ```
 
 ```
-┌─ SKILLS (23) ───────────────────────┬─ AGENTS (25) ─────────────────────────┐
+┌─ SKILLS (24) ───────────────────────┬─ AGENTS (26) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -98,10 +99,11 @@
 │ ◇ interaction-intuition             │ ◆ interaction-intuiter (opus)         │
 │ ◇ bug-fix-pipeline                  │ ◆ doc-updater (opus)                  │
 │ ◇ ux-test-builder                   │ ◆ flow-explorer (opus)                │
-│                                     │ ◆ flow-executor (opus)                │
+│ ◇ proposal-refiner                  │ ◆ flow-executor (opus)                │
 │                                     │ ◆ fix-sensibility-checker (opus)      │
-├─ COMMANDS (8) ──────────────────────┴───────────────────────────────────────┤
-│ ▸ /architect-team <path-to-requirements-folder>                             │
+│                                     │ ◆ prompt-refiner (opus)               │
+├─ COMMANDS (9) ──────────────────────┴───────────────────────────────────────┤
+│ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
 │ ▸ /architect-team:mempalace-install                                         │
@@ -109,6 +111,7 @@
 │ ▸ /architect-team:editability-audit [<codebase-path>]                       │
 │ ▸ /architect-team:bug-fix <bug-description | requirements-folder>           │
 │ ▸ /architect-team:ux-test <persona + objectives + --site or --dev>          │
+│ ▸ /architect-team:refine-prompt <free-text prompt>      (standalone refine) │
 ├─ HOOKS (3) ─────────────────────────────────────────────────────────────────┤
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v6 + independent review  │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │
@@ -839,7 +842,8 @@ Tests validate: plugin/marketplace JSON; all 20 skill frontmatters; all 17 agent
            v0.9.29 ─ UX test builder + bug-fix Phase B6b post-deploy sensibility check
            v0.9.30 ─ cross-platform Python hook invocation — Windows Store-shim fix
            v0.9.31 ─ Phase B6 code-path execution witness — qa-replayer catches tests that pass via wrong path
-   ◆       v0.9.32 ─ wrong-code-path witness generalized across all 3 Playwright sites: B2 selector / Phase 5 feature / U6 flow-effect (current)
+           v0.9.32 ─ wrong-code-path witness generalized across all 3 Playwright sites: B2 selector / Phase 5 feature / U6 flow-effect
+   ◆       v0.9.33 ─ proposal-refiner — conversational pre-pipeline prompt refinement with codebase-grounded clarity grading (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

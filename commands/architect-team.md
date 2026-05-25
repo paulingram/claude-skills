@@ -22,6 +22,7 @@ Flags (each independent — `--no-commit --no-compact` is valid; natural-languag
 - `--proposal-first` → `PROPOSAL_FIRST = true`. (Default `false`.) The pipeline runs Phase −1 → 1 (intake + the validated OpenSpec proposal / design / specs / tasks package), then PAUSES for the user to review before Phase 2 implementation begins. Resume Phases 2 → 8 when the user replies "proceed" (or revises). Default `false` — the pipeline drives end-to-end without asking. See the `architect-team-pipeline` skill's `## Default mode of operation` section. **Domain gates** — the Phase −1D bulk-verify of low-confidence interaction intuitions, the `editability-completeness` `ambiguous` attribute escalations, and the `interaction-completeness` `ambiguous` element escalations — fire regardless of this flag, since they are user-input steps that ARE the deliverable (not process interruptions to it).
 - `--bug-fix` → forces `kind: bug` at the Phase −2 triage step; skips the `bug-classifier` agent and routes the run directly to the `bug-fix-pipeline` skill. Natural-language equivalents recognized at parse time: *"this is a bug"* / *"just fix the bug"* / *"it's a hotfix"* / *"bugfix"*. Equivalent to invoking `/architect-team:bug-fix` directly.
 - `--feature-only` → forces `kind: feature` at Phase −2; skips the classifier and proceeds to the existing Phase −1 → 8 flow (the full pipeline). Natural-language equivalents: *"this is a feature"* / *"build this as a feature"* / *"feature, not a bug"*. Use when you want feature-pipeline rigor on what the classifier might call a small bug.
+- `--no-refine` → skip the upstream `proposal-refiner` skill (v0.9.33). Default `false` — when `$REQ_DIR` is plain-language prose AND the input is not already a refined-prompt markdown, the pipeline invokes `proposal-refiner` FIRST to conversationally clarify the prompt with codebase-map grounding before Phase −2 (Triage). Pass `--no-refine` to bypass when the prose is already detailed enough. Domain gate per v0.9.21 — the user-confirmation step IS the deliverable, NOT a process gate that v0.9.20's "default to action" rule covers.
 - No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false` (drive end-to-end). The Phase −2 triage runs and routes based on the classifier's verdict — bug-shaped requirements automatically route to the bug-fix pipeline; feature-shaped requirements continue to the existing Phase −1 → 8 flow; mixed requirements spawn both in parallel.
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
@@ -43,9 +44,23 @@ The pipeline's **Phase 0 normalizes a plain-language requirement into an OpenSpe
 
 **Binding into the skill:** the harness does NOT propagate `$ARGUMENTS` into skill bodies. Pass the bound `$REQ_DIR` — a folder path OR the verbatim plain-language requirement string — as the input to the `architect-team-pipeline` skill, and substitute it for every `$REQ_DIR` reference in the skill body. When the requirement is plain-language prose, the codebase the pipeline operates on is the current working directory (a git repo) unless the prose names another path. Do NOT re-prompt.
 
+## Pre-pipeline refinement (v0.9.33) — runs BEFORE Phase −2 when input is plain-language prose
+
+After binding `$REQ_DIR` (folder path OR plain-language requirement string), and BEFORE invoking the `architect-team-pipeline` skill, determine whether refinement applies:
+
+- **Skip refinement** when ANY of these holds:
+  - `$REQ_DIR` resolves to an existing directory on disk (OpenSpec / Superpowers / markdown brief — the refinement step's purpose is satisfied by the brief's existence).
+  - `$REQ_DIR` resolves to a markdown file with `refined-by: proposal-refiner` frontmatter (the refiner already ran on this prompt previously).
+  - The `--no-refine` flag was passed (explicit opt-out).
+- **Run refinement** otherwise (plain-language prose, no prior refinement). Set `$REFINER_MODE = "pipeline"` and invoke the `proposal-refiner` skill from this plugin (use the Skill tool with `skill: proposal-refiner`). Pass `$REQ_DIR` (the verbatim prose) as the input. The skill runs phases R1 → R6 — codebase-map loading, multi-axis grading, conversational refinement with the user (5-iteration ceiling), and final markdown output at `<cwd>/.architect-team/refined-prompts/<slug>-<ts>.md`.
+
+After `proposal-refiner` exits in pipeline mode, **rebind `$REQ_DIR` to the absolute path of the refined-prompt markdown file**. The architect-team-pipeline then operates on the refined brief — its Phase 0 normalization treats the markdown like any other plain-markdown source (`$REQ_DIR` resolves to a file, the pipeline reads it).
+
+The refiner is a **DOMAIN gate** (per the v0.9.21 carve-out), not a process gate — the user-confirmation step IS the deliverable. The v0.9.20 "gates are opt-in" rule does NOT apply here because the user explicitly invoked `/architect-team` with prose, which IS the invocation channel; `--no-refine` is the documented opt-out.
+
 ## Invoke the pipeline
 
-Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool with `skill: architect-team-pipeline`) and follow its pipeline exactly against the requirement above (a folder OR a plain-language requirement — both are valid). The skill begins at Phase −1 (Intake & Mapping) and proceeds through Phase 8 (Final Report).
+Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool with `skill: architect-team-pipeline`) and follow its pipeline exactly against the requirement above (a folder OR a plain-language requirement OR the refined-prompt markdown that the upstream `proposal-refiner` step produced — all three are valid). The skill begins at Phase −1 (Intake & Mapping) and proceeds through Phase 8 (Final Report).
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, and `ALLOW_PUSH_TO_DEFAULT` flags to the skill.** The skill's Phase 8 reads these to decide whether to auto-commit, push, and whether it may push straight to a default branch.
 

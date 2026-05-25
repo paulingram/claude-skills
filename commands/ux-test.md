@@ -26,6 +26,7 @@ Flags (each independent):
 - `--allow-push-to-default` → `ALLOW_PUSH_TO_DEFAULT = true`. (Default `false`.)
 - `--proposal-first` → `PROPOSAL_FIRST = true`. Runs Phase U0 → U4 (intake + site mapping + literal flow + expansion + distillation), then PAUSES for user review before authoring + executing the Playwright flows at U5/U6. Domain gates (U0 vague-input, U7 consensus-cannot-converge, `--environment production` escalation) fire regardless.
 - `--environment production` → `TARGET_ENVIRONMENT = production`. Forces U6 execution to escalate before running against production (production testing is a user decision, never automatic).
+- `--no-refine` → skip the upstream `proposal-refiner` skill (v0.9.33). Default `false` — when `$REQ_DIR` is plain-language prose (persona description + objectives) AND not already a refined-prompt markdown, the pipeline invokes `proposal-refiner` FIRST to clarify the persona's role, the objectives, and the target with codebase / site-map grounding before Phase U0. Pass `--no-refine` when the prose already specifies persona + objectives + target + credentials env-var explicitly. Domain gate per v0.9.21 — the clarifying conversation IS the deliverable.
 - No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `TARGET_ENVIRONMENT = dev` (default).
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
@@ -49,9 +50,23 @@ These rules mirror `/architect-team` exactly (the v0.9.17 same-input-forms rules
 
 **Binding into the skill:** the harness does NOT propagate `$ARGUMENTS` into skill bodies. Pass the bound `$REQ_DIR` — a folder path OR the verbatim plain-language requirement string — as the input to the `ux-test-builder` skill, and substitute it for every `$REQ_DIR` reference in the skill body. When the requirement is plain-language prose, the workspace codebase (the cwd, a git repo) provides the maps for Phase U1.
 
+## Pre-pipeline refinement (v0.9.33) — runs BEFORE Phase U0 when input is plain-language prose
+
+After binding `$REQ_DIR` and BEFORE invoking the `ux-test-builder` skill, determine whether refinement applies:
+
+- **Skip refinement** when ANY of these holds:
+  - `$REQ_DIR` resolves to an existing directory on disk.
+  - `$REQ_DIR` resolves to a markdown file with `refined-by: proposal-refiner` frontmatter.
+  - The `--no-refine` flag was passed.
+- **Run refinement** otherwise. Set `$REFINER_MODE = "pipeline"` and invoke the `proposal-refiner` skill from this plugin (use the Skill tool with `skill: proposal-refiner`) passing `$REQ_DIR` (the verbatim UX-brief prose) as the input. The refiner's clarifying questions are particularly valuable for UX briefs — vague persona descriptions (*"a user uploading files"*) get sharpened (*"a secretary uploading invoices via the admin dashboard"*), implicit objectives become explicit, the credentials env-var NAME is confirmed (never the secret itself), and the target environment (URL vs. `--dev`) is settled before site-mapping at U1.
+
+After `proposal-refiner` exits in pipeline mode, **rebind `$REQ_DIR` to the absolute path of the refined-prompt markdown file**. The ux-test-builder's Phase U0 intake then operates on the refined brief — the `--persona` / `--objectives` / `--site` / `--credentials` derivation reads from the refined brief's structured sections.
+
+The refiner is a DOMAIN gate per v0.9.21 — the user-confirmation step IS the deliverable. The credentials-discipline (env-var NAME only, never raw secrets) is enforced in BOTH the refiner and the ux-test-builder — a refined brief that contains a raw secret in any section is rejected at U0 with the same discipline as the bare command rejection.
+
 ## Invoke the pipeline
 
-Invoke the `ux-test-builder` skill from this plugin (use the Skill tool with `skill: ux-test-builder`) and follow its pipeline exactly against the requirement above (a folder OR a UX brief in prose — both are valid). The skill begins at Phase U0 (Intake) and proceeds through Phase U9 (Final Report).
+Invoke the `ux-test-builder` skill from this plugin (use the Skill tool with `skill: ux-test-builder`) and follow its pipeline exactly against the requirement above (a folder OR a UX brief in prose OR the refined-prompt markdown that the upstream `proposal-refiner` step produced). The skill begins at Phase U0 (Intake) and proceeds through Phase U9 (Final Report).
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, `AUTO_COMPACT_PROMPT`, `ALLOW_PUSH_TO_DEFAULT`, `PROPOSAL_FIRST`, `TARGET_KIND`, `TARGET_URL`, `TARGET_ENVIRONMENT`, and the credentials env-var NAME to the skill.** The skill's Phase U0 + Phase U6 read these to compose the intake record + execute against the right target.
 

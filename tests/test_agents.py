@@ -31,6 +31,7 @@ EXPECTED_AGENTS: set[str] = {
     "flow-explorer",
     "flow-executor",
     "fix-sensibility-checker",
+    "prompt-refiner",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

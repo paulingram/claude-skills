@@ -23,6 +23,7 @@ Flags (each independent — `--no-commit --no-compact` is valid; natural-languag
 - `--environment production` → `TARGET_ENVIRONMENT = production`. Forces Phase B5 to escalate before deploying (production deploys are user decisions, never automatic).
 - `--force-bug` → tells the Phase B0 classifier-warning to skip ("this looks like a feature, run /architect-team instead") and proceed anyway. Use when you know it IS a bug despite ambiguous wording.
 - `--no-deploy` → skip Phase B5's auto-deploy step; QA replay (B6) runs against whatever is already deployed. Use when the dev environment is hand-managed.
+- `--no-refine` → skip the upstream `proposal-refiner` skill (v0.9.33). Default `false` — when `$REQ_DIR` is plain-language prose AND the input is not already a refined-prompt markdown, the pipeline invokes `proposal-refiner` FIRST to conversationally clarify the bug description with codebase-map grounding (which dashboard? which row's delete button? which user role?) before Phase B−2 / B−1. Pass `--no-refine` when the bug description is already specific. Domain gate per v0.9.21 — the clarifying conversation IS the deliverable.
 - No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `TARGET_ENVIRONMENT = dev` (default — live dev environment).
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
@@ -46,9 +47,23 @@ These rules mirror `/architect-team` exactly (the v0.9.17 same-input-forms rules
 
 **Binding into the skill:** the harness does NOT propagate `$ARGUMENTS` into skill bodies. Pass the bound `$REQ_DIR` — a folder path OR the verbatim plain-language requirement string — as the input to the `bug-fix-pipeline` skill, and substitute it for every `$REQ_DIR` reference in the skill body. When the requirement is plain-language prose, the codebase the bug applies to is the current working directory (a git repo) unless the prose names another path. Do NOT re-prompt.
 
+## Pre-pipeline refinement (v0.9.33) — runs BEFORE Phase B−1 when input is plain-language prose
+
+After binding `$REQ_DIR` and BEFORE invoking the `bug-fix-pipeline` skill, determine whether refinement applies:
+
+- **Skip refinement** when ANY of these holds:
+  - `$REQ_DIR` resolves to an existing directory on disk.
+  - `$REQ_DIR` resolves to a markdown file with `refined-by: proposal-refiner` frontmatter.
+  - The `--no-refine` flag was passed.
+- **Run refinement** otherwise. Set `$REFINER_MODE = "pipeline"` and invoke the `proposal-refiner` skill from this plugin (use the Skill tool with `skill: proposal-refiner`) passing `$REQ_DIR` (the verbatim bug-description prose) as the input. The skill runs phases R1 → R6 — codebase-map loading (especially `INTERACTION_INTUITION_MAP.md` for frontend bugs, where the wired-vs-stub status of every interactive element is already cataloged), multi-axis grading, conversational refinement (5-iteration ceiling — *"the prompt says 'the delete button doesn't work' but ROUTE_MAP has 7 delete buttons across 4 routes; which one?"*), and final markdown output.
+
+After `proposal-refiner` exits in pipeline mode, **rebind `$REQ_DIR` to the absolute path of the refined-prompt markdown file**. The bug-fix-pipeline's Phase B−1 / B0 intake then operates on the refined brief.
+
+The refiner is a DOMAIN gate per v0.9.21 — the user-confirmation step IS the deliverable. The bug-fix-pipeline's existing Phase B1 ambiguity-escalation question (the canonical *"how did you experience the bug?"* prompt) still fires when needed; the refiner reduces — but does not eliminate — those mid-pipeline escalations by clarifying upstream.
+
 ## Invoke the pipeline
 
-Invoke the `bug-fix-pipeline` skill from this plugin (use the Skill tool with `skill: bug-fix-pipeline`) and follow its pipeline exactly against the requirement above. The skill begins at Phase B−1 (Intake & Mapping) and proceeds through Phase B8 (Commit + Push).
+Invoke the `bug-fix-pipeline` skill from this plugin (use the Skill tool with `skill: bug-fix-pipeline`) and follow its pipeline exactly against the requirement above (a folder OR the refined-prompt markdown that the upstream `proposal-refiner` step produced). The skill begins at Phase B−1 (Intake & Mapping) and proceeds through Phase B8 (Commit + Push).
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, `AUTO_COMPACT_PROMPT`, `ALLOW_PUSH_TO_DEFAULT`, `PROPOSAL_FIRST`, `TARGET_ENVIRONMENT`, `--no-deploy`, and `--force-bug` flag values to the skill.** The skill's Phase B5 reads `TARGET_ENVIRONMENT` to decide deploy behavior; Phase B0 reads `--force-bug` to skip the classifier warning; Phase B5 reads `--no-deploy` to skip the auto-deploy step; Phase B8 reads the rest for commit / push behavior.
 

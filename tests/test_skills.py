@@ -29,6 +29,7 @@ EXPECTED_SKILLS: set[str] = {
     "interaction-intuition",
     "bug-fix-pipeline",
     "ux-test-builder",
+    "proposal-refiner",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
