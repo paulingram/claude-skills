@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.31] — 2026-05-24
+
+### Added — Phase B6 code-path execution witness + `test-did-not-exercise-fix` verdict (qa-replayer discipline upgrade)
+
+Closes a real-world QA gap surfaced by a v0.9.30 production run. Direct quote from the orchestrator's honest post-mortem on a `bug-resolved` verdict that turned out to be wrong:
+
+> *"My Playwright never actually completed a Schedule click. The test's tech-selector grabbed 'Alabama' (a state filter) instead of a real tech, so the Schedule button stayed disabled — and I declared REQ-001 PASS based only on the Unschedule path's panel-stayed-open assertion. The Unschedule path goes through `handleUnschedule`; the Schedule path goes through `handleSchedule` where the fix lives. Something else is still closing the panel after a successful Schedule — but my test never invoked `handleSchedule` at all."*
+
+**The structural gap.** `qa-replayer` Step 4 ("symptom-gone-end-to-end") verifies the user's reported symptom appears resolved when the test runs against the deployed fix. But it never asks *"did the test actually INVOKE the handler the fix touched?"* A Playwright flow with a misidentified selector — `text=Alabama` resolving to a state filter when the test author meant a tech name — can satisfy a panel-stayed-open assertion via the Unschedule code path, while `handleSchedule` (the buggy handler the fix changed) is never called. The orchestrator declared `bug-resolved`. The user re-ran the workflow and the bug was still there.
+
+**The fix — Step 4.5 in `qa-replayer.md` + a 4th verdict.** v0.9.31 adds a **code-path execution witness** at Phase B6 that cross-checks the fix's git diff against the Playwright trace's network log (or the dev API access log). The witness:
+
+1. **Identifies buggy handlers** from the diff (function / endpoint / handler names whose behavior the fix changed).
+2. **Derives an invocation fingerprint** per handler — `network_request` for frontend handlers (their endpoint must appear in the trace's network log), `api_access_log` for backend endpoints (their entry must appear in the dev API access log during the test window), `dom_state_change` for handlers with no network call (a unique data-test-id, aria-label, or class toggle), or `console_sentinel` for pure-logic handlers (a console.log line in the diff or injected via `page.addInitScript`).
+3. **Captures observed fingerprints** during the test run (`trace: 'on'` is now mandated at Phase B6; the trace's network log + the dev API access log are the witness data).
+4. **Cross-checks**: at least ONE handler with a derivable fingerprint must be `invoked`, AND no handler with a derivable fingerprint may be `not_invoked`. Mixed `invoked` + `n/a` (non-observable internal helpers) is allowed. Empty `buggy_handlers[]` (diff is comments / imports / types only) collapses the witness to `n/a` and does NOT block.
+
+**New verdict — `test-did-not-exercise-fix`** — distinct from `bug-still-present` and `env-failure`. Routes to **Phase B2** (re-author the reproduction artifact with corrected selectors + explicit witness assertions), NOT B3 (the architect's fix proposal isn't necessarily wrong — the test is). The SR carries `origin.kind: "test-coverage-gap"` and a `gap` field listing every `not_invoked` handler + the likely cause (selector misidentification / precondition skip / sibling-handler entry — directly from the agent's `gap_if_failed` field). The three on-trial axes are now structurally distinct:
+
+| Verdict | What's on trial | Routes to |
+|---|---|---|
+| `bug-still-present` | The FIX (test exercised the buggy path; path still wrong) | Phase B3 (architect re-proposes) |
+| `test-did-not-exercise-fix` | The TEST (test passed via an irrelevant path; fix's buggy path was never invoked) | Phase B2 (bug-replicator re-authors) |
+| `env-failure` | The ENV (artifacts can't run; deploy didn't apply) | Implementing-team env diagnosis |
+
+Oscillation detection applies — 3 consecutive `test-did-not-exercise-fix` verdicts on the same bug escalates to the user (the artifact may need user-provided element IDs).
+
+**Files (4 modified):**
+
+- `agents/qa-replayer.md` — added input #6 (the fix's git diff), Step 4.5 (the witness, four sub-steps), new verdict `test-did-not-exercise-fix`, updated verdict schema (new `code_path_witness` block with `verdict`, `buggy_handlers[]`, `observed_requests[]`, `gap_if_failed`), expanded Hard rules / Does NOT sections to distinguish the three on-trial axes.
+- `skills/bug-fix-pipeline/SKILL.md` — Phase B6 step 5 (the witness step), new verdict listed alongside the existing three with explicit routing distinction (TEST on trial vs FIX on trial), discipline #4 in the header tightened to include the witness criterion.
+- `tests/test_qa_replayer_agent.py` — 8 new tests covering the witness step, fingerprint kinds, witness verdict values, routing, origin.kind, schema, and the three-axes discipline. `EXIT_VERDICTS` constant updated.
+- `tests/test_bug_fix_pipeline_skill.py` — 4 new tests covering Phase B6 witness documentation, the new verdict's Phase B2 routing, the test-coverage-gap origin.kind, and the TEST-vs-FIX distinction.
+
+**Tests:** 1016 → **1028** passing (+12). All structural.
+
+### Honest caveat
+
+The 1028 tests are STRUCTURAL — they verify the skill body / agent body / verdict schema contains the right sections, names, and union values. They can't run the qa-replayer at runtime against a real fix's diff with a real Playwright trace. The witness's RUNTIME correctness depends on the orchestrator + agent applying the discipline correctly when actually invoked; the structural tests confirm the discipline is documented and demanded.
+
+This is the v0.9.29 lesson re-applied: a discipline an agent can fabricate (claim `bug-resolved` without running the witness) is only as strong as the agent's adherence. Mitigations: the agent's Hard rules section now explicitly forbids skipping or fabricating the witness; the verdict schema's `code_path_witness` field is mandatory; the new test `test_code_path_witness_step_exists` blocks landing future qa-replayer edits that remove Step 4.5.
+
 ## [0.9.30] — 2026-05-23
 
 ### Fixed — cross-platform Python hook invocation (Windows Store-shim bug)

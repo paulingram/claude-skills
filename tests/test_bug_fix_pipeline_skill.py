@@ -143,8 +143,58 @@ def test_phase_b6_pass_criterion_is_symptom_gone(plugin_root: Path) -> None:
     assert "symptom is gone" in section.lower() or "symptom gone" in section.lower(), (
         "Phase B6 must state the pass criterion as 'the originating symptom is gone end-to-end'"
     )
-    for verdict in ("bug-resolved", "bug-still-present", "env-failure"):
+    # v0.9.31 — the 4th verdict joins the canonical set
+    for verdict in ("bug-resolved", "bug-still-present", "test-did-not-exercise-fix", "env-failure"):
         assert verdict in section, f"Phase B6 must name the qa-replayer's `{verdict}` verdict"
+
+
+def test_phase_b6_documents_code_path_witness(plugin_root: Path) -> None:
+    """v0.9.31 — Phase B6 must document the code-path execution witness step."""
+    _, body = _read(plugin_root)
+    start = body.find("## Phase B6 — QA replay against live dev")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "code-path execution witness" in section.lower(), (
+        "Phase B6 must name the 'code-path execution witness' step"
+    )
+    assert "fix's git diff" in section.lower(), (
+        "Phase B6 must list the fix's git diff as a qa-replayer input (used by the witness)"
+    )
+
+
+def test_phase_b6_test_did_not_exercise_fix_routes_to_b2(plugin_root: Path) -> None:
+    """v0.9.31 — the new verdict routes to Phase B2 (re-author the test), NOT B3 (re-propose the fix)."""
+    _, body = _read(plugin_root)
+    start = body.find("## Phase B6 — QA replay against live dev")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    # The new verdict must be present
+    assert "test-did-not-exercise-fix" in section, (
+        "Phase B6 must name the test-did-not-exercise-fix verdict"
+    )
+    # And route to Phase B2 — the re-authoring path
+    assert "Phase B2" in section or "B2" in section, (
+        "Phase B6 must state test-did-not-exercise-fix routes back to Phase B2"
+    )
+    # AND distinguish "the TEST is on trial" from "the FIX is on trial"
+    section_lower = section.lower()
+    assert "test is on trial" in section_lower, (
+        "Phase B6 must distinguish that test-did-not-exercise-fix puts the TEST on trial (not the fix)"
+    )
+    assert "fix is on trial" in section_lower, (
+        "Phase B6 must distinguish that bug-still-present puts the FIX on trial (not the test)"
+    )
+
+
+def test_phase_b6_test_coverage_gap_origin_kind(plugin_root: Path) -> None:
+    """The SR written for test-did-not-exercise-fix carries origin.kind: 'test-coverage-gap'."""
+    _, body = _read(plugin_root)
+    start = body.find("## Phase B6 — QA replay against live dev")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "test-coverage-gap" in section, (
+        "Phase B6 must specify origin.kind: 'test-coverage-gap' for the test-did-not-exercise-fix SR"
+    )
 
 
 def test_skill_documents_local_iteration_ceiling(plugin_root: Path) -> None:
