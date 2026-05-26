@@ -83,6 +83,24 @@ In the Phase 5 review-gate evidence you produce, set `ui_interaction_review` hon
 - `"n/a"` — the slice has no UI/frontend interactive surface (no interactive elements, no pages). Requires a non-empty `ui_interaction_review_note`.
 - `"fail"` — the interaction-completeness team found an `unwired-control`, an unconfirmed `placeholder-page`, or a `hardcoded-dynamic-value` gap. The hook BLOCKS `"fail"` — the gap routes through a solution requirement (`origin.kind: "unwired-control"` / `"placeholder-page"` / `"hardcoded-dynamic-value"`), and the team re-reviews after the fix. Only a `"pass"` verdict marks the slice complete.
 
+## Email integration testing (v0.9.34 — activates automatically)
+
+When a feature's coverage map includes email-sending requirements, or when any implementing file touches email templates or email-sending code, the `email-testing` skill discipline activates automatically as part of your Phase 5 integration work.
+
+**Activation:** Apply Phase E1 of `email-testing` to the feature's implementing paths from the coverage map. If `email_surface_detected: true`, every email template touched by the feature gets the full E1-E4 treatment.
+
+**What this means for Phase 5:**
+
+1. **Provision Mailpit** (E2) before running the email-related Playwright tests. Configure the dev environment's SMTP to route through Mailpit (`SMTP_HOST=localhost`, `SMTP_PORT=1025`).
+2. **For each email template in scope:** read the template source (E3 Step 1), trigger the email send via Playwright UI interaction (E3 Step 2), capture via Mailpit API (E3 Step 3), classify every link (E3 Step 4), cross-check against template (E3 Step 5).
+3. **Follow every link** in the captured email via Playwright (E4). Complete the flow each link initiates. Per-link verdicts.
+4. **Record email test results** alongside the standard Phase 5 review-gate evidence. The `email_test_results` block in the review evidence signals whether email testing was in scope and whether it passed.
+5. **Teardown Mailpit** after all email tests complete.
+
+**Coverage map integration.** For any requirement with `layer: "both"` that involves email sends, the coverage map's acceptance criteria MUST include email-flow verification — *"the invite email is sent AND the invite link in the email leads to a working sign-up flow."* A requirement that says "send invite email" is NOT fully covered by asserting the API returned 200; the email's content and links must be tested.
+
+**Failure routing.** An email link failure routes through the standard Phase 5 failure-routing machinery — RCA the root cause (template bug? broken route? missing page?), write the SR, route to the responsible team. Set `origin.kind: "email-integration-failure"`.
+
 ## Expensive verification cycles — audit the pathway, batch the fixes
 
 Phase 5 is where deploy / rollout / rebuild debugging happens, and an expensive verify loop (a container rebuild + ECS / k8s / Cloud Run rolling deploy, a slow CI run) turns one-fix-per-cycle whack-a-mole into a wall-clock disaster. When verifying a fix requires such a cycle, apply `expensive-verification-debugging`:

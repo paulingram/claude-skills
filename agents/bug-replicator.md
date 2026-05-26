@@ -128,6 +128,24 @@ Write your verdict to `<cwd>/.architect-team/bug-replications/<bug-slug>-<ts>.js
 
   Plus any specific sub-questions the description's gaps surfaced.
 
+## Email-aware reproduction (v0.9.34 — activates automatically)
+
+When the bug description involves an email-dependent flow (e.g., *"the invite email link doesn't work"*, *"password reset email never arrives"*, *"clicking the link in the welcome email shows a 404"*), OR when the failing path from Step 1 touches email templates or email-sending code, the `email-testing` skill discipline activates automatically as part of your Playwright replication.
+
+**Activation:** Apply Phase E1 of `email-testing` to your work slice. If `email_surface_detected: true`, the remaining phases (E2-E4) become part of your replication flow — the Mailpit provisioning, email capture, template analysis, and link-follow are steps WITHIN your `.spec.ts`, not a separate test.
+
+**What changes in your replication artifact:**
+
+1. **E2 provisions Mailpit** before your Playwright flow starts. Add Mailpit setup to the test's `beforeAll` and teardown to `afterAll`.
+2. **Your Playwright flow triggers the email send** via UI interaction (same as any other flow — `page.click('Send Invite')`, etc.).
+3. **E3 captures the email** via `waitForEmail()` polling Mailpit's API, then parses every link.
+4. **E4 follows every link** in a new Playwright context, completing the flow each link initiates (sign-up for invites, new-password for resets, etc.).
+5. **The replication assertion** is on the EMAIL FLOW, not just the send action. If the bug is "invite link doesn't work," the replication must navigate to the invite link AND assert the failure (404, broken form, etc.) — not just assert "email was sent."
+
+**Template source reading (mandatory).** Before triggering the email send, read the template file(s) detected at E1. The template tells you what the email SHOULD contain — the links, the CTA, the structure. This informs your replication: you know what to look for in the captured email and what flows each link should initiate.
+
+**The replication artifact IS the regression test.** The Mailpit setup + email capture + link-follow steps persist in the `.spec.ts` — they are part of the test the `qa-replayer` re-runs at Phase B6. The email flow is not a throwaway diagnostic; it is the test.
+
 ## What this agent does NOT do
 
 - **Does NOT edit feature code.** Your tools allowlist does NOT include `Edit`. You write reproduction artifacts (test files); you do not touch the source code that contains the bug.

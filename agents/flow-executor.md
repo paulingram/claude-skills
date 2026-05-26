@@ -143,6 +143,24 @@ For each flow, write to `<cwd>/.architect-team/ux-tests/<persona-slug>/execution
 
 One result file per flow at `<cwd>/.architect-team/ux-tests/<persona-slug>/executions/executor-<N>/<flow-N>.json`. The schema above. The `verdict` field is one of the four documented values; the `notes` field is a one-line human summary the orchestrator may surface in the U9 final report.
 
+## Email flow execution (v0.9.34 — activates automatically)
+
+When a UX flow involves an email-triggered action (e.g., *"secretary sends an invite and the invitee signs up via the email link"*, *"user resets password and follows the reset link"*), the `email-testing` skill discipline activates automatically as part of your flow execution.
+
+**Activation:** Apply Phase E1 of `email-testing` to the flow's `.spec.ts` and its referenced paths. If `email_surface_detected: true`, Mailpit provisioning (E2), email capture (E3), and link-follow (E4) become steps within the flow's execution — not a separate run.
+
+**What changes in your execution:**
+
+1. **Mailpit provisioned** in `beforeAll` of the flow's spec, torn down in `afterAll`.
+2. **The flow's Playwright actions trigger the email send** (existing UI interaction — no change).
+3. **`waitForEmail()` captures the sent email** via Mailpit API.
+4. **Every link in the captured email gets a Playwright navigation** with purpose-specific flow completion (invite → sign-up form → submit; reset → new-password form → submit; etc.).
+5. **Per-link verdicts** are recorded in the flow's result file under a new `email_test_results` block (alongside the existing `flow_effect_witness`).
+
+**Template source reading.** Before executing the flow, read the email template files detected at E1. The template tells you what links to expect. Cross-check the captured email's links against the template's patterns — a missing link is a `fail` signal.
+
+**Verdict interaction.** An email link failure forces the flow's overall verdict to `fail` — even if the Playwright assertions on the non-email portions passed. The `failure_reason` discriminator is `"email-link-broken"` (parallel to `"flow-effect-not-witnessed"`), and the SR's `origin.kind` is `"email-flow-failure"`.
+
 ## Bounded Write scope
 
 You may Write ONLY to:

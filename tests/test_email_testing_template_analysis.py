@@ -1,0 +1,217 @@
+"""Tests for email-testing skill's template analysis + link classification + flow completion rules (v0.9.34)."""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from tests.helpers import frontmatter
+
+
+SKILL_PATH = "skills/email-testing/SKILL.md"
+
+
+def _read_body(plugin_root: Path) -> str:
+    _, body = frontmatter.parse(plugin_root / SKILL_PATH)
+    return body
+
+
+# ─── Template file extension indicators ──────────────────────────────────
+
+
+TEMPLATE_EXTENSIONS = ("html", "mjml", "ejs", "hbs", "pug")
+
+
+@pytest.mark.parametrize("ext", TEMPLATE_EXTENSIONS)
+def test_template_extension_listed(plugin_root: Path, ext: str) -> None:
+    body = _read_body(plugin_root)
+    assert f"*.{ext}" in body or f".{ext}" in body, (
+        f"Skill must list `*.{ext}` as an email template file extension"
+    )
+
+
+# ─── Path keywords for template detection ────────────────────────────────
+
+
+TEMPLATE_PATH_KEYWORDS = ("email", "mail", "template", "notification")
+
+
+@pytest.mark.parametrize("keyword", TEMPLATE_PATH_KEYWORDS)
+def test_template_path_keyword_listed(plugin_root: Path, keyword: str) -> None:
+    body = _read_body(plugin_root)
+    assert keyword in body.lower(), (
+        f"Skill must list `{keyword}` as a path keyword for template detection"
+    )
+
+
+# ─── Function-call indicators ────────────────────────────────────────────
+
+
+FUNCTION_INDICATORS = (
+    "sendMail",
+    "sendEmail",
+    "send_mail",
+    "send_email",
+)
+
+
+@pytest.mark.parametrize("func", FUNCTION_INDICATORS)
+def test_function_indicator_listed(plugin_root: Path, func: str) -> None:
+    body = _read_body(plugin_root)
+    assert func in body, (
+        f"Skill must list `{func}` as a function-call indicator"
+    )
+
+
+# ─── Link classification completeness ───────────────────────────────────
+
+
+LINK_URL_PATTERNS = {
+    "invite": "invite-accept",
+    "accept": "invite-accept",
+    "reset": "password-reset",
+    "password": "password-reset",
+    "verify": "email-verification",
+    "confirm": "email-verification",
+    "unsubscribe": "unsubscribe",
+    "calendar": "calendar-event",
+    "delete": "destructive-action",
+    "remove": "destructive-action",
+    "cancel": "destructive-action",
+}
+
+
+@pytest.mark.parametrize("url_pattern,purpose", sorted(LINK_URL_PATTERNS.items()))
+def test_url_pattern_mapped_to_purpose(plugin_root: Path, url_pattern: str, purpose: str) -> None:
+    body = _read_body(plugin_root)
+    # Both the URL pattern and its purpose must appear in the classification table area
+    assert f"/{url_pattern}" in body or url_pattern in body, (
+        f"Skill must map URL pattern `/{url_pattern}` in the link classification"
+    )
+    assert purpose in body, (
+        f"Skill must define purpose `{purpose}` in the link classification"
+    )
+
+
+# ─── Non-testable link types ─────────────────────────────────────────────
+
+
+def test_mailto_links_skipped(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    assert "mailto" in body.lower(), "Skill must handle mailto: links"
+    # mailto links should not be navigated
+    assert "not-testable" in body.lower() or "skip" in body.lower() or "not a web link" in body.lower(), (
+        "Skill must classify mailto: links as not testable"
+    )
+
+
+# ─── Flow completion assertions per purpose ──────────────────────────────
+
+
+def test_invite_flow_includes_signup(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "sign-up" in body_lower or "signup" in body_lower or "create" in body_lower, (
+        "invite-accept flow must include account sign-up / creation"
+    )
+
+
+def test_password_reset_flow_includes_new_password(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "new password" in body_lower or "new-password" in body_lower, (
+        "password-reset flow must include setting a new password"
+    )
+
+
+def test_calendar_flow_includes_ics_validation(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    assert ".ics" in body, "calendar-event flow must validate .ics file"
+    body_lower = body.lower()
+    for field in ("summary", "dtstart", "dtend"):
+        assert field.lower() in body_lower, (
+            f"calendar-event flow must validate iCalendar field `{field}`"
+        )
+
+
+def test_destructive_flow_includes_confirmation(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "confirm" in body_lower, (
+        "destructive-action flow must include a confirmation step"
+    )
+
+
+# ─── Template cross-check rules ─────────────────────────────────────────
+
+
+def test_missing_links_documented(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "missing link" in body_lower or "missing" in body_lower, (
+        "Skill must document the handling of links in template but missing from rendered email"
+    )
+
+
+def test_unexpected_links_documented(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "unexpected link" in body_lower or "unexpected" in body_lower, (
+        "Skill must document the handling of links in rendered email but not in template"
+    )
+
+
+# ─── UI interaction discipline (no direct API email sends) ───────────────
+
+
+def test_no_direct_api_email_sends(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "direct api" in body_lower or "page.click" in body_lower, (
+        "Skill must mandate email sends triggered via Playwright UI interaction, not direct API"
+    )
+
+
+# ─── Polling configuration documented ───────────────────────────────────
+
+
+def test_polling_timeout_documented(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    assert "30000" in body or "30s" in body.lower() or "30 second" in body.lower(), (
+        "Skill must document the email polling timeout (30s default)"
+    )
+
+
+def test_polling_interval_documented(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    assert "1000" in body or "1s" in body.lower() or "1 second" in body.lower(), (
+        "Skill must document the email polling interval (1s default)"
+    )
+
+
+# ─── Overall verdict rules ──────────────────────────────────────────────
+
+
+def test_overall_verdict_documented(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    assert "overall_verdict" in body, "Skill must document the overall_verdict field"
+
+
+def test_overall_verdict_values(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    for verdict in ("pass", "fail", "env-failure"):
+        assert verdict in body, f"overall_verdict must include `{verdict}` value"
+
+
+# ─── Env-var credential discipline in email flows ────────────────────────
+
+
+def test_env_var_discipline_for_email_flows(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    body_lower = body.lower()
+    assert "env" in body_lower and ("var" in body_lower or "variable" in body_lower), (
+        "Skill must mandate env-var discipline for credentials in email-linked flows"
+    )
+    assert "never" in body_lower and ("hardcoded" in body_lower or "hardcode" in body_lower or "hard-coded" in body_lower), (
+        "Skill must prohibit hardcoded credentials"
+    )

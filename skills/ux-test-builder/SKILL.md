@@ -141,6 +141,8 @@ One `.spec.ts` per distilled flow at `<cwd>/.architect-team/ux-tests/<persona-sl
 
 The literal flow at U2 is already authored; this phase authors flows #2-N from the distilled set. Re-author the literal at U2 to add its `expected_user_effect` block too (it inherits the same v0.9.32 witness discipline).
 
+**Email-aware flow authoring (v0.9.34).** When a distilled flow involves an email-triggered action (e.g., *"invitee signs up via the email link"*, *"user resets password via the reset email"*), the U5 orchestrator applies Phase E1 of the `email-testing` skill discipline. If `email_surface_detected: true`, the `.spec.ts` for that flow MUST include Mailpit provisioning (E2 in `beforeAll`/`afterAll`), `waitForEmail()` polling (E3), link extraction + classification (E3), and Playwright navigation to every extracted link with purpose-specific flow completion (E4). The email capture + link-follow steps are PART of the flow's `.spec.ts`, not a separate test — the flow executor at U6 runs them as written. The `expected_user_effect` block for an email-involving flow should include `{ kind: "network_request", value: "email captured by Mailpit" }` plus the effect of the link follow (e.g., `{ kind: "url_change", value: "post-signup URL matches /dashboard" }`).
+
 ## Phase U6 — Parallel execution (3 `flow-executor` agents)
 
 The orchestrator dispatches 3 `flow-executor` agents in PARALLEL. Each receives:

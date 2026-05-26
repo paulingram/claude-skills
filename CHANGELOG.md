@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.34] — 2026-05-25
+
+### Added — Email Testing Discipline: automatic Mailpit-based email flow verification across all QA agents
+
+A cross-cutting skill that closes a testing blind spot: email-dependent user flows (invite → sign-up, password reset → new password, notification click-throughs) were previously untestable in dev environments without a real inbox. v0.9.34 provides a discipline for capturing, analyzing, and end-to-end testing every email a feature sends — automatically, whenever the work plan touches email templates or email-sending code.
+
+#### New `email-testing` skill (4 phases E1-E4)
+
+`skills/email-testing/SKILL.md` — the discipline. Four phases:
+
+- **E1 — Email Surface Detection.** Scans the work slice for email indicators: template files (`*.html`, `*.mjml`, `*.ejs`, `*.hbs`, `*.pug`) in email-related paths, SMTP/transactional-email client imports (`nodemailer`, `@sendgrid/mail`, `ses`, `postmark`, `mailgun`, `resend`), and email-sending function calls (`sendMail`, `sendEmail`, `sendInvite`, etc.). Activates automatically on detection — the agent does not ask.
+- **E2 — Mailpit Provisioning.** Starts Mailpit (local SMTP trap, zero external dependencies) via Docker (`docker run -d --name mailpit-test -p 1025:1025 -p 8025:8025 axllent/mailpit`) or binary fallback. Configures the dev environment SMTP to route through localhost:1025. Includes a reachability check and mandatory teardown (wired as try/finally).
+- **E3 — Email Capture + Template Analysis.** Reads the email template source file BEFORE triggering the send to understand the email's purpose. After the Playwright UI interaction triggers the send, polls Mailpit's REST API (`GET /api/v1/messages`) to capture the email. Parses every `<a href>` link, classifies each by purpose (invite-accept, password-reset, email-verification, unsubscribe, calendar-event, destructive-action, general-link) using URL patterns + surrounding text. Cross-checks captured links against template patterns.
+- **E4 — Link Follow + Flow Completion.** Navigates Playwright to every testable link. For each purpose type, completes the full user flow: invite → sign-up form → submit → account active; reset → new-password form → submit → success; calendar → download `.ics` → validate fields (SUMMARY, DTSTART, DTEND, ORGANIZER); delete → confirm → resource removed. Per-link verdicts (pass/fail/env-failure). Overall verdict aggregated.
+
+Five non-negotiable rules: (1) Mailpit by default (project may override via `design.md`); (2) every link gets tested — not just the primary CTA; (3) template source is read first; (4) teardown is mandatory; (5) credentials use env-var discipline.
+
+#### Agent wiring — automatic activation in existing QA agents
+
+No new agent. The skill is consumed by existing agents at their natural insertion points:
+
+- **`bug-replicator`** — new `## Email-aware reproduction (v0.9.34)` section. When reproducing a bug involving an email flow, E1-E4 become steps within the `.spec.ts` replication artifact. The email capture + link-follow persist as the regression test the `qa-replayer` re-runs at Phase B6.
+- **`flow-executor`** — new `## Email flow execution (v0.9.34)` section. Email-involving UX flows include Mailpit provisioning, email capture, and link-follow as steps within the flow's execution. An email link failure forces the flow's overall verdict to `fail` with `failure_reason: "email-link-broken"`.
+- **`integration`** — new `## Email integration testing (v0.9.34)` section. Features with email-sending requirements get full template-read → trigger → capture → link-follow treatment. Coverage map acceptance criteria must include email-flow verification. Failures route as `origin.kind: "email-integration-failure"`.
+
+#### Pipeline skill wiring
+
+- **`bug-fix-pipeline`** — Phase B2 gains an email-aware reproduction paragraph.
+- **`architect-team-pipeline`** — Phase 5 gains step 5 (email integration testing) with renumbered steps 6-11.
+- **`ux-test-builder`** — Phase U5 gains email-aware flow authoring paragraph.
+
+#### Tests
+
+3 new test files:
+- `tests/test_email_testing_skill.py` — skill structure, phases E1-E4, five rules, activation triggers, detection schema, Mailpit provisioning, link classification, flow completion, hard rules
+- `tests/test_email_testing_agent_wiring.py` — agent email sections, skill cross-references, pipeline wiring
+- `tests/test_email_testing_template_analysis.py` — template extensions, path keywords, function indicators, URL-to-purpose mapping, flow completion assertions, cross-check rules, credential discipline
+
+123 new tests; 1139 → **1262** passing (57 test files).
+
 ## [0.9.33] — 2026-05-25
 
 ### Added — Proposal Refiner: conversational pre-pipeline prompt refinement with codebase-grounded clarity grading
