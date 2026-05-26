@@ -278,6 +278,8 @@ HARD_RULES_KEYWORDS = (
     "credential",
     "direct API",
     "footer link",
+    "follow",
+    "cross-platform",
 )
 
 
@@ -329,6 +331,10 @@ SMTP_INDICATORS = (
     "postmark",
     "mailgun",
     "resend",
+    "@mailchimp/transactional",
+    "createTransport",
+    "SESClient",
+    "SendEmailCommand",
 )
 
 
@@ -354,4 +360,60 @@ def test_waitforemail_helper_pattern(plugin_root: Path) -> None:
     body = _read_body(plugin_root)
     assert "waitForEmail" in body, (
         "Skill must document the waitForEmail Playwright helper pattern"
+    )
+
+
+# --- "What this skill does NOT do" section ---
+
+
+def test_what_skill_does_not_do_section_exists(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    assert "## What this skill does NOT do" in body, (
+        "Skill must include a 'What this skill does NOT do' section"
+    )
+
+
+# --- E2 additional provisioning mandates ---
+
+
+def test_e2_binary_fallback_all_platforms(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E2")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "linux" in section_lower, "E2 binary fallback must cover Linux"
+    assert "macos" in section_lower or "darwin" in section_lower, "E2 binary fallback must cover macOS"
+    assert "windows" in section_lower, "E2 binary fallback must cover Windows"
+
+
+def test_e2_dev_environment_configuration(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E2")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "SMTP_HOST" in section or "SMTP_PORT" in section or "environment variable" in section.lower(), (
+        "E2 must document dev environment SMTP configuration"
+    )
+
+
+def test_e2_non_blocking_when_mailpit_fails(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E2")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "does not block" in section_lower or "not block" in section_lower or "env-failure" in section_lower, (
+        "E2 must document that Mailpit failure does NOT block non-email tests"
+    )
+
+
+def test_e2_teardown_try_finally(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E2")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "try/finally" in section_lower or "finally" in section_lower, (
+        "E2 teardown must be wired as try/finally or equivalent"
     )

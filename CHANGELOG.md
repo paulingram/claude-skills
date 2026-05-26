@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.35] — 2026-05-25
+
+### Improved — Email Testing Audit: best-in-class refinements to the v0.9.34 email-testing discipline
+
+A comprehensive architecture + wiring + test-coverage + documentation-currency audit of the email-testing skill against both internal plugin conventions and external industry best practices (Mailpit, Mailtrap, MailSlurp, Ethereal). All gaps fixed in-session.
+
+#### Skill refinements (`skills/email-testing/SKILL.md`)
+
+- **Mailpit search API** — replaced client-side filtering (`/api/v1/messages?limit=10`) with the server-side search endpoint (`GET /api/v1/search?query=to:"..." subject:"..."`) to eliminate the 10-message ceiling edge case.
+- **Pre-test message cleanup** — added `DELETE /api/v1/messages` before each test run to prevent stale-email matches in multi-test suites.
+- **Docker container collision fix** — added `docker rm -f mailpit-test 2>/dev/null || true` before `docker run` to handle dangling containers from prior interrupted teardowns.
+- **Redirect chain handling** — new section documenting click-tracking redirect chains (SendGrid, Mailgun, Postmark) and the `page.waitForURL` follow-through pattern.
+- **Language-specific indicator expansion** — added Python (`smtplib`, `django.core.mail`, `flask_mail`), Go (`net/smtp`, `gomail`), Java (`javax.mail`, `jakarta.mail`, `JavaMailSender`), Ruby (`ActionMailer`, `Mail`), PHP (`PHPMailer`, `SwiftMailer`, `Symfony\Mailer`) alongside the existing Node.js indicators.
+- **Windows PowerShell binary fallback** — added `Start-Process` pattern for environments without Docker or WSL.
+
+#### Test coverage expansion
+
+- `tests/test_email_testing_skill.py` — 55 → **66** structural tests (added `@mailchimp/transactional`, `createTransport`, `SESClient`, `SendEmailCommand` indicator assertions; platform coverage; teardown try/finally; non-blocking discipline; "What this skill does NOT do" section).
+- `tests/test_email_testing_template_analysis.py` — 37 → **64** template/flow tests (added template purpose identification, link pre-extraction, template analysis schema, fragment anchor skip, link analysis schema, email-verification flow, unsubscribe flow, general-link handling; expanded function indicators from 4→13; deepened invite/password/destructive flow assertions with fill/submit/success checks).
+
+38 new tests; 1262 → **1300** passing (57 test files).
+
+#### Documentation currency
+
+- `docs/CODEBASE_MAP.md` — major refresh from v0.9.29 baseline to v0.9.35: updated all counts (25 skills, 26 agents, 9 commands, 1300 tests/57 files), rewrote architecture diagram with AG_BUG/AG_UX/AG_DOC subgroups, added 5 skills + 9 agents + 3 commands to Module Guide, added v0.9.28 plugin-cache gotcha.
+- `docs/INTEGRATION_MAP.md` — added `architect-team ↔ Mailpit` integration entry (Docker container, REST API endpoints, SMTP trap, failure mode).
+
 ## [0.9.34] — 2026-05-25
 
 ### Added — Email Testing Discipline: automatic Mailpit-based email flow verification across all QA agents

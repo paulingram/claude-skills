@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-23T16:00:00Z
+last_mapped: 2026-05-25T12:00:00Z
 codebase: architect-team-plugin
-note: Doc refresh 2026-05-23 for v0.9.29 (ux-test-builder + bug-fix Phase B6b sensibility check) — TWO related additions in one release. (1) New ux-test-builder skill (10 phases U0-U9) reached via /architect-team:ux-test takes a persona + objectives + target site + credentials env-var; reuses intake-and-mapping for site maps; drafts a literal Playwright flow at U2; dispatches 3 new flow-explorer agents (×3 opus) at U3 to propose 10-15 adjacent flows each; distills semantically at U4; authors one .spec.ts per flow at U5; dispatches 3 new flow-executor agents (×3 opus) at U6 to run every flow in parallel against the live target; resolves disagreements via 3-cycle bounded convergence at U7; routes failed flows as SRs with origin.kind=ux-flow-failure that auto-route through bug-fix-pipeline at U8; final report at U9. (2) New ## Phase B6b — Logical Sensibility Check section in bug-fix-pipeline skill (between B6 QA-replay and B7 archive) addresses real-world cohesion gap from user report (auth-unavailable after Sign-Back-In fix in hermetic bundle); new fix-sensibility-checker agent (opus) computes the impact set from the fix's git diff (changed files + importers + nav destinations + endpoints), authors minimal Playwright sensibility flows, runs them against deployed dev, routes any nonsensical item as fresh SR with origin.kind=fix-regression for recursive bug-fix-pipeline processing; bounded at 3 consecutive fix-regression SRs. 6 new tests (test_ux_test_builder_skill.py + test_flow_explorer_agent.py + test_flow_executor_agent.py + test_fix_sensibility_checker_agent.py + test_ux_test_builder_wiring.py + test_bug_fix_phase_b6b_sensibility.py); EXPECTED_SKILLS/AGENTS/COMMANDS updated. Test-file count now 50. Current reality - 23 skills, 25 agents, 8 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts (setup.py + install_mempalace.py + notify/notify.py), 1014 pytest self-tests across 50 test files. Covers v0.9.1 (auto-compact) through v0.9.29 (ux-test-builder + bug-fix Phase B6b sensibility check).
+note: "Doc refresh 2026-05-25 for v0.9.35. Covers v0.9.30 (cross-platform Python hook invocation), v0.9.31 (Phase B6 code-path execution witness + test-did-not-exercise-fix verdict), v0.9.32 (wrong-code-path witness generalized across all 3 Playwright sites), v0.9.33 (proposal-refiner — conversational pre-pipeline prompt refinement), v0.9.34 (email-testing — automatic Mailpit-based email flow verification), and v0.9.35 (email-testing audit refinements — Mailpit search API, pre-test cleanup, container collision fix, redirect chain docs, language-specific indicators, expanded tests). Current reality — 25 skills, 26 agents, 9 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts, 1300 pytest self-tests across 57 test files."
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-23 for v0.9.29.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-25 for v0.9.35.
 
 ## 1. System Overview
 
@@ -14,14 +14,17 @@ The `architect-team` Claude Code plugin (v0.9.23) is a spec-to-production multi-
 
 **v0.9.22 ships a sibling `bug-fix-pipeline` skill** with phases B−1 → B8 — replicate-first (Playwright for frontend / backend script for backend / ambiguity-escalation when unclear); reproduction-is-the-regression-test (frontend bugs also author a backend diagnostic); generalized-fix (the `system-architect` Bug-Fix Generalization Audit mode rejects symptom patches unless explicitly authorized); QA-replay-against-live-dev (the `qa-replayer` agent re-runs the reproduction artifacts against the deployed dev fix; pass criterion is symptom-gone-end-to-end); live-dev-environment-by-default (production is an opt-in escalation). Reached via `/architect-team:bug-fix` (explicit) OR the main pipeline's Phase −2 triage. **At Phase B8 the bug-fix pipeline runs the same documentation-currency gate as the main pipeline** (v0.9.23 dispatch parity).
 
-The plugin ships **22 skills, 22 named agent definitions, 7 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **858 pytest self-tests** across 40 test files that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, interactive-element-and-page genuineness, visual fidelity, and (v0.9.23) documentation currency against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
+The plugin ships **25 skills, 26 named agent definitions, 9 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **1300 pytest self-tests** across 57 test files that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, interactive-element-and-page genuineness, visual fidelity, and (v0.9.23) documentation currency against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
 
 ## 2. Architecture Diagram
 
 ```mermaid
 graph TB
-    subgraph "Entry points (6 commands)"
+    subgraph "Entry points (9 commands)"
         CMD_AT["/architect-team"]
+        CMD_BUG["/architect-team:bug-fix"]
+        CMD_UX["/architect-team:ux-test"]
+        CMD_REFINE["/architect-team:refine-prompt"]
         CMD_SETUP["/architect-team-setup"]
         CMD_VQA["/architect-team:visual-qa"]
         CMD_MEM["/architect-team:memory"]
@@ -30,10 +33,12 @@ graph TB
     end
 
     subgraph "Orchestrator"
-        SK_PIPELINE["skill: architect-team-pipeline (Phase -1 -> 8)"]
+        SK_PIPELINE["skill: architect-team-pipeline (Phase -2 -> 8)"]
+        SK_BUGFIX["skill: bug-fix-pipeline (Phase B-1 -> B8)"]
+        SK_UXTEST["skill: ux-test-builder (Phase U0 -> U9)"]
     end
 
-    subgraph "Skills (20)"
+    subgraph "Skills (25)"
         SK_INTAKE["intake-and-mapping"]
         SK_PLAN["coverage-mapping / reuse-first-design"]
         SK_MAP["frontend-route-mapping / design-fidelity-mapping"]
@@ -43,19 +48,23 @@ graph TB
         SK_DRT["diagnostic-research-team"]
         SK_VFR["visual-fidelity-reconciliation / visual-verification-team"]
         SK_EDIT["editability-completeness / interaction-completeness"]
-        SK_DVD["dynamic-value-discovery"]
+        SK_DVD["dynamic-value-discovery / interaction-intuition"]
         SK_MEMP["mempalace-integration"]
         SK_README["readme-styling / documentation-currency"]
+        SK_REFINE["proposal-refiner"]
+        SK_EMAIL["email-testing"]
     end
 
-    subgraph "Agents (17)"
+    subgraph "Agents (26)"
         AG_IMPL["frontend / backend (opus implementers)"]
         AG_FLOW["reconciler / integration"]
-        AG_MAP["codebase-map-reviewer x3 / route-mapper / integration-explorer x3 / master-synthesizer"]
+        AG_MAP["codebase-map-reviewer x3 / route-mapper / integration-explorer x3 / master-synthesizer / interaction-intuiter"]
         AG_ARCH["system-architect (5 review modes)"]
         AG_VERIF["task-reviewer / test-completeness-verifier / editability-reviewer x3 / interaction-reviewer x3 / diagnostic-researcher x3"]
         AG_VIS["visual-capture xN / visual-analyzer xN"]
-        AG_SCAFFOLD["scaffold-agent"]
+        AG_BUG["bug-classifier / bug-replicator / qa-replayer / fix-sensibility-checker"]
+        AG_UX["flow-explorer x3 / flow-executor x3"]
+        AG_DOC["doc-updater / prompt-refiner / scaffold-agent"]
     end
 
     subgraph "Hooks (3 + shared module)"
@@ -70,9 +79,14 @@ graph TB
     end
 
     CMD_AT --> SK_PIPELINE
-    SK_PIPELINE --> SK_INTAKE & SK_PLAN & SK_TEAM & SK_RCA & SK_DRT & SK_VFR & SK_EDIT & SK_DVD & SK_MEMP
+    CMD_BUG --> SK_BUGFIX
+    CMD_UX --> SK_UXTEST
+    CMD_REFINE --> SK_REFINE
+    SK_PIPELINE --> SK_INTAKE & SK_PLAN & SK_TEAM & SK_RCA & SK_DRT & SK_VFR & SK_EDIT & SK_DVD & SK_MEMP & SK_EMAIL
     SK_INTAKE --> AG_MAP
-    SK_PIPELINE --> AG_IMPL & AG_FLOW & AG_ARCH & AG_VERIF & AG_VIS
+    SK_PIPELINE --> AG_IMPL & AG_FLOW & AG_ARCH & AG_VERIF & AG_VIS & AG_DOC
+    SK_BUGFIX --> AG_BUG & AG_ARCH
+    SK_UXTEST --> AG_UX
     AG_IMPL --> H_GATE & H_IDLE
     SK_PIPELINE --> H_STOP
     H_GATE --> H_SCHEMA
@@ -86,8 +100,8 @@ graph TB
 claude_skill_lib/
 ├── .claude/                 # OpenSpec-installed workspace commands + skills (opsx/* commands + openspec-* skills; tracked)
 ├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.19)
-├── agents/                  # 17 named subagent definitions (.md with frontmatter)
-├── commands/                # 6 slash-command bodies (.md with frontmatter)
+├── agents/                  # 26 named subagent definitions (.md with frontmatter)
+├── commands/                # 9 slash-command bodies (.md with frontmatter)
 ├── hooks/                   # hooks.json wiring + 3 enforcement scripts + 1 shared module
 │   ├── hooks.json           #   wires PostToolUse(TaskUpdate), SubagentStop, Stop
 │   ├── review_evidence_schema.py   # shared single-source-of-truth evidence schema (v0.9.9)
@@ -97,13 +111,13 @@ claude_skill_lib/
 ├── scripts/
 │   ├── setup/               # setup.py (deps) + install_mempalace.py (MemPalace CLI/MCP)
 │   └── notify/              # notify.py — best-effort per-project email notifier (v0.9.18)
-├── skills/                  # 20 skill directories, each containing SKILL.md
+├── skills/                  # 25 skill directories, each containing SKILL.md
 ├── openspec/                # OpenSpec workspace (tracked); config.yaml + changes/ (archive/ nested inside) + specs/
 ├── docs/
 │   ├── CODEBASE_MAP.md      # this file
 │   ├── INTEGRATION_MAP.md   # external-integration synthesis (single-codebase degenerate)
 │   └── superpowers/         # historical design doc + plan (read-only reference)
-├── tests/                   # 647 pytest self-tests (29 test files + conftest + helpers/)
+├── tests/                   # 1300 pytest self-tests (57 test files + conftest + helpers/)
 ├── .scratch/                # working notes (tracked; not part of the installed surface)
 ├── .architect-team-notify.example.json   # template per-project email-notification config (v0.9.18)
 ├── CLAUDE.md  CHANGELOG.md  README.md  LICENSE  pytest.ini  .gitignore
@@ -113,7 +127,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 
 ## 4. Module Guide
 
-### Skills (20)
+### Skills (25)
 
 | Skill | Role |
 |---|---|
@@ -137,8 +151,13 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | `mempalace-integration` | Per-workspace MemPalace store — `--wing` mining (rooms are `init`-detected from directory structure, not a `mine` flag), auto-mine on artifact write, search before output. |
 | `readme-styling` | The bitmap house style for READMEs — canvas/centering, pipe-table + ASCII-graph alignment, banner / dividers / panels / flowcharts / logic maps, the GitHub-safe + ANSI color model, and the theming engine (6 preset themes + an interactive picker + the `readme-theme` marker). |
 | `documentation-currency` | The Phase 8 docs-reflect-the-code gate — the doc inventory (maps + README + CHANGELOG + CLAUDE.md), what "current" means, the orchestrator-updates-then-system-architect-audits flow. |
+| `bug-fix-pipeline` | The sibling `Phase B−1 → B8` pipeline — replicate-first, reproduction-is-the-regression-test, generalized-fix, QA-replay-against-live-dev. Reached via `/architect-team:bug-fix` or the main pipeline's Phase −2 triage. (v0.9.22) |
+| `interaction-intuition` | Per-frontend codebase intuition map — enumerates every interactive element, intuits each element's action and candidate endpoints, assigns confidence, authors ambiguity questions for low-confidence items. Produces `INTERACTION_INTUITION_MAP.md`. (v0.9.21) |
+| `ux-test-builder` | UX test builder pipeline `Phase U0 → U9` — persona + objectives + target site → literal flow → 3 flow-explorer agents propose 10-15 adjacent flows each → distilled → one `.spec.ts` per flow → 3 flow-executor agents run in parallel → consensus → bug routing. Reached via `/architect-team:ux-test`. (v0.9.29) |
+| `proposal-refiner` | Conversational pre-pipeline prompt refinement — grades a free-text prompt on 5 axes (clarity, scope, acceptance, grounding, conflict), asks clarifying questions, iterates up to 5 times. Runs BEFORE Phase −2 when input is prose. Reached standalone via `/architect-team:refine-prompt`. (v0.9.33) |
+| `email-testing` | Cross-cutting email-testing discipline — 4 phases (E1 detect, E2 Mailpit provision, E3 capture+analyze, E4 link-follow+flow-complete). Consumed by `bug-replicator`, `flow-executor`, `integration` agents. Mailpit by default; template-first analysis; every link tested; mandatory teardown. (v0.9.34) |
 
-### Agents (17)
+### Agents (26)
 
 | Agent | Model | Color | One-line purpose |
 |---|---|---|---|
@@ -159,10 +178,22 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | visual-capture | sonnet | cyan | Spawned ×N; starts the live app, captures screenshots + computed-style data. Mechanical; no verdicts. |
 | visual-analyzer | opus | red | Spawned ×N; the objective data diff + pixel diff + code cross-check. |
 | interaction-reviewer | opus | yellow | Spawned ×3 (v0.9.19); independently enumerates every interactive element AND page, classifies element wiring + page genuineness, traces element→endpoint, audits Playwright test authenticity, flags hardcoded-dynamic values; round-robin convergence. Analysis-only — read-only on source, no `Edit` of feature code. |
+| interaction-intuiter | opus | green | Spawned per frontend codebase at Phase −1B (v0.9.21). Reads route + design + integration maps, enumerates interactive elements, intuits actions + candidate endpoints, assigns confidence, authors ambiguity questions. Produces `INTERACTION_INTUITION_MAP.md`. |
+| bug-classifier | sonnet | red | Spawned at Phase −2 (v0.9.22). Triages the incoming requirement as `bug` / `feature` / `mixed` / `unclear`. Lightweight analysis-only. |
+| bug-replicator | opus | orange | Spawned per affected codebase at Phase B1 (v0.9.22). Writes + runs Playwright or backend scripts that reproduce the bug against live dev. The artifact IS the regression test. |
+| qa-replayer | opus | green | Spawned at Phase B6 (v0.9.22). Re-runs reproduction artifacts against live dev after the fix is deployed. Returns `bug-resolved` / `bug-still-present` / `test-did-not-exercise-fix` (v0.9.31) / `env-failure`. |
+| doc-updater | opus | blue | Spawned at Phase 8 / Phase B8 (v0.9.23). Reads git diff + coverage map + doc inventory, updates all stale docs. Bounded Write to inventory paths only. |
+| fix-sensibility-checker | opus | yellow | Spawned at Phase B6b (v0.9.29). Computes impact set from fix's git diff, authors + runs minimal Playwright sensibility flows, routes nonsensical items as fresh SRs with `origin.kind: fix-regression`. |
+| flow-explorer | opus | cyan | Spawned ×3 at Phase U3 (v0.9.29). Reads persona + site maps + literal flow, proposes 10-15 additional Playwright user-flow specs exercising adjacent capabilities. |
+| flow-executor | opus | magenta | Spawned ×3 at Phase U6 (v0.9.29). Runs every distilled Playwright flow against live target, documents per-flow outcome. |
+| prompt-refiner | opus | blue | Spawned at Phase R2 (v0.9.33). Grades a free-text prompt on 5 axes, generates codebase-grounded clarifying questions. |
 
-### Commands (6)
+### Commands (9)
 
-- `architect-team` — runs the Phase −1 → 8 pipeline against EITHER a requirements folder OR a plain-language requirement typed directly as prose (v0.9.17). Flags: `--no-commit` / `--no-push` / `--no-compact` / `--allow-push-to-default`.
+- `architect-team` — runs the Phase −2 → 8 pipeline against EITHER a requirements folder OR a plain-language requirement typed directly as prose (v0.9.17). Flags: `--no-commit` / `--no-push` / `--no-compact` / `--allow-push-to-default` / `--proposal-first` / `--bug-fix` / `--feature-only` / `--no-refine`.
+- `bug-fix` — faster bug-focused variant (v0.9.22). Drives through replicate → reproduce-test → propose → fix → QA-replay loop. Equivalent to `--bug-fix` flag on the main command.
+- `ux-test` — UX test builder (v0.9.29). Takes persona + objectives + target site + credentials env-var. Drives through site mapping → literal flow → 3 explorers → distillation → 3 executors → consensus → bug routing.
+- `refine-prompt` — standalone prompt refinement (v0.9.33). Grades and iteratively refines a free-text prompt without running the pipeline.
 - `architect-team-setup` — installs openspec CLI, pytest+httpx, Playwright+chromium.
 - `visual-qa` — on-demand visual-fidelity audit → the visual-verification-team gate.
 - `mempalace-install` — installs the MemPalace CLI + prints the MCP wire-up.
@@ -188,9 +219,9 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 - **`.architect-team-notify.json`** (in a *target* project's repo root — NOT in this plugin) — the opt-in per-project email-notification config (v0.9.18) consumed by `scripts/notify/notify.py`: `provider` (`gmail`/`sendgrid`), `from_address`, optional `from_name`, the provider-settings object naming the secret env var, and a non-empty `recipients[]` (each with `email` + an `events[]` subscription list, or the `"all"` shorthand). Absent config ⇒ the notifier is a silent no-op.
 - **`.architect-team-notify.example.json`** (this repo's root) — the documented, schema-valid template a project copies to enable notifications.
 
-### Tests (647, all PASS)
+### Tests (1300, all PASS)
 
-29 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage: plugin/marketplace JSON; all 20 skill + 17 agent + 6 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic (review-gate, teammate-idle, pipeline-completion-audit incl. the master-review + documentation-currency audit checks); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier module (`test_notify.py` — config load/validate, Gmail + SendGrid message construction with `smtplib`/`urllib` mocked, dispatch + per-recipient filtering, secret resolution, CLI + failure isolation) and its pipeline wiring (`test_notify_wiring.py` — the five wired events + the best-effort/non-blocking statement); the v0.9.19 ui-interaction-fidelity discipline (`test_interaction_completeness.py` — skill + agent registration + the structural mandates + the element/page rubrics; `test_ui_interaction_review.py` — the v6 `ui_interaction_review` field's required/valid/`n/a`-note behavior + `SCHEMA_VERSION == 6`; `test_dynamic_value_discovery.py` — the dynamic-value-discovery skill + its context-classification rubric + the cross-role references; `test_ui_fidelity_wiring.py` — the pipeline + discipline wiring); **cross-component consistency** (`test_cross_consistency.py` — the two evidence hooks share one schema module; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands; the shared schema has 12 required evidence fields); and one structural test file per discipline shipped v0.9.0 → v0.9.19.
+57 test files under `tests/` (discovered via `test_*.py`), plus `conftest.py` (session fixtures) and `helpers/frontmatter.py`. Coverage spans v0.9.0 → v0.9.35: plugin/marketplace JSON; all 25 skill + 26 agent + 9 command frontmatters; hooks.json wiring for all 3 events; the three hooks' script logic; setup + MemPalace install scripts; the notifier module (`test_notify.py` + `test_notify_wiring.py`); the ui-interaction-fidelity discipline; **cross-component consistency** (`test_cross_consistency.py`); the v0.9.22 bug-fix pipeline (`test_bug_fix_pipeline_skill.py` + `test_bug_classifier_agent.py` + `test_bug_replicator_agent.py` + `test_qa_replayer_agent.py`); the v0.9.29 ux-test-builder (`test_ux_test_builder_skill.py` + `test_flow_explorer_agent.py` + `test_flow_executor_agent.py` + `test_fix_sensibility_checker_agent.py` + `test_ux_test_builder_wiring.py` + `test_bug_fix_phase_b6b_sensibility.py`); the v0.9.31 code-path witness (`test_code_path_witness.py`); the v0.9.33 proposal-refiner (`test_proposal_refiner_skill.py` + `test_prompt_refiner_agent.py`); the v0.9.34 email-testing skill (`test_email_testing_skill.py` — 66 structural tests, `test_email_testing_agent_wiring.py` — 30 wiring tests, `test_email_testing_template_analysis.py` — 64 template/flow tests); and one structural test file per discipline.
 
 ## 5. Data Flow (abridged)
 

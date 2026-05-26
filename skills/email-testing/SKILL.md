@@ -29,6 +29,8 @@ Template files in email-related paths:
 SMTP or transactional-email client imports in touched source files:
 - `nodemailer`, `@sendgrid/mail`, `@aws-sdk/client-ses`, `aws-sdk/clients/ses`, `postmark`, `mailgun`, `resend`, `@mailchimp/transactional`, `smtp`, `createTransport`, `SESClient`, `SendEmailCommand`
 
+> The indicators above cover the Node.js / JavaScript ecosystem. For other languages, also scan for: **Python** — `smtplib`, `django.core.mail`, `flask_mail`, `emails`; **Go** — `net/smtp`, `gomail`; **Java** — `javax.mail`, `jakarta.mail`, `JavaMailSender`; **Ruby** — `ActionMailer`, `Mail`; **PHP** — `PHPMailer`, `SwiftMailer`, `Symfony\Mailer`. The agent extends this list based on the target project's language.
+
 ### Function-call indicators
 
 Email-sending function calls in touched source files:
@@ -65,6 +67,7 @@ When email surface is detected, the agent provisions Mailpit as the SMTP trap BE
 ### Docker (preferred)
 
 ```bash
+docker rm -f mailpit-test 2>/dev/null || true
 docker run -d --name mailpit-test -p 1025:1025 -p 8025:8025 axllent/mailpit
 ```
 
@@ -80,6 +83,9 @@ curl -sL https://github.com/axllent/mailpit/releases/latest/download/mailpit-dar
 curl -sL https://github.com/axllent/mailpit/releases/latest/download/mailpit-windows-amd64.zip -o mailpit.zip && unzip mailpit.zip
 
 ./mailpit --smtp 0.0.0.0:1025 --listen 0.0.0.0:8025 &
+
+# Windows (PowerShell):
+Start-Process -FilePath .\mailpit.exe -ArgumentList '--smtp', '0.0.0.0:1025', '--listen', '0.0.0.0:8025' -WindowStyle Hidden
 ```
 
 ### Dev environment configuration
@@ -145,7 +151,14 @@ The agent triggers the email send through the same Playwright user-flow discipli
 
 ### Step 3 — Capture the email via Mailpit API
 
-Poll Mailpit until the email arrives:
+Before polling, clear residual messages from prior tests to prevent stale matches:
+
+```typescript
+// Pre-test cleanup — ensures polling only matches emails from this test
+await fetch(`${apiBase}/api/v1/messages`, { method: 'DELETE' });
+```
+
+Poll Mailpit using its **search API** (server-side filtering — no client-side ceiling):
 
 ```typescript
 // Playwright helper pattern (inline in the .spec.ts)
@@ -153,17 +166,21 @@ async function waitForEmail(
   apiBase: string = 'http://localhost:8025',
   timeoutMs: number = 30000,
   pollIntervalMs: number = 1000,
-  filter?: { to?: string; subject?: RegExp }
+  filter: { to: string; subject?: RegExp }
 ): Promise<EmailMessage> {
+  const query = `to:"${filter.to}"` +
+    (filter.subject ? ` subject:"${filter.subject.source}"` : '');
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const res = await fetch(`${apiBase}/api/v1/messages?limit=10`);
+    const res = await fetch(
+      `${apiBase}/api/v1/search?query=${encodeURIComponent(query)}`
+    );
     const data = await res.json();
-    for (const msg of data.messages) {
-      if (filter?.to && !msg.To.some((r: any) => r.Address === filter.to)) continue;
-      if (filter?.subject && !filter.subject.test(msg.Subject)) continue;
+    if (data.messages?.length > 0) {
       // Fetch full message with HTML body
-      const fullRes = await fetch(`${apiBase}/api/v1/message/${msg.ID}`);
+      const fullRes = await fetch(
+        `${apiBase}/api/v1/message/${data.messages[0].ID}`
+      );
       return await fullRes.json();
     }
     await new Promise(r => setTimeout(r, pollIntervalMs));
@@ -252,6 +269,10 @@ for (const link of emailAnalysis.links.filter(l => l.testable)) {
   }
 }
 ```
+
+### Redirect chain handling
+
+Transactional email services (SendGrid, Mailgun, Postmark) wrap links in click-tracking redirects. Playwright's `page.goto` follows HTTP redirects automatically, so the final destination page is what the test asserts against. If the redirect chain leads to a tracking domain the test environment cannot resolve, classify the link as `env-failure`. For local testing against Mailpit, links typically contain the app's local URL directly (no tracking wrapper), so this is primarily a concern for cloud-provider overrides via `design.md`.
 
 ### Purpose-specific flow completion
 

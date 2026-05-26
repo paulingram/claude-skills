@@ -19,7 +19,7 @@ def _read_body(plugin_root: Path) -> str:
 # ─── Template file extension indicators ──────────────────────────────────
 
 
-TEMPLATE_EXTENSIONS = ("html", "mjml", "ejs", "hbs", "pug")
+TEMPLATE_EXTENSIONS = ("html", "mjml", "ejs", "hbs", "pug", "liquid", "jinja2")
 
 
 @pytest.mark.parametrize("ext", TEMPLATE_EXTENSIONS)
@@ -33,7 +33,10 @@ def test_template_extension_listed(plugin_root: Path, ext: str) -> None:
 # ─── Path keywords for template detection ────────────────────────────────
 
 
-TEMPLATE_PATH_KEYWORDS = ("email", "mail", "template", "notification")
+TEMPLATE_PATH_KEYWORDS = (
+    "email", "mail", "template", "notification",
+    "invite", "welcome", "reset", "verify", "confirm",
+)
 
 
 @pytest.mark.parametrize("keyword", TEMPLATE_PATH_KEYWORDS)
@@ -52,6 +55,15 @@ FUNCTION_INDICATORS = (
     "sendEmail",
     "send_mail",
     "send_email",
+    "deliver",
+    "notify",
+    "sendNotification",
+    "send_notification",
+    "sendInvite",
+    "send_invite",
+    "sendVerification",
+    "sendPasswordReset",
+    "sendWelcome",
 )
 
 
@@ -78,6 +90,9 @@ LINK_URL_PATTERNS = {
     "delete": "destructive-action",
     "remove": "destructive-action",
     "cancel": "destructive-action",
+    "opt-out": "unsubscribe",
+    "preferences": "unsubscribe",
+    "decline": "destructive-action",
 }
 
 
@@ -114,6 +129,11 @@ def test_invite_flow_includes_signup(plugin_root: Path) -> None:
     assert "sign-up" in body_lower or "signup" in body_lower or "create" in body_lower, (
         "invite-accept flow must include account sign-up / creation"
     )
+    assert "fill" in body_lower, "invite-accept flow must include filling form fields"
+    assert "submit" in body_lower, "invite-accept flow must include form submission"
+    assert "success" in body_lower or "dashboard" in body_lower or "welcome" in body_lower, (
+        "invite-accept flow must assert success state"
+    )
 
 
 def test_password_reset_flow_includes_new_password(plugin_root: Path) -> None:
@@ -122,13 +142,18 @@ def test_password_reset_flow_includes_new_password(plugin_root: Path) -> None:
     assert "new password" in body_lower or "new-password" in body_lower, (
         "password-reset flow must include setting a new password"
     )
+    assert "fill" in body_lower, "password-reset flow must include filling form fields"
+    assert "submit" in body_lower, "password-reset flow must include form submission"
+    assert "success" in body_lower or "confirmation" in body_lower or "login" in body_lower, (
+        "password-reset flow must assert success state"
+    )
 
 
 def test_calendar_flow_includes_ics_validation(plugin_root: Path) -> None:
     body = _read_body(plugin_root)
     assert ".ics" in body, "calendar-event flow must validate .ics file"
     body_lower = body.lower()
-    for field in ("summary", "dtstart", "dtend"):
+    for field in ("summary", "dtstart", "dtend", "organizer"):
         assert field.lower() in body_lower, (
             f"calendar-event flow must validate iCalendar field `{field}`"
         )
@@ -139,6 +164,10 @@ def test_destructive_flow_includes_confirmation(plugin_root: Path) -> None:
     body_lower = body.lower()
     assert "confirm" in body_lower, (
         "destructive-action flow must include a confirmation step"
+    )
+    assert "click" in body_lower, "destructive-action flow must include clicking confirm"
+    assert "removed" in body_lower or "cancelled" in body_lower or "canceled" in body_lower, (
+        "destructive-action flow must assert resource was removed/cancelled"
     )
 
 
@@ -214,4 +243,98 @@ def test_env_var_discipline_for_email_flows(plugin_root: Path) -> None:
     )
     assert "never" in body_lower and ("hardcoded" in body_lower or "hardcode" in body_lower or "hard-coded" in body_lower), (
         "Skill must prohibit hardcoded credentials"
+    )
+
+
+# ─── E3 template analysis schema + purpose identification ──────────────
+
+
+def test_e3_template_purpose_identification(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E3")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "subject" in section_lower, "E3 must document purpose identification via subject line"
+    assert "cta" in section_lower or "primary" in section_lower, (
+        "E3 must document purpose identification via CTA or primary link"
+    )
+
+
+def test_e3_link_pre_extraction(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E3")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "{{" in section or "${" in section or "<%" in section, (
+        "E3 must document pre-extracting link patterns from template variables"
+    )
+
+
+def test_e3_template_analysis_schema(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E3")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    for field in ("template_path", "purpose", "subject_pattern", "expected_links"):
+        assert field in section, f"E3 template analysis schema must include `{field}`"
+
+
+def test_e3_fragment_anchor_skip(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E3")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "fragment" in section_lower or "anchor" in section_lower, (
+        "E3 must document fragment-only (#) anchors as non-navigable"
+    )
+
+
+def test_e3_link_analysis_schema(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E3")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    for field in ("email_id", "subject", "from", "to", "links", "template_cross_check"):
+        assert field in section, f"E3 link analysis schema must include `{field}`"
+
+
+# ─── E4 uncovered flow types ───────────────────────────────────────────
+
+
+def test_e4_email_verification_flow(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E4")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "confirmation" in section_lower or "verified" in section_lower, (
+        "E4 email-verification flow must document confirmation page + status"
+    )
+
+
+def test_e4_unsubscribe_flow(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E4")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "unsubscribe" in section_lower, "E4 must document unsubscribe flow"
+    assert "confirmation" in section_lower or "success" in section_lower, (
+        "E4 unsubscribe flow must assert success state"
+    )
+
+
+def test_e4_general_link_handling(plugin_root: Path) -> None:
+    body = _read_body(plugin_root)
+    start = body.find("## Phase E4")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    section_lower = section.lower()
+    assert "general" in section_lower or "general-link" in section_lower, (
+        "E4 must document general-link handling"
+    )
+    assert "page-loaded" in section_lower or "not blank" in section_lower or "2xx" in section_lower or "not empty" in section_lower or "sufficient" in section_lower, (
+        "E4 general-link must assert page loaded successfully"
     )
