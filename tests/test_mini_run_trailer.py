@@ -71,3 +71,17 @@ def test_validate_slug_format():
     assert not mini_run_trailer.is_valid_slug("2026-5-26-foo")          # zero-padding required
     assert not mini_run_trailer.is_valid_slug("Add-Bulk-Export")        # no date prefix
     assert not mini_run_trailer.is_valid_slug("2026-05-26-Add_Export")  # underscore + uppercase
+
+
+def test_extract_returns_last_when_multiple_trailers():
+    """When multiple Mini-Run: trailers exist (e.g. a re-commit that
+    accumulates trailers), the LAST one wins — matches Git interpret-
+    trailers convention for repeated tokens.
+    """
+    msg = """mini: foo
+
+Mini-Run: 2026-05-26-stale-original-slug
+Co-Authored-By: someone <a@b.c>
+Mini-Run: 2026-05-26-final-slug
+"""
+    assert mini_run_trailer.extract(msg) == "2026-05-26-final-slug"
