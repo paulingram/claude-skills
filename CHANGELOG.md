@@ -19,7 +19,7 @@ A faster sibling pipeline to `/architect-team` for rapid small-to-medium feature
 
 ### Test changes
 
-- ~50 new tests across 7 new test files: `test_mini_pipeline_skill.py`, `test_mini_qa_agent.py`, `test_mini_commands.py`, `test_qa_guidance_contract.py`, `test_mini_run_trailer.py`, `test_mini_review_gate_dev_cross_check.py`, `test_mini_run_trailer_audit.py`. Two new test helpers: `tests/helpers/qa_guidance.py`, `tests/helpers/mini_run_trailer.py`. Existing test-set definitions in `test_skills.py`, `test_agents.py`, `test_commands.py` updated with the new entries.
+- 71 net-new tests across 7 new test files: `test_mini_pipeline_skill.py`, `test_mini_qa_agent.py`, `test_mini_commands.py`, `test_qa_guidance_contract.py`, `test_mini_run_trailer.py`, `test_mini_review_gate_dev_cross_check.py`, `test_mini_run_trailer_audit.py`. Two new test helpers: `tests/helpers/qa_guidance.py`, `tests/helpers/mini_run_trailer.py`. Existing test-set definitions in `test_skills.py`, `test_agents.py`, `test_commands.py` updated with the new entries (each fires one additional parametrize case). Full suite: 1300 → 1374 passing, 1 skipped (a documented future-wire-up stub for the pipeline-completion-audit trailer classifier).
 
 ### Documentation
 
