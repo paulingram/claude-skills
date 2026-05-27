@@ -149,11 +149,28 @@ On review-evidence write, the existing `hooks/review-gate-task.py` runs unchange
 
 ## Phase M5 — mini-qa runs unit + integration + narrow Playwright
 
-(Filled in Task 9.)
+Dispatch the `mini-qa` agent with:
+
+- `proposal.md` (its `## QA Guidance` section is authoritative scope).
+- `coverage-map.json` (the `qa_guidance` block mirrors the markdown; they MUST agree or the verdict is `red-with-evidence`).
+- The git diff produced by M4.
+- The dev-environment URL(s) from the target project's `design.md` `## Dev Environment` section.
+- The slug.
+- The current cycle number `<N>` (1 on first invocation; M8 increments on re-eval).
+
+`mini-qa` runs per its agent spec: read QA Guidance, verify unit + integration coverage exists, run both suites, author ≤ 3 Playwright flows, deploy to dev, run Playwright against the live dev URL, emit verdict.
+
+Per `dev-api-integration-testing`, integration tests MUST hit the real dev API; mocks are reserved for truly external, non-deterministic dependencies. Per `playwright-user-flows`, every Playwright flow is genuine user-driven interaction (page.goto → click → fill → waitFor → assert visible state), not an endpoint call masquerading as a flow.
+
+`mini-qa` writes `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json` per cycle.
 
 ## Phase M6 — Verdict gate
 
-(Filled in Task 9.)
+Read `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`:
+
+- `verdict: green` → proceed to **Phase M7** (auto-merge).
+- `verdict: red-with-evidence` → proceed to **Phase M8** (re-eval loop; increment cycle counter).
+- `verdict: env-failure` → halt. Write `.architect-team/mini/<slug>/env-failure.md` summarizing the env issue and surface to user. Do NOT increment the M8 cycle counter — env failures are not the fix's fault.
 
 ## Phase M7 — Auto-merge to main
 
