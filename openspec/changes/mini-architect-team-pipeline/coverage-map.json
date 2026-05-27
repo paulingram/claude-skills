@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "change": "mini-architect-team-pipeline",
+  "version": "0.10.0",
+  "requirements": [
+    {"id": "R-1", "source": "design.md:Architecture", "covered_by": ["skills/mini-architect-team-pipeline/SKILL.md", "tests/test_mini_pipeline_skill.py"]},
+    {"id": "R-2", "source": "design.md:Components#mini-qa", "covered_by": ["agents/mini-qa.md", "tests/test_mini_qa_agent.py"]},
+    {"id": "R-3", "source": "design.md:Components#commands", "covered_by": ["commands/mini.md", "commands/mini-review-sweep.md", "tests/test_mini_commands.py"]},
+    {"id": "R-4", "source": "design.md:#qa-guidance-contract", "covered_by": ["tests/helpers/qa_guidance.py", "tests/test_qa_guidance_contract.py"]},
+    {"id": "R-5", "source": "design.md:#mini-run-trailer", "covered_by": ["tests/helpers/mini_run_trailer.py", "tests/test_mini_run_trailer.py"]},
+    {"id": "R-6", "source": "design.md:#auto-merge-to-main", "covered_by": ["skills/mini-architect-team-pipeline/SKILL.md#phase-m7", "commands/mini.md"]},
+    {"id": "R-7", "source": "design.md:#escalation-on-cycle-4", "covered_by": ["skills/mini-architect-team-pipeline/SKILL.md#phase-m8"]},
+    {"id": "R-8", "source": "design.md:#dev-cross-checks-dev", "covered_by": ["tests/test_mini_review_gate_dev_cross_check.py", "skills/mini-architect-team-pipeline/SKILL.md#phase-m4"]}
+  ],
+  "qa_guidance": {
+    "acceptance_criteria": [
+      {"id": "AC-1", "statement": "/architect-team:mini is invocable and accepts both input forms (folder or prose)."},
+      {"id": "AC-2", "statement": "A well-formed mini proposal.md with ## QA Guidance passes the contract validator; malformed fails with specific errors."},
+      {"id": "AC-3", "statement": "The Mini-Run: <slug> trailer extractor returns the slug for tagged commits and None for untagged."},
+      {"id": "AC-4", "statement": "The full test suite passes after the change."}
+    ],
+    "unit_test_targets": [
+      {"path": "tests/helpers/qa_guidance.py:validate_markdown", "assertion": "rejects every malformed permutation in test_qa_guidance_contract.py"},
+      {"path": "tests/helpers/qa_guidance.py:validate_json", "assertion": "rejects the same malformed permutations in JSON form"},
+      {"path": "tests/helpers/mini_run_trailer.py:extract", "assertion": "returns slug for tagged commits, None for untagged, ignores prose mentions"},
+      {"path": "tests/helpers/mini_run_trailer.py:group_by_slug", "assertion": "groups multi-commit slugs correctly"}
+    ],
+    "integration_test_targets": [
+      {"target": "python -m pytest -v", "assertion": "all ~1350 tests PASS after the change"}
+    ],
+    "playwright_flows": [],
+    "out_of_scope": [
+      "Full sweep orchestrator (parallel slug processing, finding de-dup) — deferred to v0.10.1",
+      "Cross-language polyglot test-runner discovery — uses existing single-language heuristic"
+    ]
+  }
+}
