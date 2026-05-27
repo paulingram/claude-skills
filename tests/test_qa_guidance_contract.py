@@ -137,3 +137,43 @@ def test_validate_json_rejects_playwright_flow_bound_to_nonexistent_ac():
     bad["qa_guidance"]["playwright_flows"][0]["binds_to"] = "AC-99"
     errors = qa_guidance.validate_json(bad)
     assert any("AC-99" in e for e in errors)
+
+
+def test_validate_rejects_qa_guidance_heading_only_in_prose():
+    """The heading must appear as a top-level ## heading, not inside prose or code blocks."""
+    bad = """# A proposal
+
+Some prose that mentions `## QA Guidance` inline as a reference.
+
+```markdown
+## QA Guidance
+- this is inside a fenced code block and shouldn't count
+```
+
+The proposal does not actually have a real ## QA Guidance section.
+"""
+    errors = qa_guidance.validate_markdown(bad)
+    assert any("## QA Guidance" in e for e in errors), (
+        f"expected missing-heading error, got: {errors}"
+    )
+
+
+def test_validate_rejects_duplicate_ac_ids():
+    bad = GOOD_MD.replace(
+        "### Acceptance Criteria\n- [AC-1] User can click Export and a CSV downloads.\n- [AC-2] CSV contains every row visible in the filtered table.",
+        "### Acceptance Criteria\n- [AC-1] first claim\n- [AC-1] duplicate id\n- [AC-2] distinct claim",
+    )
+    errors = qa_guidance.validate_markdown(bad)
+    assert any("duplicate" in e.lower() and "AC-1" in e for e in errors), (
+        f"expected duplicate-AC-id error naming AC-1, got: {errors}"
+    )
+
+
+def test_validate_json_rejects_duplicate_ac_ids():
+    import copy
+    bad = copy.deepcopy(GOOD_JSON)
+    bad["qa_guidance"]["acceptance_criteria"].append(
+        {"id": "AC-1", "statement": "duplicate"}
+    )
+    errors = qa_guidance.validate_json(bad)
+    assert any("duplicate" in e.lower() and "AC-1" in e for e in errors)

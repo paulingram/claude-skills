@@ -24,14 +24,39 @@ _AC_LINE_RE = re.compile(r"^\s*-\s*\[(AC-\d+)\]\s*(.+?)\s*$", re.MULTILINE)
 _FLOW_LINE_RE = re.compile(r"^\s*-\s*\[(AC-\d+)\]\s*([^:]+):\s*(.+?)\s*$", re.MULTILINE)
 
 
+_FENCE_RE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
+
+
+def _strip_fenced_blocks(markdown: str) -> str:
+    """Replace fenced code blocks with blank lines (preserving line count).
+
+    Keeps line offsets intact for any downstream slicing, while ensuring
+    headings inside ``` fences are not treated as real headings.
+    """
+    def _blank_out(match: re.Match[str]) -> str:
+        return "\n" * match.group(0).count("\n")
+
+    return _FENCE_RE.sub(_blank_out, markdown)
+
+
 def _section_body(markdown: str, heading: str) -> str:
-    start = markdown.find(heading)
-    if start < 0:
+    """Return the body of a top-level ## heading.
+
+    The heading must appear at line start and on its own line — mentions
+    inside prose or fenced code blocks are ignored.
+    """
+    if not heading.startswith("## "):
+        raise ValueError(f"_section_body expects a ## heading, got {heading!r}")
+    title = heading[3:]  # strip leading "## "
+    scrubbed = _strip_fenced_blocks(markdown)
+    pat = re.compile(rf"^##\s+{re.escape(title)}\s*$", re.MULTILINE)
+    m = pat.search(scrubbed)
+    if m is None:
         return ""
-    # find next heading at same level (## ...) excluding sub-headings (### ...)
-    rest = markdown[start + len(heading):]
-    m = re.search(r"^##\s+[^#]", rest, re.MULTILINE)
-    return rest[: m.start()] if m else rest
+    # find next top-level heading (## X), stopping the section there
+    rest = scrubbed[m.end():]
+    m2 = re.search(r"^##\s+[^#]", rest, re.MULTILINE)
+    return rest[: m2.start()] if m2 else rest
 
 
 def _subsection_body(section: str, subheading: str) -> str | None:
@@ -90,7 +115,9 @@ def parse_markdown(markdown: str) -> dict[str, Any]:
 def validate_markdown(markdown: str) -> list[str]:
     """Return a list of error messages; empty means valid."""
     errors: list[str] = []
-    if _HEADING not in markdown:
+    scrubbed = _strip_fenced_blocks(markdown)
+    heading_pat = re.compile(r"^##\s+QA Guidance\s*$", re.MULTILINE)
+    if heading_pat.search(scrubbed) is None:
         errors.append(f"missing required heading: {_HEADING}")
         return errors
 
@@ -108,7 +135,16 @@ def validate_markdown(markdown: str) -> list[str]:
         errors.append(
             f"at most 3 Playwright Flows allowed; found {len(parsed['playwright_flows'])}"
         )
-    ac_ids = {ac["id"] for ac in parsed["acceptance_criteria"]}
+    ac_ids_list = [ac["id"] for ac in parsed["acceptance_criteria"]]
+    seen: set[str] = set()
+    dupes: list[str] = []
+    for ac_id in ac_ids_list:
+        if ac_id in seen and ac_id not in dupes:
+            dupes.append(ac_id)
+        seen.add(ac_id)
+    for dupe in dupes:
+        errors.append(f"duplicate Acceptance Criterion id: {dupe}")
+    ac_ids = set(ac_ids_list)
     for flow in parsed["playwright_flows"]:
         if flow["binds_to"] not in ac_ids:
             errors.append(
@@ -140,6 +176,16 @@ def validate_json(coverage_map: dict[str, Any]) -> list[str]:
         errors.append(
             f"at most 3 playwright_flows allowed; found {len(block['playwright_flows'])}"
         )
+    if "acceptance_criteria" in block:
+        ids_list = [ac.get("id") for ac in block["acceptance_criteria"]]
+        seen: set = set()
+        dupes: list = []
+        for ac_id in ids_list:
+            if ac_id in seen and ac_id not in dupes:
+                dupes.append(ac_id)
+            seen.add(ac_id)
+        for dupe in dupes:
+            errors.append(f"duplicate acceptance_criteria id: {dupe}")
     if "acceptance_criteria" in block and "playwright_flows" in block:
         ac_ids = {ac.get("id") for ac in block["acceptance_criteria"]}
         for flow in block["playwright_flows"]:
