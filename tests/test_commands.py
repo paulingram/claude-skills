@@ -15,6 +15,7 @@ EXPECTED_COMMANDS: set[str] = {
     "bug-fix",
     "ux-test",
     "refine-prompt",
+    "mini",
 }
 
 REQUIRED_KEYS = {"description"}
