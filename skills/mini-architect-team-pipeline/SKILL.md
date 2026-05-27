@@ -68,11 +68,62 @@ Persist the maps (fresh or refreshed) into the working context for M2.
 
 ## Phase M2 — Architect drafts the 5-artifact OpenSpec bundle
 
-(Filled in Task 7.)
+Dispatch `system-architect` with the prompt + the cached maps from M1. The architect produces the **full 5-artifact OpenSpec bundle** in one pass at `openspec/changes/<slug>/`:
+
+- `proposal.md` — the WHY, the WHAT, and a mandatory `## QA Guidance` section (see contract below).
+- `design.md` — architectural decisions.
+- `specs/<capability>/spec.md` — capability-level requirements.
+- `tasks.md` — the work breakdown with non-overlapping file scope for backend vs. frontend (per `team-spawning-and-review-gates`).
+- `coverage-map.json` — per `coverage-mapping`, **plus** a top-level `qa_guidance` block mirroring the markdown section.
+
+The mini variant produces all five so the OpenSpec archive looks identical to a full-pipeline change; no per-capability ×3 review.
+
+### The ## QA Guidance contract
+
+`proposal.md` MUST contain a `## QA Guidance` section with these four required sub-sections (and an optional `### Out of Scope`):
+
+```markdown
+## QA Guidance
+
+### Acceptance Criteria
+- [AC-1] <user-observable behavior>
+(≤ 5 ACs. >5 means the change is too large for the mini pipeline — split or escalate.)
+
+### Unit Test Targets
+- <file:function or file:class>: <what to assert>
+(Per-file targets the dev MUST cover; mini-qa verifies each ran and passed.)
+
+### Integration Test Targets
+- <real dev API endpoint or DB-touching path>: <what to assert>
+(Real backend, real dev data — per dev-api-integration-testing; no mocks.)
+
+### Playwright Flows
+- [AC-1] <flow name>: <entry URL on dev> → <user actions> → <assertion>
+(≤ 3 Playwright flows. Each binds to an AC by ID. Runs against the live dev URL.)
+
+### Out of Scope
+- <thing the QA agent must NOT test, with reason>
+```
+
+The `coverage-map.json` carries the same content as a top-level `qa_guidance` block (schema documented in `coverage-mapping` SKILL.md). The contract is enforced by `tests/test_qa_guidance_contract.py` — if the architect drafts a malformed contract, M3's self-confirm pass MUST detect and repair it (the validator is the structural check; the architect's reasoning is the semantic check).
+
+**If the requirement requires more than 5 ACs**: the architect surfaces this to the user as `needs-escalation` and stops. The mini variant is for small-to-medium changes; >5 ACs means the change should run through `/architect-team` directly.
 
 ## Phase M3 — Architect self-confirm loop
 
-(Filled in Task 7.)
+After M2, the **same architect** re-reads its own bundle + the source requirements + the cached maps, and asks one question of itself: *does the bundle still make sense?*
+
+Iterate to a **fixed point**: edit in place, re-read, repeat. Exit when a pass produces zero edits. **Cap = 3 self-confirm passes.** On cap, the architect freezes its current draft and proceeds, noting the unresolved divergence in a `## M3 unresolved` section at the bottom of `proposal.md` so M5's QA agent scrutinizes that area especially carefully.
+
+Each pass must answer at minimum:
+
+1. Does the `## QA Guidance` contract validate? (Run the parser; fix violations.)
+2. Does every AC have a covering Playwright flow? (And every flow bind to an AC?)
+3. Does the file scope in `tasks.md` not overlap between backend and frontend?
+4. Does the proposal's WHY still match the user's prose / folder?
+5. Are the maps the architect cited at M2 still in working context?
+
+The self-confirm pass is **structural + semantic**, not free-form refinement. If the architect finds itself rewriting the proposal's voice or scope on a second pass, that's a sign M2 was wrong — note this in the unresolved section rather than spinning.
 
 ## Phase M4 — Parallel dev dispatch (backend + frontend, cross-review)
 
