@@ -61,3 +61,35 @@ def test_agent_body_caps_playwright_flows(plugin_root: Path) -> None:
     assert "3 Playwright" in body or "3 flows" in body or "up to 3" in body, (
         "mini-qa body must document the cap of 3 Playwright flows"
     )
+
+
+def test_agent_body_names_bounded_writeable_paths(plugin_root: Path) -> None:
+    """The Bounded scope section must explicitly name the only two writeable paths."""
+    _, body = frontmatter.parse(_path(plugin_root))
+    # Both writeable paths must appear in the body
+    assert "tests/playwright/mini/" in body, (
+        "mini-qa body must name tests/playwright/mini/ as a writeable path"
+    )
+    assert "qa-verdict-cycle-" in body, (
+        "mini-qa body must name the per-cycle qa-verdict-cycle-<N>.json filename"
+    )
+    # And the prohibition must be stated
+    assert "may NOT Write/Edit any other file" in body or "may not Write/Edit any other file" in body.lower(), (
+        "mini-qa body must state the prohibition on writing outside the bounded scope"
+    )
+
+
+def test_agent_body_names_disagreement_gate(plugin_root: Path) -> None:
+    """Step 1 must mandate red-with-evidence when proposal.md and coverage-map.json's qa_guidance disagree."""
+    _, body = frontmatter.parse(_path(plugin_root))
+    body_lower = body.lower()
+    # The body must say the two sources MUST agree
+    assert "must agree" in body_lower, (
+        "mini-qa body must state that ## QA Guidance and coverage-map's qa_guidance MUST agree"
+    )
+    # And that disagreement yields red-with-evidence
+    assert "red-with-evidence" in body, "verdict name must be in body"
+    # The phrasing in the spec: "if they disagree, surface this as red-with-evidence and stop"
+    assert ("disagree" in body_lower) and ("stop" in body_lower), (
+        "mini-qa body must say disagreement triggers red-with-evidence and a stop"
+    )

@@ -28,6 +28,7 @@ The orchestrator gives you:
 3. The git diff produced by the backend + frontend teammates' M4 work.
 4. The dev-environment URL(s) — frontend URL, backend API URL — from the target project's `design.md` `## Dev Environment` section.
 5. The Mini-Run slug (used in your verdict filenames).
+6. The current cycle number `<N>` (1 on the first M5 invocation; M8 increments on each re-eval round).
 
 If any required input is missing, surface to the orchestrator and stop.
 
@@ -79,7 +80,7 @@ A flow asserts `green` only if both:
 
 ### Step 5 — Emit the verdict
 
-Write `.architect-team/mini/<slug>/qa-verdict.json`:
+Write `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`:
 
 ```json
 {
@@ -123,6 +124,6 @@ Tools: `Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookRead, NotebookEd
 
 You may Write/Edit ONLY:
 - The Playwright `.spec.ts` files in `tests/playwright/mini/`.
-- `.architect-team/mini/<slug>/qa-verdict.json`.
+- `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`.
 
 You may NOT Write/Edit any other file in the project. If a unit/integration target is missing a covering test, your verdict is `red-with-evidence` against the responsible teammate — you do NOT author the missing test yourself. Test authoring belongs to the dev teammates; verifying coverage belongs to you.
