@@ -180,21 +180,25 @@ On M5 verdict `green`:
 
 ## Escalation on cycle 4
 
-When M8 hits cycle 4:
+When M8 hits cycle 4, the mini pipeline hands off to the full `/architect-team` using existing input semantics — passing an escalation folder as the requirement directory. No new flag is introduced.
 
-1. Write `.architect-team/mini/<slug>/escalation.json`:
-   ```json
-   {
-     "original_prompt": "...",
-     "qa_evidence": [".architect-team/mini/<slug>/qa-verdict-cycle-1.json", "..."],
-     "architect_diffs": ["..."],
-     "cached_maps_used": ["docs/CODEBASE_MAP.md", "..."],
-     "branch_ref": "mini/2026-05-26-add-bulk-export",
-     "escalation_reason": "QA failed 3 cycles on AC-2 with diverging failure modes"
-   }
+1. Write `.architect-team/mini/<slug>/escalation/` containing the standard "folder of requirements" artifacts the full pipeline already accepts:
    ```
-2. Re-spawn `/architect-team` with `--continue-from .architect-team/mini/<slug>/escalation.json`.
-3. The full pipeline reads that file as its REQ_DIR equivalent and resumes from Phase −1 with the mini run's branch as the working tree.
+   .architect-team/mini/<slug>/escalation/
+       prompt.md              — original user prompt verbatim
+       proposal.md            — the latest architect draft (last M3 state)
+       qa-evidence/
+           qa-verdict-cycle-1.json
+           qa-verdict-cycle-2.json
+           qa-verdict-cycle-3.json
+       architect-diffs/
+           m3-edits-cycle-1.diff
+           m3-edits-cycle-2.diff
+           m3-edits-cycle-3.diff
+       escalation-context.md  — branch ref, cached maps used, escalation reason
+   ```
+2. Re-spawn `/architect-team .architect-team/mini/<slug>/escalation/` — the full pipeline reads it as a normal REQ_DIR.
+3. The full pipeline resumes from Phase −1 on the mini run's working branch (mini does NOT switch branches before escalating — the full pipeline takes over the same branch).
 4. Mini run exits with: "escalated to full pipeline, continuing on branch `<X>`."
 
 ## Mini-Run trailer and review sweep
