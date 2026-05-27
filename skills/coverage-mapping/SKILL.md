@@ -118,3 +118,42 @@ Use atomic writes (write to `.tmp`, fsync, rename) so a crashed orchestrator doe
 | "Acceptance criteria like 'works correctly' are good enough" | Non-measurable criteria silently let bugs through. Rewrite them in terms of specific observable behavior. |
 | "I'll fill in tests later" | Then you'll forget. The map drives Phase 3 — empty `tests` arrays are gate failures. |
 | "One scenario per requirement is enough" | Often happy + failure + edge are three scenarios. The spec validation loop catches under-coverage. |
+
+## The `qa_guidance` block (v0.10.0 — mini-architect-team-pipeline)
+
+When a coverage-map is produced by `/architect-team:mini`, it includes a top-level `qa_guidance` block that mirrors the `## QA Guidance` markdown section of its `proposal.md`. The block IS the structured form of the mini variant's QA contract; the `mini-qa` agent reads either the markdown or the JSON (they MUST agree — a divergence is a `red-with-evidence` verdict).
+
+```json
+{
+  "qa_guidance": {
+    "acceptance_criteria": [
+      {"id": "AC-1", "statement": "<user-observable behavior>"}
+    ],
+    "unit_test_targets": [
+      {"path": "<file:function>", "assertion": "<what to assert>"}
+    ],
+    "integration_test_targets": [
+      {"target": "<dev API endpoint or DB-touching path>", "assertion": "<what to assert>"}
+    ],
+    "playwright_flows": [
+      {
+        "binds_to": "AC-1",
+        "name": "<short flow name>",
+        "entry_url": "<dev URL>",
+        "user_actions": ["<action 1>", "<action 2>"],
+        "assertion": "<what to expect>"
+      }
+    ],
+    "out_of_scope": ["<thing not to test>"]
+  }
+}
+```
+
+Constraints (enforced by `tests/helpers/qa_guidance.py`):
+
+- `acceptance_criteria.length ≤ 5`
+- `playwright_flows.length ≤ 3`
+- Every `playwright_flows[*].binds_to` MUST appear in `acceptance_criteria[*].id`.
+- Every AC ID matches `^AC-\d+$`.
+
+The block is REQUIRED for changes produced by `/architect-team:mini`; it is OPTIONAL elsewhere (the full pipeline does not produce it).
