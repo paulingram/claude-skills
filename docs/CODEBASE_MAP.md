@@ -1,12 +1,12 @@
 ---
-last_mapped: 2026-05-25T12:00:00Z
+last_mapped: 2026-05-27T00:00:00Z
 codebase: architect-team-plugin
-note: "Doc refresh 2026-05-25 for v0.9.35. Covers v0.9.30 (cross-platform Python hook invocation), v0.9.31 (Phase B6 code-path execution witness + test-did-not-exercise-fix verdict), v0.9.32 (wrong-code-path witness generalized across all 3 Playwright sites), v0.9.33 (proposal-refiner — conversational pre-pipeline prompt refinement), v0.9.34 (email-testing — automatic Mailpit-based email flow verification), and v0.9.35 (email-testing audit refinements — Mailpit search API, pre-test cleanup, container collision fix, redirect chain docs, language-specific indicators, expanded tests). Current reality — 25 skills, 26 agents, 9 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts, 1300 pytest self-tests across 57 test files."
+note: "Doc refresh 2026-05-27 for v0.10.0. Adds mini-architect-team-pipeline — a faster sibling pipeline (M0–M8) with single architect, single mini-qa, dev↔dev cross-review, mandatory ## QA Guidance contract, auto-merge to main on green, and a Mini-Run: <slug> trailer + companion /architect-team:mini-review-sweep for batched heavyweight review. Carries forward v0.9.30–v0.9.35 prior context. Current reality — 26 skills, 27 agents, 11 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts, ~1375 pytest self-tests across 64 test files."
 ---
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-05-25 for v0.9.35.
+> The `architect-team` Claude Code plugin. Last refreshed 2026-05-27 for v0.10.0.
 
 ## 1. System Overview
 
@@ -14,13 +14,13 @@ The `architect-team` Claude Code plugin (v0.9.23) is a spec-to-production multi-
 
 **v0.9.22 ships a sibling `bug-fix-pipeline` skill** with phases B−1 → B8 — replicate-first (Playwright for frontend / backend script for backend / ambiguity-escalation when unclear); reproduction-is-the-regression-test (frontend bugs also author a backend diagnostic); generalized-fix (the `system-architect` Bug-Fix Generalization Audit mode rejects symptom patches unless explicitly authorized); QA-replay-against-live-dev (the `qa-replayer` agent re-runs the reproduction artifacts against the deployed dev fix; pass criterion is symptom-gone-end-to-end); live-dev-environment-by-default (production is an opt-in escalation). Reached via `/architect-team:bug-fix` (explicit) OR the main pipeline's Phase −2 triage. **At Phase B8 the bug-fix pipeline runs the same documentation-currency gate as the main pipeline** (v0.9.23 dispatch parity).
 
-The plugin ships **25 skills, 26 named agent definitions, 9 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **1300 pytest self-tests** across 57 test files that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, interactive-element-and-page genuineness, visual fidelity, and (v0.9.23) documentation currency against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
+The plugin ships **26 skills, 27 named agent definitions, 11 slash commands, 3 enforcement hooks** (plus a shared schema module), **3 setup/support scripts** (the `setup.py` + `install_mempalace.py` installers and the `scripts/notify/notify.py` email notifier, v0.9.18), and **~1375 pytest self-tests** across 64 test files that validate every structural artifact and guard against cross-component drift. Its enforcement is layered: Python hooks gate teammate task-completion, teammate idle, and the orchestrator's terminal state; independent verifier agents and teams re-check test-completeness, editability, interactive-element-and-page genuineness, visual fidelity, and (v0.9.23) documentation currency against reality; and the discipline skills are pressure-written to resist rationalization. A run optionally emits per-project email notifications (v0.9.18) when the target project supplies a `.architect-team-notify.json`.
 
 ## 2. Architecture Diagram
 
 ```mermaid
 graph TB
-    subgraph "Entry points (9 commands)"
+    subgraph "Entry points (11 commands)"
         CMD_AT["/architect-team"]
         CMD_BUG["/architect-team:bug-fix"]
         CMD_UX["/architect-team:ux-test"]
@@ -101,7 +101,7 @@ claude_skill_lib/
 ├── .claude/                 # OpenSpec-installed workspace commands + skills (opsx/* commands + openspec-* skills; tracked)
 ├── .claude-plugin/          # Plugin identity: plugin.json + marketplace.json (v0.9.19)
 ├── agents/                  # 26 named subagent definitions (.md with frontmatter)
-├── commands/                # 9 slash-command bodies (.md with frontmatter)
+├── commands/                # 11 slash-command bodies (.md with frontmatter)
 ├── hooks/                   # hooks.json wiring + 3 enforcement scripts + 1 shared module
 │   ├── hooks.json           #   wires PostToolUse(TaskUpdate), SubagentStop, Stop
 │   ├── review_evidence_schema.py   # shared single-source-of-truth evidence schema (v0.9.9)
@@ -111,7 +111,7 @@ claude_skill_lib/
 ├── scripts/
 │   ├── setup/               # setup.py (deps) + install_mempalace.py (MemPalace CLI/MCP)
 │   └── notify/              # notify.py — best-effort per-project email notifier (v0.9.18)
-├── skills/                  # 25 skill directories, each containing SKILL.md
+├── skills/                  # 26 skill directories, each containing SKILL.md
 ├── openspec/                # OpenSpec workspace (tracked); config.yaml + changes/ (archive/ nested inside) + specs/
 ├── docs/
 │   ├── CODEBASE_MAP.md      # this file
