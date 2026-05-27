@@ -22,15 +22,49 @@ The v0.9.17 same-input-forms rules apply verbatim — **never refuse plain-langu
 
 ## What this skill does NOT do
 
-(Filled in across Tasks 6–11.)
+- **No proposal-refiner Q&A loop** — the architect grounds prose directly. If ambiguous, the architect surfaces ONE clarification batch before drafting; no iterative grading loop.
+- **No Phase −2 bug-classifier triage** — feature work is assumed. (Bug fixes use `/architect-team:bug-fix`.)
+- **No ×3 reviewer convergence anywhere** — single architect, two devs (cross-reviewing each other), one QA.
+- **No `task-reviewer` agent at the review gate** — the devs cross-review each other's diffs; the v6 review-evidence schema's reviewer-is-the-other-dev pattern still satisfies the existing reviewer-≠-teammate hook check.
+- **No `test-completeness-verifier` at gate time** — `mini-qa` does its own coverage check against `## QA Guidance`.
+- **No visual / editability / interaction reviewers at runtime** — deferred to `/architect-team:mini-review-sweep`.
+- **No `reconciler`** — non-overlapping file scope eliminates parallel-branch merges.
+- **No `documentation-currency` producer/checker split at runtime** — runs single-pass at M7 before merge; the heavyweight sweep catches doc-drift later.
+
+These deferrals are the source of the mini variant's speed. The accompanying trade-off is that drift surfaces in batch via the sweep, not at runtime — accept that trade-off explicitly when invoking `/architect-team:mini`.
 
 ## Phase M0 — Intake
 
-(Filled in Task 6.)
+Detect the input form per `## Inputs`. Resolve `$REQ_DIR`:
+
+- Folder form → `$REQ_DIR` is the resolved directory.
+- Prose form → write the verbatim prose to `.architect-team/mini/<slug>/prompt.md`; `$REQ_DIR` is that file's directory.
+
+Derive `<slug>` as `YYYY-MM-DD-<lowercase-kebab-of-the-prompt-or-folder-name>` (e.g., `2026-05-26-add-bulk-export`). The slug feeds the Mini-Run trailer at Phase M7.
+
+Create a working branch off `main`:
+
+```bash
+git fetch origin
+git checkout -b mini/<slug> origin/main
+```
+
+If the cwd is not on `main` already, this is fine — the mini variant always branches from the remote's `main` so the auto-merge at M7 has a known base.
+
+**MemPalace wake-up.** Same discipline as `architect-team-pipeline` — resolve `<workspace>` via `git rev-parse --show-toplevel`, then `mempalace --palace "<workspace>/.mempalace/palace" wake-up`. If `mempalace` is not on PATH, surface the same one-line note the bug-fix-pipeline uses and proceed without it. Per `mempalace-integration`, persist run artifacts (the OpenSpec bundle, the QA verdicts, the architect's M3 diffs) as the run progresses.
 
 ## Phase M1 — Maps freshness check
 
-(Filled in Task 6.)
+The mini variant uses **cached maps** wherever possible. Per `intake-and-mapping`, for each codebase the requirement touches:
+
+1. Locate `<codebase>/docs/CODEBASE_MAP.md` and `<codebase>/docs/ROUTE_MAP.md` and the root `docs/INTEGRATION_MAP.md`.
+2. Compare each map's `last_mapped` (or equivalent timestamp in its frontmatter) to the newest mtime of source files in its scope.
+3. **Map fresh** (`last_mapped` ≥ newest src mtime) → use it as-is.
+4. **Map stale or missing** → refresh **only the affected codebase**. Single-pass: dispatch `cartographer` for `CODEBASE_MAP.md` and `route-mapper` for `ROUTE_MAP.md`. **Do NOT** spawn ×3 reviewers; do NOT regenerate `INTEGRATION_MAP.md` unless the change crosses codebases. Single-pass refresh is the mini variant's whole-pipeline shape; trust the cartographer's first pass.
+
+A stale `INTEGRATION_MAP.md` is the one case worth a ×3 escalation — but only when the change crosses codebases. For an in-codebase change, ignore stale integration-map sections.
+
+Persist the maps (fresh or refreshed) into the working context for M2.
 
 ## Phase M2 — Architect drafts the 5-artifact OpenSpec bundle
 
