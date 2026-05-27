@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] — 2026-05-26 — Mini Architect-Team Pipeline
+
+A faster sibling pipeline to `/architect-team` for rapid small-to-medium feature changes. Speed comes from dropping phases and parallel-review fan-out — not from a weaker model; every role still runs on Opus 4.7.
+
+### Added
+
+- **`/architect-team:mini`** — entry point for the mini pipeline. Same two input forms as `/architect-team` (folder OR prose). Five flags: `--no-merge`, `--squash-merge`, `--no-commit`, `--no-push`, `--no-compact`.
+- **`/architect-team:mini-review-sweep`** — batched heavyweight review for commits produced by `/architect-team:mini`. Greps `git log` for `Mini-Run: <slug>` trailers, groups by slug, runs the full `/architect-team` review gates (`interaction-completeness`, `editability-completeness`, `visual-fidelity-reconciliation`, `test-completeness-verifier`, `dev-api-integration-testing` audit) against each aggregate diff, converts findings to SRs. v0.10.0 ships the command signature + trailer wire-up + per-slug dispatch; the full sweep orchestrator with parallel slug processing and finding de-dup is deferred to v0.10.1.
+- **`mini-architect-team-pipeline`** skill — nine-phase playbook (M0–M8) with single architect, single QA, cross-reviewing devs.
+- **`mini-qa`** agent — single QA agent absorbing unit + integration + ≤3 narrow Playwright flows against the live dev URL.
+- **The `## QA Guidance` contract** — every mini proposal.md MUST contain Acceptance Criteria (≤5), Unit Test Targets, Integration Test Targets, Playwright Flows (≤3, each binding to an AC by ID), and an optional Out of Scope sub-section. Mirrored as a `qa_guidance` block in coverage-map.json.
+- **The `Mini-Run: <slug>` commit trailer** — every commit produced by a mini run carries it. Enables the sweep command's lookup-by-slug.
+- **Auto-merge to `main` on green QA** — the only point in any architect-team pipeline that pushes to `main` directly. Safety rails: conflict halts without silent resolution; pre-push-hook failure halts without `--no-verify` bypass; `--no-merge` falls back to current-branch semantics.
+- **Escalation to full `/architect-team` on cycle 4** — when M8's architect re-eval loop hits cycle 4 (three red QA verdicts on the same proposal), the mini pipeline writes an escalation folder and re-spawns `/architect-team` with that folder as REQ_DIR. The full pipeline takes over the same working branch.
+
+### Test changes
+
+- ~50 new tests across 7 new test files: `test_mini_pipeline_skill.py`, `test_mini_qa_agent.py`, `test_mini_commands.py`, `test_qa_guidance_contract.py`, `test_mini_run_trailer.py`, `test_mini_review_gate_dev_cross_check.py`, `test_mini_run_trailer_audit.py`. Two new test helpers: `tests/helpers/qa_guidance.py`, `tests/helpers/mini_run_trailer.py`. Existing test-set definitions in `test_skills.py`, `test_agents.py`, `test_commands.py` updated with the new entries.
+
+### Documentation
+
+- `docs/CODEBASE_MAP.md` — reflects new skill / agent / commands / tests.
+- `docs/INTEGRATION_MAP.md` — reflects the mini → full escalation handoff.
+- `CLAUDE.md` — counts bumped; v0.10.0 paragraph.
+- `README.md` — mini pipeline added to feature grid.
+- `skills/coverage-mapping/SKILL.md` — documents the new `qa_guidance` block schema.
+- `docs/superpowers/specs/2026-05-26-mini-architect-team-design.md` — full design discussion.
+- `docs/superpowers/plans/2026-05-26-mini-architect-team.md` — implementation plan.
+
+### Migration
+
+None required. The mini pipeline is purely additive — existing `/architect-team` and `/architect-team:bug-fix` flows are unchanged.
+
 ## [0.9.35] — 2026-05-25
 
 ### Improved — Email Testing Audit: best-in-class refinements to the v0.9.34 email-testing discipline
