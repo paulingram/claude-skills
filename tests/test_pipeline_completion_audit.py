@@ -417,3 +417,118 @@ def test_corrupt_sr_is_reported_not_crashed(script: Path, workspace: Path) -> No
     # A corrupt SR is a real violation, but the hook must not crash.
     assert r.returncode == 2
     assert "SR-bad" in r.stderr
+
+
+# --- v0.9.36: bug-fix testing verdict enforcement ---------------------------
+
+
+def _write_bug_fix_b1(workspace: Path, slug: str, verdict: str = "reproduced",
+                       artifact_executed: bool = True,
+                       failing_output_captured: bool = True) -> None:
+    bf_dir = _at(workspace) / "bug-fix" / slug
+    bf_dir.mkdir(parents=True, exist_ok=True)
+    (bf_dir / "b1-replication-verdict.json").write_text(json.dumps({
+        "phase": "B1", "bug_slug": slug, "verdict": verdict,
+        "artifact_paths": ["tests/e2e/bug-fix-test/flow.spec.ts"],
+        "artifact_executed": artifact_executed,
+        "failing_output_captured": failing_output_captured,
+        "dev_environment_url": "https://dev.example.com",
+        "timestamp": "2026-05-27T00:00:00Z",
+    }), encoding="utf-8")
+
+
+def _write_bug_fix_b6(workspace: Path, slug: str, verdict: str = "bug-resolved",
+                       artifacts_executed: bool = True,
+                       symptom_gone: bool = True,
+                       witness_passed: bool = True) -> None:
+    bf_dir = _at(workspace) / "bug-fix" / slug
+    bf_dir.mkdir(parents=True, exist_ok=True)
+    (bf_dir / "b6-qa-replay-verdict.json").write_text(json.dumps({
+        "phase": "B6", "bug_slug": slug, "verdict": verdict,
+        "artifacts_rerun": ["tests/e2e/bug-fix-test/flow.spec.ts"],
+        "artifacts_executed_against_live_dev": artifacts_executed,
+        "symptom_gone_end_to_end": symptom_gone,
+        "code_path_witness_passed": witness_passed,
+        "dev_environment_url": "https://dev.example.com",
+        "iteration": 1, "timestamp": "2026-05-27T00:00:00Z",
+    }), encoding="utf-8")
+
+
+def test_bug_fix_no_b1_verdict_blocks(script: Path, workspace: Path) -> None:
+    """A bug-fix slug directory without a B1 verdict file blocks."""
+    bf_dir = _at(workspace) / "bug-fix" / "fix-broken-delete"
+    bf_dir.mkdir(parents=True)
+    _write_bug_fix_b6(workspace, "fix-broken-delete")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "b1-replication-verdict" in r.stderr
+
+
+def test_bug_fix_no_b6_verdict_blocks(script: Path, workspace: Path) -> None:
+    """A bug-fix slug directory without a B6 verdict file blocks."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "b6-qa-replay-verdict" in r.stderr
+
+
+def test_bug_fix_b1_not_executed_blocks(script: Path, workspace: Path) -> None:
+    """B1 verdict with artifact_executed=false blocks even if verdict is reproduced."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete", artifact_executed=False)
+    _write_bug_fix_b6(workspace, "fix-broken-delete")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "artifact_executed" in r.stderr
+
+
+def test_bug_fix_b1_no_output_blocks(script: Path, workspace: Path) -> None:
+    """B1 verdict with failing_output_captured=false blocks."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete", failing_output_captured=False)
+    _write_bug_fix_b6(workspace, "fix-broken-delete")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "failing_output_captured" in r.stderr
+
+
+def test_bug_fix_b6_not_executed_blocks(script: Path, workspace: Path) -> None:
+    """B6 verdict with artifacts_executed_against_live_dev=false blocks."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete")
+    _write_bug_fix_b6(workspace, "fix-broken-delete", artifacts_executed=False)
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "artifacts_executed_against_live_dev" in r.stderr
+
+
+def test_bug_fix_b6_symptom_not_gone_blocks(script: Path, workspace: Path) -> None:
+    """B6 verdict with symptom_gone_end_to_end=false blocks."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete")
+    _write_bug_fix_b6(workspace, "fix-broken-delete", symptom_gone=False)
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "symptom_gone_end_to_end" in r.stderr
+
+
+def test_bug_fix_b6_witness_not_passed_blocks(script: Path, workspace: Path) -> None:
+    """B6 verdict with code_path_witness_passed=false blocks."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete")
+    _write_bug_fix_b6(workspace, "fix-broken-delete", witness_passed=False)
+    r = _run_check(script, workspace)
+    assert r.returncode == 2
+    assert "code_path_witness_passed" in r.stderr
+
+
+def test_bug_fix_clean_verdicts_allow(script: Path, workspace: Path) -> None:
+    """Valid B1 + B6 verdicts with all fields true allows."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete")
+    _write_bug_fix_b6(workspace, "fix-broken-delete")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0
+
+
+def test_bug_fix_could_not_reproduce_b1_does_not_block_on_execution(script: Path, workspace: Path) -> None:
+    """A could-not-reproduce verdict doesn't check artifact_executed (the bug wasn't confirmed)."""
+    _write_bug_fix_b1(workspace, "fix-broken-delete", verdict="could-not-reproduce",
+                       artifact_executed=False)
+    _write_bug_fix_b6(workspace, "fix-broken-delete")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0

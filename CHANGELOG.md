@@ -35,6 +35,37 @@ A faster sibling pipeline to `/architect-team` for rapid small-to-medium feature
 
 None required. The mini pipeline is purely additive — existing `/architect-team` and `/architect-team:bug-fix` flows are unchanged.
 
+## [0.9.36] — 2026-05-27
+
+### Fixed — Bug-fix testing enforcement + anti-deferral discipline
+
+Two user-reported defects in the bug-fix pipeline, both structural:
+
+1. **The bug-fix engine did not enforce testing.** Phases B1 (replication) and B6 (QA replay) were trust-based markdown — no verdict files on disk, no hook checks, no structural proof that tests were actually executed against the live dev environment. A pipeline run could complete without ever running a test.
+
+2. **The pipeline refused to fix bugs on its own judgment.** The orchestrator clustered identified bugs and deferred some to "separate focused `/architect-team:bug-fix` runs" because "depth would suffer if batched here." This directly violates the v0.9.20 drive-end-to-end rule.
+
+#### Verdict file mandates (structural testing enforcement)
+
+- **Phase B1** now mandates `<cwd>/.architect-team/bug-fix/<bug-slug>/b1-replication-verdict.json` with `artifact_executed: true` and `failing_output_captured: true` for a `reproduced` verdict. The pipeline-completion-audit hook blocks without this file.
+- **Phase B6** now mandates `<cwd>/.architect-team/bug-fix/<bug-slug>/b6-qa-replay-verdict.json` with `artifacts_executed_against_live_dev: true`, `symptom_gone_end_to_end: true`, and `code_path_witness_passed: true` for a `bug-resolved` verdict. The hook blocks on any `false`.
+- **`pipeline-completion-audit.py`** gains `_audit_bug_fix_testing()` — checks every `bug-fix/<slug>/` directory for both verdict files, validates all execution-proof fields. A bug-fix run that skips testing is now structurally blocked from completing.
+
+#### Anti-deferral rules (both pipelines)
+
+- **`bug-fix-pipeline` operating rules** gain: "Fix every bug you identify — never defer to 'separate runs'" + "Testing must be EXECUTED, not described."
+- **`architect-team-pipeline` operating rules** gain the same two rules, applied to all issue types (bugs, regressions, visual drift, integration failures, test gaps).
+- **`bug-fix-pipeline` anti-patterns table** gains 4 new entries: "merits a focused run" (refused), "describe instead of run" (refused), "needs investigation" (investigate NOW via diagnostic-research-team), "skip cluster B" (ask the question and fix it).
+
+#### Tests
+
+1 new test file + extensions to 2 existing files:
+- `tests/test_bug_fix_testing_enforcement.py` — 24 structural tests: verdict file schemas, anti-deferral phrases in both pipelines, testing-executed-not-described rule, completion audit function existence
+- `tests/test_bug_fix_pipeline_skill.py` — 7 new tests: verdict file mandates, anti-deferral operating rules + anti-patterns, testing-executed rule
+- `tests/test_pipeline_completion_audit.py` — 9 new tests: missing B1/B6 verdicts block, false execution fields block, clean verdicts allow, could-not-reproduce doesn't check execution
+
+43 new tests; 1300 → **1343** passing (58 test files).
+
 ## [0.9.35] — 2026-05-25
 
 ### Improved — Email Testing Audit: best-in-class refinements to the v0.9.34 email-testing discipline

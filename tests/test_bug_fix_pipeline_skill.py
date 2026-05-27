@@ -220,3 +220,94 @@ def test_skill_forbids_refusing_prose(plugin_root: Path) -> None:
     assert "never refuse" in body.lower() or "do NOT refuse" in body or "Never refuse" in body, (
         "skill must explicitly forbid refusing plain-language prose"
     )
+
+
+# --- v0.9.36: verdict file mandates ---
+
+
+def test_b1_verdict_file_mandate(plugin_root: Path) -> None:
+    _, body = _read(plugin_root)
+    start = body.find("## Phase B1")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "b1-replication-verdict.json" in section, (
+        "Phase B1 must mandate a structured verdict file"
+    )
+    assert "artifact_executed" in section, (
+        "B1 verdict schema must include artifact_executed field"
+    )
+    assert "failing_output_captured" in section, (
+        "B1 verdict schema must include failing_output_captured field"
+    )
+
+
+def test_b6_verdict_file_mandate(plugin_root: Path) -> None:
+    _, body = _read(plugin_root)
+    start = body.find("## Phase B6 —")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "b6-qa-replay-verdict.json" in section, (
+        "Phase B6 must mandate a structured verdict file"
+    )
+    assert "artifacts_executed_against_live_dev" in section, (
+        "B6 verdict schema must include artifacts_executed_against_live_dev field"
+    )
+    assert "symptom_gone_end_to_end" in section, (
+        "B6 verdict schema must include symptom_gone_end_to_end field"
+    )
+    assert "code_path_witness_passed" in section, (
+        "B6 verdict schema must include code_path_witness_passed field"
+    )
+
+
+def test_verdict_files_enforce_execution(plugin_root: Path) -> None:
+    """Both verdict mandates must explicitly state that execution is mandatory."""
+    _, body = _read(plugin_root)
+    body_lower = body.lower()
+    assert "enforcement mechanism for testing" in body_lower, (
+        "Verdict file mandates must be described as the enforcement mechanism"
+    )
+    assert "pipeline-completion-audit" in body.lower(), (
+        "Verdict mandates must reference the completion audit hook"
+    )
+
+
+# --- v0.9.36: anti-deferral rules ---
+
+
+def test_anti_deferral_operating_rule(plugin_root: Path) -> None:
+    _, body = _read(plugin_root)
+    start = body.find("## Operating rules")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "never defer" in section.lower(), (
+        "Operating rules must forbid deferring bugs to separate runs"
+    )
+    assert "separate run" in section.lower(), (
+        "Operating rules must explicitly name the 'separate runs' anti-pattern"
+    )
+
+
+def test_anti_deferral_anti_pattern_entries(plugin_root: Path) -> None:
+    _, body = _read(plugin_root)
+    start = body.find("## Anti-patterns to reject")
+    section = body[start:] if start >= 0 else ""
+    assert "merit" in section.lower() or "focused" in section.lower(), (
+        "Anti-patterns must reject 'merits a focused run' rationalization"
+    )
+    assert "describe" in section.lower() or "description is not a test" in section.lower(), (
+        "Anti-patterns must reject describing tests instead of running them"
+    )
+    assert "investigate" in section.lower(), (
+        "Anti-patterns must reject 'needs investigation' deferral"
+    )
+
+
+def test_testing_executed_not_described_rule(plugin_root: Path) -> None:
+    _, body = _read(plugin_root)
+    start = body.find("## Operating rules")
+    next_h2 = body.find("\n## ", start + 1)
+    section = body[start:next_h2] if next_h2 > 0 else body[start:]
+    assert "executed, not described" in section.lower() or "executed" in section.lower(), (
+        "Operating rules must mandate testing is executed not described"
+    )

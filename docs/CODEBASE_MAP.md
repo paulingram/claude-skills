@@ -1,7 +1,7 @@
 ---
-last_mapped: 2026-05-27T00:00:00Z
+last_mapped: 2026-05-27T12:00:00Z
 codebase: architect-team-plugin
-note: "Doc refresh 2026-05-27 for v0.10.0. Adds mini-architect-team-pipeline — a faster sibling pipeline (M0–M8) with single architect, single mini-qa, dev↔dev cross-review, mandatory ## QA Guidance contract, auto-merge to main on green, and a Mini-Run: <slug> trailer + companion /architect-team:mini-review-sweep for batched heavyweight review. Carries forward v0.9.30–v0.9.35 prior context. Current reality — 26 skills, 27 agents, 11 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts, ~1375 pytest self-tests across 64 test files."
+note: "Doc refresh 2026-05-27 for v0.10.0 + v0.9.36 merge. Adds mini-architect-team-pipeline (v0.10.0) + bug-fix testing enforcement with verdict file mandates and anti-deferral discipline (v0.9.36). Current reality — 26 skills, 27 agents, 11 commands, 3 enforcement hooks + 1 shared schema module (review-gate evidence schema v6), 3 setup/support scripts, ~1417 pytest self-tests across 65 test files."
 ---
 
 # Codebase Map

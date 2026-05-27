@@ -120,6 +120,23 @@ The replicator does NOT guess at the steps. A guessed replication that doesn't r
 
 **Hard rule:** Phase B1 does NOT proceed to B2 without a `reproduced` verdict. "We'll figure it out at QA" is forbidden.
 
+**Verdict file mandate (v0.9.36).** The orchestrator writes a structured verdict file at `<cwd>/.architect-team/bug-fix/<bug-slug>/b1-replication-verdict.json` immediately after the `bug-replicator` returns. The `pipeline-completion-audit` hook checks for this file's existence and verdict. Schema:
+
+```json
+{
+  "phase": "B1",
+  "bug_slug": "<bug-slug>",
+  "verdict": "reproduced" | "could-not-reproduce" | "needs-clarification",
+  "artifact_paths": ["<path-to-playwright-flow>", "<path-to-backend-diagnostic>"],
+  "artifact_executed": true,
+  "failing_output_captured": true,
+  "dev_environment_url": "<the URL the artifact ran against>",
+  "timestamp": "<ISO 8601>"
+}
+```
+
+`artifact_executed` and `failing_output_captured` are both **mandatory `true`** for a `reproduced` verdict — the replicator must have actually run the artifact (not just written it) and captured the verbatim failing output (not described it). A verdict file with `artifact_executed: false` is structurally invalid and the completion audit blocks on it. **This is the enforcement mechanism for testing**: the pipeline cannot complete without proof that the replication test was actually executed against the live dev environment.
+
 ## Phase B2 — Reproduction-artifact promotion + backend diagnostic
 
 The replication artifact from B1 IS the regression test. Move it to its permanent location in the target codebase's test directory if it isn't already there. The pair the QA replayer will run at B6:
@@ -242,6 +259,25 @@ The replayer's verdict is one of:
 
 **Loop bounds:** the bug-fix loop is bounded at **10 iterations locally** (a tighter signal than the global 20-step ceiling — most bug fixes should converge in 1-3 iterations; 10 is an early-escalation threshold). The global `dev_loop_iterations` counter in `intake-state.json` increments every B3 → B6 cycle, against the same 20-step absolute ceiling as the main pipeline. Oscillation detection applies: a fix that keeps re-breaking the same symptom (or the same proposal landing 3 times) escalates to the user.
 
+**Verdict file mandate (v0.9.36).** The orchestrator writes a structured verdict file at `<cwd>/.architect-team/bug-fix/<bug-slug>/b6-qa-replay-verdict.json` immediately after the `qa-replayer` returns (overwritten on each B6 iteration — only the final verdict matters for the completion audit). The `pipeline-completion-audit` hook checks for this file's existence and verdict. Schema:
+
+```json
+{
+  "phase": "B6",
+  "bug_slug": "<bug-slug>",
+  "verdict": "bug-resolved" | "bug-still-present" | "test-did-not-exercise-fix" | "env-failure",
+  "artifacts_rerun": ["<path-to-playwright-flow>", "<path-to-backend-diagnostic>"],
+  "artifacts_executed_against_live_dev": true,
+  "symptom_gone_end_to_end": true,
+  "code_path_witness_passed": true,
+  "dev_environment_url": "<the URL the artifacts ran against>",
+  "iteration": <integer, 1-based>,
+  "timestamp": "<ISO 8601>"
+}
+```
+
+`artifacts_executed_against_live_dev` is **mandatory `true`** for a `bug-resolved` verdict — the replayer must have actually re-run the artifacts against the deployed dev environment (not just read them, not just described the expected outcome, not just run them locally). `symptom_gone_end_to_end` and `code_path_witness_passed` must also be `true` for `bug-resolved`. A verdict file where ANY of these three fields is `false` on a `bug-resolved` verdict is structurally invalid and the completion audit blocks on it. **This is the enforcement mechanism for QA testing**: the pipeline cannot complete without proof that the fix was actually verified against the live dev environment.
+
 ## Phase B6b — Logical Sensibility Check (v0.9.29)
 
 After Phase B6 returns `bug-resolved` and BEFORE Phase B7's archive, the orchestrator runs a logical sensibility check on the impact set of the fix. Closes a real-world gap surfaced by user feedback:
@@ -345,6 +381,8 @@ The bug-fix pipeline inherits every operating rule from `architect-team-pipeline
 - **QA replay against live dev.** Phase B6 runs against the deployed dev environment, not against local code. The pass criterion is symptom-gone-end-to-end.
 - **Production deploys escalate.** Phase B5 NEVER auto-deploys to production. The `--environment production` flag triggers an explicit user-confirmation question.
 - **Local 10-iteration bound, global 20-step ceiling.** A bug-fix loop that reaches 10 iterations escalates to the user; one that reaches 20 hard-stops.
+- **Fix every bug you identify — never defer to "separate runs" (v0.9.36).** When the pipeline identifies multiple bugs (from replication, from QA replay, from sensibility checks, or from the user's description listing several symptoms), it fixes ALL of them in the current run. The orchestrator does NOT cluster bugs and then decide some clusters "merit a focused `/architect-team:bug-fix` run" or "would suffer in depth if batched here." That is the pipeline refusing to do its job. If the user listed 5 bugs, fix 5 bugs. If QA replay surfaces a regression, fix it in-loop (that is what the B6→B3 cycle exists for). If sensibility checks find 3 broken pages, those become SRs that resolve in-run. The ONLY legitimate deferral is an explicit user instruction ("skip this one for now", "don't fix cluster D") — silence is NOT deferral authorization.
+- **Testing must be EXECUTED, not described (v0.9.36).** The B1 replication artifact must be actually run against the live dev environment with its output captured. The B6 QA replay must actually re-run the artifacts against the deployed fix. "The test would pass" / "the fix addresses the root cause so the test should pass" / "I verified by reading the code" are NOT testing — they are guessing. The verdict files at `.architect-team/bug-fix/<bug-slug>/` are the structural proof; the `pipeline-completion-audit` hook blocks without them.
 
 ## Anti-patterns to reject
 
@@ -358,6 +396,10 @@ The bug-fix pipeline inherits every operating rule from `architect-team-pipeline
 | "The QA replay failed — let me tweak the test." | NEVER edit the reproduction artifact at QA replay. If the replay fails, route back to architect with the new evidence. The artifact IS the contract. |
 | "I'll skip the freshness check — it's a quick fix." | A stale map produces a fix proposal against an out-of-date understanding of the codebase. Same rule as the main pipeline; no shortcut. |
 | "This is a feature, not a bug — but I'll run the bug-fix pipeline anyway because it's faster." | The classifier guards against this at the main-pipeline triage. For an explicit `/architect-team:bug-fix` invocation, Phase B0 examines the description with the same classifier and warns on a `feature` verdict. |
+| "These remaining bugs merit their own focused `/architect-team:bug-fix` run — depth would suffer if batched here." | This is the pipeline refusing to do its job. The user asked you to fix bugs; fix them. If you identified them, you fix them — in THIS run, not a hypothetical future one. The only deferral is an explicit user instruction. |
+| "I'll describe what the test would show instead of actually running it." | A description is not a test. Run the artifact. Capture the output. Write the verdict file. The `pipeline-completion-audit` hook blocks without executed-test evidence — and it should. |
+| "Cluster B needs user input so I'll skip it." | Ask the user the question (that is what the ambiguity-escalation exists for) and then fix it. Deferring to a separate run instead of asking the question is avoidance, not efficiency. |
+| "This bug requires investigation before fixing — I'll document it and move on." | Investigate it NOW. The `diagnostic-research-team` exists for exactly this. Route it through 3 diagnostic researchers, get the root cause, fix it. "Document and move on" is the anti-pattern the whole pipeline exists to prevent. |
 
 ## Relationship to other skills
 

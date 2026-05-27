@@ -61,9 +61,9 @@ def _is_real_run(at: Path) -> bool:
         return False
     if (at / "intake-state.json").exists():
         return True
-    for sub in ("teammates", "solution-requirements", "reviews", "test-completeness"):
+    for sub in ("teammates", "solution-requirements", "reviews", "test-completeness", "bug-fix"):
         d = at / sub
-        if d.is_dir() and any(d.glob("*.json")):
+        if d.is_dir() and any(d.iterdir()):
             return True
     for sub in ("editability", "diagnostic-research", "master-review", "documentation-currency"):
         d = at / sub
@@ -292,6 +292,72 @@ def _audit_documentation_currency(at: Path) -> list[str]:
     return violations
 
 
+def _audit_bug_fix_testing(at: Path) -> list[str]:
+    """If a bug-fix run produced verdict files under .architect-team/bug-fix/,
+    verify that B1 replication and B6 QA replay were actually executed — not
+    just described.  v0.9.36."""
+    violations: list[str] = []
+    bf_dir = at / "bug-fix"
+    if not bf_dir.is_dir():
+        return violations
+    for slug_dir in sorted(p for p in bf_dir.iterdir() if p.is_dir()):
+        slug = slug_dir.name
+        b1 = slug_dir / "b1-replication-verdict.json"
+        b6 = slug_dir / "b6-qa-replay-verdict.json"
+        if not b1.exists():
+            violations.append(
+                f"bug-fix '{slug}' has no B1 replication verdict file — "
+                f"Phase B1 must write b1-replication-verdict.json proving "
+                f"the replication test was actually executed"
+            )
+        else:
+            v = _load_json(b1)
+            if not isinstance(v, dict):
+                violations.append(f"bug-fix '{slug}' B1 verdict is unreadable")
+            else:
+                if v.get("verdict") == "reproduced":
+                    if v.get("artifact_executed") is not True:
+                        violations.append(
+                            f"bug-fix '{slug}' B1 verdict is 'reproduced' but "
+                            f"artifact_executed is not true — the replication "
+                            f"test must be actually run, not just written"
+                        )
+                    if v.get("failing_output_captured") is not True:
+                        violations.append(
+                            f"bug-fix '{slug}' B1 verdict is 'reproduced' but "
+                            f"failing_output_captured is not true"
+                        )
+        if not b6.exists():
+            violations.append(
+                f"bug-fix '{slug}' has no B6 QA-replay verdict file — "
+                f"Phase B6 must write b6-qa-replay-verdict.json proving "
+                f"the fix was verified against the live dev environment"
+            )
+        else:
+            v = _load_json(b6)
+            if not isinstance(v, dict):
+                violations.append(f"bug-fix '{slug}' B6 verdict is unreadable")
+            else:
+                if v.get("verdict") == "bug-resolved":
+                    if v.get("artifacts_executed_against_live_dev") is not True:
+                        violations.append(
+                            f"bug-fix '{slug}' B6 verdict is 'bug-resolved' but "
+                            f"artifacts_executed_against_live_dev is not true — "
+                            f"QA replay must run against the deployed fix"
+                        )
+                    if v.get("symptom_gone_end_to_end") is not True:
+                        violations.append(
+                            f"bug-fix '{slug}' B6 verdict is 'bug-resolved' but "
+                            f"symptom_gone_end_to_end is not true"
+                        )
+                    if v.get("code_path_witness_passed") is not True:
+                        violations.append(
+                            f"bug-fix '{slug}' B6 verdict is 'bug-resolved' but "
+                            f"code_path_witness_passed is not true"
+                        )
+    return violations
+
+
 def _audit_iteration_ceiling(at: Path) -> list[str]:
     state = _load_json(at / "intake-state.json")
     if not isinstance(state, dict):
@@ -317,6 +383,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_visual_fidelity(at)
     violations += _audit_master_review(at)
     violations += _audit_documentation_currency(at)
+    violations += _audit_bug_fix_testing(at)
     violations += _audit_iteration_ceiling(at)
     return True, violations
 
