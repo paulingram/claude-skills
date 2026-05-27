@@ -77,7 +77,7 @@
 ```
 
 ```
-┌─ SKILLS (25) ───────────────────────┬─ AGENTS (26) ─────────────────────────┐
+┌─ SKILLS (25) ───────────────────────┬─ AGENTS (27) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -104,6 +104,7 @@
 │ ◇ proposal-refiner                  │ ◆ flow-executor (opus)                │
 │ ◇ email-testing                     │ ◆ fix-sensibility-checker (opus)      │
 │                                     │ ◆ prompt-refiner (opus)               │
+│                                     │ ◆ mini-qa (opus)                      │
 ├─ COMMANDS (9) ──────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
