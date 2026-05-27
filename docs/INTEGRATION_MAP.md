@@ -90,6 +90,14 @@ The architect-team plugin does not integrate with any peer codebase. It DOES dep
 - **Required because:** the `email-testing` skill (v0.9.34) provides automatic Mailpit-based email flow verification across all QA agents (`bug-replicator`, `flow-executor`, `integration`). When any QA agent detects email-touching work in its slice, it provisions Mailpit, reroutes the dev environment's SMTP through it, triggers the email send via Playwright UI interaction, captures the email via the REST API, extracts and classifies every link by purpose, and follows every link in Playwright to complete the full user flow.
 - **Failure mode:** test-scoped and fault-isolated. Mailpit provisioning failure exits as `env-failure` for the email portion of the test — it does NOT block non-email tests in the same slice. Teardown is mandatory (`try/finally`) — a dangling SMTP trap would intercept emails in subsequent test runs. The Docker provisioning includes a pre-flight `docker rm -f` to handle name collisions from prior failed teardowns.
 
+## Pipeline-to-pipeline handoffs
+
+### Mini → Full /architect-team escalation handoff (v0.10.0)
+
+When `/architect-team:mini` hits Phase M8 cycle 4 (three red QA verdicts on the same proposal), it writes an escalation folder at `.architect-team/mini/<slug>/escalation/` containing the original prompt, the latest architect draft, the three `qa-verdict.json` files, the three M3 edit diffs, and an `escalation-context.md`. The mini pipeline then re-spawns `/architect-team` with that folder as REQ_DIR — using the existing pass-folder-as-REQ_DIR semantics, no new flag. The full pipeline resumes from Phase −1 on the same working branch (`mini/<slug>`); the mini pipeline exits.
+
+This handoff IS the structural bridge between the mini and full pipelines. Update both pipelines in lockstep when the REQ_DIR conventions change.
+
 ## Contracts & Schemas Catalog
 
 The architect-team plugin defines the following contract-like schemas across its files:
