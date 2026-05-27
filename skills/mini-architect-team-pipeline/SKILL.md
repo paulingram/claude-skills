@@ -174,7 +174,49 @@ Read `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`:
 
 ## Phase M7 — Auto-merge to main
 
-(Filled in Task 10.)
+On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. **This is the only point in any architect-team pipeline that pushes to `main` directly.**
+
+### Doc-currency single-pass
+
+Per `documentation-currency`, run a single-pass doc update (no producer/checker split) covering: `README.md`, `CHANGELOG.md`, `CODEBASE_MAP.md`, `INTEGRATION_MAP.md`, `CLAUDE.md`, per-codebase `ROUTE_MAP.md` / `DESIGN_MAP.md` if they exist and are touched. The mini variant runs this in-line rather than spawning a separate `doc-updater` agent — the architect handles it.
+
+### Commit sequence
+
+1. Stage all M4 + M5 + doc-currency changes.
+2. Commit with trailers:
+   ```
+   Mini-Run: <slug>
+   Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+   ```
+   Author override (this repo): `git -c user.name="Paul Ingram" -c user.email="paulingram@users.noreply.github.com" commit ...`
+3. Push the working branch: `git push -u origin mini/<slug>`.
+
+### Merge sequence
+
+1. `git fetch origin`
+2. If `main` is unchanged since branch creation: fast-forward `main` to the branch tip:
+   ```bash
+   git checkout main && git merge --ff-only mini/<slug> && git push origin main
+   ```
+3. If `main` has advanced: rebase the branch on `main` then fast-forward:
+   ```bash
+   git rebase origin/main && git push --force-with-lease origin mini/<slug>
+   git checkout main && git merge --ff-only mini/<slug> && git push origin main
+   ```
+4. If rebase produces conflicts: **halt**. Write `.architect-team/mini/<slug>/merge-conflict.json` with the conflict files and surface to the user. **Never** auto-resolve. **Never** use `--no-verify`. **Never** use `--force` (only `--force-with-lease`).
+5. On success: delete the working branch locally and remotely (`git push origin --delete mini/<slug>; git branch -d mini/<slug>`).
+
+### Compact prompt
+
+After successful merge, emit the standard `/compact` prompt (matches `architect-team-pipeline` Phase 8 behavior). Suppressed by `--no-compact`.
+
+### Flags affecting M7
+
+- `--no-merge` — skip the merge sequence entirely. The commit and push still happen on the working branch; the user merges manually. Falls back to existing `/architect-team` semantics.
+- `--squash-merge` — replace the fast-forward with `git merge --squash mini/<slug>` + a single `Mini-Run:`-tagged commit. The architect/dev/QA commit chain is collapsed into one commit. Trade-off: easier `main` history; the sweep loses sub-commit granularity.
+- `--no-commit` — skip the commit step (and therefore push + merge). Used when running the mini pipeline as a dry-run.
+- `--no-push` — commit but do not push or merge.
+- `--no-compact` — suppress the `/compact` prompt.
 
 ## Phase M8 — Re-evaluation loop and escalation
 
