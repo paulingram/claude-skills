@@ -220,4 +220,49 @@ After successful merge, emit the standard `/compact` prompt (matches `architect-
 
 ## Phase M8 — Re-evaluation loop and escalation
 
-(Filled in Task 11.)
+On `verdict: red-with-evidence` from M6, increment the cycle counter and dispatch the architect for re-evaluation.
+
+### Re-eval pass
+
+The architect reads:
+
+- `qa-verdict-cycle-<N>.json` — the full evidence trail of what failed.
+- The original `proposal.md` + `tasks.md` + `coverage-map.json`.
+- The cached maps from M1.
+
+The architect edits the OpenSpec bundle in place (proposal, tasks, coverage-map) to address the failure. The architect MUST NOT just retry the same plan — the verdict's `responsible_role_on_red` field tells the architect which team's instructions were wrong. The re-eval modifies those instructions, then loops back to **Phase M4** (parallel dev re-dispatch) with the new tasks.md.
+
+### Cycle cap = 3, escalate on cycle 4
+
+After three red verdicts on the same proposal (`cycle: 1`, `cycle: 2`, `cycle: 3` in the qa-verdict files), the orchestrator **escalates** to `/architect-team`. The mini pipeline is for changes that converge fast — three red cycles is the signal that the change is not "mini" in nature and needs the full pipeline's heavyweight machinery.
+
+### Escalation handoff (cycle 4)
+
+Build the escalation folder at `.architect-team/mini/<slug>/escalation/`:
+
+```
+escalation/
+    prompt.md              — original user prompt verbatim (from .architect-team/mini/<slug>/prompt.md
+                             or the folder REQ_DIR's contents copied in)
+    proposal.md            — the latest architect draft (final M3 state from cycle 3)
+    qa-evidence/
+        qa-verdict-cycle-1.json
+        qa-verdict-cycle-2.json
+        qa-verdict-cycle-3.json
+    architect-diffs/
+        m3-edits-cycle-1.diff
+        m3-edits-cycle-2.diff
+        m3-edits-cycle-3.diff
+    escalation-context.md  — branch ref (mini/<slug>), the maps that were used (with their
+                             last_mapped timestamps), the escalation reason in prose
+```
+
+Re-spawn the full pipeline: `/architect-team .architect-team/mini/<slug>/escalation/`. The full pipeline reads this folder as a normal `$REQ_DIR` and resumes from Phase −1 on the **same working branch** — the mini run does NOT switch branches before handing off, so the full pipeline's work continues on `mini/<slug>` and merges from there per its own Phase 8 rules.
+
+Mini run exits with this user-facing message:
+
+```
+Mini run for <slug> escalated to full /architect-team after 3 red QA cycles.
+Continuing on branch mini/<slug>. See .architect-team/mini/<slug>/escalation/escalation-context.md
+for the failure trail.
+```
