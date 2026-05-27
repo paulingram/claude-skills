@@ -127,7 +127,25 @@ The self-confirm pass is **structural + semantic**, not free-form refinement. If
 
 ## Phase M4 — Parallel dev dispatch (backend + frontend, cross-review)
 
-(Filled in Task 8.)
+Dispatch the `backend` and `frontend` agents **in parallel** via a single Agent-tool call carrying multiple invocations (mirrors `architect-team-pipeline` Phase 2). Each receives:
+
+- `tasks.md` from M2/M3 — with the file-scope partition.
+- `coverage-map.json` — including the `qa_guidance` block.
+- The cached maps from M1.
+
+Per `team-spawning-and-review-gates`, the file scopes MUST NOT overlap. If the architect's `tasks.md` accidentally overlaps scopes, this is an M3 failure — return to M3 with the conflict noted (does not consume an M8 cycle).
+
+### Cross-review (no `task-reviewer` agent)
+
+Instead of dispatching a separate `task-reviewer` agent, the **two devs cross-review each other's diffs**:
+
+- After `backend` writes its `self_review` block in the review-evidence file v6, the orchestrator dispatches `frontend` with the additional task of writing the `independent_review` block for `backend`'s evidence file (and vice versa).
+- The v6 schema's existing `reviewer != teammate` invariant is satisfied: `frontend` reviewing `backend`'s task has `teammate: backend, reviewer: frontend`, which is not the self-review forbidden pattern.
+- The cross-review is **lightweight** — verify the diff matches the task's acceptance criteria, run the linters/type-checkers the diff touches, grep the diff for `TODO`, `NotImplementedError`, mock-return placeholders, and the new-file Reuse Decision.
+
+The trade-off: weaker independence than a dedicated reviewer. Mitigation: `mini-qa`'s coverage check at M5 catches missing test coverage; the `/architect-team:mini-review-sweep` command catches the rest in batch.
+
+On review-evidence write, the existing `hooks/review-gate-task.py` runs unchanged — the dev↔dev cross-review case satisfies the existing schema invariants and needs no hook change (verified by `tests/test_mini_review_gate_dev_cross_check.py`).
 
 ## Phase M5 — mini-qa runs unit + integration + narrow Playwright
 
