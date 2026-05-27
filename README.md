@@ -105,7 +105,7 @@
 │ ◇ email-testing                     │ ◆ fix-sensibility-checker (opus)      │
 │ ◇ mini-architect-team-pipeline      │ ◆ prompt-refiner (opus)               │
 │                                     │ ◆ mini-qa (opus)                      │
-├─ COMMANDS (10) ─────────────────────┴───────────────────────────────────────┤
+├─ COMMANDS (11) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -116,6 +116,7 @@
 │ ▸ /architect-team:ux-test <persona + objectives + --site or --dev>          │
 │ ▸ /architect-team:refine-prompt <free-text prompt>      (standalone refine) │
 │ ▸ /architect-team:mini <requirements-folder | free-text prompt>             │
+│ ▸ /architect-team:mini-review-sweep [--since <ref>] [--limit <N>]           │
 ├─ HOOKS (3) ─────────────────────────────────────────────────────────────────┤
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v6 + independent review  │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │
