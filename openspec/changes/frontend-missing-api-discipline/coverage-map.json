@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "change": "frontend-missing-api-discipline",
+  "version": "1.7.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "frontend agent documents the missing-API discipline", "layer": "discipline",
+     "covered_by": ["agents/frontend.md", "tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-2", "title": "backend agent documents the missing-API SR intake", "layer": "discipline",
+     "covered_by": ["agents/backend.md", "tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-3", "title": "system-architect Phase 2 documents ordering-dependency check", "layer": "discipline",
+     "covered_by": ["agents/system-architect.md", "tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-4", "title": "interaction-completeness recognizes pending-backend classification", "layer": "discipline",
+     "covered_by": ["skills/interaction-completeness/SKILL.md", "tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-5", "title": "team-spawning lists the new SR origin-kind", "layer": "discipline",
+     "covered_by": ["skills/team-spawning-and-review-gates/SKILL.md", "tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-6", "title": "common-pipeline-conventions documents the discipline", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-7", "title": "Structural tests assert the discipline", "layer": "infra",
+     "covered_by": ["tests/test_frontend_missing_api_discipline.py"]},
+    {"id": "REQ-8", "title": "Version bumped to 1.7.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "agents/frontend.md"},
+    {"id": "RD-2", "decision": "extend", "anchor": "agents/backend.md"},
+    {"id": "RD-3", "decision": "extend", "anchor": "agents/system-architect.md"},
+    {"id": "RD-4", "decision": "extend", "anchor": "skills/interaction-completeness/SKILL.md (5th classification)"},
+    {"id": "RD-5", "decision": "extend", "anchor": "skills/team-spawning-and-review-gates/SKILL.md (new SR origin-kind)"},
+    {"id": "RD-6", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md (new section)"},
+    {"id": "RD-7", "decision": "build-new", "anchor": "tests/test_frontend_missing_api_discipline.py"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test change",
+  "implementing_commits": []
+}
