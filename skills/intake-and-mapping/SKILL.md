@@ -33,9 +33,9 @@ Resolve every path to an absolute path. Assert each is a git repo (`git -C <path
 - A routing config: `pages/`, `app/router/`, `src/routes/`, `react-router`, `vue-router`, `@angular/router`, `expo-router`, `tanstack/router`.
 - `index.html` as the entry.
 
-## Per-codebase mapping (one ralph loop per codebase)
+## Per-codebase mapping (one ralph loop per codebase, dispatched in parallel across codebases)
 
-For each codebase:
+Each codebase's mapping work is independent of every other codebase's mapping work — only the later integration mapping depends on all per-codebase maps being done. So all per-codebase mapping ralph loops are dispatched in PARALLEL via a single Agent-tool batch — one teammate per codebase. For a 1-codebase workspace this is a no-op; for a multi-codebase workspace it cuts wall-clock by a factor of the codebase count. Within each codebase's ralph loop:
 
 ### Step 1: Freshness check (short-circuit if current)
 
