@@ -22,23 +22,32 @@ The v0.9.17 same-input-forms rules apply verbatim — **never refuse plain-langu
 
 ## Dispatch mode
 
-The mini pipeline supports two dispatch primitives — **teams mode** (Claude Code's experimental Agent Teams: long-lived named teammates with their own 1M contexts, a shared task list, and direct `SendMessage`) and **subagents mode** (the v0.10.0 behavior — ephemeral `Agent`-tool dispatches, fresh context per call). The Lead decides which once, at startup, and the decision is the same for the entire mini run.
+Per `common-pipeline-conventions` `## Dispatch mode (v1.0.0)`, the selection (env `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` + `claude --version >= 2.1.32` + `--no-teams` flag, also readable from `~/.claude/settings.json`) is computed ONCE — for the mini pipeline, at the top of Phase M0 — and persisted as `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` (the mini pipeline shares the main pipeline's `intake-state.json` location). Every later phase reads it; the hook scripts branch on it (teams mode = `TaskCompleted` / `TeammateIdle`; subagents mode = `PostToolUse(TaskUpdate)` / `SubagentStop`). The teams-mode primitives (Lead spawns named teammates via the Agent tool with `run_in_background: true`, agent type inherited, `SendMessage` for coordination, shared task list at `~/.claude/tasks/<slug>/`) and the subagents-mode primitives (ephemeral Agent-tool dispatches, fresh context per call, no `SendMessage`, handoff files for coordination) are spelled out in the canonical section — do not re-explain them inline.
 
-**Selection rule (evaluated once, at the top of Phase M0).** Teams mode is selected when ALL of these are true; otherwise subagents mode is selected.
+**Mini-specific behavior.** In teams mode the mini variant runs four named teammates — `architect`, `backend-dev`, `frontend-dev`, `mini-qa` — and uses `SendMessage` specifically for the M4 cross-review (each dev sends its `self_review` evidence to the other for the `independent_review` block). In subagents mode the M4 backend + frontend parallel dispatch is the canonical batched-parallel pattern — a single Agent-tool call carrying both invocations. Wherever this skill body says *"the Lead creates a `<role>` task (teams mode) OR dispatches the `<role>` subagent (subagents mode)"*, the branch is decided by `dispatch_mode`; both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
 
-1. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to a truthy value (`1`, `true`, `yes` — case-insensitive) in the process env OR in `~/.claude/settings.json` at `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`.
-2. `claude --version` reports a parseable version `>= 2.1.32`.
-3. The `--no-teams` flag was NOT passed on the invoking `/architect-team:mini` command (the escape hatch for users hitting experimental-flag instability).
+## Notifications (per-project email events — opt-in, best-effort)
 
-If env / settings is unset, version is below `2.1.32`, the version is unparseable, or `--no-teams` was passed, the pipeline runs in subagents mode. When env + version qualify but the version is too old, surface a one-line note (*"Claude Code 2.1.32+ required for teams mode; running in subagents mode."*); when env is unset entirely, run subagents mode silently — the experimental feature is invisible to users who have not opted in.
+Per `common-pipeline-conventions` `## Notifications wiring convention`, the mini pipeline emits notification events via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
 
-**Persist the decision.** Write `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` (the mini pipeline shares the main pipeline's `intake-state.json` location) as soon as the selection is computed. Every later phase reads this — the hook scripts branch on it (teams mode = `TaskCompleted` / `TeammateIdle`; subagents mode = `PostToolUse(TaskUpdate)` / `SubagentStop`), and the dispatch sentences below pick the right primitive.
+The mini pipeline is the only pipeline that auto-merges to `main`, so observing a Mini-Run on the default branch is exactly the event a stakeholder would want notified on — the v1.0.0 decision is to wire notifications into the mini variant for parity with the main and bug-fix pipelines.
 
-**Teams-mode primitives (when `dispatch_mode == "teams"`).** The Lead spawns named teammates via the Agent tool with `run_in_background: true` and a stable, human-readable name (e.g., `architect`, `backend-dev`, `frontend-dev`, `mini-qa`). The spawn invocation references the subagent definition — *"Spawn teammate using the `system-architect` agent type to author the OpenSpec bundle"* — so the role's `tools` allowlist and system prompt are inherited per the agent-teams docs. The architect, the two devs, and `mini-qa` communicate via `SendMessage` for the cross-review handoffs (M4's `backend` ↔ `frontend` cross-review uses `SendMessage` to pass each dev's `self_review` evidence to the other for the `independent_review` block). The shared task list lives at `~/.claude/tasks/<slug>/`; the Lead adds tasks and teammates claim them.
+**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every M-phase.** At the **start of each phase** (Phase M0, M1, M2, M3, M4, M5, M6, M7, M8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name:
 
-**Subagents-mode primitives (when `dispatch_mode == "subagents"`).** The Lead dispatches via the Agent tool — single invocation per phase, or batched parallel via a single Agent-tool call carrying multiple invocations (the M4 backend + frontend parallel dispatch is the canonical example). Each subagent is ephemeral — fresh context, no `SendMessage`, no persistence across dispatches. Cross-step coordination flows through orchestrator-mediated handoff files (the OpenSpec bundle on disk, the qa-verdict-cycle-<N>.json, the M3 self-confirm diffs). This is unchanged from prior versions; pass `--no-teams` to force this mode even when teams qualify.
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright"
+```
 
-Wherever this skill body says *"the Lead creates a `<role>` task (teams mode) OR dispatches the `<role>` subagent (subagents mode)"*, the branch is decided by `dispatch_mode` — both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
+The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific M-phase steps:
+
+- **`deploy`** — fires at **Phase M5** when `mini-qa` deploys to the dev environment for the Playwright run, with `--layer <layer>`.
+- **`git_commit`** — fires at **Phase M7** immediately after the Mini-Run commit succeeds (BEFORE the auto-merge to main), with `--commit <SHA>`. This is the highest-signal event in any mini-run — the commit will land on `main`.
+- **`issue_discovered`** — fires at **Phase M8** when a `red-with-evidence` verdict from M6 triggers the re-eval loop, with `--summary` carrying the verdict's failure-mode description.
+
+## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)
+
+Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which points at the canonical rule in `mempalace-integration` `## Phase A — Wake-up at pipeline start`): the unscoped wake-up runs as the earliest action of Phase M0 — before any subagent dispatch. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then `mempalace --palace "<workspace>/.mempalace/palace" wake-up`. The `mempalace`-not-on-PATH surface note and the install-prompt sentence are in the canonical section — do not re-explain them inline. Per `mempalace-integration`, persist run artifacts (the OpenSpec bundle, the QA verdicts, the architect's M3 diffs) as the run progresses.
 
 ## What this skill does NOT do
 
@@ -71,7 +80,7 @@ git checkout -b mini/<slug> origin/main
 
 If the cwd is not on `main` already, this is fine — the mini variant always branches from the remote's `main` so the auto-merge at M7 has a known base.
 
-**MemPalace wake-up.** Same discipline as `architect-team-pipeline` — resolve `<workspace>` via `git rev-parse --show-toplevel`, then `mempalace --palace "<workspace>/.mempalace/palace" wake-up`. If `mempalace` is not on PATH, surface the same one-line note the bug-fix-pipeline uses and proceed without it. Per `mempalace-integration`, persist run artifacts (the OpenSpec bundle, the QA verdicts, the architect's M3 diffs) as the run progresses.
+**MemPalace wake-up.** Already run as the earliest action of Phase M0 per the `## MemPalace wake-up` section above (which references the canonical rule in `mempalace-integration` `## Phase A`). Per `mempalace-integration`, persist run artifacts (the OpenSpec bundle, the QA verdicts, the architect's M3 diffs) as the run progresses.
 
 ## Phase M1 — Maps freshness check
 
@@ -180,6 +189,14 @@ The Lead creates a `mini-qa` task in the shared list (teams mode) OR dispatches 
 
 `mini-qa` runs per its agent spec: read QA Guidance, verify unit + integration coverage exists, run both suites, author ≤ 3 Playwright flows, deploy to dev, run Playwright against the live dev URL, emit verdict.
 
+**Deploy notification (best-effort, per `## Notifications`).** When `mini-qa` brings the dev environment up for the Playwright run, the orchestrator emits a `deploy` event with `--layer <layer>`. Invoke from the target project's root and proceed immediately regardless of the notifier's outcome:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer>
+```
+
+This `deploy` invocation is best-effort and NEVER blocks, fails, or delays bringing the dev environment up — a notifier failure does not affect the deploy or the QA run.
+
 Per `dev-api-integration-testing`, integration tests MUST hit the real dev API; mocks are reserved for truly external, non-deterministic dependencies. Per `playwright-user-flows`, every Playwright flow is genuine user-driven interaction (page.goto → click → fill → waitFor → assert visible state), not an endpoint call masquerading as a flow.
 
 `mini-qa` writes `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json` per cycle.
@@ -209,6 +226,13 @@ Per `documentation-currency`, run a single-pass doc update (no producer/checker 
    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
    ```
    Author override (this repo): `git -c user.name="Paul Ingram" -c user.email="paulingram@users.noreply.github.com" commit ...`
+2b. **Immediately after the commit succeeds**, the orchestrator emits a `git_commit` notification (best-effort, per `## Notifications`), with `--commit <SHA>`. This is the highest-signal mini-run event — the commit will shortly land on `main` via the auto-merge sequence below. Invoke from the target project's root and proceed immediately:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
+   ```
+
+   This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit, the subsequent push, or the merge — a notifier failure does not affect git in any way.
 3. Push the working branch: `git push -u origin mini/<slug>`.
 
 ### Merge sequence
@@ -241,6 +265,14 @@ After successful merge, emit the standard `/compact` prompt (matches `architect-
 ## Phase M8 — Re-evaluation loop and escalation
 
 On `verdict: red-with-evidence` from M6, the Lead increments the cycle counter and creates a fresh `system-architect` re-eval task in the shared list (teams mode) — or in teams mode, sends the existing `architect` teammate a `SendMessage` with the verdict and asks for the re-eval — OR dispatches the `system-architect` subagent again (subagents mode) for re-evaluation.
+
+**Issue-discovered notification (best-effort, per `## Notifications`).** Before re-dispatching the architect, the orchestrator emits an `issue_discovered` event with the verdict's failure-mode description as `--summary`. Invoke from the target project's root and proceed immediately regardless of the notifier's outcome:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the red verdict's failure-mode description>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the red verdict's failure-mode description>"
+```
+
+This `issue_discovered` invocation is best-effort and NEVER blocks or alters the M8 re-eval — a notifier failure does not stop the next mini-cycle.
 
 ### Re-eval pass
 
