@@ -120,7 +120,8 @@ def test_main_returns_zero_when_everything_present(setup_module: ModuleType, tmp
     with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed_path), \
          patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
          patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest+httpx+...", "present", None)), \
-         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)):
+         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
+         patch.object(setup_module, "check_teams_mode", return_value=("teams-mode", "present", None)):
         rc = setup_module.main(["--check-only"])
     assert rc == 0
 
@@ -132,7 +133,8 @@ def test_main_returns_one_when_plugin_missing(setup_module: ModuleType, tmp_path
     with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed_path), \
          patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
          patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest+httpx+...", "present", None)), \
-         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)):
+         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
+         patch.object(setup_module, "check_teams_mode", return_value=("teams-mode", "present", None)):
         rc = setup_module.main(["--check-only"])
     assert rc == 1
 
