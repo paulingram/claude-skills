@@ -32,6 +32,7 @@ EXPECTED_SKILLS: set[str] = {
     "proposal-refiner",
     "email-testing",
     "mini-architect-team-pipeline",
+    "common-pipeline-conventions",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
