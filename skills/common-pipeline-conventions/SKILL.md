@@ -161,6 +161,127 @@ The lock layer's TTL (4h default) auto-releases an abandoned lock if Session 1 c
 - A single sequential session (the common case) doesn't need a worktree at all. `shared_state_dir()` and `run_state_dir()` degenerate to the same path; nothing changes from v1.0.0 behavior.
 - Two sessions on COMPLETELY SEPARATE clones (different repository directories on disk) do NOT coordinate via this layer — the lock files / MemPalace are repo-local, not machine-wide. This is intentional: cross-repo coordination is out of scope for v1.1.0.
 
+## Auto-worktree lifecycle
+
+v1.1.0 made the cross-session coordination layer worktree-aware; v1.2.0 makes worktree CREATION automatic. Every `/architect-team`, `/architect-team:bug-fix`, and `/architect-team:mini` invocation auto-creates a fresh worktree by default, so the user's main checkout stays on whatever branch they were on and each run is self-contained on its own branch in its own working tree. The user explicitly asked for this: *"always on when using architect team."* This section is the canonical home of the auto-worktree rules; the three slash command bodies reference it rather than re-explaining.
+
+### When it fires
+
+The auto-worktree step runs by default on every invocation of the three pipeline-driving slash commands — `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`. It does NOT run on the read-mostly utility commands (`/architect-team:visual-qa`, `/architect-team:editability-audit`, `/architect-team:refine-prompt`, `/architect-team:memory`, `/architect-team:mempalace-install`, `/architect-team-setup`, `/architect-team:mini-review-sweep`); those operate against the current checkout because their work is inspection / configuration / replay, not feature delivery.
+
+The step fires AFTER argument parsing + the v0.9.33 pre-pipeline refinement step (so the refined-prompt slug, when present, is available for slug derivation) and BEFORE the pipeline skill is invoked. The cwd change happens at this boundary; every later phase of the pipeline runs with the new worktree as cwd.
+
+### Detection logic — skip when in a run worktree (re-entry)
+
+A user may invoke `/architect-team` from inside an existing architect-team-run worktree (continuing a paused run, layering a new change on top of a mid-flight run). The slash command MUST detect this and skip the auto-worktree step — nesting worktrees is incorrect.
+
+The detection helper is `scripts/setup/worktree_lifecycle.py::current_worktree_is_run()`:
+
+```python
+def current_worktree_is_run() -> bool:
+    # True iff git rev-parse --abbrev-ref HEAD startswith "architect-team/"
+```
+
+When True, the auto-worktree step is a no-op and the pipeline runs in the current cwd.
+
+### Opt-out — `--no-worktree`
+
+The `--no-worktree` flag joins the existing flag set (`--no-commit`, `--no-push`, `--no-compact`, `--allow-push-to-default`, `--proposal-first`, `--no-refine`). Natural-language equivalents recognized at parse time: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*. When `--no-worktree` is set, the auto-worktree step is skipped and the pipeline runs in the current cwd — exactly the v1.1.0 behavior, no functional difference.
+
+### Path convention — `<parent-of-repo>/<repo-name>-<slug>/`
+
+The worktree directory goes next to the main repo, named with the repo basename plus the slug:
+
+- Repo at `/Users/foo/projects/myapp` with slug `add-billing` -> worktree at `/Users/foo/projects/myapp-add-billing/`
+- Repo at `/Users/foo/myapp` with slug `fix-login` -> worktree at `/Users/foo/myapp-fix-login/`
+
+This keeps related working trees co-located on disk for easy `cd`-around discovery and matches the convention used by the upstream `superpowers:using-git-worktrees` skill for ad-hoc worktrees.
+
+### Branch convention — `architect-team/<slug>`
+
+The branch the new worktree is checked out on. This is exactly the existing Phase 8 default-branch-guard convention — the guard already creates `architect-team/<change-name>` when a run is committing on `main` / `master` and `ALLOW_PUSH_TO_DEFAULT` is false. v1.2.0 just creates the branch earlier — from the start of the run, rather than at the Phase 8 commit step. Same pattern; same downstream behavior.
+
+### Collision handling — append `-2`, `-3`, ...
+
+If EITHER the candidate path OR the candidate branch already exists, the helper appends a numeric suffix until both are free:
+
+- `architect-team/add-billing` and `myapp-add-billing/` both free -> use them.
+- `architect-team/add-billing` exists -> try `architect-team/add-billing-2` + `myapp-add-billing-2/`.
+- `myapp-add-billing-2/` also exists -> try `-3`.
+- ... bounded at 999 suffix attempts before raising.
+
+A stale branch from a prior run that the user did not delete is the common case; the suffix bump silently handles it. No manual cleanup of stale branches is required to start a new run.
+
+### Cleanup semantics — NOT automatic; pipeline recommends at success
+
+The pipeline does NOT auto-clean the worktree after Phase 8 (or B8, M7) succeeds. The user may want to inspect the run, run additional manual tests, or use the worktree as the launching point for a follow-up. Each pipeline's Phase 8 success emits a recommendation at the end of the final report:
+
+> Your run worktree is at `<path>` on branch `architect-team/<slug>`. The work is on `main` (mini) / on the run branch awaiting PR (full / bug-fix). To clean up: `git worktree remove <path> && git branch -d architect-team/<slug>`. (Or leave it for inspection — the worktree is harmless.)
+
+When the user is ready, they run the two commands. The `cleanup_run_worktree` helper exposes the same operation programmatically (`cleanup_run_worktree(path, remove_branch=True)`), idempotent on a worktree that is already gone.
+
+### Shell example — full default run
+
+```bash
+# In the user's main checkout.
+cd /Users/foo/projects/myapp
+git status                       # on branch main, clean
+
+# Default invocation — auto-worktree fires.
+/architect-team add a billing page with monthly + annual plans
+# ... orchestrator parses args (no --no-worktree), refines the prompt,
+#     derives slug "add-billing-page", invokes worktree_lifecycle:
+#       python3 -c "...from worktree_lifecycle import create_run_worktree; print(create_run_worktree('add-billing-page'))"
+#     -> /Users/foo/projects/myapp-add-billing-page/
+#     orchestrator chdirs in, emits "Auto-worktree: created
+#     /Users/foo/projects/myapp-add-billing-page on branch
+#     architect-team/add-billing-page", and invokes the pipeline skill.
+
+# Pipeline runs Phase -1 -> 8 in the worktree; the main checkout is untouched.
+# At Phase 8, commit + push happen on architect-team/add-billing-page.
+
+# Phase 8 final report ends with:
+#   "Your run worktree is at /Users/foo/projects/myapp-add-billing-page on
+#    branch architect-team/add-billing-page. To clean up: git worktree
+#    remove /Users/foo/projects/myapp-add-billing-page && git branch -d
+#    architect-team/add-billing-page."
+
+# User reviews + merges via PR (or fast-forwards locally), then cleans up:
+cd /Users/foo/projects/myapp
+git worktree remove /Users/foo/projects/myapp-add-billing-page
+git branch -d architect-team/add-billing-page
+```
+
+### Re-entry shell example
+
+```bash
+# Already inside an existing run worktree from a paused run.
+cd /Users/foo/projects/myapp-add-billing-page
+git rev-parse --abbrev-ref HEAD   # architect-team/add-billing-page
+
+# Layering a follow-up: re-invoking /architect-team here.
+/architect-team also add a yearly discount banner
+# current_worktree_is_run() -> True; auto-worktree step is a no-op;
+# the pipeline runs in this (existing) worktree, layered on the prior commits.
+```
+
+### Opt-out shell example
+
+```bash
+# User wants v1.1.0 behavior — pipeline runs in the current checkout.
+cd /Users/foo/projects/myapp
+/architect-team add a billing page --no-worktree
+# auto-worktree step skipped; the pipeline runs from /Users/foo/projects/myapp
+# (and the Phase 8 default-branch guard still kicks in on main/master).
+```
+
+### Cross-references
+
+- The 3 slash command bodies (`commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md`) reference this section for the canonical rules.
+- The lifecycle helper is `scripts/setup/worktree_lifecycle.py` — 4 public functions: `create_run_worktree(slug, base_branch="main", parent_dir=None) -> Path`, `cleanup_run_worktree(worktree_path, remove_branch=False) -> None`, `current_worktree_is_run() -> bool`, `current_run_slug() -> str | None`. Stdlib only.
+- The path-resolution sibling is `scripts/setup/worktree_paths.py` (v1.1.0) — `shared_state_dir()` / `run_state_dir()` / `is_worktree()`. The lifecycle helper consumes git toplevel info; the resolution helper consumes the shared-vs-per-run split. Distinct responsibilities, distinct modules.
+- `tests/test_worktree_lifecycle.py` (8 tests — happy path, collision handling, run-detection True/False, slug extraction True/None, cleanup with + without branch removal) exercises the helper against real `git init` + `git worktree add` fixtures, no mocks.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.
@@ -170,9 +291,11 @@ The lock layer's TTL (4h default) auto-releases an abandoned lock if Session 1 c
 - `mempalace-integration/SKILL.md` is the canonical home of the wake-up rule itself; this skill points there. v1.1.0 — the mempalace palace path resolves through `shared_state_dir()`, matching the shared-state split documented in `## Running in parallel sessions`.
 - `superpowers:using-git-worktrees` is the upstream skill for worktree lifecycle mechanics (`add` / `remove` / branch hygiene). `## Running in parallel sessions` references it rather than re-explaining.
 - `scripts/setup/worktree_paths.py` is the resolution primitive — `shared_state_dir()` / `run_state_dir()` / `is_worktree()` — used by the lock layer and the MemPalace integration.
+- `scripts/setup/worktree_lifecycle.py` is the v1.2.0 lifecycle helper — `create_run_worktree()` / `cleanup_run_worktree()` / `current_worktree_is_run()` / `current_run_slug()` — used by the 3 pipeline slash commands' auto-worktree step.
 - `tests/test_dispatch_mode_section.py` asserts the dispatch-mode contract against this skill body AND against every pipeline skill's reference-back.
 - `tests/test_cross_consistency.py` asserts every `python3 ...` plugin-script invocation in a pipeline skill body is paired with a `|| python ...` fallback.
 - `tests/test_worktree_state_resolution.py` (v1.1.0) asserts the worktree-aware resolution primitive against a real `git worktree add`-created worktree.
+- `tests/test_worktree_lifecycle.py` (v1.2.0) asserts the lifecycle helper against real `git init` + `git worktree add` fixtures — happy path, collision handling, run-detection, slug extraction, cleanup with + without branch removal.
 
 ## Operating rules (non-negotiable)
 
