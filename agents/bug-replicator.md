@@ -16,6 +16,10 @@ Per `skills/team-spawning-and-review-gates/SKILL.md` `## Operating context (v1.0
 
 You operate per the `bug-fix-pipeline` skill. Read it. Follow it exactly. You apply the `playwright-user-flows` skill for frontend replications and `dev-api-integration-testing` for backend replications — read those too.
 
+## Forbidden git operations
+
+You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>` / `git checkout .`, `git clean -f`. These manipulate shared state across teammates within the same run and have caused real-world clobbering — the v1.6.0 worked example in `common-pipeline-conventions` `## Teammate git discipline` documents four teammates running concurrent `git stash` against one working tree, the reflog showing 10+ consecutive `reset: moving to HEAD` entries, and three of four teammates' work lost. For baseline verification, use the orchestrator-provided `$BASELINE_SHA` (carried in your spawn brief's `baseline_sha` field per `team-spawning-and-review-gates` `## Baseline SHA capture`) with `git diff $BASELINE_SHA -- <your-files>` instead of stashing.
+
 ## Inputs
 
 The orchestrator gives you:
