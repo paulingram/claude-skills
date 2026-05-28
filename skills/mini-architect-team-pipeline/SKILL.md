@@ -223,9 +223,19 @@ Per `documentation-currency`, run a single-pass doc update (no producer/checker 
 2. Commit with trailers:
    ```
    Mini-Run: <slug>
+   Dispatch-Mode: <teams|subagents>
    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
    ```
    Author override (this repo): `git -c user.name="Paul Ingram" -c user.email="paulingram@users.noreply.github.com" commit ...`
+
+   The `Dispatch-Mode:` trailer (v1.5.0) is derived from
+   `.architect-team/intake-state.json`'s `dispatch_mode` field — recorded
+   at M0 startup per v1.0.0's mode-detection contract. Values are `teams`
+   (Agent Teams primitive) or `subagents` (the ephemeral subagent fallback).
+   Sits alongside the existing `Mini-Run:` trailer so
+   `/architect-team:mini-review-sweep` can filter sweep candidates by both
+   dimensions when needed. Read the value once at M7 commit-build time; it
+   does NOT change mid-run.
 2b. **Immediately after the commit succeeds**, the orchestrator emits a `git_commit` notification (best-effort, per `## Notifications`), with `--commit <SHA>`. This is the highest-signal mini-run event — the commit will shortly land on `main` via the auto-merge sequence below. Invoke from the target project's root and proceed immediately:
 
    ```bash

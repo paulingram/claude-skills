@@ -351,8 +351,18 @@ The commit message format:
 - Iterations: <N>
 - Phases B−1 → B8 complete; openspec archive landed at <archive-path>
 
+Dispatch-Mode: <teams|subagents>
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
+
+The `Dispatch-Mode:` trailer (v1.5.0) is derived from
+`.architect-team/intake-state.json`'s `dispatch_mode` field — the orchestrator
+recorded it at startup per v1.0.0's mode-detection contract. Values are
+`teams` (Agent Teams primitive) or `subagents` (the ephemeral subagent
+fallback). The trailer makes `git log --format=%(trailers)` queryable for
+archeological "which mode produced this bug-fix commit?" questions without
+needing to grep JSON. Read the value once at B8 commit-build time; it does
+NOT change mid-run.
 
 **Notification (best-effort, per `## Notifications`):** immediately after the commit succeeds and BEFORE the push, the orchestrator emits a `git_commit` event with the new commit's SHA. Same wiring as the main pipeline's Phase 8 commit notification:
 

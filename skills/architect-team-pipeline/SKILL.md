@@ -380,8 +380,18 @@ If `AUTO_COMMIT = true`:
    - Coverage map: fully green
    - Phases −1 → 8 complete; openspec archive landed at <archive-path>
 
+   Dispatch-Mode: <teams|subagents>
    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
    ```
+
+   The `Dispatch-Mode:` trailer (v1.5.0) is derived from
+   `.architect-team/intake-state.json`'s `dispatch_mode` field — the
+   orchestrator recorded it at startup per v1.0.0's mode-detection contract.
+   Values are `teams` (Agent Teams primitive) or `subagents` (the ephemeral
+   subagent fallback). The trailer makes `git log --format=%(trailers)`
+   queryable for archeological "which mode produced this commit?" questions
+   without needing to grep JSON. Read the value once at commit-build time;
+   it does NOT change mid-run.
 
 4b. **Default-branch guard — decide the target branch BEFORE committing.** Run `git -C <repo-root> rev-parse --abbrev-ref HEAD`. If the current branch is `main` or `master` AND `--allow-push-to-default` was NOT passed: the pipeline does NOT commit unreviewed work straight onto a default branch. Create and check out a feature branch first — `git -C <repo-root> checkout -b architect-team/<change-name>` — so the commit (step 5) and push (steps 6-8) land there, and the final report tells the user the work is on `architect-team/<change-name>` awaiting their review + a PR. If the current branch is NOT a default branch, OR `--allow-push-to-default` was passed, commit on the current branch as-is.
 5. `git -C <repo-root> commit -m "<message>"` using the repo's local git config (no `-c user.name=` override; the override is specific to repos with broken local config — most repos do not need it).
