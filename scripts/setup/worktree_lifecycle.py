@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Worktree-lifecycle helper for the architect-team plugin (v1.2.0).
+"""Worktree-lifecycle helper for the architect-team plugin (v1.2.0 + v1.3.0).
 
 v1.1.0 shipped `scripts/setup/worktree_paths.py` — the worktree-aware
 state-resolution sibling that answers WHERE state lives (shared vs. per-run).
@@ -7,7 +7,10 @@ v1.2.0 ships THIS module — the side-effecting lifecycle helper that CREATES,
 DETECTS, and TEARS DOWN architect-team-run worktrees, so the three pipeline
 slash commands (`/architect-team`, `/architect-team:bug-fix`,
 `/architect-team:mini`) can auto-create a worktree by default before invoking
-the pipeline skill.
+the pipeline skill. v1.3.0 extends the module with two auto-cleanup helpers
+(`list_merged_architect_team_worktrees`, `cleanup_merged_worktrees`) so the
+same slash commands can sweep merged-and-forgotten worktrees from prior runs
+as their first action.
 
 The split is intentional: `worktree_paths.py` is pure read-only resolution
 (no side effects); `worktree_lifecycle.py` runs `git worktree add` /
@@ -16,7 +19,7 @@ responsibilities in separate modules preserves the v1.1.0 path-resolution
 module's pure-resolution contract and keeps the lifecycle helper independently
 testable.
 
-Public API — four stdlib-only functions:
+Public API — six stdlib-only functions:
 
   create_run_worktree(slug, base_branch="main", parent_dir=None) -> Path
       Create `<parent>/<repo-name>-<slug>/` on a fresh branch
@@ -37,6 +40,18 @@ Public API — four stdlib-only functions:
   current_run_slug() -> str | None
       The part after `architect-team/` of the current branch name when in a
       run worktree, else None.
+
+  list_merged_architect_team_worktrees(against="origin/main", exclude_current=True) -> list[Path]
+      (v1.3.0) Return paths of architect-team/* worktrees whose branch is
+      merged into <against>. Excludes the current worktree by default
+      (safety: don't auto-remove the cwd even if its branch happens to be
+      merged). Branches NOT starting with `architect-team/` are never
+      considered.
+
+  cleanup_merged_worktrees(against="origin/main", dry_run=False) -> list[Path]
+      (v1.3.0) Remove all merged architect-team/* worktrees. Returns paths
+      cleaned (or that would-be-cleaned in dry_run mode). Idempotent on a
+      worktree that disappears between list and remove.
 
 Naming conventions
 ------------------
@@ -302,6 +317,101 @@ def current_run_slug() -> Optional[str]:
     return slug if slug else None
 
 
+# ---- v1.3.0 auto-cleanup helpers --------------------------------------------
+
+
+def list_merged_architect_team_worktrees(
+    against: str = "origin/main",
+    exclude_current: bool = True,
+) -> list[Path]:
+    """Return paths of `architect-team/*` worktrees merged into `<against>`.
+
+    Walks `git worktree list --porcelain` to get (path, branch) pairs, then
+    for each worktree on a branch starting with `architect-team/` checks
+    `git merge-base --is-ancestor <branch> <against>` — if the branch tip is
+    reachable from `<against>` (exit 0), it's a merged worktree and its path
+    is included in the result.
+
+    When `exclude_current=True` (the default), the current worktree is
+    omitted even if its branch is merged. This is the safety guard the slash
+    commands rely on — auto-cleanup MUST NOT remove the cwd you're working
+    in, even on a re-entry case where the current run's branch happened to
+    be merged earlier.
+
+    Non-`architect-team/*` branches are NEVER considered (the user's own
+    worktrees stay untouched, regardless of merge state).
+
+    Best-effort: any subprocess failure / not-in-a-git-repo / malformed
+    porcelain returns an empty list rather than raising.
+    """
+    toplevel = _git_show_toplevel()
+    if toplevel is None:
+        return []
+
+    current_worktree: Optional[Path] = None
+    if exclude_current:
+        # `git rev-parse --show-toplevel` from the cwd returns the CURRENT
+        # worktree's path (not the main repo's path). That's exactly the
+        # excluded-worktree value the safeguard needs.
+        current_worktree = toplevel
+
+    pairs = _parse_worktree_list_porcelain(toplevel)
+    merged: list[Path] = []
+    for worktree_path, branch in pairs:
+        if not branch or not branch.startswith(_BRANCH_PREFIX):
+            continue
+        if exclude_current and current_worktree is not None:
+            try:
+                if worktree_path.resolve() == current_worktree.resolve():
+                    continue
+            except (OSError, RuntimeError):
+                # Resolution failure -> err on the safe side, skip this path.
+                continue
+        if _branch_is_merged_into(toplevel, branch, against):
+            merged.append(worktree_path)
+    return merged
+
+
+def cleanup_merged_worktrees(
+    against: str = "origin/main",
+    dry_run: bool = False,
+) -> list[Path]:
+    """Remove all merged `architect-team/*` worktrees and return their paths.
+
+    Calls `list_merged_architect_team_worktrees(against=against,
+    exclude_current=True)` under the hood — the current worktree is ALWAYS
+    excluded; v1.3.0 does not expose an override.
+
+    On `dry_run=True`, no filesystem change is made; the candidate list is
+    returned verbatim (the paths that WOULD be cleaned).
+
+    Otherwise calls `cleanup_run_worktree(path, remove_branch=True)` on each
+    candidate, collects successes, and returns the list of paths actually
+    cleaned. Idempotent: if a worktree disappears between list and remove
+    (concurrent cleanup, manual `git worktree remove`), the helper skips
+    that path gracefully and continues with the rest.
+    """
+    candidates = list_merged_architect_team_worktrees(
+        against=against, exclude_current=True
+    )
+    if dry_run:
+        return candidates
+
+    cleaned: list[Path] = []
+    for worktree_path in candidates:
+        try:
+            cleanup_run_worktree(worktree_path, remove_branch=True)
+        except RuntimeError:
+            # Per the idempotency contract, a vanished worktree is not a
+            # failure — but a hard failure (locked, dirty, permission) IS
+            # surfaced by cleanup_run_worktree. We swallow it here so one
+            # bad worktree doesn't block cleanup of the others; the caller
+            # sees a shorter `cleaned` list as the signal.
+            continue
+        cleaned.append(worktree_path)
+    return cleaned
+
+
 # ---- Internals ---------------------------------------------------------------
 
 
@@ -412,6 +522,103 @@ def _git_current_branch() -> Optional[str]:
     if not out or out == "HEAD":
         return None
     return out
+
+
+def _parse_worktree_list_porcelain(
+    toplevel: Path,
+) -> list[tuple[Path, Optional[str]]]:
+    """Run `git worktree list --porcelain` and return (path, branch) pairs.
+
+    The porcelain format groups each worktree as a block of `key value` lines
+    terminated by a blank line. The relevant keys for v1.3.0 are:
+
+      worktree <absolute path>
+      branch refs/heads/<branch-name>           # only present when checked out
+      detached                                  # alternative to branch
+
+    Returns a list of (path, branch_name_or_None) pairs in the order git
+    reports them. Branch is None for detached-HEAD worktrees. Best-effort:
+    subprocess / parse errors return an empty list.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "worktree",
+                "list",
+                "--porcelain",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if result.returncode != 0:
+        return []
+
+    pairs: list[tuple[Path, Optional[str]]] = []
+    current_path: Optional[Path] = None
+    current_branch: Optional[str] = None
+    for raw_line in (result.stdout or "").splitlines():
+        line = raw_line.rstrip()
+        if not line:
+            # Block terminator -> flush.
+            if current_path is not None:
+                pairs.append((current_path, current_branch))
+            current_path = None
+            current_branch = None
+            continue
+        if line.startswith("worktree "):
+            # New block starts -> flush any previous one defensively (no
+            # blank-line terminator at EOF).
+            if current_path is not None:
+                pairs.append((current_path, current_branch))
+                current_branch = None
+            current_path = Path(line[len("worktree "):]).resolve()
+        elif line.startswith("branch "):
+            ref = line[len("branch "):]
+            if ref.startswith("refs/heads/"):
+                current_branch = ref[len("refs/heads/"):]
+            else:
+                current_branch = ref
+        elif line == "detached":
+            current_branch = None
+    if current_path is not None:
+        pairs.append((current_path, current_branch))
+    return pairs
+
+
+def _branch_is_merged_into(toplevel: Path, branch: str, against: str) -> bool:
+    """Return True iff `<branch>` tip is reachable from `<against>`.
+
+    Runs `git merge-base --is-ancestor <branch> <against>`:
+      - exit 0 -> branch is fully merged (fast-forward or merge-commit) -> True
+      - exit 1 -> branch is not an ancestor -> False (un-merged, or merged via
+        squash where the SHA differs)
+      - any other exit / subprocess failure -> False (safe default; don't
+        auto-clean on an ambiguous probe)
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "merge-base",
+                "--is-ancestor",
+                branch,
+                against,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def _git_branch_exists(branch: str) -> bool:
