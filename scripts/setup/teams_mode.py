@@ -181,3 +181,147 @@ def _parse_version(text: str) -> tuple[int, int, int] | None:
         return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
     except ValueError:  # pragma: no cover — re-matches guarantee numeric
         return None
+
+
+# ---- v1.5.0 dispatch-mode banner ---------------------------------------------
+
+
+def format_dispatch_banner(
+    env: Mapping[str, str] | None = None,
+    settings_path: Path | None = None,
+    claude_cmd: str = "claude",
+    flag_no_teams: bool = False,
+) -> str:
+    """Return the dispatch-mode banner string for the current environment.
+
+    The banner is the v1.5.0 observability surface (`dispatch-banner` spec) —
+    every `/architect-team` family invocation prints this string as its FIRST
+    user-visible action so the user knows whether the run is dispatching via
+    Agent Teams or the subagents fallback, and (in the fallback case) WHY.
+
+    Parameters mirror `is_teams_mode_available()` so tests can inject env,
+    settings.json contents, the `claude --version` binary, and the
+    `--no-teams` flag.
+
+    Args:
+        env: process environment to inspect. Defaults to os.environ.
+        settings_path: path to a Claude settings.json. Defaults to
+            ~/.claude/settings.json.
+        claude_cmd: the executable to invoke for the version check. Defaults
+            to "claude".
+        flag_no_teams: if True, force subagents mode even when env + version
+            qualify.
+
+    Returns:
+        A multi-line banner string ready to print to stdout. Stdlib only;
+        never raises.
+    """
+    if is_teams_mode_available(
+        env=env,
+        settings_path=settings_path,
+        claude_cmd=claude_cmd,
+        flag_no_teams=flag_no_teams,
+    ):
+        return _teams_banner()
+    reason = _diagnose_fallback_reason(env, settings_path, claude_cmd, flag_no_teams)
+    return _subagents_banner(reason)
+
+
+def _teams_banner() -> str:
+    """Render the teams-mode banner. Names env var + version + primitives."""
+    return (
+        "╔══════════════════════════════════════════════════════════╗\n"
+        "║  ◆ Dispatch mode: AGENT TEAMS                            ║\n"
+        "║  ────────────────────────────────                        ║\n"
+        "║  CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 ✓                ║\n"
+        "║  Claude Code v2.1.32+ ✓                                  ║\n"
+        "║  Teammates persist with their own 1M context per role.   ║\n"
+        "║  Cross-session locks resolve to shared state.            ║\n"
+        "╚══════════════════════════════════════════════════════════╝"
+    )
+
+
+def _subagents_banner(reason: str) -> str:
+    """Render the subagents-fallback banner. Names the reason + how to enable."""
+    return (
+        "╔══════════════════════════════════════════════════════════╗\n"
+        "║  ◇ Dispatch mode: SUBAGENTS (fallback)                   ║\n"
+        "║  ────────────────────────────────                        ║\n"
+        f"║  Reason: {reason}\n"
+        "║  Each dispatch creates a fresh ephemeral subagent.       ║\n"
+        "║  To enable teams mode: set                               ║\n"
+        "║  CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (env or settings)║\n"
+        "║  and ensure claude --version is ≥ 2.1.32.                ║\n"
+        "║  Or run /architect-team:architect-team-setup.            ║\n"
+        "╚══════════════════════════════════════════════════════════╝"
+    )
+
+
+def _diagnose_fallback_reason(
+    env: Mapping[str, str] | None,
+    settings_path: Path | None,
+    claude_cmd: str,
+    flag_no_teams: bool,
+) -> str:
+    """Name WHY subagents-mode was selected. Probed in priority order.
+
+    Order:
+      1. Explicit --no-teams flag (highest priority — explicit user opt-out).
+      2. Claude Code version below 2.1.32 minimum.
+      3. CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS not set in env AND not set in
+         ~/.claude/settings.json.
+      4. Otherwise — "unknown" (defensive fallback; should not occur in practice
+         because the three checks above cover every condition
+         `is_teams_mode_available()` examines).
+
+    Each probe is wrapped in tolerant exception handling matching the
+    `is_teams_mode_available()` discipline — never raises.
+    """
+    if flag_no_teams:
+        return "explicit --no-teams flag passed at invocation"
+
+    # Probe the version next so a too-old install is named even when env is
+    # set — the user's likely fix is a version bump, not an env tweak.
+    version = _probe_claude_version(claude_cmd)
+    if version is not None and version < MIN_CLAUDE_VERSION:
+        version_str = ".".join(str(n) for n in version)
+        return (
+            f"Claude Code v{version_str} below v2.1.32 minimum — "
+            "upgrade to enable teams mode"
+        )
+
+    # Env var check — covers both env-unset and settings-and-env-unset.
+    if not _flag_is_set(env, settings_path):
+        return (
+            "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS not set in env or "
+            "~/.claude/settings.json"
+        )
+
+    # Defensive fallback — version probe failed AND env was truthy, so
+    # `is_teams_mode_available()` returned False because the version check
+    # itself returned False. Name the version probe as the cause.
+    if version is None:
+        return (
+            "claude --version unparseable or claude binary missing — "
+            "cannot verify v2.1.32 minimum"
+        )
+
+    return "unknown — teams mode unavailable for an undiagnosed reason"
+
+
+def _probe_claude_version(claude_cmd: str) -> tuple[int, int, int] | None:
+    """Return the parsed version tuple, or None on any failure. Never raises."""
+    try:
+        result = subprocess.run(
+            [claude_cmd, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    return _parse_version(result.stdout or "")

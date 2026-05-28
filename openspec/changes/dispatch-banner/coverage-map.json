@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "change": "dispatch-banner",
+  "version": "1.5.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "Banner formatter helper", "layer": "infra",
+     "covered_by": ["scripts/setup/teams_mode.py", "tests/test_dispatch_banner.py"]},
+    {"id": "REQ-2", "title": "Slash commands print the banner first", "layer": "infra",
+     "covered_by": ["commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md", "tests/test_dispatch_banner.py"]},
+    {"id": "REQ-3", "title": "Status command exists", "layer": "infra",
+     "covered_by": ["commands/status.md", "tests/test_commands.py", "tests/test_dispatch_banner.py"]},
+    {"id": "REQ-4", "title": "Phase 8 commit gets Dispatch-Mode trailer", "layer": "infra",
+     "covered_by": ["skills/architect-team-pipeline/SKILL.md", "skills/bug-fix-pipeline/SKILL.md", "skills/mini-architect-team-pipeline/SKILL.md"]},
+    {"id": "REQ-5", "title": "Structural tests assert banner + command shape", "layer": "infra",
+     "covered_by": ["tests/test_dispatch_banner.py"]},
+    {"id": "REQ-6", "title": "Version bumped to 1.5.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "scripts/setup/teams_mode.py"},
+    {"id": "RD-2", "decision": "extend", "anchor": "3 slash command bodies"},
+    {"id": "RD-3", "decision": "build-new", "anchor": "commands/status.md"},
+    {"id": "RD-4", "decision": "extend", "anchor": "3 pipeline SKILL.md bodies (Phase 8 / M7 commit-message)"},
+    {"id": "RD-5", "decision": "build-new", "anchor": "tests/test_dispatch_banner.py"},
+    {"id": "RD-6", "decision": "no-change", "anchor": "is_teams_mode_available() semantics unchanged"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — infra-only change",
+  "implementing_commits": []
+}
