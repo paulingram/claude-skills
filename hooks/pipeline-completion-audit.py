@@ -8,6 +8,15 @@ demonstrably incomplete — open solution requirements, test-failure SRs with no
 diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness
 debt, or a blown global-iteration ceiling.
 
+The `Stop` trigger is UNCHANGED across the v1.0.0 agent-teams refactor — both
+subagents mode (the v0.9.x dispatch shape) and teams mode (the v1.0.0
+agent-teams shape) fire the same `Stop` event on the main Lead / orchestrator
+session at end-of-turn. Per REQ-4.4 of `agent-teams-mode/spec.md`, this hook's
+body runs verbatim in both modes; no mode-branch is needed. (Its sibling hooks
+`review-gate-task.py` and `teammate-idle-check.py` DO branch on payload shape,
+since their triggers split into `PostToolUse(TaskUpdate)` vs `TaskCompleted` and
+`SubagentStop` vs `TeammateIdle` respectively.)
+
 It is also runnable standalone as a pre-commit gate:
     python3 pipeline-completion-audit.py --check
 Phase 8 runs this BEFORE auto-commit; only a clean (exit 0) result may commit.

@@ -64,6 +64,42 @@ REQUIRED_INDEPENDENT_REVIEW_FIELDS = {
 }
 
 
+def _detect_trigger_mode(payload: dict[str, Any]) -> str:
+    """Return `"teams"` or `"subagents"` based on the hook payload's shape.
+
+    The architect-team hooks attach to TWO trigger shapes:
+
+    - Subagents mode (the v0.9.x dispatch shape): the orchestrator is the main
+      session, dispatches each role via the `Agent` tool, and the hook receives
+      `PostToolUse(TaskUpdate)` or `SubagentStop` payloads.
+    - Teams mode (the v1.0.0 agent-teams shape): the Lead session runs a
+      long-lived team of named teammates; the hook receives `TaskCompleted` or
+      `TeammateIdle` payloads.
+
+    The two shapes carry different field names (`tool_name` + `tool_input.taskId`
+    vs. `task.id`; `subagent.name` vs. `teammate.name`), but the enforcement
+    contract — same evidence file at `.architect-team/reviews/<task-id>.json`,
+    same v6 validation, same exit-2 block-with-feedback semantics — is identical.
+
+    Heuristic (see `openspec/changes/agent-teams-refactor/specs/agent-teams-mode/spec.md`
+    REQ-4 + https://code.claude.com/docs/en/hooks for payload references):
+
+    1. If `hook_event_name` is `TaskCompleted` or `TeammateIdle` → `teams`.
+    2. If `tool_name` is `TaskUpdate` AND `hook_event_name` is `PostToolUse` (or
+       absent — older harness emissions) → `subagents`.
+    3. Unknown payload shapes → fall back to `subagents` (the existing v0.9.x
+       behavior is preserved; teams mode is opt-in, so any ambiguous payload
+       should NOT silently switch contracts).
+    """
+    event = payload.get("hook_event_name")
+    if event in ("TaskCompleted", "TeammateIdle"):
+        return "teams"
+    # Subagents mode is the default fallback — every other payload shape (the
+    # PostToolUse(TaskUpdate) / SubagentStop pair, OR an unknown harness shape)
+    # routes through the existing enforcement path.
+    return "subagents"
+
+
 def safe_id(value: str) -> str | None:
     """Return value if safe for use in a filesystem path component, else None.
 
