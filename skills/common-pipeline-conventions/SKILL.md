@@ -220,6 +220,88 @@ The pipeline does NOT auto-clean the worktree after Phase 8 (or B8, M7) succeeds
 
 When the user is ready, they run the two commands. The `cleanup_run_worktree` helper exposes the same operation programmatically (`cleanup_run_worktree(path, remove_branch=True)`), idempotent on a worktree that is already gone.
 
+### Auto-cleanup (v1.3.0)
+
+v1.2.0 left cleanup as a user action (the pipeline's Phase 8 / B8 / M7
+success report ended with the recommendation above). The follow-up ask was
+direct: *"we need auto cleanup so we resolve trees when branches are merged
+in."* v1.3.0 adds two automatic auto-cleanup trigger points so the user no
+longer has to remember.
+
+**Trigger 1 — Start of every `/architect-team` family invocation.** The
+`/architect-team`, `/architect-team:bug-fix`, and `/architect-team:mini`
+slash commands each fire `cleanup_merged_worktrees()` as their FIRST action,
+before argument parsing, before refinement, before the v1.2.0 auto-worktree
+creation. A `git fetch origin main` runs first (best-effort) so the merge
+detection uses an up-to-date ref. Each merged `architect-team/*` worktree
+gets removed; the user sees a brief one-line note listing the paths cleaned
+(or *"(no merged worktrees to clean)"* when there's nothing to sweep). This
+is the "sweep stale worktrees on every new run" trigger.
+
+**Trigger 2 — End of mini-pipeline Phase M7 (after green merge).** The mini
+pipeline auto-merges its own branch to main on green QA; the natural next
+step is to clean up its own worktree. After the branch-delete step at M7
+step 5, the orchestrator invokes `cleanup_run_worktree(Path.cwd(),
+remove_branch=False)` against the current run worktree (the branch is
+already gone). This is the "in-run cleanup" trigger; trigger 1 handles
+everything else on subsequent runs.
+
+**The `exclude_current` safeguard.** `list_merged_architect_team_worktrees`
+defaults `exclude_current=True` and `cleanup_merged_worktrees` calls it that
+way without exposing an override. The current worktree is NEVER auto-removed
+by trigger 1 — even if its branch happens to be merged into `origin/main`
+(re-entry from inside a paused run worktree whose branch was already merged
+in a prior run). This avoids the failure mode of *"the auto-cleanup ate the
+cwd I was just working in."* The mini pipeline's trigger 2 is different —
+it intentionally cleans the current worktree because M7 just merged the
+branch in THIS run; that's safe because the worktree's purpose is now
+fulfilled and the next thing the orchestrator does is emit the `/compact`
+prompt and end the turn.
+
+**Merged-branch detection mechanism.** `git merge-base --is-ancestor
+<branch> <against>` is the probe. Exit 0 means the branch tip is reachable
+from `<against>` (fast-forward or merge-commit landed); exit 1 means it
+isn't (either un-merged, OR squash-merged where main carries a different
+SHA). The probe is run against `origin/main` by default; the explicit
+cleanup command exposes `--against <ref>` for branch-specific workflows.
+
+**Squash-merge limitation.** `--is-ancestor` doesn't detect squash-merges.
+A branch you squash-merged into main is NOT recognized as merged (different
+SHA) and stays on disk. The safer side of the trade-off: false negatives
+(squash-merged branches not auto-cleaned) are better than false positives
+(un-merged work auto-deleted). To force-remove a known-squash-merged
+worktree, run `git worktree remove <path>` manually OR use the explicit
+`/architect-team:cleanup-worktrees` command which exposes the same helper
+verbatim.
+
+**The explicit `--dry-run` capability.** `/architect-team:cleanup-worktrees
+--dry-run` (or any natural-language equivalent — *"dry run"*, *"preview
+only"*) prints the paths that WOULD be cleaned without touching the
+filesystem. Use this to verify the merge detection is working as expected
+before committing to a real cleanup. The dry-run mode is exposed via the
+helper's `dry_run=True` parameter — `cleanup_merged_worktrees(dry_run=True)`
+returns the candidate list verbatim.
+
+**Best-effort discipline.** Every auto-cleanup invocation is best-effort:
+the helper swallows per-worktree failures and continues with the rest; the
+slash commands surface the cleanup output as a one-line note and proceed to
+the rest of their flow regardless of the cleanup's outcome. A cleanup
+failure NEVER blocks the new run. This is the same discipline as v0.9.18's
+notifier and v0.9.30's polyglot-Python fallback — observability without
+gating.
+
+**Helpers (v1.3.0).** The two new public functions in
+`scripts/setup/worktree_lifecycle.py`:
+
+- `list_merged_architect_team_worktrees(against="origin/main",
+  exclude_current=True) -> list[Path]` — returns paths of merged
+  `architect-team/*` worktrees, honoring `exclude_current`. Non-architect-team
+  branches are NEVER included. Stdlib only.
+- `cleanup_merged_worktrees(against="origin/main", dry_run=False) ->
+  list[Path]` — removes the merged worktrees (or returns the candidate list
+  verbatim on `dry_run=True`). Idempotent: vanished worktrees are skipped
+  rather than raised on.
+
 ### Shell example — full default run
 
 ```bash
@@ -277,10 +359,12 @@ cd /Users/foo/projects/myapp
 
 ### Cross-references
 
-- The 3 slash command bodies (`commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md`) reference this section for the canonical rules.
-- The lifecycle helper is `scripts/setup/worktree_lifecycle.py` — 4 public functions: `create_run_worktree(slug, base_branch="main", parent_dir=None) -> Path`, `cleanup_run_worktree(worktree_path, remove_branch=False) -> None`, `current_worktree_is_run() -> bool`, `current_run_slug() -> str | None`. Stdlib only.
+- The 3 slash command bodies (`commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md`) reference this section for the canonical rules; each also fires `cleanup_merged_worktrees()` as its first action per v1.3.0.
+- The explicit cleanup command is `commands/cleanup-worktrees.md` (v1.3.0) — `/architect-team:cleanup-worktrees [--dry-run] [--against <ref>]`. Manual invocation of the same helper the auto-cleanup uses.
+- The lifecycle helper is `scripts/setup/worktree_lifecycle.py` — 6 public functions: `create_run_worktree(slug, base_branch="main", parent_dir=None) -> Path`, `cleanup_run_worktree(worktree_path, remove_branch=False) -> None`, `current_worktree_is_run() -> bool`, `current_run_slug() -> str | None`, and (v1.3.0) `list_merged_architect_team_worktrees(against="origin/main", exclude_current=True) -> list[Path]`, `cleanup_merged_worktrees(against="origin/main", dry_run=False) -> list[Path]`. Stdlib only.
 - The path-resolution sibling is `scripts/setup/worktree_paths.py` (v1.1.0) — `shared_state_dir()` / `run_state_dir()` / `is_worktree()`. The lifecycle helper consumes git toplevel info; the resolution helper consumes the shared-vs-per-run split. Distinct responsibilities, distinct modules.
-- `tests/test_worktree_lifecycle.py` (8 tests — happy path, collision handling, run-detection True/False, slug extraction True/None, cleanup with + without branch removal) exercises the helper against real `git init` + `git worktree add` fixtures, no mocks.
+- `tests/test_worktree_lifecycle.py` (8 tests — happy path, collision handling, run-detection True/False, slug extraction True/None, cleanup with + without branch removal) exercises the v1.2.0 helpers against real `git init` + `git worktree add` fixtures, no mocks.
+- `tests/test_worktree_auto_cleanup.py` (6 tests — merged-branch identification, exclude_current safeguard, non-architect-team branches ignored, cleanup removes filesystem, dry_run preview leaves filesystem untouched, end-to-end cleanup-only-removes-merged) exercises the v1.3.0 helpers against the same real-git fixtures with `origin/main` configured via a self-remote.
 
 ## Where this skill plugs in
 

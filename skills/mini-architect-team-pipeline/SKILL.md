@@ -250,6 +250,33 @@ Per `documentation-currency`, run a single-pass doc update (no producer/checker 
 4. If rebase produces conflicts: **halt**. Write `.architect-team/mini/<slug>/merge-conflict.json` with the conflict files and surface to the user. **Never** auto-resolve. **Never** use `--no-verify`. **Never** use `--force` (only `--force-with-lease`).
 5. On success: delete the working branch locally and remotely (`git push origin --delete mini/<slug>; git branch -d mini/<slug>`).
 
+### Cleanup the run worktree (v1.3.0)
+
+After the merge succeeds and the branch is deleted (step 5 above), remove the
+run worktree itself. The mini pipeline just merged its own branch to main;
+the worktree's purpose is fulfilled. This is the "in-run cleanup" trigger
+documented in `common-pipeline-conventions` `## Auto-worktree lifecycle`
+`### Auto-cleanup (v1.3.0)` — the other trigger (the start-of-run sweep at
+the slash commands) handles every OTHER prior-run merged worktree.
+
+Invoke `cleanup_run_worktree` against the current worktree path, with
+`remove_branch=False` because step 5 already deleted the branch (a second
+`git branch -d` would be a no-op-with-error). Polyglot pattern:
+
+```bash
+python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import cleanup_run_worktree; from pathlib import Path; cleanup_run_worktree(Path.cwd(), remove_branch=False)" || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import cleanup_run_worktree; from pathlib import Path; cleanup_run_worktree(Path.cwd(), remove_branch=False)"
+```
+
+`cleanup_run_worktree` is idempotent — if the worktree has already been
+removed by some other path, the call is a no-op. The `git worktree remove`
+runs from the main repo's toplevel (not from inside the worktree being
+removed), so it doesn't break the orchestrator's cwd mid-call; the helper
+handles that by resolving `_git_show_toplevel()` to the MAIN repo.
+
+This in-run cleanup is best-effort just like the start-of-run sweep: a
+failure surfaces a one-line note and the `/compact` prompt below still
+fires.
+
 ### Compact prompt
 
 After successful merge, emit the standard `/compact` prompt (matches `architect-team-pipeline` Phase 8 behavior). Suppressed by `--no-compact`.
