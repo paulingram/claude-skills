@@ -38,7 +38,7 @@ graph TB
         SK_UXTEST["skill: ux-test-builder (Phase U0 -> U9)"]
     end
 
-    subgraph "Skills (25)"
+    subgraph "Skills (26)"
         SK_INTAKE["intake-and-mapping"]
         SK_PLAN["coverage-mapping / reuse-first-design"]
         SK_MAP["frontend-route-mapping / design-fidelity-mapping"]
@@ -55,7 +55,7 @@ graph TB
         SK_EMAIL["email-testing"]
     end
 
-    subgraph "Agents (26)"
+    subgraph "Agents (27)"
         AG_IMPL["frontend / backend (opus implementers)"]
         AG_FLOW["reconciler / integration"]
         AG_MAP["codebase-map-reviewer x3 / route-mapper / integration-explorer x3 / master-synthesizer / interaction-intuiter"]
@@ -128,7 +128,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 
 ## 4. Module Guide
 
-### Skills (25)
+### Skills (26)
 
 | Skill | Role |
 |---|---|
@@ -159,7 +159,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | `email-testing` | Cross-cutting email-testing discipline — 4 phases (E1 detect, E2 Mailpit provision, E3 capture+analyze, E4 link-follow+flow-complete). Consumed by `bug-replicator`, `flow-executor`, `integration` agents. Mailpit by default; template-first analysis; every link tested; mandatory teardown. (v0.9.34) |
 | `mini-architect-team-pipeline` | Mini variant orchestrator (Phase M0 → M8) — single architect, single `mini-qa` agent, working branch `mini/<slug>`, auto-merge to main on green; M8 cycle 4 (three red verdicts on the same proposal) writes `.architect-team/mini/<slug>/escalation/` and re-spawns `/architect-team` with that folder as REQ_DIR. Heavyweight review is batched via the `Mini-Run:` trailer + the `/architect-team:mini-review-sweep` command. Reached via `/architect-team:mini`. (v0.10.0) |
 
-### Agents (26)
+### Agents (27)
 
 | Agent | Model | Color | One-line purpose |
 |---|---|---|---|
@@ -191,7 +191,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 | prompt-refiner | opus | blue | Spawned at Phase R2 (v0.9.33). Grades a free-text prompt on 5 axes, generates codebase-grounded clarifying questions. |
 | mini-qa | opus | red | Single QA agent for the mini variant (v0.10.0). Spawned at Phase M5; reads the architect's `## QA Guidance` contract; runs unit + integration + ≤3 Playwright on the live dev URL; emits a `qa-verdict.json` with green/red and a per-criterion table. Read-only on source. |
 
-### Commands (9)
+### Commands (11)
 
 - `architect-team` — runs the Phase −2 → 8 pipeline against EITHER a requirements folder OR a plain-language requirement typed directly as prose (v0.9.17). Flags: `--no-commit` / `--no-push` / `--no-compact` / `--allow-push-to-default` / `--proposal-first` / `--bug-fix` / `--feature-only` / `--no-refine`.
 - `bug-fix` — faster bug-focused variant (v0.9.22). Drives through replicate → reproduce-test → propose → fix → QA-replay loop. Equivalent to `--bug-fix` flag on the main command.
