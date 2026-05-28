@@ -1,6 +1,6 @@
 ---
 name: proposal-refiner
-description: Use when the architect-team / bug-fix / ux-test pipeline receives free-text prose (not a directory of OpenSpec / Superpowers artifacts), OR when /architect-team:refine-prompt is invoked standalone. Conversationally refines the prompt with codebase-map grounding (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP, INTERACTION_INTUITION_MAP, INTEGRATION_MAP), multi-axis clarity grading (clarity / scope / acceptance / grounding / conflict), and iterative user dialogue until the user is satisfied. Outputs a structured refined prompt as a markdown file with frontmatter; downstream pipelines consume the refined version. Standalone mode exits after the markdown lands; pipeline mode passes the markdown path back as the new $REQ_DIR. Domain gate, not a process gate — the user-confirmation step IS the deliverable; --no-refine bypasses it when the user is confident the prompt is detailed enough.
+description: Use when the architect-team / bug-fix / ux-test pipeline receives free-text prose (not a directory of OpenSpec / Superpowers artifacts), OR when /architect-team:refine-prompt is invoked standalone. Conversationally refines the prompt with codebase-map grounding (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP, INTERACTION_INTUITION_MAP, INTEGRATION_MAP), multi-axis clarity grading (clarity / scope / acceptance / grounding / conflict / scope-fidelity — v1.4.0 adds the 6th axis), and iterative user dialogue until the user is satisfied. Outputs a structured refined prompt as a markdown file with frontmatter; downstream pipelines consume the refined version. Standalone mode exits after the markdown lands; pipeline mode passes the markdown path back as the new $REQ_DIR. Domain gate, not a process gate — the user-confirmation step IS the deliverable; --no-refine bypasses it when the user is confident the prompt is detailed enough. A flagged `scope-fidelity` axis (the refined prompt scopes narrower than the original prose reasonably implies) is itself a domain gate per `common-pipeline-conventions` `## Scope discipline`.
 ---
 
 # Proposal Refiner — Free-text-prompt → architect-team-ready brief
@@ -52,10 +52,13 @@ Dispatch the `prompt-refiner` agent (model: opus) with the inputs from R1. The a
 | **Acceptance** | Are success criteria stated or trivially derivable? Are they MEASURABLE (a user can verify)? Or only directional? | 1-10 |
 | **Codebase grounding** | Codebase(s) / files / routes / endpoints / handlers named or inferable from the maps? Or are touchpoints unstated? | 1-10 |
 | **Conflict** | Any internal contradictions, mixed priorities, or unclear precedence rules? | 1-10 |
+| **Scope-fidelity** (v1.4.0) | Does the refined prompt scope NARROWER than the original prose reasonably implies? Particularly when the original contains parity-implying verbs (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) — has the refined scope honored them, or silently relegated visual / structural / behavioral parity to a deferred "future run"? Per `common-pipeline-conventions` `## Scope discipline`. | 1-10 |
 
-**Weighted overall.** Default weights — Clarity 0.25 + Scope 0.20 + Acceptance 0.25 + Grounding 0.20 + Conflict 0.10. Overall score = sum(axis × weight) × 10 → 0-100 scale.
+**Weighted overall (v1.4.0).** Default weights — Clarity 0.20 + Scope 0.18 + Acceptance 0.20 + Grounding 0.17 + Conflict 0.08 + ScopeFidelity 0.17 (sum = 1.0). Overall score = sum(axis × weight) × 10 → 0-100 scale. The v1.4.0 redistribution from the original v1.3.0 weights (Clarity 0.25 + Scope 0.20 + Acceptance 0.25 + Grounding 0.20 + Conflict 0.10) shaves uniformly across the five existing axes to make room for the new `scope-fidelity` weight; the largest shaves come off Clarity / Scope / Acceptance, which were the most heavily weighted and have the most room.
 
 **Letter mapping** — A: 90-100 / B: 75-89 / C: 60-74 / D: 45-59 / F: <45.
+
+**Scope-fidelity is a DOMAIN gate (v1.4.0).** A flagged `scope-fidelity` (score ≤ 6) is a domain gate per `common-pipeline-conventions` `## Scope discipline` — the orchestrator MUST surface the scope-clarification question to the user BEFORE the refinement loop proceeds, and the question MUST be the highest-priority question of the iteration. The question pattern: name the original prose's parity-implying verb, name the agent's narrower reading, ask which the user wants; the user's answer becomes the contract.
 
 The agent's verdict is written to `<cwd>/.architect-team/refined-prompts/<slug>-<ts>/r2-grade-<iteration>.json` per the schema:
 
@@ -63,17 +66,18 @@ The agent's verdict is written to `<cwd>/.architect-team/refined-prompts/<slug>-
 {
   "iteration": <integer, 0-based>,
   "axes": {
-    "clarity":   { "score": <1-10>, "rationale": "<one-line citation, quoting the prompt>" },
-    "scope":     { "score": <1-10>, "rationale": "<...>" },
-    "acceptance":{ "score": <1-10>, "rationale": "<...>" },
-    "grounding": { "score": <1-10>, "rationale": "<...>" },
-    "conflict":  { "score": <1-10>, "rationale": "<...>" }
+    "clarity":        { "score": <1-10>, "rationale": "<one-line citation, quoting the prompt>" },
+    "scope":          { "score": <1-10>, "rationale": "<...>" },
+    "acceptance":     { "score": <1-10>, "rationale": "<...>" },
+    "grounding":      { "score": <1-10>, "rationale": "<...>" },
+    "conflict":       { "score": <1-10>, "rationale": "<...>" },
+    "scope-fidelity": { "score": <1-10>, "rationale": "<verbatim quote from ORIGINAL prompt naming the parity-implying verb or scope element that's at risk of being narrowed; or 'no narrowing detected' on a 10-score>" }
   },
   "overall_score": <0-100>,
   "overall_letter": "A" | "B" | "C" | "D" | "F",
   "next_questions": [
     {
-      "axis": "clarity" | "scope" | "acceptance" | "grounding" | "conflict",
+      "axis": "clarity" | "scope" | "acceptance" | "grounding" | "conflict" | "scope-fidelity",
       "ambiguity": "<the gap, quoting the original prompt>",
       "codebase_anchor": "<file:line | route | endpoint | null>",
       "question": "<the question to ask the user>",
@@ -84,7 +88,7 @@ The agent's verdict is written to `<cwd>/.architect-team/refined-prompts/<slug>-
 }
 ```
 
-The agent generates **2-5 prioritized questions** per iteration. Prioritization order: lowest-scoring axes first, with codebase-grounded questions preferred (a question with a `codebase_anchor` is more actionable than a vague *"can you clarify scope?"*).
+The agent generates **2-5 prioritized questions** per iteration. Prioritization order: a flagged `scope-fidelity` question is ALWAYS first (v1.4.0 — the domain-gate rule); then lowest-scoring axes first, with codebase-grounded questions preferred (a question with a `codebase_anchor` is more actionable than a vague *"can you clarify scope?"*).
 
 ## Phase R3 — Display grade + questions to the user
 
@@ -93,16 +97,19 @@ Render the grade as a clean table the user can read at a glance:
 ```
 Clarity grade — iteration <N>
 
-  Axis        Score   Note
-  ─────────────────────────────────────────────────────────
-  Clarity     7/10    "improve the dashboard" — which dashboard?
-  Scope       4/10    Boundaries undefined; what's NOT in scope?
-  Acceptance  3/10    No measurable success criteria
-  Grounding   6/10    "the auth flow" → 3 candidates in ROUTE_MAP
-  Conflict    9/10    No contradictions
+  Axis            Score   Note
+  ─────────────────────────────────────────────────────────────────────────
+  Clarity         7/10    "improve the dashboard" — which dashboard?
+  Scope           4/10    Boundaries undefined; what's NOT in scope?
+  Acceptance      3/10    No measurable success criteria
+  Grounding       6/10    "the auth flow" → 3 candidates in ROUTE_MAP
+  Conflict        9/10    No contradictions
+  Scope-fidelity  5/10    "match the oracle" — refined scope is data-only
 
-  Overall:    5.4/10  →  C  (62/100)
+  Overall:        5.3/10  →  C  (60/100)
 ```
+
+A `scope-fidelity` row scoring ≤ 6 surfaces the domain-gate question first (v1.4.0), regardless of how the other axes scored. The user sees the scope-clarification question as the leading question of the iteration — the orchestrator's question batching MUST honor this priority.
 
 Then ask the user the next 1-3 questions via `AskUserQuestion` (for `choose-one` form, 2-4 options) or as a numbered list (for `free-form` / open-ended). When multiple questions can be batched (each is independent), batch them in ONE `AskUserQuestion` call (up to 4 questions per call per the tool's limit).
 
