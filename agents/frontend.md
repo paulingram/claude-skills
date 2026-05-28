@@ -36,6 +36,66 @@ Read the Reuse Decisions for your slice from `design.md`. Every file you create 
 - The Playwright workflow is non-negotiable: examine the code, build the interactivity inventory, author tests that simulate the real user, verify coverage. NEVER substitute API calls for user-flow tests.
 - **Bind every dynamic value to its data source — apply `dynamic-value-discovery`.** A design mockup is full of sample data: `"John Smith"`, `"$1,234.00"`, `"2 hours ago"`, `"Welcome back, Sarah"`, `"3 items"`, `"Shipped"`. Before you render any value, classify it `static` or `dynamic` FROM CONTEXT (its position, its nature, the requirements / design language) per the `dynamic-value-discovery` skill — never from the literal itself. Ship a genuine `static` literal as a literal; bind every `dynamic` value to its named data source (the auth session, an API response field, a route param, a store/context value, a prop). NEVER copy a mockup's sample datum into the code as the shipped value — a hardcoded name / balance / date / status shows one person's data to everyone. When a value's classification is genuinely ambiguous, escalate the structured question from `dynamic-value-discovery` rather than guessing.
 
+## Missing-API discipline
+
+When you encounter a UI element that needs a backend API which does NOT yet exist, you MUST surface the gap as a structured backend requirement and pause that element's work — never fake, mock, hardcode, or silently stub. The clean handoff is what closes the loop; the four improvisations below all ship visibly-broken work that downstream gates catch only after the round trip is wasted.
+
+### Forbidden (4 anti-patterns)
+
+You MUST NOT:
+
+1. **Fake the data** — render the design mockup's hardcoded sample literal (`"John Smith"`, `"$1,234.00"`, `"Shipped"`) as if it were the dynamic value. The `dynamic-value-discovery` review catches this at Phase 3 / Phase 5; the round trip is wasted.
+2. **Mock the endpoint** — wire `page.route('**/api/users/me', ...)` returning a canned 2xx response and call it tested. The `playwright-user-flows` Real-backend-by-default audit catches this at Phase 5; the round trip is wasted AND the mock becomes technical debt the next teammate must rip out.
+3. **Hardcode the response shape** — inline the JSON shape into the component (or a helper) where a fetched response should sit. Same review-time defect as faking the data, one layer deeper.
+4. **Silently stub the UI** — render `<button disabled>`, ship a placeholder page where the design specifies a real live page, or leave the element off the page with a `// TODO: wire when API ready` comment. The `interaction-completeness` `confirmed-stub` mechanism handles intentional stubs ONLY with explicit user confirmation; without an SR, an unconfirmed stub is an `unwired-control` / `placeholder-page` gap.
+
+### Right pattern (SR + pause + continue + return)
+
+1. **Author the SR.** Write `<cwd>/.architect-team/solution-requirements/SR-missing-api-<element>-<ts>.json` per `team-spawning-and-review-gates`'s `## Solution Requirements` schema with `origin.kind: "missing-api-for-frontend-element"`. The payload documents the endpoint contract: HTTP **method**, **path**, **request shape** (body / query params / route params as applicable), **response shape** (status codes + response bodies), and **error cases** (every documented failure response). `scope.files_to_change` lists the backend files where the endpoint should land (best-effort; the backend agent can revise). `acceptance_criteria` MUST require that the endpoint matches the SR's specified shape AND that a dev-API integration test covers the happy path and every documented error response.
+2. **Pause work on that specific UI element.** Do NOT render fake data, do NOT wire a mock, do NOT ship a placeholder, do NOT leave a TODO and call the slice done. Mark the element's classification as `pending-backend` in your slice's evidence (see `interaction-completeness` `## Element classifications`).
+3. **Continue work on the other elements** in your slice that do NOT depend on this missing API. The unrelated work ships normally through the standard Phase 3 review gate.
+4. **Return your slice with the SR noted in your review-gate evidence**, then wait for the orchestrator to re-dispatch you with the SR marked `resolved`. The backend's dispatch report will carry the actual endpoint shape; confirm it matches your SR's spec (a schema diff in the backend's report means the contract had to change — read the diff before wiring), then wire the element to the now-live endpoint per `dynamic-value-discovery`. The element's classification flips from `pending-backend` to `endpoint-backed` once wired.
+
+### SR payload shape
+
+```json
+{
+  "solution_id": "SR-missing-api-user-avatar-2026-05-28T08:00:00Z",
+  "origin": {
+    "kind": "missing-api-for-frontend-element",
+    "discovered_in": "Phase 2",
+    "discovered_by": "frontend-dashboard"
+  },
+  "problem_summary": "The <UserAvatar> component in the app header needs the current authenticated user's name + avatar URL, but no endpoint serving that shape currently exists.",
+  "expected_behavior": "GET /api/users/me returns the authenticated user's name, email, and avatar URL so the <UserAvatar> can render the dynamic name beside the avatar per the design.",
+  "scope": {
+    "files_to_change": ["src/api/users/me.py", "src/api/users/__init__.py"],
+    "files_to_test": ["tests/integration/test_users_me.py"]
+  },
+  "acceptance_criteria": [
+    "GET /api/users/me with a valid session returns 200 with body { id: string, name: string, email: string, avatar_url: string }",
+    "GET /api/users/me with no session returns 401 with body { error: 'unauthenticated' }",
+    "GET /api/users/me with a soft-deleted user returns 410 with body { error: 'account_deactivated' }",
+    "Dev-API integration test covers the 200 happy path AND the 401 + 410 error responses"
+  ]
+}
+```
+
+### Worked example — `<UserAvatar>` needs `GET /api/users/me`
+
+You are implementing the dashboard header. The design has a `<UserAvatar>` in the top-right showing the authenticated user's name beside their avatar. You read the API contract documents in `docs/INTEGRATION_MAP.md` and the design's Acceptance Criteria — there is no documented endpoint serving the user's name + avatar URL. You check the backend code — `/api/users` exists for the admin user list but nothing under `/api/users/me`. The endpoint does not exist.
+
+- ✗ **Wrong:** render `<UserAvatar name="John Smith" avatarUrl="/avatars/sample.png" />` and call the slice done. The `dynamic-value-discovery` reviewer catches the hardcoded name at Phase 3 review.
+- ✗ **Wrong:** wire `page.route('**/api/users/me', () => ({ name: 'John Smith', ... }))` in the test setup and assert against it. The `playwright-user-flows` reviewer catches the happy-path mock at Phase 5.
+- ✗ **Wrong:** render `<UserAvatar name={undefined} />` and add `// TODO: wire when /api/users/me exists`. The `interaction-completeness` reviewer flags an `unwired-control` (no user confirmation = no `confirmed-stub`).
+- ✓ **Right:** write `SR-missing-api-user-avatar-<ts>.json` with the payload above; classify `<UserAvatar>` as `pending-backend` in your slice's evidence; ship the other dashboard elements normally; mark your slice's `ui_interaction_review` honestly (note the `<UserAvatar>` is `pending-backend` per the SR); signal idle. The orchestrator's Phase 3b SR walker picks up the SR, dispatches the backend agent against it (NOT through `diagnostic-research-team` — this is a known-shape backend requirement, not a test failure). The backend implements `GET /api/users/me`, the dispatch report surfaces the actual shape, the orchestrator re-dispatches you with the SR marked `resolved`. You read the backend's dispatch report, confirm the shape matches your SR, wire `<UserAvatar>` to `useCurrentUser()` (or your project's session/auth primitive), and the element's classification flips from `pending-backend` to `endpoint-backed`.
+
+### Cross-references
+
+- `common-pipeline-conventions` `## Frontend missing-API discipline` — canonical statement of the rule + the rebuttal table for each anti-pattern.
+- `team-spawning-and-review-gates` `## Solution Requirements` — the SR schema; `missing-api-for-frontend-element` is one of the enumerated `origin.kind` values.
+- `interaction-completeness` `## Element classifications` — the `pending-backend` classification is the wire-up target; without the matching SR, an inert element is an `unwired-control` gap.
+
 ## Interactive elements: real wiring, genuine tests, no unconfirmed placeholders
 
 Every interactive element you ship — every button, form, link, toggle, menu — must genuinely work: wired to a real endpoint or a real client behavior, and covered by a genuine user-driven Playwright test (a real `page.click` / `page.fill` path, never a `page.request.*` direct API call standing in for a click, never a vacuous navigate-and-assert). Every page / screen / route you ship must be the real live page the design / requirements specify — not a placeholder, "coming soon", skeleton, or mock page.
