@@ -23,8 +23,9 @@ Never refuse plain-language prose. Never treat the first word of a sentence as a
 - `--no-commit` → skip the M7 commit step entirely (and therefore push + merge). Used for dry runs.
 - `--no-push` → commit but do not push or merge.
 - `--no-compact` → suppress the trailing `/compact` prompt. Default `true`.
+- `--no-worktree` → `AUTO_WORKTREE = false`. (Default `true`.) Skip the auto-worktree creation step; run the mini pipeline in the current checkout (v1.1.0 behavior). Natural-language equivalents: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*.
 
-Natural-language phrasings count as the matching flag — "don't merge" / "don't push" / "leave it uncommitted" / "don't compact".
+Natural-language phrasings count as the matching flag — "don't merge" / "don't push" / "leave it uncommitted" / "don't compact" / "no worktree" / "in place".
 
 ## When to use mini vs full pipeline
 
@@ -38,6 +39,29 @@ Use `/architect-team` (full) when:
 - The change is larger or unknown in shape.
 - The maps are stale and the change crosses codebases.
 - The change requires the heavyweight review gates (interaction-completeness, editability-completeness, visual-fidelity-reconciliation) up front, not deferred.
+
+## Auto-worktree creation (v1.2.0) — runs after argument parsing, before skill invocation
+
+After binding `$REQ_DIR` and parsing the flags, AND BEFORE invoking the `mini-architect-team-pipeline` skill, determine whether the auto-worktree step applies:
+
+- **Skip the step** when ANY of these holds:
+  - `--no-worktree` (or a natural-language opt-out — *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*) was passed.
+  - The current branch already starts with `architect-team/` (re-entry case — `scripts.setup.worktree_lifecycle.current_worktree_is_run()` returns True). No nested worktrees; the existing run worktree IS the workspace.
+
+- **Run the step** otherwise:
+  1. Derive a `<slug>` from the change name / refined-prompt slug / a kebab-case derivation of the prompt's first 4-6 meaningful words. The mini pipeline's existing `Mini-Run: <slug>` trailer convention informs the slug — the same `<slug>` flows from the worktree branch through the trailer.
+  2. Invoke the helper via Bash — polyglot Python invocation per `common-pipeline-conventions` `## Cross-platform Python invocation`:
+     ```bash
+     python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))" \
+       || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))"
+     ```
+     The helper creates the worktree at `<parent-of-repo>/<repo-name>-<slug>/` on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
+  3. `chdir` into `$WORKTREE_PATH`. Every subsequent step — including the Skill-tool invocation of `mini-architect-team-pipeline` — runs with `$WORKTREE_PATH` as cwd. The Phase M7 auto-merge-to-main behavior is unchanged: the mini pipeline fast-forwards `main` (in the MAIN worktree) to the run-branch tip from inside the run worktree.
+  4. Surface a one-line note to the user: *"Auto-worktree: created `<WORKTREE_PATH>` on branch `architect-team/<slug>`. Pass `--no-worktree` next time to skip."*
+
+On creation failure (parent dir not writable, base branch missing, slug exhausted — the helper raises `RuntimeError` with an actionable message), surface the error verbatim and STOP. Do NOT silently fall back to the current checkout. The user re-runs with `--no-worktree` if they want single-tree mode.
+
+Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the cleanup recommendation emitted at Phase M7 success, and the re-entry detection logic.
 
 ## What this command runs
 

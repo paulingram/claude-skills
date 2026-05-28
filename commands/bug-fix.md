@@ -24,7 +24,8 @@ Flags (each independent — `--no-commit --no-compact` is valid; natural-languag
 - `--force-bug` → tells the Phase B0 classifier-warning to skip ("this looks like a feature, run /architect-team instead") and proceed anyway. Use when you know it IS a bug despite ambiguous wording.
 - `--no-deploy` → skip Phase B5's auto-deploy step; QA replay (B6) runs against whatever is already deployed. Use when the dev environment is hand-managed.
 - `--no-refine` → skip the upstream `proposal-refiner` skill (v0.9.33). Default `false` — when `$REQ_DIR` is plain-language prose AND the input is not already a refined-prompt markdown, the pipeline invokes `proposal-refiner` FIRST to conversationally clarify the bug description with codebase-map grounding (which dashboard? which row's delete button? which user role?) before Phase B−2 / B−1. Pass `--no-refine` when the bug description is already specific. Domain gate per v0.9.21 — the clarifying conversation IS the deliverable.
-- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `TARGET_ENVIRONMENT = dev` (default — live dev environment).
+- `--no-worktree` → `AUTO_WORKTREE = false`. (Default `true`.) Skip the auto-worktree creation step; run the bug-fix pipeline in the current checkout (v1.1.0 behavior). Natural-language equivalents: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*.
+- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `TARGET_ENVIRONMENT = dev`, `AUTO_WORKTREE = true` (default — live dev environment).
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
 
@@ -60,6 +61,29 @@ After binding `$REQ_DIR` and BEFORE invoking the `bug-fix-pipeline` skill, deter
 After `proposal-refiner` exits in pipeline mode, **rebind `$REQ_DIR` to the absolute path of the refined-prompt markdown file**. The bug-fix-pipeline's Phase B−1 / B0 intake then operates on the refined brief.
 
 The refiner is a DOMAIN gate per v0.9.21 — the user-confirmation step IS the deliverable. The bug-fix-pipeline's existing Phase B1 ambiguity-escalation question (the canonical *"how did you experience the bug?"* prompt) still fires when needed; the refiner reduces — but does not eliminate — those mid-pipeline escalations by clarifying upstream.
+
+## Auto-worktree creation (v1.2.0) — runs after refinement, before skill invocation
+
+After binding `$REQ_DIR` and completing any refinement, AND BEFORE invoking the `bug-fix-pipeline` skill, determine whether the auto-worktree step applies:
+
+- **Skip the step** when ANY of these holds:
+  - `--no-worktree` (or a natural-language opt-out — *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*) was passed.
+  - The current branch already starts with `architect-team/` (re-entry case — `scripts.setup.worktree_lifecycle.current_worktree_is_run()` returns True). No nested worktrees; the existing run worktree IS the workspace.
+
+- **Run the step** otherwise:
+  1. Derive a `<slug>` from the refined-prompt slug (if present in the refined-prompt markdown's frontmatter), the bug-slug used downstream by `bug-fix-pipeline`, or a kebab-case derivation of the bug description's first 4-6 meaningful words.
+  2. Invoke the helper via Bash — polyglot Python invocation per `common-pipeline-conventions` `## Cross-platform Python invocation`:
+     ```bash
+     python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))" \
+       || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))"
+     ```
+     The helper creates the worktree at `<parent-of-repo>/<repo-name>-<slug>/` on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
+  3. `chdir` into `$WORKTREE_PATH`. Every subsequent step — including the Skill-tool invocation of `bug-fix-pipeline` — runs with `$WORKTREE_PATH` as cwd. v1.1.0's `shared_state_dir()` resolution keeps the lock layer and MemPalace pointed at the MAIN worktree; `run_state_dir()` resolves per-worktree so bug-fix verdict files / reviews / teammates / handoffs live in the run worktree.
+  4. Surface a one-line note to the user: *"Auto-worktree: created `<WORKTREE_PATH>` on branch `architect-team/<slug>`. Pass `--no-worktree` next time to skip."*
+
+On creation failure (parent dir not writable, base branch missing, slug exhausted — the helper raises `RuntimeError` with an actionable message), surface the error verbatim and STOP. Do NOT silently fall back to the current checkout. The user re-runs with `--no-worktree` if they want single-tree mode.
+
+Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the cleanup recommendation emitted at Phase B8 success, and the re-entry detection logic.
 
 ## Invoke the pipeline
 
