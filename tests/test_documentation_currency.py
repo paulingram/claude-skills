@@ -31,12 +31,15 @@ def test_skill_exists_and_non_empty(plugin_root: Path) -> None:
 
 @pytest.mark.parametrize(
     "doc",
-    ["CODEBASE_MAP.md", "ROUTE_MAP.md", "DESIGN_MAP.md", "INTEGRATION_MAP.md",
-     "README.md", "CHANGELOG.md", "CLAUDE.md"],
+    ["CODEBASE_MAP.md", "ROUTE_MAP.md", "DESIGN_MAP.md", "INTERACTION_INTUITION_MAP.md",
+     "INTEGRATION_MAP.md", "README.md", "CHANGELOG.md", "CLAUDE.md"],
 )
 def test_skill_names_the_whole_documentation_inventory(plugin_root: Path, doc: str) -> None:
     """The whole inventory is in scope — the maps drift precisely because only
-    the README gets attention."""
+    the README gets attention. INTERACTION_INTUITION_MAP.md (v0.9.21 per-frontend
+    intuition map) was added to the inventory in v1.0.x after audit finding
+    F-CONS-3A-002 caught the skill-vs-agent drift: `agents/doc-updater.md`
+    already wrote to it, but this skill's inventory table did not list it."""
     content = _read(plugin_root, SKILL)
     assert doc in content, f"documentation-currency skill does not list {doc} in its inventory"
 
