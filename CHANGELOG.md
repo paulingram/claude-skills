@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] — 2026-05-28 — Worktree-Aware State Resolution
+
+A small, surgical follow-up to the v1.0.0 ship that closes a structural gap in the cross-session coordination layers. v1.0.0 introduced `.architect-team/locks/` JSON locks + MemPalace cross-session memory, both intended to coordinate two concurrent `/architect-team` invocations on the same project. But both resolved via `git rev-parse --show-toplevel`, which in a git worktree returns the WORKTREE's own path — so each worktree got its own locks dir + its own MemPalace, defeating the cross-session intent. The right primitive for filesystem isolation between concurrent sessions IS git worktrees (one working tree per session, one branch per session, no clobbering); v1.1.0 fixes the state-resolution layer so worktree-based sessions get true filesystem isolation AND retain shared lock arbitration + shared MemPalace context.
+
+### Added
+
+- **`scripts/setup/worktree_paths.py`** — new stdlib-only helper exposing three functions: `shared_state_dir() -> Path` (returns the MAIN worktree's `.architect-team/` path — used for `locks/`, `.mempalace/`, `run-history/`), `run_state_dir() -> Path` (returns the CURRENT worktree's `.architect-team/` — used for `reviews/`, `teammates/`, `handoffs/`, this-run's `openspec/changes/<slug>/`, this-run's findings + refined-prompts), and `is_worktree() -> bool` (True iff invoked from a `git worktree add`-created worktree, False from main checkout or a non-git directory). Resolution uses `git rev-parse --git-dir` vs `--git-common-dir` and falls back to cwd on any subprocess failure — best-effort, never raises.
+- **`## Running in parallel sessions` section** added to `skills/common-pipeline-conventions/SKILL.md`. Documents the 3-layer model (filesystem isolation = worktrees / architectural coordination = `.architect-team/locks/` / context sharing = MemPalace), the shared-vs-run state split (locks + `.mempalace/` + run-history live in main; reviews + teammates + handoffs + per-run OpenSpec live per-worktree), the `scripts/setup/worktree_paths.py` resolution primitive, a concrete two-session shell-sequence example, and a pointer to `superpowers:using-git-worktrees` for worktree-lifecycle mechanics (`git worktree add` / `remove`).
+- **6 new tests** in `tests/test_worktree_state_resolution.py` covering `is_worktree()` from main + worktree, `shared_state_dir()` resolution from both (same path, pointing at main), `run_state_dir()` per-worktree differentiation, and the cross-worktree lock integration test (acquire from worktree with default `locks_dir` blocks an intersecting acquire from main — proves the shared-resolution path is wired through `acquire_lock`'s default). Full suite: 1688 → **1694 passing** (+ 1 skipped).
+
+### Changed
+
+- **`hooks/locks.py`** default `locks_dir` resolution now routes through `worktree_paths.shared_state_dir() / 'locks'` when the caller passes `locks_dir=None`. Two `/architect-team` sessions in two worktrees of the same repo now coordinate on the MAIN worktree's `.architect-team/locks/` directory, as the v1.0.0 lock layer always intended. The explicit `locks_dir=` parameter (used by every `tests/test_locks.py` scenario for test isolation) is preserved verbatim — all 17 existing lock tests pass unchanged. The legacy `DEFAULT_LOCKS_DIR` constant is preserved as a graceful fallback used only when the worktree-aware helper fails to load.
+- **`skills/mempalace-integration/SKILL.md`** `## Per-workspace palace location` section now leads with the v1.1.0 worktree-aware resolution sentence — the palace path resolves through `shared_state_dir() / '.mempalace' / 'palace'`, so two worktree-based sessions share one palace and one wake-up context. The wake-up flow itself is unchanged; resolution is degenerate (same path) in non-worktree clones.
+
+### Migration
+
+None. v1.1.0 is fully backwards-compatible. Single-session users (no worktrees) see ZERO behavior change — `shared_state_dir()` and `run_state_dir()` resolve to the same path in a non-worktree clone, and the lock layer reads/writes the same location it always did. Worktree users automatically get shared coordination — no env var, no flag, no opt-in.
+
 ## [1.0.0] — 2026-05-28 — Agent Teams as Default Dispatch Mode
 
 The architecture the plugin should have shipped with. Converts the entire architect-team pipeline from ephemeral `Agent`-tool dispatches (one-shot, re-onboarded subagents that drop context after every return) to Claude Code's experimental **Agent Teams** primitive — long-lived named teammates with their own 1M context windows, a shared task list, direct messaging via `SendMessage`, and a Lead that owns coordination. The Lead is the listening point the user has been asking for; the shared task list IS the parallel-marshalling primitive. Backwards-compatible via a clean fallback to subagents mode for users who don't have the experimental flag enabled.
