@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "change": "auto-worktree-lifecycle",
+  "version": "1.2.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "Worktree lifecycle helper", "layer": "infra",
+     "covered_by": ["scripts/setup/worktree_lifecycle.py", "tests/test_worktree_lifecycle.py"]},
+    {"id": "REQ-2", "title": "Slash commands auto-create a worktree by default", "layer": "infra",
+     "covered_by": ["commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md", "tests/test_worktree_lifecycle.py"]},
+    {"id": "REQ-3", "title": "common-pipeline-conventions documents the auto-worktree lifecycle", "layer": "infra",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md"]},
+    {"id": "REQ-4", "title": "Version bumped to 1.2.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "build-new", "anchor": "scripts/setup/worktree_lifecycle.py"},
+    {"id": "RD-2", "decision": "extend", "anchor": "3 slash command bodies (architect-team / bug-fix / mini)"},
+    {"id": "RD-3", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md"},
+    {"id": "RD-4", "decision": "reuse-as-is", "anchor": "scripts/setup/worktree_paths.py (v1.1.0, untouched)"},
+    {"id": "RD-5", "decision": "reuse-as-is", "anchor": "hooks/locks.py (v1.1.0, untouched)"},
+    {"id": "RD-6", "decision": "build-new", "anchor": "tests/test_worktree_lifecycle.py (separate from v1.1.0 test_worktree_state_resolution.py)"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — infra-only change",
+  "implementing_commits": []
+}
