@@ -30,23 +30,7 @@ The v0.9.17 same-input-forms rules apply verbatim — **do NOT refuse plain-lang
 
 ## Dispatch mode
 
-The bug-fix pipeline supports two dispatch primitives — **teams mode** (Claude Code's experimental Agent Teams: long-lived named teammates with their own 1M contexts, a shared task list, and direct `SendMessage`) and **subagents mode** (the v0.9.36 behavior — ephemeral `Agent`-tool dispatches, fresh context per call). The Lead decides which once, at startup, and the decision is the same for the entire run.
-
-**Selection rule (evaluated once, at the top of Phase B−1).** Teams mode is selected when ALL of these are true; otherwise subagents mode is selected.
-
-1. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to a truthy value (`1`, `true`, `yes` — case-insensitive) in the process env OR in `~/.claude/settings.json` at `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`.
-2. `claude --version` reports a parseable version `>= 2.1.32`.
-3. The `--no-teams` flag was NOT passed on the invoking `/architect-team:bug-fix` command (the escape hatch for users hitting experimental-flag instability).
-
-If env / settings is unset, version is below `2.1.32`, the version is unparseable, or `--no-teams` was passed, the pipeline runs in subagents mode. When env + version qualify but the version is too old, surface a one-line note (*"Claude Code 2.1.32+ required for teams mode; running in subagents mode."*); when env is unset entirely, run subagents mode silently — the experimental feature is invisible to users who have not opted in.
-
-**Persist the decision.** Write `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` as soon as the selection is computed (the bug-fix pipeline reuses the main pipeline's `intake-state.json`). Every later phase reads this — the hook scripts branch on it (teams mode = `TaskCompleted` / `TeammateIdle`; subagents mode = `PostToolUse(TaskUpdate)` / `SubagentStop`), and the dispatch sentences below pick the right primitive.
-
-**Teams-mode primitives (when `dispatch_mode == "teams"`).** The Lead spawns named teammates via the Agent tool with `run_in_background: true` and a stable, human-readable name (e.g., `bug-replicator-1`, `qa-replayer`, `fix-team`). The spawn invocation references the subagent definition — *"Spawn teammate using the `bug-replicator` agent type to reproduce the failing flow"* — so the role's `tools` allowlist and system prompt are inherited per the agent-teams docs. Teammates communicate directly via `SendMessage` (e.g., the `bug-replicator` hands the QA replay path to the `qa-replayer` directly; the fix team's `system-architect` receives the diagnostic plan via direct message). The shared task list lives at `~/.claude/tasks/<slug>/`; the Lead adds tasks and teammates claim them.
-
-**Subagents-mode primitives (when `dispatch_mode == "subagents"`).** The Lead dispatches via the Agent tool one at a time (or batched parallel via a single Agent-tool call carrying multiple invocations where the phase calls for parallelism). Each subagent is ephemeral — fresh context, no `SendMessage`, no persistence across dispatches. Cross-step coordination flows through orchestrator-mediated handoff files (e.g., the diagnostic plan on disk, the verdict JSON, the SR file). This is unchanged from prior versions; pass `--no-teams` to force this mode even when teams qualify.
-
-Wherever this skill body says *"the Lead creates a `<role>` task (teams mode) OR dispatches the `<role>` subagent (subagents mode)"*, the branch is decided by `dispatch_mode` — both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
+Per `common-pipeline-conventions` `## Dispatch mode (v1.0.0)`, the selection (env `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` + `claude --version >= 2.1.32` + `--no-teams` flag, also readable from `~/.claude/settings.json`) is computed ONCE — for the bug-fix pipeline, at the top of Phase B−1 — and persisted as `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` (the bug-fix pipeline reuses the main pipeline's `intake-state.json`). Every later phase reads it; the hook scripts branch on it (teams mode = `TaskCompleted` / `TeammateIdle`; subagents mode = `PostToolUse(TaskUpdate)` / `SubagentStop`). The teams-mode primitives (Lead spawns named teammates via the Agent tool with `run_in_background: true`, agent type inherited, `SendMessage` for coordination, shared task list at `~/.claude/tasks/<slug>/`) and the subagents-mode primitives (ephemeral Agent-tool dispatches, fresh context per call, no `SendMessage`, handoff files for coordination) are spelled out in the canonical section — do not re-explain them inline. Wherever this skill body says *"the Lead creates a `<role>` task (teams mode) OR dispatches the `<role>` subagent (subagents mode)"*, the branch is decided by `dispatch_mode`; both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
 
 ## Default mode of operation
 
@@ -60,17 +44,7 @@ Process gates (proposal-first pause, "do you want me to proceed?", obvious-answe
 
 ## Notifications (per-project email events — opt-in, best-effort)
 
-Same opt-in, best-effort discipline as the main `architect-team-pipeline`'s `## Notifications` section (v0.9.18). If the target project's repository root contains a `.architect-team-notify.json` config file, the bug-fix-pipeline emits notification events by invoking the notifier CLI at the wiring points marked below. Every invocation is **best-effort**: the notifier always exits 0, and a notification failure NEVER blocks, fails, or alters a bug-fix-pipeline run. With no `.architect-team-notify.json` present the notifier is a silent no-op and the bug-fix flow behaves exactly as before; the feature is entirely opt-in.
-
-**Invocation form** — run from the target project's repository root, identical to the main pipeline:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...] || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" <event> --project <name> [--phase ... | --summary ... | --commit ... | --layer ...]
-```
-
-`<event>` is one of the five recognized types: `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy` — same set as the main pipeline.
-
-**Cross-platform Python invocation.** Every plugin-script call in this skill uses the polyglot pattern `python3 X.py args || python X.py args` (the same convention as `architect-team-pipeline`'s `## Notifications` section and `hooks/hooks.json`). The fallback `|| python ...` handles default Windows python.org installs where only `python` is on PATH and `python3` triggers the Microsoft Store shim. When you copy a `python3 ...` invocation from this skill body into a Bash call, copy the `|| python ...` fallback with it.
+Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the five recognized events (`phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
 
 **Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every B-phase.** At the **start of each phase** (Phase B−1, B0, B1, B2, B3, B4, B5, B6, B7, B8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name (e.g., `"Phase B3 — OpenSpec proposal authoring"`):
 
@@ -79,7 +53,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication"
 ```
 
-These two phase-boundary invocations are best-effort, exactly like every other notifier call — emitting them, or failing to, never blocks or alters the phase. The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below:
+The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below:
 
 - **`issue_discovered`** — fires at **Phase B6** when the `qa-replayer` returns `bug-still-present` and the orchestrator writes a fresh solution requirement back to the loop. `--summary` carries the SR's failure-mode description (verbatim from the qa-replayer's verdict's `symptom_check.gap_if_not_gone` field).
 - **`git_commit`** — fires at **Phase B8** immediately after the bug-fix commit succeeds, with `--commit <SHA>`. Same wiring point as the main pipeline's Phase 8 commit.
@@ -87,17 +61,9 @@ These two phase-boundary invocations are best-effort, exactly like every other n
 
 ## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)
 
-When the bug-fix pipeline is invoked DIRECTLY via `/architect-team:bug-fix` (not routed in from the main pipeline's Phase −2), the MemPalace wake-up is the earliest action — same discipline as `architect-team-pipeline`'s wake-up section. Before ANY subagent is dispatched, the orchestrator consults the per-workspace MemPalace store per `mempalace-integration`. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then:
+Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which points at the canonical rule in `mempalace-integration` `## Phase A — Wake-up at pipeline start`): when the bug-fix pipeline is invoked DIRECTLY via `/architect-team:bug-fix` (not routed in from the main pipeline's Phase −2), the unscoped wake-up runs as the earliest action of this pipeline — before any subagent dispatch, including the Phase B−1 intake-and-mapping flow. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then `mempalace --palace "<workspace>/.mempalace/palace" wake-up`. Include the wake-up output verbatim — the bug-fix loop benefits from prior-context recall (past bug-replications mined to `bug-replications`, past QA-replay verdicts mined to `qa-replays`, past architect generalization-audit verdicts mined to `bug-fix-audits`). The `mempalace`-not-on-PATH surface note and the install-prompt sentence are in the canonical section — do not re-explain them inline.
 
-```bash
-mempalace --palace "<workspace>/.mempalace/palace" wake-up
-```
-
-If the palace does not exist on disk yet, wake-up returns a clean-room state and the pipeline proceeds normally (init happens implicitly on the first artifact mine, or via `/architect-team:mempalace-install`). Include the wake-up output verbatim in your working context — the bug-fix loop benefits from prior-context recall (past bug-replications mined to `bug-replications`, past QA-replay verdicts mined to `qa-replays`, past architect generalization-audit verdicts mined to `bug-fix-audits` — these inform the current run's classification, replication, and generalization decisions).
-
-If `mempalace` is not on PATH (the install was never run), surface a single-line note to the user: `"MemPalace not installed; running without prior-context wake-up. Run /architect-team:mempalace-install once to enable persistent context across runs."` Then proceed without it.
-
-**When the bug-fix pipeline is reached via the main pipeline's Phase −2 routing** (the classifier returned `bug` or `mixed`), the unscoped wake-up has ALREADY run there — this section is a no-op in that case. A SECOND, **wing-scoped** wake-up (`--wing <wing>`) runs from inside Phase B−1A (which reuses `intake-and-mapping`'s Phase −1A flow) once the wing name is discovered, regardless of entry path.
+**When the bug-fix pipeline is reached via the main pipeline's Phase −2 routing** (the classifier returned `bug` or `mixed`), the unscoped wake-up has ALREADY run there — this section is a no-op in that case (the carve-out is the bug-fix-specific entry-condition the canonical rule doesn't carry, since it is unique to this pipeline). A SECOND, **wing-scoped** wake-up (`--wing <wing>`) runs from inside Phase B−1A (which reuses `intake-and-mapping`'s Phase −1A flow) once the wing name is discovered, regardless of entry path.
 
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
@@ -241,7 +207,13 @@ The team writes Phase 3 review-gate evidence per the existing schema (v6) — `c
 
 Phase B5 does NOT auto-deploy to production. The user's answer is the green light.
 
-**Notification (best-effort, per the v0.9.18 notifier):** if the target project supplies `.architect-team-notify.json`, emit a `deploy` event at the start of the dev deploy.
+**Notification (best-effort, per `## Notifications`):** if the target project supplies `.architect-team-notify.json`, the orchestrator emits a `deploy` event with `--layer <layer>` (e.g., `frontend` / `backend` / `fullstack`) at the start of the dev deploy. Invoke from the target project's root and proceed immediately regardless of the notifier's outcome:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer>
+```
+
+This `deploy` invocation is best-effort and NEVER blocks, fails, or delays the dev deploy — a notifier failure does not affect the deploy or the QA replay.
 
 ## Phase B6 — QA replay against live dev
 
