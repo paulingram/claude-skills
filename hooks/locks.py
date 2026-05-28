@@ -1,0 +1,362 @@
+#!/usr/bin/env python3
+"""Cross-session file-scope lock layer for the architect-team plugin (v1.0.0).
+
+Two concurrent `/architect-team` invocations in separate Claude Code sessions
+must not clobber overlapping file scopes. This module ships the primitive: each
+Lead acquires a lock over its declared file scope before dispatching teammates;
+disjoint scopes proceed in true parallel; overlapping scopes are surfaced as a
+conflict that the orchestrator surfaces back to the user.
+
+Lock files live at `.architect-team/locks/<sha256-of-scope-glob>.json` and
+carry:
+
+  {
+    "holder":       "<run_id>",
+    "scope_glob":   "src/auth/**",
+    "acquired_at":  "<ISO 8601 UTC>",
+    "ttl_seconds":  14400,
+    "lock_id":      "<sha256-hex>"
+  }
+
+A lock is stale when (acquired_at + ttl_seconds) is in the past, OR the file is
+malformed (corrupt JSON, missing required fields, unparseable timestamp).
+`acquire_lock` auto-cleans every stale lock it encounters before deciding.
+
+Reuse Decision: RD-3 (build-new — no existing equivalent). Stdlib only per
+NF-2.
+
+References:
+  - openspec/changes/agent-teams-refactor/specs/agent-teams-mode/spec.md REQ-3
+  - skills/team-spawning-and-review-gates/SKILL.md (the
+    non-overlapping-file-scope discipline this layer enforces across sessions)
+"""
+from __future__ import annotations
+
+import fnmatch
+import hashlib
+import json
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+# ---- Constants ---------------------------------------------------------------
+
+# Default locks directory (relative to cwd). Overridable for tests via the
+# `locks_dir` parameter on every public function.
+DEFAULT_LOCKS_DIR = Path(".architect-team") / "locks"
+
+# Required fields on a well-formed lock file. Any missing field => stale.
+_REQUIRED_LOCK_FIELDS = ("holder", "scope_glob", "acquired_at", "ttl_seconds", "lock_id")
+
+# Wildcard characters that mark the end of a glob's literal-prefix portion.
+_WILDCARD_CHARS = set("*?[")
+
+
+# ---- Public API --------------------------------------------------------------
+
+
+def acquire_lock(
+    scope_glob: str,
+    ttl_seconds: int,
+    run_id: str,
+    locks_dir: Path | None = None,
+) -> dict:
+    """Acquire a lock over the file scope named by `scope_glob`.
+
+    Behavior:
+      1. Sweep `locks_dir` for stale or malformed locks; remove them.
+      2. Iterate the surviving locks. If any holds a glob that intersects
+         `scope_glob`, return `{"status": "blocked", "held_by": <run_id>,
+         "lock_id": <existing-lock-id>}`.
+      3. Otherwise write a fresh lock file and return
+         `{"status": "acquired", "lock_id": <new-lock-id>}`.
+
+    Args:
+        scope_glob: a fnmatch-style path glob (e.g. ``"src/auth/**"``). Two
+            globs conflict if their path-space intersects — see globs_intersect.
+        ttl_seconds: how long the lock is valid before being treated as stale.
+            The architect-team convention is 4h (14400) for full runs.
+        run_id: caller's identity (the Lead's run-slug, typically). Recorded
+            as the lock's holder so a blocked acquirer can name the holder.
+        locks_dir: where lock files live. Defaults to ``.architect-team/locks``
+            under cwd. The directory is created on demand.
+
+    Returns:
+        Either ``{"status": "acquired", "lock_id": <hex>}`` or
+        ``{"status": "blocked", "held_by": <holder>, "lock_id": <hex>}``.
+    """
+    locks_dir = _resolve_locks_dir(locks_dir)
+    locks_dir.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: clean stale + malformed locks so they don't falsely block.
+    _sweep_stale(locks_dir)
+
+    # Step 2: check intersection against every surviving lock.
+    for lock_path, lock in _iter_valid_locks(locks_dir):
+        held_scope = lock.get("scope_glob")
+        if not isinstance(held_scope, str):
+            continue
+        if globs_intersect(scope_glob, held_scope):
+            return {
+                "status": "blocked",
+                "held_by": lock.get("holder"),
+                "lock_id": lock.get("lock_id"),
+            }
+
+    # Step 3: write a fresh lock.
+    lock_id = _hash_scope(scope_glob)
+    payload = {
+        "holder": run_id,
+        "scope_glob": scope_glob,
+        "acquired_at": datetime.now(timezone.utc).isoformat(),
+        "ttl_seconds": int(ttl_seconds),
+        "lock_id": lock_id,
+    }
+    lock_path = locks_dir / f"{lock_id}.json"
+    lock_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return {"status": "acquired", "lock_id": lock_id}
+
+
+def release_lock(lock_id: str, locks_dir: Path | None = None) -> None:
+    """Remove the lock file for `lock_id`. Idempotent — missing is a no-op.
+
+    Args:
+        lock_id: the sha256-hex identifier returned by `acquire_lock`.
+        locks_dir: see `acquire_lock`.
+    """
+    locks_dir = _resolve_locks_dir(locks_dir)
+    lock_path = locks_dir / f"{lock_id}.json"
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        return
+    except OSError:
+        # Best-effort cleanup: a permission error or a race with another sweep
+        # is not a fatal condition; the next acquire will treat the leftover as
+        # stale on the next sweep.
+        return
+
+
+def detect_stale(locks_dir: Path | None = None) -> list[str]:
+    """Return the lock IDs of every stale OR malformed lock file in `locks_dir`.
+
+    A lock is stale when ANY of the following is true:
+      - the file is not valid JSON
+      - the parsed JSON is not an object
+      - a required field is missing
+      - `acquired_at` is not a parseable ISO 8601 timestamp
+      - `acquired_at + ttl_seconds` is in the past
+
+    For malformed files where no lock_id field is available, the file STEM (the
+    portion of the filename before `.json`) is reported instead — that's the
+    canonical identifier of a lock file on disk.
+
+    Args:
+        locks_dir: see `acquire_lock`. A missing directory yields ``[]``.
+    """
+    locks_dir = _resolve_locks_dir(locks_dir)
+    if not locks_dir.is_dir():
+        return []
+
+    stale_ids: list[str] = []
+    now = datetime.now(timezone.utc)
+    for path in sorted(locks_dir.glob("*.json")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            stale_ids.append(path.stem)
+            continue
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            stale_ids.append(path.stem)
+            continue
+
+        if not isinstance(data, dict):
+            stale_ids.append(path.stem)
+            continue
+
+        missing = [f for f in _REQUIRED_LOCK_FIELDS if f not in data]
+        if missing:
+            # If lock_id is present we use it; otherwise the filename stem.
+            identifier = data.get("lock_id") or path.stem
+            stale_ids.append(identifier)
+            continue
+
+        if _lock_is_expired(data, now):
+            stale_ids.append(data.get("lock_id") or path.stem)
+
+    return stale_ids
+
+
+def globs_intersect(a: str, b: str) -> bool:
+    """Return True iff path globs `a` and `b` could match at least one common path.
+
+    Implementation: extract each glob's literal-prefix (the longest leading
+    path-segment portion containing no wildcard characters), then construct
+    candidate sample paths from each prefix (the prefix alone, and the prefix
+    appended with a synthetic deeper path). Run those candidates through the
+    other glob's fnmatch-translated regex; if any candidate matches, the
+    globs intersect.
+
+    This is heuristic — it correctly identifies the headline cases the spec
+    requires (REQ-3 scenarios 3.2 and 3.3) while staying stdlib-only:
+
+      - ``("src/auth/**", "src/auth/login/**")`` -> True (login is under auth)
+      - ``("src/auth/**", "src/billing/**")``    -> False (disjoint roots)
+      - ``("src/*.py",   "src/foo.py")``         -> True
+      - ``("src/*.py",   "src/foo.ts")``         -> False
+      - identical globs always intersect
+    """
+    if a == b:
+        return True
+
+    regex_a = re.compile(fnmatch.translate(a))
+    regex_b = re.compile(fnmatch.translate(b))
+
+    for candidate in _candidate_paths(a):
+        if regex_b.match(candidate):
+            return True
+
+    for candidate in _candidate_paths(b):
+        if regex_a.match(candidate):
+            return True
+
+    return False
+
+
+# ---- Internals ---------------------------------------------------------------
+
+
+def _resolve_locks_dir(locks_dir: Path | None) -> Path:
+    return Path(locks_dir) if locks_dir is not None else DEFAULT_LOCKS_DIR
+
+
+def _hash_scope(scope_glob: str) -> str:
+    """SHA-256 of the scope-glob string, hex-encoded. Stable across processes."""
+    return hashlib.sha256(scope_glob.encode("utf-8")).hexdigest()
+
+
+def _literal_prefix(glob: str) -> str:
+    """Return the leading path-segment portion of `glob` that contains no wildcard.
+
+    Examples:
+      "src/auth/**"          -> "src/auth"
+      "src/auth/login/**"    -> "src/auth/login"
+      "src/*.py"             -> "src"
+      "README.md"            -> "README.md"
+      "**"                   -> ""
+      "src/[ab]/foo.py"      -> "src"
+    """
+    segments = glob.split("/")
+    prefix_parts: list[str] = []
+    for seg in segments:
+        if any(c in seg for c in _WILDCARD_CHARS):
+            break
+        prefix_parts.append(seg)
+    return "/".join(prefix_parts)
+
+
+def _candidate_paths(glob: str) -> list[str]:
+    """Return sample candidate paths to probe against another glob's regex.
+
+    Returns up to three forms:
+      - the literal prefix as-is (handles "src/foo.py" intersection cases)
+      - prefix + a synthetic file name (handles "src/auth/foo.py" cases)
+      - prefix + a synthetic deep path (handles "src/auth/login/x/y/z.py" cases)
+    """
+    prefix = _literal_prefix(glob)
+    if not prefix:
+        # A leading-wildcard glob (e.g. "**") matches everything — return a
+        # representative sample so the intersection-with-anything check fires.
+        return ["any/file.py", "any/path/here.py", "any"]
+    return [
+        prefix,
+        f"{prefix}/__intersect_probe__.txt",
+        f"{prefix}/__a__/__b__/__c__.txt",
+    ]
+
+
+def _iter_valid_locks(locks_dir: Path):
+    """Yield (path, parsed-lock) pairs for every non-stale lock in locks_dir.
+
+    Malformed and expired locks are skipped (they were swept before this is
+    called from acquire_lock; here we re-check defensively in case a second
+    process landed a malformed file between the sweep and the iteration).
+    """
+    if not locks_dir.is_dir():
+        return
+    now = datetime.now(timezone.utc)
+    for path in sorted(locks_dir.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        if any(f not in data for f in _REQUIRED_LOCK_FIELDS):
+            continue
+        if _lock_is_expired(data, now):
+            continue
+        yield path, data
+
+
+def _sweep_stale(locks_dir: Path) -> None:
+    """Remove every stale OR malformed lock file in `locks_dir`."""
+    if not locks_dir.is_dir():
+        return
+    now = datetime.now(timezone.utc)
+    for path in list(locks_dir.glob("*.json")):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            _safe_unlink(path)
+            continue
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            _safe_unlink(path)
+            continue
+        if not isinstance(data, dict):
+            _safe_unlink(path)
+            continue
+        if any(f not in data for f in _REQUIRED_LOCK_FIELDS):
+            _safe_unlink(path)
+            continue
+        if _lock_is_expired(data, now):
+            _safe_unlink(path)
+
+
+def _safe_unlink(path: Path) -> None:
+    """Best-effort file removal. Race or permission error is not fatal."""
+    try:
+        path.unlink()
+    except (FileNotFoundError, OSError):
+        return
+
+
+def _lock_is_expired(data: dict[str, Any], now: datetime) -> bool:
+    """Return True iff `data`'s acquired_at + ttl_seconds is in the past.
+
+    Unparseable timestamps are treated as expired (the lock is malformed and
+    cannot be safely respected).
+    """
+    raw = data.get("acquired_at")
+    if not isinstance(raw, str):
+        return True
+    try:
+        acquired = datetime.fromisoformat(raw)
+    except ValueError:
+        return True
+    if acquired.tzinfo is None:
+        acquired = acquired.replace(tzinfo=timezone.utc)
+
+    ttl = data.get("ttl_seconds")
+    if not isinstance(ttl, (int, float)):
+        return True
+
+    age = (now - acquired).total_seconds()
+    return age >= float(ttl)
