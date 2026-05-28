@@ -9,12 +9,11 @@ Exit codes:
 - 2 if any required evidence is missing or invalid
 """
 import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+from tests.helpers.hook_runner import run_hook as _run
 
 
 @pytest.fixture()
@@ -27,17 +26,6 @@ def workspace(tmp_path: Path) -> Path:
     (tmp_path / ".architect-team" / "teammates").mkdir(parents=True)
     (tmp_path / ".architect-team" / "reviews").mkdir(parents=True)
     return tmp_path
-
-
-def _run(script: Path, workspace: Path, payload: dict) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(script)],
-        input=json.dumps(payload),
-        text=True,
-        capture_output=True,
-        cwd=str(workspace),
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-    )
 
 
 def _valid_evidence(task_id: str) -> dict:

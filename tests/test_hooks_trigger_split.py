@@ -23,12 +23,11 @@ Spec scenarios:
 - REQ-4.4 pipeline-completion-audit Stop trigger unchanged
 """
 import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+from tests.helpers.hook_runner import run_hook as _run
 
 
 # --- fixtures -----------------------------------------------------------
@@ -58,18 +57,6 @@ def workspace(tmp_path: Path) -> Path:
 
 
 # --- helpers ------------------------------------------------------------
-
-
-def _run(script: Path, workspace: Path, payload: dict) -> subprocess.CompletedProcess[str]:
-    """Run a hook script as a subprocess with the payload on stdin."""
-    return subprocess.run(
-        [sys.executable, str(script)],
-        input=json.dumps(payload),
-        text=True,
-        capture_output=True,
-        cwd=str(workspace),
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-    )
 
 
 def _valid_evidence(task_id: str, teammate: str = "backend-test") -> dict:

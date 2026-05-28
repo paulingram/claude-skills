@@ -7,12 +7,11 @@ The hook reads stdin (JSON), inspects the TaskUpdate args, and exits:
 We invoke the script as a subprocess and feed crafted stdin.
 """
 import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+from tests.helpers.hook_runner import run_hook as _run
 
 
 @pytest.fixture()
@@ -26,18 +25,6 @@ def workspace(tmp_path: Path) -> Path:
     (tmp_path / ".architect-team" / "reviews").mkdir(parents=True)
     (tmp_path / ".architect-team" / "teammates").mkdir(parents=True)
     return tmp_path
-
-
-def _run(script: Path, workspace: Path, payload: dict) -> subprocess.CompletedProcess[str]:
-    """Run the script with payload on stdin from inside workspace."""
-    return subprocess.run(
-        [sys.executable, str(script)],
-        input=json.dumps(payload),
-        text=True,
-        capture_output=True,
-        cwd=str(workspace),
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-    )
 
 
 def _make_payload(task_id: str, status: str) -> dict:
