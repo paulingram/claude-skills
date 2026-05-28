@@ -20,6 +20,26 @@ The v0.9.17 same-input-forms rules apply verbatim — **never refuse plain-langu
 
 **Detect the form:** if `$REQ_DIR` is a single token resolving to an existing directory → form 1 (folder). Otherwise → form 2 (plain-language). When unsure, it is form 2.
 
+## Dispatch mode
+
+The mini pipeline supports two dispatch primitives — **teams mode** (Claude Code's experimental Agent Teams: long-lived named teammates with their own 1M contexts, a shared task list, and direct `SendMessage`) and **subagents mode** (the v0.10.0 behavior — ephemeral `Agent`-tool dispatches, fresh context per call). The Lead decides which once, at startup, and the decision is the same for the entire mini run.
+
+**Selection rule (evaluated once, at the top of Phase M0).** Teams mode is selected when ALL of these are true; otherwise subagents mode is selected.
+
+1. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to a truthy value (`1`, `true`, `yes` — case-insensitive) in the process env OR in `~/.claude/settings.json` at `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`.
+2. `claude --version` reports a parseable version `>= 2.1.32`.
+3. The `--no-teams` flag was NOT passed on the invoking `/architect-team:mini` command (the escape hatch for users hitting experimental-flag instability).
+
+If env / settings is unset, version is below `2.1.32`, the version is unparseable, or `--no-teams` was passed, the pipeline runs in subagents mode. When env + version qualify but the version is too old, surface a one-line note (*"Claude Code 2.1.32+ required for teams mode; running in subagents mode."*); when env is unset entirely, run subagents mode silently — the experimental feature is invisible to users who have not opted in.
+
+**Persist the decision.** Write `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` (the mini pipeline shares the main pipeline's `intake-state.json` location) as soon as the selection is computed. Every later phase reads this — the hook scripts branch on it (teams mode = `TaskCompleted` / `TeammateIdle`; subagents mode = `PostToolUse(TaskUpdate)` / `SubagentStop`), and the dispatch sentences below pick the right primitive.
+
+**Teams-mode primitives (when `dispatch_mode == "teams"`).** The Lead spawns named teammates via the Agent tool with `run_in_background: true` and a stable, human-readable name (e.g., `architect`, `backend-dev`, `frontend-dev`, `mini-qa`). The spawn invocation references the subagent definition — *"Spawn teammate using the `system-architect` agent type to author the OpenSpec bundle"* — so the role's `tools` allowlist and system prompt are inherited per the agent-teams docs. The architect, the two devs, and `mini-qa` communicate via `SendMessage` for the cross-review handoffs (M4's `backend` ↔ `frontend` cross-review uses `SendMessage` to pass each dev's `self_review` evidence to the other for the `independent_review` block). The shared task list lives at `~/.claude/tasks/<slug>/`; the Lead adds tasks and teammates claim them.
+
+**Subagents-mode primitives (when `dispatch_mode == "subagents"`).** The Lead dispatches via the Agent tool — single invocation per phase, or batched parallel via a single Agent-tool call carrying multiple invocations (the M4 backend + frontend parallel dispatch is the canonical example). Each subagent is ephemeral — fresh context, no `SendMessage`, no persistence across dispatches. Cross-step coordination flows through orchestrator-mediated handoff files (the OpenSpec bundle on disk, the qa-verdict-cycle-<N>.json, the M3 self-confirm diffs). This is unchanged from prior versions; pass `--no-teams` to force this mode even when teams qualify.
+
+Wherever this skill body says *"the Lead creates a `<role>` task (teams mode) OR dispatches the `<role>` subagent (subagents mode)"*, the branch is decided by `dispatch_mode` — both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
+
 ## What this skill does NOT do
 
 - **No proposal-refiner Q&A loop** — the architect grounds prose directly. If ambiguous, the architect surfaces ONE clarification batch before drafting; no iterative grading loop.
@@ -68,7 +88,7 @@ Persist the maps (fresh or refreshed) into the working context for M2.
 
 ## Phase M2 — Architect drafts the 5-artifact OpenSpec bundle
 
-Dispatch `system-architect` with the prompt + the cached maps from M1. The architect produces the **full 5-artifact OpenSpec bundle** in one pass at `openspec/changes/<slug>/`:
+The Lead creates a `system-architect` task in the shared list (teams mode) OR dispatches the `system-architect` subagent (subagents mode), with the prompt + the cached maps from M1. The architect produces the **full 5-artifact OpenSpec bundle** in one pass at `openspec/changes/<slug>/`:
 
 - `proposal.md` — the WHY, the WHAT, and a mandatory `## QA Guidance` section (see contract below).
 - `design.md` — architectural decisions.
@@ -127,7 +147,7 @@ The self-confirm pass is **structural + semantic**, not free-form refinement. If
 
 ## Phase M4 — Parallel dev dispatch (backend + frontend, cross-review)
 
-Dispatch the `backend` and `frontend` agents **in parallel** via a single Agent-tool call carrying multiple invocations (mirrors `architect-team-pipeline` Phase 2). Each receives:
+The Lead creates `backend` + `frontend` tasks **in parallel** in the shared list (teams mode) OR dispatches the `backend` and `frontend` subagents **in parallel** via a single Agent-tool call carrying multiple invocations (subagents mode) — mirrors `architect-team-pipeline` Phase 2. Each receives:
 
 - `tasks.md` from M2/M3 — with the file-scope partition.
 - `coverage-map.json` — including the `qa_guidance` block.
@@ -149,7 +169,7 @@ On review-evidence write, the existing `hooks/review-gate-task.py` runs unchange
 
 ## Phase M5 — mini-qa runs unit + integration + narrow Playwright
 
-Dispatch the `mini-qa` agent with:
+The Lead creates a `mini-qa` task in the shared list (teams mode) OR dispatches the `mini-qa` subagent (subagents mode) with:
 
 - `proposal.md` (its `## QA Guidance` section is authoritative scope).
 - `coverage-map.json` (the `qa_guidance` block mirrors the markdown; they MUST agree or the verdict is `red-with-evidence`).
@@ -220,7 +240,7 @@ After successful merge, emit the standard `/compact` prompt (matches `architect-
 
 ## Phase M8 — Re-evaluation loop and escalation
 
-On `verdict: red-with-evidence` from M6, increment the cycle counter and dispatch the architect for re-evaluation.
+On `verdict: red-with-evidence` from M6, the Lead increments the cycle counter and creates a fresh `system-architect` re-eval task in the shared list (teams mode) — or in teams mode, sends the existing `architect` teammate a `SendMessage` with the verdict and asks for the re-eval — OR dispatches the `system-architect` subagent again (subagents mode) for re-evaluation.
 
 ### Re-eval pass
 

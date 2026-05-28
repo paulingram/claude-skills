@@ -94,13 +94,21 @@ def test_pipeline_phase_3b_invokes_skill(plugin_root: Path) -> None:
 
 
 def test_pipeline_blocks_fix_team_without_plan(plugin_root: Path) -> None:
-    """The wire-up must say the fix team cannot be spawned without the plan."""
+    """The wire-up must say the fix team cannot be dispatched without the plan.
+
+    Updated post-v1.0.0 agent-teams refactor: the skill body now says "CANNOT
+    be dispatched" (the Lead dispatches the fix team — formerly "spawned").
+    Either phrasing satisfies the gate contract.
+    """
     content = _read(plugin_root, PIPELINE_SKILL_PATH)
     # Look for the explicit blocking language. Phrasing is flexible but the
     # contract must be present.
-    assert "CANNOT be spawned" in content or "cannot be spawned" in content, (
-        "Phase 3b does not block fix-team spawn pending diagnostic plan"
-    )
+    assert (
+        "CANNOT be spawned" in content
+        or "cannot be spawned" in content
+        or "CANNOT be dispatched" in content
+        or "cannot be dispatched" in content
+    ), "Phase 3b does not block fix-team spawn/dispatch pending diagnostic plan"
 
 
 def test_architect_agent_documents_review_mode(plugin_root: Path) -> None:
