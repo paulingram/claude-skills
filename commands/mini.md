@@ -7,6 +7,34 @@ argument-hint: "<requirements-folder | plain-language requirement> [--no-merge] 
 
 Drive a small-to-medium feature change end-to-end through the `mini-architect-team-pipeline` skill — intake, cached-maps freshness check, single-architect 5-artifact OpenSpec draft with mandatory `## QA Guidance`, self-confirm loop, parallel backend+frontend dev, single `mini-qa` agent (unit + integration + ≤3 Playwright flows on live dev URL), and **auto-merge to `main`** on green QA.
 
+## Auto-cleanup of merged worktrees (v1.3.0) — runs first
+
+Before any argument parsing or pipeline invocation, sweep merged architect-team
+worktrees. This is **best-effort** — failure surfaces a one-line note and the
+new run continues regardless.
+
+1. Refresh the origin ref so merge detection is current. Best-effort:
+   ```bash
+   git fetch origin main 2>/dev/null || true
+   ```
+2. Invoke the cleanup helper via the polyglot Python pattern per
+   `common-pipeline-conventions` `## Cross-platform Python invocation`:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import cleanup_merged_worktrees; [print(f'cleaned: {p}') for p in cleanup_merged_worktrees()]" 2>&1 || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import cleanup_merged_worktrees; [print(f'cleaned: {p}') for p in cleanup_merged_worktrees()]" 2>&1 || echo 'auto-cleanup: best-effort, continuing.'
+   ```
+3. Report any cleaned paths to the user as a brief note. If nothing was
+   cleaned, say so in one line and proceed.
+
+The cleanup defaults exclude the current worktree (safety: don't auto-remove
+the cwd even if its branch is merged). This is the re-entry case from v1.2.0 —
+the current run worktree is left alone. Note: the mini pipeline ALSO runs an
+in-run cleanup at the end of Phase M7 after its own auto-merge to main — see
+`mini-architect-team-pipeline` Phase M7 for the post-merge worktree removal.
+
+Per `common-pipeline-conventions` `## Auto-worktree lifecycle` `### Auto-cleanup
+(v1.3.0)` for the full rule including merged-branch detection mechanism
+(`git merge-base --is-ancestor`) and the squash-merge limitation.
+
 ## Inputs (same two forms as /architect-team)
 
 `$ARGUMENTS` is either:
