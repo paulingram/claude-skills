@@ -9,6 +9,25 @@ You are starting the architect-team multi-agent coding pipeline.
 
 **Raw arguments:** $ARGUMENTS
 
+## Dispatch mode banner (v1.5.0) — runs first
+
+As the very first user-visible action of the invocation, BEFORE the v1.3.0
+auto-cleanup step and BEFORE argument parsing, print the dispatch-mode banner
+so the user knows whether this run is dispatching via Agent Teams or the
+subagents fallback (and, in the fallback case, WHY). This is purely
+**informational** — the banner is observability, never a gate. A subprocess
+failure surfaces a one-line note and the run continues regardless. The
+dispatch-mode decision itself is unchanged from v1.0.0 (`is_teams_mode_available`
+inspects env + settings.json + `claude --version` + the `--no-teams` flag).
+
+```bash
+python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from teams_mode import format_dispatch_banner; print(format_dispatch_banner())" 2>&1 || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from teams_mode import format_dispatch_banner; print(format_dispatch_banner())" 2>&1 || echo "(dispatch banner unavailable; continuing.)"
+```
+
+The banner is informational, not gating. A subprocess failure surfaces a
+one-line note and the run continues regardless. The dispatch-mode decision
+itself is unchanged from v1.0.0.
+
 ## Auto-cleanup of merged worktrees (v1.3.0) — runs first
 
 Before any argument parsing or pipeline invocation, sweep merged architect-team
