@@ -11,15 +11,23 @@ Behavior (in order):
        - superpowers@claude-plugins-official
        - cartographer@cartographer-marketplace
        - ralph-loop@claude-plugins-official
+  7. Agent-teams mode check (v1.0.0):
+       - Claude Code ≥ 2.1.32 (parsed from `claude --version`).
+       - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in env OR in ~/.claude/settings.json.
+       - When interactive and the flag is unsatisfied, prompt the user to
+         write it to ~/.claude/settings.json (consent required; idempotent).
+       - With --no-prompt the script prints the suggested edit instead of writing.
 
 Flags:
-  --check-only        Report status; install nothing.
+  --check-only        Report status; install nothing; never modify user files.
   --force-reinstall   Reinstall everything we manage even if present.
+  --no-prompt         Skip interactive consent prompts (print suggested edits).
 
 Exit:
   0  Everything we control is present and ok.
   1  At least one required Claude plugin is missing (cannot self-install).
   2  An installation failed.
+  Non-zero on --check-only if agent-teams mode is unsatisfied (REQ-7.1).
 """
 from __future__ import annotations
 
@@ -47,6 +55,15 @@ REQUIRED_PLUGINS = {
 }
 
 PYTHON_TEST_PACKAGES = ["pytest", "pytest-asyncio", "httpx"]
+
+# v1.0.0 agent-teams constants. Mirror the helper in scripts/setup/teams_mode.py
+# (we re-declare them here so the script keeps a single, obvious settings path
+# reference). The helper module remains the source of truth for the *checks*
+# (truthy-env / version-parse / settings-json parse) — this file uses it
+# directly.
+TEAMS_ENV_VAR = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+MIN_CLAUDE_VERSION = (2, 1, 32)
+DEFAULT_USER_SETTINGS_PATH: Path = Path.home() / ".claude" / "settings.json"
 
 
 # ---- Version checks ---------------------------------------------------------
@@ -277,6 +294,201 @@ def check_plugin_presence(
     return present, missing
 
 
+# ---- Agent-teams mode (v1.0.0) ----------------------------------------------
+
+
+def _load_teams_mode_module():
+    """Import the sibling teams_mode.py helper.
+
+    The module sits next to this file at scripts/setup/teams_mode.py. We load
+    it dynamically so this script's stdlib-only top of file stays honest (no
+    package layout needed).
+    """
+    import importlib.util
+
+    path = Path(__file__).parent / "teams_mode.py"
+    spec = importlib.util.spec_from_file_location("teams_mode", path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _parse_claude_version(text: str) -> tuple[int, int, int] | None:
+    """Return the first X.Y.Z tuple in `text`, or None if unparseable."""
+    m = re.search(r"(\d+)\.(\d+)\.(\d+)", text or "")
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+
+def _claude_version_or_none(claude_cmd: str = "claude") -> tuple[int, int, int] | None:
+    """Invoke `claude --version` and parse it; return None on any failure."""
+    try:
+        res = subprocess.run(
+            [claude_cmd, "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if res.returncode != 0:
+        return None
+    return _parse_claude_version(res.stdout or "")
+
+
+def _prompt_user_consent(prompt: str) -> str:
+    """Read one line from stdin. Isolated for monkeypatching in tests."""
+    try:
+        return input(prompt).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return ""
+
+
+def _settings_has_flag(settings_path: Path) -> bool:
+    """Return True iff settings_path's env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is truthy."""
+    try:
+        if not settings_path.is_file():
+            return False
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    env_block = data.get("env")
+    if not isinstance(env_block, dict):
+        return False
+    value = env_block.get(TEAMS_ENV_VAR)
+    return isinstance(value, str) and value.strip().lower() in {"1", "true", "yes"}
+
+
+def _write_flag_to_settings(settings_path: Path) -> None:
+    """Write env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1" to settings_path.
+
+    Preserves existing content (idempotent on re-run; merges into an existing
+    env block if present). Creates the file + parent dir if missing.
+    """
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    if settings_path.is_file():
+        try:
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+    else:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    env_block = data.get("env")
+    if not isinstance(env_block, dict):
+        env_block = {}
+    env_block[TEAMS_ENV_VAR] = "1"
+    data["env"] = env_block
+    settings_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def check_teams_mode(
+    check_only: bool,
+    no_prompt: bool,
+    env: dict[str, str] | None = None,
+    settings_path: Path | None = None,
+    claude_cmd: str = "claude",
+) -> tuple[str, str, str | None]:
+    """Inspect the v1.0.0 agent-teams requirements; optionally prompt to enable.
+
+    Returns the standard (name, status, detail) row used by `_print_report`.
+    Statuses:
+      * ``"present"``   — Claude Code >= 2.1.32 AND the flag is set in env or settings.
+      * ``"installed"`` — user consented and we just wrote settings.json.
+      * ``"missing"``   — flag unsatisfied (env + settings both missing).
+      * ``"warn"``      — flag is set but Claude Code is below 2.1.32 (or unparseable).
+
+    Args:
+        check_only: when True, never write user files; only report status.
+        no_prompt: when True, do not prompt interactively; print the suggested
+            edit and report "missing" if the flag is unsatisfied.
+        env: process environment (defaults to os.environ).
+        settings_path: location of ~/.claude/settings.json (defaults to
+            DEFAULT_USER_SETTINGS_PATH); overridable for tests.
+        claude_cmd: name/path of the claude binary (defaults to "claude").
+    """
+    if env is None:
+        env = dict(os.environ)
+    if settings_path is None:
+        settings_path = DEFAULT_USER_SETTINGS_PATH
+
+    name = "teams-mode (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + claude >= 2.1.32)"
+
+    # Version probe.
+    version = _claude_version_or_none(claude_cmd)
+    version_ok = bool(version and version >= MIN_CLAUDE_VERSION)
+    version_str = (
+        f"{version[0]}.{version[1]}.{version[2]}" if version else "unknown"
+    )
+
+    # Flag probe.
+    flag_in_env = (env.get(TEAMS_ENV_VAR) or "").strip().lower() in {"1", "true", "yes"}
+    flag_in_settings = _settings_has_flag(settings_path)
+    flag_ok = flag_in_env or flag_in_settings
+
+    if version_ok and flag_ok:
+        source = "env" if flag_in_env else "settings.json"
+        detail = f"Claude Code {version_str}; flag source: {source}"
+        return name, "present", detail
+
+    # Build a user-facing detail / suggestion.
+    issues: list[str] = []
+    if not version_ok:
+        issues.append(
+            f"Claude Code {version_str} < required {MIN_CLAUDE_VERSION[0]}."
+            f"{MIN_CLAUDE_VERSION[1]}.{MIN_CLAUDE_VERSION[2]} "
+            f"(upgrade: see https://code.claude.com/docs/en/agent-teams)"
+        )
+    if not flag_ok:
+        suggested = json.dumps({"env": {TEAMS_ENV_VAR: "1"}}, indent=2)
+        issues.append(
+            f"{TEAMS_ENV_VAR}=1 not set in env or {settings_path}. "
+            f"Suggested edit to {settings_path}:\n{suggested}"
+        )
+    detail = " | ".join(issues)
+
+    # In --check-only mode, never write anything.
+    if check_only:
+        if not version_ok:
+            return name, "warn", detail
+        return name, "missing", detail
+
+    # In --no-prompt mode, print the suggested edit but do not write.
+    if no_prompt:
+        print(
+            "\n[teams-mode] " + detail,
+            flush=True,
+        )
+        if not version_ok:
+            return name, "warn", detail
+        return name, "missing", detail
+
+    # Interactive: if the flag is the only thing missing, prompt for consent.
+    if not version_ok:
+        # Version mismatch cannot be fixed by this script — just surface a warn.
+        print("\n[teams-mode] " + detail, flush=True)
+        return name, "warn", detail
+
+    if not flag_ok:
+        prompt = (
+            f"Add {TEAMS_ENV_VAR}=1 to {settings_path}? (y/N): "
+        )
+        answer = _prompt_user_consent(prompt)
+        if answer == "y" or answer == "yes":
+            try:
+                _write_flag_to_settings(settings_path)
+            except OSError as exc:
+                return name, "failed", f"could not write {settings_path}: {exc}"
+            return name, "installed", f"wrote {TEAMS_ENV_VAR}=1 to {settings_path}"
+        return name, "missing", detail
+
+    # Should not reach here, but return a defensive fallback.
+    return name, "present", "agent-teams mode satisfied"
+
+
 # ---- Main --------------------------------------------------------------------
 
 
@@ -291,6 +503,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="architect-team plugin setup")
     parser.add_argument("--check-only", action="store_true", help="Report status; install nothing.")
     parser.add_argument("--force-reinstall", action="store_true", help="Reinstall everything managed.")
+    parser.add_argument(
+        "--no-prompt",
+        action="store_true",
+        help="Skip interactive consent prompts (print suggested edits instead). "
+             "Required for non-interactive contexts (CI, scripts).",
+    )
     args = parser.parse_args(argv)
 
     rows: list[tuple[str, str, str | None]] = []
@@ -314,6 +532,14 @@ def main(argv: list[str] | None = None) -> int:
     rows.append(ensure_python_test_tools(args.check_only, args.force_reinstall))
     rows.append(ensure_playwright(args.check_only, args.force_reinstall))
 
+    # v1.0.0 agent-teams mode check + optional consented settings.json write.
+    rows.append(
+        check_teams_mode(
+            check_only=args.check_only,
+            no_prompt=args.no_prompt,
+        )
+    )
+
     present, missing = check_plugin_presence(INSTALLED_PLUGINS_PATH, REQUIRED_PLUGINS)
     _print_report(rows, sorted(present), sorted(missing))
 
@@ -322,6 +548,11 @@ def main(argv: list[str] | None = None) -> int:
     if any(r[1] == "failed" for r in rows):
         return 2
     if missing:
+        return 1
+    # REQ-7.1: --check-only must exit non-zero if agent-teams mode is unsatisfied.
+    if args.check_only and any(
+        r[1] in {"missing", "warn"} and "teams-mode" in r[0] for r in rows
+    ):
         return 1
     return 0
 
