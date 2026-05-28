@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] — 2026-05-28 — Agent Teams as Default Dispatch Mode
+
+The architecture the plugin should have shipped with. Converts the entire architect-team pipeline from ephemeral `Agent`-tool dispatches (one-shot, re-onboarded subagents that drop context after every return) to Claude Code's experimental **Agent Teams** primitive — long-lived named teammates with their own 1M context windows, a shared task list, direct messaging via `SendMessage`, and a Lead that owns coordination. The Lead is the listening point the user has been asking for; the shared task list IS the parallel-marshalling primitive. Backwards-compatible via a clean fallback to subagents mode for users who don't have the experimental flag enabled.
+
+### Added
+
+- **`scripts/setup/teams_mode.py`** — new helper module exposing `is_teams_mode_available(env=None, settings_path=None, claude_cmd="claude", flag_no_teams=False) -> bool` and `detect_no_teams_flag(argv) -> bool`. Decides whether the pipeline runs in teams mode by checking (a) the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var OR `~/.claude/settings.json` `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`, (b) `claude --version` ≥ 2.1.32, (c) the absence of `--no-teams`. Falsy values, malformed settings.json, and missing `claude` binary all degrade gracefully to subagents mode.
+- **`hooks/locks.py`** — new cross-session lock layer. Four functions: `acquire_lock(scope_glob, ttl_seconds, run_id)`, `release_lock(lock_id)`, `detect_stale()`, `globs_intersect(a, b)`. Lock files live at `.architect-team/locks/<scope-hash>.json` with `{holder, scope_glob, acquired_at, ttl_seconds, run_id}`. TTL-based stale detection (4h default); malformed / missing-field lock files are treated as stale. The intersection check reuses the non-overlapping-file-scope discipline from `team-spawning-and-review-gates`. This is the primitive that lets two concurrent `/architect-team` invocations in separate Claude Code sessions claim disjoint file scopes and run truly parallel — or queue / surface a conflict when their scopes intersect.
+- **`TaskCompleted` + `TeammateIdle` hook triggers** — `hooks/hooks.json` now registers the teams-mode counterparts of `PostToolUse(TaskUpdate)` and `SubagentStop`. Both new triggers route to the same enforcement code paths in `review-gate-task.py` and `teammate-idle-check.py`; the hooks branch internally on payload shape via a new `_detect_trigger_mode(payload)` helper in `hooks/review_evidence_schema.py`. The `Stop` hook (`pipeline-completion-audit.py`) is unchanged — same trigger in both modes.
+- **`## Dispatch mode` section** in each of the three pipeline skills (`architect-team-pipeline`, `bug-fix-pipeline`, `mini-architect-team-pipeline`) — names the env var, the `2.1.32` requirement, the `--no-teams` flag, and the teams-mode primitives (`Spawn teammate using <role> agent type`, `SendMessage`, `~/.claude/tasks/<slug>/`).
+- **`Requirements` section** in README.md naming `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` + Claude Code ≥ 2.1.32 + the `--no-teams` fallback.
+- ~210 net-new tests across 7 new test files (`test_teams_mode.py`, `test_locks.py`, `test_setup_teams_checks.py`, `test_hooks_trigger_split.py`, `test_dispatch_mode_section.py`, `test_no_nested_teams_in_skills.py`, `test_agent_teammate_framing.py`). Full suite: 1417 → **~1629 passing**.
+
+### Changed
+
+- **All 27 agent bodies** get a small uniform rewrite: today most agents are framed as *"You are invoked for one task."* The new framing is *"You are a long-lived teammate in an architect-team run. The Lead assigns tasks via the shared task list (teams mode) or dispatches you per-task (subagents mode). Stay in your role across multiple tasks within this run."* Frontmatter (`name`, `description`, `tools`, `model`, `color`) is untouched — `tools` and `model` carry over to teammates per the Agent Teams docs.
+- **Every nested-team pattern in the pipeline flattens.** Per the Agent Teams docs' "no nested teams" constraint, the Lead now owns all dispatches. Eight previously-nested patterns: `task-reviewer ×3`, `editability-reviewer ×3`, `interaction-reviewer ×3`, `integration-explorer ×3 + master-synthesizer`, `visual-capture + visual-analyzer`, `diagnostic-researcher ×3`, `codebase-map-reviewer ×3`, `flow-explorer ×3 + flow-executor ×3` — all become Lead-owned task creations in teams mode (or Lead-direct dispatches in subagents mode). No teammate role-definition claims to spawn its own team. Internal-sub-research with the `Agent` tool within a teammate's task remains permitted (it's a single-agent dispatch, not a nested team).
+- **`scripts/setup/setup.py`** extends to check Claude Code version + the experimental flag, and offers to write `~/.claude/settings.json` with user consent. New `--check-only` and `--no-prompt` flags. `commands/architect-team-setup.md` documents the consent flow.
+- **Hook trigger split.** `hooks/review-gate-task.py` and `hooks/teammate-idle-check.py` now handle both trigger payload shapes — `PostToolUse(TaskUpdate)` / `SubagentStop` (subagents mode) and `TaskCompleted` / `TeammateIdle` (teams mode) — by detecting the payload's event type and branching internally. Enforcement logic (review evidence schema v6, exit code 2 = block + feedback) is identical across triggers.
+
+### Requirements
+
+- **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** in the environment OR `~/.claude/settings.json` `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set to a truthy value, for teams mode. Without it the pipeline runs in subagents mode (the v0.10.0 behavior, unchanged).
+- **Claude Code ≥ 2.1.32**, for teams mode. Lower versions fall back to subagents mode with a one-line note explaining the requirement.
+
+### Migration
+
+None required. The mini and bug-fix pipelines are unchanged in subagents mode; the full pipeline is unchanged in subagents mode. Users who don't have the experimental flag set continue running exactly as they did on v0.10.0. Users who DO have the flag set get the new teams-mode dispatch path automatically. The `--no-teams` flag on any of the three pipeline commands (`/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`) forces subagents mode even when teams are available — escape hatch for users hitting experimental-flag instability.
+
 ## [0.10.0] — 2026-05-26 — Mini Architect-Team Pipeline
 
 A faster sibling pipeline to `/architect-team` for rapid small-to-medium feature changes. Speed comes from dropping phases and parallel-review fan-out — not from a weaker model; every role still runs on Opus 4.7.
