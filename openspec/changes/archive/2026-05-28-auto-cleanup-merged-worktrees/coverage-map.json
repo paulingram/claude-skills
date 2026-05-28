@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "change": "auto-cleanup-merged-worktrees",
+  "version": "1.3.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "Auto-cleanup helper functions", "layer": "infra",
+     "covered_by": ["scripts/setup/worktree_lifecycle.py", "tests/test_worktree_auto_cleanup.py"]},
+    {"id": "REQ-2", "title": "Slash commands auto-cleanup as first step", "layer": "infra",
+     "covered_by": ["commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md"]},
+    {"id": "REQ-3", "title": "Explicit cleanup command", "layer": "infra",
+     "covered_by": ["commands/cleanup-worktrees.md", "tests/test_commands.py"]},
+    {"id": "REQ-4", "title": "Mini Phase M7 cleans its own worktree after green merge", "layer": "infra",
+     "covered_by": ["skills/mini-architect-team-pipeline/SKILL.md"]},
+    {"id": "REQ-5", "title": "common-pipeline-conventions documents the auto-cleanup", "layer": "infra",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md"]},
+    {"id": "REQ-6", "title": "Version bumped to 1.3.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "scripts/setup/worktree_lifecycle.py"},
+    {"id": "RD-2", "decision": "extend", "anchor": "3 slash command bodies"},
+    {"id": "RD-3", "decision": "build-new", "anchor": "commands/cleanup-worktrees.md"},
+    {"id": "RD-4", "decision": "extend", "anchor": "skills/mini-architect-team-pipeline/SKILL.md (Phase M7)"},
+    {"id": "RD-5", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md"},
+    {"id": "RD-6", "decision": "build-new", "anchor": "tests/test_worktree_auto_cleanup.py"},
+    {"id": "RD-7", "decision": "reuse-as-is", "anchor": "scripts/setup/worktree_paths.py (untouched)"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — infra-only change",
+  "implementing_commits": []
+}
