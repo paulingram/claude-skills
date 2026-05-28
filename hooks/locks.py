@@ -43,8 +43,13 @@ from typing import Any
 
 # ---- Constants ---------------------------------------------------------------
 
-# Default locks directory (relative to cwd). Overridable for tests via the
-# `locks_dir` parameter on every public function.
+# Legacy default locks directory (relative to cwd). Kept exported for any
+# downstream consumer that still references `locks.DEFAULT_LOCKS_DIR` directly
+# — the public API never reads this constant. As of v1.1.0 the resolved default
+# is computed by `_default_locks_dir()` below, which routes through
+# `scripts/setup/worktree_paths.shared_state_dir()` so two `/architect-team`
+# sessions in two git worktrees of the same repo coordinate on the same lock
+# directory (the MAIN worktree's `.architect-team/locks/`).
 DEFAULT_LOCKS_DIR = Path(".architect-team") / "locks"
 
 # Required fields on a well-formed lock file. Any missing field => stale.
@@ -232,7 +237,64 @@ def globs_intersect(a: str, b: str) -> bool:
 
 
 def _resolve_locks_dir(locks_dir: Path | None) -> Path:
-    return Path(locks_dir) if locks_dir is not None else DEFAULT_LOCKS_DIR
+    """Resolve the locks directory used by every public function.
+
+    Behavior:
+      - An explicit `locks_dir` argument is honored verbatim (test-isolation
+        path used by every scenario in `tests/test_locks.py`).
+      - `None` routes through `_default_locks_dir()` so the lock layer
+        coordinates across git worktrees per the v1.1.0 fix.
+    """
+    if locks_dir is not None:
+        return Path(locks_dir)
+    return _default_locks_dir()
+
+
+def _default_locks_dir() -> Path:
+    """Return the default `.architect-team/locks/` directory.
+
+    Routes through `scripts/setup/worktree_paths.shared_state_dir()` so two
+    `/architect-team` sessions running in separate git worktrees of the same
+    repo share the same lock directory (the MAIN worktree's
+    `.architect-team/locks/`). In a non-worktree clone this resolves to
+    `Path.cwd() / ".architect-team" / "locks"` — the same path v1.0.0 used,
+    so single-session users see zero behavior change.
+
+    The import is performed inside the function (not at module top) to avoid
+    forcing the `scripts/setup/` directory onto `sys.path` for callers that
+    only use the locks API. Falling back to the legacy default keeps the lock
+    layer working even if `worktree_paths.py` becomes unreachable for any
+    reason (deleted, syntax error, etc.).
+    """
+    try:
+        worktree_paths = _load_worktree_paths()
+        return worktree_paths.shared_state_dir() / "locks"
+    except Exception:
+        # Best-effort: if the worktree-aware helper can't load for any
+        # reason, fall back to the v1.0.0 default. The lock layer continues
+        # to work; only the cross-worktree coordination guarantee is lost in
+        # this degenerate case, and the orchestrator surfaces no surprise.
+        return Path.cwd() / DEFAULT_LOCKS_DIR
+
+
+def _load_worktree_paths():
+    """Import `scripts/setup/worktree_paths.py` lazily.
+
+    Uses `importlib.util.spec_from_file_location` so the lock layer does not
+    depend on a particular `sys.path` layout. The path is computed relative
+    to this file: `hooks/locks.py` -> `<plugin-root>/scripts/setup/worktree_paths.py`.
+    """
+    import importlib.util
+
+    here = Path(__file__).resolve().parent
+    plugin_root = here.parent
+    target = plugin_root / "scripts" / "setup" / "worktree_paths.py"
+    spec = importlib.util.spec_from_file_location("worktree_paths", target)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load worktree_paths from {target}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _hash_scope(scope_glob: str) -> str:
