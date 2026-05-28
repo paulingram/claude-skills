@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "change": "worktree-state-resolution",
+  "version": "1.1.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "Worktree-aware path resolution helper", "layer": "infra",
+     "covered_by": ["scripts/setup/worktree_paths.py", "tests/test_worktree_state_resolution.py"]},
+    {"id": "REQ-2", "title": "hooks/locks.py uses shared resolution by default", "layer": "infra",
+     "covered_by": ["hooks/locks.py", "tests/test_locks.py", "tests/test_worktree_state_resolution.py"]},
+    {"id": "REQ-3", "title": "common-pipeline-conventions documents parallel-session pattern", "layer": "infra",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md"]},
+    {"id": "REQ-4", "title": "mempalace-integration documents shared resolution", "layer": "infra",
+     "covered_by": ["skills/mempalace-integration/SKILL.md"]},
+    {"id": "REQ-5", "title": "Version bumped consistently to 1.1.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]},
+    {"id": "REQ-6", "title": "Backwards-compatible with v1.0.0", "layer": "infra",
+     "covered_by": ["tests/test_locks.py", "tests/test_worktree_state_resolution.py"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "hooks/locks.py"},
+    {"id": "RD-2", "decision": "build-new", "anchor": "scripts/setup/worktree_paths.py"},
+    {"id": "RD-3", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md"},
+    {"id": "RD-4", "decision": "extend", "anchor": "skills/mempalace-integration/SKILL.md"},
+    {"id": "RD-5", "decision": "reuse-as-is", "anchor": "superpowers:using-git-worktrees (referenced, not duplicated)"},
+    {"id": "RD-6", "decision": "build-new", "anchor": "tests/test_worktree_state_resolution.py (new file vs extending test_locks.py)"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — infra-only change",
+  "implementing_commits": []
+}
