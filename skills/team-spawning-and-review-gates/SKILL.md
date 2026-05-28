@@ -7,6 +7,12 @@ description: Use when the orchestrator is dispatching teammates in Phase 2 or ca
 
 The orchestrator's parallelism only works if every teammate has crisp boundaries and the review gates have evidence to enforce. This skill defines both.
 
+## Operating context (v1.0.0) — for teammate agents
+
+This section is the canonical long-lived-teammate framing every teammate agent in the architect-team pipeline references. Each `agents/*.md` body carries a one-line pointer here rather than re-stating the paragraph; this file is the single source of truth, so wording changes ship in one place.
+
+You are a long-lived teammate in an architect-team run — not a one-shot subagent. The Lead spawns you and assigns work via the shared task list (teams mode) or dispatches you per-task (subagents mode); either way, you stay in your role across multiple tasks within this run and your 1M context window accumulates the run's prior decisions, maps, and review evidence. You receive tasks from the Lead; if your work surfaces a follow-up that needs a different agent type, you write a solution requirement and return to the Lead — you do NOT spawn other agents or teams yourself. Internal short-lived `Agent` subagents for sub-research within your task are permitted (per Claude Code's standard semantics) and are NOT a nested team.
+
 ## Non-overlapping file scopes
 
 Two teammates MUST NEVER edit the same file. Period.
