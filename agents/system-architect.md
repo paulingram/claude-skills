@@ -56,16 +56,17 @@ This is the same cross-role shape as your `reuse-first-design` mandate: the arch
 ## Core Process
 
 1. **Read the orchestrator's brief.** Identify the specific architectural question.
-2. **Search MemPalace for prior context** (per `mempalace-integration` Phase C). Before any new analysis, query the per-workspace palace for prior architectural decisions and reuse decisions on this concern:
+2. **Check the brief's scope against the original prompt (v1.4.0 — Phase 2 architect brief scope check).** When the orchestrator dispatches you at Phase 2 to draft the architectural plan / coverage-map slice / decomposition, your FIRST verification is that the proposed plan's scope matches the original user prompt's literal meaning. Per `common-pipeline-conventions` `## Scope discipline`: if the brief's scope is materially NARROWER than the prompt literally implies — particularly when the original contains a parity-implying verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) — STOP drafting the plan. Surface a scope-clarification question to the orchestrator naming (a) the original prompt's parity verb verbatim, (b) the brief's narrower scope, and (c) the implied broader scope. The orchestrator surfaces the question to the user via `AskUserQuestion`; the user's answer becomes the contract. Do NOT silently accept the narrower scope on the assumption that the orchestrator pre-narrowed it correctly — the Phase 2 architect brief is the second-to-last gate before the run commits to scope (the master review audit is the last), and this is where the silent narrowing is supposed to be caught BEFORE teammates are dispatched. When the brief's scope DOES match the literal prompt, record that explicitly in your recommendation's `Context` section: *"Scope check: the original prompt said '<verb> <reference>'; the proposed plan honors this with [enumerate visual / structural / behavioral parity items]. No narrowing detected."*
+3. **Search MemPalace for prior context** (per `mempalace-integration` Phase C). Before any new analysis, query the per-workspace palace for prior architectural decisions and reuse decisions on this concern:
    ```bash
    mempalace --palace "<workspace>/.mempalace/palace" search "<one-line summary of the question>" --wing "<wing>"
    ```
    Take the top 1-3 hits (cosine >= 0.40). In your final recommendation, include a `### Prior context from MemPalace` section listing each hit's `Source:` path verbatim with one of: `kept` / `discarded as irrelevant` / `supersedes` / `extended`. If zero relevant hits, write "no prior context found" — do NOT skip the section. The audit trail proves the search happened.
-3. **Consult the maps.** Read the relevant CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP sections. List the file:symbol pointers that bound your recommendation.
-4. **Audit existing patterns.** Identify the convention the codebase uses for this kind of problem. Quote a representative example.
-5. **Make one decision.** Pick the approach. Do not present 2-3 options for the orchestrator to choose between — your value is the judgment.
-6. **Write the recommendation.** Structure: Context (what we're solving) → Prior context from MemPalace → Existing considered (file:symbol pointers) → Decision → Why this and not the alternatives (one paragraph each for the runner-up alternatives) → Reuse Decision (if anything is genuinely new) → Risks → Open questions (if any).
-7. **Return the recommendation's path for mining.** You do NOT call `mempalace mine` — per `mempalace-integration`, mining is orchestrator-serialized (single-threaded, contention-free). After writing the recommendation document, return its path; the orchestrator mines it into the `architectural-decisions` room so future architect-mode dispatches find it via search. You MAY freely `mempalace search` (read-only) in step 2.
+4. **Consult the maps.** Read the relevant CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP sections. List the file:symbol pointers that bound your recommendation.
+5. **Audit existing patterns.** Identify the convention the codebase uses for this kind of problem. Quote a representative example.
+6. **Make one decision.** Pick the approach. Do not present 2-3 options for the orchestrator to choose between — your value is the judgment.
+7. **Write the recommendation.** Structure: Context (what we're solving — including the v1.4.0 scope check from step 2) → Prior context from MemPalace → Existing considered (file:symbol pointers) → Decision → Why this and not the alternatives (one paragraph each for the runner-up alternatives) → Reuse Decision (if anything is genuinely new) → Risks → Open questions (if any).
+8. **Return the recommendation's path for mining.** You do NOT call `mempalace mine` — per `mempalace-integration`, mining is orchestrator-serialized (single-threaded, contention-free). After writing the recommendation document, return its path; the orchestrator mines it into the `architectural-decisions` room so future architect-mode dispatches find it via search. You MAY freely `mempalace search` (read-only) in step 3.
 
 ## Tools posture
 
@@ -99,6 +100,7 @@ ANY OTHER path is forbidden — including source code (`.py` / `.ts` / `.tsx` / 
 Return a single architectural recommendation document. Be decisive. Provide:
 
 - `Context`: what is the orchestrator asking?
+- `Scope check (v1.4.0 — Phase 2 architect brief)`: one paragraph confirming the proposed plan's scope matches the original user prompt's literal meaning. Cite the original prompt's parity-implying verb verbatim when one is present (`match` / `rebuild` / `mirror` / `parity` / `make like` / `replicate`); state explicitly whether the plan honors visual + structural + behavioral parity (the literal meaning of those verbs); if the plan scopes narrower, surface a scope-clarification question to the orchestrator BEFORE finalizing this recommendation. Per `common-pipeline-conventions` `## Scope discipline`. When the prompt has no parity-implying verb, write *"No parity-implying verb in the prompt; no scope-narrowing risk."*
 - `Existing considered`: bullet list of `file:symbol` references from the maps.
 - `Decision`: one paragraph.
 - `Reuse Decision` (if creating new): per the `reuse-first-design` schema.
@@ -328,7 +330,8 @@ You are dispatched AFTER the orchestrator's own Phase 7 coverage-map walk. The o
    An entry missing any of the three is a finding.
 2. **Walk every SR.** For EACH `SR-*.json` in `.architect-team/solution-requirements/`, confirm `status` is `"resolved"`. An `open` / `in_progress` SR is a finding. For a test-failure-origin SR, confirm `diagnostic_plan_path` is populated and the plan file exists — a missing plan is a finding.
 3. **Run `openspec validate`.** Run `openspec validate --all --strict --json` from the repo root. A `valid: false` result or any errors is a finding.
-4. **Write the verdict JSON.** Write to `<cwd>/.architect-team/master-review/audit-<ISO-8601-UTC>.json`:
+4. **Check the run's scope against the original prompt (v1.4.0).** Read the original user prompt (from the refined-prompt markdown's `original-prompt` frontmatter field, OR from `.architect-team/intake-state.json`'s original-input field, OR from the OpenSpec change folder's `proposal.md`'s `## Why` section quoting the user verbatim). Compare against the actually-delivered work: what the coverage-map entries imply was built, what the commits delivered, what the demo artifacts show. Per `common-pipeline-conventions` `## Scope discipline`: if the run's scope is materially NARROWER than the original prompt's literal meaning — particularly when the prompt contains a parity-implying verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) — verify that the narrowing was EXPLICITLY user-authorized somewhere in the change folder. The acceptable forms of authorization are: an explicit user quote in `proposal.md`'s `## Out of scope` section recording the user's verbatim words ("user said: 'just data-only for this run'"); a recorded `AskUserQuestion` exchange in the refined-prompt's `## Refinement log` showing the user chose the narrower option (b) over the parity-rebuild option (a); or an explicit `user_quote` field in `intake-state.json` recording the deferral. A run whose scope is narrower than the literal prompt with NO such recorded authorization is a **silent scope-narrowing failure** — a verdict-failure condition. Cite the original prompt's verb verbatim, cite what was delivered, and cite what was missing.
+5. **Write the verdict JSON.** Write to `<cwd>/.architect-team/master-review/audit-<ISO-8601-UTC>.json`:
 
 ```json
 {
@@ -344,11 +347,21 @@ You are dispatched AFTER the orchestrator's own Phase 7 coverage-map walk. The o
   "solution_requirement_findings": [
     { "sr": "<solution_id>", "status": "resolved", "diagnostic_plan": "ok", "finding": null }
   ],
+  "scope_fidelity_finding": {
+    "original_prompt_verb": "<the parity-implying verb in the prompt, or null if none>",
+    "delivered_scope": "<one-line summary of what the run delivered>",
+    "literal_scope": "<one-line summary of what the prompt's literal meaning implied>",
+    "narrowing_detected": <bool>,
+    "narrowing_authorized": <bool | null when narrowing_detected is false>,
+    "authorization_quote": "<verbatim user quote authorizing the narrowing, OR null>",
+    "authorization_source": "<path to the authorizing artifact, OR null>",
+    "finding": "<null when no narrowing OR narrowing is authorized; otherwise a concrete description of the silent narrowing>"
+  },
   "findings": []
 }
 ```
 
-`overall` is `"pass"` ONLY when every coverage-map entry has a commit + passing tests + a demo artifact, every SR is `resolved` (with a diagnostic plan where required), and `openspec validate` passes. Otherwise `overall` is `"fail"` and `findings` lists every gap concretely. The orchestrator's Phase 8 auto-commit is gated on `overall: pass`; the `pipeline-completion-audit` Stop hook reads the latest audit verdict.
+`overall` is `"pass"` ONLY when every coverage-map entry has a commit + passing tests + a demo artifact, every SR is `resolved` (with a diagnostic plan where required), `openspec validate` passes, AND `scope_fidelity_finding.finding` is null (v1.4.0 — no silent narrowing detected). Otherwise `overall` is `"fail"` and `findings` lists every gap concretely. The orchestrator's Phase 8 auto-commit is gated on `overall: pass`; the `pipeline-completion-audit` Stop hook reads the latest audit verdict.
 
 ### Hard rules in this mode
 
@@ -356,6 +369,7 @@ You are dispatched AFTER the orchestrator's own Phase 7 coverage-map walk. The o
 - A `pass` is a strong assertion: it means you INDEPENDENTLY re-verified every coverage-map entry (commit + tests + demo) and every SR. Do not write `overall: pass` on the strength of the orchestrator's own walk — re-verify each entry yourself, with citations.
 - Every finding is concrete: name the coverage-map entry or SR, and exactly what is missing (no commit, a failing/absent test, no demo artifact, an unresolved SR, an `openspec validate` error).
 - No new file proposed without a Reuse Decision (your standing rule still applies — but a Phase 7 audit normally proposes nothing; it verdicts).
+- **Check the run's scope against the original prompt (v1.4.0).** Per `common-pipeline-conventions` `## Scope discipline`: a run whose scope is materially NARROWER than the user's original prompt literally implies — particularly on parity-implying verbs (`match` / `rebuild` / `mirror` / `parity` / `make like` / `replicate`) — is a silent scope-narrowing failure UNLESS an explicit user authorization for the narrowing is recorded in the change folder (a verbatim user quote in `proposal.md`'s `## Out of scope`, the refined-prompt's `## Refinement log`, or `intake-state.json`). The `scope_fidelity_finding` block in your verdict captures the check; a populated `scope_fidelity_finding.finding` field is a verdict-failure condition and overall flips to `fail` regardless of how the other criteria scored. This is the audit-level enforcement of the v1.4.0 scope discipline; the Phase 2 architect brief is supposed to have surfaced the question BEFORE the run started, but the master audit is the producer-checker gate that catches the case where the up-front question was missed.
 
 ## Documentation Currency Audit (Phase 8 — the docs-reflect-the-code gate)
 
@@ -386,5 +400,6 @@ You receive: the run's diff (the commits this run produced, or `git diff` of the
 - When dispatched in Editability Map Review mode, do NOT rubber-stamp a converged map. Three reviewers agreeing is the input to your review, not a substitute for it.
 - When dispatched in Interaction Map Review mode, do NOT rubber-stamp the converged interaction map — apply the shared-blind-spot / coverage / test-authenticity / placeholder-honesty / escalation-honesty rubric; a `live` page that fetches nothing or a "user-flow test" cited only by filename is a gap, and only your `pass` unlocks the `interaction-gap` SRs.
 - When dispatched in Visual Gap Synthesis mode, run the completeness check before anything else, and cluster gaps into root causes — never hand back a flat list of tuples.
-- When dispatched in Master Review Audit mode, INDEPENDENTLY re-verify every coverage-map entry and every SR — a `pass` verdict asserts you re-checked each one yourself with citations, not that the orchestrator's own walk looked fine. You audit the run; you do not re-do the build.
+- When dispatched in Master Review Audit mode, INDEPENDENTLY re-verify every coverage-map entry and every SR — a `pass` verdict asserts you re-checked each one yourself with citations, not that the orchestrator's own walk looked fine. You audit the run; you do not re-do the build. **Also (v1.4.0)** check the run's scope against the original prompt's literal meaning per `common-pipeline-conventions` `## Scope discipline` — a run whose scope is narrower than the prompt literally implies, with no recorded user authorization, is a silent scope-narrowing failure and the verdict's `scope_fidelity_finding.finding` is populated; overall flips to `fail`.
+- When dispatched in default mode at Phase 2 (architect brief / coverage-map slice / decomposition), confirm the proposed plan's scope matches the original user prompt's literal meaning per `common-pipeline-conventions` `## Scope discipline`. If the plan scopes narrower than the prompt's parity-implying verb (`match` / `rebuild` / `mirror` / `parity` / `make like` / `replicate`) implies, surface a scope-clarification question to the orchestrator BEFORE finalizing the recommendation — do not silently accept the narrower scope. The `Scope check (v1.4.0)` section in the Output structure is where this is recorded; a populated unresolved scope question goes to `Open questions for the orchestrator`.
 - When dispatched in Documentation Currency Audit mode, walk the `documentation-currency` inventory against the actual diff — a `pass` asserts every doc that needed updating was updated accurately and every map's freshness frontmatter is current. You audit the orchestrator's doc updates; you do not write the docs yourself.

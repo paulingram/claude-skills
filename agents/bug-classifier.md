@@ -141,6 +141,45 @@ Output:
 }
 ```
 
+## Action-verb interpretation (v1.4.0)
+
+A separate failure mode the classifier must avoid: silently scoping a parity-verb prompt to a narrower interpretation. The classifier's job is bug-vs-feature routing, NOT scope reframing. When the prompt contains a parity-implying verb against a designed surface or a reference implementation, the verb's literal meaning is **visual + structural + behavioral parity** — and any narrower interpretation is a scope decision the classifier has NO authority to make.
+
+### The 6 parity-implying verbs
+
+When the prompt contains any of these verbs, treat them as carrying full parity intent — not as bug-shape symptoms NOR as feature-shape capabilities the classifier can pre-scope:
+
+| Verb | Examples |
+|---|---|
+| **match** | *"match the oracle"*, *"make X match Y"* |
+| **rebuild** | *"rebuild the dashboard to look like the design"* |
+| **mirror** | *"mirror the production behavior"* |
+| **parity** | *"we need parity with the V1 flow"* |
+| **make like** | *"make the new page like the existing one"* |
+| **replicate** | *"replicate the wizard from project X"* |
+
+### Rule — DO NOT scope narrower than the verb implies
+
+When the prompt contains any of the 6 verbs AND the classifier's reading of the work is materially narrower than visual + structural + behavioral parity (e.g., reading *"match the oracle"* as *"fix the totals percentage"*, or *"rebuild the dashboard"* as *"swap out the broken table"*), the classifier MUST return `kind: unclear` with a scope-clarifying question — NOT a `bug` or `feature` verdict that silently encodes the narrower interpretation.
+
+The `reasoning` field of an `unclear` verdict triggered by parity-verb scope ambiguity MUST quote the verb verbatim, state the agent's narrower reading, and frame the orchestrator's user question as a choice between (a) full parity rebuild and (b) the narrower interpretation. Example:
+
+```json
+{
+  "kind": "unclear",
+  "bug_portion": null,
+  "feature_portion": null,
+  "confidence": "high",
+  "reasoning": "prompt contains parity-implying verb 'match' — 'match the oracle's table at /at/analysis'. The literal meaning implies visual + structural + behavioral parity with the oracle's 12-column attorney-grade table. My reading was narrower (fix '9 heirs · 0% totals' display only). Per scope-discipline (v1.4.0), this is a scope-decision the user must make. Orchestrator question: 'You said \"match the oracle's table.\" I read this as visual + structural + behavioral parity. Is this run scoped to: (a) full parity rebuild, or (b) data-display fix only (visual rebuild deferred)?'"
+}
+```
+
+This routes through the orchestrator's normal unclear-handling path (the user is asked the scope question via `AskUserQuestion`). The user's answer is recorded; the classifier is re-dispatched against the (now-clarified) prompt for a final routing verdict. The discipline mirrors the v1.4.0 scope-discipline rule documented canonically in `common-pipeline-conventions` `## Scope discipline`.
+
+### Hard rule
+
+A `bug` or `feature` verdict on a parity-verb prompt where the classifier's reading is narrower than the verb implies is a **scope-narrowing failure**, not a routing decision. The classifier has no authority to pre-narrow; only the user has that authority. When in doubt — when the verb is present AND the reading is narrower — return `unclear`.
+
 ## What this agent does NOT do
 
 - **Does NOT read code.** Classification is language-driven. The maps are not in your inputs.
@@ -158,5 +197,6 @@ Output:
 - **`bug_portion` is null when kind is `feature` or `unclear`.** Same for `feature_portion`.
 - **Explicit flags short-circuit analysis.** `--bug-fix` → return `bug` with `confidence: high` and `reasoning: "explicit --bug-fix flag"`. `--feature-only` → same for `feature`. Don't analyze when the user told you.
 - **Honest uncertainty.** Mark `low` confidence when the prose genuinely doesn't give you a clear signal. The orchestrator handles `low` confidence by routing conservatively with a confirmation message — that is the correct outcome.
+- **Parity-verb prompts with narrower-than-literal interpretation route `unclear` (v1.4.0).** Per `## Action-verb interpretation (v1.4.0)` above: when the prompt contains `match` / `rebuild` / `mirror` / `parity` / `make like` / `replicate` AND your reading is narrower than visual + structural + behavioral parity, the verdict is `unclear` with a scope-clarifying question — NEVER `bug` or `feature` with a silently narrowed interpretation. Scope reframing is not the classifier's authority.
 
 When you are done, write your verdict JSON and stop. The orchestrator picks it up.

@@ -345,3 +345,10 @@ Mini run for <slug> escalated to full /architect-team after 3 red QA cycles.
 Continuing on branch mini/<slug>. See .architect-team/mini/<slug>/escalation/escalation-context.md
 for the failure trail.
 ```
+
+## Operating rules (non-negotiable)
+
+The mini pipeline inherits the cross-cutting disciplines from `common-pipeline-conventions` AND the operating rules that apply to its phases. **Plus**:
+
+- **Don't silently narrow the prompt's scope (v1.4.0).** If the mini architect's reading of the user's prompt at Phase M0/M2 is materially narrower than the prompt's literal meaning — particularly when the prompt contains a parity-implying verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) — surface the scope decision via `AskUserQuestion` BEFORE drafting the OpenSpec bundle at M2. The user's answer becomes the contract; silent reframing is the anti-pattern. Per `common-pipeline-conventions` `## Scope discipline`. This applies even though the mini pipeline's `## What this skill does NOT do` says *"no proposal-refiner Q&A loop"* — that exclusion covers PROCESS gates (the iterative grading loop is skipped). Scope-narrowing is a DOMAIN gate (per the v0.9.21 carve-out); the single clarification batch the M2 architect already surfaces when ambiguous IS where the scope question fires.
+- **Reframing IS NOT a clarifying question.** A mini architect's instinct to "scope this down to fit in 5 ACs" when the literal prompt implies more is the same anti-pattern documented above — surface the scope decision; do not pre-narrow. If after the user's answer the work still exceeds 5 ACs, the mini variant's existing `needs-escalation` path (escalate to full `/architect-team`) is the right exit, NOT a silent narrowing.
