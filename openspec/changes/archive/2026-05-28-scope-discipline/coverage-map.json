@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "change": "scope-discipline",
+  "version": "1.4.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "common-pipeline-conventions has a scope-discipline section", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_scope_discipline.py"]},
+    {"id": "REQ-2", "title": "Three pipeline bodies reference the scope-discipline section", "layer": "discipline",
+     "covered_by": ["skills/architect-team-pipeline/SKILL.md", "skills/bug-fix-pipeline/SKILL.md", "skills/mini-architect-team-pipeline/SKILL.md", "tests/test_scope_discipline.py"]},
+    {"id": "REQ-3", "title": "prompt-refiner agent documents the 6th grading axis", "layer": "discipline",
+     "covered_by": ["agents/prompt-refiner.md", "tests/test_scope_discipline.py"]},
+    {"id": "REQ-4", "title": "proposal-refiner skill documents the 6th axis", "layer": "discipline",
+     "covered_by": ["skills/proposal-refiner/SKILL.md", "tests/test_scope_discipline.py"]},
+    {"id": "REQ-5", "title": "bug-classifier documents action-verb interpretation", "layer": "discipline",
+     "covered_by": ["agents/bug-classifier.md", "tests/test_scope_discipline.py"]},
+    {"id": "REQ-6", "title": "system-architect audit modes flag scope-narrowing", "layer": "discipline",
+     "covered_by": ["agents/system-architect.md", "tests/test_scope_discipline.py"]},
+    {"id": "REQ-7", "title": "Structural tests assert the discipline is documented", "layer": "infra",
+     "covered_by": ["tests/test_scope_discipline.py"]},
+    {"id": "REQ-8", "title": "Version bumped to 1.4.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md"},
+    {"id": "RD-2", "decision": "extend", "anchor": "3 pipeline SKILL.md bodies"},
+    {"id": "RD-3", "decision": "extend", "anchor": "agents/prompt-refiner.md"},
+    {"id": "RD-4", "decision": "extend", "anchor": "skills/proposal-refiner/SKILL.md"},
+    {"id": "RD-5", "decision": "extend", "anchor": "agents/bug-classifier.md"},
+    {"id": "RD-6", "decision": "extend", "anchor": "agents/system-architect.md"},
+    {"id": "RD-7", "decision": "build-new", "anchor": "tests/test_scope_discipline.py"},
+    {"id": "RD-8", "decision": "no-change", "anchor": "no retroactive flagging of prior runs"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test change",
+  "implementing_commits": []
+}
