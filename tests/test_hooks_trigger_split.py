@@ -435,3 +435,53 @@ def test_completion_audit_stop_blocks_on_open_sr_regardless_of_mode(
     r = _run(completion_audit_script, workspace, payload)
     assert r.returncode == 2
     assert "SR-test.json" in r.stderr
+
+
+# --- hooks.json wiring (REQ-4 registration) ----------------------------
+
+
+def test_hooks_json_registers_task_completed(plugin_root: Path) -> None:
+    """REQ-4.2 wiring: hooks.json must register a TaskCompleted event that
+    routes to review-gate-task.py — the teams-mode counterpart of the
+    PostToolUse(TaskUpdate) registration."""
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries = data["hooks"].get("TaskCompleted", [])
+    assert entries, "no TaskCompleted hook registered"
+    cmds = [h["command"] for entry in entries for h in entry["hooks"]]
+    assert any("review-gate-task.py" in c for c in cmds), (
+        f"no TaskCompleted command references review-gate-task.py; got: {cmds}"
+    )
+
+
+def test_hooks_json_registers_teammate_idle(plugin_root: Path) -> None:
+    """REQ-4.3 wiring: hooks.json must register a TeammateIdle event that
+    routes to teammate-idle-check.py — the teams-mode counterpart of the
+    SubagentStop registration."""
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries = data["hooks"].get("TeammateIdle", [])
+    assert entries, "no TeammateIdle hook registered"
+    cmds = [h["command"] for entry in entries for h in entry["hooks"]]
+    assert any("teammate-idle-check.py" in c for c in cmds), (
+        f"no TeammateIdle command references teammate-idle-check.py; got: {cmds}"
+    )
+
+
+def test_hooks_json_teams_mode_entries_use_polyglot_fallback(plugin_root: Path) -> None:
+    """The new TaskCompleted + TeammateIdle entries must carry the same
+    `|| python ...` polyglot fallback as the existing entries — the
+    v0.9.30 cross-platform-hook contract from test_hooks_structure.py
+    applies to ALL hook commands, including the new teams-mode entries.
+    """
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for event in ("TaskCompleted", "TeammateIdle"):
+        entries = data["hooks"].get(event, [])
+        assert entries, f"missing {event} registration"
+        for entry in entries:
+            for h in entry.get("hooks", []):
+                cmd = h.get("command", "")
+                assert " || python " in cmd, (
+                    f"{event} hook command missing polyglot fallback: {cmd!r}"
+                )
