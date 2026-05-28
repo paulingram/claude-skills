@@ -28,6 +28,26 @@ The v0.9.17 same-input-forms rules apply verbatim — **do NOT refuse plain-lang
 
 **Detect the form:** if `$REQ_DIR` is a single token resolving to an existing directory → form 1 (folder). Otherwise → form 2 (plain-language). When unsure, it is form 2.
 
+## Dispatch mode
+
+The bug-fix pipeline supports two dispatch primitives — **teams mode** (Claude Code's experimental Agent Teams: long-lived named teammates with their own 1M contexts, a shared task list, and direct `SendMessage`) and **subagents mode** (the v0.9.36 behavior — ephemeral `Agent`-tool dispatches, fresh context per call). The Lead decides which once, at startup, and the decision is the same for the entire run.
+
+**Selection rule (evaluated once, at the top of Phase B−1).** Teams mode is selected when ALL of these are true; otherwise subagents mode is selected.
+
+1. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to a truthy value (`1`, `true`, `yes` — case-insensitive) in the process env OR in `~/.claude/settings.json` at `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`.
+2. `claude --version` reports a parseable version `>= 2.1.32`.
+3. The `--no-teams` flag was NOT passed on the invoking `/architect-team:bug-fix` command (the escape hatch for users hitting experimental-flag instability).
+
+If env / settings is unset, version is below `2.1.32`, the version is unparseable, or `--no-teams` was passed, the pipeline runs in subagents mode. When env + version qualify but the version is too old, surface a one-line note (*"Claude Code 2.1.32+ required for teams mode; running in subagents mode."*); when env is unset entirely, run subagents mode silently — the experimental feature is invisible to users who have not opted in.
+
+**Persist the decision.** Write `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` as soon as the selection is computed (the bug-fix pipeline reuses the main pipeline's `intake-state.json`). Every later phase reads this — the hook scripts branch on it (teams mode = `TaskCompleted` / `TeammateIdle`; subagents mode = `PostToolUse(TaskUpdate)` / `SubagentStop`), and the dispatch sentences below pick the right primitive.
+
+**Teams-mode primitives (when `dispatch_mode == "teams"`).** The Lead spawns named teammates via the Agent tool with `run_in_background: true` and a stable, human-readable name (e.g., `bug-replicator-1`, `qa-replayer`, `fix-team`). The spawn invocation references the subagent definition — *"Spawn teammate using the `bug-replicator` agent type to reproduce the failing flow"* — so the role's `tools` allowlist and system prompt are inherited per the agent-teams docs. Teammates communicate directly via `SendMessage` (e.g., the `bug-replicator` hands the QA replay path to the `qa-replayer` directly; the fix team's `system-architect` receives the diagnostic plan via direct message). The shared task list lives at `~/.claude/tasks/<slug>/`; the Lead adds tasks and teammates claim them.
+
+**Subagents-mode primitives (when `dispatch_mode == "subagents"`).** The Lead dispatches via the Agent tool one at a time (or batched parallel via a single Agent-tool call carrying multiple invocations where the phase calls for parallelism). Each subagent is ephemeral — fresh context, no `SendMessage`, no persistence across dispatches. Cross-step coordination flows through orchestrator-mediated handoff files (e.g., the diagnostic plan on disk, the verdict JSON, the SR file). This is unchanged from prior versions; pass `--no-teams` to force this mode even when teams qualify.
+
+Wherever this skill body says *"the Lead creates a `<role>` task (teams mode) OR dispatches the `<role>` subagent (subagents mode)"*, the branch is decided by `dispatch_mode` — both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
+
 ## Default mode of operation
 
 Same as `architect-team-pipeline` v0.9.20: **drive end-to-end, gates are opt-in for *process* gates, fire for *domain* gates** (per the v0.9.21 carve-out). The bug-fix pipeline's domain gates — fire regardless of `--proposal-first`:
@@ -97,7 +117,7 @@ The change-name convention: bug-fix changes get the same `architect-team/<bug-sl
 
 ## Phase B1 — Bug Replication
 
-Dispatch the `bug-replicator` agent (one agent per affected codebase; usually just one). Inputs to the agent:
+The Lead creates a `bug-replicator` task in the shared list (teams mode) OR dispatches the `bug-replicator` subagent (subagents mode), one per affected codebase (usually just one). Inputs to the agent:
 
 - The bug description (the source prose OR the bug-report artifacts).
 - The relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP / INTERACTION_INTUITION_MAP (when present).
@@ -157,7 +177,7 @@ Persist the artifacts under `<target-codebase>/tests/bug-fix-<bug-slug>/` (or th
 Author a slim OpenSpec change at `openspec/changes/<bug-slug>/`. The artifact chain is the same as a feature change: `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`, `coverage-map.json`. The proposal:
 
 - **Cites the replication evidence verbatim.** Quote the artifact's failing output as the source of the failure-mode statement.
-- **Names the root cause** if known from the replication (a missing await, a broken contract assumption, a stale cached value). If the root cause is genuinely unclear after the replication, route through `diagnostic-research-team` per the main pipeline's Phase 3b discipline — same flow, same plan, same architect-review gate.
+- **Names the root cause** if known from the replication (a missing await, a broken contract assumption, a stale cached value). If the root cause is genuinely unclear after the replication, the Lead routes through `diagnostic-research-team` per the main pipeline's Phase 3b discipline — same flow, same plan, same architect-review gate (the Lead creates 3 `diagnostic-researcher` tasks in the shared list in teams mode, or dispatches 3 `diagnostic-researcher` subagents in parallel via a single Agent-tool batch in subagents mode; no researcher spawns the architect — only the Lead does).
 - **Proposes the fix.** The fix targets the root cause, not the symptom. State the class of bug being addressed (not just the failing input).
 - **Includes Reuse Decisions** per `reuse-first-design` for any new file the fix introduces. A bug fix that extends an existing function gets a one-line Reuse Decision; a bug fix that needs a new module gets a full one.
 
@@ -183,7 +203,7 @@ The gate loops until ALL seven conditions below are true. Each iteration refines
 
 ## Phase B4 — Bug-Fix Generalization Audit
 
-Dispatch the `system-architect` agent in **Bug-Fix Generalization Audit** mode. Inputs:
+The Lead creates a `system-architect` task in **Bug-Fix Generalization Audit** mode (teams mode) OR dispatches the `system-architect` subagent in that mode (subagents mode). Inputs:
 
 - The source description (the bug report).
 - The replication evidence (the artifact paths + their failing output).
@@ -204,7 +224,7 @@ The audit verdict gates Phase B5: the implementing team does NOT touch code unti
 
 ## Phase B5 — Implement + deploy to dev
 
-Spawn ONE focused fix team (a `frontend` or `backend` agent depending on layer; for `both`-layer bugs, sequence them or run them in parallel with non-overlapping file scope per the main pipeline's Phase 2 rules — usually a bug fix is single-layer or has a clear primary). Brief includes:
+The Lead creates ONE focused fix-team task in the shared list (teams mode) OR dispatches ONE focused fix-team subagent (subagents mode) — a `frontend` or `backend` agent depending on layer; for `both`-layer bugs, the Lead sequences them or runs them in parallel with non-overlapping file scope per the main pipeline's Phase 2 rules — usually a bug fix is single-layer or has a clear primary. Brief includes:
 
 - The OpenSpec change name + the relevant tasks from `tasks.md`.
 - The proposed approach from `design.md` (architect-approved at B4).
@@ -225,7 +245,7 @@ Phase B5 does NOT auto-deploy to production. The user's answer is the green ligh
 
 ## Phase B6 — QA replay against live dev
 
-Dispatch the `qa-replayer` agent. Inputs:
+The Lead creates a `qa-replayer` task in the shared list (teams mode) OR dispatches the `qa-replayer` subagent (subagents mode). Inputs:
 
 - The path(s) to the reproduction artifact(s) from B2.
 - The dev environment URL(s).
@@ -291,7 +311,7 @@ B6's QA-replay verifies the ORIGINAL symptom is gone (clicking Sign Back In rout
 ### Process
 
 1. **Compute the impact set.** The orchestrator (or the dispatched `fix-sensibility-checker` agent — the canonical impact-set computation is in the agent body's `## Impact-set computation` section) reads `git diff <merge-base>..<fix-commit-sha> --name-only` and classifies each changed file (UI component / page / API endpoint / style / config). For each changed file, the agent expands to importers (one level — `git grep` for the file's import paths) + nav destinations (for changed pages — `<Link to=` / `router.push(` / `navigate(` patterns) + endpoints (for changed API handlers).
-2. **Dispatch the `fix-sensibility-checker` agent** with the impact set + the deployed dev URL + the credentials env-var.
+2. **The Lead creates a `fix-sensibility-checker` task in the shared list (teams mode) OR dispatches the `fix-sensibility-checker` subagent (subagents mode)** with the impact set + the deployed dev URL + the credentials env-var.
 3. **The agent authors minimal Playwright sensibility flows per impact-set item.** Each flow is small (5-10 lines): navigate to the page / load the component / call the endpoint, and assert it renders without an error banner ("auth-unavailable", "service-unavailable", "configuration-missing", "could not load", "500", "404"), without console errors, without broken auth surfaces, without missing-data placeholders.
 4. **The agent runs the sensibility flows against the deployed dev environment** (per `playwright-user-flows` — same real-running-app discipline as B6).
 5. **Per-item verdict:** one of `sensible` / `nonsensical` / `env-failure` / `not-reachable`. Persisted in the agent's verdict file at `<cwd>/.architect-team/sensibility/<bug-slug>/checker-<ts>.json`.
@@ -341,8 +361,8 @@ Same flow as `architect-team-pipeline` Phase 8 — **documentation-currency gate
 **Documentation-currency gate at Phase B8 (per the `documentation-currency` skill + v0.9.23's `doc-updater` agent):**
 
 0. **Bump version first** — the orchestrator updates `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` to the target version. The bug-fix pipeline's typical version bump is a patch (e.g., `0.9.22` → `0.9.23`) since a bug-fix loop ships a small slice; the orchestrator decides the level.
-1. **Update — dispatch the `doc-updater` agent** (v0.9.23, opus, bounded `Write` only to the documentation-currency inventory paths). Same dispatch as the main pipeline's Phase 8. The agent reads the bug-fix loop's `git diff` (typically small — one or two files plus the new test artifact) and updates whatever inventory docs the diff invalidated. For a tiny bug-fix diff the agent walks the inventory, finds zero stale sections, writes a report with `updates: []` (or a minimal CHANGELOG entry), and exits cheaply. The cost of the dispatch is negligible; the value is structural — bug fixes are not exempt from the doc-currency gate.
-2. **Audit — dispatch the `system-architect` agent** in Documentation Currency Audit mode (unchanged from v0.9.15). Independent verification.
+1. **Update — the Lead creates a `doc-updater` task** (v0.9.23, opus, bounded `Write` only to the documentation-currency inventory paths) in the shared list (teams mode) OR dispatches the `doc-updater` subagent (subagents mode). Same dispatch shape as the main pipeline's Phase 8. The agent reads the bug-fix loop's `git diff` (typically small — one or two files plus the new test artifact) and updates whatever inventory docs the diff invalidated. For a tiny bug-fix diff the agent walks the inventory, finds zero stale sections, writes a report with `updates: []` (or a minimal CHANGELOG entry), and exits cheaply. The cost of the dispatch is negligible; the value is structural — bug fixes are not exempt from the doc-currency gate.
+2. **Audit — the Lead creates a `system-architect` task** in Documentation Currency Audit mode (teams mode) OR dispatches the `system-architect` subagent in that mode (subagents mode). Unchanged from v0.9.15. Independent verification.
 3. **Gate.** `pipeline-completion-audit.py` blocks the commit until the audit verdict is `overall: pass` — same enforcement as the main pipeline.
 
 The completion audit verifies the bug-fix loop closed cleanly — every iteration's SR resolved, the final QA-replay verdict is `bug-resolved`, the master-review audit verdict at B7 (if any) is `pass`, the doc-currency audit verdict is `pass`, no escalation marker pending.
