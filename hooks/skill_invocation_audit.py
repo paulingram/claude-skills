@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""Layer 6 of the Verified Agent Output (VAO) framework — Skill-invocation audit.
+
+The five other VAO layers (oracle-derivation, adversarial review, tool-mediated
+proof, run-history shape detection, structural tests) ALL fire WHEN the
+architect-team-pipeline Skill is invoked. If the orchestrator decides to "apply
+the methodology by hand" rather than invoke the Skill tool — the heirship-app-v2
+session where a "do not re-execute" system note about an already-invoked skill
+was interpreted as license to skip Skill invocation entirely — NONE of Layers
+1-5 fire. Layer 6 closes that gap.
+
+The mechanism:
+
+1. Parses every user message in the session transcript for explicit Skill
+   invocation requests in two surface forms — slash-command (e.g.,
+   ``/architect-team:architect-team``) and prose (e.g., ``use /architect-team``).
+2. Reads the session's tool-call ledger for actual ``Skill`` invocations.
+3. Cross-checks: for every explicit request, asserts a matching ``Skill``
+   invocation appears in the ledger AFTER the request's timestamp.
+4. Writes a deterministic verdict JSON to
+   ``<workspace>/.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json``.
+5. CLI exits 2 when any user request has no matching ``Skill`` invocation.
+
+Stdlib only — same discipline as ``hooks/locks.py`` and ``hooks/review_evidence_schema.py``.
+
+User-precedence rule (documented in ``skills/common-pipeline-conventions/SKILL.md``):
+explicit user ``/architect-team:X`` requests OVERRIDE any "skill already invoked,
+do not re-execute" system note. The note is a hint preventing accidental
+re-invocation within a single decision cycle, NOT a session-wide ban. Applying
+methodology "by hand" rather than via the Skill tool is forbidden.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any, Iterable
+
+# The 13 user-invocable command names the architect-team plugin ships in v2.0.0.
+# `architect-team:architect-team` is the recursive/full-pipeline alias; the rest
+# are sibling commands.
+CANONICAL_COMMANDS: tuple[str, ...] = (
+    "architect-team",
+    "bug-fix",
+    "ux-test",
+    "mini",
+    "refine-prompt",
+    "cleanup-worktrees",
+    "mempalace-install",
+    "mempalace-search",
+    "mempalace-status",
+    "status",
+    "code-review",
+    "editability-audit",
+    "architect-team:architect-team",
+)
+
+# Map command-name → canonical Skill name(s) the harness reports. The audit
+# considers a request matched when ANY of the names appears in a ledger entry's
+# `args.skill` field. This indirection covers the architect-team commands that
+# dispatch into pipeline skills (e.g. /architect-team → architect-team-pipeline).
+COMMAND_TO_SKILLS: dict[str, tuple[str, ...]] = {
+    "architect-team": ("architect-team", "architect-team-pipeline"),
+    "architect-team:architect-team": ("architect-team", "architect-team-pipeline"),
+    "bug-fix": ("bug-fix", "bug-fix-pipeline"),
+    "ux-test": ("ux-test", "ux-test-builder"),
+    "mini": ("mini", "mini-architect-team-pipeline"),
+    "refine-prompt": ("refine-prompt", "proposal-refiner"),
+    "cleanup-worktrees": ("cleanup-worktrees",),
+    "mempalace-install": ("mempalace-install",),
+    "mempalace-search": ("mempalace-search",),
+    "mempalace-status": ("mempalace-status",),
+    "status": ("status",),
+    "code-review": ("code-review",),
+    "editability-audit": ("editability-audit",),
+}
+
+# Slash-command regex — matches `/architect-team`, `/architect-team:X`,
+# `/bug-fix`, etc. The optional `:subcommand` form captures sibling commands
+# like `/architect-team:architect-team`, `/architect-team:bug-fix`.
+_SLASH_PATTERN = re.compile(
+    r"/(?P<cmd>"
+    + "|".join(re.escape(c.split(":")[0]) for c in CANONICAL_COMMANDS)
+    + r")(?::(?P<sub>[\w-]+))?\b",
+    re.IGNORECASE,
+)
+
+# Prose-form regex — verb + (optional slash) + command-name. Verbs cover the
+# variants the heirship-app-v2 transcripts demonstrated: "use", "using",
+# "invoke", "run", "fire", "with".
+_PROSE_VERBS = r"(?:use|using|invoke|run|fire|with)"
+_PROSE_PATTERN = re.compile(
+    rf"\b{_PROSE_VERBS}\s+(?:the\s+)?/?(?P<cmd>"
+    + "|".join(re.escape(c.split(":")[0]) for c in CANONICAL_COMMANDS)
+    + r")(?::(?P<sub>[\w-]+))?\b",
+    re.IGNORECASE,
+)
+
+
+def _canonical_request(raw_cmd: str, raw_sub: str | None) -> str:
+    """Normalize a regex match into the canonical command name used as the
+    key in COMMAND_TO_SKILLS. A `/architect-team:architect-team` request
+    canonicalizes to `architect-team:architect-team`; a `/architect-team` (no
+    subcommand) canonicalizes to `architect-team`.
+    """
+    cmd = raw_cmd.lower()
+    sub = (raw_sub or "").lower()
+    if not sub:
+        return cmd
+    composite = f"{cmd}:{sub}"
+    if composite in COMMAND_TO_SKILLS:
+        return composite
+    # Fall back to the base command — covers `/architect-team:bug-fix` which
+    # is structurally a `/architect-team` invocation with a sub-route, not a
+    # distinct Skill.
+    return cmd
+
+
+def find_skill_requests(message_text: str) -> list[dict[str, Any]]:
+    """Scan a single user message for explicit Skill-invocation requests.
+
+    Returns a list of dicts, each with:
+      - ``raw_match``: the verbatim text matched (for the audit report)
+      - ``command``: the canonical command name (slash form, no leading slash)
+      - ``match_form``: ``"slash"`` or ``"prose"``
+      - ``expected_skills``: tuple of canonical Skill names that satisfy this
+        request (matches against a ``Skill`` ledger entry's ``args.skill``).
+
+    A message with no requests returns ``[]``. A message with multiple
+    requests returns one record per request (slash + prose forms in the
+    same message both count).
+    """
+    if not isinstance(message_text, str) or not message_text:
+        return []
+    found: list[dict[str, Any]] = []
+    seen_spans: set[tuple[int, int]] = set()
+
+    for match in _SLASH_PATTERN.finditer(message_text):
+        span = match.span()
+        seen_spans.add(span)
+        command = _canonical_request(match.group("cmd"), match.group("sub"))
+        found.append({
+            "raw_match": match.group(0),
+            "command": command,
+            "match_form": "slash",
+            "expected_skills": COMMAND_TO_SKILLS.get(command, (command,)),
+        })
+
+    for match in _PROSE_PATTERN.finditer(message_text):
+        # Skip prose matches that overlap a slash match — `/use architect-team`
+        # would otherwise count twice.
+        span = match.span()
+        if any(s[0] <= span[0] < s[1] or s[0] < span[1] <= s[1] for s in seen_spans):
+            continue
+        seen_spans.add(span)
+        command = _canonical_request(match.group("cmd"), match.group("sub"))
+        found.append({
+            "raw_match": match.group(0),
+            "command": command,
+            "match_form": "prose",
+            "expected_skills": COMMAND_TO_SKILLS.get(command, (command,)),
+        })
+
+    return found
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Read a JSONL file — one JSON object per non-empty line. Tolerates
+    blank lines + UTF-8. Returns ``[]`` if the file does not exist; the
+    audit treats a missing ledger as "no Skill invocations recorded" and
+    correctly reports any explicit request as unmatched.
+    """
+    if not path.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            entries.append(obj)
+    return entries
+
+
+def _read_transcript_messages(path: Path) -> list[dict[str, Any]]:
+    """Read a session-transcript JSON file. The expected shape is a list of
+    message dicts each with ``role``, ``text`` (or ``content``), and ``ts``
+    (or ``timestamp``).
+
+    Tolerates two on-disk forms:
+      - A single JSON array of message dicts.
+      - A JSONL stream (one message-dict per line).
+
+    Returns ``[]`` if the file is missing or unparseable.
+    """
+    if not path.exists():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    text = text.strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        try:
+            parsed = json.loads(text)
+            return [m for m in parsed if isinstance(m, dict)]
+        except json.JSONDecodeError:
+            return []
+    return _read_jsonl(path)
+
+
+def _extract_text(msg: dict[str, Any]) -> str:
+    """Pull the user-typed text out of a transcript-message dict. Handles
+    the two harness shapes:
+      - ``text``: a single string
+      - ``content``: a list of content blocks, each with ``type`` + ``text``
+    """
+    if isinstance(msg.get("text"), str):
+        return msg["text"]
+    content = msg.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                t = block.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
+            elif isinstance(block, str):
+                parts.append(block)
+        return "\n".join(parts)
+    return ""
+
+
+def _extract_ts(msg: dict[str, Any]) -> str | None:
+    """Pull the ISO 8601 timestamp out of a transcript or ledger entry."""
+    for key in ("ts", "timestamp", "at", "completed_at"):
+        v = msg.get(key)
+        if isinstance(v, str) and v:
+            return v
+    return None
+
+
+def _ledger_skill_invocations(ledger: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Filter the ledger down to actual Skill-tool invocations. Each entry's
+    ``tool`` field MUST equal ``"Skill"`` AND its ``args.skill`` field MUST
+    be a non-empty string for the entry to count.
+    """
+    out: list[dict[str, Any]] = []
+    for entry in ledger:
+        if entry.get("tool") != "Skill":
+            continue
+        args = entry.get("args")
+        if not isinstance(args, dict):
+            continue
+        skill = args.get("skill")
+        if not isinstance(skill, str) or not skill:
+            continue
+        out.append({
+            "ts": _extract_ts(entry),
+            "skill": skill,
+        })
+    return out
+
+
+def _request_matched(
+    expected_skills: tuple[str, ...],
+    request_ts: str | None,
+    invocations: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Return the FIRST ledger invocation matching ``expected_skills`` whose
+    timestamp is at or AFTER ``request_ts``. Returns ``None`` if no
+    invocation matches.
+
+    When timestamps are missing (e.g., a synthetic fixture or a stripped-down
+    ledger), the audit falls back to plain skill-name matching with no
+    ordering check — any matching invocation counts. This is intentionally
+    lenient on the timestamp dimension because the unambiguous failure case
+    the audit catches is the ABSENCE of a matching invocation, not the
+    ordering of one that exists.
+    """
+    for inv in invocations:
+        if inv["skill"] not in expected_skills:
+            continue
+        if request_ts and inv.get("ts") and inv["ts"] < request_ts:
+            # The invocation happened BEFORE the request; doesn't satisfy it.
+            continue
+        return inv
+    return None
+
+
+def audit_session(
+    transcript_path: Path | str,
+    ledger_path: Path | str,
+    run_id: str,
+    out_dir: Path | str,
+    audited_at: str | None = None,
+) -> dict[str, Any]:
+    """Run the Layer-6 audit on a session and return the verdict dict.
+
+    Side effect: writes the verdict JSON to
+    ``<out_dir>/<run_id>-skill-invocation-audit.json``.
+
+    The verdict has shape:
+
+        {
+          "schema_version": 1,
+          "run_id": "<id>",
+          "audited_at": "<ISO 8601 UTC>",
+          "verdict": "pass" | "fail",
+          "requests_found": [ ...  ],
+          "unmatched_requests": [ ... ],
+          "exit_code_if_invoked_as_hook": 0 | 2
+        }
+    """
+    transcript_path = Path(transcript_path)
+    ledger_path = Path(ledger_path)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    messages = _read_transcript_messages(transcript_path)
+    ledger = _read_jsonl(ledger_path)
+    invocations = _ledger_skill_invocations(ledger)
+
+    requests_found: list[dict[str, Any]] = []
+    for msg in messages:
+        role = msg.get("role")
+        if role != "user":
+            continue
+        text = _extract_text(msg)
+        ts = _extract_ts(msg)
+        for req in find_skill_requests(text):
+            match = _request_matched(req["expected_skills"], ts, invocations)
+            requests_found.append({
+                "request_ts": ts,
+                "request_text": req["raw_match"],
+                "request_command": req["command"],
+                "match_form": req["match_form"],
+                "expected_skills": list(req["expected_skills"]),
+                "matched_invocation_ts": match.get("ts") if match else None,
+                "matched_skill": match.get("skill") if match else None,
+                "matched": match is not None,
+            })
+
+    unmatched = [r for r in requests_found if not r["matched"]]
+    verdict_value = "pass" if not unmatched else "fail"
+    exit_code = 0 if not unmatched else 2
+
+    if audited_at is None:
+        # Defer import to keep stdlib-only at module load; isoformat() is
+        # safe even when the system clock is suspect — the audit's purpose
+        # is the verdict, not a high-precision timestamp.
+        from datetime import datetime, timezone
+        audited_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    verdict = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "audited_at": audited_at,
+        "verdict": verdict_value,
+        "requests_found": requests_found,
+        "unmatched_requests": unmatched,
+        "exit_code_if_invoked_as_hook": exit_code,
+    }
+
+    out_path = out_dir / f"{run_id}-skill-invocation-audit.json"
+    out_path.write_text(json.dumps(verdict, indent=2, sort_keys=True), encoding="utf-8")
+
+    return verdict
+
+
+def _format_fail_report(verdict: dict[str, Any]) -> str:
+    """Pretty-print the failure report — what a CI log or terminal sees on
+    exit 2. Mirrors the format named in the v2.0.0 proposal."""
+    lines = ["SKILL-INVOCATION-AUDIT FAIL", ""]
+    for req in verdict.get("unmatched_requests", []):
+        lines.append(
+            f"User explicitly requested Skill `{req.get('request_command')}` "
+            f"in message at {req.get('request_ts') or '<no-timestamp>'}:"
+        )
+        lines.append(f"  \"{req.get('request_text')}\"")
+        lines.append("")
+        lines.append("No matching `Skill` tool invocation was found in the session's")
+        lines.append("tool-call ledger after that timestamp.")
+        lines.append("")
+        lines.append("The orchestrator either:")
+        lines.append("  (a) interpreted a \"do not re-execute\" system note as license to skip")
+        lines.append("      the Skill tool invocation, OR")
+        lines.append("  (b) decided to \"apply the methodology by hand\" rather than invoke")
+        lines.append("      the framework.")
+        lines.append("")
+        lines.append("Both are forbidden. The user's explicit instruction takes precedence")
+        lines.append("over any system note — see common-pipeline-conventions /")
+        lines.append("Skill-invocation discipline.")
+        lines.append("")
+        lines.append("This run bypassed Layers 1-5 of the VAO framework. To recover, re-invoke")
+        lines.append("the requested Skill in this session.")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Layer 6 of VAO — Skill-invocation audit. Exits 2 when any "
+        "explicit user Skill-invocation request has no matching `Skill` tool "
+        "invocation in the session's tool-call ledger.",
+    )
+    parser.add_argument("--transcript", required=True, help="Path to the session transcript JSON or JSONL.")
+    parser.add_argument("--ledger", required=True, help="Path to the session tool-call ledger JSONL.")
+    parser.add_argument("--run-id", required=True, help="Run identifier used in the verdict filename.")
+    parser.add_argument("--out", required=True, help="Output directory for the verdict JSON.")
+    parser.add_argument("--quiet", action="store_true", help="Suppress the fail report; rely on exit code only.")
+    args = parser.parse_args(argv)
+
+    verdict = audit_session(
+        transcript_path=args.transcript,
+        ledger_path=args.ledger,
+        run_id=args.run_id,
+        out_dir=args.out,
+    )
+
+    if verdict["verdict"] != "pass" and not args.quiet:
+        print(_format_fail_report(verdict), file=sys.stderr)
+
+    return int(verdict["exit_code_if_invoked_as_hook"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

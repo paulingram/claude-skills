@@ -29,16 +29,16 @@ def workspace(tmp_path: Path) -> Path:
 
 
 def _valid_evidence(task_id: str) -> dict:
-    """Evidence schema v6 — must match hooks/review_evidence_schema.py exactly.
+    """Evidence schema v7 — must match hooks/review_evidence_schema.py exactly.
 
     The idle hook (SubagentStop) and the task hook (PostToolUse) both import
-    that shared module, so this helper carries the SAME 12 required top-level
-    fields the task-hook test helper uses (the 11 v5 fields plus the v6
-    `ui_interaction_review`), PLUS the v5 `independent_review` block whose
-    `reviewer` differs from `teammate`.
+    that shared module, so this helper carries the SAME 17 required top-level
+    fields the task-hook test helper uses (the 12 v6 fields plus the v7 VAO
+    fields), PLUS the v5 `independent_review` block whose `reviewer` differs
+    from `teammate`.
     """
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "task_id": task_id,
         "teammate": "any",
         "completed_at": "2026-05-16T10:00:00Z",
@@ -57,6 +57,18 @@ def _valid_evidence(task_id: str) -> dict:
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
         "ui_interaction_review": "n/a",
         "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface",
+        # v7 VAO fields — defaults all 'n/a' with notes since this is a backend
+        # synthetic-test fixture with no oracle/adversarial work
+        "oracle_match_review": "n/a",
+        "oracle_match_review_note": "synthetic test fixture; no oracle artifact in scope",
+        "baseline_clean_review": "n/a",
+        "baseline_clean_review_note": "synthetic test fixture; no real teammate tool-call log",
+        "no_fake_data_review": "n/a",
+        "no_fake_data_review_note": "synthetic test fixture; no production-code diff in scope",
+        "adversarial_review": "n/a",
+        "adversarial_review_note": "synthetic test fixture; no Phase 3 adversarial dispatch in scope",
+        "skill_invocation_audit": "n/a",
+        "skill_invocation_audit_note": "synthetic test fixture; no session transcript / ledger in scope",
         "independent_review": {
             "reviewer": "task-reviewer",
             "verdict": "pass",

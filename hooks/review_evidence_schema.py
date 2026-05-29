@@ -16,7 +16,12 @@ from __future__ import annotations
 
 from typing import Any
 
-# Evidence schema v6 (v0.9.19 added the required `ui_interaction_review` field —
+# Evidence schema v7 (v2.0.0 added the six required Verified Agent Output
+# fields — `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`,
+# `adversarial_review`, plus the existing `visual_fidelity_review` is now
+# MANDATORILY backed by a `verify-rendered-parity` tool verdict path, and a new
+# `skill_invocation_audit` field cites the Layer-6 `skill_invocation_audit.py`
+# verdict path. v6 (v0.9.19) added the required `ui_interaction_review` field —
 # a hook-enforced gate confirming every interactive element is genuinely
 # UI-tested, every page is the real live page rather than a placeholder, and
 # every displayed value is correctly static or dynamically bound — or a
@@ -25,9 +30,14 @@ from typing import Any
 # each took via a SCHEMA_VERSION bump. v5 (v0.9.13) added the required
 # `independent_review` block — the verdict of an independent `task-reviewer`
 # agent, so the Phase 3 gate structurally cannot pass on the teammate's
-# self-attestation). The 12 fields below are the teammate's OWN self-review and
+# self-attestation. The v7 fields below are the teammate's OWN self-review and
 # remain REQUIRED in every .architect-team/reviews/<task-id>.json evidence file.
-SCHEMA_VERSION = 6
+#
+# v7 BREAKING CHANGE: review-evidence files conforming to v6 are REJECTED
+# because the six VAO fields are missing. The migration path is documented in
+# CHANGELOG and skills/verified-agent-output/SKILL.md — runs in flight at the
+# v2.0.0 upgrade must re-spawn their teammates against v7.
+SCHEMA_VERSION = 7
 
 REQUIRED_EVIDENCE_FIELDS = {
     "task_id",
@@ -42,12 +52,28 @@ REQUIRED_EVIDENCE_FIELDS = {
     "test_completeness_review",
     "integration_testing_review",
     "ui_interaction_review",
+    # v7 — Verified Agent Output (VAO) framework fields. Each MUST be one of
+    # 'pass' / 'n/a' / 'fail' for the legacy *_review fields, OR a dict citing
+    # a verdict path for the new tool-mediated fields. See
+    # `skills/verified-agent-output/SKILL.md` for the full citation contract.
+    "oracle_match_review",
+    "baseline_clean_review",
+    "no_fake_data_review",
+    "adversarial_review",
+    "skill_invocation_audit",
 }
 
 VALID_VISUAL_FIDELITY_VALUES = {"pass", "n/a", "fail"}
 VALID_TEST_COMPLETENESS_VALUES = {"pass", "n/a", "fail"}
 VALID_INTEGRATION_TESTING_VALUES = {"pass", "n/a", "fail"}
 VALID_UI_INTERACTION_VALUES = {"pass", "n/a", "fail"}
+# v7 VAO valid-value sets — same `pass | n/a | fail` shape; failures BLOCK at
+# the hook layer the same way `visual_fidelity_review='fail'` does.
+VALID_ORACLE_MATCH_VALUES = {"pass", "n/a", "fail"}
+VALID_BASELINE_CLEAN_VALUES = {"pass", "n/a", "fail"}
+VALID_NO_FAKE_DATA_VALUES = {"pass", "n/a", "fail"}
+VALID_ADVERSARIAL_REVIEW_VALUES = {"pass", "n/a", "fail"}
+VALID_SKILL_INVOCATION_AUDIT_VALUES = {"pass", "n/a", "fail"}
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
 # `task-reviewer` agent — NOT the teammate. Its sub-fields below are all
@@ -280,7 +306,132 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
             )
 
     gaps += _validate_independent_review(evidence)
+    gaps += _validate_vao_fields(evidence)
 
+    return gaps
+
+
+def _validate_vao_field(
+    evidence: dict[str, Any],
+    field: str,
+    valid_values: set[str],
+    fail_explanation: str,
+    note_field: str | None = None,
+) -> list[str]:
+    """Common shape-check for the v7 VAO `*_review` / `*_audit` fields.
+
+    Each field is either:
+      - A simple string in {'pass', 'n/a', 'fail'} — the legacy review-shape.
+      - A dict with at minimum a 'verdict' key (the tool-mediated shape) AND
+        a 'verdict_path' citing the on-disk verdict JSON the dict's verdict
+        derived from. The dict-shape is the canonical v7 form; the string
+        shape is the migration-compatible form for review-evidence files
+        whose VAO inputs are tool-mediated upstream and surfaced inline.
+
+    Returns gap descriptions if the shape is wrong, the value is invalid, the
+    verdict is 'fail', or the `n/a` value lacks a non-empty explanatory note.
+    """
+    gaps: list[str] = []
+    value = evidence.get(field)
+
+    if isinstance(value, dict):
+        verdict = value.get("verdict")
+        if verdict not in valid_values:
+            gaps.append(
+                f"{field}.verdict={verdict!r} must be one of {sorted(valid_values)}"
+            )
+            return gaps
+        verdict_path = value.get("verdict_path")
+        if not isinstance(verdict_path, str) or not verdict_path.strip():
+            gaps.append(
+                f"{field} (dict-shape) requires a non-empty 'verdict_path' "
+                f"citing the on-disk verdict JSON the dict's verdict derived from"
+            )
+        if verdict == "fail":
+            gaps.append(f"{field}.verdict='fail' — {fail_explanation}")
+        return gaps
+
+    if value not in valid_values:
+        gaps.append(f"{field}={value!r} must be one of {sorted(valid_values)}")
+        return gaps
+
+    if value == "fail":
+        gaps.append(f"{field}='fail' — {fail_explanation}")
+    elif value == "n/a" and note_field is not None:
+        note = evidence.get(note_field)
+        if not isinstance(note, str) or not note.strip():
+            gaps.append(
+                f"{field}='n/a' requires a non-empty '{note_field}' explaining why"
+            )
+
+    return gaps
+
+
+def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
+    """Validate the five v7 VAO fields (oracle_match_review,
+    baseline_clean_review, no_fake_data_review, adversarial_review,
+    skill_invocation_audit). Each fires the same shape-check; only the
+    fail-explanation strings differ to give a targeted error in the hook
+    output that names which VAO layer is in violation.
+    """
+    gaps: list[str] = []
+    gaps += _validate_vao_field(
+        evidence,
+        "oracle_match_review",
+        VALID_ORACLE_MATCH_VALUES,
+        "Layer 3 `verify-oracle-match` found structural divergence from the "
+        "frozen oracle spec. The teammate's built tree does not match the "
+        "Phase 0.5 oracle. Re-engage on the divergences named in the verdict; "
+        "do not mark complete on a 'fail' verdict — the variance is the failure.",
+        note_field="oracle_match_review_note",
+    )
+    gaps += _validate_vao_field(
+        evidence,
+        "baseline_clean_review",
+        VALID_BASELINE_CLEAN_VALUES,
+        "Layer 3 `verify-baseline-clean` found a forbidden git operation in "
+        "the teammate's tool-call log (one of: `git stash`, `git stash pop`, "
+        "`git reset --hard`, `git rebase`, `git commit --amend`, "
+        "`git checkout <other-branch>`, `git clean -f`). Per v1.6.0 "
+        "teammate-git-discipline these clobber concurrent teammates' work; "
+        "do not mark complete — the violations named in the verdict must be "
+        "remediated.",
+        note_field="baseline_clean_review_note",
+    )
+    gaps += _validate_vao_field(
+        evidence,
+        "no_fake_data_review",
+        VALID_NO_FAKE_DATA_VALUES,
+        "Layer 3 `verify-no-fake-data` found design-literal hits in production "
+        "code (one of: oracle-listed dynamic values appearing verbatim, MSW "
+        "handlers, page.route fulfill stubs, hardcoded JSON payloads outside "
+        "test fixtures). Per v1.7.0 frontend-missing-api-discipline, frontend "
+        "must surface a missing-API SR rather than fake the data. Re-engage; "
+        "do not mark complete.",
+        note_field="no_fake_data_review_note",
+    )
+    gaps += _validate_vao_field(
+        evidence,
+        "adversarial_review",
+        VALID_ADVERSARIAL_REVIEW_VALUES,
+        "Layer 2 adversarial-reviewer found the shape-specific anti-pattern "
+        "the teammate's task is prone to. The independent_review verdict "
+        "covers correctness; the adversarial_review covers the named "
+        "failure-mode the task shape forbids. Both MUST pass for the Phase 3 "
+        "gate to open.",
+        note_field="adversarial_review_note",
+    )
+    gaps += _validate_vao_field(
+        evidence,
+        "skill_invocation_audit",
+        VALID_SKILL_INVOCATION_AUDIT_VALUES,
+        "Layer 6 `skill_invocation_audit.py` detected an explicit user "
+        "Skill-invocation request in the session transcript with no matching "
+        "`Skill` tool invocation in the tool-call ledger. The orchestrator "
+        "applied the methodology by hand rather than invoke the framework. "
+        "Re-invoke the requested Skill in this session before marking complete.",
+        note_field="skill_invocation_audit_note",
+    )
     return gaps
 
 

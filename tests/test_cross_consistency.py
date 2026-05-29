@@ -65,18 +65,24 @@ def test_evidence_hooks_import_the_shared_schema(plugin_root: Path, hook: str) -
     )
 
 
-def test_shared_schema_has_all_twelve_required_fields(plugin_root: Path) -> None:
+def test_shared_schema_has_all_seventeen_required_fields(plugin_root: Path) -> None:
+    """v2.0.0 schema v7 — the v6 12 fields plus the 5 VAO fields."""
     module = _import_file(
         "review_evidence_schema",
         plugin_root / "hooks" / "review_evidence_schema.py",
     )
     fields = module.REQUIRED_EVIDENCE_FIELDS
-    assert len(fields) == 12, f"expected 12 required evidence fields, got {len(fields)}: {sorted(fields)}"
+    assert len(fields) == 17, f"expected 17 required evidence fields, got {len(fields)}: {sorted(fields)}"
     for review_field in (
         "visual_fidelity_review",
         "test_completeness_review",
         "integration_testing_review",
         "ui_interaction_review",
+        "oracle_match_review",
+        "baseline_clean_review",
+        "no_fake_data_review",
+        "adversarial_review",
+        "skill_invocation_audit",
     ):
         assert review_field in fields, f"shared schema missing {review_field!r}"
 

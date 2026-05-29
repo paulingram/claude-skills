@@ -60,9 +60,9 @@ def workspace(tmp_path: Path) -> Path:
 
 
 def _valid_evidence(task_id: str, teammate: str = "backend-test") -> dict:
-    """Evidence schema v6 — must match hooks/review_evidence_schema.py exactly."""
+    """Evidence schema v7 — must match hooks/review_evidence_schema.py exactly."""
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "task_id": task_id,
         "teammate": teammate,
         "completed_at": "2026-05-28T10:00:00Z",
@@ -81,6 +81,17 @@ def _valid_evidence(task_id: str, teammate: str = "backend-test") -> dict:
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
         "ui_interaction_review": "n/a",
         "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface",
+        # v7 VAO fields — all 'n/a' for the synthetic backend test fixture
+        "oracle_match_review": "n/a",
+        "oracle_match_review_note": "synthetic test fixture; no oracle artifact in scope",
+        "baseline_clean_review": "n/a",
+        "baseline_clean_review_note": "synthetic test fixture; no real teammate tool-call log",
+        "no_fake_data_review": "n/a",
+        "no_fake_data_review_note": "synthetic test fixture; no production-code diff in scope",
+        "adversarial_review": "n/a",
+        "adversarial_review_note": "synthetic test fixture; no Phase 3 adversarial dispatch in scope",
+        "skill_invocation_audit": "n/a",
+        "skill_invocation_audit_note": "synthetic test fixture; no session transcript / ledger in scope",
         "independent_review": {
             "reviewer": "task-reviewer",
             "verdict": "pass",

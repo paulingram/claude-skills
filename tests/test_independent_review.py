@@ -51,7 +51,7 @@ def _valid_v5_evidence() -> dict:
     added the required `ui_interaction_review` field.
     """
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "task_id": "T-1",
         "teammate": "backend-auth",
         "completed_at": "2026-05-21T10:00:00Z",
@@ -70,6 +70,17 @@ def _valid_v5_evidence() -> dict:
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
         "ui_interaction_review": "n/a",
         "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface",
+        # v7 VAO fields — all 'n/a' for the backend-auth synthetic fixture
+        "oracle_match_review": "n/a",
+        "oracle_match_review_note": "synthetic test fixture; no oracle artifact in scope",
+        "baseline_clean_review": "n/a",
+        "baseline_clean_review_note": "synthetic test fixture; no real teammate tool-call log",
+        "no_fake_data_review": "n/a",
+        "no_fake_data_review_note": "synthetic test fixture; no production-code diff in scope",
+        "adversarial_review": "n/a",
+        "adversarial_review_note": "synthetic test fixture; no Phase 3 adversarial dispatch in scope",
+        "skill_invocation_audit": "n/a",
+        "skill_invocation_audit_note": "synthetic test fixture; no session transcript / ledger in scope",
         "independent_review": {
             "reviewer": "task-reviewer",
             "verdict": "pass",
@@ -84,13 +95,13 @@ def _valid_v5_evidence() -> dict:
 
 # --- the schema requires the independent_review block ----------------------
 
-def test_schema_version_is_6(plugin_root: Path) -> None:
-    """v0.9.19 bumped the shared evidence schema v5 -> v6 to add the required
-    `ui_interaction_review` field. The `independent_review` block (v5) is
-    unchanged and remains required at v6."""
+def test_schema_version_is_7(plugin_root: Path) -> None:
+    """v2.0.0 bumped the shared evidence schema v6 -> v7 to add the six
+    required VAO fields. The `independent_review` block (v5) is unchanged
+    and remains required at v7."""
     module = _import_schema(plugin_root)
-    assert getattr(module, "SCHEMA_VERSION", None) == 6, (
-        "review_evidence_schema.SCHEMA_VERSION must be 6"
+    assert getattr(module, "SCHEMA_VERSION", None) == 7, (
+        "review_evidence_schema.SCHEMA_VERSION must be 7"
     )
 
 
@@ -114,10 +125,13 @@ def test_valid_v5_evidence_passes(plugin_root: Path) -> None:
 
 def test_keeps_all_top_level_self_review_fields(plugin_root: Path) -> None:
     """The top-level fields are the teammate's self-review and stay required.
-    v0.9.19 (schema v6) added `ui_interaction_review`, bringing the count to 12."""
+    v0.9.19 (schema v6) added `ui_interaction_review`, bringing the count to 12.
+    v2.0.0 (schema v7) added the five VAO fields (oracle_match_review,
+    baseline_clean_review, no_fake_data_review, adversarial_review,
+    skill_invocation_audit), bringing the count to 17."""
     module = _import_schema(plugin_root)
-    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 12, (
-        f"expected 12 top-level required fields, got {sorted(module.REQUIRED_EVIDENCE_FIELDS)}"
+    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 17, (
+        f"expected 17 top-level required fields, got {sorted(module.REQUIRED_EVIDENCE_FIELDS)}"
     )
 
 

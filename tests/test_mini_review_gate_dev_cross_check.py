@@ -83,6 +83,17 @@ def _valid_cross_review_evidence(teammate: str, reviewer: str) -> dict:
         "ui_interaction_review_note": (
             "mini-variant slice; no UI/frontend interactive surface in this payload"
         ),
+        # v7 VAO fields — all 'n/a' for the mini-variant cross-review fixture
+        "oracle_match_review": "n/a",
+        "oracle_match_review_note": "mini-variant fixture; no oracle artifact in scope",
+        "baseline_clean_review": "n/a",
+        "baseline_clean_review_note": "mini-variant fixture; no real teammate tool-call log",
+        "no_fake_data_review": "n/a",
+        "no_fake_data_review_note": "mini-variant fixture; no production-code diff in scope",
+        "adversarial_review": "n/a",
+        "adversarial_review_note": "mini-variant fixture; mini collapses adversarial pairing to mini-qa",
+        "skill_invocation_audit": "n/a",
+        "skill_invocation_audit_note": "mini-variant fixture; no session transcript / ledger in scope",
         "independent_review": {
             "reviewer": reviewer,
             "verdict": "pass",

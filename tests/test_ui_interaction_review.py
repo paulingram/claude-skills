@@ -55,7 +55,7 @@ def _valid_v6_evidence() -> dict:
     `teammate`.
     """
     return {
-        "schema_version": 6,
+        "schema_version": 7,
         "task_id": "T-1",
         "teammate": "backend-auth",
         "completed_at": "2026-05-22T10:00:00Z",
@@ -74,6 +74,17 @@ def _valid_v6_evidence() -> dict:
         "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface",
         "ui_interaction_review": "n/a",
         "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface",
+        # v7 VAO fields — all 'n/a' for the backend-auth synthetic fixture
+        "oracle_match_review": "n/a",
+        "oracle_match_review_note": "synthetic test fixture; no oracle artifact in scope",
+        "baseline_clean_review": "n/a",
+        "baseline_clean_review_note": "synthetic test fixture; no real teammate tool-call log",
+        "no_fake_data_review": "n/a",
+        "no_fake_data_review_note": "synthetic test fixture; no production-code diff in scope",
+        "adversarial_review": "n/a",
+        "adversarial_review_note": "synthetic test fixture; no Phase 3 adversarial dispatch in scope",
+        "skill_invocation_audit": "n/a",
+        "skill_invocation_audit_note": "synthetic test fixture; no session transcript / ledger in scope",
         "independent_review": {
             "reviewer": "task-reviewer",
             "verdict": "pass",
@@ -86,12 +97,12 @@ def _valid_v6_evidence() -> dict:
     }
 
 
-# --- SCHEMA_VERSION is 6 and the field is required -------------------------
+# --- SCHEMA_VERSION is 7 and the field is required -------------------------
 
-def test_schema_version_is_6(plugin_root: Path) -> None:
+def test_schema_version_is_7(plugin_root: Path) -> None:
     module = _import_schema(plugin_root)
-    assert getattr(module, "SCHEMA_VERSION", None) == 6, (
-        "review_evidence_schema.SCHEMA_VERSION must be 6"
+    assert getattr(module, "SCHEMA_VERSION", None) == 7, (
+        "review_evidence_schema.SCHEMA_VERSION must be 7"
     )
 
 
@@ -102,11 +113,13 @@ def test_ui_interaction_review_is_a_required_field(plugin_root: Path) -> None:
     )
 
 
-def test_required_fields_count_is_twelve(plugin_root: Path) -> None:
-    """v6 adds exactly one field — the 11 v5 fields plus ui_interaction_review."""
+def test_required_fields_count_is_seventeen(plugin_root: Path) -> None:
+    """v7 adds five VAO fields on top of v6 — the 12 v6 fields plus
+    oracle_match_review, baseline_clean_review, no_fake_data_review,
+    adversarial_review, skill_invocation_audit = 17 total."""
     module = _import_schema(plugin_root)
-    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 12, (
-        f"expected 12 top-level required fields, got "
+    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 17, (
+        f"expected 17 top-level required fields, got "
         f"{sorted(module.REQUIRED_EVIDENCE_FIELDS)}"
     )
 
