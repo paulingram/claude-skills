@@ -220,7 +220,7 @@ Loop:
 
 The Lead creates 3-5 teammate tasks per parallel group in the shared task list (teams mode) OR dispatches 3-5 subagents per parallel group via a single Agent-tool batch (subagents mode). Size each task group to 5-6 tasks per teammate.
 
-After EVERY background Agent dispatch in this pipeline (Phase −2 triage, Phase −1 mapping ralph loops, Phase −1C integration mapping, Phase −1D interaction intuition, Phase 2 team spawn, Phase 3 independent task-reviewer, Phase 3b SR fix-team dispatch, Phase 4 reconciler, Phase 5 integration, Phase 7 master-synthesizer, Phase 8 doc-updater), route the raw dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` per `common-pipeline-conventions` `## Background-agent resume discipline` BEFORE treating the work as complete. Truncated / stream-timed-out results auto-resume up to 2 attempts; `resumed_failed=True` surfaces to the user with on-disk artifacts cited.
+After EVERY background Agent dispatch the orchestrator (Lead) makes in this pipeline — across Phase −2, Phase −1 mapping ralph loops, Phase −1C integration mapping, Phase −1D interaction intuition, Phase 2 team spawn, Phase 3 independent review, Phase 3b SR fix-team dispatch, Phase 4 reconciliation, Phase 5 integration, Phase 7 master synthesis, and Phase 8 doc-updater — the Lead routes the raw dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` per `common-pipeline-conventions` `## Background-agent resume discipline` BEFORE treating the work as complete. Truncated / stream-timed-out results auto-resume up to 2 attempts; `resumed_failed=True` surfaces to the user with on-disk artifacts cited.
 
 ## Phase 3 — Team Review Gate (mandatory; per team; pre-completion)
 
