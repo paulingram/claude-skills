@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "fixture_name": "scope-narrowing",
+    "failure_shape": "Layer 1 / Layer 2 — agent silently narrowed the user's prompt at intake",
+    "originating_failure": "heirship-app-v2: user said 'match the oracle (100% pixel-perfect, no variance)'; agent's narrower interpretation was 'enrichment + hardcoded-data purge', visual rebuild deferred silently",
+    "vao_layer_caught_at": 1,
+    "verbatim_user_prompt": "make heirship-app-v2 match the heirship-app-v3 oracle, 100% pixel-perfect, no variance"
+  },
+  "user_prompt": "make heirship-app-v2 match the heirship-app-v3 oracle, 100% pixel-perfect, no variance",
+  "parity_verbs_detected": ["match"],
+  "agent_self_narrowed_to": "enrichment + hardcoded-data purge; visual rebuild deferred to a future iteration",
+  "oracle_path": "/Users/paulingram/Documents/code/heirship-app-v3",
+  "oracle_spec_excerpt": {
+    "spec_shape": "component-tree",
+    "tree": {
+      "App": {
+        "AppShellLayout": {
+          "AppShellHeader": {"TaCrumbs": {}, "UserMenu": {}},
+          "AppShellBody": {"MatterDashboard": {}}
+        }
+      }
+    },
+    "chrome_topology": [
+      {"anchor": "[data-component='TaCrumbs']", "expected_parent": "AppShellLayout > AppShellHeader"},
+      {"anchor": "[data-component='UserMenu']", "expected_parent": "AppShellLayout > AppShellHeader"}
+    ]
+  },
+  "expected_layer_1_verdict": {
+    "intake_scope_narrowing_detected": true,
+    "narrowed_from": "match the oracle (full visual + structural + behavioral parity)",
+    "narrowed_to": "enrichment + hardcoded-data purge",
+    "user_confirmation_required": true
+  }
+}

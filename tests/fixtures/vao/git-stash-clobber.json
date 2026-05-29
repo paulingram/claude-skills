@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "fixture_name": "git-stash-clobber",
+    "failure_shape": "Layer 2 / Layer 3 — teammate ran a forbidden git operation that clobbered concurrent teammates' work",
+    "originating_failure": "heirship-app-v2: 4 teammates dispatched in parallel against the same working tree; each ran git stash + pop to verify against baseline; concurrent stash/pop interleaved catastrophically; reflog showed 10+ consecutive 'reset: moving to HEAD' entries; 3 of 4 teammates' work was lost",
+    "vao_layer_caught_at": 3,
+    "smoking_gun_reflog_signature": "reset: moving to HEAD (repeated 10+ times)"
+  },
+  "tool_call_log": [
+    {"tool": "Bash", "args": {"command": "git status"}, "ts": "2026-05-29T09:00:00Z"},
+    {"tool": "Bash", "args": {"command": "git diff --stat"}, "ts": "2026-05-29T09:00:15Z"},
+    {"tool": "Bash", "args": {"command": "git stash"}, "ts": "2026-05-29T09:00:30Z"},
+    {"tool": "Bash", "args": {"command": "git log -3 --oneline"}, "ts": "2026-05-29T09:00:45Z"},
+    {"tool": "Bash", "args": {"command": "git stash pop"}, "ts": "2026-05-29T09:01:00Z"},
+    {"tool": "Edit", "args": {"file_path": "src/components/Inspector.tsx"}, "ts": "2026-05-29T09:02:00Z"},
+    {"tool": "Bash", "args": {"command": "git stash"}, "ts": "2026-05-29T09:30:00Z"},
+    {"tool": "Bash", "args": {"command": "git reset --hard HEAD"}, "ts": "2026-05-29T09:30:15Z"},
+    {"tool": "Bash", "args": {"command": "git stash pop"}, "ts": "2026-05-29T09:30:30Z"}
+  ],
+  "baseline_sha": "89287dc884c4b7aa5fbf777957632735922bdb5c",
+  "expected_baseline_clean_verdict": {
+    "tool": "verify-baseline-clean",
+    "clean": false,
+    "violations_count_minimum": 3,
+    "expected_violation_ops": ["git stash", "git reset --hard"]
+  }
+}

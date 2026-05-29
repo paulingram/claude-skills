@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "fixture_name": "frontend-fake-data",
+    "failure_shape": "Layer 2 / Layer 3 — frontend faked the missing-API data rather than surface a missing-API SR",
+    "originating_failure": "v1.7.0 motivating case: frontend agent encountered a UI element needing a backend API that did NOT exist; rather than write a missing-api-for-frontend-element SR, the agent mocked / hardcoded / stubbed the response so the test passed",
+    "vao_layer_caught_at": 3
+  },
+  "diff_files": [
+    {
+      "path": "src/components/UserAvatar.tsx",
+      "added_lines": [
+        "const currentUser = { name: 'John Smith', email: 'jane.doe@example.com', avatar_url: null }",
+        "// TODO: wire this to the actual /api/users/me endpoint",
+        "return <Avatar src={currentUser.avatar_url} name={currentUser.name} />"
+      ]
+    },
+    {
+      "path": "src/api/users.ts",
+      "added_lines": [
+        "import { rest } from 'msw'",
+        "export const handlers = [",
+        "  rest.get('/api/users/me', (req, res, ctx) => res(ctx.json({ name: 'John Smith' })))",
+        "]"
+      ]
+    }
+  ],
+  "oracle_spec_excerpt": {
+    "dynamic_values": [
+      {"literal": "Park Family Trust", "binding": "matter.title"},
+      {"literal": "John Smith", "binding": "user.name"}
+    ]
+  },
+  "expected_no_fake_data_verdict": {
+    "tool": "verify-no-fake-data",
+    "clean": false,
+    "hits_count_minimum": 3,
+    "expected_categories": ["placeholder-name", "msw-handler", "oracle-dynamic-value:John Smith"]
+  }
+}

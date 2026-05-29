@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "fixture_name": "chrome-mount-level-mismatch",
+    "failure_shape": "Layer 3 verify-rendered-parity — same element exists in both source trees but at different rendered mount levels",
+    "originating_failure": "heirship-app-v2 chrome breadcrumb case: <TaCrumbs /> existed in both candidate (heirship-app-v2) and oracle (heirship-app-v3) source. A source-tree walk via verify-oracle-match would say {matched: true} because the component name is present in both. BUT in the rendered DOM, the candidate mounts <TaCrumbs /> inside [data-testid='page-body'] while the oracle mounts it inside AppShellHeader. Source audit is BLIND to mount-level architectural divergence; verify-rendered-parity is the gate.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-rendered-parity",
+    "why_source_audit_misses_this": "Both candidate and oracle source contain a <TaCrumbs /> import + render. The CONTAINING component differs — heirship-app-v2's TAMatterDetail.tsx body renders <TaCrumbs />, while heirship-app-v3's AppShellLayout renders it inside the header chrome. A component-tree diff (verify-oracle-match) treats both trees as containing TaCrumbs and reports matched. Only the rendered-DOM diff (verify-rendered-parity) sees the parent-path divergence."
+  },
+  "oracle_dom": {
+    "tag": "body",
+    "selector": "body",
+    "children": [
+      {
+        "tag": "div",
+        "selector": "[data-component='AppShellLayout']",
+        "children": [
+          {
+            "tag": "header",
+            "selector": "[data-component='AppShellHeader']",
+            "children": [
+              {"tag": "nav", "selector": "[data-component='TaCrumbs']", "children": []},
+              {"tag": "div", "selector": "[data-component='UserMenu']", "children": []}
+            ]
+          },
+          {"tag": "main", "selector": "[data-component='AppShellBody']", "children": [
+            {"tag": "section", "selector": "[data-component='MatterDashboard']", "children": []}
+          ]}
+        ]
+      }
+    ]
+  },
+  "candidate_dom": {
+    "tag": "body",
+    "selector": "body",
+    "children": [
+      {
+        "tag": "div",
+        "selector": "[data-component='AppShellLayout']",
+        "children": [
+          {
+            "tag": "header",
+            "selector": "[data-component='AppShellHeader']",
+            "children": [
+              {"tag": "div", "selector": "[data-component='UserMenu']", "children": []}
+            ]
+          },
+          {"tag": "main", "selector": "[data-component='AppShellBody']", "children": [
+            {"tag": "section", "selector": "[data-testid='page-body']", "children": [
+              {"tag": "nav", "selector": "[data-component='TaCrumbs']", "children": []},
+              {"tag": "section", "selector": "[data-component='MatterDashboard']", "children": []}
+            ]}
+          ]}
+        ]
+      }
+    ]
+  },
+  "oracle_spec": {
+    "chrome_topology": [
+      {"anchor": "[data-component='TaCrumbs']", "expected_parent": "body > [data-component='AppShellLayout'] > [data-component='AppShellHeader']"},
+      {"anchor": "[data-component='UserMenu']", "expected_parent": "body > [data-component='AppShellLayout'] > [data-component='AppShellHeader']"}
+    ]
+  },
+  "expected_rendered_parity_verdict": {
+    "tool": "verify-rendered-parity",
+    "matched": false,
+    "divergences_count_minimum": 1,
+    "expected_anchor_divergence": "[data-component='TaCrumbs']",
+    "expected_severity": "architectural-mismatch"
+  }
+}

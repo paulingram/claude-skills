@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "fixture_name": "oracle-structure-mismatch",
+    "failure_shape": "Layer 1 / Layer 2 / Layer 3 — built tree's STRUCTURE diverges from the frozen oracle spec",
+    "originating_failure": "heirship-app-v2: agent claimed 'matched the oracle' but built a totally different component-tree structure; the oracle was never structurally diffed against the built tree",
+    "vao_layer_caught_at": 3
+  },
+  "oracle_spec": {
+    "spec_shape": "component-tree",
+    "tree": {
+      "App": {
+        "AppShellLayout": {
+          "AppShellHeader": {"TaCrumbs": {}, "UserMenu": {}},
+          "AppShellSidebar": {"NavTree": {}},
+          "AppShellBody": {
+            "MatterDashboard": {
+              "MatterCard": {"label": "Park Family Trust"},
+              "MatterStageNav": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "built_tree": {
+    "tree": {
+      "App": {
+        "AppShellLayout": {
+          "AppShellHeader": {"UserMenu": {}},
+          "AppShellBody": {
+            "MatterDashboard": {
+              "MatterCard": {"label": "Heirship Matter #1"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected_oracle_match_verdict": {
+    "tool": "verify-oracle-match",
+    "matched": false,
+    "divergences_count_minimum": 3,
+    "expected_severities": ["missing-in-actual", "value-mismatch"]
+  }
+}
