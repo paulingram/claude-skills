@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "change": "agent-resume-discipline",
+  "version": "1.8.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "agent_resume helper exposes three functions", "layer": "infra",
+     "covered_by": ["scripts/setup/agent_resume.py", "tests/test_agent_resume_discipline.py"]},
+    {"id": "REQ-2", "title": "common-pipeline-conventions documents the resume discipline", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_agent_resume_discipline.py"]},
+    {"id": "REQ-3", "title": "All 27 agents document the checkpoint discipline", "layer": "discipline",
+     "covered_by": ["agents/*.md (27 files)", "tests/test_agent_resume_discipline.py"]},
+    {"id": "REQ-4", "title": "Three pipeline bodies document the wrap-call rule", "layer": "discipline",
+     "covered_by": ["skills/architect-team-pipeline/SKILL.md", "skills/bug-fix-pipeline/SKILL.md", "skills/mini-architect-team-pipeline/SKILL.md", "tests/test_agent_resume_discipline.py"]},
+    {"id": "REQ-5", "title": "Structural tests assert the discipline + helper behavior", "layer": "infra",
+     "covered_by": ["tests/test_agent_resume_discipline.py"]},
+    {"id": "REQ-6", "title": "Version bumped to 1.8.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "build-new", "anchor": "scripts/setup/agent_resume.py"},
+    {"id": "RD-2", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md"},
+    {"id": "RD-3", "decision": "extend", "anchor": "3 pipeline SKILL.md bodies"},
+    {"id": "RD-4", "decision": "edit-in-place", "anchor": "agents/*.md (27 files)"},
+    {"id": "RD-5", "decision": "build-new", "anchor": "tests/test_agent_resume_discipline.py"},
+    {"id": "RD-6", "decision": "deferred", "anchor": "harness-level Stop-hook for Agent completion — out of plugin scope"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — infra + discipline change",
+  "implementing_commits": []
+}

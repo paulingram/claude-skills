@@ -49,6 +49,8 @@ The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wire
 
 Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which points at the canonical rule in `mempalace-integration` `## Phase A — Wake-up at pipeline start`): the unscoped wake-up runs as the earliest action of Phase M0 — before any subagent dispatch. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then `mempalace --palace "<workspace>/.mempalace/palace" wake-up`. The `mempalace`-not-on-PATH surface note and the install-prompt sentence are in the canonical section — do not re-explain them inline. Per `mempalace-integration`, persist run artifacts (the OpenSpec bundle, the QA verdicts, the architect's M3 diffs) as the run progresses.
 
+After EVERY background Agent dispatch in this pipeline (Phase M2 system-architect drafting, Phase M3 architect self-confirm loop, Phase M4 backend + frontend devs in parallel, Phase M5 mini-qa, Phase M7 doc-updater), route the raw dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` per `common-pipeline-conventions` `## Background-agent resume discipline` BEFORE treating the work as complete. Truncated / stream-timed-out results auto-resume up to 2 attempts; `resumed_failed=True` surfaces to the user with on-disk artifacts cited.
+
 ## What this skill does NOT do
 
 - **No proposal-refiner Q&A loop** — the architect grounds prose directly. If ambiguous, the architect surfaces ONE clarification batch before drafting; no iterative grading loop.

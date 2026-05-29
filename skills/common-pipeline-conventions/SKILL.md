@@ -541,6 +541,96 @@ All four are downstream catches. The clean move is to surface the missing API as
 | Silently stub the UI | `interaction-completeness` `unwired-control` / `placeholder-page` gap | Without the SR the stub is a gap; with no user confirmation it routes through a remediation loop anyway. |
 | **SR + pause + return** | Caught immediately at the frontend agent's authoring step | Loop closes cleanly: missing API → SR → backend dispatched → endpoint ships → frontend wires it. Zero technical debt. |
 
+## Background-agent resume discipline
+
+When the orchestrator dispatches a long-running background agent (any teammate spawn, any subagent dispatch), the harness-level stream that delivers the agent's final report can be lost to a rate-limit cutoff or a network blip even when the agent's work succeeded end-to-end. The real failure that motivated this discipline: a background `dv-attorney` agent ran 68 tool-calls of real work, finished, and started its report; the report stream was cut by harness-level rate limiting; the orchestrator saw an empty result and treated the agent as failed; the user had to manually `redispatch and continue` so the agent could re-emit its verdict from already-loaded context. The work was on disk the whole time — only the REPORT was lost.
+
+The orchestrator MUST route EVERY background Agent dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` BEFORE treating the work as complete or failed. The helper handles the recovery automatically.
+
+### The wrap-call rule
+
+```python
+from scripts.setup.agent_resume import wrap_agent_result
+
+# After every background Agent dispatch:
+raw = invoke_agent(agent_id, brief)   # or the harness equivalent
+result = wrap_agent_result(raw, agent_id, send_message=send_message_fn)
+
+if result.get("resumed_failed"):
+    # Surface to user with on-disk artifacts cited; do NOT treat as silent failure.
+    ...
+elif result.get("resumed"):
+    # Resume succeeded — agent's verdict is in result["output"].
+    ...
+else:
+    # Original result was well-formed.
+    ...
+```
+
+The `send_message` parameter is dependency-injected so the helper itself does not couple to the Claude Code harness's `SendMessage` tool. The orchestrator binds the harness's real SendMessage at call time; tests pass a mock.
+
+### Truncation-detection criteria
+
+`is_truncated()` returns True on ANY of:
+1. Result is missing, non-dict, missing `output` field, OR `output` is empty / shorter than 50 chars.
+2. `output` contains a known harness rate-limit / stream-timeout marker (case-insensitive): "Server is temporarily limiting requests", "rate limit", "rate limited", "stream timeout", and close variants.
+3. `output` is non-empty but contains NONE of the standard report-format markers `Status:`, `DONE`, `BLOCKED`, `NEEDS_CONTEXT` (case-insensitive).
+
+### The 2-attempt cap + user-surfacing
+
+`wrap_agent_result` caps resume attempts at `max_attempts=2` by default. After 2 failed resume attempts (the agent still returns truncated output, OR the `send_message` callable itself raises), the helper returns the merged result with `resumed_failed=True` and `resume_error` populated. The orchestrator MUST surface this to the user with the cited on-disk artifact paths (checkpoints, partial commits, .architect-team/reviews/* files) rather than treating it as a silent failure. A surfaced failure with on-disk pointers is recoverable; a silent failure loses the visibility that lets the user finish the run.
+
+### Cross-references
+
+- `scripts/setup/agent_resume.py` is the helper module. Stdlib only; mirrors the discipline used by `scripts/setup/teams_mode.py` and `scripts/setup/worktree_paths.py`.
+- `tests/test_agent_resume_discipline.py` asserts the truncation heuristics + the resume behavior + the structural surfaces.
+- `architect-team-pipeline/SKILL.md`, `bug-fix-pipeline/SKILL.md`, `mini-architect-team-pipeline/SKILL.md` reference this section at every background-Agent dispatch point.
+
+## Agent checkpoint discipline
+
+A long-running agent (one whose work is expected to exceed ~20 tool calls — system-architect drafting, backend implementing a multi-endpoint slice, master-synthesizer auditing, integration testing) MUST write a lightweight checkpoint to disk every ~10 tool calls (or after each logical step, whichever comes first). The checkpoint exists for one purpose: when an agent is resumed after a stream timeout, it reads its OWN checkpoint FIRST and skips already-completed steps, avoiding 68 tool-calls of re-work.
+
+### The checkpoint path + schema
+
+Each agent writes to `.architect-team/agent-checkpoints/<agent-id>.json`. The directory lives under `shared_state_dir()` (the main worktree's `.architect-team/`) per v1.1.0's worktree-aware state-resolution so checkpoints are visible across worktrees during the same architect-team run. The schema is intentionally minimal:
+
+```json
+{
+  "agent_id": "<your-agent-id>",
+  "task_id": "<the-task-or-slice-you-are-working>",
+  "schema_version": 1,
+  "last_completed_step": "verification phase 3 of 5",
+  "files_touched": ["src/foo.tsx", "src/bar.py"],
+  "in_progress": "running verification phase 4 (deployed-asset hash check)",
+  "ts": "2026-05-29T03:14:00Z"
+}
+```
+
+`agent_id` + `task_id` identify whose checkpoint this is. `last_completed_step` is the most recent step the agent finished — a human-readable string (not a step number); the resumed agent reads it and skips forward. `files_touched` is the running list of paths the agent has edited / written / created; the resumed agent uses this to avoid re-editing files. `in_progress` is what the agent was doing when the checkpoint was written; the resumed agent picks up from here. `ts` is the ISO-8601 UTC write timestamp.
+
+### Cadence
+
+Write a checkpoint:
+- Every ~10 tool calls during long work, OR
+- After each logical step (a phase boundary, a multi-file edit completion, a test suite pass, an audit verdict), whichever comes first.
+
+The write is a single `json.dumps()` + file write — cheap enough that more frequent checkpointing is fine; the cost is bounded by once-per-step rather than once-per-tool-call.
+
+### Reading on resume
+
+On resume after a stream timeout (the agent is dispatched again with a "your previous report was lost" follow-up), the agent's FIRST action is to read `scripts.setup.agent_resume.read_checkpoint(agent_id)`. If the function returns a dict, the agent:
+1. Skips work whose `last_completed_step` shows it is already done.
+2. Treats `files_touched` as already-touched (no re-creation, no re-overwrite — confirm shape before continuing).
+3. Resumes from the `in_progress` field.
+4. Reports a Status verdict immediately if the checkpoint shows the work was completed and only the report was lost.
+
+If `read_checkpoint` returns None (no prior checkpoint), the agent starts fresh as if no previous dispatch ran — the discipline is opt-in for shorter work.
+
+### Cross-references
+
+- `scripts/setup/agent_resume.py` `read_checkpoint(agent_id, checkpoints_dir=None)` is the resolver. Defaults to `shared_state_dir() / 'agent-checkpoints'`.
+- Every `agents/*.md` carries a brief `## Checkpoint discipline` section cross-referencing this canonical statement — see `agents/backend.md`, `agents/frontend.md`, etc.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.
