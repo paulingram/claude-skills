@@ -213,6 +213,93 @@ If none of those signal, Layer 1 is a no-op (the proposal-refiner's free-text gr
 
 **Why this is necessary.** Layers 1–3 catch known shapes. Layer 4 makes the plugin LEARN — each new failure becomes a future check. Without Layer 4, v2.1.x is back to whack-a-mole on novel shapes.
 
+### Layer 6: Skill-invocation verification (Stop hook) — the heirship "applied methodology by hand" closure
+
+**Position in pipeline.** Stop-hook auditor that fires at the END of every Claude Code session. Runs AFTER all other Stop-hook handlers (including `pipeline-completion-audit.py`). Logically: Layer 6 audits that the framework Layers 1-5 had any opportunity to fire — that the pipeline Skill was actually invoked when the user asked for it.
+
+**Trigger condition.** Always-on for every Claude Code session in a workspace where the architect-team plugin is loaded. Cannot be opted out via `--no-vao` — Layer 6 audits the FRAMEWORK ITSELF, so opting it out is the exact failure mode it exists to catch.
+
+**Mechanism.** `hooks/skill_invocation_audit.py`:
+
+1. **Parses the session transcript** for explicit Skill-invocation requests in two surface forms:
+
+   **Slash-command form (regex).** The 13 user-invocable command names (architect-team, bug-fix, ux-test, mini, refine-prompt, cleanup-worktrees, mempalace-install, mempalace-search, mempalace-status, status, code-review, editability-audit, architect-team:architect-team) matched as `/\/(architect-team|bug-fix|ux-test|mini|refine-prompt|cleanup-worktrees|mempalace-install|mempalace-search|mempalace-status|status|code-review|editability-audit)(?::[\w-]+)?\b/`.
+
+   **Prose form (regex).** Verb + slash-command:
+   - `/(?:use|using|invoke|run|fire)\s+(?:the\s+)?\/?(architect-team|bug-fix|ux-test|mini|refine-prompt|cleanup-worktrees|status)(?::[\w-]+)?/i`
+   - Bare *"using the architect-team"* / *"with architect-team"* without slash.
+
+2. **Reads the session's tool-call ledger** at `<workspace>/.architect-team/run-history/<run-id>-toolcalls.jsonl`. The ledger is a v2.0.0 artifact written by the harness's PostToolUse hook (no extension needed; the harness ALREADY emits this and the audit reads from it). Each line is one tool invocation as `{ts, tool, args}`.
+
+3. **Cross-checks.** For each explicit Skill-invocation request in the transcript, asserts the matching `Skill` invocation appears in the ledger AFTER the request's timestamp. The matching rule:
+
+   | Request form | Match rule |
+   |---|---|
+   | `/architect-team:architect-team` | `tool == "Skill" AND args.skill IN ("architect-team", "architect-team-pipeline")` |
+   | `/architect-team:bug-fix` | `tool == "Skill" AND args.skill IN ("bug-fix", "bug-fix-pipeline")` |
+   | `/architect-team:mini` | `tool == "Skill" AND args.skill IN ("mini", "mini-architect-team-pipeline")` |
+   | `/architect-team` (the base command) | `tool == "Skill" AND args.skill == "architect-team-pipeline"` |
+   | prose verb + name | same rules as above |
+
+4. **Writes verdict JSON** to `<workspace>/.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json`:
+
+   ```json
+   {
+     "schema_version": 1,
+     "run_id": "<id>",
+     "audited_at": "<ISO 8601 UTC>",
+     "verdict": "pass" | "fail",
+     "requests_found": [
+       {
+         "request_ts": "<ISO 8601>",
+         "request_text": "<verbatim user message text>",
+         "matched_skill": "<canonical skill name>",
+         "match_form": "slash" | "prose",
+         "matched_invocation_ts": "<ISO 8601 or null>",
+         "matched": true | false
+       }
+     ],
+     "unmatched_requests": [ /* every request_found with matched: false */ ],
+     "exit_code_if_invoked_as_hook": 0 | 2
+   }
+   ```
+
+5. **Exit semantics.** If `unmatched_requests` is non-empty, the audit's CLI exits 2 with a structural-error report:
+
+   ```
+   SKILL-INVOCATION-AUDIT FAIL
+
+   User explicitly requested Skill `<X>` in message at <timestamp>:
+     "<verbatim quote>"
+
+   No matching `Skill` tool invocation was found in the session's tool-call
+   ledger after that timestamp.
+
+   The orchestrator either:
+     (a) interpreted a "do not re-execute" system note as license to skip
+         the Skill tool invocation, OR
+     (b) decided to "apply the methodology by hand" rather than invoke
+         the framework.
+
+   Both are forbidden. The user's explicit instruction takes precedence
+   over any system note — see common-pipeline-conventions / Skill-invocation discipline.
+
+   This run bypassed Layers 1-5 of the VAO framework. To recover, re-invoke
+   the requested Skill in this session.
+   ```
+
+   The `pipeline-completion-audit.py` Stop hook ALSO runs Layer 6 as a delegated check; if Layer 6 fails, the pipeline audit exits non-zero (same blocking behavior as other VAO violations).
+
+6. **Schema v7's `skill_invocation_audit` field** — the v7 evidence file MUST cite the verdict path. A missing or non-existent verdict path is a hook-blocking violation.
+
+7. **Documented user-precedence rule** in `common-pipeline-conventions/SKILL.md`:
+
+   > User explicit instructions override `skill already invoked, do not re-execute` system notes. If the user typed `/architect-team:X` or prose explicitly requesting Skill X, the agent MUST invoke X via the Skill tool — even if Skill X was invoked earlier in the session. The "do not re-execute" note is a hint preventing accidental re-invocation within a single decision cycle, NOT a session-wide ban on re-invocation. User instructions take precedence per the `superpowers:using-superpowers` Instruction Priority rule. Applying the Skill's methodology "by hand" rather than via the Skill tool is forbidden — it bypasses every VAO framework layer.
+
+**Why this fixes the heirship failure.** The agent's escape phrase — *"A system note flagged that skill as already-invoked earlier this session ('do not re-execute'), so I'd been applying its methodology by hand"* — becomes a Stop-hook-blocking violation. The audit detects (a) the user typed `/architect-team:architect-team` and (b) no matching `Skill` invocation fired afterward. Exit 2. Run blocked. The methodology cannot be "applied by hand" undetected.
+
+**Why this is Layer 6, not part of Layers 1-5.** Layers 1-5 ASSUME the pipeline Skill was invoked. Layer 6 verifies the assumption. It is the foundation layer beneath the other five.
+
 ### Layer 5: Structural test enforcement
 
 **Position.** The plugin's own pytest suite. Mirrors v1.4 / 1.6 / 1.7's test pattern.
@@ -317,6 +404,8 @@ Cross-walk of every named v1.x failure against the v2.0.0 layer that catches it:
 | v1.7.0 — frontend silently stubs the UI | Layer 2 (`backend-dep` shape) + Layer 3 (`verify-every-element`) | Coverage check finds the stub element |
 | (NEW) — oracle structure mismatch | Layer 1 + Layer 2 (`parity-verb` shape) + Layer 3 (`verify-oracle-match`) | Deterministic structural diff; the teammate cannot pass without matching |
 | (NEW) — source-code-audit "pixel parity: pass" false positive (heirship-app-v2 chrome-level breadcrumb) | Layer 3 (`verify-rendered-parity`) | Rendered DOM + screenshot diff; an agent's prose attestation derived from source-code reading is forbidden by schema v7 (the `visual_fidelity_review` field MUST cite the tool's verdict path) |
+| (heirship-3) — execution-time scope narrowing ("addressed with residual variance") | Layer 3 (`verify-oracle-match` + `verify-rendered-parity`) + Layer 2 (`oracle-divergence-hunter` on parity-verb tasks) | Tool verdict shows `matched: false` with named divergences; schema v7 hook blocks completion; agent cannot ship "addressed but with residual variance" because the verdict file is the source of truth, not the agent's prose |
+| (heirship-4) — skill-not-invoked ("applied methodology by hand") | Layer 6 (`skill_invocation_audit.py` Stop hook) | Session transcript parser detects explicit user `/architect-team:X` request; tool-call ledger shows no matching `Skill` invocation; Stop hook exits 2 with structural-error report; schema v7's `skill_invocation_audit` field is required |
 | (NEW + unnamed) — novel failure shape on future run | Layer 4 — gets folded into the shape-fingerprint registry; future runs with the same shape get a known check | The run-history feed makes the framework learn |
 
 ## Costs accepted

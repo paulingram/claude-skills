@@ -12,7 +12,7 @@
 - **THEN** `skills/verified-agent-output/SKILL.md` is present
 - **AND** it has valid YAML frontmatter with `name: verified-agent-output` and a non-empty `description`
 
-#### Scenario: skill names the five layers
+#### Scenario: skill names the six layers
 
 - **WHEN** the skill body is parsed
 - **THEN** it explicitly names Layer 1 as the oracle-derivation gate
@@ -20,6 +20,7 @@
 - **AND** it names Layer 3 as the tool-mediated execution proof
 - **AND** it names Layer 4 as the run-history shape detection
 - **AND** it names Layer 5 as the structural test enforcement
+- **AND** it names Layer 6 as the Skill-invocation verification
 
 #### Scenario: skill enumerates the failure-shape taxonomy
 
@@ -84,9 +85,9 @@
 - **THEN** it writes the `adversarial_review` block into the SAME `<cwd>/.architect-team/reviews/<task-id>.json` the teammate wrote
 - **AND** the block contains `reviewer`, `shape`, `verdict`, `tool_invoked`, `tool_verdict_path`, `findings`, `reviewed_at` fields
 
-### Requirement: A vao_tools.py module ships the four verification tools
+### Requirement: A vao_tools.py module ships the five verification tools
 
-`hooks/vao_tools.py` SHALL exist as a Python module exposing four deterministic verification tools — `verify-oracle-match`, `verify-baseline-clean`, `verify-no-fake-data`, `verify-every-element` — each producing JSON verdict output to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`.
+`hooks/vao_tools.py` SHALL exist as a Python module exposing five deterministic verification tools — `verify-oracle-match`, `verify-baseline-clean`, `verify-no-fake-data`, `verify-every-element`, `verify-rendered-parity` — each producing JSON verdict output to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`. The 5th tool (`verify-rendered-parity`) operates on the rendered DOM + screenshot, NOT the source component tree, to close the source-audit-vs-rendered-output gap surfaced during proposal review.
 
 #### Scenario: module file exists
 
@@ -121,20 +122,22 @@
 
 ### Requirement: Review-evidence schema is bumped to v7
 
-`hooks/review_evidence_schema.py` SHALL bump `SCHEMA_VERSION` from 6 to 7 and add four required fields to `REQUIRED_EVIDENCE_FIELDS` — `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`, `adversarial_review`. The hook MUST block any evidence file missing any of the new fields or whose `adversarial_review.verdict != "pass"`.
+`hooks/review_evidence_schema.py` SHALL bump `SCHEMA_VERSION` from 6 to 7 and add **six** required fields to `REQUIRED_EVIDENCE_FIELDS` — `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`, `adversarial_review`, `visual_fidelity_review`, `skill_invocation_audit`. The hook MUST block any evidence file missing any of the new fields or whose `adversarial_review.verdict != "pass"` or whose `visual_fidelity_review.verdict != "pass"` or whose `skill_invocation_audit.verdict != "pass"`.
 
 #### Scenario: SCHEMA_VERSION constant equals 7
 
 - **WHEN** `hooks/review_evidence_schema.py` is imported
 - **THEN** `SCHEMA_VERSION == 7`
 
-#### Scenario: REQUIRED_EVIDENCE_FIELDS includes the four new fields
+#### Scenario: REQUIRED_EVIDENCE_FIELDS includes the six new fields
 
 - **WHEN** `REQUIRED_EVIDENCE_FIELDS` is inspected
 - **THEN** the set includes `oracle_match_review`
 - **AND** the set includes `baseline_clean_review`
 - **AND** the set includes `no_fake_data_review`
 - **AND** the set includes `adversarial_review`
+- **AND** the set includes `visual_fidelity_review`
+- **AND** the set includes `skill_invocation_audit`
 
 #### Scenario: validate_evidence blocks a v6-shaped evidence file
 
@@ -228,7 +231,7 @@
 
 ### Requirement: Synthetic-fixture suite asserts each known failure is blocked
 
-`tests/fixtures/vao/` SHALL contain four synthetic-fixture files reproducing the four known failure cases — `scope-narrowing.json`, `git-stash-clobber.json`, `frontend-fake-data.json`, `oracle-structure-mismatch.json` — and `tests/test_verified_agent_output.py` SHALL assert that the v2.0.0 framework detects and blocks each fixture.
+`tests/fixtures/vao/` SHALL contain seven synthetic-fixture files reproducing each known failure case — `scope-narrowing.json`, `git-stash-clobber.json`, `frontend-fake-data.json`, `oracle-structure-mismatch.json`, `chrome-mount-level-mismatch.json`, `execution-time-variance.json`, `skill-not-invoked.json` — and `tests/test_verified_agent_output.py` + `tests/test_vao_skill_invocation_audit.py` SHALL assert that the v2.0.0 framework detects and blocks each fixture.
 
 #### Scenario: scope-narrowing fixture is blocked at Layer 1
 
@@ -274,11 +277,136 @@ The three pipeline-driving slash commands (`/architect-team`, `/architect-team:b
 - **THEN** it collects at least 40 tests (likely more via parametrize over the four tools × shapes × pipelines)
 - **AND** every collected test passes
 
-#### Scenario: existing 2056-test baseline still passes
+#### Scenario: existing 2098-test baseline still passes
 
 - **WHEN** `python3 -m pytest -q` runs against the v2.0.0 branch
-- **THEN** the prior v1.7.0 baseline of 2056 passing + 1 skipped tests remains green
-- **AND** the new tests add to the count (target ~2110 + 1 skipped)
+- **THEN** the prior v1.8.0 baseline of 2098 passing + 1 skipped tests remains green
+- **AND** the new tests add to the count (target ~2240 + 1 skipped)
+
+### Requirement: A skill-invocation-audit hook ships as Layer 6
+
+`hooks/skill_invocation_audit.py` SHALL exist as a Python module exposing a `audit_session(transcript_path, ledger_path, run_id, out_dir) -> dict` function AND a `__main__` CLI. The module parses the session transcript for explicit user Skill-invocation requests (slash-command form AND prose form), cross-checks against the session's tool-call ledger for matching `Skill` invocations, and writes a verdict JSON at `<workspace>/.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json`. The CLI exits 2 when any user request has no matching `Skill` invocation in the ledger.
+
+#### Scenario: module file exists
+
+- **WHEN** `hooks/skill_invocation_audit.py` is loaded
+- **THEN** it is a valid Python module
+- **AND** it exposes `audit_session` as a callable entry point
+- **AND** it exposes a `__main__` CLI
+
+#### Scenario: detects slash-command request
+
+- **WHEN** `audit_session` is invoked with a transcript containing a user message `"/architect-team:architect-team review codebase"` and a ledger containing NO `Skill` invocation for `architect-team` or `architect-team-pipeline`
+- **THEN** the returned verdict has `verdict: "fail"`
+- **AND** `unmatched_requests` is non-empty
+- **AND** the unmatched record cites the user message text and timestamp
+
+#### Scenario: detects prose-form request
+
+- **WHEN** `audit_session` is invoked with a transcript containing `"use /architect-team:architect-team to find the best structural fix"` and a ledger containing NO `Skill` invocation
+- **THEN** the returned verdict has `verdict: "fail"`
+- **AND** the unmatched record has `match_form: "prose"`
+
+#### Scenario: passes when Skill invocation appears in ledger after request
+
+- **WHEN** `audit_session` is invoked with a transcript containing `/architect-team:architect-team` AND a ledger containing `{tool: "Skill", args: {skill: "architect-team-pipeline"}}` AFTER the request timestamp
+- **THEN** the returned verdict has `verdict: "pass"`
+- **AND** `unmatched_requests` is empty
+
+#### Scenario: CLI exits 2 on unmatched request
+
+- **WHEN** `python3 hooks/skill_invocation_audit.py --transcript T --ledger L --run-id R --out OUT` runs against a transcript with an unmatched request
+- **THEN** the process exits with status code 2
+
+### Requirement: Schema v7 includes skill_invocation_audit field
+
+`hooks/review_evidence_schema.py` schema v7 SHALL include `skill_invocation_audit` as a 5th required evidence field (alongside the 4 already specified: `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`, `adversarial_review`). The field MUST cite the verdict path under `<workspace>/.architect-team/vao-verdicts/`.
+
+#### Scenario: REQUIRED_EVIDENCE_FIELDS includes skill_invocation_audit
+
+- **WHEN** `REQUIRED_EVIDENCE_FIELDS` is inspected
+- **THEN** the set includes `skill_invocation_audit`
+
+#### Scenario: validate_evidence blocks missing skill_invocation_audit
+
+- **WHEN** `validate_evidence` is called on a v7 evidence dict missing `skill_invocation_audit`
+- **THEN** the returned gap list names the missing `skill_invocation_audit` field
+
+#### Scenario: validate_evidence blocks skill_invocation_audit with verdict fail
+
+- **WHEN** `validate_evidence` is called on a v7 evidence dict whose `skill_invocation_audit.verdict == "fail"`
+- **THEN** the returned gap list cites the failing audit
+
+### Requirement: common-pipeline-conventions documents Layer 6 Skill-invocation discipline
+
+`skills/common-pipeline-conventions/SKILL.md` SHALL gain a `## Skill-invocation discipline (v2.0.0)` section documenting the user-precedence rule: explicit user `/architect-team:X` (slash-command or prose) overrides "skill already invoked, do not re-execute" system notes. Agents MUST invoke the requested Skill via the Skill tool. Applying the Skill's methodology "by hand" is forbidden — it bypasses every VAO framework layer.
+
+#### Scenario: section exists exactly once
+
+- **WHEN** the skill body is parsed
+- **THEN** it contains the `## Skill-invocation discipline (v2.0.0)` heading exactly once
+
+#### Scenario: section documents the user-precedence rule
+
+- **WHEN** the section is read
+- **THEN** it names the rule "user explicit instructions override system notes"
+- **AND** it names the forbidden anti-pattern "applied methodology by hand"
+
+#### Scenario: section names the slash-command + prose surface forms
+
+- **WHEN** the section is read
+- **THEN** it lists slash-command form (e.g., `/architect-team:X`)
+- **AND** it lists prose form (e.g., `use /X` / `invoke /X`)
+
+### Requirement: execution-time-variance synthetic fixture exists
+
+`tests/fixtures/vao/execution-time-variance.json` SHALL exist as a synthetic run-state reproducing the heirship-app-v2 "addressed with residual variance" failure: an agent's evidence file claims `verdict: pass` while citing a `verify-rendered-parity` verdict whose JSON shows `matched: false` with named `divergences[]`. The test suite SHALL assert that schema v7 hook blocks completion on this evidence (the `visual_fidelity_review` verdict file's `matched` is the source of truth, NOT the agent's prose).
+
+#### Scenario: fixture file exists with the failure shape
+
+- **WHEN** `tests/fixtures/vao/execution-time-variance.json` is loaded
+- **THEN** it is valid JSON
+- **AND** it contains a `verify_rendered_parity_verdict` block with `matched: false` and non-empty `divergences[]`
+- **AND** it contains an `agent_self_report` field claiming "addressed with residual variance"
+
+#### Scenario: schema v7 hook blocks the fixture
+
+- **WHEN** the fixture is passed through schema v7 validation as if it were the evidence + cited verdict
+- **THEN** the gap list is non-empty
+- **AND** it cites the `matched: false` verify-rendered-parity verdict
+
+### Requirement: skill-not-invoked synthetic fixture exists
+
+`tests/fixtures/vao/skill-not-invoked.json` SHALL exist as a synthetic session-state reproducing the heirship-app-v2 "applied methodology by hand" failure: a transcript containing `/architect-team:architect-team review codebase` AND a tool-call ledger with NO `Skill` invocation for `architect-team-pipeline`. The test suite SHALL assert that `skill_invocation_audit.audit_session` returns `verdict: "fail"` on this fixture.
+
+#### Scenario: fixture file exists
+
+- **WHEN** `tests/fixtures/vao/skill-not-invoked.json` is loaded
+- **THEN** it is valid JSON
+- **AND** it has a `transcript` field with at least one user message containing an explicit Skill request
+- **AND** it has a `ledger` field with zero matching `Skill` invocations after the request timestamp
+
+#### Scenario: audit_session returns fail on the fixture
+
+- **WHEN** `audit_session` is invoked against the fixture's transcript + ledger
+- **THEN** the returned verdict has `verdict: "fail"`
+- **AND** `unmatched_requests` is non-empty
+
+### Requirement: chrome-mount-level-mismatch synthetic fixture exists
+
+`tests/fixtures/vao/chrome-mount-level-mismatch.json` SHALL exist as a synthetic rendered-DOM fixture where the same element (`<TaCrumbs />`) exists in both candidate and oracle source trees but at different mount levels in the rendered DOM. The test suite SHALL assert `verify_rendered_parity` returns `{matched: false, divergences: [...]}` with the divergence record cited at the chrome-level (e.g., `expected_level: AppShellHeader`, `actual_level: page-body`).
+
+#### Scenario: fixture file exists with rendered-DOM divergence
+
+- **WHEN** `tests/fixtures/vao/chrome-mount-level-mismatch.json` is loaded
+- **THEN** it contains `oracle_dom` and `candidate_dom` fields
+- **AND** the same selector (e.g., `[data-component="TaCrumbs"]`) appears in both at different parent paths
+
+#### Scenario: verify_rendered_parity catches the divergence
+
+- **WHEN** `verify_rendered_parity` is invoked against the fixture
+- **THEN** the output is `{matched: false, divergences: [...]}`
+- **AND** at least one divergence record names the chrome anchor with `expected_level` and `actual_level` fields
 
 ### Requirement: Version is bumped to 2.0.0
 

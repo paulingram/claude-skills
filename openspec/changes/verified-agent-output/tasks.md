@@ -15,11 +15,13 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
 
 ### Wave 1 slice 3: vao-tools — deterministic verification tools + schema bump
 
-- Create: `hooks/vao_tools.py` (+ `__main__` CLI)
-- Modify: `hooks/review_evidence_schema.py` (v6 → v7)
-- Modify: `hooks/pipeline-completion-audit.py` (extended Stop hook)
+- Create: `hooks/vao_tools.py` (+ `__main__` CLI) — 5 tools (incl. `verify-rendered-parity`)
+- Create: `hooks/skill_invocation_audit.py` (Layer 6 Stop-hook auditor)
+- Modify: `hooks/review_evidence_schema.py` (v6 → v7; +6 required fields)
+- Modify: `hooks/pipeline-completion-audit.py` (extended Stop hook + invokes skill_invocation_audit)
 - Modify: `hooks/review-gate-task.py` (uses v7 schema)
 - Modify: `hooks/teammate-idle-check.py` (uses v7 schema)
+- Modify: `hooks/hooks.json` (registers `skill_invocation_audit.py` as a Stop-hook entry)
 
 ### Wave 2 slice 4: pipeline-integration — wire Layer 1 + 2 + 4 into the 3 pipeline bodies
 
@@ -37,11 +39,15 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
 
 ### Wave 2 slice 6: tests + version + docs
 
-- Create: `tests/test_verified_agent_output.py` (≥ 40 tests)
+- Create: `tests/test_verified_agent_output.py` (≥ 100 tests covering Layers 1-5)
+- Create: `tests/test_vao_skill_invocation_audit.py` (≥ 40 tests covering Layer 6)
 - Create: `tests/fixtures/vao/scope-narrowing.json`
 - Create: `tests/fixtures/vao/git-stash-clobber.json`
 - Create: `tests/fixtures/vao/frontend-fake-data.json`
 - Create: `tests/fixtures/vao/oracle-structure-mismatch.json`
+- Create: `tests/fixtures/vao/chrome-mount-level-mismatch.json`
+- Create: `tests/fixtures/vao/execution-time-variance.json`
+- Create: `tests/fixtures/vao/skill-not-invoked.json`
 - Modify: `.claude-plugin/plugin.json` (2.0.0)
 - Modify: `.claude-plugin/marketplace.json` (2.0.0)
 - Modify: `CHANGELOG.md` (prepend v2.0.0 entry with breaking-change call-out + migration guide)
@@ -60,9 +66,11 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
 
 - [TASK-3] Author `agents/adversarial-reviewer.md`. Frontmatter: `name: adversarial-reviewer`, `model: opus`, `description: "<one-line>"`, `tools: Bash Read Glob Grep TodoWrite Write` (Write restricted to its `adversarial_review` block in the shared evidence file). Body covers: which shape it was paired for (passed in the spawn brief), which `vao_tools` tool it invokes, how it polls the teammate's tool-call log, the `adversarial_review` block schema it writes, the verdict semantics. ~150-200 lines.
 
-- [TASK-4] Author `hooks/vao_tools.py`. Four deterministic tool functions: `verify_oracle_match(built_path, oracle_spec) -> dict`, `verify_baseline_clean(tool_call_log_path, baseline_sha=None) -> dict`, `verify_no_fake_data(diff_files, oracle_spec) -> dict`, `verify_every_element(component_paths, oracle_spec) -> dict`. Each writes a verdict JSON to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`. Module also exposes a `__main__` CLI dispatching by subcommand (`vao verify-oracle-match ...`). All stdlib only. Deterministic / bit-stable output for given inputs. ~400-500 lines.
+- [TASK-4] Author `hooks/vao_tools.py`. **Five** deterministic tool functions: `verify_oracle_match(built_path, oracle_spec) -> dict`, `verify_baseline_clean(tool_call_log_path, baseline_sha=None) -> dict`, `verify_no_fake_data(diff_files, oracle_spec) -> dict`, `verify_every_element(component_paths, oracle_spec) -> dict`, `verify_rendered_parity(candidate_url, oracle_url_or_screenshot, oracle_spec) -> dict` (the 5th tool — operates on rendered DOM + screenshot, NOT source). Each writes a verdict JSON to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`. Module also exposes a `__main__` CLI dispatching by subcommand (`vao verify-oracle-match ...` / `vao verify-rendered-parity ...`). Stdlib only for the first 4 tools; `verify_rendered_parity` may shell out to `playwright` if available, otherwise reads a pre-captured DOM-snapshot JSON from the input path. Deterministic / bit-stable output for given inputs. ~500-650 lines.
 
-- [TASK-5] Bump `hooks/review_evidence_schema.py` to schema v7. Update `SCHEMA_VERSION = 7`. Extend `REQUIRED_EVIDENCE_FIELDS` with `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`, `adversarial_review`. Add a new `_validate_adversarial_review()` helper mirroring `_validate_independent_review()`. Add allowed-value sets for the three new `*_review` fields (`pass` / `n/a` / `fail`). The hook BLOCKS `fail` on each. Add the new fields to `validate_evidence()`. Update the docstring to v7 and note the BREAKING migration.
+- [TASK-4b] Author `hooks/skill_invocation_audit.py` (Layer 6). Function `audit_session(transcript_path, ledger_path, run_id, out_dir) -> dict` AND a `__main__` CLI. Parses transcript for slash-command + prose-form user Skill-invocation requests; cross-checks against the tool-call ledger JSONL; writes verdict JSON to `<workspace>/.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json`. CLI exits 2 on any unmatched request. Stdlib only. ~250-350 lines.
+
+- [TASK-5] Bump `hooks/review_evidence_schema.py` to schema v7. Update `SCHEMA_VERSION = 7`. Extend `REQUIRED_EVIDENCE_FIELDS` with **six** new fields: `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`, `adversarial_review`, `visual_fidelity_review`, `skill_invocation_audit`. Add a new `_validate_adversarial_review()` helper mirroring `_validate_independent_review()`. Add allowed-value sets for the new `*_review` fields (`pass` / `n/a` / `fail`). The hook BLOCKS `fail` on each. Add the new fields to `validate_evidence()`. The `visual_fidelity_review` field MUST cite a `verify_rendered_parity` verdict path. The `skill_invocation_audit` field MUST cite a `skill_invocation_audit.py` verdict path. Update the docstring to v7 and note the BREAKING migration.
 
 - [TASK-6] Extend `hooks/pipeline-completion-audit.py` to walk the coverage map and, for every entry, assert that the matching VAO verdict files exist at `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json` with positive verdicts. A missing verdict OR a negative verdict is a blocking finding. Use the same exit-2 semantics as the existing audit failures.
 
@@ -78,11 +86,13 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
 
 - [TASK-11] Modify `skills/team-spawning-and-review-gates/SKILL.md` to add a `## VAO task-shape pairing (v2.0.0)` section. Document the five shapes, the per-shape adversarial-reviewer assignment, the manifest v2 schema bump (adding `vao_task_shape` and `vao_adversarial_role` fields), the concurrent-dispatch rule (teammate + adversarial-reviewer in the same Phase 2 batch). Update the existing manifest schema example JSON to include the two new fields.
 
-- [TASK-12] Modify `skills/common-pipeline-conventions/SKILL.md` to add a `## Run-history shape detection (v2.0.0)` section. Document the `.architect-team/run-history/` JSON schema, the `vao detect-shape` tool, the Phase −2 invocation point in all three pipelines, the user-confirmation surface wording.
+- [TASK-12] Modify `skills/common-pipeline-conventions/SKILL.md` to add TWO new sections:
+  - `## Run-history shape detection (v2.0.0)` — Layer 4. Document the `.architect-team/run-history/` JSON schema, the `vao detect-shape` tool, the Phase −2 invocation point in all three pipelines, the user-confirmation surface wording.
+  - `## Skill-invocation discipline (v2.0.0)` — Layer 6. Document the user-precedence rule (user explicit instructions override `skill already invoked, do not re-execute` system notes), name the slash-command + prose surface forms the audit detects, name the forbidden anti-pattern *"applied methodology by hand"*, cross-reference `superpowers:using-superpowers`'s Instruction Priority rule.
 
 - [TASK-13] Add the `--no-vao` flag to each of `commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md`. Document the flag in the help section + the explicit trade-off (the v1.x failure modes re-open when VAO is disabled).
 
-- [TASK-14] Author `tests/test_verified_agent_output.py`. Target ≥ 40 tests, parametrized where natural:
+- [TASK-14] Author `tests/test_verified_agent_output.py` (Layers 1-5). Target ≥ 100 tests, parametrized where natural:
   - Skill body assertions (5 layers + 5 shapes + 5 pairings + 4 tools = ~20 parametrized assertions)
   - Agent frontmatter + body assertions (oracle-deriver + adversarial-reviewer = ~6 assertions × 2 agents)
   - `vao_tools.py` unit tests (each of 4 tools × positive + negative fixture = 8 assertions)
@@ -93,7 +103,21 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
   - `--no-vao` flag in each command body (3 assertions)
   - End-to-end synthetic-fixture replay (4 fixtures × end-to-end audit assertion = 4 assertions)
 
-- [TASK-15] Create the four synthetic-fixture files under `tests/fixtures/vao/`. Each is a minimal JSON capturing the failure shape: `scope-narrowing.json` is a synthetic Phase 0 state where the user's prompt contained a parity verb and the agent's narrower interpretation is recorded; `git-stash-clobber.json` is a synthetic teammate tool-call log with a `git stash` line; `frontend-fake-data.json` is a synthetic diff with `"John Smith"` literal + an oracle spec naming `"John Smith"` as a dynamic value; `oracle-structure-mismatch.json` is a synthetic built-tree + frozen oracle spec with one divergence.
+- [TASK-14b] Author `tests/test_vao_skill_invocation_audit.py` (Layer 6). Target ≥ 40 tests:
+  - `is_skill_request` regex coverage (slash-command form × 13 commands; prose form × 7+ verb variants; negative cases — natural language about skills that isn't a request) — ≈25 assertions
+  - `audit_session` round-trip on the `skill-not-invoked.json` fixture — 5 assertions
+  - `audit_session` round-trip on a synthetic transcript where the Skill WAS invoked — 5 assertions
+  - CLI exit-code behavior — 3 assertions
+  - common-pipeline-conventions `## Skill-invocation discipline (v2.0.0)` section presence assertions — 5 assertions
+
+- [TASK-15] Create the **seven** synthetic-fixture files under `tests/fixtures/vao/`. Each is a minimal JSON capturing the failure shape:
+  - `scope-narrowing.json` — Phase 0 state where the user's prompt contained a parity verb and the agent's narrower interpretation is recorded
+  - `git-stash-clobber.json` — synthetic teammate tool-call log with a `git stash` line
+  - `frontend-fake-data.json` — synthetic diff with `"John Smith"` literal + an oracle spec naming `"John Smith"` as a dynamic value
+  - `oracle-structure-mismatch.json` — synthetic built-tree + frozen oracle spec with one divergence
+  - `chrome-mount-level-mismatch.json` — synthetic oracle_dom + candidate_dom where `[data-component="TaCrumbs"]` exists in both at different parent paths
+  - `execution-time-variance.json` — agent evidence file claiming `verdict: pass` while citing a `verify-rendered-parity` verdict whose JSON shows `matched: false` with named divergences (the heirship "addressed with residual variance" pattern)
+  - `skill-not-invoked.json` — synthetic transcript containing `/architect-team:architect-team review codebase` + tool-call ledger with NO matching `Skill` invocation (the heirship "applied methodology by hand" pattern)
 
 - [TASK-16] Version bumps in `plugin.json` and `marketplace.json` → `2.0.0`.
 
@@ -118,7 +142,7 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
   ```bash
   python3 -m pytest -q 2>&1 | tail -3
   ```
-  Expected: 2110 (+ 1 skipped) — the existing 2056 + the ~54 new from TASK-14.
+  Expected: 2240+ (+ 1 skipped) — the existing 2098 + ~100 new from TASK-14 + ~40 new from TASK-14b.
 
 - [TASK-21] OpenSpec validation:
   ```bash
@@ -128,4 +152,4 @@ Six implementer slices, dispatched in two waves. Wave 1 is foundational (the new
 
 ## Acceptance
 
-All 14 acceptance criteria from `proposal.md` `## QA Guidance`. The proposal-first gate hands this proposal back to the user for review before Wave 1 starts.
+All 16 acceptance criteria from `proposal.md` `## QA Guidance` (AC-1 through AC-16, including the heirship-amendment Layer 6 ACs). The proposal-first gate hands this proposal back to the user for review before Wave 1 starts.

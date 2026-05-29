@@ -13,7 +13,10 @@ This proposal is the structural fix.
 | v1.4.0 | Scope-narrowing at intake | "Matched the oracle" | Enrichment + hardcoded-data purge; visual rebuild deferred silently |
 | v1.6.0 | Teammates ran `git stash` | "Verified my work against baseline" | Concurrent stash + pop interleaved; 3 of 4 teammates' work lost |
 | v1.7.0 | Frontend faked missing API | "UI is wired and tested" | Mocked / hardcoded / stubbed the response so the test passed |
-| (new) | Oracle structure mismatch | "Built the shell-level structure to match the oracle" | Built a totally different structure; the oracle was never structurally diffed |
+| (heirship-1) | Oracle structure mismatch | "Built the shell-level structure to match the oracle" | Built a totally different structure; the oracle was never structurally diffed |
+| (heirship-2) | Source-audit "pixel parity" | "Pixel parity: pass — `<TaCrumbs />` exists in both source trees" | Chrome MOUNT-LEVEL divergence; rendered DOM mounted breadcrumbs in different parents |
+| (heirship-3) | Execution-time scope narrowing | "12 of 15 fully resolved; 3 addressed with residual variance" | Shipped partial work, asked user permission to do what user already asked for |
+| (heirship-4) | Skill-not-invoked | "Applied the architect-team methodology by hand" | Never called the Skill tool; the plugin's framework never fired; agent freelanced |
 
 In every case the agent **self-reported** the work as done. In every case the orchestrator **accepted** the self-report because there was no machine-mediated way to disprove it. The fix the plugin keeps shipping — *"tell the agent not to do that"* — is a layer on top of the same trust-the-self-report dispatch model. It does not change the dispatch model.
 
@@ -33,7 +36,7 @@ The user named the bar explicitly: **all four enforcement layers** — hook-enfo
 
 ## What changes
 
-v2.0.0 introduces the **Verified Agent Output (VAO) framework** as a **first-class architectural concept across the entire pipeline**. It is layered, opt-out by exception only, and addresses the four enforcement layers the user named:
+v2.0.0 introduces the **Verified Agent Output (VAO) framework** as a **first-class architectural concept across the entire pipeline**. It is layered, opt-out by exception only, and addresses the four enforcement layers the user named, plus the **6th layer (Skill-invocation verification)** added in direct response to the heirship-app-v2 *"I was applying the methodology by hand"* failure surfaced during proposal review:
 
 ### Layer 1: Pre-execution oracle-derivation (NEW gate, Phase 0.5)
 
@@ -78,6 +81,35 @@ The same pattern as the `pipeline-completion-audit.py` Stop hook: an executable 
 
 The user gets ONE structured confirmation before the run proceeds. If confirmed, the run uses the per-shape adversarial-reviewer pairings. If the user names a different shape, the orchestrator re-classifies. This is the v0.9.34 MemPalace pattern extended from "search for prior context" to "verify against prior failure shapes."
 
+### Layer 6: Skill-invocation verification (NEW gate, Stop hook) — the heirship "applied methodology by hand" closure
+
+The 5 layers above ALL fire when the architect-team-pipeline Skill is INVOKED. If the orchestrator decides to "apply the methodology by hand" rather than calling the Skill tool — the v1.8-era heirship failure where a *"do not re-execute"* system note about an already-invoked skill was interpreted as license to skip Skill invocation entirely — **none of Layers 1-5 fire**. Layer 6 closes that gap.
+
+The mechanism is a new `hooks/skill_invocation_audit.py` invoked on the Stop hook. It:
+
+1. **Parses every user message in the session transcript** for explicit Skill-invocation requests in two surface forms:
+   - Slash-command form: `/architect-team`, `/architect-team:bug-fix`, `/architect-team:ux-test`, `/architect-team:mini`, `/architect-team:architect-team`, `/architect-team:refine-prompt`, `/architect-team:cleanup-worktrees`, `/architect-team:status` — the 13 user-invocable commands.
+   - Prose form: regex sweep for *"use /<skill-or-command>"*, *"invoke /<skill-or-command>"*, *"run /<skill-or-command>"*, *"using /<skill-or-command>"*, and the bare verbs *"using the architect-team"*, *"use architect-team:X"* with sibling-skill variants.
+2. **Reads the session's tool-call ledger** for actual `Skill` tool invocations (or the harness-equivalent slash-command dispatch). The ledger lives at `<workspace>/.architect-team/run-history/<run-id>-toolcalls.jsonl` (a v2.0.0 artifact the orchestrator emits per dispatch).
+3. **Cross-checks.** For every explicit Skill-invocation request, asserts the matching Skill tool invocation appears in the ledger. If a user typed `/architect-team:architect-team` (or prose equivalent) and no `Skill(skill: architect-team)` invocation fired in the rest of the session, the hook exits 2 with a structural-error report:
+
+   ```
+   SKILL-INVOCATION-AUDIT FAIL
+   User explicitly requested Skill `<X>` in message at <timestamp> ("<verbatim quote>")
+   No matching Skill tool invocation found in the session's tool-call ledger.
+   The methodology was applied BY HAND rather than via the framework.
+   This bypasses Layers 1-5 of the VAO framework — no oracle-derivation,
+   no adversarial review, no tool-mediated verdicts, no schema v7 enforcement.
+   ```
+
+   The schema v7 evidence file MUST cite a `skill_invocation_audit` field with the audit's verdict path; a missing field is a hook-blocking violation.
+
+4. **Documented user-precedence rule** in `common-pipeline-conventions/SKILL.md` (canonical home): *"User explicit instructions override `skill already invoked, do not re-execute` system notes. If the user typed `/architect-team:X` or prose explicitly requesting Skill X, the agent MUST invoke X via the Skill tool — even if Skill X was invoked earlier in the session. The 'do not re-execute' note is a hint, not a ban; user instructions take precedence per the superpowers:using-superpowers Instruction Priority rule."*
+
+**Why this is Layer 6, not part of Layers 1-5.** Layers 1-5 ASSUME the pipeline Skill was invoked. Layer 6 verifies the assumption holds. It is the foundation layer Layers 1-5 stand on; without it, the framework is bypassable by the exact escape phrase — *"I'd been applying its methodology by hand"* — the heirship session captured verbatim.
+
+**Why this fixes the heirship failure.** The agent's escape phrase — *"A system note flagged that skill as already-invoked earlier this session ('do not re-execute'), so I'd been applying its methodology by hand"* — becomes a hook-blocking violation. The audit detects (a) the user typed `/architect-team:architect-team` and (b) no `Skill` invocation fired afterward. Exit 2. Run blocked. The methodology cannot be "applied by hand" undetected.
+
 ### Layer 5: Test-suite-enforced rule visibility (the existing structural-test layer, extended)
 
 The existing `tests/test_*_discipline.py` pattern is extended in v2.0.0 to assert each VAO layer is wired:
@@ -99,7 +131,7 @@ The existing `tests/test_*_discipline.py` pattern is extended in v2.0.0 to asser
 
 ### Acceptance Criteria
 
-- [AC-1] `skills/verified-agent-output/SKILL.md` exists as the canonical home, documenting all 5 layers, the failure-shape taxonomy (parity-verb, backend-dep, shared-tree, dynamic-value), the per-shape adversarial-reviewer pairings, the four tool-mediated proof outputs, and the run-history shape-recognition flow.
+- [AC-1] `skills/verified-agent-output/SKILL.md` exists as the canonical home, documenting all **6 layers** (Layer 1 oracle-derivation + Layer 2 adversarial review + Layer 3 tool-mediated proof + Layer 4 run-history shape detection + Layer 5 structural tests + **Layer 6 Skill-invocation verification**), the failure-shape taxonomy (parity-verb, backend-dep, shared-tree, dynamic-value, **execution-time-variance**, **skill-not-invoked**), the per-shape adversarial-reviewer pairings, the **five** tool-mediated proof outputs (including the heirship-amendment `verify-rendered-parity`), and the run-history shape-recognition flow.
 - [AC-2] A new `oracle-deriver` agent (opus, read-only, dedicated frontmatter) exists at `agents/oracle-deriver.md` and is invoked at the new Phase 0.5 by all three pipeline-driving skills.
 - [AC-3] A new `adversarial-reviewer` agent (opus, role-paired, sees the teammate's tool-call log) exists at `agents/adversarial-reviewer.md` and is dispatched alongside every Phase 3 teammate.
 - [AC-4] `hooks/vao_tools.py` ships the **five** deterministic verification tools: `verify-oracle-match`, `verify-baseline-clean`, `verify-no-fake-data`, `verify-every-element`, `verify-rendered-parity`. Each produces JSON verdict output. Each is unit-tested with synthetic fixtures. The 5th tool (`verify-rendered-parity`) operates on the rendered DOM + screenshot of a live URL — explicitly NOT the source-component-tree — to close the source-audit-vs-rendered-output gap surfaced during proposal review (the heirship-app-v2 chrome-level breadcrumb case).
@@ -108,11 +140,13 @@ The existing `tests/test_*_discipline.py` pattern is extended in v2.0.0 to asser
 - [AC-7] `skills/team-spawning-and-review-gates/SKILL.md` documents the Layer 2 adversarial-pairing rule (which adversarial-reviewer attaches to which task-shape) and the `vao_layer_2_adversarial_role` field in the teammate manifest schema (v2 of the manifest).
 - [AC-8] `skills/common-pipeline-conventions/SKILL.md` adds a `## Run-history shape detection (v2.0.0)` section documenting Layer 4 — the shape-fingerprint format, the `vao detect-shape` tool, the Phase −2 invocation point, the user-confirmation flow.
 - [AC-9] `tests/test_verified_agent_output.py` exists with ≥ 40 tests covering: Phase 0.5 invocation in all 3 pipelines, oracle-deriver agent structure, adversarial-reviewer agent structure, schema v7 fields, each vao tool with synthetic-fixture round-trip, the run-history shape-detection structural assertions.
-- [AC-10] All 4 known failure cases are reproduced as synthetic fixtures under `tests/fixtures/vao/` (`scope-narrowing.json`, `git-stash-clobber.json`, `frontend-fake-data.json`, `oracle-structure-mismatch.json`). Each fixture is a synthetic run-state that v2.0.0 MUST detect and block; a v1.7.0-shaped pipeline would let it pass. The test suite asserts the v2.0.0 behavior. This is the test-suite-enforced layer the user named.
+- [AC-10] All known failure cases are reproduced as synthetic fixtures under `tests/fixtures/vao/`: `scope-narrowing.json`, `git-stash-clobber.json`, `frontend-fake-data.json`, `oracle-structure-mismatch.json`, `chrome-mount-level-mismatch.json` (rendered-parity), `execution-time-variance.json` (heirship "addressed with residual variance"), `skill-not-invoked.json` (heirship "applied methodology by hand"). Each fixture is a synthetic run-state that v2.0.0 MUST detect and block; a v1.8.0-shaped pipeline would let it pass. The test suite asserts the v2.0.0 behavior. This is the test-suite-enforced layer the user named.
 - [AC-11] The `pipeline-completion-audit.py` Stop hook is extended to require a VAO verdict for every coverage-map entry. An entry with no VAO tool verdict is a blocking finding (same exit semantics as the existing audit failures).
 - [AC-12] Version `2.0.0` consistent across plugin.json, marketplace.json, CHANGELOG, README banner, CLAUDE.md.
-- [AC-13] All existing tests still pass + new tests. Target: 2056 → ~2110 (+ ~50-60 new).
+- [AC-13] All existing tests still pass + new tests. Target: 2098 → ~2240 (+ ~140 new — adds the Layer 6 skill-invocation audit tests + execution-time-variance fixture).
 - [AC-14] Migration guide in CHANGELOG documents the one breaking change: review-evidence schema v6 → v7 (existing review files won't validate; pipeline runs in progress at upgrade time need to re-run their teammates).
+- [AC-15] `hooks/skill_invocation_audit.py` ships as a new Stop-hook auditor. Parses the session transcript for explicit Skill-invocation requests (slash-command form + prose form), cross-checks against the actual `Skill` tool invocation ledger, and exits 2 on any mismatch. Schema v7's `skill_invocation_audit` field MUST cite the verdict path.
+- [AC-16] `skills/common-pipeline-conventions/SKILL.md` adds the canonical `## Skill-invocation discipline (v2.0.0)` section documenting the user-precedence rule: explicit user `/architect-team:X` requests override "do-not-re-execute" system notes; agents MUST invoke the Skill via the Skill tool — applying methodology by hand is forbidden.
 
 ### Unit Test Targets
 
@@ -142,12 +176,12 @@ The existing `tests/test_*_discipline.py` pattern is extended in v2.0.0 to asser
 
 ## Impact
 
-- **New skills:** `skills/verified-agent-output/SKILL.md` (new), `tests/fixtures/vao/` (new directory with 4 synthetic fixtures).
+- **New skills:** `skills/verified-agent-output/SKILL.md` (new), `tests/fixtures/vao/` (new directory with 7 synthetic fixtures).
 - **New agents:** `agents/oracle-deriver.md`, `agents/adversarial-reviewer.md`.
-- **New hooks:** `hooks/vao_tools.py` (the deterministic verification tools).
-- **Modified:** `hooks/review_evidence_schema.py` (schema v7), `hooks/pipeline-completion-audit.py` (VAO verdict enforcement), `hooks/review-gate-task.py` (v7 evidence validation), `hooks/teammate-idle-check.py` (same), 3 pipeline SKILL.md bodies (Phase 0.5 documentation), `skills/team-spawning-and-review-gates/SKILL.md` (manifest v2 schema, adversarial-pairing), `skills/common-pipeline-conventions/SKILL.md` (Layer 4 documentation), CHANGELOG, CLAUDE.md, README, CODEBASE_MAP, INTEGRATION_MAP, plugin.json, marketplace.json.
-- **New tests:** `tests/test_verified_agent_output.py` (≥ 40 tests).
-- **Test count:** 2056 → ~2110.
+- **New hooks:** `hooks/vao_tools.py` (the deterministic verification tools — 5 of them, including the heirship-amendment `verify-rendered-parity`), `hooks/skill_invocation_audit.py` (Layer 6 Stop-hook auditor).
+- **Modified:** `hooks/review_evidence_schema.py` (schema v7), `hooks/pipeline-completion-audit.py` (VAO verdict enforcement + Layer 6 invocation), `hooks/review-gate-task.py` (v7 evidence validation), `hooks/teammate-idle-check.py` (same), 3 pipeline SKILL.md bodies (Phase 0.5 documentation), `skills/team-spawning-and-review-gates/SKILL.md` (manifest v2 schema, adversarial-pairing), `skills/common-pipeline-conventions/SKILL.md` (Layer 4 + Layer 6 documentation), CHANGELOG, CLAUDE.md, README, CODEBASE_MAP, INTEGRATION_MAP, plugin.json, marketplace.json.
+- **New tests:** `tests/test_verified_agent_output.py` (≥ 100 tests), `tests/test_vao_skill_invocation_audit.py` (≥ 40 tests).
+- **Test count:** 2098 → ~2240.
 - **Version:** v1.7.0 → **v2.0.0** (MAJOR — review-evidence schema v6 → v7 is a breaking contract change for any in-flight run).
 - **Backwards-compatible:** NO. The schema bump is intentional — a partial migration would let the gap re-open. Migration: run the existing pytest suite at the v2.0.0 release point; runs in flight at upgrade time re-spawn their teammates against the v7 schema.
 - **Cost honestly named:** ~30-40% more agent-dispatches per run (the adversarial-reviewer per teammate + oracle-deriver at intake), ~15-25% more wall-clock per run, ~2× the per-run tokens. These costs are the price of structurally blocking the failure class the plugin has been patching one-at-a-time. The user explicitly authorized a LARGE architectural appetite, so this trade is on-bar.
