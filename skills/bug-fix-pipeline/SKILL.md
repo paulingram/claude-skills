@@ -65,6 +65,8 @@ Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which poi
 
 **When the bug-fix pipeline is reached via the main pipeline's Phase −2 routing** (the classifier returned `bug` or `mixed`), the unscoped wake-up has ALREADY run there — this section is a no-op in that case (the carve-out is the bug-fix-specific entry-condition the canonical rule doesn't carry, since it is unique to this pipeline). A SECOND, **wing-scoped** wake-up (`--wing <wing>`) runs from inside Phase B−1A (which reuses `intake-and-mapping`'s Phase −1A flow) once the wing name is discovered, regardless of entry path.
 
+After EVERY background Agent dispatch in this pipeline (Phase B−1 mapping ralph loops, Phase B1 bug-replicator + bug-classifier, Phase B2 backend diagnostic, Phase B3 system-architect, Phase B4 generalization audit, Phase B5 fix-team teammates, Phase B6 qa-replayer, Phase B6b fix-sensibility-checker, Phase B8 doc-updater), route the raw dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` per `common-pipeline-conventions` `## Background-agent resume discipline` BEFORE treating the work as complete. Truncated / stream-timed-out results auto-resume up to 2 attempts; `resumed_failed=True` surfaces to the user with on-disk artifacts cited.
+
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
 Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence; same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.
