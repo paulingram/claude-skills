@@ -2,6 +2,129 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] — 2026-05-29 — Verified Agent Output (VAO) framework
+
+**BREAKING** — review-evidence schema v6 → v7.
+
+The class of "agent silently does the wrong thing" failures the plugin has been patching one at a time (v1.4 scope, v1.6 git, v1.7 frontend-fake-data, v1.8 agent-resume) all share the same root cause: documentation discipline tells the agent NOT to do the wrong thing; the hook checks the agent's WORDS are present in the evidence file; nothing verifies the claims are TRUE. v2.0.0 converts each subjective agent judgment call at a critical pipeline moment into a machine-verified objective check via six layers.
+
+### Layer 1 — Pre-execution oracle derivation (Phase 0.5)
+
+New `agents/oracle-deriver.md` (opus, read-only) dispatched at the new Phase 0.5 whenever the requirement contains a parity verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) OR names an oracle codebase / design mockup / reference URL. Walks the named oracle deterministically and produces a frozen structured spec at `<workspace>/.architect-team/oracle-spec/<change-name>.json` with five possible `spec_shape` values (`component-tree` / `design-map` / `api-contract` / `data-model` / `hybrid`). The orchestrator surfaces the spec to the user with one confirmation gate; on accept the spec is frozen and becomes the binding contract every downstream layer measures against.
+
+### Layer 2 — Adversarial-reviewer pairing (Phase 3)
+
+New `agents/adversarial-reviewer.md` (opus, read-only) dispatched alongside every Phase 3 teammate. The producer-cannot-be-its-own-checker pattern (v0.9.13) scales from "is the work done" to "does the work exhibit the failure-mode this task shape is prone to." Five role-paired shapes:
+
+| Task shape | Adversarial role | Tool invoked |
+|---|---|---|
+| `parity-verb` | `oracle-divergence-hunter` | `verify-oracle-match` |
+| `backend-dep` | `fake-data-hunter` | `verify-no-fake-data` |
+| `shared-tree` (always-on) | `git-discipline-hunter` | `verify-baseline-clean` |
+| `dynamic-value` | `hardcoded-literal-hunter` | `verify-no-fake-data` |
+| `default` | `general-anti-pattern-hunter` | (light sweep across 4 shapes) |
+
+The adversarial-reviewer writes an `adversarial_review` block into the SAME `.architect-team/reviews/<task-id>.json` evidence file the teammate produced; the Phase 3 hook (schema v7) requires BOTH the existing `independent_review` verdict AND the `adversarial_review` verdict to pass.
+
+### Layer 3 — Tool-mediated execution proof
+
+New `hooks/vao_tools.py` ships **five deterministic verification tools**:
+
+- **`verify-oracle-match`** — structural diff against the frozen oracle spec. Sorted-keys + indent=2 output (bit-stable for given inputs).
+- **`verify-baseline-clean`** — bash-history audit. Pattern-matches the 6 v1.6.0-forbidden git operations (`git stash`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>`, `git clean -f`) without firing on legit read ops (`git status`, `git log`, `git diff`, `git stash list`).
+- **`verify-no-fake-data`** — diff sweep for placeholder names, MSW handlers, page.route fulfill stubs, lorem ipsum, hardcoded money literals, and every oracle-declared dynamic-value literal. Skips test files (where fake data is legal); reports every matching category per line.
+- **`verify-every-element`** — coverage check: every oracle-named element MUST be present, wired to a non-stub handler, driven by a Playwright test.
+- **`verify-rendered-parity`** — the **heirship-amendment** tool. Operates on the RENDERED DOM + screenshot pixel-diff, NOT the source component tree. Catches the canonical heirship-app-v2 case where `<TaCrumbs />` exists in both candidate and oracle source but mounts at different rendered parent paths. Schema v7's `visual_fidelity_review` field MUST cite this tool's verdict path; agent prose attestation from source-code reading is REJECTED at the hook layer.
+
+Each tool writes verdict JSON to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`; the schema v7 evidence field cites the verdict path.
+
+### Layer 4 — Run-history shape detection (DEFERRED to v2.1.x)
+
+The `vao detect-shape` tool reading `.architect-team/run-history/` files and surfacing prior-failure-shape matches at Phase −2 is deferred. The cost/value of the run-history feed depends on accumulated runs; v2.0.0 ships without it and the post-v2.0.0 telemetry will inform whether Layer 4 is needed. The hooks/skill_invocation_audit.py Layer 6 surface is sufficient to learn from immediate-prior failures within a session.
+
+### Layer 5 — Structural test enforcement
+
+The pytest suite asserts each VAO layer is wired:
+- 32 tests in `tests/test_vao_tools.py` pinning the 5 tools' positive + negative + determinism contracts.
+- 48 tests in `tests/test_verified_agent_output.py` pinning the canonical skill body, schema v7 fields, and openspec change folder.
+- 19 tests in `tests/test_vao_fixtures.py` pinning each canonical fixture's round-trip through the matching tool.
+- 55 tests in `tests/test_vao_skill_invocation_audit.py` pinning the Layer 6 regex coverage, audit semantics, common-pipeline-conventions documentation.
+
+### Layer 6 — Skill-invocation verification (the heirship "applied methodology by hand" closure)
+
+**The foundation layer.** Layers 1-5 fire WHEN the architect-team-pipeline Skill is INVOKED. If the orchestrator decides to "apply the methodology by hand" rather than invoke the Skill tool — the verbatim heirship-app-v2 escape phrase — none of Layers 1-5 fire. Layer 6 detects that case and blocks the run.
+
+New `hooks/skill_invocation_audit.py` (stdlib-only, Stop-hook auditor):
+
+1. Parses the session transcript for two explicit-request surface forms: **slash-command** (`/architect-team`, `/architect-team:X`, `/bug-fix`, `/ux-test`, `/mini`, `/refine-prompt`, `/cleanup-worktrees`, `/mempalace-*`, `/status`, `/code-review`, `/editability-audit`) and **prose** (`use`, `using`, `invoke`, `run`, `fire`, `with` + optional `the` + optional `/` + command name).
+2. Reads the session tool-call ledger at `.architect-team/run-history/<run-id>-toolcalls.jsonl`.
+3. Cross-checks: every explicit user request MUST have a matching `Skill` tool invocation AFTER the request's timestamp.
+4. Writes verdict JSON to `.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json`.
+5. Exits 2 on any unmatched request, with the canonical failure report.
+
+Schema v7's `skill_invocation_audit` field MUST cite the verdict path.
+
+The user-precedence rule (canonical home: `common-pipeline-conventions/SKILL.md` `## Skill-invocation discipline (v2.0.0)`): **user explicit instructions override `skill already invoked, do not re-execute` system notes**. Applying methodology by hand is forbidden — it bypasses every VAO framework layer. Layer 6 is ALWAYS-ON; `--no-vao` does not disable it because the audit checks whether the framework was invoked at all (opting out IS the failure mode it exists to catch).
+
+### Schema v7
+
+`hooks/review_evidence_schema.py` bumped 6 → 7. Five new required fields added to `REQUIRED_EVIDENCE_FIELDS`: `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`, `adversarial_review`, `skill_invocation_audit`. Each field accepts either a string (`pass` / `n/a` / `fail`) OR a dict with `verdict` + `verdict_path` citing the on-disk tool verdict. The hook blocks any evidence file missing any field OR carrying a `fail` verdict. The pre-existing `visual_fidelity_review` field also gained dict-shape support so the v2.0.0 canonical citation form works for it too.
+
+**Migration.** v6 evidence files DO NOT validate against v7. Runs not in flight at the v2.0.0 upgrade: no action needed; new runs use v7 from Phase 0.5. Runs in flight at upgrade: re-spawn the active teammates against v7.
+
+### Synthetic fixtures (the test-suite-enforced layer)
+
+7 canonical fixtures under `tests/fixtures/vao/`, one per known failure shape:
+
+- `scope-narrowing.json` — heirship-v3 oracle with the verbatim user prompt `match the oracle (100% pixel-perfect, no variance)` + the agent's narrower interpretation
+- `git-stash-clobber.json` — verbatim tool-call log with 3 `git stash` + 1 `git reset --hard`
+- `frontend-fake-data.json` — UserAvatar diff with hardcoded `John Smith` + MSW handler + oracle dynamic-value `Park Family Trust`
+- `oracle-structure-mismatch.json` — built tree missing `AppShellSidebar` and `MatterStageNav`; label value mismatched
+- `chrome-mount-level-mismatch.json` — **THE CANONICAL HEIRSHIP CASE**. `<TaCrumbs />` in both source trees; mounted in `AppShellHeader` (oracle) vs `[data-testid='page-body']` (candidate). Source walk says matched; rendered parity catches the architectural divergence.
+- `execution-time-variance.json` — schema v7: agent's inline verdict says `pass` but the cited `verify-rendered-parity` verdict path's JSON shows `matched: false` with 4 named divergences (the heirship "addressed with residual variance" pattern)
+- `skill-not-invoked.json` — verbatim heirship transcript: user typed `/architect-team:architect-team review the excel list`; the ledger contains ZERO `Skill` invocations, only Bash/Edit/Read
+
+### `--no-vao` escape hatch
+
+The three pipeline-driving slash commands (`/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`) accept a `--no-vao` flag (DOCUMENTED but the wiring is the canonical Layer-3 + Layer-5 + Layer-6 contract; per-pipeline Phase 0.5 dispatch is documented in `skills/verified-agent-output/SKILL.md` and is the natural next slice). The flag disables Layers 1, 2, 4, 5. Layer 6 is always-on. Trade-off: re-opens the v1.x failure modes.
+
+### Test count
+
+v1.8.0 baseline: 2098 passing + 1 skipped.
+v2.0.0: **2255 passing + 1 skipped** (+157 net).
+
+### Files added
+
+- `skills/verified-agent-output/SKILL.md` — canonical home of the 6 layers.
+- `agents/oracle-deriver.md` — Layer 1.
+- `agents/adversarial-reviewer.md` — Layer 2.
+- `hooks/vao_tools.py` — Layer 3, 5 deterministic tools.
+- `hooks/skill_invocation_audit.py` — Layer 6 Stop-hook auditor.
+- `tests/test_vao_tools.py` (32 tests).
+- `tests/test_vao_skill_invocation_audit.py` (55 tests).
+- `tests/test_verified_agent_output.py` (48 tests).
+- `tests/test_vao_fixtures.py` (19 tests).
+- `tests/fixtures/vao/` — 7 canonical synthetic fixtures.
+
+### Files modified
+
+- `hooks/review_evidence_schema.py` — schema v6 → v7, +5 required fields, dict-shape support.
+- `skills/common-pipeline-conventions/SKILL.md` — new `## Skill-invocation discipline (v2.0.0)` section.
+- 6 test helpers updated from v6 to v7 evidence dicts.
+- `tests/test_skills.py` `EXPECTED_SKILLS` — added `verified-agent-output`.
+- `tests/test_agents.py` `EXPECTED_AGENTS` — added `oracle-deriver` and `adversarial-reviewer`.
+- `tests/test_agent_resume_discipline.py` — agent-count assertion relaxed from exact-27 to at-least-27.
+- `README.md` — inventory grid 27 skills / 27 agents → 28 / 29; v2.0.0 row.
+- `CLAUDE.md` — refreshed lead, test count, file inventory.
+
+### Deferred to v2.1.x
+
+- **Layer 4 (run-history shape detection)** — `vao detect-shape` tool reading `.architect-team/run-history/`. Depends on accumulated runs to be useful; v2.0.0 ships without it and post-v2.0.0 telemetry will inform whether to ship.
+- **Phase 0.5 inline-dispatch wiring in the 3 pipeline SKILL.md bodies** — the agents exist, the canonical home documents the dispatch contract, and the orchestrator can invoke them per the `verified-agent-output` skill body. The pipeline body's inline `## Phase 0.5` section is a documentation refactor that doesn't change runtime behavior.
+- **Manifest v2 with `vao_task_shape` / `vao_adversarial_role` fields** — `team-spawning-and-review-gates/SKILL.md` already documents the dispatch contract via `verified-agent-output/SKILL.md`; the manifest schema bump is a cosmetic addition.
+- **Real-world replay** of archived heirship transcripts through v2.0.0 — synthetic-fixture suite is the v2.0.0 acceptance bar; replay is a v2.1.x capability that requires the plugin to consume archived run transcripts.
+- **Worktree-per-teammate dispatch** — Layer 3's `verify-baseline-clean` preempts this at lower complexity; revisit only if Layer 3 proves insufficient.
+
 ## [1.8.0] — 2026-05-29 — Agent-Resume Discipline
 
 A reliability gap distinct from v2.0.0's verified-agent-output framework: a real-world background `dv-attorney` agent ran 68 tool-calls of real work, then its final report message was lost to a harness-level stream timeout. The orchestrator saw an empty result and treated the agent as failed; the work was on disk the whole time. The user had to manually `redispatch and continue` so the agent could re-emit its verdict from already-loaded context. v1.8.0 automates that recovery and adds a checkpoint discipline so the resumed agent doesn't re-do the 68 tool calls. The fix lives at four enforcement points (same layered pattern as v1.6.0 teammate-git-discipline + v1.7.0 frontend-missing-API-discipline): a new `scripts/setup/agent_resume.py` helper (3 stdlib-only functions — `is_truncated`, `wrap_agent_result`, `read_checkpoint`); two new canonical sections in `common-pipeline-conventions/SKILL.md` (`## Background-agent resume discipline` + `## Agent checkpoint discipline`); a one-paragraph reference in each of the 3 pipeline SKILL.md bodies enumerating the dispatch points where `wrap_agent_result()` must be called; a uniform `## Checkpoint discipline` section in all 27 `agents/*.md` files. 42 new tests in `tests/test_agent_resume_discipline.py`.
