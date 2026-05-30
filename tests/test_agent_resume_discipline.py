@@ -483,10 +483,12 @@ def test_every_agent_has_checkpoint_discipline_section(plugin_root: Path) -> Non
     assert not missing, f"agents missing checkpoint section: {missing}"
 
 
-def test_agent_count_is_27(plugin_root: Path) -> None:
-    """Sanity: the v1.8.0 fan-out claims 27 agents."""
+def test_agent_count_is_at_least_27(plugin_root: Path) -> None:
+    """The v1.8.0 fan-out shipped with 27 agents; v2.0.0 added oracle-deriver
+    and adversarial-reviewer for the VAO framework. New agents are
+    additive — the assertion is a lower bound, not an exact count."""
     agents = list((plugin_root / "agents").glob("*.md"))
-    assert len(agents) == 27, f"expected 27 agents, found {len(agents)}"
+    assert len(agents) >= 27, f"expected at least 27 agents, found {len(agents)}"
 
 
 def test_every_agent_section_references_canonical(plugin_root: Path) -> None:

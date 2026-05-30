@@ -33,6 +33,8 @@ EXPECTED_AGENTS: set[str] = {
     "fix-sensibility-checker",
     "prompt-refiner",
     "mini-qa",
+    "oracle-deriver",
+    "adversarial-reviewer",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
