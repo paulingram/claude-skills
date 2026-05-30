@@ -103,6 +103,14 @@ For a SCHEMA oracle (an existing DB schema the new work must match). Walk every 
 
 A requirement spanning multiple shapes (most common — a frontend codebase + a backend codebase together). Compose multiple sub-spec objects under `tree`. Each sub-spec carries its own `spec_shape` and the orchestrator's downstream tools dispatch on the sub-shape.
 
+### interactive-mockup (v2.1.0)
+
+For an INTERACTIVE HTML MOCKUP oracle — typically an artifact-style mockup from Claude Code (a single-file `.html` with `<script>` tags, inline `onclick=` handlers, `[data-action]` attributes, or framework-mounted JS). Trigger when the artifact is an HTML file (or a directory containing `index.html` + assets) AND carries one or more runtime-interactivity signals (a `<script>` tag, an `onclick=` attribute, an `addEventListener` call, a `[data-action]` attribute).
+
+When this spec_shape triggers, dispatch the `interaction-observer` agent (per `skills/interactive-mockup-discovery/SKILL.md`) BEFORE writing your frozen spec. The observer runs the mockup in headless Chrome (or reads a pre-captured DOM-interaction snapshot for stdlib-only contexts), enumerates every interactive element, simulates each interaction, and writes a structured `interactions[]` array to your spec. Each interactions[] entry has the shape `{interaction_id, trigger_selector, semantic_label, action_kind, observed_effect, target_url_or_state, evidence_path}` where `action_kind ∈ {navigate, open-drawer, open-modal, submit, input-text, reveal, no-op}` (the closed 7-value vocabulary).
+
+The observer's interactions[] output is folded into your spec's top-level `interactions[]` field. The downstream `interaction-intuiter` agent then runs its INTENT-INFERENCE mode against the interactions[] to detect mockup-lies (e.g., a "Logout" button that observes `navigate to /dashboard`) and surface them as `interaction_intent_gap` entries at the Phase −1D bulk-verify gate. The user-resolved intent — NOT the mockup's literal observed behavior — becomes the binding contract every downstream layer measures against. See `skills/interactive-mockup-discovery/SKILL.md` for the full two-pass mechanism.
+
 ## How you walk
 
 **Be deterministic.** Two invocations of you against the same oracle MUST produce byte-identical spec JSON (modulo the `derived_at` timestamp). This is the foundation of the framework — the `verify-oracle-match` tool's diff is meaningless if your walks are unstable.

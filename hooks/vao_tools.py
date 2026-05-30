@@ -625,6 +625,159 @@ def verify_rendered_parity(
 
 
 # ===========================================================================
+# Tool 6 — verify-interactions-honored (v2.1.0)
+# ===========================================================================
+
+
+def _resolved_target(entry: dict[str, Any]) -> tuple[str | None, str | None]:
+    """For an interactions[] entry, return the target (action_kind, target)
+    pair the built work must match.
+
+    Priority:
+      1. If `resolved_intent` is populated → user-confirmed canonical intent.
+         Shape: a string `"<action_kind>:<target>"` (e.g., `"navigate:/sign-in"`).
+      2. Else if `action_kind != "no-op"` → the observed action is the target
+         (the mockup's literal behavior is binding).
+      3. Else → return (None, None) — no-op elements are not verified.
+    """
+    resolved = entry.get("resolved_intent")
+    if isinstance(resolved, str) and resolved:
+        if ":" in resolved:
+            kind, target = resolved.split(":", 1)
+            return kind.strip(), target.strip()
+        return resolved.strip(), None
+    if isinstance(resolved, dict):
+        return resolved.get("action_kind"), resolved.get("target")
+    action_kind = entry.get("action_kind")
+    if action_kind and action_kind != "no-op":
+        return action_kind, entry.get("target_url_or_state")
+    return None, None
+
+
+def verify_interactions_honored(
+    built_components: list[dict[str, Any]] | None = None,
+    oracle_spec: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.1.0 Layer-3 tool — verify the built code honors every interactions[]
+    entry in the frozen oracle spec.
+
+    Args:
+      built_components: list of {"path": ..., "handlers": [{"trigger_selector",
+        "action_kind", "target_url_or_state"}, ...]} dicts.
+      oracle_spec: oracle spec carrying ``interactions: [{"interaction_id",
+        "trigger_selector", "semantic_label", "action_kind", "observed_effect",
+        "target_url_or_state", "resolved_intent": optional}, ...]``.
+      out_path: optional path to write the verdict JSON.
+
+    Returns::
+
+        {
+          "tool": "verify-interactions-honored",
+          "matched": bool,
+          "gaps": [{"trigger_selector", "expected_action_kind",
+                    "expected_target", "actual_action_kind", "actual_target",
+                    "severity": "intent-violated" | "missing-handler" |
+                    "action-kind-mismatch"}],
+          "honored_count": int,
+          "total_count": int,
+          "verdict_at": "<ISO 8601 UTC>"
+        }
+
+    Determinism contract: sorted-keys + indent=2 output for given inputs
+    (same discipline as the other 5 Layer-3 tools).
+    """
+    built_components = built_components or []
+    oracle_spec = oracle_spec or {}
+    interactions = oracle_spec.get("interactions", []) or []
+
+    # Index built handlers by trigger_selector for O(1) lookup. A single
+    # selector may have multiple handlers across components (e.g., a global
+    # click delegate AND a component-local handler); collect them all into a
+    # list so we can find any matching action_kind + target.
+    handler_index: dict[str, list[dict[str, Any]]] = {}
+    for component in built_components:
+        if not isinstance(component, dict):
+            continue
+        for handler in component.get("handlers", []) or []:
+            if not isinstance(handler, dict):
+                continue
+            sel = handler.get("trigger_selector")
+            if isinstance(sel, str):
+                handler_index.setdefault(sel, []).append(handler)
+
+    gaps: list[dict[str, Any]] = []
+    honored = 0
+    total = 0
+
+    for entry in interactions:
+        if not isinstance(entry, dict):
+            continue
+        sel = entry.get("trigger_selector")
+        if not isinstance(sel, str):
+            continue
+        expected_kind, expected_target = _resolved_target(entry)
+        if expected_kind is None:
+            # no-op element with no resolved_intent — not verified
+            continue
+        total += 1
+        handlers = handler_index.get(sel, [])
+        if not handlers:
+            gaps.append({
+                "trigger_selector": sel,
+                "expected_action_kind": expected_kind,
+                "expected_target": expected_target,
+                "actual_action_kind": None,
+                "actual_target": None,
+                "severity": "missing-handler",
+            })
+            continue
+        # Find a handler matching both action_kind AND target. Allow partial
+        # match (action_kind matches but target differs) to surface a finer
+        # severity.
+        kind_matches = [h for h in handlers if h.get("action_kind") == expected_kind]
+        if not kind_matches:
+            # Pick any handler to report the actual action_kind
+            actual = handlers[0]
+            gaps.append({
+                "trigger_selector": sel,
+                "expected_action_kind": expected_kind,
+                "expected_target": expected_target,
+                "actual_action_kind": actual.get("action_kind"),
+                "actual_target": actual.get("target_url_or_state"),
+                "severity": "action-kind-mismatch",
+            })
+            continue
+        # action_kind matches; check target
+        target_match = next(
+            (h for h in kind_matches if h.get("target_url_or_state") == expected_target),
+            None,
+        )
+        if target_match is None:
+            actual = kind_matches[0]
+            gaps.append({
+                "trigger_selector": sel,
+                "expected_action_kind": expected_kind,
+                "expected_target": expected_target,
+                "actual_action_kind": actual.get("action_kind"),
+                "actual_target": actual.get("target_url_or_state"),
+                "severity": "intent-violated",
+            })
+            continue
+        honored += 1
+
+    verdict = {
+        "tool": "verify-interactions-honored",
+        "matched": len(gaps) == 0,
+        "gaps": gaps,
+        "honored_count": honored,
+        "total_count": total,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -668,6 +821,11 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("--pixel-diff", type=float, default=None, help="Pre-computed pixel-diff percentage.")
     rp.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    ih = sub.add_parser("verify-interactions-honored")
+    ih.add_argument("--components", required=True, help="Path to built-components JSON.")
+    ih.add_argument("--oracle", required=True, help="Path to oracle-spec JSON.")
+    ih.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -691,6 +849,13 @@ def main(argv: list[str] | None = None) -> int:
             candidate_screenshot_path=args.candidate_screenshot,
             oracle_screenshot_path=args.oracle_screenshot,
             pixel_diff_pct=args.pixel_diff,
+            out_path=args.out,
+        )
+        ok = verdict["matched"]
+    elif args.tool == "verify-interactions-honored":
+        verdict = verify_interactions_honored(
+            built_components=_load_json(args.components),
+            oracle_spec=_load_json(args.oracle),
             out_path=args.out,
         )
         ok = verdict["matched"]

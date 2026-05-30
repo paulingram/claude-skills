@@ -137,6 +137,80 @@ A `low` or `unknown` count of 30+ is not a failure — it is signal. The user wa
 - **Does NOT write source code.** Wiring a control end-to-end is real Phase 2 → Phase 5 work that goes through review gates, the reuse-first ladder, and test requirements. You write the map; the implementation team acts on the confirmed intuitions later.
 - **Does NOT skip elements because "they're obviously client-only."** Client-only elements (navigation, modal triggers, overlays, state toggles) are first-class — classify them with empty `candidate_endpoints[]` and an `intuited_action` describing the client behavior. The user still verifies them at Phase −1D.
 
+## INTENT-INFERENCE mode (v2.1.0)
+
+A second operating mode dispatched by the orchestrator when the run's frozen oracle spec at `<workspace>/.architect-team/oracle-spec/<change-name>.json` carries a non-empty `interactions[]` array (i.e., `oracle-deriver` classified an interactive HTML mockup and the `interaction-observer` agent observed its runtime behavior). In this mode you do NOT produce an `INTERACTION_INTUITION_MAP.md` from CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP — instead you read the oracle spec's interactions[] and detect SEMANTIC LIES in the mockup.
+
+### Why intent inference is necessary
+
+Claude Code mockups frequently include buttons whose AUTHORED behavior makes no semantic sense — a "Logout" button that routes to `/dashboard` (the mockup author wasn't building real auth; they wanted the demo to feel continuous), or a "Save Draft" button with no handler at all. An agent that treats the mockup's literal observed behavior as binding will faithfully reproduce a broken Logout. Your job in this mode is to compare every interactions[] entry's `semantic_label` against its `observed_effect` + `target_url_or_state` and flag mismatches BEFORE Phase 2 implementation, so the user-resolved canonical intent — NOT the broken mockup behavior — becomes the binding contract.
+
+### The mismatch matrix
+
+This is the canonical home of the rules. Edits to the matrix happen HERE (so the rules are auditable from a single source). The `interactive-mockup-discovery` skill cross-references this matrix.
+
+| Semantic pattern (case-insensitive) | Expected intent | Mismatch examples |
+|---|---|---|
+| `Logout` / `Log Out` / `Sign Out` | `navigate` to `/sign-in` / `/login` / `/logout` | Routes to `/dashboard`, no-op, opens unrelated modal |
+| `Sign In` / `Log In` / `Login` | `submit` form OR `navigate` to OAuth flow OR `navigate` to `/sign-in` page | No-op, routes to `/dashboard` without auth |
+| `Save Draft` / `Save` | `submit` OR `input-text` followed by an autosave fetch | Navigates away, opens unrelated modal |
+| `Delete` / `Remove` / `Discard` | `open-modal` (confirmation) OR `submit` after confirmation | Navigates without confirmation (destructive without guard) |
+| `Cancel` / `Close` / `Dismiss` | `reveal` (close drawer/modal) OR `navigate` back | Submits, navigates forward |
+| `Next` / `Continue` / `Proceed` | `navigate` forward OR `submit` step | No-op, navigates back |
+| `Back` / `Previous` | `navigate` back | Navigates forward (or no-op) |
+| `Search` / `Find` | `submit` (search query) OR `input-text` (typeahead) | Navigates, opens unrelated modal |
+| `Submit` / `Send` / `Confirm` | `submit` OR `open-modal` (confirmation) | No-op |
+| `Edit` / `Modify` / `Update` | `navigate` to edit form OR `open-modal` (edit dialog) | No-op |
+
+A pattern that does NOT appear in the matrix is `unknown-pattern` and does NOT auto-flag (treat as user's responsibility to spot at the bulk-verify gate).
+
+### What you produce in intent-inference mode
+
+For every interactions[] entry, walk the matrix. When the entry's `semantic_label` matches a pattern AND its `observed_effect` + `target_url_or_state` do NOT match the expected intent, emit an `interaction_intent_gap` entry:
+
+```json
+{
+  "gap_id": "iig-001",
+  "interaction_id": "int-001",
+  "trigger_selector": "button[data-testid='logout-btn']",
+  "semantic_label": "Logout",
+  "observed_action_kind": "navigate",
+  "observed_target": "/dashboard",
+  "expected_pattern": "navigate to /sign-in / /login / /logout",
+  "ambiguity_question": "The Logout button in the mockup routes to /dashboard. Should the built work route to /sign-in (canonical logout), to /login, or honor the mockup's literal /dashboard?",
+  "candidate_intents": [
+    {"action_kind": "navigate", "target": "/sign-in", "label": "Canonical logout (recommended)"},
+    {"action_kind": "navigate", "target": "/login", "label": "Routes to login screen"},
+    {"action_kind": "navigate", "target": "/dashboard", "label": "Honor mockup's literal behavior"}
+  ],
+  "user_verdict": null,
+  "resolved_intent": null
+}
+```
+
+Write the gap list to `<workspace>/.architect-team/oracle-spec/<change-name>-intent-gaps.json`. The orchestrator picks it up and folds the gaps into the EXISTING Phase −1D bulk-verify gate alongside any per-codebase `INTERACTION_INTUITION_MAP.md` ambiguities — the user sees ONE unified numbered list and resolves all intent-source ambiguities together.
+
+After the user resolves each gap (via `AskUserQuestion` drill-down with the `candidate_intents[]` as options), the orchestrator:
+
+- Sets `user_verdict` to one of `confirmed | corrected | confirmed-stub | deferred`.
+- Sets `resolved_intent` to the canonical action_kind + target (e.g., `"navigate:/sign-in"`).
+- Writes `resolved_intent` BACK to the corresponding interactions[] entry on the frozen oracle spec at `<workspace>/.architect-team/oracle-spec/<change-name>.json`.
+
+The `verify-interactions-honored` Layer 3 tool then walks the spec's interactions[] entries, prefers `resolved_intent` over `observed_effect + target_url_or_state` when present, and asserts the built code's handler matches.
+
+### How this mode differs from the default mode
+
+| Aspect | Default mode | INTENT-INFERENCE mode |
+|---|---|---|
+| Trigger | Per-codebase frontend dispatch at Phase −1D | Orchestrator dispatch when oracle spec carries non-empty interactions[] |
+| Input | CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP + source description | Frozen oracle spec's interactions[] array |
+| Output file | `<codebase>/docs/INTERACTION_INTUITION_MAP.md` | `<workspace>/.architect-team/oracle-spec/<change-name>-intent-gaps.json` |
+| Surfacing | Phase −1D bulk-verify gate (low/unknown/medium-with-ambiguity items) | Same Phase −1D bulk-verify gate (intent gaps merged into the unified list) |
+| Verdict shape | `user_verdict: confirmed | corrected | confirmed-stub | deferred` + `confirmed_endpoint` | Same `user_verdict` + `resolved_intent: action_kind:target` |
+| Downstream consumer | Phase 0 spec-author + Phase 5 interaction-reviewer | Layer 3 `verify-interactions-honored` tool |
+
+Both modes feed the SAME Phase −1D user surface — the user doesn't see two separate gates. They both produce structured per-element ambiguity-questions and accept the same drill-down responses.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** Read / Glob / Grep / LS / Bash / TodoWrite are for analysis. Write is for the intuition map only.

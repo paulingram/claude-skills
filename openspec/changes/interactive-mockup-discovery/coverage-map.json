@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "change": "interactive-mockup-discovery",
+  "version": "2.1.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "A canonical interactive-mockup-discovery skill exists", "layer": "discipline",
+     "covered_by": ["skills/interactive-mockup-discovery/SKILL.md", "tests/test_interactive_mockup_discovery.py"]},
+    {"id": "REQ-2", "title": "An interaction-observer agent exists", "layer": "discipline",
+     "covered_by": ["agents/interaction-observer.md", "tests/test_interactive_mockup_discovery.py"]},
+    {"id": "REQ-3", "title": "oracle-deriver recognizes interactive-mockup as a spec_shape", "layer": "discipline",
+     "covered_by": ["agents/oracle-deriver.md", "tests/test_interactive_mockup_discovery.py"]},
+    {"id": "REQ-4", "title": "interaction-intuiter gains intent-inference mode", "layer": "discipline",
+     "covered_by": ["agents/interaction-intuiter.md", "tests/test_interactive_mockup_discovery.py"]},
+    {"id": "REQ-5", "title": "verify-interactions-honored is the 6th Layer 3 tool", "layer": "infra",
+     "covered_by": ["hooks/vao_tools.py", "tests/test_vao_interactions_honored.py", "tests/fixtures/vao/interactive-mockup-logout-misroute.json"]},
+    {"id": "REQ-6", "title": "Schema v7 includes optional interactions_honored_review", "layer": "infra",
+     "covered_by": ["hooks/review_evidence_schema.py", "tests/test_vao_interactions_honored.py"]},
+    {"id": "REQ-7", "title": "interactive-mockup-logout-misroute synthetic fixture exists", "layer": "infra",
+     "covered_by": ["tests/fixtures/vao/interactive-mockup-logout-misroute.json", "tests/test_vao_interactions_honored.py"]},
+    {"id": "REQ-8", "title": "Version is bumped to 2.1.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]},
+    {"id": "REQ-9", "title": "Structural tests assert the v2.1.0 framework is wired", "layer": "infra",
+     "covered_by": ["tests/test_vao_interactions_honored.py", "tests/test_interactive_mockup_discovery.py"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "build-new", "anchor": "skills/interactive-mockup-discovery/SKILL.md — distinct cross-cutting discipline; adding to existing skills would conflate concerns or bloat them"},
+    {"id": "RD-2", "decision": "build-new", "anchor": "agents/interaction-observer.md — no existing agent has the headless-execution-and-simulate role; visual-capture screenshots, flow-executor runs Playwright flows; observer is structurally distinct"},
+    {"id": "RD-3", "decision": "extend", "anchor": "agents/oracle-deriver.md — adding a 6th spec_shape follows the established 5-shape pattern; minimal-correct extension"},
+    {"id": "RD-4", "decision": "extend", "anchor": "agents/interaction-intuiter.md — intuiter owns the per-element-with-ambiguity-question pattern; intent inference reuses the surface"},
+    {"id": "RD-5", "decision": "extend", "anchor": "hooks/vao_tools.py — 5 existing tools live in this module; 6th is same module-not-hook pattern"},
+    {"id": "RD-6", "decision": "extend", "anchor": "hooks/review_evidence_schema.py — new OPTIONAL field; v2.0.0 evidence files remain valid"},
+    {"id": "RD-7", "decision": "build-new", "anchor": "tests/test_vao_interactions_honored.py + tests/test_interactive_mockup_discovery.py + tests/fixtures/vao/interactive-mockup-logout-misroute.json"},
+    {"id": "RD-8", "decision": "deferred", "anchor": "Live headless Chrome wiring — contract documented in v2.1.0; runtime sub-script is v2.1.x"},
+    {"id": "RD-9", "decision": "deferred", "anchor": "Multi-mockup oracle synthesis — same shape as v2.0.0's deferred multi-codebase oracle"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test change. The PRODUCT gains stronger interactive-mockup discipline via the new skill + agent + tool + schema field, but the plugin's OWN test surface is pytest with stdlib-only verification of the contract.",
+  "implementing_commits": []
+}

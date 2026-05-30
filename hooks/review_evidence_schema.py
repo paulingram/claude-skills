@@ -75,6 +75,14 @@ VALID_NO_FAKE_DATA_VALUES = {"pass", "n/a", "fail"}
 VALID_ADVERSARIAL_REVIEW_VALUES = {"pass", "n/a", "fail"}
 VALID_SKILL_INVOCATION_AUDIT_VALUES = {"pass", "n/a", "fail"}
 
+# v2.1.0 — interactions_honored_review is OPTIONAL (NOT in REQUIRED_EVIDENCE_FIELDS).
+# Required only when the run's oracle spec carries a non-empty `interactions[]`
+# array (i.e., the v2.1.0 interactive-mockup-discovery framework was engaged).
+# n/a in all other cases. v2.0.0 evidence files (which lack the field entirely)
+# remain valid — the field's optional-ness is the v2.1.0 backwards-compat guarantee.
+VALID_INTERACTIONS_HONORED_VALUES = {"pass", "n/a", "fail"}
+OPTIONAL_VAO_FIELDS = ("interactions_honored_review",)
+
 # v5 (v0.9.13). The `independent_review` block is written by an independent
 # `task-reviewer` agent — NOT the teammate. Its sub-fields below are all
 # REQUIRED, and `reviewer` MUST NOT equal the top-level `teammate` field: the
@@ -459,6 +467,25 @@ def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
         "Re-invoke the requested Skill in this session before marking complete.",
         note_field="skill_invocation_audit_note",
     )
+
+    # v2.1.0 — interactions_honored_review is OPTIONAL. Validate only when the
+    # field is present in the evidence dict. An absent field is NOT a gap
+    # (v2.0.0 evidence files lack it; they remain valid). When present, it
+    # follows the same string/dict-shape contract as the other v7 fields.
+    if "interactions_honored_review" in evidence:
+        gaps += _validate_vao_field(
+            evidence,
+            "interactions_honored_review",
+            VALID_INTERACTIONS_HONORED_VALUES,
+            "v2.1.0 `verify-interactions-honored` found the built work does "
+            "NOT honor the resolved-intent of one or more interactions[] "
+            "entries in the frozen oracle spec. The mockup's literal behavior "
+            "(or the user-confirmed canonical intent for the mockup-lies "
+            "case) is not wired in the built code. Re-engage on the gaps "
+            "named in the verdict; do not mark complete.",
+            note_field="interactions_honored_review_note",
+        )
+
     return gaps
 
 

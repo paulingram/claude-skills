@@ -2,6 +2,93 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] — 2026-05-30 — Interactive-mockup discovery
+
+**ADDITIVE — backwards-compatible.** v2.0.0 evidence files validate unchanged against schema v7 (the new field is OPTIONAL).
+
+The v2.0.0 VAO framework's `oracle-deriver` (Layer 1) had five `spec_shape` categories (`component-tree`, `design-map`, `api-contract`, `data-model`, `hybrid`) — all static walks of SOURCE artifacts. They named what existed but couldn't capture what those elements actually DID. When the oracle is an **interactive HTML mockup** (the artifact-style mockups Claude Code produces — buttons click, drawers slide, modals open, inputs accept text), source-walk misses every observable behavior.
+
+A second gap: **mockup lies**. Claude Code mockups frequently include a "Logout" button that routes to `/dashboard` (the mockup author wasn't building real auth; they wanted the demo to feel continuous). An agent treating the mockup's literal behavior as binding faithfully reproduces a broken Logout. The framework needed to detect semantic-vs-observed mismatches and surface them as ambiguities for user resolution BEFORE Phase 2 implementation.
+
+v2.1.0 ships the two-pass mechanism that closes both gaps.
+
+### Pass 1 — Observation (the new `interaction-observer` agent)
+
+New opus agent at `agents/interaction-observer.md` (color: green). Dispatched by `oracle-deriver` when `spec_shape: interactive-mockup` triggers (HTML file/dir with `<script>` tags, inline `onclick=`, `addEventListener`, or `[data-action]` attributes). The observer:
+
+1. **Runs the mockup** in headless Chrome via Playwright (live path) OR reads a pre-captured DOM-interaction-snapshot JSON (the v2.1.0 stdlib-only test path).
+2. **Enumerates every interactive element** — `button`, `a[href]`, `input`, `textarea`, `select`, `[role="button"]`, `[onclick]`, `[data-action]`.
+3. **Simulates each interaction** — click for buttons/links; focus+type for inputs; change for selects.
+4. **Records the observed effect** into a structured `interactions[]` array on the frozen oracle spec.
+
+Each interactions[] entry: `{interaction_id, trigger_selector, semantic_label, action_kind, observed_effect, target_url_or_state, evidence_path}`. The `action_kind` vocabulary is closed at SEVEN values: `navigate` / `open-drawer` / `open-modal` / `submit` / `input-text` / `reveal` / `no-op`.
+
+### Pass 2 — Intent inference (extension to `interaction-intuiter`)
+
+The existing `interaction-intuiter` agent (which already owns the Phase −1D bulk-verify surface) gains a new INTENT-INFERENCE mode. When the oracle spec's `interactions[]` is populated, the intuiter walks every entry and compares `semantic_label` against `observed_effect` + `target_url_or_state` using a documented **mismatch matrix** (canonical home: `agents/interaction-intuiter.md` body). Initial entries cover 10 semantic patterns: Logout, Sign In, Save Draft/Save, Delete/Remove/Discard, Cancel/Close/Dismiss, Next/Continue/Proceed, Back/Previous, Search/Find, Submit/Send/Confirm, Edit/Modify/Update.
+
+Every mismatch becomes an `interaction_intent_gap` entry surfaced at the EXISTING Phase −1D bulk-verify gate (the same unified list the per-codebase intuition entries flow through). The user confirms canonical intent ("Logout SHOULD route to /sign-in") and the `resolved_intent` is written BACK to the corresponding interactions[] entry on the frozen oracle spec.
+
+### Layer 3 — `verify-interactions-honored` (the 6th tool)
+
+`hooks/vao_tools.py` ships a 6th deterministic verification tool:
+
+```python
+verify_interactions_honored(built_components, oracle_spec) -> dict
+```
+
+For every interactions[] entry, determines the target intent (`resolved_intent` if present, else the observed `action_kind` + `target_url_or_state`, else skip for no-op). Walks the built components for a matching handler. Three severities for non-match:
+
+- `missing-handler` — oracle says this trigger has an effect; built code has none.
+- `intent-violated` — resolved_intent says X; built code does Y (same action_kind, different target).
+- `action-kind-mismatch` — oracle says open-modal; built code navigates instead.
+
+Output verdict JSON: `{tool, matched, gaps, honored_count, total_count, verdict_at}`. Sorted-keys + indent=2 — deterministic / bit-stable (same discipline as the other 5 Layer-3 tools). CLI subcommand `verify-interactions-honored` exposes it for hook-level invocation.
+
+### Schema v7 — optional `interactions_honored_review` field
+
+`hooks/review_evidence_schema.py` gains an OPTIONAL `interactions_honored_review` field. The field is REQUIRED only when the run's oracle spec carries a non-empty `interactions[]` array; n/a in all other cases. The validator accepts the same string-shape (`pass | n/a | fail`) OR dict-shape (`{verdict, verdict_path}`) as the other v7 fields.
+
+**v2.0.0 evidence files (which lack the field entirely) continue to validate** — the field's optional-ness is the v2.1.0 backwards-compat guarantee. `REQUIRED_EVIDENCE_FIELDS` stays at 17.
+
+### Synthetic fixture — `interactive-mockup-logout-misroute.json`
+
+`tests/fixtures/vao/interactive-mockup-logout-misroute.json` reproduces the canonical "mockup lies" case: a Logout button observed as `navigate to /dashboard`, the intent inference flags the mismatch, the user-resolved intent is `navigate to /sign-in`, and `verify-interactions-honored` blocks a built tree that still routes to `/dashboard` (severity: `intent-violated`). The fixture also covers a "Save Draft" no-op-in-mockup → `submit:/api/drafts`-resolved case (severity: `action-kind-mismatch`).
+
+### Test count
+
+v2.0.0 baseline: 2255 / 1 skipped.
+v2.1.0: **2318 / 1 skipped** (+63 net).
+
+New test files:
+- `tests/test_vao_interactions_honored.py` (38 tests — positive/negative/determinism/optional schema field/CLI/fixture round-trip).
+- `tests/test_interactive_mockup_discovery.py` (23 tests — skill body + agent frontmatter + oracle-deriver/interaction-intuiter extensions + coverage-map consistency).
+
+### Files added
+
+- `skills/interactive-mockup-discovery/SKILL.md` — canonical home of the two-pass mechanism.
+- `agents/interaction-observer.md` — Pass 1.
+- `tests/test_vao_interactions_honored.py`
+- `tests/test_interactive_mockup_discovery.py`
+- `tests/fixtures/vao/interactive-mockup-logout-misroute.json`
+
+### Files modified
+
+- `hooks/vao_tools.py` — adds `verify_interactions_honored` + CLI subcommand.
+- `hooks/review_evidence_schema.py` — adds `VALID_INTERACTIONS_HONORED_VALUES`, `OPTIONAL_VAO_FIELDS`, and the guarded validator for the optional field.
+- `agents/oracle-deriver.md` — adds `interactive-mockup` as a 6th spec_shape with the dispatch contract.
+- `agents/interaction-intuiter.md` — adds the INTENT-INFERENCE mode section with the canonical mismatch matrix.
+- `tests/test_skills.py` `EXPECTED_SKILLS` — adds `interactive-mockup-discovery`.
+- `tests/test_agents.py` `EXPECTED_AGENTS` — adds `interaction-observer`.
+- `README.md` — inventory grid 28 → 29 skills, 29 → 30 agents; v2.1.0 banner.
+- `CLAUDE.md` — lead paragraph refreshed.
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` — 2.0.0 → 2.1.0.
+
+### Deferred to v2.1.x
+
+- **Live headless Chrome wiring** — the observer's contract is documented; the runtime sub-script that actually launches Playwright against an arbitrary user-supplied mockup is a follow-on. For v2.1.0 the observer reads pre-captured snapshots so the plugin's own test suite stays stdlib-only. Live wiring is straightforward (Playwright is already a plugin dep) but benefits from real-mockup feedback first.
+- **Multi-mockup oracle synthesis** — one mockup per requirement; multi-mockup is v2.1.x+.
+
 ## [2.0.0] — 2026-05-29 — Verified Agent Output (VAO) framework
 
 **BREAKING** — review-evidence schema v6 → v7.

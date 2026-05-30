@@ -1,0 +1,164 @@
+{
+  "_meta": {
+    "fixture_name": "interactive-mockup-logout-misroute",
+    "failure_shape": "v2.1.0 interactive-mockup-discovery — the canonical 'mockup lies' case",
+    "originating_failure": "Claude Code mockup author wrote a Logout button that routes to /dashboard (because they wanted the demo to feel continuous and didn't want to build real auth). An agent treating the mockup's literal observed behavior as binding faithfully reproduces a broken Logout. The framework must detect the semantic_label vs observed_effect mismatch at Pass 2 intent inference, surface the gap at Phase −1D bulk-verify, and have the user-resolved /sign-in intent become the binding contract.",
+    "vao_layer_caught_at": 3,
+    "passes_engaged": ["pass-1-observation", "pass-2-intent-inference", "user-resolution"],
+    "tool_targeted": "verify-interactions-honored"
+  },
+  "oracle_spec": {
+    "schema_version": 1,
+    "change_name": "fictional-dashboard-feature",
+    "oracle_path": "/fictional/heirship-claude-mockup.html",
+    "derived_at": "2026-05-30T10:00:00Z",
+    "spec_shape": "interactive-mockup",
+    "tree": {
+      "App": {
+        "AppShell": {
+          "Header": {"UserMenu": {"LogoutButton": {}}},
+          "Body": {"DashboardCards": {}}
+        }
+      }
+    },
+    "interactions": [
+      {
+        "interaction_id": "int-001",
+        "trigger_selector": "button[data-testid='logout-btn']",
+        "semantic_label": "Logout",
+        "action_kind": "navigate",
+        "observed_effect": "url-changed",
+        "target_url_or_state": "/dashboard",
+        "resolved_intent": "navigate:/sign-in",
+        "evidence_path": ".architect-team/oracle-spec/fictional-dashboard-feature/interaction-evidence/int-001.json"
+      },
+      {
+        "interaction_id": "int-002",
+        "trigger_selector": "button[data-testid='save-draft-btn']",
+        "semantic_label": "Save Draft",
+        "action_kind": "no-op",
+        "observed_effect": "none",
+        "target_url_or_state": null,
+        "resolved_intent": "submit:/api/drafts",
+        "evidence_path": ".architect-team/oracle-spec/fictional-dashboard-feature/interaction-evidence/int-002.json"
+      },
+      {
+        "interaction_id": "int-003",
+        "trigger_selector": "button[data-testid='cancel-btn']",
+        "semantic_label": "Cancel",
+        "action_kind": "reveal",
+        "observed_effect": "modal-closed",
+        "target_url_or_state": "modal-close",
+        "evidence_path": ".architect-team/oracle-spec/fictional-dashboard-feature/interaction-evidence/int-003.json"
+      }
+    ],
+    "_human_review_required": false
+  },
+  "intent_gaps_surfaced_at_phase_minus_1d": [
+    {
+      "gap_id": "iig-001",
+      "interaction_id": "int-001",
+      "trigger_selector": "button[data-testid='logout-btn']",
+      "semantic_label": "Logout",
+      "observed_action_kind": "navigate",
+      "observed_target": "/dashboard",
+      "expected_pattern": "navigate to /sign-in / /login / /logout",
+      "ambiguity_question": "The Logout button in the mockup routes to /dashboard. Should the built work route to /sign-in (canonical logout), to /login, or honor the mockup's literal /dashboard?",
+      "user_verdict": "corrected",
+      "resolved_intent": "navigate:/sign-in"
+    },
+    {
+      "gap_id": "iig-002",
+      "interaction_id": "int-002",
+      "trigger_selector": "button[data-testid='save-draft-btn']",
+      "semantic_label": "Save Draft",
+      "observed_action_kind": "no-op",
+      "observed_target": null,
+      "expected_pattern": "submit or input-text + autosave fetch",
+      "ambiguity_question": "The Save Draft button in the mockup has no observable handler. Should the built work submit to /api/drafts, autosave on every keystroke, or honor the mockup's no-op (confirmed-stub)?",
+      "user_verdict": "corrected",
+      "resolved_intent": "submit:/api/drafts"
+    }
+  ],
+  "built_components_misroute": [
+    {
+      "path": "src/components/UserMenu.tsx",
+      "handlers": [
+        {
+          "trigger_selector": "button[data-testid='logout-btn']",
+          "action_kind": "navigate",
+          "target_url_or_state": "/dashboard",
+          "comment": "agent faithfully reproduced the mockup's literal observed behavior; missed the resolved_intent"
+        }
+      ]
+    },
+    {
+      "path": "src/components/DraftEditor.tsx",
+      "handlers": [
+        {
+          "trigger_selector": "button[data-testid='save-draft-btn']",
+          "action_kind": "no-op",
+          "target_url_or_state": null,
+          "comment": "agent honored the mockup's no-op; missed that resolved_intent says submit"
+        }
+      ]
+    },
+    {
+      "path": "src/components/Modal.tsx",
+      "handlers": [
+        {
+          "trigger_selector": "button[data-testid='cancel-btn']",
+          "action_kind": "reveal",
+          "target_url_or_state": "modal-close"
+        }
+      ]
+    }
+  ],
+  "built_components_honored": [
+    {
+      "path": "src/components/UserMenu.tsx",
+      "handlers": [
+        {
+          "trigger_selector": "button[data-testid='logout-btn']",
+          "action_kind": "navigate",
+          "target_url_or_state": "/sign-in"
+        }
+      ]
+    },
+    {
+      "path": "src/components/DraftEditor.tsx",
+      "handlers": [
+        {
+          "trigger_selector": "button[data-testid='save-draft-btn']",
+          "action_kind": "submit",
+          "target_url_or_state": "/api/drafts"
+        }
+      ]
+    },
+    {
+      "path": "src/components/Modal.tsx",
+      "handlers": [
+        {
+          "trigger_selector": "button[data-testid='cancel-btn']",
+          "action_kind": "reveal",
+          "target_url_or_state": "modal-close"
+        }
+      ]
+    }
+  ],
+  "expected_interactions_honored_verdict_for_misroute": {
+    "tool": "verify-interactions-honored",
+    "matched": false,
+    "gaps_count_minimum": 2,
+    "expected_gap_selectors": [
+      "button[data-testid='logout-btn']",
+      "button[data-testid='save-draft-btn']"
+    ],
+    "expected_severities": ["intent-violated", "action-kind-mismatch"]
+  },
+  "expected_interactions_honored_verdict_for_honored": {
+    "tool": "verify-interactions-honored",
+    "matched": true,
+    "honored_count_minimum": 3
+  }
+}

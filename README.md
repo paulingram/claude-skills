@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 2 . 0 . 0
+                            ─── T E A M ───   v 2 . 1 . 0
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
@@ -114,7 +114,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 ```
 
 ```
-┌─ SKILLS (28) ───────────────────────┬─ AGENTS (29) ─────────────────────────┐
+┌─ SKILLS (29) ───────────────────────┬─ AGENTS (30) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -143,7 +143,8 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │ ◇ mini-architect-team-pipeline      │ ◆ prompt-refiner (opus)               │
 │ ◇ common-pipeline-conventions       │ ◆ mini-qa (opus)                      │
 │ ◇ verified-agent-output (v2.0.0)   *│ ◆ oracle-deriver (opus) ★             │
-│                                     │ ◆ adversarial-reviewer (opus) ★       │
+│ ◇ interactive-mockup-discovery     *│ ◆ adversarial-reviewer (opus) ★       │
+│   (v2.1.0)                          │ ◆ interaction-observer (opus) ★       │
 ├─ COMMANDS (13) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │

@@ -34,6 +34,7 @@ EXPECTED_SKILLS: set[str] = {
     "mini-architect-team-pipeline",
     "common-pipeline-conventions",
     "verified-agent-output",
+    "interactive-mockup-discovery",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

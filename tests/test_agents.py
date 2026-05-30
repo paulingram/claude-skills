@@ -35,6 +35,7 @@ EXPECTED_AGENTS: set[str] = {
     "mini-qa",
     "oracle-deriver",
     "adversarial-reviewer",
+    "interaction-observer",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
