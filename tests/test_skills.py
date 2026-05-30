@@ -33,6 +33,7 @@ EXPECTED_SKILLS: set[str] = {
     "email-testing",
     "mini-architect-team-pipeline",
     "common-pipeline-conventions",
+    "verified-agent-output",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

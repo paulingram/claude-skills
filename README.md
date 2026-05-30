@@ -114,7 +114,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 ```
 
 ```
-┌─ SKILLS (27) ───────────────────────┬─ AGENTS (27) ─────────────────────────┐
+┌─ SKILLS (28) ───────────────────────┬─ AGENTS (27) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -142,6 +142,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │ ◇ email-testing                     │ ◆ fix-sensibility-checker (opus)      │
 │ ◇ mini-architect-team-pipeline      │ ◆ prompt-refiner (opus)               │
 │ ◇ common-pipeline-conventions       │ ◆ mini-qa (opus)                      │
+│ ◇ verified-agent-output (v2.0.0)   *│                                       │
 ├─ COMMANDS (13) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │

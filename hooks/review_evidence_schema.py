@@ -196,7 +196,34 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
         gaps.append("files_changed must be a non-empty array")
 
     vfr = evidence.get("visual_fidelity_review")
-    if vfr not in VALID_VISUAL_FIDELITY_VALUES:
+    # v7 dict-shape: {verdict, verdict_path} citing the verify-rendered-parity
+    # verdict file. The cited file is the source of truth for the actual gate
+    # decision (pipeline-completion-audit reads it); here we structurally
+    # require the verdict_path citation be present.
+    if isinstance(vfr, dict):
+        v_verdict = vfr.get("verdict")
+        if v_verdict not in VALID_VISUAL_FIDELITY_VALUES:
+            gaps.append(
+                f"visual_fidelity_review.verdict={v_verdict!r} must be one of "
+                f"{sorted(VALID_VISUAL_FIDELITY_VALUES)}"
+            )
+        v_path = vfr.get("verdict_path")
+        if not isinstance(v_path, str) or not v_path.strip():
+            gaps.append(
+                "visual_fidelity_review (dict-shape) requires a non-empty "
+                "'verdict_path' citing the verify-rendered-parity verdict JSON"
+            )
+        if v_verdict == "fail":
+            gaps.append(
+                "visual_fidelity_review.verdict='fail' — the cited "
+                "verify-rendered-parity verdict shows the rendered DOM diverges "
+                "from the frozen oracle. Re-engage on the divergences; do not "
+                "mark complete."
+            )
+        vfr = None  # short-circuit the legacy string-shape branch below
+    if vfr is None:
+        pass
+    elif vfr not in VALID_VISUAL_FIDELITY_VALUES:
         gaps.append(
             f"visual_fidelity_review={vfr!r} must be one of "
             f"{sorted(VALID_VISUAL_FIDELITY_VALUES)}"
