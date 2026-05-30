@@ -237,25 +237,39 @@ def test_schema_v7_dict_shape_with_verdict_path_passes(schema_module):
 # ===========================================================================
 
 
-def test_openspec_change_folder_exists(plugin_root: Path):
-    change = plugin_root / "openspec" / "changes" / "verified-agent-output"
-    assert change.is_dir()
+def _find_archived_change_dir(plugin_root: Path) -> Path:
+    """The openspec change folder is moved to openspec/changes/archive/
+    once `openspec archive` runs at release time. The archive folder is
+    prefixed with the archive date (e.g., 2026-05-30-verified-agent-output).
+    """
+    archive = plugin_root / "openspec" / "changes" / "archive"
+    matches = list(archive.glob("*-verified-agent-output"))
+    assert matches, f"no archived verified-agent-output folder under {archive}"
+    return matches[0]
+
+
+def test_openspec_change_archived(plugin_root: Path):
+    """Post-archive — the openspec change MUST be present under archive/
+    and the canonical spec landed under specs/."""
+    archived = _find_archived_change_dir(plugin_root)
     for required in ("proposal.md", "design.md", "tasks.md", "coverage-map.json"):
-        assert (change / required).exists(), f"missing openspec artifact: {required}"
-    assert (change / "specs" / "verified-agent-output" / "spec.md").exists()
+        assert (archived / required).exists(), f"missing openspec artifact in archive: {required}"
+    assert (archived / "specs" / "verified-agent-output" / "spec.md").exists()
+    canonical = plugin_root / "openspec" / "specs" / "verified-agent-output" / "spec.md"
+    assert canonical.exists(), "canonical spec missing under openspec/specs/"
 
 
 def test_openspec_proposal_documents_all_six_layers(plugin_root: Path):
-    proposal = plugin_root / "openspec" / "changes" / "verified-agent-output" / "proposal.md"
+    proposal = _find_archived_change_dir(plugin_root) / "proposal.md"
     body = proposal.read_text()
     for layer in ("Layer 1", "Layer 2", "Layer 3", "Layer 4", "Layer 5", "Layer 6"):
         assert layer in body, f"proposal missing {layer}"
 
 
 def test_openspec_proposal_documents_heirship_failure_modes(plugin_root: Path):
-    """The proposal must name the four heirship failure modes the
-    framework was amended to close."""
-    proposal = plugin_root / "openspec" / "changes" / "verified-agent-output" / "proposal.md"
+    """The proposal must name the heirship failure modes the framework
+    was amended to close."""
+    proposal = _find_archived_change_dir(plugin_root) / "proposal.md"
     body = proposal.read_text()
     for fragment in (
         "Oracle structure mismatch",
@@ -274,10 +288,9 @@ def test_openspec_proposal_documents_heirship_failure_modes(plugin_root: Path):
 def test_coverage_map_lists_layer_6_requirements(plugin_root: Path):
     import json
     cmap = json.loads(
-        (plugin_root / "openspec" / "changes" / "verified-agent-output" / "coverage-map.json").read_text()
+        (_find_archived_change_dir(plugin_root) / "coverage-map.json").read_text()
     )
     req_titles = {r["title"] for r in cmap["requirements"]}
-    # REQ-14, REQ-15, REQ-16 cover Layer 6 (audit hook + schema field + canonical doc).
     assert any("Layer 6" in t for t in req_titles), "coverage map missing Layer 6 requirement"
     assert any("skill_invocation_audit" in t for t in req_titles), (
         "coverage map missing schema v7 skill_invocation_audit requirement"
@@ -290,9 +303,8 @@ def test_coverage_map_lists_layer_6_requirements(plugin_root: Path):
 def test_coverage_map_lists_seven_fixtures(plugin_root: Path):
     import json
     cmap = json.loads(
-        (plugin_root / "openspec" / "changes" / "verified-agent-output" / "coverage-map.json").read_text()
+        (_find_archived_change_dir(plugin_root) / "coverage-map.json").read_text()
     )
-    # REQ-10 lists all seven fixtures.
     req10 = next((r for r in cmap["requirements"] if r["id"] == "REQ-10"), None)
     assert req10 is not None
     covered = req10["covered_by"]
