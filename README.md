@@ -1,31 +1,44 @@
-# architect-team
+# CLAUDE TEAM SIX
 <!-- architect-team:readme-theme=midnight -->
+<!-- internal plugin slug: architect-team — preserved for backward compatibility -->
 
 ```
-      █████  ██████   ██████ ██   ██ ██ ████████ ███████  ██████ ████████
-     ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
-     ███████ ██████  ██      ███████ ██    ██    █████   ██         ██
-     ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
-     ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
+       ██████ ██       █████  ██    ██ ██████  ███████
+      ██      ██      ██   ██ ██    ██ ██   ██ ██
+      ██      ██      ███████ ██    ██ ██   ██ █████
+      ██      ██      ██   ██ ██    ██ ██   ██ ██
+       ██████ ███████ ██   ██  ██████  ██████  ███████
 
-                            ─── T E A M ───   v 2 . 2 . 0
+       ████████ ███████  █████  ███    ███      ███████ ██ ██   ██
+          ██    ██      ██   ██ ████  ████      ██      ██  ██ ██
+          ██    █████   ███████ ██ ████ ██      ███████ ██   ███
+          ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
+          ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
+
+                        ─── C T 6 ───   v 2 . 2 . 0
 ```
 
-> Spec-to-production multi-agent coding pipeline for Claude Code. Takes a
-> requirements folder (OpenSpec / Superpowers / plain markdown), drives it
-> through a 100%-coverage planning loop with reuse-first design, spawns
-> **long-lived named teammates** (Claude Code Agent Teams primitive — Lead +
-> N teammates, each with its own 1M context, shared task list, `SendMessage`
-> for direct messaging) for backend / frontend, enforces review gates via
-> hooks, **fixes design drift to spec autonomously**, **verifies the editable
-> surface is complete**, **tests full-stack work against the real backend**,
-> **auto-spawns fix teams from every surfaced issue**, **remembers what it
-> learns in a local searchable memory**, and **auto-commits and pushes on a
-> clean pass** — the dev loop closes itself end-to-end.
+> **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
+> for Claude Code. Takes a requirements folder (OpenSpec / Superpowers / plain
+> markdown), drives it through a 100%-coverage planning loop with reuse-first
+> design, spawns **long-lived named teammates** (Claude Code Agent Teams
+> primitive — Lead + N teammates, each with its own 1M context, shared task
+> list, `SendMessage` for direct messaging) for backend / frontend, enforces
+> review gates via hooks, **fixes design drift to spec autonomously**,
+> **verifies the editable surface is complete**, **tests full-stack work
+> against the real backend**, **auto-spawns fix teams from every surfaced
+> issue**, **remembers what it learns in a local searchable memory**, and
+> **auto-commits and pushes on a clean pass** — the dev loop closes itself
+> end-to-end.
 
-![version](https://img.shields.io/badge/version-1.8.0-2563EB?style=flat-square)
+> The Claude Code plugin slug is `architect-team` (preserved for backward
+> compatibility with existing installations + the 13 slash commands like
+> `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
+> CLAUDE TEAM SIX is the user-facing name.
+
+![version](https://img.shields.io/badge/version-2.2.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2098%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2394%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
