@@ -356,7 +356,7 @@ def test_cleanup_run_worktree_removes_worktree(
 
     try:
         assert worktree_path.is_dir()
-        assert str(worktree_path) in _list_worktrees(main_repo)
+        assert worktree_path.as_posix() in _list_worktrees(main_repo)
 
         worktree_lifecycle_module.cleanup_run_worktree(worktree_path)
 
@@ -365,7 +365,7 @@ def test_cleanup_run_worktree_removes_worktree(
         )
         # And it must no longer appear in the registry.
         listing = _list_worktrees(main_repo)
-        assert str(worktree_path) not in listing, (
+        assert worktree_path.as_posix() not in listing, (
             f"`git worktree list` still contains {worktree_path}: {listing}"
         )
 

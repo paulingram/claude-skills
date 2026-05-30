@@ -84,7 +84,7 @@ def test_skill_documents_interaction_intent_gap(plugin_root: Path):
 
 def test_skill_documents_phase_minus_1d_integration(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     body_lower = body.lower()
     assert "phase −1d" in body_lower or "phase -1d" in body_lower
 
