@@ -8,7 +8,7 @@
      ██   ██ ██   ██ ██      ██   ██ ██    ██    ██      ██         ██
      ██   ██ ██   ██  ██████ ██   ██ ██    ██    ███████  ██████    ██
 
-                            ─── T E A M ───   v 2 . 1 . 0
+                            ─── T E A M ───   v 2 . 2 . 0
 ```
 
 > Spec-to-production multi-agent coding pipeline for Claude Code. Takes a

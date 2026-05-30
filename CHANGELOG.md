@@ -2,6 +2,83 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] — 2026-05-30 — Verified-live discipline
+
+**ADDITIVE — backwards-compatible.** v2.0.0 and v2.1.0 evidence files validate unchanged against schema v7 (the new field is OPTIONAL).
+
+The class of failure: **an agent claims "verified live GREEN on the deployed URL" while the verification never actually drove the bug-exposing gesture.** The v2.0.0 VAO framework's seven Layer 3 tools (v2.0.0 ship six; v2.1.0 added the 7th `verify-interactions-honored`) all assume the verification was AGAINST THE RIGHT THING. v2.2.0 closes the gap one rung up: was the VERIFICATION CLAIM ITSELF valid?
+
+### The 3 named failure modes (verbatim from the heirship-app-v2 transcript)
+
+- **GESTURE SUBSTITUTION** — agent's "test" clicked the empty page-corner `(8, 8)` which lands on the dropdown's own full-screen backdrop. Only exercised the path that already worked; never the real user gesture.
+- **SELF-VERIFICATION LOOP** — agent "verified" a fix with a unit test the agent wrote itself that set the skip-state directly and asserted the button disabled. Tests the agent's assumption against the agent's own fix; not evidence the deployed gesture works.
+- **PRE-POPULATED-STATE MASKING** — agent tested the Carter demo matter whose early steps are pre-populated. The tally reads "N/N answered" and no blank-popup can fire — the feature looked absent but was only masked. The bug was the test state, not the code.
+
+### Four enforcement layers (same shape as v1.6.0 / v1.7.0 / v2.0.0 / v2.1.0)
+
+1. **NEW canonical section `## Verified-live discipline (v2.2.0)` in `skills/common-pipeline-conventions/SKILL.md`** — the authoritative home of the rules. Documents the 3 failure modes verbatim, the 4 required attestations for any "verified live" claim (deployed-URL invocation / literal user gesture / semantic behavior assertion / captured screenshot), the 3 forbidden anti-patterns.
+
+2. **NEW Layer 3 tool `verify_live_verification_claim` in `hooks/vao_tools.py`** — the 7th deterministic tool (deterministic / bit-stable / stdlib-only). Six named severities:
+   - `gesture-substitution` — empty-region click (coord near (0,0)/(8,8) or backdrop/body selector without intended_backdrop_close)
+   - `self-verification-loop` — test_source_created_at >= fix_session_started_at AND test assertion mirrors a fix-diff substring
+   - `prefill-masking` — setup loads demo matter (Carter/Smith/seeded/etc.) AND bug requires blank state AND observed state is saturated (N/N answered, 100%, all-complete)
+   - `missing-screenshot` — no captured after-state evidence
+   - `missing-deployed-url` — target_url missing or localhost/127.0.0.1/file://
+   - `missing-semantic-assertion` — assertions[] empty (test made no observable-behavior check)
+
+   Output: `{tool, valid, gaps, verdict_at}` with each gap carrying `{severity, evidence, remediation}`. CLI subcommand `verify-live-verification-claim`.
+
+3. **EXTEND `agents/qa-replayer.md` with `## Verification-Claim Audit (v2.2.0)` section** — before returning `bug-resolved`, the qa-replayer self-checks the 3 failure modes (gesture audit / independence audit / state audit) and emits the NEW verdict `bug-resolved-verification-suspect` (alongside the existing `bug-resolved` / `bug-still-present` / `test-did-not-exercise-fix` / `env-failure` values) when any check fails.
+
+4. **EXTEND `skills/bug-fix-pipeline/SKILL.md` Phase B6 with the `Verification-Claim Audit (v2.2.0)` sub-section** — the orchestrator invokes `verify-live-verification-claim` against the qa-replayer's verification_artifact + bug_description AFTER the qa-replayer returns. The tool's verdict IS the authoritative gate. Documents the routing for each conflict case (qa-replayer suspect AND tool invalid → Phase B2 re-replication per suspect mode; qa-replayer resolved AND tool invalid → escalate; etc.).
+
+### Schema v7 — OPTIONAL `live_verification_review` field
+
+`hooks/review_evidence_schema.py` adds `live_verification_review` to `OPTIONAL_VAO_FIELDS`. REQUIRED only when the evidence claims "verified live"; n/a in all other cases. `VALID_LIVE_VERIFICATION_VALUES = {"pass", "n/a", "fail"}`. Accepts string-shape (`pass | n/a | fail`) OR dict-shape (`{verdict, verdict_path}`) — same contract as v2.0.0's required fields and v2.1.0's `interactions_honored_review`.
+
+**v2.0.0 and v2.1.0 evidence files (which lack the field entirely) continue to validate** — REQUIRED_EVIDENCE_FIELDS stays at 17.
+
+### 3 canonical synthetic fixtures
+
+- `tests/fixtures/vao/gesture-substitution-corner-click.json` — verbatim heirship-app-v2 R4 case (Affiant dropdown won't close; agent's "test" clicked (8,8) on the backdrop)
+- `tests/fixtures/vao/self-authored-unit-test-loop.json` — heirship-app-v2 R17/R18 case (still-living gate; agent wrote `expect(checkpointBtn.isDisabled()).toBe(true)` and called it verified)
+- `tests/fixtures/vao/prefill-masking-demo-matter.json` — heirship-app-v2 R15/R16 case (blank popup + tally; agent tested Carter demo where 12/12 are pre-populated)
+
+Each fixture ALSO carries a `_corrected_verification_artifact` showing what a valid verification looks like, and the tool's positive-case round-trip confirms the corrected artifact passes.
+
+### Test count
+
+v2.1.0 baseline: 2318 / 1 skipped.
+v2.2.0: **2394 / 1 skipped** (+76 net).
+
+New test files:
+- `tests/test_vao_live_verification_claim.py` (49 tests — empty-input handling + 6 severities positive+negative + determinism + sorted-keys output + 6 fixture round-trips + CLI exit codes + optional schema field semantics)
+- `tests/test_verified_live_discipline.py` (27 tests — canonical section presence + 3-failure-modes assertion + 4-attestations assertion + 3-anti-patterns assertion + qa-replayer extension + bug-fix-pipeline B6 wiring + schema field registration + 3 fixture existence checks + coverage-map consistency)
+
+### Files added
+
+- `hooks/vao_tools.py` — adds `verify_live_verification_claim` (~200 lines) + CLI subcommand.
+- `hooks/review_evidence_schema.py` — adds `VALID_LIVE_VERIFICATION_VALUES`, extends `OPTIONAL_VAO_FIELDS` tuple, adds guarded validator.
+- `skills/common-pipeline-conventions/SKILL.md` — adds canonical `## Verified-live discipline (v2.2.0)` section.
+- `skills/bug-fix-pipeline/SKILL.md` — adds Phase B6 `### Verification-Claim Audit (v2.2.0)` sub-section.
+- `agents/qa-replayer.md` — adds `## Verification-Claim Audit (v2.2.0)` section + new `bug-resolved-verification-suspect` verdict.
+- 3 canonical synthetic fixtures under `tests/fixtures/vao/`.
+- 2 new test files.
+
+### Files modified
+
+- `tests/test_dispatch_banner.py` — version-consistency assertion bumped 2.1.0 → 2.2.0.
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` — 2.1.0 → 2.2.0.
+- `README.md` banner v 2 . 1 . 0 → v 2 . 2 . 0.
+- `CLAUDE.md` lead paragraph + Stack line + Structure line + test-count refresh.
+- `docs/CODEBASE_MAP.md`, `docs/INTEGRATION_MAP.md` — last_mapped/last_synthesized bumps + v2.2.0 notes.
+
+### Deferred to v2.2.x
+
+- **Live deployed-URL probing from inside the tool** — v2.2.0 reads the evidence the agent provides; it does NOT independently hit the deployed URL. A v2.2.x extension can add live HTTPS probing.
+- **Full Playwright trace ZIP parsing** — v2.2.0 reads coordinate / selector metadata from a trace-summary JSON the qa-replayer prepares.
+- **Multi-test-state coverage** — v2.2.0 catches single-state prefill masking. Testing a bug against multiple states (blank + partial + saturated) is a future discipline.
+
 ## [2.1.0] — 2026-05-30 — Interactive-mockup discovery
 
 **ADDITIVE — backwards-compatible.** v2.0.0 evidence files validate unchanged against schema v7 (the new field is OPTIONAL).

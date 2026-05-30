@@ -778,6 +778,271 @@ def verify_interactions_honored(
 
 
 # ===========================================================================
+# Tool 7 — verify-live-verification-claim (v2.2.0)
+# ===========================================================================
+
+
+# Coordinate pairs / selectors / patterns that indicate the agent's "test"
+# clicked an empty region instead of the bug-exposing element. Each pattern
+# is the smoking gun for the gesture-substitution failure mode.
+_EMPTY_REGION_COORD_THRESHOLD = 16  # pixels — anything <= this from (0,0) is suspect
+_EMPTY_REGION_SELECTORS = (
+    "body",
+    "[role=\"presentation\"]",
+    "[role='presentation']",
+    "[data-backdrop]",
+    "[data-overlay]",
+    ".backdrop",
+    ".overlay",
+)
+# Demo-matter setups that pre-populate state. When the bug requires a blank
+# state to manifest, loading one of these is prefill-masking.
+_DEMO_MATTER_MARKERS = (
+    "carter",
+    "smith-demo",
+    "demo-matter",
+    "pre-populated",
+    "fixture-matter",
+    "seeded-",
+)
+# Localhost / non-deployed URL patterns.
+_NON_DEPLOYED_URL_MARKERS = (
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "://localhost",
+    "://127.",
+    "file://",
+)
+
+
+def _is_empty_region_click(target: dict[str, Any]) -> bool:
+    """Decide whether a click_target dict refers to an empty-region click.
+    A click is an empty-region click when either:
+      - Its coordinate is within _EMPTY_REGION_COORD_THRESHOLD of (0, 0)
+      - Its selector matches one of the known empty-region selectors AND
+        the click was NOT explicitly an intended-backdrop close gesture
+        (the artifact carries `intended_backdrop_close: true`)
+    """
+    if not isinstance(target, dict):
+        return False
+    coord = target.get("coord")
+    if isinstance(coord, list) and len(coord) == 2 and all(isinstance(c, (int, float)) for c in coord):
+        x, y = coord
+        if abs(x) <= _EMPTY_REGION_COORD_THRESHOLD and abs(y) <= _EMPTY_REGION_COORD_THRESHOLD:
+            return True
+    selector = target.get("selector")
+    if isinstance(selector, str):
+        normalized = selector.strip().lower()
+        for pattern in _EMPTY_REGION_SELECTORS:
+            if normalized == pattern.lower():
+                if not target.get("intended_backdrop_close"):
+                    return True
+                break
+    return False
+
+
+def _detect_self_verification_loop(artifact: dict[str, Any]) -> dict[str, Any] | None:
+    """Detect the self-authored-unit-test failure mode.
+
+    Returns a gap dict if the test was created within the current fix
+    session AND the test's assertion contains a substring also present in
+    the fix's git diff. Returns None otherwise.
+
+    The artifact carries:
+      - `test_source_created_at`: ISO 8601 string
+      - `fix_session_started_at`: ISO 8601 string
+      - `test_assertions[]`: list of assertion-source strings
+      - `fix_diff_strings[]`: list of strings extracted from the fix's git diff
+    """
+    created_at = artifact.get("test_source_created_at")
+    session_start = artifact.get("fix_session_started_at")
+    if not isinstance(created_at, str) or not isinstance(session_start, str):
+        return None
+    # String comparison works correctly for ISO 8601 UTC.
+    if created_at < session_start:
+        return None  # test was authored before the fix session — independent
+    assertions = artifact.get("test_assertions") or []
+    diff_strings = artifact.get("fix_diff_strings") or []
+    if not assertions or not diff_strings:
+        return None
+    for assertion in assertions:
+        if not isinstance(assertion, str):
+            continue
+        for diff_str in diff_strings:
+            if not isinstance(diff_str, str) or len(diff_str) < 6:
+                continue
+            if diff_str in assertion:
+                return {
+                    "severity": "self-verification-loop",
+                    "evidence": f"test assertion contains fix-diff substring {diff_str!r}; "
+                                f"test_source_created_at={created_at} >= fix_session_started_at={session_start}",
+                    "remediation": "Use the Phase B2 bug-replicator's reproduction artifact as the test. "
+                                  "Do not author a fresh test in the fix session whose assertion mirrors "
+                                  "the fix's own code.",
+                }
+    return None
+
+
+def _detect_prefill_masking(artifact: dict[str, Any], bug: dict[str, Any]) -> dict[str, Any] | None:
+    """Detect the pre-populated-state-masking failure mode.
+
+    Returns a gap dict if:
+      - The setup_actions[] load a known demo matter, AND
+      - The bug requires a blank/empty state (`requires_blank_state: true`), AND
+      - The trace shows a saturated state (`observed_state` includes
+        `N/N answered` / `100%` / `all-complete` / similar markers).
+    """
+    setup = artifact.get("setup_actions") or []
+    setup_text = " ".join(s.lower() if isinstance(s, str) else "" for s in setup)
+    loads_demo = any(marker in setup_text for marker in _DEMO_MATTER_MARKERS)
+    if not loads_demo:
+        return None
+    if not bug.get("requires_blank_state"):
+        return None
+    observed = artifact.get("observed_state") or ""
+    if not isinstance(observed, str):
+        observed = str(observed)
+    saturation_markers = ("n/n answered", "all-complete", "all complete", "100%", "100 %", "n of n")
+    observed_lower = observed.lower()
+    saturated = any(m in observed_lower for m in saturation_markers)
+    # Also match the explicit "X/Y" pattern where X == Y
+    import re as _re
+    for match in _re.finditer(r"(\d+)\s*/\s*(\d+)\s*(?:answered|complete|filled)", observed_lower):
+        x, y = int(match.group(1)), int(match.group(2))
+        if x == y and y > 0:
+            saturated = True
+            break
+    if not saturated:
+        return None
+    matter_name = "demo matter"
+    for marker in _DEMO_MATTER_MARKERS:
+        if marker in setup_text:
+            matter_name = marker
+            break
+    return {
+        "severity": "prefill-masking",
+        "evidence": f"setup loads {matter_name!r}; bug.requires_blank_state=true; "
+                    f"observed_state shows saturation ({observed[:80]!r})",
+        "remediation": "Drive the test to the bug-exposing state explicitly before asserting. "
+                      "Use a blank/empty matter or navigate to a genuinely-blank step before "
+                      "the bug's trigger gesture.",
+    }
+
+
+def verify_live_verification_claim(
+    verification_artifact: dict[str, Any] | None = None,
+    bug_description: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.2.0 Layer-3 tool — verify that a "verified live" claim is valid.
+
+    Checks the verification artifact against the 6 named gap severities:
+      1. gesture-substitution — empty-region click instead of user gesture
+      2. self-verification-loop — agent wrote the test that asserts its own fix
+      3. prefill-masking — pre-populated state where the bug can't manifest
+      4. missing-screenshot — no captured after-state evidence
+      5. missing-deployed-url — test against localhost / no URL
+      6. missing-semantic-assertion — no observable-behavior check
+
+    Args:
+      verification_artifact: dict carrying click_targets[], setup_actions[],
+        test_source_created_at, test_assertions[], fix_diff_strings[],
+        observed_state, screenshot_path, target_url, fix_session_started_at,
+        assertions[].
+      bug_description: dict carrying the bug summary, requires_blank_state,
+        gesture_pattern, etc.
+      out_path: optional path to write the verdict JSON.
+
+    Returns::
+
+        {
+          "tool": "verify-live-verification-claim",
+          "valid": bool,
+          "gaps": [{"severity", "evidence", "remediation"}],
+          "verdict_at": "<ISO 8601 UTC>"
+        }
+
+    Deterministic / bit-stable output for given inputs (sorted-keys + indent=2).
+    """
+    artifact = verification_artifact or {}
+    bug = bug_description or {}
+    gaps: list[dict[str, Any]] = []
+
+    # Gesture substitution
+    for target in artifact.get("click_targets", []) or []:
+        if _is_empty_region_click(target):
+            gaps.append({
+                "severity": "gesture-substitution",
+                "evidence": f"click target {target!r} is an empty-region click "
+                            f"(coord near origin OR backdrop/body selector without intended_backdrop_close)",
+                "remediation": "Click the bug-exposing element directly (the field, button, or control "
+                              "a user would actually click), not the dropdown's own backdrop or a page "
+                              "corner. The fix-session memory rule: never test by clicking nothing.",
+            })
+            break  # one gesture-substitution gap is enough; flag and stop
+
+    # Self-verification loop
+    loop_gap = _detect_self_verification_loop(artifact)
+    if loop_gap:
+        gaps.append(loop_gap)
+
+    # Prefill masking
+    masking_gap = _detect_prefill_masking(artifact, bug)
+    if masking_gap:
+        gaps.append(masking_gap)
+
+    # Missing deployed URL
+    target_url = artifact.get("target_url")
+    if not isinstance(target_url, str) or not target_url.strip():
+        gaps.append({
+            "severity": "missing-deployed-url",
+            "evidence": "verification_artifact.target_url is missing or empty",
+            "remediation": "Run the verification against a real HTTPS URL on the live deployed "
+                          "environment. Record it in target_url.",
+        })
+    else:
+        url_lower = target_url.lower()
+        if any(marker in url_lower for marker in _NON_DEPLOYED_URL_MARKERS):
+            gaps.append({
+                "severity": "missing-deployed-url",
+                "evidence": f"target_url={target_url!r} points to a non-deployed environment "
+                            f"(localhost / 127.0.0.1 / file:// / similar)",
+                "remediation": "A 'verified live' claim requires the deployed environment, not local "
+                              "dev. Re-run against the live HTTPS URL.",
+            })
+
+    # Missing screenshot
+    screenshot = artifact.get("screenshot_path")
+    if not isinstance(screenshot, str) or not screenshot.strip():
+        gaps.append({
+            "severity": "missing-screenshot",
+            "evidence": "verification_artifact.screenshot_path is missing or null",
+            "remediation": "Capture a screenshot of the after-state and record the path in "
+                          "screenshot_path.",
+        })
+
+    # Missing semantic assertion
+    assertions = artifact.get("assertions") or []
+    if not assertions:
+        gaps.append({
+            "severity": "missing-semantic-assertion",
+            "evidence": "verification_artifact.assertions[] is empty — the test made no observable-"
+                        "behavior check (isDisabled / role count / text content / URL change)",
+            "remediation": "Add at least one assertion on the OBSERVABLE behavior. The test must "
+                          "check what a user would notice, not the agent's assumed internal state.",
+        })
+
+    verdict = {
+        "tool": "verify-live-verification-claim",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -826,6 +1091,11 @@ def main(argv: list[str] | None = None) -> int:
     ih.add_argument("--oracle", required=True, help="Path to oracle-spec JSON.")
     ih.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    lv = sub.add_parser("verify-live-verification-claim")
+    lv.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
+    lv.add_argument("--bug", required=True, help="Path to bug-description JSON.")
+    lv.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -859,6 +1129,13 @@ def main(argv: list[str] | None = None) -> int:
             out_path=args.out,
         )
         ok = verdict["matched"]
+    elif args.tool == "verify-live-verification-claim":
+        verdict = verify_live_verification_claim(
+            verification_artifact=_load_json(args.artifact),
+            bug_description=_load_json(args.bug),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
     else:  # pragma: no cover
         return 2
 

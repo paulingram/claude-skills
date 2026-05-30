@@ -272,6 +272,32 @@ The replayer's verdict is one of:
 
 `artifacts_executed_against_live_dev` is **mandatory `true`** for a `bug-resolved` verdict — the replayer must have actually re-run the artifacts against the deployed dev environment (not just read them, not just described the expected outcome, not just run them locally). `symptom_gone_end_to_end` and `code_path_witness_passed` must also be `true` for `bug-resolved`. A verdict file where ANY of these three fields is `false` on a `bug-resolved` verdict is structurally invalid and the completion audit blocks on it. **This is the enforcement mechanism for QA testing**: the pipeline cannot complete without proof that the fix was actually verified against the live dev environment.
 
+### Phase B6 Verification-Claim Audit (v2.2.0)
+
+After the qa-replayer returns its verdict and BEFORE Phase B6b runs, the orchestrator invokes the v2.2.0 Layer 3 tool `verify-live-verification-claim` against the qa-replayer's `verification_artifact` + `bug_description` blocks. This is the structural gate that catches the 3 named failure modes the qa-replayer's self-audit (per `agents/qa-replayer.md` `## Verification-Claim Audit (v2.2.0)`) is supposed to surface.
+
+Invocation:
+
+```bash
+python3 "/Users/paulingram/.claude/plugins/cache/architect-team-marketplace/architect-team/0.9.35/hooks/vao_tools.py" verify-live-verification-claim \
+  --artifact "<cwd>/.architect-team/qa-replays/<bug-slug>/verification-artifact.json" \
+  --bug "<cwd>/.architect-team/qa-replays/<bug-slug>/bug-description.json" \
+  --out "<cwd>/.architect-team/vao-verdicts/<bug-slug>-live-verification.json" \
+  || python "..."
+```
+
+The tool's verdict — `valid: true|false` with named severity gaps — IS the authoritative gate:
+
+- **`valid: true` AND qa-replayer verdict is `bug-resolved`** → accept; proceed to B6b sensibility check → B7 archive.
+- **`valid: false` AND qa-replayer verdict is `bug-resolved-verification-suspect`** → the qa-replayer correctly self-flagged. Route to **Phase B2 re-replication** with the suspect mode as input:
+  - `gesture-substitution` → re-author the reproduction artifact with the correct user gesture (NOT a corner-click or backdrop selector).
+  - `self-verification-loop` → re-author the test such that its creation predates the fix OR its assertion does NOT mirror any substring from the fix's git diff.
+  - `prefill-masking` → re-author the setup to drive the test to the bug-exposing state (blank matter, navigate to a genuinely-blank step).
+- **`valid: false` AND qa-replayer verdict is `bug-resolved`** → CONFLICT. The qa-replayer's self-audit missed what the tool caught. Escalate per `## Run-state: iteration ceiling, oscillation, concurrency, escalation` (write `.architect-team/escalation-pending.md` with the conflict report); the human reviews the gap between the qa-replayer's self-audit and the tool's deterministic check before any further routing.
+- **`valid: true` AND qa-replayer verdict is `bug-resolved-verification-suspect`** → CONFLICT in the other direction (the qa-replayer was more conservative than the tool). Surface the conflict but DEFAULT to the qa-replayer's more conservative verdict — route to Phase B2 re-replication with the suspect mode. The tool's `valid: true` may be a false negative on the tool's heuristics; the agent's self-audit may have caught something the tool's static rules don't see (a novel gesture-substitution shape, e.g.).
+
+The schema v7 evidence file's optional `live_verification_review` field MUST cite this verdict path (`live_verification_review: {verdict: "pass" | "fail", verdict_path: "<vao-verdicts/<bug-slug>-live-verification.json>"}`). If the qa-replayer's `verified_live: true` is claimed in evidence, the schema v7 hook requires the field to be present and non-`fail`.
+
 ## Phase B6b — Logical Sensibility Check (v0.9.29)
 
 After Phase B6 returns `bug-resolved` and BEFORE Phase B7's archive, the orchestrator runs a logical sensibility check on the impact set of the fix. Closes a real-world gap surfaced by user feedback:

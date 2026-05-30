@@ -81,7 +81,15 @@ VALID_SKILL_INVOCATION_AUDIT_VALUES = {"pass", "n/a", "fail"}
 # n/a in all other cases. v2.0.0 evidence files (which lack the field entirely)
 # remain valid — the field's optional-ness is the v2.1.0 backwards-compat guarantee.
 VALID_INTERACTIONS_HONORED_VALUES = {"pass", "n/a", "fail"}
-OPTIONAL_VAO_FIELDS = ("interactions_honored_review",)
+
+# v2.2.0 — live_verification_review is OPTIONAL (NOT in REQUIRED_EVIDENCE_FIELDS).
+# Required only when the evidence claims "verified live" (the agent's report
+# names a deployed-URL verification); n/a in all other cases. The field cites
+# the Layer-3 verify-live-verification-claim verdict path. v2.0.0 and v2.1.0
+# evidence files (which lack the field entirely) remain valid — the optional-ness
+# is the v2.2.0 backwards-compat guarantee.
+VALID_LIVE_VERIFICATION_VALUES = {"pass", "n/a", "fail"}
+OPTIONAL_VAO_FIELDS = ("interactions_honored_review", "live_verification_review")
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
 # `task-reviewer` agent — NOT the teammate. Its sub-fields below are all
@@ -484,6 +492,26 @@ def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
             "case) is not wired in the built code. Re-engage on the gaps "
             "named in the verdict; do not mark complete.",
             note_field="interactions_honored_review_note",
+        )
+
+    # v2.2.0 — live_verification_review is OPTIONAL. Validate only when the
+    # field is present in the evidence dict. An absent field is NOT a gap
+    # (v2.0.0 / v2.1.0 evidence files lack it; they remain valid). When present,
+    # it follows the same string/dict-shape contract as the other v7 fields.
+    if "live_verification_review" in evidence:
+        gaps += _validate_vao_field(
+            evidence,
+            "live_verification_review",
+            VALID_LIVE_VERIFICATION_VALUES,
+            "v2.2.0 `verify-live-verification-claim` found the agent's 'verified live' "
+            "claim is invalid. One of the 6 named severities fired — gesture-substitution "
+            "(empty-region click instead of user gesture), self-verification-loop (agent "
+            "wrote a test that asserts its own fix), prefill-masking (pre-populated demo "
+            "state where the bug can't manifest), missing-screenshot, missing-deployed-url, "
+            "or missing-semantic-assertion. Re-run verification against the live deployed "
+            "URL with the literal user gesture, an independent test, the bug-exposable "
+            "state, a captured screenshot, and a semantic assertion. Do not mark complete.",
+            note_field="live_verification_review_note",
         )
 
     return gaps

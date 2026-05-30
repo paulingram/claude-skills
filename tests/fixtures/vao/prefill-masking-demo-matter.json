@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "fixture_name": "prefill-masking-demo-matter",
+    "failure_shape": "v2.2.0 Verified-live discipline — failure mode (C): PRE-POPULATED-STATE MASKING",
+    "originating_failure": "heirship-app-v2 R15/R16 (blank popup + tally): the agent tested the Carter demo matter whose early steps are pre-populated from the matter record. The tally reads 'N/N answered' and no blank-popup can fire — the feature looked absent but was only masked. On a genuinely-blank step (Estate) the feature actually works: '0/4 answered' → Continue → the blank-popup listing will/probate/debts/taxes. The bug was the test state, not the code.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-live-verification-claim",
+    "expected_severity": "prefill-masking"
+  },
+  "verification_artifact": {
+    "target_url": "https://heirship-app-v2-836582039669.us-central1.run.app",
+    "screenshot_path": "/tmp/heirship-r15-after.png",
+    "click_targets": [
+      {
+        "selector": "button[data-action=continue]",
+        "coord": [600, 500]
+      }
+    ],
+    "assertions": [
+      "expect(page.locator('[role=dialog]')).toHaveCount(0)"
+    ],
+    "setup_actions": [
+      "await page.goto('https://heirship-app-v2-836582039669.us-central1.run.app/ta/matter/carter-demo-matter-id')",
+      "await page.click('a[href*=carter]')"
+    ],
+    "observed_state": "Family History step shows 12/12 answered; no popup fires on Continue because tally is saturated"
+  },
+  "bug_description": {
+    "summary": "On a step with blank answers, clicking Continue must show a blank-popup listing the unanswered items",
+    "gesture_pattern": "navigate to a step with N/Y answered where N < Y → click Continue → blank-popup appears listing the (Y-N) unanswered items",
+    "requires_blank_state": true,
+    "blank_state_definition": "step's tally shows X/Y answered with X < Y; for the Estate step that's '0/4 answered' (will, probate, debts, taxes)"
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-live-verification-claim",
+    "valid": false,
+    "expected_severities": ["prefill-masking"],
+    "expected_evidence_substring": "carter"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "what a correct verification looks like — uses a blank matter OR navigates to the Estate step where 0/4 is the natural state",
+    "target_url": "https://heirship-app-v2-836582039669.us-central1.run.app",
+    "screenshot_path": "/tmp/heirship-r15-after-corrected.png",
+    "click_targets": [
+      {
+        "selector": "button[data-action=continue]",
+        "coord": [600, 500]
+      }
+    ],
+    "assertions": [
+      "expect(page.locator('[role=dialog]')).toBeVisible()",
+      "expect(page.locator('text=Will')).toBeVisible()",
+      "expect(page.locator('text=Probate')).toBeVisible()",
+      "expect(page.locator('text=Debts')).toBeVisible()",
+      "expect(page.locator('text=Taxes')).toBeVisible()"
+    ],
+    "setup_actions": [
+      "await page.goto('https://heirship-app-v2-836582039669.us-central1.run.app/ta/matter/new')",
+      "await page.fill('[name=decedent-name]', 'Test Decedent')",
+      "await page.click('text=Estate')"
+    ],
+    "observed_state": "Estate step shows 0/4 answered (will, probate, debts, taxes)"
+  }
+}

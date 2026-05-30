@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "change": "verified-live-discipline",
+  "version": "2.2.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "common-pipeline-conventions documents the verified-live discipline", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-2", "title": "verify_live_verification_claim is the 7th Layer 3 tool", "layer": "infra",
+     "covered_by": ["hooks/vao_tools.py", "tests/test_vao_live_verification_claim.py", "tests/fixtures/vao/gesture-substitution-corner-click.json", "tests/fixtures/vao/self-authored-unit-test-loop.json", "tests/fixtures/vao/prefill-masking-demo-matter.json"]},
+    {"id": "REQ-3", "title": "qa-replayer gains Verification-Claim Audit", "layer": "discipline",
+     "covered_by": ["agents/qa-replayer.md", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-4", "title": "bug-fix-pipeline Phase B6 wires the verdict through the tool", "layer": "discipline",
+     "covered_by": ["skills/bug-fix-pipeline/SKILL.md", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-5", "title": "Schema v7 includes optional live_verification_review", "layer": "infra",
+     "covered_by": ["hooks/review_evidence_schema.py", "tests/test_vao_live_verification_claim.py", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-6", "title": "3 canonical synthetic fixtures exist", "layer": "infra",
+     "covered_by": ["tests/fixtures/vao/gesture-substitution-corner-click.json", "tests/fixtures/vao/self-authored-unit-test-loop.json", "tests/fixtures/vao/prefill-masking-demo-matter.json", "tests/test_vao_live_verification_claim.py"]},
+    {"id": "REQ-7", "title": "Structural tests assert the v2.2.0 framework is wired", "layer": "infra",
+     "covered_by": ["tests/test_vao_live_verification_claim.py", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-8", "title": "Version is bumped to 2.2.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md", "docs/CODEBASE_MAP.md", "docs/INTEGRATION_MAP.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md — canonical home for cross-cutting disciplines (v1.4/1.6/1.7/1.8/2.0 pattern)"},
+    {"id": "RD-2", "decision": "extend", "anchor": "hooks/vao_tools.py — 6 existing tools live here; 7th is the same module-not-hook pattern"},
+    {"id": "RD-3", "decision": "extend", "anchor": "hooks/review_evidence_schema.py — OPTIONAL_VAO_FIELDS tuple was added in v2.1.0 specifically for this extension shape"},
+    {"id": "RD-4", "decision": "extend", "anchor": "agents/qa-replayer.md — existing Phase B6 verification agent; the audit naturally lives there"},
+    {"id": "RD-5", "decision": "extend", "anchor": "skills/bug-fix-pipeline/SKILL.md — Phase B6 already documents the verdict routing; v2.2.0 adds the tool call"},
+    {"id": "RD-6", "decision": "build-new", "anchor": "tests/test_vao_live_verification_claim.py + tests/test_verified_live_discipline.py + 3 fixtures — same pattern as v2.1.0"},
+    {"id": "RD-7", "decision": "decline", "anchor": "NO new agent — deterministic check (3 named failure modes with concrete signatures); a tool verdict suffices; growing the agent inventory unboundedly is the wrong scale"},
+    {"id": "RD-8", "decision": "deferred", "anchor": "Live deployed-URL probing from inside the tool — v2.2.x extension"},
+    {"id": "RD-9", "decision": "deferred", "anchor": "Full Playwright trace ZIP parsing — v2.2.x"},
+    {"id": "RD-10", "decision": "deferred", "anchor": "Multi-test-state coverage (blank + partial + saturated) — v2.2.x"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test + tool extension. The plugin's PRODUCT gains stronger verification-claim discipline; the plugin's OWN test surface is pytest stdlib-only.",
+  "implementing_commits": []
+}

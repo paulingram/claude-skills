@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "fixture_name": "gesture-substitution-corner-click",
+    "failure_shape": "v2.2.0 Verified-live discipline — failure mode (A): GESTURE SUBSTITUTION",
+    "originating_failure": "heirship-app-v2 R4 (dropdown won't close): the prior 'test' clicked the empty page-corner (8, 8) which lands on the dropdown's own full-screen backdrop. So it only ever exercised the path that already worked (clicking the backdrop closes the dropdown) and never the real gesture (clicking another field to close the dropdown). Agent reported the bug fixed; the bug was NOT fixed.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-live-verification-claim",
+    "expected_severity": "gesture-substitution"
+  },
+  "verification_artifact": {
+    "target_url": "https://heirship-app-v2-836582039669.us-central1.run.app/ta/matter/9e43bd5d-7b6b-4e06-94f5-66f48d334a0f",
+    "screenshot_path": "/tmp/heirship-r4-after.png",
+    "click_targets": [
+      {
+        "selector": "body",
+        "coord": [8, 8],
+        "intended_backdrop_close": false,
+        "comment": "prior agent's test clicked (8,8) on the page corner, landing on the dropdown's backdrop"
+      }
+    ],
+    "assertions": [
+      "expect(page.locator('[role=menu]')).toHaveCount(0)"
+    ],
+    "setup_actions": [
+      "await page.goto('https://heirship-app-v2-836582039669.us-central1.run.app/ta/matter/9e43bd5d-7b6b-4e06-94f5-66f48d334a0f')",
+      "await page.click('button[data-testid=affiant-dropdown-trigger]')"
+    ],
+    "observed_state": "Affiant dropdown is open; backdrop visible"
+  },
+  "bug_description": {
+    "summary": "Dropdown doesn't close when user clicks another field",
+    "gesture_pattern": "click any field outside the dropdown (a date input, a text field, a button) to close the dropdown",
+    "requires_blank_state": false
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-live-verification-claim",
+    "valid": false,
+    "expected_severities": ["gesture-substitution"],
+    "expected_evidence_substring": "empty-region click"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "what a correct verification looks like — clicks an actual user-gesture target (a sibling field), not the backdrop",
+    "target_url": "https://heirship-app-v2-836582039669.us-central1.run.app/ta/matter/9e43bd5d-7b6b-4e06-94f5-66f48d334a0f",
+    "screenshot_path": "/tmp/heirship-r4-after-corrected.png",
+    "click_targets": [
+      {
+        "selector": "input[name=affiant-email]",
+        "coord": [620, 412],
+        "intended_backdrop_close": false
+      }
+    ],
+    "assertions": [
+      "expect(page.locator('[role=menu]')).toHaveCount(0)",
+      "expect(page.locator('input[name=affiant-email]')).toBeFocused()"
+    ],
+    "setup_actions": [
+      "await page.goto('https://heirship-app-v2-836582039669.us-central1.run.app/ta/matter/9e43bd5d-7b6b-4e06-94f5-66f48d334a0f')",
+      "await page.click('button[data-testid=affiant-dropdown-trigger]')"
+    ]
+  }
+}

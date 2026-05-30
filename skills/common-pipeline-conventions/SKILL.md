@@ -665,6 +665,60 @@ Schema v7's `skill_invocation_audit` field MUST cite this verdict path; a missin
 - `tests/fixtures/vao/skill-not-invoked.json` — the canonical synthetic fixture reproducing the heirship "applied methodology by hand" failure.
 - `superpowers:using-superpowers` Instruction Priority rule — the upstream authority for "user explicit instructions are highest priority".
 
+## Verified-live discipline (v2.2.0)
+
+The class of failure: **an agent claims "verified live GREEN on the deployed URL" while the verification never actually drove the bug-exposing gesture.** The v2.0.0 VAO framework introduced six Layer 3 tools that take agent CLAIMS as input and produce verdicts. v2.1.0 added a 7th tool covering interactive-mockup intent. All seven assume the verification was AGAINST THE RIGHT THING. v2.2.0 closes the gap one rung up: was the VERIFICATION CLAIM ITSELF valid?
+
+### The 3 named failure modes (verbatim from the heirship-app-v2 transcript)
+
+#### (A) GESTURE SUBSTITUTION
+
+The agent's "test" clicked the empty page-corner `(8, 8)` which lands on the dropdown's own full-screen backdrop. So it only ever exercised the path that already worked (clicking the backdrop closes the dropdown) and never the real gesture (clicking another field to close the dropdown). Agent reported the bug fixed.
+
+#### (B) SELF-VERIFICATION LOOP
+
+The agent "verified" a fix with a unit test the agent wrote itself that set the skip-state directly and asserted the button disabled. That tests the agent's assumption against the agent's own fix; it is not evidence the deployed gesture (open editor → Skip → save → reach checkpoint) works. Agent reported "verified live" anyway.
+
+#### (C) PRE-POPULATED-STATE MASKING
+
+The agent tested the Carter demo matter whose early steps are pre-populated from the matter record. The tally reads "N/N answered" and no blank-popup can fire — the feature looked absent but was only masked. On a genuinely-blank step (Estate) the feature actually works: "0/4 answered" → Continue → blank-popup listing renders correctly. The bug was the test state, not the code.
+
+### The user's recorded discipline
+
+> "Never write 'verified live' unless a deployed-URL Playwright run drove the literal gesture and asserted behavior (`isDisabled()`, `[role=menu]` count, popup text) with a screenshot — and test the state where the bug can actually manifest."
+
+### The 4 required attestations for any "verified live" claim
+
+1. **Deployed-URL invocation.** The test ran against a real HTTPS URL on the live deployed environment, NOT a local dev server. `target_url` is the captured field.
+2. **Literal user gesture.** The test clicked / typed / navigated the same way a user would, on the bug-exposing element. NOT a corner / backdrop / no-op region.
+3. **Semantic behavior assertion.** The test asserted the OBSERVABLE behavior — `isDisabled()`, `[role=menu]` count, popup text, URL changed, etc. NOT the agent's assumed internal state.
+4. **Captured screenshot.** A screenshot of the after-state was captured and the verdict cites its path.
+
+### The 3 forbidden anti-patterns
+
+- **Corner-clicks / empty-region-clicks instead of user-gesture targets.** Coordinate near `(0, 0)` / `(8, 8)` / page-corner pixels; selector `body` / `[role=presentation]` / `[data-backdrop]` (when not the intended target); CSS rect smaller than the bug-exposing element. The fix the user named was *"never test by clicking nothing — click what a user would click."*
+- **Self-authored unit tests asserting own fix.** A test whose creation timestamp is within the current fix session AND whose assertion mirrors a string from the fix's git diff is a self-verification loop. The Phase B2 bug-replicator's artifact IS the test; do not author a fresh one in the fix session.
+- **Tests on pre-populated demo state that masks the bug-exposable state.** Loading the Carter / Smith / etc. demo matter when the bug requires blank state. The fix: drive the test to the bug-exposing state explicitly before asserting.
+
+### How the framework enforces this
+
+Four enforcement layers (same shape as v1.6.0 teammate-git, v1.7.0 frontend-missing-API, v2.0.0 VAO, v2.1.0 interactive-mockup):
+
+1. **This section is the canonical home.** Other skills and agent bodies cross-reference it; they do NOT duplicate the rules.
+2. **`hooks/vao_tools.py::verify_live_verification_claim`** is the 7th Layer 3 tool. Input: the verification artifact (Playwright trace metadata + test source + screenshot path + claimed deployed URL + test state) + the bug description. Output: a verdict JSON naming each gap with one of the six severities `gesture-substitution` / `self-verification-loop` / `prefill-masking` / `missing-screenshot` / `missing-deployed-url` / `missing-semantic-assertion`. Deterministic / bit-stable. CLI `verify-live-verification-claim`.
+3. **`agents/qa-replayer.md` Verification-Claim Audit section.** Before returning `bug-resolved`, the qa-replayer self-checks the 3 failure modes and emits the NEW verdict `bug-resolved-verification-suspect` if any audit fails. `skills/bug-fix-pipeline/SKILL.md` Phase B6 wires the verdict through `verify-live-verification-claim` BEFORE `bug-resolved` is accepted.
+4. **Schema v7 OPTIONAL `live_verification_review` field.** REQUIRED ONLY when the evidence claims "verified live"; n/a otherwise. The field cites the `verify-live-verification-claim` verdict path. v2.0.0 and v2.1.0 evidence files continue to validate.
+
+### Cross-references
+
+- `hooks/vao_tools.py::verify_live_verification_claim` — the deterministic Layer 3 tool.
+- `hooks/review_evidence_schema.py` — schema v7 with the optional `live_verification_review` field.
+- `agents/qa-replayer.md` — the Phase B6 agent gaining the Verification-Claim Audit section.
+- `skills/bug-fix-pipeline/SKILL.md` — Phase B6 wires the verdict through the tool before bug-resolved is accepted.
+- `tests/test_vao_live_verification_claim.py` — structural tests for the tool.
+- `tests/test_verified_live_discipline.py` — structural tests for this canonical section + the qa-replayer extension + the schema field + the Phase B6 wiring.
+- `tests/fixtures/vao/gesture-substitution-corner-click.json` / `self-authored-unit-test-loop.json` / `prefill-masking-demo-matter.json` — the 3 canonical positive cases.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.

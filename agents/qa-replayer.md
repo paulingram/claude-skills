@@ -182,6 +182,75 @@ Write your verdict to `<cwd>/.architect-team/qa-replays/<bug-slug>-<iteration>-<
 - **`bug-still-present`** — the deploy applied, the code-path witness verdict is `pass` (or `n/a` and the symptom-check is the sole signal), but EITHER an artifact fails OR the symptom is still observable in the user-described way. Write a solution requirement back to the orchestrator (the orchestrator persists it; you provide the content). The SR's `acceptance_criteria` is the same as the original bug: symptom-gone-end-to-end. The orchestrator routes back to Phase B3 — a FRESH OpenSpec proposal (not an amendment to the previous one; the previous closes, a new one opens to keep the audit trail clean). Then B4 → B5 → B6 again. The loop continues. **The FIX is on trial here**, not the test — the test exercised the right path and the path still produces the wrong result.
 - **`test-did-not-exercise-fix`** (v0.9.31) — the deploy applied, the artifacts technically passed, the symptom-check looks ok, BUT the code-path witness verdict is `fail` — the buggy handler from the fix's diff was never invoked during the test. The fix may be correct or wrong — we don't know yet, because the test didn't actually exercise it. `next_action: back-to-bug-replicator`. Write an SR back to the orchestrator with `origin.kind: "test-coverage-gap"` and a `gap` field listing every `not_invoked` handler + the likely reason (selector misidentification: the test clicked an element with the right LABEL but the wrong ROLE / parent / state; precondition skip: a guard short-circuited before the buggy handler ran; sibling-handler entry: a different handler with overlapping behavior was invoked instead). The orchestrator routes back to **Phase B2** (re-author the reproduction artifact with corrected selectors + explicit witness assertions), NOT to B3 — the architect's fix proposal isn't necessarily wrong, the test is. After re-authoring, B3 → B4 → B5 → B6 again. **The TEST is on trial here**, not the fix.
 - **`env-failure`** — the artifacts couldn't run cleanly OR the deploy didn't apply (deploy_sha_confirmed != expected_sha, or the dev env is unreachable). `next_action: implementing-team-env-diagnosis`. The implementing team diagnoses the env (a build-cache issue, a deploy script bug, a missing env var, a browser-version drift). The fix is NOT on trial here — the env is. After the env is resolved, the orchestrator re-spawns you to re-run.
+- **`bug-resolved-verification-suspect`** (v2.2.0) — the artifacts ran, the deploy applied, the code-path witness passed, the symptom-check looks ok, BUT the Verification-Claim Audit (below) detected one of the 3 named failure modes — the verification itself is suspect. `next_action: back-to-bug-replicator`. Write an SR back to the orchestrator with `origin.kind: "verified-live-suspect"` and a `suspect_mode` field naming which audit fired: `gesture-substitution` / `self-verification-loop` / `prefill-masking`. The orchestrator routes back to **Phase B2** (re-author the reproduction artifact with corrected gesture / independent test / bug-exposable state per the suspect-mode), NOT to B3 — the fix may be correct; the verification was wrong. **The VERIFICATION CLAIM is on trial here**, not the fix and not the test as such. The bug-fix-pipeline Phase B6 then invokes `verify-live-verification-claim` against the re-authored artifact before `bug-resolved` is accepted.
+
+## Verification-Claim Audit (v2.2.0)
+
+Before returning `bug-resolved`, you MUST self-check the 3 failure modes named in `skills/common-pipeline-conventions/SKILL.md` `## Verified-live discipline (v2.2.0)`. The bug-fix-pipeline Phase B6 wires the verdict through `hooks/vao_tools.py::verify_live_verification_claim` AFTER you return; the audit is the authoritative gate. Returning `bug-resolved` when any check fails is the failure mode this section exists to close — the heirship-app-v2 transcript named three concrete cases the framework now structurally rejects.
+
+### Self-check 1 — Gesture audit
+
+Parse the Playwright trace metadata. For every `click_targets[]` entry, extract:
+- The pixel coordinate (`coord`)
+- The selector (`selector`)
+- Whether the click was an intended-backdrop-close gesture (`intended_backdrop_close: true`)
+
+Reject as `gesture-substitution` when:
+- The coordinate is within 16px of `(0, 0)` / a page corner / `(8, 8)` (the heirship case)
+- The selector is `body`, `[role="presentation"]`, `[data-backdrop]`, `.overlay`, `.backdrop` AND `intended_backdrop_close` is NOT explicitly true
+- The CSS rect of the targeted element is smaller than the bug-exposing element's rect
+
+Write the smoking gun to the verdict: the exact coord + selector + the bug description's gesture pattern.
+
+### Self-check 2 — Independence audit
+
+Cross-reference the test source file with the fix's git diff:
+- Read `test_source_created_at` (ISO 8601) and `fix_session_started_at` from the dispatch brief.
+- If `test_source_created_at >= fix_session_started_at`, the test was authored DURING the current fix session.
+- Extract `test_assertions[]` (assertion-source strings) from the test file.
+- Extract `fix_diff_strings[]` (strings added in the fix's git diff) from the orchestrator's brief.
+- For every assertion, check whether any fix-diff string (≥ 6 chars) appears as a substring.
+
+Reject as `self-verification-loop` when both conditions hold — the test is authored during the fix session AND mirrors a string from the fix's own code. The Phase B2 bug-replicator's reproduction artifact IS the test. Authoring a fresh test in the fix session whose assertion mirrors the fix is the canonical anti-pattern.
+
+### Self-check 3 — State audit
+
+Read the test setup actions (`setup_actions[]`):
+- If any action loads a known pre-populated demo matter (Carter / Smith / "demo-matter" / "fixture-matter" / "seeded-" / "pre-populated"), AND
+- The bug description's `requires_blank_state` is `true`, AND
+- The observed state shows saturation (`N/N answered` where N == Y > 0, `all-complete`, `100%`)
+
+Reject as `prefill-masking`. The bug requires a blank state to manifest; loading a saturated demo masks the bug. Drive the test to the bug-exposing state explicitly (a blank matter, or navigate to a genuinely-blank step like "Estate" with `0/4 answered`).
+
+### Reporting the verdict
+
+If any self-check fails, your `verdict` field is `bug-resolved-verification-suspect`. Include in the verdict JSON:
+
+```json
+{
+  "verdict": "bug-resolved-verification-suspect",
+  "suspect_modes": ["gesture-substitution"],
+  "verification_artifact": {
+    "click_targets": [{"selector": "body", "coord": [8, 8], "intended_backdrop_close": false}],
+    "target_url": "https://example.com",
+    "screenshot_path": "/tmp/screenshot.png",
+    "test_source_created_at": "2026-05-30T15:00:00Z",
+    "fix_session_started_at": "2026-05-30T14:00:00Z",
+    "test_assertions": ["..."],
+    "fix_diff_strings": ["..."],
+    "setup_actions": ["..."],
+    "observed_state": "...",
+    "assertions": ["..."]
+  },
+  "bug_description": {
+    "summary": "...",
+    "gesture_pattern": "click another field to close dropdown",
+    "requires_blank_state": false
+  }
+}
+```
+
+The orchestrator's Phase B6 then invokes `verify-live-verification-claim --artifact A --bug B --out OUT` (where A = `verification_artifact`, B = `bug_description`) and the tool's verdict — `valid: false` with the matching severity — IS the authoritative gate. If the tool returns `valid: true` despite your `bug-resolved-verification-suspect`, the orchestrator escalates (your audit is more conservative than the tool; the conflict surfaces for human review). If the tool returns `valid: false`, the orchestrator routes to Phase B2 per the suspect mode.
 
 ## What this agent does NOT do
 
