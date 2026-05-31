@@ -1,0 +1,57 @@
+// PromptEditor ({{service_name}}) — edit a template's system_prompt with {variable} templating.
+// Detects {var} placeholders, flags unknown variables (not in the catalog), and offers an Edit/Preview
+// toggle that substitutes example values. The pure helpers below are unit-testable. (ai-management.)
+import { useMemo, useState } from "react";
+
+const VAR_RE = /\{([a-zA-Z0-9_]+)\}/g;
+
+export function detectVariables(text: string): string[] {
+  return Array.from(new Set(Array.from(text.matchAll(VAR_RE), (m) => m[1])));
+}
+
+export function unknownVariables(text: string, known: string[]): string[] {
+  const knownSet = new Set(known);
+  return detectVariables(text).filter((v) => !knownSet.has(v));
+}
+
+export function preview(text: string, examples: Record<string, string>): string {
+  return text.replace(VAR_RE, (_m, name) => examples[name] ?? `{${name}}`);
+}
+
+export function PromptEditor({
+  value,
+  onChange,
+  knownVariables = [],
+  examples = {},
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  knownVariables?: string[];
+  examples?: Record<string, string>;
+}) {
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const unknown = useMemo(() => unknownVariables(value, knownVariables), [value, knownVariables]);
+  const tokenEstimate = Math.ceil(value.length / 4);
+
+  return (
+    <div className="prompt-editor">
+      <div className="toolbar">
+        <button onClick={() => setMode("edit")} aria-pressed={mode === "edit"}>Edit</button>
+        <button onClick={() => setMode("preview")} aria-pressed={mode === "preview"}>Preview</button>
+        <span className="tokens">~{tokenEstimate} tokens</span>
+      </div>
+
+      {mode === "edit" ? (
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} spellCheck={false} />
+      ) : (
+        <pre className="preview">{preview(value, examples)}</pre>
+      )}
+
+      {unknown.length > 0 && (
+        <p className="warning" role="alert">
+          Unknown variable(s): {unknown.map((v) => `{${v}}`).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}

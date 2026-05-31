@@ -1,0 +1,10 @@
+# {{service_name}} state — hierarchical key <project>/services/<service>/<env>. One state per env.
+terraform {
+  backend "s3" {
+    bucket         = "REPLACE-{{project_name}}-tofu-state"
+    key            = "{{project_name}}/services/{{service_name}}/{{env}}/terraform.tfstate"
+    region         = "{{state_region}}"
+    dynamodb_table = "REPLACE-{{project_name}}-tofu-locks"
+    encrypt        = true
+  }
+}

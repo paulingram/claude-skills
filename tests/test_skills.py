@@ -36,6 +36,7 @@ EXPECTED_SKILLS: set[str] = {
     "verified-agent-output",
     "interactive-mockup-discovery",
     "phenotypes",
+    "phenotype-absorption",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

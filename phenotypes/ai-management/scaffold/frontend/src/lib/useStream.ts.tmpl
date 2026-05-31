@@ -1,0 +1,59 @@
+// useStream ({{service_name}}) — consume an SSE token stream from the agent /invoke endpoint via
+// fetch + ReadableStream (not EventSource: lets us send auth headers + a POST body + cancel mid-stream).
+// Parses `data:` lines into events: token / tool_call / tool_result / thread_id / [DONE].
+import { useCallback, useRef, useState } from "react";
+
+export interface StreamEvent {
+  type: string;
+  [k: string]: unknown;
+}
+
+export function useStream(url: string, authHeaders: () => Record<string, string>) {
+  const [events, setEvents] = useState<StreamEvent[]>([]);
+  const [streaming, setStreaming] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const start = useCallback(
+    async (body: unknown) => {
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      setEvents([]);
+      setStreaming(true);
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(body),
+          signal: ac.signal,
+        });
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (payload === "[DONE]") return;
+            try {
+              setEvents((prev) => [...prev, JSON.parse(payload) as StreamEvent]);
+            } catch {
+              /* ignore keep-alive / non-JSON lines */
+            }
+          }
+        }
+      } finally {
+        setStreaming(false);
+      }
+    },
+    [url, authHeaders],
+  );
+
+  const cancel = useCallback(() => abortRef.current?.abort(), []);
+  return { events, streaming, start, cancel };
+}

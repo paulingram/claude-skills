@@ -1,0 +1,56 @@
+// VersionHistory ({{service_name}}) — lists template versions, renders the server-computed field diffs
+// ({field, from, to}; old struck-through, new highlighted), and offers rollback. (ai-management.)
+import { useState } from "react";
+
+export interface FieldDiff {
+  field: string;
+  from: unknown;
+  to: unknown;
+}
+export interface Version {
+  version: number;
+  created_at: string;
+}
+
+export function VersionHistory({
+  versions,
+  diffFor,
+  onRollback,
+}: {
+  versions: Version[];
+  diffFor: (version: number) => FieldDiff[];
+  onRollback: (version: number) => void;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+
+  return (
+    <div className="version-history">
+      <ul>
+        {versions.map((v) => (
+          <li key={v.version}>
+            <button onClick={() => setSelected(v.version)}>
+              v{v.version} · {v.created_at}
+            </button>
+            <button className="rollback" onClick={() => onRollback(v.version)}>
+              Roll back
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {selected != null && (
+        <table className="diff">
+          <tbody>
+            {diffFor(selected).map((d) => (
+              <tr key={d.field}>
+                <td className="field">{d.field}</td>
+                <td className="old"><del>{String(d.from ?? "—")}</del></td>
+                <td className="new"><ins>{String(d.to ?? "—")}</ins></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}

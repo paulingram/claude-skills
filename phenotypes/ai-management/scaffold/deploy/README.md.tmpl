@@ -1,0 +1,20 @@
+# Deploying {{service_name}}
+
+This phenotype does **not** ship its own IaC — it deploys via the **`config-management`** phenotype
+(the OpenTofu monorepo). Onboard each role as a service with its flag profile:
+
+| Role | Flag profile |
+|---|---|
+| `{{service_name}}-api` (control plane) | `enable_database` + `enable_cache` + vector store + `enable_secrets` |
+| `{{service_name}}-web` (console) | data stores disabled; static nginx image |
+| workers — template-engine / rag-router / ingestion / async-agent (if used) | per-role flags |
+
+Steps:
+1. If you don't already have an OpenTofu monorepo, generate the **config-management** scaffold
+   (`/architect-team --phenotype config-management ...`).
+2. Add each role above as a `services/<role>/` root with its `<env>.tfvars` flag profile.
+3. Apply in order: `platform → load-balancer → services → registry`.
+4. The console's `VITE_AGENT_API_BASE_URL` is baked at build time from the service registry's resolved
+   API URL — exactly as in the `user-management` phenotype.
+
+Provide all provider keys + secrets via the secrets manager (referenced by name); never commit them.

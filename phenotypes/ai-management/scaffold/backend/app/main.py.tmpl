@@ -1,0 +1,24 @@
+"""{{service_name}} — AI agent management API (prompt + versioning control plane).
+
+Thin routes -> services (own the transaction + the template resolution) -> integrations (the model
+gateway, the vector store, the checkpoint store). Multi-tenant throughout. Fill the wiring referenced
+below when customizing (see the scaffold post_emit_notes).
+"""
+from fastapi import FastAPI
+
+from app.api.v1 import templates  # add: agents, runs
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="{{project_name}} AI management API")
+    app.include_router(templates.router, prefix="/api/v1")
+    # app.include_router(agents.router, prefix="/api/v1")   # agents + SSE /invoke
+
+    @app.get("/health")
+    async def health() -> dict:
+        return {"status": "ok"}
+
+    return app
+
+
+app = create_app()

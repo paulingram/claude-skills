@@ -19,6 +19,7 @@ EXPECTED_COMMANDS: set[str] = {
     "mini-review-sweep",
     "cleanup-worktrees",
     "status",
+    "absorb-phenotype",
 }
 
 REQUIRED_KEYS = {"description"}

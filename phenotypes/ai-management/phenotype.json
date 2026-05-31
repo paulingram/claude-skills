@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "label": "ai-management",
+  "name": "AI Management (agent prompt + versioning layer: API backend + console frontend)",
+  "version": "1.0.0",
+  "kind": "pair",
+  "summary": "Multi-tenant control plane for LLM agents: prompts as versioned, inheritable template config (prototype-chain deep_merge resolution + immutable version snapshots + draft/publish/rollback), a single swappable model gateway with an override allowlist, per-tenant budgets, and an authoring/versioning/testing console. Deploys via the config-management phenotype.",
+  "components": {
+    "backend": {
+      "language": "python",
+      "framework": "fastapi",
+      "orm": "sqlalchemy-async",
+      "datastore": ["postgresql", "kv-checkpoints", "vector-store"],
+      "agent_runtime": "langgraph",
+      "model_gateway": "pluggable (bedrock-class)"
+    },
+    "frontend": {
+      "language": "typescript",
+      "framework": "react+vite",
+      "ui": "shadcn+tailwind",
+      "data": ["tanstack-query"],
+      "streaming": "sse-via-readablestream"
+    },
+    "deploy": {
+      "via": "config-management phenotype",
+      "iac": "opentofu (not shipped here)"
+    }
+  },
+  "match": {
+    "keywords": [
+      "ai management", "ai agent", "agents", "llm", "prompt", "prompts", "prompt management",
+      "prompt versioning", "prompt engineering", "agent platform", "model gateway", "rag",
+      "prompt template", "template inheritance", "versioning layer", "llmops", "ai control plane",
+      "system prompt", "playground", "agent orchestration"
+    ],
+    "trigger_phrases": [
+      "build an ai agent prompt and versioning layer",
+      "a control plane for our llm agents",
+      "manage and version prompts with inheritance",
+      "we need a prompt management system",
+      "ai agent management backend"
+    ]
+  },
+  "variation_points": [
+    {"id": "model_provider", "options": ["bedrock", "openai", "anthropic", "pluggable"], "default": "pluggable"},
+    {"id": "agent_runtime", "options": ["langgraph", "none"], "default": "langgraph"},
+    {"id": "rag", "options": ["enabled", "disabled"], "default": "disabled"},
+    {"id": "auth", "options": ["external-uam", "built-in"], "default": "built-in"}
+  ],
+  "when_to_use": [
+    "Running multiple LLM agents and wanting prompts as versioned, inheritable, governed config with draft/publish/rollback.",
+    "Needing a single swappable model gateway, per-tenant budgets, and an authoring/testing console."
+  ],
+  "when_not": [
+    "A single hardcoded prompt suffices.",
+    "One agent, no versioning/governance need.",
+    "You only need a thin wrapper over one provider SDK."
+  ],
+  "contract_surface": {
+    "entities": ["AgentTemplate", "TemplateVersion", "Agent", "Run"],
+    "key_endpoints": [
+      "GET /templates", "POST /templates", "PATCH /templates/{id}",
+      "POST /templates/{id}/publish", "POST /templates/{id}/rollback",
+      "GET /templates/{id}/versions", "GET /templates/{id}/resolved",
+      "GET /agents", "POST /agents", "POST /agents/{id}/invoke"
+    ],
+    "resolution": "deep_merge down the scope chain (scalars replace, dicts recurse, lists replace, null deletes); materialized resolved_config"
+  },
+  "provenance": {
+    "absorbed_from": ["ai-service-backend", "ai-management-front-end", "agent-platform-backend-guide.md"],
+    "absorbed_by": "human",
+    "absorbed_at": "2026-05-30",
+    "generalized": true
+  },
+  "scaffold": {
+    "manifest": "scaffold/scaffold.manifest.json",
+    "parameters": [
+      {"name": "service_name", "required": true, "description": "kebab-case service id, e.g. acme-agents"},
+      {"name": "project_name", "required": true, "description": "project/org prefix"},
+      {"name": "db_name", "default": "agents", "description": "Postgres database name"}
+    ]
+  },
+  "blueprint": "blueprint.md"
+}

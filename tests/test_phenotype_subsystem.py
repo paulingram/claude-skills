@@ -114,3 +114,50 @@ def test_pipeline_references_phenotype_seeding(plugin_root: Path):
 def test_mempalace_documents_phenotype_recall(plugin_root: Path):
     body = _read(plugin_root / "skills" / "mempalace-integration" / "SKILL.md").lower()
     assert "phenotype" in body
+
+
+# --- every phenotype validates (auto-covers all records) -------------------
+
+def test_all_phenotypes_validate(plugin_root: Path):
+    mod = _load_helper(plugin_root)
+    records = mod.discover_phenotypes(plugin_root / "phenotypes")
+    assert records, "no phenotypes discovered"
+    for rec in records:
+        label = rec["_label_dir"]
+        errs = mod.validate_phenotype(rec, dirname=label)
+        assert errs == [], f"{label} fails validation: {errs}"
+
+
+# --- the absorb capability -------------------------------------------------
+
+def test_absorb_skill_present(plugin_root: Path):
+    skill = plugin_root / "skills" / "phenotype-absorption" / "SKILL.md"
+    assert skill.exists()
+    body = _read(skill)
+    assert "name: phenotype-absorption" in body
+    assert "validate" in body.lower()          # documents the validate gate
+    assert "read-only" in body.lower()         # the read-only-on-source guardrail
+
+
+def test_absorb_command_present(plugin_root: Path):
+    cmd = plugin_root / "commands" / "absorb-phenotype.md"
+    assert cmd.exists()
+    body = _read(cmd)
+    assert "--label" in body
+    assert "phenotype-absorption" in body      # the command invokes the skill
+
+
+# --- every blueprint is well-formed (auto-covers all phenotype records) -----
+
+def test_all_blueprints_have_required_sections(plugin_root: Path):
+    blueprints = sorted((plugin_root / "phenotypes").glob("*/blueprint.md"))
+    assert blueprints, "no phenotype blueprints found"
+    for bp in blueprints:
+        body = _read(bp)
+        for heading in REQUIRED_BLUEPRINT_SECTIONS:
+            assert heading in body, f"{bp.parent.name}/blueprint.md missing section {heading!r}"
+
+
+def test_expected_seed_phenotypes_present(plugin_root: Path):
+    present = {p.parent.name for p in (plugin_root / "phenotypes").glob("*/phenotype.json")}
+    assert {"user-management", "config-management", "ai-management"} <= present

@@ -1,0 +1,24 @@
+# Outputs resolve the three-state per primitive: created -> existing -> null. The registry root reads
+# these across services (for_each) into .service-registry/<env>.json.
+
+output "service_name" {
+  value = local.name
+}
+
+output "database_arn" {
+  value = try(aws_db_instance.this[0].arn, var.existing_database_arn, null)
+}
+
+output "secrets_arn" {
+  value = try(aws_secretsmanager_secret.this[0].arn, var.existing_secrets_arn, null)
+}
+
+output "cache_arn" {
+  # add aws_elasticache_* gated on local.create_cache, then resolve created -> existing -> null
+  value = var.existing_cache_arn
+}
+
+output "url" {
+  # set once the load-balancer layer is wired (the LB/DNS address for this service)
+  value = null
+}

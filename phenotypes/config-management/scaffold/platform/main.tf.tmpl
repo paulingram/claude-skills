@@ -1,0 +1,56 @@
+# {{project_name}} platform layer ({{env}}) — applied FIRST. Builds the VPC, ECS cluster, security
+# groups, subnet groups; exported via outputs for downstream service roots (terraform_remote_state).
+# prod and nonprod are non-peered with separate CIDRs.
+
+terraform {
+  required_version = ">= 1.7"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+variable "project" {
+  type    = string
+  default = "{{project_name}}"
+}
+variable "aws_region" {
+  type    = string
+  default = "{{aws_region}}"
+}
+variable "env" {
+  type    = string
+  default = "{{env}}"
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+locals {
+  is_prod = var.env == "prod"
+  cidr    = local.is_prod ? "10.0.0.0/16" : "10.1.0.0/16"
+}
+
+resource "aws_vpc" "this" {
+  cidr_block = local.cidr
+  tags       = { Name = "${var.project}-${var.env}-vpc" }
+}
+
+resource "aws_ecs_cluster" "this" {
+  name = "${var.project}-${var.env}-cluster"
+}
+
+# ... multi-AZ public/private subnets, security groups, db subnet groups, ops-alert SNS topic ...
+
+output "cluster_arn" {
+  value = aws_ecs_cluster.this.arn
+}
+output "vpc_id" {
+  value = aws_vpc.this.id
+}
+output "private_subnet_ids" {
+  value = [] # populate from the aws_subnet resources across AZs
+}

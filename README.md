@@ -127,7 +127,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 ```
 
 ```
-┌─ SKILLS (30) ───────────────────────┬─ AGENTS (30) ─────────────────────────┐
+┌─ SKILLS (31) ───────────────────────┬─ AGENTS (30) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -158,7 +158,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │ ◇ verified-agent-output (v2.0.0)   *│ ◆ oracle-deriver (opus) ★             │
 │ ◇ interactive-mockup-discovery     *│ ◆ adversarial-reviewer (opus) ★       │
 │   (v2.1.0)                          │ ◆ interaction-observer (opus) ★       │
-├─ COMMANDS (13) ─────────────────────┴───────────────────────────────────────┤
+├─ COMMANDS (14) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │

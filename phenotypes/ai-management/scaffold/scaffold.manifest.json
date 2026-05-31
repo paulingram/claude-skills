@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "parameters": [
+    {"name": "service_name", "required": true},
+    {"name": "project_name", "required": true},
+    {"name": "db_name", "default": "agents"}
+  ],
+  "files": [
+    {"src": "backend/pyproject.toml.tmpl",                       "dest": "backend/pyproject.toml"},
+    {"src": "backend/Dockerfile.tmpl",                           "dest": "backend/Dockerfile"},
+    {"src": "backend/app/main.py.tmpl",                          "dest": "backend/app/main.py"},
+    {"src": "backend/app/models/agent_template.py.tmpl",         "dest": "backend/app/models/agent_template.py"},
+    {"src": "backend/app/services/template_resolver.py.tmpl",    "dest": "backend/app/services/template_resolver.py"},
+    {"src": "backend/app/api/v1/templates.py.tmpl",              "dest": "backend/app/api/v1/templates.py"},
+    {"src": "backend/app/integrations/model_gateway.py.tmpl",    "dest": "backend/app/integrations/model_gateway.py"},
+    {"src": "frontend/package.json.tmpl",                        "dest": "frontend/package.json"},
+    {"src": "frontend/src/lib/apiClient.ts.tmpl",                "dest": "frontend/src/lib/apiClient.ts"},
+    {"src": "frontend/src/lib/useStream.ts.tmpl",                "dest": "frontend/src/lib/useStream.ts"},
+    {"src": "frontend/src/components/PromptEditor.tsx.tmpl",     "dest": "frontend/src/components/PromptEditor.tsx"},
+    {"src": "frontend/src/components/VersionHistory.tsx.tmpl",   "dest": "frontend/src/components/VersionHistory.tsx"},
+    {"src": "deploy/README.md.tmpl",                             "dest": "deploy/README.md"}
+  ],
+  "post_emit_notes": [
+    "Deploy via the config-management phenotype — onboard each role (api, frontend, workers) as a service with its flag profile; do NOT hand-roll IaC here.",
+    "Make the model gateway pluggable to your provider; reference provider keys by name (secrets manager), never embed them.",
+    "Implement the surfaces the reference left partial: rollback wiring, descendant propagation, async/usage endpoints, real eval + observability — do not ship them as stubs.",
+    "Run migrations for agent_templates + template_versions; resolved_config is materialized on write.",
+    "Frontend: VITE_* baked at build from the service registry; token_storage default 'memory' (the reference used localStorage).",
+    "Pair with the user-management phenotype if you want built-in identity instead of an external auth service."
+  ]
+}

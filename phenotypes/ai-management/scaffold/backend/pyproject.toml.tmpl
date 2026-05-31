@@ -1,0 +1,24 @@
+[project]
+name = "{{service_name}}-backend"
+version = "0.1.0"
+description = "AI agent prompt + versioning control plane for {{project_name}}."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.29",
+  "sqlalchemy[asyncio]>=2.0",
+  "asyncpg>=0.29",
+  "alembic>=1.13",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  # Model provider SDK — swap per the `model_provider` variation point:
+  #   bedrock: "boto3", "langchain-aws"  ·  openai: "openai"  ·  anthropic: "anthropic"
+  # Agent runtime (optional, `agent_runtime` variation point): "langgraph>=0.3"
+  # RAG (optional, `rag` variation point): a vector-store client
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27", "ruff>=0.4"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

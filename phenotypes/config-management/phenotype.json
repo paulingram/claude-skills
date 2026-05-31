@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "label": "config-management",
+  "name": "Config Management + Cloud Deployment (OpenTofu monorepo)",
+  "version": "1.0.0",
+  "kind": "singleton",
+  "summary": "Multi-service, multi-env, multi-cloud OpenTofu monorepo: one feature-flagged service module (create/reuse/disabled per primitive), platform/load-balancer/service/registry root layers composed via remote state, hierarchical state keys + var-file envs, and a registry-manifest config-discovery convention.",
+  "components": {
+    "deploy": {
+      "iac": "opentofu",
+      "clouds": ["aws", "gcp"],
+      "primitives": ["compute-containers", "managed-sql", "object-store", "kms", "nosql", "cache", "queues-topics", "secrets", "container-registry"],
+      "topology": "platform -> load-balancer -> service -> registry"
+    }
+  },
+  "match": {
+    "keywords": [
+      "config management", "configuration management", "opentofu", "open tofu", "terraform", "iac",
+      "infrastructure as code", "infrastructure", "cloud deployment", "deploy to the cloud", "deployment",
+      "provisioning", "ecs", "fargate", "vpc", "rds", "state management", "tfvars", "modules",
+      "multi-environment", "multi-cloud", "aws", "gcp"
+    ],
+    "trigger_phrases": [
+      "a global way of using open tofu to manage cloud deployments",
+      "set up our infrastructure as code",
+      "how do we deploy services to the cloud consistently",
+      "we need an opentofu monorepo",
+      "manage cloud config and deployment"
+    ]
+  },
+  "variation_points": [
+    {"id": "cloud", "options": ["aws", "gcp"], "default": "aws"},
+    {"id": "state_backend", "options": ["s3-dynamodb", "gcs"], "default": "s3-dynamodb"},
+    {"id": "lb_apply_order", "options": ["lb-before-service", "service-before-lb"], "default": "lb-before-service"},
+    {"id": "ci", "options": ["none", "plan-on-pr-apply-on-merge"], "default": "plan-on-pr-apply-on-merge"}
+  ],
+  "when_to_use": [
+    "Deploying multiple containerized services to a cloud with one consistent IaC pattern.",
+    "Needing multi-environment (dev/prod) deploys with isolated state and create-or-reuse flexibility per resource."
+  ],
+  "when_not": [
+    "A single static site or a lone serverless function with no shared infra.",
+    "A team standardized on a different IaC tool (Pulumi/CDK/Helm).",
+    "A one-off throwaway environment where the monorepo overhead is not earned."
+  ],
+  "contract_surface": {
+    "module_inputs": ["project", "service", "env", "cluster_arn", "subnet_ids", "image", "enable_*", "existing_*", "desired_count"],
+    "module_outputs": ["resolved ids/endpoints/ARNs/secret-names per use_* primitive (try-resolved)"],
+    "registry_manifest": ".service-registry/<env>.json — { <service>: { url, ...outputs } }",
+    "state_key": "<client>/<layer>/<service>/<env>",
+    "naming": "${project}-${service}-${env}-${resource}"
+  },
+  "provenance": {
+    "absorbed_from": ["confgigs"],
+    "absorbed_by": "human",
+    "absorbed_at": "2026-05-30",
+    "generalized": true
+  },
+  "scaffold": {
+    "manifest": "scaffold/scaffold.manifest.json",
+    "parameters": [
+      {"name": "project_name", "required": true, "description": "project/org prefix for resource naming"},
+      {"name": "service_name", "required": true, "description": "the first service to onboard, kebab-case"},
+      {"name": "aws_region", "default": "us-east-1", "description": "resource region"},
+      {"name": "state_region", "default": "us-west-2", "description": "region of the state bucket + lock table"},
+      {"name": "env", "default": "dev", "description": "environment name"}
+    ]
+  },
+  "blueprint": "blueprint.md"
+}

@@ -1,0 +1,44 @@
+// API client ({{service_name}}) — an apiFetch base wrapper with typed errors by status, Bearer
+// injection, and a 401 -> /login redirect. Per-domain client objects sit on top. (ai-management.)
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+export class PermissionError extends ApiError {}
+export class ValidationError extends ApiError {}
+
+// The bare agent-platform origin (no /api/v1 suffix) baked at build time from the service registry,
+// else the dev Vite proxy prefix.
+const AGENT_BASE = `${import.meta.env.VITE_AGENT_API_BASE_URL ?? "/agent-api"}/api/v1`;
+
+function authHeaders(): Record<string, string> {
+  // token_storage variation point: prefer in-memory for XSS safety (the reference used localStorage).
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${AGENT_BASE}/${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(init.headers ?? {}) },
+  });
+  if (res.status === 401) {
+    location.assign("/login");
+    throw new ApiError(401, "unauthorized");
+  }
+  if (res.status === 403) throw new PermissionError(403, "forbidden");
+  if (res.status === 422) throw new ValidationError(422, "validation failed");
+  if (!res.ok) throw new ApiError(res.status, `request failed: ${res.status}`);
+  return (await res.json()) as T;
+}
+
+export const templatesApi = {
+  resolved: (id: string) => apiFetch<Record<string, unknown>>(`templates/${id}/resolved`),
+  patch: (id: string, delta_config: unknown, status?: string) =>
+    apiFetch(`templates/${id}`, { method: "PATCH", body: JSON.stringify({ delta_config, status }) }),
+  versions: (id: string) =>
+    apiFetch<{ version: number; created_at: string }[]>(`templates/${id}/versions`),
+  rollback: (id: string, to_version: number) =>
+    apiFetch(`templates/${id}/rollback`, { method: "POST", body: JSON.stringify({ to_version }) }),
+};

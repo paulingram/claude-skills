@@ -1,0 +1,53 @@
+"""Model gateway ({{service_name}}) — the single, swappable LLM provider boundary.
+
+The runtime never calls a provider SDK directly; it goes through this gateway. Per-request overrides
+are restricted to a SAFE ALLOWLIST so a caller cannot inject arbitrary inference config. Swap the
+concrete gateway (Bedrock / OpenAI / Anthropic) behind the same interface (variation point
+``model_provider``).
+"""
+from __future__ import annotations
+
+from typing import Any, AsyncIterator, Mapping, Protocol
+
+# Only these inference params may be overridden per-request; everything else comes from resolved_config.
+OVERRIDE_ALLOWLIST = frozenset({"temperature", "max_tokens", "top_p", "stop_sequences"})
+
+
+def merge_inference_params(resolved_config: Mapping[str, Any],
+                           overrides: Mapping[str, Any] | None) -> dict:
+    """Base params from the resolved template config + only the allowlisted per-request overrides."""
+    params = dict(resolved_config.get("inference_params", {}))
+    for key, value in (overrides or {}).items():
+        if key in OVERRIDE_ALLOWLIST:
+            params[key] = value
+    return params
+
+
+class ModelGateway(Protocol):
+    """Implement once per provider; the rest of the app depends only on this."""
+
+    async def converse(self, model_id: str, messages: list[dict], params: Mapping[str, Any]) -> dict: ...
+
+    def converse_stream(self, model_id: str, messages: list[dict],
+                        params: Mapping[str, Any]) -> AsyncIterator[dict]: ...
+
+    async def embed(self, model_id: str, text: str) -> list[float]: ...
+
+
+class GatewayError(RuntimeError):
+    pass
+
+
+# Example skeleton — wire to your provider SDK; keep the allowlist + the resolved_config-driven model_id.
+class ProviderGateway:
+    def __init__(self, client: Any) -> None:
+        self._client = client  # the provider SDK client (Bedrock boto3 / OpenAI / Anthropic)
+
+    async def converse(self, model_id, messages, params):
+        raise NotImplementedError("wire to the provider's converse/chat API")
+
+    def converse_stream(self, model_id, messages, params):
+        raise NotImplementedError("wire to the provider's streaming API; yield {'token': ...} chunks")
+
+    async def embed(self, model_id, text):
+        raise NotImplementedError("wire to the provider's embeddings API")

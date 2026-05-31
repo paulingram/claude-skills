@@ -1,0 +1,49 @@
+# {{project_name}} infrastructure (OpenTofu)
+
+Scaffolded from the **config-management** phenotype (architect-team / CLAUDE TEAM SIX plugin). A
+multi-service, multi-env OpenTofu monorepo: one feature-flagged service module + layered root modules
+composed via remote state + a registry-manifest config-discovery convention. A head start — read the
+phenotype's `blueprint.md` for the full pattern, then complete the checklist.
+
+## Layout
+
+```
+modules/microservice/                      # the ONE feature-flagged service module (three-state flags)
+deployments/{{project_name}}/
+  platform/                                # VPC, cluster, SGs, subnet groups (apply FIRST)
+  services/{{service_name}}/               # a thin `module "this"` call + its {{env}}.tfvars
+  registry/                                # for_each-reads service outputs -> .service-registry/<env>.json
+.service-registry/<env>.json               # the committed config-discovery manifest (generated)
+```
+
+## Conventions (the phenotype contract — keep them)
+
+- **Three-state flags:** each primitive has `enable_X` + `existing_X_arn` → create / reuse / disabled.
+- **State:** S3 + DynamoDB lock; hierarchical key `<project>/<layer>/<service>/<env>`; envs via
+  `-var-file=<env>.tfvars` + a distinct state key. **No workspaces.**
+- **Naming:** `${project}-${service}-${env}-${resource}`.
+- **Discovery:** read `.service-registry/<env>.json` for another service's resolved address — never
+  hardcode it.
+
+## Deploy order
+
+```
+1. deployments/{{project_name}}/platform/            tofu init && tofu apply -var-file={{env}}.tfvars
+2. (AWS) load-balancer/<svc>/                         # before the service, so it can register
+3. deployments/{{project_name}}/services/{{service_name}}/   tofu apply -var-file={{env}}.tfvars
+4. deployments/{{project_name}}/registry/             tofu apply -var-file={{env}}.tfvars
+```
+(GCP swaps steps 2 and 3 — the container service is created before the load balancer is attached.)
+
+## Onboard a new service
+
+Copy `services/{{service_name}}/` to `services/<new>/`, change the backend state key, set the flag
+profile + sizing in its `<env>.tfvars`, apply in the order above, then add `<new>` to the registry's
+`services` list and re-apply the registry.
+
+## Post-emit checklist
+
+1. Create the state bucket + lock table once per project; fill `REPLACE-…` in every `backend.tf`.
+2. Fill account id / VPC CIDRs / domains / ACM / secret names in the tfvars — no baked literals.
+3. Flesh the module's elided resources (subnets, SGs, ElastiCache, IAM, task definition) per your needs.
+4. Add CI: `tofu plan` on PR, `tofu apply` on merge (the reference shipped none).

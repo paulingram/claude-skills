@@ -1,0 +1,53 @@
+# {{project_name}} standard service footprint. Locals realize the three-state contract; resources are
+# count-gated on create_X; IAM + env wiring keys off use_X; outputs resolve via try() (see outputs.tf).
+
+locals {
+  name = "${var.project}-${var.service}-${var.env}"
+
+  create_database = var.enable_database && var.existing_database_arn == null
+  use_database    = var.enable_database || var.existing_database_arn != null
+
+  create_cache = var.enable_cache && var.existing_cache_arn == null
+  use_cache    = var.enable_cache || var.existing_cache_arn != null
+
+  create_secrets = var.enable_secrets && var.existing_secrets_arn == null
+  use_secrets    = var.enable_secrets || var.existing_secrets_arn != null
+
+  tags = merge({ Project = var.project, Service = var.service, Env = var.env }, var.tags)
+}
+
+# --- managed SQL (create / reuse / disabled) -------------------------------
+resource "aws_db_instance" "this" {
+  count = local.create_database ? 1 : 0
+
+  identifier          = replace("${local.name}-db", "-", "_")
+  engine              = "postgres"
+  instance_class      = var.env == "prod" ? "db.r6g.large" : "db.t4g.micro"
+  deletion_protection = var.env == "prod"
+  tags                = local.tags
+  # ... allocated_storage, db_subnet_group_name, vpc_security_group_ids, credentials from the secret ...
+}
+
+# --- secrets (created here, injected into the task by REFERENCE, never as literals) ---
+resource "aws_secretsmanager_secret" "this" {
+  count = local.create_secrets ? 1 : 0
+  name  = "${local.name}-secrets"
+  tags  = local.tags
+}
+
+# --- the container service itself (always created) -------------------------
+resource "aws_ecs_service" "this" {
+  name          = local.name
+  cluster       = var.cluster_arn
+  desired_count = var.desired_count
+  launch_type   = "FARGATE"
+
+  network_configuration {
+    subnets = var.subnet_ids
+  }
+
+  tags = local.tags
+  # The task definition references var.image on var.container_port. Env wiring keys off use_*:
+  #   use_database -> inject the DB endpoint + secret reference; use_cache -> inject the cache endpoint.
+  # A frontend service sets enable_database=false / enable_cache=false and runs a static nginx image.
+}

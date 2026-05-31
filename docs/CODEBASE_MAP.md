@@ -129,13 +129,14 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 
 ## 4. Module Guide
 
-### Skills (30)
+### Skills (31)
 
 **v2.1.0 — `interactive-mockup-discovery` joins**: the canonical home of the two-pass mechanism for interactive HTML mockup oracles (Pass 1 = observation via `interaction-observer`; Pass 2 = intent inference via `interaction-intuiter`'s INTENT-INFERENCE mode; Layer 3 = `verify-interactions-honored`). Documents the 7-value `action_kind` vocabulary and the 10-pattern semantic-vs-observed mismatch matrix. v2.0.0 added `verified-agent-output`.
 
 | Skill | Role |
 |---|---|
-| `phenotypes` | (v2.3.0) Discover/match/emit pre-made generalized deployable architectures (blueprint + scaffold + metadata under `phenotypes/`); proposed reuse-first or via `--phenotype`, never silent. Engine: `scripts/phenotypes/phenotypes.py`. Seeded with `user-management`. |
+| `phenotypes` | (v2.3.0) Discover/match/emit pre-made generalized deployable architectures (blueprint + scaffold + metadata under `phenotypes/`); proposed reuse-first or via `--phenotype`, never silent. Engine: `scripts/phenotypes/phenotypes.py`. Seeded with `user-management` + `config-management` + `ai-management`. |
+| `phenotype-absorption` | (v2.3.0) The absorb playbook — ingest any arbitrary codebase into a new labeled phenotype (analyze → generalize → scaffold → validate → index). Reached via `/architect-team:absorb-phenotype <path> --label <name>`. |
 | `architect-team-pipeline` | The orchestrator playbook — Phase −1 → 8. Run-state rules: iteration ceiling (20), oscillation detection, the shared-state concurrency model, the escalation marker. |
 | `intake-and-mapping` | Phase −1 codebase discovery + the per-codebase / integration ralph loops. Map-invalidation flag forces re-validation of a wrong-but-fresh map. |
 | `reuse-first-design` | The extend > compose > reuse > build-new ladder; the Reuse Decision Log. |

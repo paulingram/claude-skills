@@ -1,0 +1,61 @@
+# The standard service footprint module ({{project_name}}). Every service is THIS module with a
+# different feature-flag profile. Each primitive is gated by a paired enable_X + existing_X giving a
+# three-state contract: create (enable && existing==null) / reuse (existing!=null) / disabled.
+
+variable "project" { type = string }
+variable "service" { type = string }
+
+variable "env" {
+  type = string
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.env)
+    error_message = "env must be one of: dev, staging, prod."
+  }
+}
+
+variable "cluster_arn" { type = string }
+variable "subnet_ids"  { type = list(string) }
+variable "image"       { type = string }
+variable "container_port" {
+  type    = number
+  default = 8080
+}
+variable "desired_count" {
+  type    = number
+  default = 1
+}
+variable "tags" {
+  type    = map(string)
+  default = {}
+}
+
+# --- three-state feature flags (create / reuse / disabled) per primitive ---
+variable "enable_database" {
+  type    = bool
+  default = false
+}
+variable "existing_database_arn" {
+  type    = string
+  default = null
+}
+
+variable "enable_cache" {
+  type    = bool
+  default = false
+}
+variable "existing_cache_arn" {
+  type    = string
+  default = null
+}
+
+variable "enable_secrets" {
+  type    = bool
+  default = true
+}
+variable "existing_secrets_arn" {
+  type    = string
+  default = null
+}
+
+# Add more primitives (object store, KMS, NoSQL, queues/topics, registry, model access) following the
+# same enable_X / existing_X pairing — see the blueprint's primitive catalog.

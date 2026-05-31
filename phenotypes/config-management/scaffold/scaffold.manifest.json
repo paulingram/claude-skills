@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "parameters": [
+    {"name": "project_name", "required": true},
+    {"name": "service_name", "required": true},
+    {"name": "aws_region", "default": "us-east-1"},
+    {"name": "state_region", "default": "us-west-2"},
+    {"name": "env", "default": "dev"}
+  ],
+  "files": [
+    {"src": "modules/microservice/variables.tf.tmpl", "dest": "modules/microservice/variables.tf"},
+    {"src": "modules/microservice/main.tf.tmpl",      "dest": "modules/microservice/main.tf"},
+    {"src": "modules/microservice/outputs.tf.tmpl",   "dest": "modules/microservice/outputs.tf"},
+    {"src": "platform/main.tf.tmpl",                  "dest": "deployments/{{project_name}}/platform/main.tf"},
+    {"src": "platform/backend.tf.tmpl",               "dest": "deployments/{{project_name}}/platform/backend.tf"},
+    {"src": "service/main.tf.tmpl",                   "dest": "deployments/{{project_name}}/services/{{service_name}}/main.tf"},
+    {"src": "service/backend.tf.tmpl",                "dest": "deployments/{{project_name}}/services/{{service_name}}/backend.tf"},
+    {"src": "registry/main.tf.tmpl",                  "dest": "deployments/{{project_name}}/registry/main.tf"},
+    {"src": "env.tfvars.example.tmpl",                "dest": "deployments/{{project_name}}/services/{{service_name}}/{{env}}.tfvars.example"},
+    {"src": "README.md.tmpl",                         "dest": "README.md"}
+  ],
+  "post_emit_notes": [
+    "Fill the backend.tf state bucket + lock table (created once per project, out-of-band or in platform).",
+    "Set account id / VPC CIDRs / domains / ACM / secret names in the tfvars; none are baked literals.",
+    "Apply in order: platform -> load-balancer (if used) -> services/<svc> -> registry. GCP swaps service/LB order.",
+    "Choose the flag profile per service in its tfvars (enable_database/enable_cache/... + existing_* to reuse).",
+    "Add CI: tofu plan on PR, tofu apply on merge (the reference shipped none).",
+    "For a frontend service, disable enable_database/enable_cache and serve static via nginx."
+  ]
+}

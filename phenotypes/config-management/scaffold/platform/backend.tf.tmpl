@@ -1,0 +1,10 @@
+# Platform state — hierarchical key <project>/platform/<env>. One state per env; NO workspaces.
+terraform {
+  backend "s3" {
+    bucket         = "REPLACE-{{project_name}}-tofu-state"
+    key            = "{{project_name}}/platform/{{env}}/terraform.tfstate"
+    region         = "{{state_region}}"
+    dynamodb_table = "REPLACE-{{project_name}}-tofu-locks"
+    encrypt        = true
+  }
+}

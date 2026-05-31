@@ -1,0 +1,51 @@
+# The registry root — for_each-reads every service's outputs into a JSON manifest, written to the
+# committed .service-registry/<env>.json. This is the "read-registry-first" config-discovery contract:
+# anything that needs another service's resolved address reads it here, never by hardcoding.
+
+terraform {
+  required_version = ">= 1.7"
+}
+
+variable "project" {
+  type    = string
+  default = "{{project_name}}"
+}
+variable "env" {
+  type    = string
+  default = "{{env}}"
+}
+variable "state_region" {
+  type    = string
+  default = "{{state_region}}"
+}
+variable "services" {
+  type        = list(string)
+  description = "service names to include in the registry manifest"
+  default     = ["{{service_name}}"]
+}
+
+data "terraform_remote_state" "service" {
+  for_each = toset(var.services)
+  backend  = "s3"
+  config = {
+    bucket = "REPLACE-${var.project}-tofu-state"
+    key    = "${var.project}/services/${each.value}/${var.env}/terraform.tfstate"
+    region = var.state_region
+  }
+}
+
+locals {
+  manifest = {
+    for svc, st in data.terraform_remote_state.service :
+    svc => {
+      url          = try(st.outputs.url, null)
+      database_arn = try(st.outputs.database_arn, null)
+      secrets_arn  = try(st.outputs.secrets_arn, null)
+    }
+  }
+}
+
+resource "local_file" "registry" {
+  content  = jsonencode(local.manifest)
+  filename = "${path.module}/../../../.service-registry/${var.env}.json"
+}

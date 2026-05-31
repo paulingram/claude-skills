@@ -1,0 +1,61 @@
+"""Template resolution — the crux of the {{service_name}} prompt-versioning layer.
+
+A prompt is NOT free text: it is the ``system_prompt`` inside a versioned, inheritable ``delta_config``
+on an AgentTemplate. The resolved config for a template is the deep-merge of every ``delta_config``
+down its scope chain (master -> domain -> application -> tenant). This module is pure + deterministic,
+so it is directly unit-testable.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable, Mapping
+
+
+def deep_merge(base: Mapping[str, Any], delta: Mapping[str, Any]) -> dict:
+    """Merge ``delta`` onto ``base``.
+
+    Semantics (the versioning contract): scalars replace; dicts recurse; lists replace wholesale; an
+    explicit ``None`` in the delta DELETES the key. ``base`` is not mutated.
+    """
+    result: dict = dict(base)
+    for key, value in delta.items():
+        if value is None:
+            result.pop(key, None)
+        elif isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def resolve_config(template: Mapping[str, Any],
+                   get_parent: Callable[[str], Mapping[str, Any] | None]) -> dict:
+    """Resolve a template's full config by deep-merging deltas root-first down its chain.
+
+    ``get_parent(parent_id)`` returns the parent template dict (or None). For ``inheritance_mode ==
+    "locked"`` the caller should supply the pinned parent VERSION via ``get_parent``. Raises on a cycle.
+    """
+    chain: list[Mapping[str, Any]] = []
+    seen: set[str] = set()
+    node: Mapping[str, Any] | None = template
+    while node is not None:
+        node_id = node["id"]
+        if node_id in seen:
+            raise ValueError(f"inheritance cycle detected at template {node_id!r}")
+        seen.add(node_id)
+        chain.append(node)
+        parent_id = node.get("parent_id")
+        node = get_parent(parent_id) if parent_id else None
+
+    resolved: dict = {}
+    for node in reversed(chain):  # master (root) first, then domain, application, tenant
+        resolved = deep_merge(resolved, node.get("delta_config", {}))
+    return resolved
+
+
+def diff_config(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[dict]:
+    """Server-computed field diff for the VersionHistory UI: [{field, from, to}], flat over top keys."""
+    fields = sorted(set(old) | set(new))
+    return [
+        {"field": f, "from": old.get(f), "to": new.get(f)}
+        for f in fields if old.get(f) != new.get(f)
+    ]

@@ -1,0 +1,44 @@
+"""Template endpoints ({{service_name}}).
+
+Save-Draft vs. Publish PATCH the same ``delta_config`` with a different ``status``; each update bumps
+``version`` and writes an immutable ``TemplateVersion``; ``resolved_config`` is materialized via
+``services/template_resolver.resolve_config`` (and propagated to descendants). ``diff_config`` (same
+module) powers the VersionHistory UI's server-computed field diffs.
+"""
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from app.services.template_resolver import resolve_config  # + diff_config for the versions diff view
+
+router = APIRouter(prefix="/templates", tags=["templates"])
+
+
+class TemplatePatch(BaseModel):
+    delta_config: dict
+    status: str | None = None          # "draft" | "active"
+
+
+@router.get("/{template_id}/resolved")
+async def get_resolved(template_id: str) -> dict:
+    # Load the template + a get_parent(parent_id) accessor, then return resolve_config(template, get_parent).
+    raise NotImplementedError("load template + parents; return resolve_config(...)")
+
+
+@router.patch("/{template_id}")
+async def update_template(template_id: str, patch: TemplatePatch) -> dict:
+    # 1) load; 2) snapshot current delta_config -> TemplateVersion; 3) bump version;
+    # 4) apply patch.delta_config + status; 5) re-resolve + materialize resolved_config (propagate to
+    #    descendants); 6) return the updated template. (See blueprint "## How the parts interrelate".)
+    raise NotImplementedError("version-bump + immutable snapshot + materialize resolved_config")
+
+
+@router.get("/{template_id}/versions")
+async def list_versions(template_id: str) -> list[dict]:
+    # Return TemplateVersion snapshots newest-first; the UI renders diff_config(prev, next) per step.
+    raise NotImplementedError("return TemplateVersion snapshots")
+
+
+@router.post("/{template_id}/rollback")
+async def rollback(template_id: str, to_version: int) -> dict:
+    # Restore delta_config from TemplateVersion(to_version) as a NEW version (history stays immutable).
+    raise NotImplementedError("restore the snapshot as a new version")
