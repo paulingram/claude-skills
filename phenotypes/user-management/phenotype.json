@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "label": "user-management",
+  "name": "User Management (async API backend + SPA frontend + OpenTofu)",
+  "version": "1.0.0",
+  "kind": "pair",
+  "summary": "Production multi-tenant user-management system: async REST API + single-page frontend with dual-credential auth, N-layer RBAC, org hierarchy, audit, and an OpenTofu cloud deployment.",
+  "components": {
+    "backend": {
+      "language": "python",
+      "framework": "fastapi",
+      "orm": "sqlalchemy-async",
+      "datastore": ["postgresql", "redis"],
+      "auth": ["opaque-session-token", "scoped-api-key", "oidc-jwks"]
+    },
+    "frontend": {
+      "language": "typescript",
+      "framework": "react+vite",
+      "ui": "shadcn+tailwind",
+      "data": ["tanstack-query", "tanstack-table"],
+      "state": "zustand"
+    },
+    "deploy": {
+      "iac": "opentofu",
+      "target": "ecs-aws",
+      "managed": ["sql-postgres", "cache-redis", "load-balancer", "secrets", "object-store", "kms"]
+    }
+  },
+  "match": {
+    "keywords": [
+      "user management", "user-management", "authentication", "auth", "login", "signin", "sign in",
+      "signup", "sign up", "accounts", "account", "identity", "rbac", "roles", "permissions",
+      "sessions", "session", "sso", "oidc", "oauth", "organizations", "tenants", "multi-tenancy",
+      "invitations", "password reset", "audit log"
+    ],
+    "trigger_phrases": [
+      "i want a user management system",
+      "build a user management backend",
+      "we need a user management system",
+      "we need login and accounts",
+      "add authentication and authorization",
+      "build login and accounts",
+      "need rbac and orgs"
+    ]
+  },
+  "variation_points": [
+    {"id": "auth_method", "options": ["session-token", "jwt", "oidc"], "default": "session-token"},
+    {"id": "multi_tenancy", "options": ["orgs", "single-tenant"], "default": "orgs"},
+    {"id": "deploy_target", "options": ["ecs-aws", "cloud-run", "k8s"], "default": "ecs-aws"},
+    {"id": "token_storage", "options": ["memory", "localStorage"], "default": "memory"},
+    {"id": "api_types", "options": ["handwritten", "openapi-codegen"], "default": "handwritten"}
+  ],
+  "when_to_use": [
+    "A product needs real accounts, login, roles/permissions, and org/tenant structure.",
+    "You want a revocable session model + RBAC + audit out of the box, deployed via IaC."
+  ],
+  "when_not": [
+    "A single hardcoded admin suffices.",
+    "Auth is fully delegated to a third party with no local identity (pure hosted IdP).",
+    "The product is a static site or CLI with no multi-user surface."
+  ],
+  "contract_surface": {
+    "entities": ["User", "Organization", "Membership", "Role", "Permission", "Session", "Invitation", "OrgSecurityPolicy", "AuditLog"],
+    "key_endpoints": [
+      "POST /auth/login", "GET /auth/session", "DELETE /auth/session",
+      "POST /auth/password/reset", "POST /auth/verify",
+      "GET /users", "POST /users", "PATCH /users/{id}",
+      "GET /organizations", "POST /organizations",
+      "GET /roles", "POST /roles", "GET /permissions",
+      "POST /invitations"
+    ],
+    "envelopes": {"list": "{items,total,offset,limit}", "error": "{error:{code,message,details}}"}
+  },
+  "provenance": {
+    "absorbed_from": ["globalUserManagement-Backend", "globalUserManagementFrontEnd", "confgigs"],
+    "absorbed_by": "human",
+    "absorbed_at": "2026-05-30",
+    "generalized": true
+  },
+  "scaffold": {
+    "manifest": "scaffold/scaffold.manifest.json",
+    "parameters": [
+      {"name": "service_name", "required": true, "description": "kebab-case service id, e.g. acme-users"},
+      {"name": "project_name", "required": true, "description": "project/org prefix for resource naming, e.g. acme"},
+      {"name": "db_name", "default": "appdb", "description": "Postgres database name"},
+      {"name": "aws_region", "default": "us-east-1", "description": "cloud region for the deploy target"},
+      {"name": "env", "default": "dev", "description": "environment name (dev/staging/prod)"}
+    ]
+  },
+  "blueprint": "blueprint.md"
+}

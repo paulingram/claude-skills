@@ -1,0 +1,34 @@
+# {{service_name}}
+
+Scaffolded from the **user-management** phenotype (architect-team / CLAUDE TEAM SIX plugin). This is a
+generalized starting point — a head start, not a finished app. Read the phenotype's `blueprint.md`
+for the full architecture, then complete the checklist below.
+
+## Layout
+
+- `backend/` — async user-management API (FastAPI-class). Strict 5-layer:
+  `api → schema → service → repository → model`. Dual-credential auth (session token + API key),
+  N-layer RBAC, org hierarchy, audit.
+- `frontend/` — SPA (React + Vite-class) with the `AuthenticatedLayout` guard + a dual-client API
+  layer (Bearer + 401→logout; public client for login).
+- `deploy/{{service_name}}/` — OpenTofu service root: a thin `module "this"` call into the shared,
+  feature-flagged microservice module.
+
+## Post-emit checklist
+
+1. **Backend:** `cd backend && uv sync` (or `pip install -e .`); author the Alembic migrations
+   (including the organization closure-table trigger and the seed role/permission catalog + first
+   admin); `alembic upgrade head` against your dev Postgres.
+2. **Security:** set EXPLICIT CORS origins (never `*`); keep the frontend `token_storage` default of
+   `memory` unless you accept the XSS exposure of `localStorage`.
+3. **Frontend:** set `VITE_API_BASE_URL` to the bare backend origin (no `/api/v1` suffix);
+   `npm install && npm run build`.
+4. **Deploy:** fill `deploy/{{service_name}}/{{env}}.tfvars` (state bucket, account id, VPC via the
+   platform root, domain/ACM cert, secret names); apply in order:
+   `platform → load-balancer → service → registry`.
+5. **Secrets:** provide every secret via the secrets manager (referenced by name); never commit them.
+6. **Gaps to close:** add frontend tests + a React error boundary (the reference implementation
+   lacked both).
+
+Run the result through the architect-team pipeline's normal review gates — the phenotype provides the
+shape; the pipeline's rigor still applies on top.

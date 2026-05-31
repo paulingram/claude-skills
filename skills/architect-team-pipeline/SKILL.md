@@ -178,6 +178,8 @@ Persist state to `<workspace>/.architect-team/intake-state.json` with codebase p
 
 ## Phase 1 — Planning Validation Loop (hard gate; 100% coverage required)
 
+**Phenotype seeding (v2.3.0).** If `$PHENOTYPE` is set (the `--phenotype <label>` flag, or an explicit "use the X phenotype" request), OR reuse-first design surfaces a strong phenotype match, follow `skills/phenotypes`: read the phenotype's `blueprint.md`, confirm its variation points + scaffold parameters with the user (domain gate — never silent), emit the scaffold into the change workdir, and treat it as the reuse-first starting point that the coverage map + review gates then validate. A phenotype is reuse-plus-customization (logged in the Reuse Decision Log); it never bypasses Phase 1's 100%-coverage requirement.
+
 Do not exit Phase 1 until every condition below is satisfied.
 
 Loop:

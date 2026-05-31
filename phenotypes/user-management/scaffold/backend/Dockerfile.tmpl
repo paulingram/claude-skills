@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+# {{service_name}} backend — multi-stage build (user-management phenotype).
+FROM python:3.12-slim AS base
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+
+COPY pyproject.toml ./
+RUN pip install --upgrade pip && pip install .
+
+COPY app ./app
+COPY alembic.ini ./
+COPY migrations ./migrations
+
+EXPOSE 8080
+# Cold-start migrate-then-serve. The platform health-gates the rollout and auto-rolls-back on failure
+# (see the phenotype blueprint "## Deployment"). For zero-downtime, move migrations to a pre-deploy task.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"]

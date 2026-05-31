@@ -16,6 +16,20 @@ Every new module, file, component, or dependency degrades the system unless it e
 
 Climb the ladder from the top. You cannot skip rungs without naming why.
 
+## Phenotype reuse (a cross-project rung above build-new)
+
+The four rungs above reason over the **target workspace**. When none of them yields an option — i.e.
+you are about to **build new** — first check the **phenotype library** (`phenotypes/`, via
+`scripts/phenotypes/phenotypes.py match "<request>"`). A matching phenotype is a *proven, generalized
+blueprint* (see `skills/phenotypes`), so consuming one IS reuse — it ranks **above build-new**:
+
+> extend > compose > reuse (workspace) > **reuse a phenotype (cross-project blueprint)** > build new
+
+A phenotype match is **proposed to the user, never applied silently** (a domain gate). When accepted,
+log it in the Reuse Decision Log as `decision: reuse (phenotype: <label>)` and record the
+still-required customizations (a phenotype is a head start, not a finished module). With no match or a
+declined proposal, build-new proceeds with its normal Reuse Decision.
+
 ## Mandatory pre-design audit
 
 Before proposing ANY new module / file / component / dependency:

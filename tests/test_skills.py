@@ -35,6 +35,7 @@ EXPECTED_SKILLS: set[str] = {
     "common-pipeline-conventions",
     "verified-agent-output",
     "interactive-mockup-discovery",
+    "phenotypes",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

@@ -1,0 +1,21 @@
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Fingerprinted, immutable build assets.
+  location /assets/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+
+  location = /health { return 200 "ok\n"; }
+
+  # SPA history fallback. NOTE: no API proxy here — the browser calls the backend ORIGIN directly
+  # (VITE_API_BASE_URL), per the phenotype's integration contract.
+  location / {
+    try_files $uri $uri/ /index.html;
+    add_header Cache-Control "no-store";
+  }
+}

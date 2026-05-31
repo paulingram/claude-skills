@@ -1,0 +1,40 @@
+"""Auth endpoints (user-management phenotype). login / session / logout.
+
+The router shape + contract are fixed by the phenotype; the bodies call into your service layer
+(``user_service``) which owns the transaction. Wire the marked steps when customizing.
+"""
+from fastapi import APIRouter, Header, status
+from pydantic import BaseModel, EmailStr
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LoginResponse(BaseModel):
+    token: str          # the opaque session token — returned ONCE
+    user_id: str
+
+
+@router.post("/login", response_model=LoginResponse)
+async def login(payload: LoginRequest) -> LoginResponse:
+    # 1) look up user by email  2) security.verify_password(payload.password, user.password_hash)
+    # 3) security.issue_session_token()  4) persist Session(token_hash, token_prefix, expires_at)
+    # 5) cache the session in Redis  6) return the CLEAR token once.
+    raise NotImplementedError("wire to user_service.authenticate() — see blueprint contract surface")
+
+
+@router.get("/session")
+async def current_session(authorization: str = Header(default="")) -> dict:
+    # Resolve "Bearer <token>" -> hash -> Session -> User via the session-auth middleware.
+    # Used by the SPA's AuthenticatedLayout on mount to revalidate.
+    raise NotImplementedError("wire to session-auth resolution")
+
+
+@router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(authorization: str = Header(default="")) -> None:
+    # Revoke server-side: delete Session by token_hash + evict the Redis cache entry.
+    raise NotImplementedError("wire to user_service.revoke_session()")

@@ -1,0 +1,14 @@
+# {{service_name}} {{env}} — copy to {{env}}.tfvars and fill. NEVER commit real secrets or account ids.
+project_name  = "{{project_name}}"
+service_name  = "{{service_name}}"
+env           = "{{env}}"
+aws_region    = "{{aws_region}}"
+
+state_bucket  = "REPLACE-{{project_name}}-tofu-state"
+state_region  = "us-west-2"
+
+image         = "REPLACE-ACCOUNT.dkr.ecr.{{aws_region}}.amazonaws.com/{{project_name}}-{{service_name}}:latest"
+desired_count = 1
+
+# Secrets (DB URL, OIDC client secret, email/transactional API key, encryption key) are referenced
+# by NAME inside the microservice module and resolved from the secrets manager — never set here.

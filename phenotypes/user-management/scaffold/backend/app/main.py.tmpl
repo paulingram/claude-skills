@@ -1,0 +1,47 @@
+"""{{service_name}} — user-management API application factory.
+
+Generalized from the user-management phenotype. Strict layering: API -> Schema -> Service ->
+Repository -> Model; services own the transaction. Fill the modules referenced below (core.config,
+core.errors, the remaining api.v1 routers) when customizing — see the scaffold post_emit_notes.
+"""
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings          # TODO(scaffold): pydantic-settings config module
+from app.core.errors import AppError, app_error_handler  # TODO(scaffold): AppError hierarchy + handler
+from app.api.v1 import auth                    # add: users, organizations, roles, invitations
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Initialize the async DB engine + Redis pool here; dispose on shutdown.
+    yield
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="{{project_name}} user-management API", lifespan=lifespan)
+
+    # SECURITY: set EXPLICIT origins. Do NOT ship "*" — the reference implementation did; the
+    # phenotype's "## Reuse-Decision hooks" requires tightening this.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.add_exception_handler(AppError, app_error_handler)
+    app.include_router(auth.router, prefix="/api/v1")
+    # app.include_router(users.router, prefix="/api/v1")  ... etc
+
+    @app.get("/health")
+    async def health() -> dict:
+        return {"status": "ok"}
+
+    return app
+
+
+app = create_app()

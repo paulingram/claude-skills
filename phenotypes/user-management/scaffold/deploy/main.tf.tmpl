@@ -1,0 +1,50 @@
+# {{service_name}} ({{env}}) — service deployment root (user-management phenotype).
+#
+# Thin root: a single `module "this"` call into the shared, feature-flagged microservice module.
+# Deployment apply order:  platform -> load-balancer -> service (this) -> registry.
+
+terraform {
+  required_version = ">= 1.7"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+# Shared platform (VPC, ECS cluster, security groups) is provisioned by the `platform/` root first
+# and read here via remote state.
+data "terraform_remote_state" "platform" {
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    key    = "${var.project_name}/${var.env}/platform/terraform.tfstate"
+    region = var.state_region
+  }
+}
+
+module "this" {
+  source = "../../modules/microservice-aws"
+
+  project     = var.project_name
+  service     = var.service_name
+  env         = var.env
+  cluster_arn = data.terraform_remote_state.platform.outputs.cluster_arn
+  subnet_ids  = data.terraform_remote_state.platform.outputs.private_subnet_ids
+  image       = var.image
+
+  # Three-state feature flags (create / reuse-existing / disabled). This backend service enables a
+  # managed DB + cache + secrets; a frontend service would disable both and serve static via nginx.
+  enable_database = true
+  enable_cache    = true
+  enable_secrets  = true
+
+  container_port = 8080
+  desired_count  = var.desired_count
+  # Cold-start migrations run from the container CMD; the LB health-gates the rollout (auto-rollback).
+}

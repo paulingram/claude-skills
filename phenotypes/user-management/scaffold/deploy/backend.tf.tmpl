@@ -1,0 +1,11 @@
+# Remote state for the {{service_name}} service root (S3 backend + DynamoDB lock).
+# Hierarchical state key; environments are separated by a distinct key + a -var-file (no workspaces).
+terraform {
+  backend "s3" {
+    bucket         = "REPLACE-{{project_name}}-tofu-state"
+    key            = "{{project_name}}/{{env}}/services/{{service_name}}/terraform.tfstate"
+    region         = "us-west-2"
+    dynamodb_table = "REPLACE-{{project_name}}-tofu-locks"
+    encrypt        = true
+  }
+}

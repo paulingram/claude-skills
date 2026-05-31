@@ -1,0 +1,38 @@
+// {{service_name}} app shell + routing (user-management phenotype).
+//
+// A single AuthenticatedLayout is the guard + shell: it reads the token, redirects to /login when
+// absent, and revalidates the session on mount. RBAC UI is gated by a permission check (the server
+// re-enforces every mutation). Routes are declared imperatively here.
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useAuth } from "./stores/auth";
+
+const queryClient = new QueryClient();
+
+function AuthenticatedLayout() {
+  const { token, revalidate } = useAuth();
+  useEffect(() => {
+    if (token) void revalidate();
+  }, [token, revalidate]);
+  if (!token) return <Navigate to="/login" replace />;
+  return <Outlet />; // render your app shell (nav + <Outlet/> for the matched route)
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<div>{/* LoginPage */}</div>} />
+          <Route element={<AuthenticatedLayout />}>
+            <Route path="/" element={<Navigate to="/users" replace />} />
+            <Route path="/users" element={<div>{/* UsersPage */}</div>} />
+            <Route path="/organizations" element={<div>{/* OrganizationsPage */}</div>} />
+            <Route path="/roles" element={<div>{/* RolesPage */}</div>} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}

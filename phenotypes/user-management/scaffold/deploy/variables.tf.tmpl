@@ -1,0 +1,39 @@
+variable "project_name" {
+  type    = string
+  default = "{{project_name}}"
+}
+
+variable "service_name" {
+  type    = string
+  default = "{{service_name}}"
+}
+
+variable "env" {
+  type    = string
+  default = "{{env}}"
+}
+
+variable "aws_region" {
+  type    = string
+  default = "{{aws_region}}"
+}
+
+variable "state_bucket" {
+  type        = string
+  description = "S3 bucket holding the OpenTofu state for this project."
+}
+
+variable "state_region" {
+  type    = string
+  default = "us-west-2"
+}
+
+variable "image" {
+  type        = string
+  description = "ECR image reference; set by the deploy script per build."
+}
+
+variable "desired_count" {
+  type    = number
+  default = 1
+}

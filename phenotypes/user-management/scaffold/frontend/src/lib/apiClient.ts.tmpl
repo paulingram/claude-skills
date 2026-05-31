@@ -1,0 +1,45 @@
+// HTTP clients for the {{service_name}} SPA (user-management phenotype).
+//
+// Two instances:
+//   * `api`       — authenticated; injects `Authorization: Bearer <token>` and logs out on 401.
+//   * `publicApi` — login only; carries the app's scoped `X-API-Key`.
+//
+// VITE_API_BASE_URL is the BARE backend origin (no `/api/v1` suffix — this client adds it).
+import ky from "ky";
+import { useAuth } from "../stores/auth";
+
+const prefixUrl = `${import.meta.env.VITE_API_BASE_URL}/api/v1`;
+
+export const api = ky.create({
+  prefixUrl,
+  hooks: {
+    beforeRequest: [
+      (req) => {
+        const token = useAuth.getState().token;
+        if (token) req.headers.set("Authorization", `Bearer ${token}`);
+      },
+    ],
+    afterResponse: [
+      (_req, _opts, res) => {
+        if (res.status === 401) useAuth.getState().logout();
+      },
+    ],
+  },
+});
+
+export const publicApi = ky.create({
+  prefixUrl,
+  headers: { "X-API-Key": import.meta.env.VITE_APP_API_KEY ?? "" },
+});
+
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+// Backend error envelope: { error: { code, message, details } }.
+export async function extractErrorMessage(err: unknown): Promise<string> {
+  return err instanceof Error ? err.message : "Request failed";
+}

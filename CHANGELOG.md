@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] — 2026-05-30 — Phenotype subsystem (vertical slice)
+
+**ADDITIVE — backwards-compatible.** With no phenotype requested or matched, the pipeline behaves exactly as before.
+
+Introduces **phenotypes** — pre-made, generalized, *deployable* application-architecture patterns (a blueprint + a parameterized scaffold + metadata) the pipeline proposes reuse-first or is told to use via `--phenotype`. The missing top rung of the reuse-first ladder: a cross-project library of proven architectures to reuse from. This release is the **vertical slice to a checkpoint** — the subsystem + the first seed phenotype (`user-management`); the remaining seed phenotypes and the `absorb` capability are designed here and deferred.
+
+### Added
+- **`phenotypes/`** — new top-level phenotype library; each record is `<label>/{blueprint.md, scaffold/, phenotype.json}`, plus `README.md` + `SCHEMA.md`.
+- **`scripts/phenotypes/phenotypes.py`** (stdlib) — the deterministic engine: `discover_phenotypes` / `validate_phenotype` / `match_phenotype` / `load_phenotype` / `emit_scaffold` + a `list|show|match|validate|emit` CLI.
+- **`skills/phenotypes/`** — the consumption skill (discover → match reuse-first/never-silent → emit + customize). The 30th skill.
+- **`phenotypes/user-management/`** — the seed phenotype, generalized from a deep analysis of a best-in-class backend + frontend pair and their OpenTofu (`confgigs`) deployment: an async FastAPI-class API (dual-credential auth, N-layer RBAC, closure-table org hierarchy, audit) + a React/Vite SPA (AuthenticatedLayout guard, dual-client API layer) + an AWS-ECS-via-OpenTofu deploy module. A blueprint + a 17-file parameterized scaffold + a validated manifest.
+- **OpenSpec change** `openspec/changes/add-phenotype-subsystem/` (proposal / design / spec / tasks / coverage-map).
+- Tests: `tests/test_phenotypes_helper.py` + `tests/test_phenotype_subsystem.py`.
+
+### Changed (trigger wiring — additive)
+- `commands/architect-team.md` — new `--phenotype <label>` flag (+ "use the X phenotype" phrasing).
+- `skills/reuse-first-design/SKILL.md` — phenotype reuse documented as a rung above build-new (proposed, never silent).
+- `skills/architect-team-pipeline/SKILL.md` — phenotype seeding referenced at Phase 1.
+- `skills/mempalace-integration/SKILL.md` — phenotype records mineable for semantic recall.
+
+### Deferred (post-checkpoint follow-up)
+- The `config-management` (OpenTofu) and `ai-management` seed phenotypes.
+- The `absorb` capability — `/architect-team:absorb-phenotype <path> --label <name>` command + `skills/phenotype-absorption/` skill (designed in the change's `design.md` §11).
+- Auto-deploy (running OpenTofu against a live cloud) — explicitly out of scope.
+
+Inventory: **30 skills** (+`phenotypes`), 30 agents (unchanged), 13 commands (unchanged).
+
 ## [2.2.0] — 2026-05-30 — Verified-live discipline
 
 **ADDITIVE — backwards-compatible.** v2.0.0 and v2.1.0 evidence files validate unchanged against schema v7 (the new field is OPTIONAL).

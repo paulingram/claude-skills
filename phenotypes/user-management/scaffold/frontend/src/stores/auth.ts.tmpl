@@ -1,0 +1,37 @@
+// Auth store for {{service_name}} (user-management phenotype) — the login/token/logout spine.
+//
+// token_storage variation point: DEFAULT "memory" (resists XSS token theft; the session is lost on
+// reload — pair with a silent re-auth if you need persistence). To switch to "localStorage", wrap
+// this store in zustand's `persist` middleware — but understand the XSS exposure (see blueprint
+// "## Variation points"; the reference implementation drifted to localStorage).
+import { create } from "zustand";
+import { api, publicApi } from "../lib/apiClient";
+
+interface AuthState {
+  token: string | null;
+  userId: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  revalidate: () => Promise<void>;
+}
+
+export const useAuth = create<AuthState>((set, get) => ({
+  token: null,
+  userId: null,
+  async login(email, password) {
+    const res = await publicApi
+      .post("auth/login", { json: { email, password } })
+      .json<{ token: string; user_id: string }>();
+    set({ token: res.token, userId: res.user_id });
+  },
+  logout() {
+    set({ token: null, userId: null });
+  },
+  async revalidate() {
+    try {
+      await api.get("auth/session").json();
+    } catch {
+      get().logout();
+    }
+  },
+}));

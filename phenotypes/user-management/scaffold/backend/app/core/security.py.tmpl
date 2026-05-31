@@ -1,0 +1,49 @@
+"""Credential + token primitives (user-management phenotype).
+
+Dual scheme (see blueprint "## How the parts interrelate"):
+  * opaque SESSION tokens  — returned to the client ONCE, stored only as a SHA-256 hash,
+    prefix-indexed for O(1) lookup, cached in Redis with a sliding TTL.
+  * scoped API KEYS        — Argon2id-hashed, used for public / app-to-API auth.
+Passwords are Argon2id. Nothing reversible is ever stored.
+"""
+import hashlib
+import secrets
+
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+
+_ph = PasswordHasher()
+
+SESSION_TOKEN_PREFIX = "ums_"
+API_KEY_PREFIX = "umk_{{env}}_"
+PREFIX_LEN = 8
+
+
+def hash_password(plain: str) -> str:
+    return _ph.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return _ph.verify(hashed, plain)
+    except VerifyMismatchError:
+        return False
+
+
+def issue_session_token() -> tuple[str, str, str]:
+    """Return (clear_token, token_hash, prefix).
+
+    The clear token is shown to the client exactly once; persist only ``token_hash`` + ``prefix``.
+    """
+    clear = f"{SESSION_TOKEN_PREFIX}{secrets.token_urlsafe(48)}"
+    return clear, hash_token(clear), clear[:PREFIX_LEN]
+
+
+def hash_token(clear: str) -> str:
+    return hashlib.sha256(clear.encode("utf-8")).hexdigest()
+
+
+def issue_api_key() -> tuple[str, str, str]:
+    """Return (clear_key, key_hash, prefix). Store only ``key_hash`` (Argon2id) + ``prefix``."""
+    clear = f"{API_KEY_PREFIX}{secrets.token_urlsafe(32)}"
+    return clear, _ph.hash(clear), clear[:len(API_KEY_PREFIX) + 6]

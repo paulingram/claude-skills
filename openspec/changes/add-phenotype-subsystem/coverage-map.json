@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "change": "add-phenotype-subsystem",
+  "version": "2.3.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "Phenotype record structure + validation", "layer": "infra",
+     "covered_by": ["scripts/phenotypes/phenotypes.py", "phenotypes/SCHEMA.md", "tests/test_phenotypes_helper.py", "tests/test_phenotype_subsystem.py"]},
+    {"id": "REQ-2", "title": "Deterministic discovery + matching", "layer": "infra",
+     "covered_by": ["scripts/phenotypes/phenotypes.py", "tests/test_phenotypes_helper.py"]},
+    {"id": "REQ-3", "title": "Scaffold emission with parameter substitution", "layer": "infra",
+     "covered_by": ["scripts/phenotypes/phenotypes.py", "tests/test_phenotypes_helper.py"]},
+    {"id": "REQ-4", "title": "Explicit --phenotype trigger", "layer": "infra",
+     "covered_by": ["commands/architect-team.md", "tests/test_phenotype_subsystem.py"]},
+    {"id": "REQ-5", "title": "Reuse-first auto-suggest (never silent)", "layer": "infra",
+     "covered_by": ["skills/reuse-first-design/SKILL.md", "skills/architect-team-pipeline/SKILL.md", "tests/test_phenotype_subsystem.py"]},
+    {"id": "REQ-6", "title": "user-management seed phenotype", "layer": "infra",
+     "covered_by": ["phenotypes/user-management/phenotype.json", "phenotypes/user-management/blueprint.md", "phenotypes/user-management/scaffold/scaffold.manifest.json", "tests/test_phenotype_subsystem.py"]},
+    {"id": "REQ-7", "title": "Consumption preserves pipeline rigor", "layer": "infra",
+     "covered_by": ["skills/phenotypes/SKILL.md", "skills/architect-team-pipeline/SKILL.md"]},
+    {"id": "REQ-8", "title": "Absorb capability designed", "layer": "infra",
+     "covered_by": ["openspec/changes/add-phenotype-subsystem/design.md", "skills/phenotypes/SKILL.md", "tests/test_phenotype_subsystem.py"]},
+    {"id": "REQ-9", "title": "Consumption skill exists + registered", "layer": "infra",
+     "covered_by": ["skills/phenotypes/SKILL.md", "tests/test_skills.py", "tests/test_phenotype_subsystem.py"]},
+    {"id": "REQ-10", "title": "MemPalace semantic recall of phenotypes", "layer": "infra",
+     "covered_by": ["skills/mempalace-integration/SKILL.md"]},
+    {"id": "REQ-11", "title": "Docs current + version bumped", "layer": "infra",
+     "covered_by": ["README.md", "CHANGELOG.md", "docs/CODEBASE_MAP.md", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "build-new", "anchor": "phenotypes/ data dir + scripts/phenotypes/phenotypes.py (no existing phenotype primitive)"},
+    {"id": "RD-2", "decision": "build-new", "anchor": "skills/phenotypes/ (new consumption skill, follows the 29-skill convention)"},
+    {"id": "RD-3", "decision": "extend", "anchor": "skills/reuse-first-design/SKILL.md (add the phenotype rung above build-new)"},
+    {"id": "RD-4", "decision": "extend", "anchor": "commands/architect-team.md (add --phenotype flag alongside the existing --no-* flags)"},
+    {"id": "RD-5", "decision": "extend", "anchor": "skills/architect-team-pipeline/SKILL.md (reference phenotype consumption)"},
+    {"id": "RD-6", "decision": "reuse", "anchor": "skills/mempalace-integration (existing mine + search-before-output for semantic recall)"},
+    {"id": "RD-7", "decision": "build-new", "anchor": "phenotypes/user-management/ record (generalized from analyzed source)"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — plugin-authoring change. Demonstrable acceptance: `python scripts/phenotypes/phenotypes.py match \"I want a user management system\"` ranks user-management first, and `emit user-management <tmp> --dry-run` lists the scaffold files.",
+  "implementing_commits": []
+}

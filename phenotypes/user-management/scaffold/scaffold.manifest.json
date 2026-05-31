@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "parameters": [
+    {"name": "service_name", "required": true},
+    {"name": "project_name", "required": true},
+    {"name": "db_name", "default": "appdb"},
+    {"name": "aws_region", "default": "us-east-1"},
+    {"name": "env", "default": "dev"}
+  ],
+  "files": [
+    {"src": "backend/pyproject.toml.tmpl",            "dest": "backend/pyproject.toml"},
+    {"src": "backend/Dockerfile.tmpl",                "dest": "backend/Dockerfile"},
+    {"src": "backend/app/main.py.tmpl",               "dest": "backend/app/main.py"},
+    {"src": "backend/app/core/security.py.tmpl",      "dest": "backend/app/core/security.py"},
+    {"src": "backend/app/models/identity.py.tmpl",    "dest": "backend/app/models/identity.py"},
+    {"src": "backend/app/api/v1/auth.py.tmpl",        "dest": "backend/app/api/v1/auth.py"},
+    {"src": "frontend/package.json.tmpl",             "dest": "frontend/package.json"},
+    {"src": "frontend/Dockerfile.tmpl",               "dest": "frontend/Dockerfile"},
+    {"src": "frontend/nginx.conf.tmpl",               "dest": "frontend/nginx.conf"},
+    {"src": "frontend/src/lib/apiClient.ts.tmpl",     "dest": "frontend/src/lib/apiClient.ts"},
+    {"src": "frontend/src/stores/auth.ts.tmpl",       "dest": "frontend/src/stores/auth.ts"},
+    {"src": "frontend/src/App.tsx.tmpl",              "dest": "frontend/src/App.tsx"},
+    {"src": "deploy/main.tf.tmpl",                    "dest": "deploy/{{service_name}}/main.tf"},
+    {"src": "deploy/variables.tf.tmpl",               "dest": "deploy/{{service_name}}/variables.tf"},
+    {"src": "deploy/backend.tf.tmpl",                 "dest": "deploy/{{service_name}}/backend.tf"},
+    {"src": "deploy/dev.tfvars.example.tmpl",         "dest": "deploy/{{service_name}}/{{env}}.tfvars.example"},
+    {"src": "README.md.tmpl",                         "dest": "README.md"}
+  ],
+  "post_emit_notes": [
+    "Backend: `cd backend && uv sync` (or pip install -e .), then `alembic upgrade head` against your dev Postgres.",
+    "Set explicit CORS origins in the backend settings (the reference shipped allow_origins=['*']).",
+    "Frontend: set VITE_API_BASE_URL to the bare backend origin (no /api/v1 suffix); default token_storage is 'memory'.",
+    "Deploy: fill {{env}}.tfvars (account id, VPC, domain, ACM cert, secret names), then apply in order: platform -> load-balancer -> service -> registry.",
+    "Provide all secrets (DB URL, OIDC client secret, email API key, encryption key) via the secrets manager referenced by name; never commit them.",
+    "Add frontend tests + an error boundary (the reference implementation lacked both)."
+  ]
+}
