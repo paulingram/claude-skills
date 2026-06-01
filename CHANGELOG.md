@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] — 2026-06-01 — Live-data wiring discipline
+
+**ADDITIVE — backwards-compatible.** Schema v7 unchanged (the `live_verification_review` optional field added in v2.2.0 absorbs the new tool's verdict). 9th Layer 3 tool added; no existing tool's contract changes; runs without a `wiring_mandate` annotation are a no-op (`valid: True, gaps: []`).
+
+### The failure shape this closes (verbatim from the user)
+
+> "got an issue liek ' So: the backend extracted 71 facts + 13 persons (confirmed), but the client workspace is still mock-wired for documents/facts — it never shows extraction status (no pending/processing/done-with-facts), never fetches the live document list, and the sidebar never surfaces the extracted people. That's a real wiring gap, exactly matching what you saw.' and we simply cant have this. we need our front end agents to truly catch all of this. maybe we swarm the testing, ensuring when somehting is mandated live, we catch any areas where something is still hardcoded. they need to use playwright to asses, then look at code. this is a case where we wanted things removed from mock state"
+
+The backend round-trip honored the spec (real LLM extraction → 71 facts + 13 persons in the database). The frontend round-trip applied the new UI but **left pre-existing mock state in place** — fixture imports survived, `?? mockData` fallbacks survived, `VITE_USE_MOCK` env-var paths survived, MSW handlers ran in production code paths. The shipped UI displayed mock numbers; the user saw mock numbers; the backend's real numbers never reached the DOM.
+
+`verify_no_fake_data` (v2.0.0) catches fake data being ADDED. v2.6.0 catches mock state SURVIVING a mandate to remove it.
+
+### What v2.6.0 ships
+
+1. **NEW `## Live-data wiring discipline (v2.6.0)` canonical section** in `skills/common-pipeline-conventions/SKILL.md`. Names the 5 severities, the 2-pass verification workflow (Playwright assess + tamper test THEN code-side audit), the `wiring_mandate` annotation + at least 3 canonical mandate phrases (*"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"*), the 3-reviewer Phase 5 swarm extension, and the async-status surface rule (`loading` / `pending` / `processing` / `done` / `done-with-facts` / `error` / `empty` / `partial` / `success`).
+
+2. **NEW 9th Layer 3 tool — `verify_live_data_wiring`** in `hooks/vao_tools.py`. Deterministic verification function + `verify-live-data-wiring` CLI subcommand. 32-entry `_MOCK_STATE_SIGNATURES` constant covering MSW imports, Mirage, faker, fixture imports, mock flags (`VITE_USE_MOCK`, `useMockBackend`), and fallback patterns (`?? mockData`, `|| MOCK_DEFAULT`). 5 named severities:
+
+   | Severity | Trigger |
+   |---|---|
+   | `mock-state-residue` | Mock-state signature survives in production code |
+   | `live-response-not-rendered` | Network captured value V; rendered DOM does not contain V |
+   | `mock-fallback-uncovered` | `?? mockData` / `|| MOCK_DEFAULT` fallback is reachable |
+   | `network-not-intercepted` | Mandate names endpoint E; no Playwright capture of E |
+   | `async-status-not-surfaced` | Mandate expects state S; no DOM element names S |
+
+3. **EXTENDED 3-reviewer Phase 5 swarm — NO new agent role.** `skills/interaction-completeness/SKILL.md` gains a `## Live-data wiring axis (v2.6.0)` sub-section; `agents/interaction-reviewer.md` gains a `## Live-data wiring audit (v2.6.0)` section. When the slice carries a `wiring_mandate`, each of the 3 existing reviewers independently runs the 2-pass audit and writes findings into a `live_data_wiring_findings` block; the v0.9.19 convergence protocol merges all three the same way it merges element classifications. A converged finding becomes a `live-data-wiring-gap` solution requirement that the existing fix loop acts on.
+
+4. **NEW canonical fixture** `tests/fixtures/vao/live-data-mock-residue.json` reproducing the verbatim heirship-app-v3 case (backend extracted 71 facts + 13 persons; client workspace still mock-wired across DocumentsPane / FactsSidebar / PersonsSidebar with MSW handler + fixture import + faker import + `VITE_USE_MOCK` flag + `?? mockData` / `|| MOCK_DEFAULT` fallbacks; Playwright captures zero requests to the 3 mandated endpoints; UI text never names `pending` / `processing` / `done-with-facts`). The bad version fires 4+ distinct severities; the `_corrected_verification_artifact` passes cleanly.
+
+5. **+45 new tests** — 27 in `tests/test_vao_live_data_wiring.py` (tool contract + 5 severities × {pos, neg} + determinism + fixture round-trip + CLI exit codes + test-path exclusion), 18 in `tests/test_live_data_wiring_discipline.py` (canonical section + extension structural assertions + coverage-map JSON consistency). 2514 → 2559 passing; zero regressions.
+
+### Why the existing layers didn't catch it
+
+| Existing layer | What it catches | Why it missed this |
+|---|---|---|
+| `verify_no_fake_data` (v2.0.0) | NEW fake data added in diff | Mock state was PRE-EXISTING; the frontend slice didn't add it, it failed to REMOVE it |
+| `interaction-completeness` Phase 5 | Unwired controls / placeholder pages | The controls WERE wired — to the mock layer; the page WAS live — it was rendering mock data |
+| `dynamic-value-discovery` | Hardcoded values that should be dynamic | The value was dynamic — bound to `mockDocuments` instead of `liveDocuments` |
+| `playwright-user-flows` | Vacuous flows / fake-backend asserts | The flow exercised a real button; the button correctly toggled the mock UI |
+
+v2.6.0 is the first layer that asks *"given the requirement said REMOVE mocks, is the mock layer actually gone?"* — and answers it with both a Playwright pass and a code-side audit.
+
+### Backwards compatibility
+
+- Runs without a `wiring_mandate` annotation: tool returns `valid: True, gaps: []` — zero behavior change.
+- `interaction-reviewer` agents without a mandate: skip the v2.6.0 audit entirely.
+- Schema v7 unchanged — the v2.2.0 `live_verification_review` optional field absorbs the verdict.
+- Every prior fixture's round-trip behavior unchanged.
+
 ## [2.5.0] — 2026-06-01 — In-flight clarification discipline
 
 **ADDITIVE — backwards-compatible.** No schema change. No code change. No hook change. No new agent. Pure documentation + structural-test discipline. v2.0.0/v2.1.0/v2.2.0/v2.3.0/v2.4.0 evidence files validate unchanged.

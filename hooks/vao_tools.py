@@ -1257,6 +1257,420 @@ def verify_live_verification_claim(
 
 
 # ===========================================================================
+# Tool 9 — verify-live-data-wiring (v2.6.0)
+# ===========================================================================
+#
+# The 9th deterministic Layer 3 tool. Closes the failure mode v2.0.0's
+# verify_no_fake_data missed: backend gets wired up live, but pre-existing
+# mock wiring in the frontend never gets removed — UI silently renders mock
+# fallbacks. Verbatim heirship-app-v3 case: backend extracted 71 facts + 13
+# persons; client workspace still mock-wired for documents/facts; UI shows
+# no extraction status. Two-pass verification: Playwright assess (capture
+# network response, assert UI rendered value matches) THEN code-side audit
+# (grep diff + touched files for mock-state residue). 5 named severities.
+
+# Canonical mock-state signatures. Each pattern is the smoking-gun residue
+# v2.0.0's verify_no_fake_data CAN catch in ADDED lines, but v2.6.0 catches
+# in ANY touched file (whether the line was added, modified, or left
+# unchanged after live wiring was bolted on). Detection is substring +
+# regex; AST-based traversal is v2.6.x.
+_MOCK_STATE_SIGNATURES: tuple[tuple[str, str], ...] = (
+    # MSW (mock service worker) — the most common React testing mock layer
+    ("msw-import", "from \"msw\""),
+    ("msw-import-single", "from 'msw'"),
+    ("msw-setupworker", "setupWorker("),
+    ("msw-setupserver", "setupServer("),
+    ("msw-rest-get", "rest.get("),
+    ("msw-rest-post", "rest.post("),
+    ("msw-http-get", "http.get("),
+    ("msw-http-post", "http.post("),
+    # Mirage / Pretender — Ember/older-React testing servers
+    ("miragejs-import", "from \"miragejs\""),
+    ("miragejs-import-single", "from 'miragejs'"),
+    ("miragejs-createserver", "createServer("),
+    ("pretender-new", "new Pretender("),
+    # Faker — fake-data generators
+    ("faker-import", "from \"@faker-js/faker\""),
+    ("faker-import-single", "from '@faker-js/faker'"),
+    ("faker-dot", "faker."),
+    # Mock-flag env vars and symbol names
+    ("vite-use-mock", "VITE_USE_MOCK"),
+    ("next-public-mock", "NEXT_PUBLIC_MOCK"),
+    ("react-app-use-mock", "REACT_APP_USE_MOCK"),
+    ("usemockbackend", "useMockBackend"),
+    ("enablemocking", "enableMocking"),
+    ("mock-api-flag", "MOCK_API"),
+    ("mock-data-symbol", "MOCK_DATA"),
+    ("fixture-symbol-prefix", "FIXTURE_"),
+    # Fallback patterns that silently render mock when live data is null
+    # (regex-style — the matcher does substring scan, so the literal must
+    # appear; complex regex matching is deferred to v2.6.x)
+    ("fallback-nullish-mock", "?? MOCK_"),
+    ("fallback-nullish-mockdata", "?? mockData"),
+    ("fallback-nullish-fixture", "?? FIXTURE_"),
+    ("fallback-or-mock", "|| MOCK_"),
+    ("fallback-or-mockdata", "|| mockData"),
+    ("fallback-or-fixture", "|| FIXTURE_"),
+    # Mock-fixture import paths
+    ("mocks-dir-import", "__mocks__"),
+    ("fixtures-import", "/fixtures/"),
+    ("mock-data-import", "/mock-data/"),
+)
+
+
+# Per-async-state UI-element regex hints — the canonical state names a UI
+# must render. Detection is permissive substring search.
+_ASYNC_STATE_UI_HINTS: dict[str, tuple[str, ...]] = {
+    "loading": ("loading", "spinner", "skeleton"),
+    "pending": ("pending", "loading", "spinner"),
+    "processing": ("processing", "progress"),
+    "done": ("done", "complete", "ready"),
+    "done-with-facts": ("done", "complete", "facts ready"),
+    "success": ("success", "done", "complete"),
+    "error": ("error", "failed", "retry"),
+    "empty": ("empty", "no documents", "no items", "nothing"),
+    "partial": ("partial", "loading more"),
+}
+
+
+def _detect_mock_state_residue(
+    diff_files: list[dict[str, Any]],
+    touched_file_contents: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Grep diff added_lines + touched file contents for canonical mock-state
+    signatures. Returns one gap per (file, signature) hit, capped per file."""
+    gaps: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()  # (file, signature_id)
+
+    # Walk diff added_lines (most direct signal of residue in agent's work)
+    for entry in diff_files or []:
+        path = entry.get("path") if isinstance(entry, dict) else None
+        if not isinstance(path, str):
+            continue
+        if _is_test_path(path):
+            continue
+        added = entry.get("added_lines") if isinstance(entry, dict) else None
+        if not isinstance(added, list):
+            continue
+        for line in added:
+            if not isinstance(line, str):
+                continue
+            for sig_id, pattern in _MOCK_STATE_SIGNATURES:
+                key = (path, sig_id)
+                if key in seen:
+                    continue
+                if pattern in line:
+                    gaps.append({
+                        "severity": "mock-state-residue",
+                        "evidence": f"file {path!r} contains mock-state signature "
+                                    f"{sig_id!r} in added/modified line: {line.strip()!r}",
+                        "remediation": "v2.6.0 Live-data wiring discipline. Remove the "
+                                      "mock-state import / flag / fallback / handler. The "
+                                      "live wiring is incomplete until the mock path is "
+                                      "unreachable from production code paths.",
+                    })
+                    seen.add(key)
+
+    # Walk touched_file_contents (catches residue NOT in the diff — pre-existing
+    # mock state that the agent left in place when adding live wiring)
+    for path, content in (touched_file_contents or {}).items():
+        if not isinstance(path, str) or not isinstance(content, str):
+            continue
+        if _is_test_path(path):
+            continue
+        for sig_id, pattern in _MOCK_STATE_SIGNATURES:
+            key = (path, sig_id)
+            if key in seen:
+                continue
+            if pattern in content:
+                gaps.append({
+                    "severity": "mock-state-residue",
+                    "evidence": f"touched file {path!r} contains pre-existing mock-state "
+                                f"signature {sig_id!r}; live wiring is incomplete until "
+                                f"the mock path is removed",
+                    "remediation": "v2.6.0 Live-data wiring discipline. The signature was "
+                                  "NOT in the agent's diff but IS in the touched file — "
+                                  "the agent added live wiring without removing the prior "
+                                  "mock. Remove the mock-state code path.",
+                })
+                seen.add(key)
+    return gaps
+
+
+def _detect_live_response_not_rendered(
+    playwright_trace_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Compare captured network response values against UI rendered text.
+    For each captured response, if the UI doesn't contain the captured value,
+    the data path is mock (UI sourced from cached fallback / hardcoded
+    constant)."""
+    gaps: list[dict[str, Any]] = []
+    captured = playwright_trace_summary.get("captured_network_requests") or []
+    ui_text = playwright_trace_summary.get("ui_text_after_render") or ""
+    if not isinstance(ui_text, str):
+        ui_text = str(ui_text)
+    transform_hints = playwright_trace_summary.get("transform_hints") or []
+    # transform_hints lists values that are KNOWN to be transformed (e.g.,
+    # ISO 8601 dates rendered as "May 1, 2026"); they bypass the strict check.
+    transform_set = {str(t) for t in transform_hints if t is not None}
+
+    for req in captured:
+        if not isinstance(req, dict):
+            continue
+        response_body = req.get("response_body")
+        if not isinstance(response_body, dict):
+            continue
+        # Walk every string-like value in response_body; assert it appears
+        # in ui_text. Only check top-level fields for v2.6.0; nested-field
+        # checking is v2.6.x.
+        for field_name, field_value in response_body.items():
+            if not isinstance(field_value, (str, int, float)):
+                continue
+            field_str = str(field_value)
+            if not field_str:
+                continue
+            if field_str in transform_set:
+                continue
+            if len(field_str) < 3:
+                continue  # too-short values false-positive
+            if field_str not in ui_text:
+                gaps.append({
+                    "severity": "live-response-not-rendered",
+                    "evidence": f"endpoint {req.get('url', '<unknown>')!r} returned "
+                                f"{field_name}={field_value!r}; the UI's rendered text does "
+                                f"NOT contain this value",
+                    "remediation": "v2.6.0 Live-data wiring discipline. The UI is rendering "
+                                  "a stale snapshot OR a fallback OR a hardcoded constant. "
+                                  "Trace the field from the network response to the rendered "
+                                  "component; bind to live data not a cached mock.",
+                })
+                break  # one gap per request is enough; flag and continue
+    return gaps
+
+
+def _detect_mock_fallback_uncovered(
+    diff_files: list[dict[str, Any]],
+    touched_file_contents: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Catch ?? mockValue / || MOCK_DEFAULT fallback patterns that would
+    silently render mock when live data is null."""
+    # Fallback-specific signatures — a subset of _MOCK_STATE_SIGNATURES
+    # but reported as the more-specific severity.
+    fallback_patterns = (
+        ("?? MOCK_", "nullish-coalesce-to-mock"),
+        ("?? mockData", "nullish-coalesce-to-mockdata"),
+        ("?? FIXTURE_", "nullish-coalesce-to-fixture"),
+        ("|| MOCK_", "or-fallback-to-mock"),
+        ("|| mockData", "or-fallback-to-mockdata"),
+        ("|| FIXTURE_", "or-fallback-to-fixture"),
+        ("?? fakeData", "nullish-coalesce-to-fakedata"),
+    )
+    gaps: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def _walk(path: str, line: str, source: str) -> None:
+        if _is_test_path(path):
+            return
+        for pattern, hint in fallback_patterns:
+            key = (path, pattern)
+            if key in seen:
+                continue
+            if pattern in line:
+                gaps.append({
+                    "severity": "mock-fallback-uncovered",
+                    "evidence": f"{source} {path!r} contains fallback pattern "
+                                f"{pattern!r} ({hint}): {line.strip()!r}",
+                    "remediation": "v2.6.0 Live-data wiring discipline. Fallback to mock "
+                                  "silently renders mock data when live data is null/"
+                                  "undefined — masking real failures. Replace the fallback "
+                                  "with a proper loading/error/empty UI state.",
+                })
+                seen.add(key)
+
+    for entry in diff_files or []:
+        path = entry.get("path") if isinstance(entry, dict) else None
+        if not isinstance(path, str):
+            continue
+        for line in (entry.get("added_lines") or []) if isinstance(entry, dict) else []:
+            if isinstance(line, str):
+                _walk(path, line, "diff added line in")
+
+    for path, content in (touched_file_contents or {}).items():
+        if not isinstance(path, str) or not isinstance(content, str):
+            continue
+        for line in content.splitlines():
+            _walk(path, line, "touched file")
+
+    return gaps
+
+
+def _detect_network_not_intercepted(
+    wiring_mandate: dict[str, Any],
+    playwright_trace_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """For each endpoint the mandate names, assert Playwright captured a
+    request to it. If not, the UI sourced data elsewhere (cached mock /
+    hardcoded constant / local fixture)."""
+    endpoints = wiring_mandate.get("endpoints") or []
+    captured = playwright_trace_summary.get("captured_network_requests") or []
+    captured_urls = []
+    for req in captured:
+        if isinstance(req, dict):
+            url = req.get("url")
+            if isinstance(url, str):
+                captured_urls.append(url)
+
+    gaps: list[dict[str, Any]] = []
+    for endpoint in endpoints:
+        if not isinstance(endpoint, str) or not endpoint:
+            continue
+        # Match the endpoint pattern against captured URLs by splitting on
+        # `{placeholder}` segments. Each non-placeholder fragment must appear
+        # in the URL in order. So `/api/matters/{matter_id}/documents` matches
+        # `/api/matters/abc-123/documents` because `/api/matters/` and
+        # `/documents` both appear in order.
+        fragments = re.split(r"\{[^}]+\}", endpoint)
+        fragments = [f for f in fragments if f]
+        if not fragments:
+            fragments = [endpoint]
+        matched = False
+        for url in captured_urls:
+            cursor = 0
+            ok = True
+            for frag in fragments:
+                idx = url.find(frag, cursor)
+                if idx < 0:
+                    ok = False
+                    break
+                cursor = idx + len(frag)
+            if ok:
+                matched = True
+                break
+        if not matched:
+            gaps.append({
+                "severity": "network-not-intercepted",
+                "evidence": f"wiring_mandate.endpoints[] includes {endpoint!r}; "
+                            f"Playwright captured no request matching that endpoint. "
+                            f"Captured URLs: {captured_urls!r}",
+                "remediation": "v2.6.0 Live-data wiring discipline. The UI never fetched "
+                              "the live endpoint. Likely sources: cached mock data, "
+                              "hardcoded constant, local fixture import, or the live-data "
+                              "query hook was never invoked. Trace the rendering path; "
+                              "ensure the live query fires.",
+            })
+    return gaps
+
+
+def _detect_async_status_not_surfaced(
+    wiring_mandate: dict[str, Any],
+    playwright_trace_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """For each async state the mandate expects, assert the UI text contains
+    a state-named element. Missing = the user sees silence when work is
+    actually in progress (the heirship-app-v3 case verbatim)."""
+    expected_states = wiring_mandate.get("async_states_expected") or []
+    ui_text = playwright_trace_summary.get("ui_text_after_render") or ""
+    if not isinstance(ui_text, str):
+        ui_text = str(ui_text)
+    ui_text_lower = ui_text.lower()
+
+    gaps: list[dict[str, Any]] = []
+    for state in expected_states:
+        if not isinstance(state, str) or not state:
+            continue
+        # Direct state-name check + canonical UI-hint set
+        hints = _ASYNC_STATE_UI_HINTS.get(state.lower(), (state.lower(),))
+        if not any(hint in ui_text_lower for hint in hints):
+            gaps.append({
+                "severity": "async-status-not-surfaced",
+                "evidence": f"wiring_mandate.async_states_expected[] includes {state!r}; "
+                            f"Playwright ui_text_after_render contains none of the canonical "
+                            f"UI hints {hints!r} for this state",
+                "remediation": "v2.6.0 Live-data wiring discipline. The backend emits the "
+                              f"{state!r} state; the UI must render a corresponding surface "
+                              f"(spinner/skeleton/progress/empty-state/error-with-retry). "
+                              f"Missing state UI is silent failure — the user sees nothing "
+                              f"when work is actually in progress.",
+            })
+    return gaps
+
+
+def verify_live_data_wiring(
+    verification_artifact: dict[str, Any] | None = None,
+    wiring_mandate: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.6.0 Layer-3 tool — verify the agent removed mock state when the
+    requirement mandated live data wiring.
+
+    Checks the verification artifact against the 5 named severities:
+      1. mock-state-residue — MSW / Mirage / faker / fixture / mock-flag
+         signatures still present in production code paths
+      2. live-response-not-rendered — UI doesn't show captured network value
+      3. mock-fallback-uncovered — ?? mockValue / || MOCK_DEFAULT patterns
+      4. network-not-intercepted — mandated endpoint never fetched
+      5. async-status-not-surfaced — async state never rendered in UI
+
+    Args:
+      verification_artifact: dict with diff_files[], touched_file_contents{},
+        playwright_trace_summary{captured_network_requests[], ui_text_after_render,
+        tamper_test_results, transform_hints}.
+      wiring_mandate: dict with mandate_kind, endpoints[], async_states_expected[].
+        Absent or empty mandate → tool trivially passes (no mandate to enforce).
+      out_path: optional path to write the verdict JSON.
+
+    Returns::
+
+        {
+          "tool": "verify-live-data-wiring",
+          "valid": bool,
+          "gaps": [{"severity", "evidence", "remediation"}],
+          "verdict_at": "<ISO 8601 UTC>"
+        }
+
+    Deterministic / bit-stable output for given inputs (sorted-keys + indent=2).
+    """
+    artifact = verification_artifact or {}
+    mandate = wiring_mandate or {}
+    gaps: list[dict[str, Any]] = []
+
+    # If no mandate is set, the v2.6.0 discipline doesn't apply — trivially
+    # pass. This preserves backwards-compat: artifacts without wiring_mandate
+    # continue to validate.
+    has_mandate = bool(
+        mandate.get("mandate_kind")
+        or mandate.get("endpoints")
+        or mandate.get("async_states_expected")
+    )
+    if not has_mandate:
+        verdict = {
+            "tool": "verify-live-data-wiring",
+            "valid": True,
+            "gaps": [],
+            "verdict_at": _utc_now_iso(),
+        }
+        return _write_verdict(verdict, out_path)
+
+    diff_files = artifact.get("diff_files") or []
+    touched_files = artifact.get("touched_file_contents") or {}
+    playwright_summary = artifact.get("playwright_trace_summary") or {}
+
+    gaps += _detect_mock_state_residue(diff_files, touched_files)
+    gaps += _detect_mock_fallback_uncovered(diff_files, touched_files)
+    gaps += _detect_live_response_not_rendered(playwright_summary)
+    gaps += _detect_network_not_intercepted(mandate, playwright_summary)
+    gaps += _detect_async_status_not_surfaced(mandate, playwright_summary)
+
+    verdict = {
+        "tool": "verify-live-data-wiring",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -1310,6 +1724,11 @@ def main(argv: list[str] | None = None) -> int:
     lv.add_argument("--bug", required=True, help="Path to bug-description JSON.")
     lv.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    ldw = sub.add_parser("verify-live-data-wiring")
+    ldw.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
+    ldw.add_argument("--mandate", required=True, help="Path to wiring-mandate JSON.")
+    ldw.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -1347,6 +1766,13 @@ def main(argv: list[str] | None = None) -> int:
         verdict = verify_live_verification_claim(
             verification_artifact=_load_json(args.artifact),
             bug_description=_load_json(args.bug),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-live-data-wiring":
+        verdict = verify_live_data_wiring(
+            verification_artifact=_load_json(args.artifact),
+            wiring_mandate=_load_json(args.mandate),
             out_path=args.out,
         )
         ok = verdict["valid"]

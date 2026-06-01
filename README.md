@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 5 . 0
+                        ─── C T 6 ───   v 2 . 6 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.5.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.6.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2514%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2559%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,16 +67,23 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.5.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.6.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **In-flight clarification discipline** | When a pipeline run is mid-execution (Phase −2 → 8 / B−1 → B8 / M0 → M7) and the user injects a message that does NOT explicitly invoke `/architect-team` AND is NOT a cancellation, the orchestrator MUST treat it as a **clarification or scope amendment to the IN-FLIGHT run** — append to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`, re-evaluate the in-flight phase, continue the pipeline. NEW canonical `## In-flight clarification discipline (v2.5.0)` section in `common-pipeline-conventions/SKILL.md` documents the 3 detection signals (`intake-state.json` phase < 8 / `escalation-pending.md` / unresolved teammate manifests), 4 forbidden anti-patterns (`solve-with-tools-directly` / `answer-conversationally` / `spawn-sibling-invocation` / `silently-ignore`), and the cancellation channel (only `/architect-team cancel` / `stop` / `abort` / plain-prose equivalents release the pipeline). |
-| **Symmetric counterpart to v2.0.0 Layer 6** | Layer 6's `skill_invocation_audit.py` catches the forward case: "user typed `/architect-team:X` AND agent applied methodology by hand." v2.5.0 catches the inverse: "user did NOT type `/architect-team` AND a pipeline is in-flight AND orchestrator treats message as a new standalone task." Together they close BOTH directions of "the agent should not operate outside the framework." |
-| **Per-run clarifications log** | New artifact at `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md` captures verbatim user injections per run with phase context. Read at run completion; the final report references each clarification. Formal JSON schema deferred to v2.5.x. |
-| **Backwards-compatible** | No schema change. No code change. No hook change. No new agent. Pure documentation + structural-test discipline. The 3 pipeline-driving SKILL.md bodies + the 3 pipeline-driving slash command bodies all gain a cross-reference to the new canonical section. +32 net tests (2482 → 2514); zero regressions. |
+| **Live-data wiring discipline** | When the requirement carries parity-implying language (*"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"*), the orchestrator annotates the slice with a `wiring_mandate` and the 3 `interaction-reviewer` agents extend their Round-1 mandate with a 2-pass audit: (1) Playwright pass — capture every mandated endpoint's network request + response, assert the rendered DOM contains the response value, run a tamper test; (2) Code-side audit — grep the diff + touched files for the 32-entry `_MOCK_STATE_SIGNATURES` constant (MSW imports, Mirage, faker, fixture imports, mock flags like `VITE_USE_MOCK`, fallback patterns like `?? mockData`). Each gap is one of 5 named severities: `mock-state-residue` / `live-response-not-rendered` / `mock-fallback-uncovered` / `network-not-intercepted` / `async-status-not-surfaced`. |
+| **9th Layer 3 tool — `verify_live_data_wiring`** | NEW deterministic verification function + `verify-live-data-wiring` CLI subcommand in `hooks/vao_tools.py`. Consumes the convergence report's union of findings; verdict feeds the existing v2.2.0 `live_verification_review` schema-v7 optional field. Trivially passes (`valid: True, gaps: []`) when no `wiring_mandate` — fully backwards-compatible. |
+| **NO new agent — swarm extension** | The existing v0.9.19 3-reviewer `interaction-completeness` convergence protocol is UNCHANGED in shape. Each reviewer's mandate is extended; the same 3 parallel reviewers + Round-2 round-robin + Round-3 system-architect robustness review now also reason across `live_data_wiring_findings`. A converged finding becomes a `live-data-wiring-gap` solution requirement the existing fix loop acts on. |
+| **Closes a real heirship-app-v3 failure** | The backend extracted 71 facts + 13 persons via real LLM pipeline; the frontend slice applied the new UI but left pre-existing mock state in DocumentsPane / FactsSidebar / PersonsSidebar (fixture imports + `?? mockData` fallbacks + `VITE_USE_MOCK` flag + MSW handler). Pre-v2.6.0: every existing layer was satisfied (controls were wired — to the mock layer; pages were live — rendering mock data; no fake data ADDED — it was pre-existing). v2.6.0 is the first layer that asks *"given the requirement said REMOVE mocks, is the mock layer actually gone?"* |
+| **Backwards-compatible** | Schema v7 unchanged; runs without a `wiring_mandate` are a no-op; 8 existing Layer 3 tools' contracts unchanged. +45 net tests (2514 → 2559); zero regressions. |
+
+### Carried forward from v2.5.0 — in-flight clarification discipline
+
+| Capability | What it does |
+|---|---|
+| **In-flight clarification** | Mid-run user injections without `/architect-team` invocation MUST be folded into the in-flight pipeline's brief as scope amendments, NOT spawn a sibling workflow. The 3 detection signals (`intake-state.json` phase < 8 / `escalation-pending.md` / unresolved teammate manifests) determine in-flight state; the 4 forbidden anti-patterns (`solve-with-tools-directly` / `answer-conversationally` / `spawn-sibling-invocation` / `silently-ignore`) name what's NOT allowed. |
 
 ### Carried forward from v2.4.0 — verified-live discipline
 

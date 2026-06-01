@@ -295,6 +295,31 @@ They are complementary. A feature can pass all of the above and still fail this 
 - **Phase 5 (cross-layer integration).** The mandatory home. Interaction completeness is inherently cross-layer (UI + API); Phase 5 is where both layers are integrated. For any feature with interactive surface, the orchestrator runs the full interaction-completeness team (three reviewers, converge, Round-3 architect review, gaps → SRs, multi-pass) alongside the editability-completeness team and the visual-fidelity regression sweep.
 - **Phase 7 (master review).** Confirms the interaction-completeness team reached `satisfied` for every frontend feature. An unsatisfied interaction loop is a coverage gap; re-spawn.
 
+## Live-data wiring axis (v2.6.0)
+
+When the slice carries a `wiring_mandate` annotation (set by Phase 2's architect brief whenever the requirement uses parity-implying wording — *"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"* / *"hook up the real API"*), the 3 `interaction-reviewer` agents **extend** their existing Round-1 mandate. NO new agent role is added; the swarm IS the existing 3 parallel reviewers. The v0.9.19 3-reviewer convergence protocol is unchanged in shape — only what each reviewer audits is extended.
+
+Each reviewer independently runs the **v2.6.0 audit** (in addition to the existing element/page/test/dynamic-value audits) and writes findings into a `live_data_wiring_findings` block in their Round-1 draft. The block carries one entry per gap with the named severity, the file:line or trace anchor, and a one-line citation. Round-2 convergence reasons across all three `live_data_wiring_findings` blocks the same way it reasons across element classifications.
+
+The audit follows the 2-pass workflow (per `common-pipeline-conventions/SKILL.md` § *Live-data wiring discipline*):
+
+1. **Playwright pass** — for each endpoint named in `wiring_mandate.endpoints[]`, capture the network request + response body via Playwright tracing; assert the rendered DOM text contains the response value; run a tamper test (return a sentinel value and confirm the DOM updates).
+2. **Code-side audit** — grep the slice's diff + touched files for the `_MOCK_STATE_SIGNATURES` patterns (MSW handler imports, `setupWorker`, faker, fixture imports, mock-flag env vars like `VITE_USE_MOCK`, fallback patterns like `?? mockData` / `|| MOCK_DEFAULT`). A surviving signature in production code is `mock-state-residue` regardless of whether it's reachable.
+
+The 5 named severities each reviewer applies (from the canonical taxonomy):
+
+| Severity | Trigger |
+|---|---|
+| `mock-state-residue` | Mock-state pattern survives in production code |
+| `live-response-not-rendered` | Network captured value V; rendered DOM does not contain V |
+| `mock-fallback-uncovered` | `?? mockData` / `|| MOCK_DEFAULT` fallback path is reachable |
+| `network-not-intercepted` | `wiring_mandate.endpoints[]` includes E; no Playwright capture shows a request to E |
+| `async-status-not-surfaced` | `wiring_mandate.async_states_expected[]` includes S; no DOM element names S |
+
+Verdict ingest: the `verify_live_data_wiring` Layer 3 tool (`hooks/vao_tools.py`) is invoked once per slice with the convergence-report's union of findings; its verdict feeds the `live_verification_review` schema-v7 optional field. The v2.2.0 gating remains the same — the tool's `valid: False` blocks the review-gate the same way `dynamic_value_review` does.
+
+A converged `live_data_wiring_findings` entry becomes a `live-data-wiring-gap` solution requirement that the existing fix loop acts on (same mechanism as `interaction-gap`). Do NOT route through `diagnostic-research-team` — the gap is fully diagnosed.
+
 ## Hard rules (non-negotiable)
 
 - Three reviewers, always — independent in Round 1, arguing in Round 2. Two cannot triangulate a judgment call; the third is the tie-break and the falsifier.

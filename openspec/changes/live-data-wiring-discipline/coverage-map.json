@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "change": "live-data-wiring-discipline",
+  "version": "2.6.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "common-pipeline-conventions documents the live-data wiring discipline", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_live_data_wiring_discipline.py"]},
+    {"id": "REQ-2", "title": "verify_live_data_wiring is the 9th Layer 3 tool", "layer": "infra",
+     "covered_by": ["hooks/vao_tools.py", "tests/test_vao_live_data_wiring.py", "tests/fixtures/vao/live-data-mock-residue.json"]},
+    {"id": "REQ-3", "title": "_MOCK_STATE_SIGNATURES constant lists canonical signatures", "layer": "infra",
+     "covered_by": ["hooks/vao_tools.py", "tests/test_vao_live_data_wiring.py"]},
+    {"id": "REQ-4", "title": "interaction-completeness skill extends its 3-reviewer mandate", "layer": "discipline",
+     "covered_by": ["skills/interaction-completeness/SKILL.md", "tests/test_live_data_wiring_discipline.py"]},
+    {"id": "REQ-5", "title": "interaction-reviewer agent body documents the live-data wiring audit", "layer": "discipline",
+     "covered_by": ["agents/interaction-reviewer.md", "tests/test_live_data_wiring_discipline.py"]},
+    {"id": "REQ-6", "title": "live-data-mock-residue synthetic fixture exists", "layer": "infra",
+     "covered_by": ["tests/fixtures/vao/live-data-mock-residue.json", "tests/test_vao_live_data_wiring.py"]},
+    {"id": "REQ-7", "title": "Structural tests assert the v2.6.0 framework is wired", "layer": "infra",
+     "covered_by": ["tests/test_vao_live_data_wiring.py", "tests/test_live_data_wiring_discipline.py"]},
+    {"id": "REQ-8", "title": "Version is bumped to 2.6.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md — canonical home for cross-cutting disciplines"},
+    {"id": "RD-2", "decision": "extend", "anchor": "hooks/vao_tools.py — 8 existing tools live here; 9th is the same module-not-hook pattern"},
+    {"id": "RD-3", "decision": "extend", "anchor": "Existing Phase 5 interaction-completeness 3-reviewer swarm — extend mandate not add a 4th-team role; the swarm IS the 3 parallel reviewers"},
+    {"id": "RD-4", "decision": "decline", "anchor": "NO new agent role — the existing interaction-reviewer agent body extends to include the live-data-wiring audit"},
+    {"id": "RD-5", "decision": "decline", "anchor": "NO schema change — v2.2.0 live_verification_review optional field already covers the gating; the tool's verdict cites via existing verdict_path"},
+    {"id": "RD-6", "decision": "build-new", "anchor": "tests/fixtures/vao/live-data-mock-residue.json — verbatim heirship-app-v3 case; canonical positive case the framework MUST catch"},
+    {"id": "RD-7", "decision": "build-new", "anchor": "tests/test_vao_live_data_wiring.py + tests/test_live_data_wiring_discipline.py — dedicated files per the v2.1/v2.2 pattern"},
+    {"id": "RD-8", "decision": "deferred", "anchor": "Live tamper-test execution — v2.6.x; v2.6.0 reads agent's tamper-test results"},
+    {"id": "RD-9", "decision": "deferred", "anchor": "AST-based mock-residue detection — v2.6.x; v2.6.0 uses substring + regex"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test + tool extension. The plugin's PRODUCT gains stronger live-data-wiring discipline; the plugin's OWN test surface is pytest stdlib-only.",
+  "implementing_commits": []
+}

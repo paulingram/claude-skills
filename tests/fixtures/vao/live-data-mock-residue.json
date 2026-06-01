@@ -1,0 +1,116 @@
+{
+  "_meta": {
+    "fixture_name": "live-data-mock-residue",
+    "failure_shape": "v2.6.0 Live-data wiring — failure mode: backend was wired live (extracted 71 facts + 13 persons via real LLM pipeline) but client workspace still mock-wired for documents/facts (never shows extraction status, never fetches live document list, sidebar never surfaces extracted people). The four-pattern residue: mock fixture import survives, mock-flag env-var unset path falls back, `?? mockDocuments` fallback uncovered, MSW handler in production code path.",
+    "originating_failure": "heirship-app-v3 transcript: 'the backend extracted 71 facts + 13 persons (confirmed), but the client workspace is still mock-wired for documents/facts — it never shows extraction status (no pending/processing/done-with-facts), never fetches the live document list, and the sidebar never surfaces the extracted people. That's a real wiring gap, exactly matching what you saw.' The mandate was live-data wiring; the prior frontend round-trip applied the spec's UI but never removed pre-existing mock state.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-live-data-wiring",
+    "expected_severities": ["mock-state-residue", "live-response-not-rendered", "mock-fallback-uncovered", "network-not-intercepted", "async-status-not-surfaced"]
+  },
+  "wiring_mandate": {
+    "mandate_kind": "live-data-wiring",
+    "mandate_phrase": "wire to live data — remove mocks",
+    "endpoints": [
+      "/api/matters/{matter_id}/documents",
+      "/api/matters/{matter_id}/facts",
+      "/api/matters/{matter_id}/persons"
+    ],
+    "async_states_expected": [
+      "pending",
+      "processing",
+      "done-with-facts"
+    ]
+  },
+  "verification_artifact": {
+    "feature_kind": "frontend-wiring",
+    "target_url": "https://heirship-app-v3-836582039669.us-central1.run.app/matters/abc-123/workspace",
+    "diff_files": [
+      {
+        "path": "src/workspace/DocumentsPane.tsx",
+        "added_lines": [
+          "import { mockDocuments } from '../fixtures/documents-mock';",
+          "const docs = liveDocuments ?? mockDocuments;",
+          "return <DocumentList items={docs} />;"
+        ]
+      },
+      {
+        "path": "src/workspace/FactsSidebar.tsx",
+        "added_lines": [
+          "import { generateFakeFacts } from '../testing/faker-helpers';",
+          "const facts = useFlag('VITE_USE_MOCK') ? generateFakeFacts(10) : (liveFacts || MOCK_DEFAULT_FACTS);"
+        ]
+      },
+      {
+        "path": "src/workspace/PersonsSidebar.tsx",
+        "added_lines": [
+          "import { setupWorker, rest } from 'msw';",
+          "const persons = props.persons ?? PERSONS_FIXTURE;",
+          "return <PersonList items={persons} />;"
+        ]
+      }
+    ],
+    "touched_file_contents": {
+      "src/workspace/DocumentsPane.tsx": "import { mockDocuments } from '../fixtures/documents-mock';\nimport { useQuery } from '@tanstack/react-query';\n\nexport function DocumentsPane({ matterId }: Props) {\n  const { data: liveDocuments } = useQuery(['documents', matterId], fetchDocuments);\n  const docs = liveDocuments ?? mockDocuments;\n  return <DocumentList items={docs} />;\n}",
+      "src/workspace/FactsSidebar.tsx": "import { generateFakeFacts } from '../testing/faker-helpers';\nimport { useFlag } from '../hooks/useFlag';\n\nexport function FactsSidebar({ matterId, liveFacts }: Props) {\n  const facts = useFlag('VITE_USE_MOCK') ? generateFakeFacts(10) : (liveFacts || MOCK_DEFAULT_FACTS);\n  return <FactList items={facts} />;\n}",
+      "src/workspace/PersonsSidebar.tsx": "import { setupWorker, rest } from 'msw';\nconst worker = setupWorker(rest.get('/api/matters/:id/persons', ...));\nworker.start();\n\nexport function PersonsSidebar(props: Props) {\n  const persons = props.persons ?? PERSONS_FIXTURE;\n  return <PersonList items={persons} />;\n}"
+    },
+    "playwright_trace_summary": {
+      "captured_network_requests": [],
+      "ui_text_after_render": "Workspace · Documents (3 placeholder) · Facts (none yet) · People (—)",
+      "tamper_test_run": false,
+      "tamper_test_dom_changed": false
+    }
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-live-data-wiring",
+    "valid": false,
+    "expected_severities_min_count": 4,
+    "expected_evidence_substring": "mock"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "what a correct verification looks like — all 3 endpoints captured by Playwright, response values appear in rendered DOM, tamper test confirms DOM updates, no mock-state signatures in diff, no fallback patterns, async-states 'pending' / 'processing' / 'done-with-facts' surface in UI",
+    "feature_kind": "frontend-wiring",
+    "target_url": "https://heirship-app-v3-836582039669.us-central1.run.app/matters/abc-123/workspace",
+    "diff_files": [
+      {
+        "path": "src/workspace/DocumentsPane.tsx",
+        "added_lines": [
+          "import { useQuery } from '@tanstack/react-query';",
+          "const { data: documents, status } = useQuery(['documents', matterId], () => api.matters.documents(matterId));",
+          "return <DocumentList items={documents ?? []} status={status} />;"
+        ]
+      },
+      {
+        "path": "src/workspace/FactsSidebar.tsx",
+        "added_lines": [
+          "import { useQuery } from '@tanstack/react-query';",
+          "const { data: facts, status } = useQuery(['facts', matterId], () => api.matters.facts(matterId));",
+          "return <FactList items={facts ?? []} status={status} />;"
+        ]
+      },
+      {
+        "path": "src/workspace/PersonsSidebar.tsx",
+        "added_lines": [
+          "import { useQuery } from '@tanstack/react-query';",
+          "const { data: persons, status } = useQuery(['persons', matterId], () => api.matters.persons(matterId));",
+          "return <PersonList items={persons ?? []} status={status} />;"
+        ]
+      }
+    ],
+    "touched_file_contents": {
+      "src/workspace/DocumentsPane.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function DocumentsPane({ matterId }: Props) {\n  const { data: documents, status } = useQuery(['documents', matterId], () => api.matters.documents(matterId));\n  return <DocumentList items={documents ?? []} status={status} />;\n}",
+      "src/workspace/FactsSidebar.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function FactsSidebar({ matterId }: Props) {\n  const { data: facts, status } = useQuery(['facts', matterId], () => api.matters.facts(matterId));\n  return <FactList items={facts ?? []} status={status} />;\n}",
+      "src/workspace/PersonsSidebar.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function PersonsSidebar({ matterId }: Props) {\n  const { data: persons, status } = useQuery(['persons', matterId], () => api.matters.persons(matterId));\n  return <PersonList items={persons ?? []} status={status} />;\n}"
+    },
+    "playwright_trace_summary": {
+      "captured_network_requests": [
+        {"url": "/api/matters/abc-123/documents", "response_body": {"fact_count": 71, "documents": [{"id": "d1"}]}},
+        {"url": "/api/matters/abc-123/facts", "response_body": {"facts": [{"id": "f1", "text": "decedent died in 2024"}], "count": 71}},
+        {"url": "/api/matters/abc-123/persons", "response_body": {"persons": [{"id": "p1", "name": "Jane Doe"}], "count": 13}}
+      ],
+      "ui_text_after_render": "Workspace · Documents 71 · Facts 71 · People 13 · status: done-with-facts · pending review · processing complete",
+      "tamper_test_run": true,
+      "tamper_test_dom_changed": true
+    }
+  }
+}

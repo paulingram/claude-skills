@@ -120,6 +120,46 @@ Every entry in the converged map's `gaps[]` becomes a solution requirement per `
 
 After the gaps are fixed (the orchestrator routes `interaction-gap` SRs through the normal fix loop), you may be re-spawned for the next pass. A re-review is a FRESH independent analysis — re-enumerate, re-classify, re-trace, re-audit from scratch. Do not assume the prior pass's fixes were complete. The loop ends when a pass's converged map has zero gaps and all three reviewers agree.
 
+## Live-data wiring audit (v2.6.0)
+
+When the slice's brief carries a `wiring_mandate` annotation (set by Phase 2 when the requirement uses parity-implying language like *"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"*), you run a **v2.6.0 audit** in addition to your existing Round-1 work and write findings into a `live_data_wiring_findings` block in your Round-1 draft. NO new reviewer role is added — this is YOUR mandate extension, and the existing 3-reviewer convergence treats `live_data_wiring_findings` the same way it treats element classifications.
+
+Run the 2-pass workflow:
+
+1. **Playwright pass** — Spin up the slice (the orchestrator points you at the dev URL or the local preview). For every endpoint named in `wiring_mandate.endpoints[]`:
+   - Capture the network request via Playwright trace.
+   - Read the captured response body.
+   - Assert the rendered DOM text-content contains the response's payload value (e.g., if the response says `{"fact_count": 71}`, the DOM should mention `71`).
+   - Run a **tamper test**: intercept the same endpoint, return a sentinel value, reload, and confirm the DOM updates. A DOM that doesn't change under tamper is `live-response-not-rendered` even if the original assertion passed.
+2. **Code-side audit** — Grep the slice's diff + every touched file for the `_MOCK_STATE_SIGNATURES` patterns (MSW handler imports, `setupWorker`, faker imports, fixture imports, mock-flag env vars like `VITE_USE_MOCK` / `useMockBackend`, fallback patterns like `?? mockData` / `|| MOCK_DEFAULT`). A surviving signature in production code is `mock-state-residue` regardless of whether it's reachable in the running app.
+
+The 5 severities you apply (each entry is its own finding with `severity`, `anchor` = file:line or trace path, and a one-line `evidence` citation):
+
+| Severity | Trigger |
+|---|---|
+| `mock-state-residue` | Mock-state signature pattern survives in production code |
+| `live-response-not-rendered` | Network response carries value V; rendered DOM does not contain V (or DOM doesn't update under tamper) |
+| `mock-fallback-uncovered` | `?? mockData` / `|| MOCK_DEFAULT` fallback path is reachable in production code |
+| `network-not-intercepted` | `wiring_mandate.endpoints[]` includes E; no Playwright trace shows a request to E |
+| `async-status-not-surfaced` | `wiring_mandate.async_states_expected[]` includes S (e.g., `processing`, `done-with-facts`, `pending`); no DOM element names S |
+
+Write your block into the Round-1 draft alongside the existing `gaps[]`:
+
+```json
+"live_data_wiring_findings": [
+  {
+    "severity": "mock-state-residue",
+    "anchor": "src/workspace/DocumentsPane.tsx:14",
+    "evidence": "import { mockDocuments } from '../fixtures/documents-mock'; survives in production code"
+  },
+  { "severity": "network-not-intercepted", "anchor": "playwright-trace#01", "evidence": "GET /api/matters/{id}/documents never captured during workspace render" }
+]
+```
+
+Round 2 convergence merges all three `live_data_wiring_findings` blocks the same way it merges element classifications — agreement and dispute reasoning by anchor + severity. A converged finding becomes a `live-data-wiring-gap` solution requirement; the existing fix loop acts on it (no `diagnostic-research-team` routing — the gap is already fully diagnosed).
+
+When the slice carries NO `wiring_mandate`, skip this audit entirely — it is conditional on the mandate.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** You may Read / Glob / Grep / LS / Bash / NotebookRead the codebase, and Write only your own draft (and, if you are reviewer 1, the converged map and the SRs). You may NOT Edit or Write any source file.
