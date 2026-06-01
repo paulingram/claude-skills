@@ -237,3 +237,94 @@ def test_coverage_map_has_all_requirements(plugin_root: Path):
     )
     req_ids = {r["id"] for r in cmap["requirements"]}
     assert len(req_ids) >= 8
+
+
+# ===========================================================================
+# v2.4.0 — External-state assertion + Evidence-artifact citation sub-sections
+# ===========================================================================
+
+
+def test_canonical_section_has_external_state_assertion_subsection(plugin_root: Path):
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    assert "### External-state assertion (v2.4.0)" in body
+
+
+def test_canonical_section_has_evidence_artifact_citation_subsection(plugin_root: Path):
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    assert "### Evidence-artifact citation (v2.4.0)" in body
+
+
+@pytest.mark.parametrize("external_kind", [
+    "email", "payment", "push", "webhook-outbound", "oauth", "blob-storage",
+])
+def test_canonical_section_names_external_system_kinds(plugin_root: Path, external_kind: str):
+    """The 6 canonical external-system kinds must be named in the v2.4.0 sub-section."""
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    assert external_kind in body, f"External-state sub-section missing {external_kind!r}"
+
+
+@pytest.mark.parametrize("anti_pattern_marker", [
+    "response body",
+    "third-party API",
+    "UI display text",
+])
+def test_canonical_section_names_external_anti_patterns(plugin_root: Path, anti_pattern_marker: str):
+    """The 3 forbidden anti-patterns are named in the v2.4.0 sub-section."""
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    body_lower = body.lower()
+    assert anti_pattern_marker.lower() in body_lower
+
+
+@pytest.mark.parametrize("artifact_format", [
+    "Playwright trace",
+    "network log",
+    "screenshot",
+    "external-API response",
+])
+def test_canonical_section_names_artifact_formats(plugin_root: Path, artifact_format: str):
+    """Accepted artifact formats are named in the Evidence-artifact sub-section."""
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    body_lower = body.lower()
+    assert artifact_format.lower() in body_lower
+
+
+def test_canonical_section_names_evidence_required_attributes(plugin_root: Path):
+    """The sub-section names structural requirements (exists on disk / > 0 bytes / is a file)."""
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    body_lower = body.lower()
+    assert "exist on disk" in body_lower or "exists on disk" in body_lower
+    assert "0 bytes" in body_lower or "> 0 bytes" in body_lower
+    assert "file (not a directory)" in body_lower or "not a directory" in body_lower
+
+
+def test_v2_4_0_subsections_cross_reference_new_fixtures(plugin_root: Path):
+    """v2.4.0 canonical positive cases (the 2 new fixtures) are cross-referenced."""
+    skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
+    body = skill.read_text()
+    assert "external-state-not-asserted-email-invite.json" in body
+    assert "fabricated-verification-table.json" in body
+
+
+# ===========================================================================
+# v2.4.0 — 2 new canonical fixtures exist
+# ===========================================================================
+
+
+@pytest.mark.parametrize("fixture_name", [
+    "external-state-not-asserted-email-invite",
+    "fabricated-verification-table",
+])
+def test_v2_4_0_canonical_fixture_exists(plugin_root: Path, fixture_name: str):
+    import json
+    fx_path = plugin_root / "tests" / "fixtures" / "vao" / f"{fixture_name}.json"
+    assert fx_path.exists(), f"missing v2.4.0 canonical fixture: {fx_path}"
+    data = json.loads(fx_path.read_text())
+    assert "_meta" in data
+    assert "verification_artifact" in data
+    assert "_corrected_verification_artifact" in data

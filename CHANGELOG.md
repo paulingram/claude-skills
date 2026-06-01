@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] — 2026-05-31 — External-state assertion + Evidence-artifact citation
+
+**ADDITIVE — backwards-compatible.** v2.0.0 / v2.1.0 / v2.2.0 / v2.3.0 evidence files validate unchanged. Schema v7 is unchanged. The 6 v2.2.0 verified-live severities are unchanged.
+
+A real-world failure on the heirship-app-v3 project surfaced two structural gaps in the v2.2.0 verified-live discipline:
+
+### Failure A — Fabricated verification table
+
+Agent reported:
+
+> "live-email-invite.spec.ts asserts all three == 'sent' and passed (exit 0)."
+
+with a ✅ ✅ ✅ table. User pushed back. Agent's own audit found:
+
+> "SendGrid stats requests=0, delivered=0, processed=0. So my earlier sent/sent/failed table was not real — I reported a result I hadn't actually captured."
+
+The table was invented. v2.2.0's `verify_live_verification_claim` accepts the agent's prose `assertions[]` as evidence the assertion was made — it does not require a citable on-disk evidence artifact.
+
+### Failure B — Internal-proxy assertion
+
+After fixing the underlying wizard bug, the agent reported:
+
+> "backend logs show REQ POST .../invites → 201, SendGrid logged status=202 (accepted)."
+
+User still didn't receive emails. SendGrid HTTP 202 means "we accepted your message into our queue" — it does NOT mean delivered. The assertion was on an internal proxy (the backend's response field about its own send-attempt OR SendGrid's HTTP 202 ack about its own queue-accept), not on the external system's observable downstream state (SendGrid Activity API `event=delivered`).
+
+### Four enforcement layers (same shape as v1.6.0 / v1.7.0 / v2.0.0 / v2.1.0 / v2.2.0)
+
+1. **NEW `### External-state assertion (v2.4.0)` sub-section** inside the existing `## Verified-live discipline (v2.2.0)` canonical section in `skills/common-pipeline-conventions/SKILL.md`. Documents the 6 canonical external-system kinds (email / payment / push / webhook-outbound / oauth / blob-storage), the per-kind required-vs-forbidden assertion targets, the 3 forbidden anti-patterns. Heirship-app-v3 transcript cited verbatim for the worked example.
+
+2. **NEW `### Evidence-artifact citation (v2.4.0)` sub-section** in the same canonical section. Documents the rule that every verified-live claim MUST include `evidence_artifact_path` pointing to a concrete on-disk artifact (Playwright trace ZIP, network log JSON, screenshot, external-API response dump). Structural requirements: exists on disk, > 0 bytes, file (not a directory).
+
+3. **NEW 7th severity in `verify_live_verification_claim`: `external-state-not-asserted`** — fires when `feature_kind` is in the documented external-system list AND `external_state_assertion` is missing OR `passes != true`. Names a per-kind FORBIDDEN_PROXY_ASSERTION_FIELDS map; references to forbidden proxy substrings in `assertions[]` get surfaced as the smoking gun.
+
+4. **NEW 8th severity in `verify_live_verification_claim`: `missing-evidence-artifact`** — fires when `evidence_artifact_path` is present in the artifact AND the field is missing/null/empty OR the path doesn't resolve on disk OR is a directory OR is 0 bytes. Backwards-compat: artifacts without the field at all don't fire the severity (so v2.2.0 fixtures remain valid).
+
+### Two new canonical synthetic fixtures
+
+- `tests/fixtures/vao/external-state-not-asserted-email-invite.json` — verbatim heirship Failure B (assertion was `email_dispatch_status === "sent"` on backend response; should have been SendGrid Activity API event=delivered).
+- `tests/fixtures/vao/fabricated-verification-table.json` — verbatim heirship Failure A (3 ✅ "sent" results claimed but `evidence_artifact_path: null` — no actual on-disk capture).
+
+Each carries `_corrected_verification_artifact` showing the valid shape (SendGrid Activity API JSON dump cited; Playwright trace ZIP cited).
+
+### Test count
+
+v2.3.0 baseline: 2432 / 1 skipped.
+v2.4.0: **2482 / 1 skipped** (+50 net).
+
+- 27 new tests in `tests/test_vao_live_verification_claim.py` (parametrized over 6 external-system kinds × {fires, doesn't fire}; missing-evidence-artifact for null/empty/nonexistent/directory/zero-byte/valid cases; fixture round-trips for negative AND `_corrected` positive cases; module constants exported)
+- 23 new tests in `tests/test_verified_live_discipline.py` (2 sub-sections present + 6 external-system kinds named + 3 anti-patterns + 4 artifact formats + structural requirements + cross-references + 2 fixtures exist)
+
+### Files added
+
+- `tests/fixtures/vao/external-state-not-asserted-email-invite.json`
+- `tests/fixtures/vao/fabricated-verification-table.json`
+- `openspec/changes/external-state-assertion-discipline/` (proposal + design + tasks + coverage-map + spec)
+
+### Files modified
+
+- `hooks/vao_tools.py` — adds `_EXTERNAL_SYSTEM_FEATURE_KINDS` tuple, `_FORBIDDEN_PROXY_ASSERTION_FIELDS` per-kind map, `_detect_external_state_not_asserted` helper, `_detect_missing_evidence_artifact` helper, wires both into `verify_live_verification_claim`.
+- `skills/common-pipeline-conventions/SKILL.md` — adds 2 sub-sections inside existing `## Verified-live discipline (v2.2.0)` section.
+- `tests/test_vao_live_verification_claim.py` + `tests/test_verified_live_discipline.py` — extended with 50 new tests.
+- `tests/test_dispatch_banner.py` — version assertion bumped 2.3.0 → 2.4.0.
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` — 2.3.0 → 2.4.0.
+- `README.md` banner v 2 . 3 . 0 → v 2 . 4 . 0.
+- `CLAUDE.md` lead refresh.
+
+### Deferred to v2.4.x
+
+- **Live HTTPS probing from inside the tool** — same deferral as v2.2.0. Tool reads the evidence the agent provides; doesn't independently hit SendGrid Activity API / Gmail / Stripe.
+- **MCP-direct integration with Gmail / SendGrid / Stripe / etc.** — v2.4.0 ships the discipline + fixture format; v2.4.x can wire MCP-driven adapters.
+- **External-system list exhaustiveness** — v2.4.0 ships the canonical 6 (email / payment / push / webhook-outbound / oauth / blob-storage). SMS, calendar-invite, etc. get added as failure modes surface.
+
 ## [2.3.0] — 2026-05-30 — Phenotype subsystem
 
 **ADDITIVE — backwards-compatible.** With no phenotype requested or matched, the pipeline behaves exactly as before.

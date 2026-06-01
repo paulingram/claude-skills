@@ -930,20 +930,218 @@ def _detect_prefill_masking(artifact: dict[str, Any], bug: dict[str, Any]) -> di
     }
 
 
+# ---------------------------------------------------------------------------
+# v2.4.0 — External-state assertion + Evidence-artifact citation
+# ---------------------------------------------------------------------------
+
+# The 6 canonical external-system kinds. Features whose `feature_kind` is in
+# this set MUST carry an `external_state_assertion` block asserting against
+# the external system's own observable downstream state.
+_EXTERNAL_SYSTEM_FEATURE_KINDS: tuple[str, ...] = (
+    "email",
+    "payment",
+    "push",
+    "webhook-outbound",
+    "oauth",
+    "blob-storage",
+)
+
+# Per-kind list of forbidden internal-proxy assertion targets. If an
+# assertion in `assertions[]` references one of these substrings AND
+# `external_state_assertion` is missing, the smoking gun is named in the
+# gap's `evidence` field. Substring match is case-insensitive.
+_FORBIDDEN_PROXY_ASSERTION_FIELDS: dict[str, tuple[str, ...]] = {
+    "email": (
+        "email_dispatch_status",
+        "sendgrid.statusCode",
+        "sendgridResponse.statusCode",
+        ".body.message_id",
+        "Invite sent",  # the hardcoded UI text from the heirship case
+    ),
+    "payment": (
+        "intent.status",
+        "client_secret",
+        "paymentIntent.status",
+        "stripeResponse.statusCode",
+    ),
+    "push": (
+        "message_id",
+        "fcm_response.success",
+        "apns_response.id",
+    ),
+    "webhook-outbound": (
+        "trigger.statusCode",
+        "we returned 200",
+        "200 to the trigger",
+    ),
+    "oauth": (
+        "access_token",
+        "token_endpoint_response.statusCode",
+    ),
+    "blob-storage": (
+        "upload_response.statusCode",
+        "putObject.success",
+    ),
+}
+
+
+def _detect_external_state_not_asserted(artifact: dict[str, Any]) -> dict[str, Any] | None:
+    """Detect the v2.4.0 external-state-not-asserted failure mode.
+
+    Returns a gap dict if:
+      - `feature_kind` is in the documented external-system list, AND
+      - EITHER `external_state_assertion` is missing/empty/not-a-dict, OR
+        `external_state_assertion.passes` is not exactly True, OR
+        any `assertions[]` entry references a known internal-proxy substring
+        for this feature_kind AND `external_state_assertion` is missing.
+
+    Returns None when the feature is not external-system OR a valid
+    `external_state_assertion` block with `passes: true` is present.
+    """
+    feature_kind = artifact.get("feature_kind")
+    if not isinstance(feature_kind, str):
+        return None
+    feature_kind = feature_kind.strip().lower()
+    if feature_kind not in _EXTERNAL_SYSTEM_FEATURE_KINDS:
+        return None
+
+    esa = artifact.get("external_state_assertion")
+    has_valid_esa = (
+        isinstance(esa, dict)
+        and esa.get("passes") is True
+        and isinstance(esa.get("external_system"), str)
+        and esa.get("external_system").strip()
+    )
+
+    # Per-kind proxy-substring check on assertions[] — name the smoking gun
+    # when present even if the agent omitted external_state_assertion.
+    forbidden = _FORBIDDEN_PROXY_ASSERTION_FIELDS.get(feature_kind, ())
+    proxy_hits: list[str] = []
+    for assertion in artifact.get("assertions", []) or []:
+        if not isinstance(assertion, str):
+            continue
+        lower_assertion = assertion.lower()
+        for proxy_field in forbidden:
+            if proxy_field.lower() in lower_assertion:
+                proxy_hits.append(proxy_field)
+
+    if has_valid_esa and not proxy_hits:
+        return None  # the artifact correctly cites external observable state
+
+    if has_valid_esa and proxy_hits:
+        # Even with a valid external_state_assertion, a forbidden-proxy hit
+        # is informational but not a gap. Skip.
+        return None
+
+    # No valid external_state_assertion — that's the gap.
+    base_evidence = (
+        f"feature_kind={feature_kind!r} is an external-system kind; "
+        f"verification_artifact.external_state_assertion is missing OR "
+        f"passes != true"
+    )
+    if proxy_hits:
+        base_evidence += (
+            f"; assertions[] reference forbidden internal-proxy field(s) "
+            f"{proxy_hits!r}"
+        )
+    remediation_table = {
+        "email": "Query SendGrid Activity API for event=delivered, OR check the "
+                 "recipient's inbox directly (Gmail / IMAP / Mailpit).",
+        "payment": "Query Stripe API for Charge.paid=true + "
+                   "balance_transaction.status=available, NOT intent.status.",
+        "push": "Capture the device-side onMessage handler payload, NOT FCM's "
+                "message_id ack.",
+        "webhook-outbound": "Inspect the recipient's actually-received-payload "
+                            "log, NOT the upstream trigger's 200.",
+        "oauth": "Use the access_token against the resource server's GET /me "
+                 "(or equivalent), NOT just the token endpoint's 200.",
+        "blob-storage": "HEAD the uploaded object and verify ETag, NOT the "
+                        "upload response's 200.",
+    }
+    return {
+        "severity": "external-state-not-asserted",
+        "evidence": base_evidence,
+        "remediation": (
+            "v2.4.0 External-state assertion discipline. "
+            + remediation_table.get(feature_kind, "Assert against the external "
+                                                  "system's own observable downstream state.")
+        ),
+    }
+
+
+def _detect_missing_evidence_artifact(artifact: dict[str, Any]) -> dict[str, Any] | None:
+    """Detect the v2.4.0 missing-evidence-artifact failure mode.
+
+    Returns a gap dict if:
+      - `evidence_artifact_path` field is missing OR not a string OR empty, OR
+      - The path does not resolve on disk, OR
+      - The path is a directory (must be a file), OR
+      - The file is 0 bytes.
+
+    Returns None when a valid on-disk file > 0 bytes is cited.
+    """
+    path_str = artifact.get("evidence_artifact_path")
+    if not isinstance(path_str, str) or not path_str.strip():
+        return {
+            "severity": "missing-evidence-artifact",
+            "evidence": "verification_artifact.evidence_artifact_path is missing or empty",
+            "remediation": "v2.4.0 Evidence-artifact citation discipline. "
+                          "Every verified-live claim MUST cite a concrete on-disk artifact "
+                          "(Playwright trace .zip, .har / .json network log, screenshot, "
+                          "external-API response dump JSON, etc.). The agent's prose "
+                          "assertions[] list is no longer accepted as evidence the assertion "
+                          "was made.",
+        }
+    path_obj = Path(path_str)
+    if not path_obj.exists():
+        return {
+            "severity": "missing-evidence-artifact",
+            "evidence": f"evidence_artifact_path={path_str!r} does not exist on disk",
+            "remediation": "Verify the artifact was actually written by your test run. "
+                          "If the path is correct but the file doesn't exist, the test "
+                          "did not produce the artifact (e.g., Playwright trace recording "
+                          "wasn't enabled).",
+        }
+    if path_obj.is_dir():
+        return {
+            "severity": "missing-evidence-artifact",
+            "evidence": f"evidence_artifact_path={path_str!r} is a directory; must be a file",
+            "remediation": "Point to a single artifact file, not a directory. "
+                          "If you have multiple artifacts, pick the canonical one (Playwright "
+                          "trace ZIP or external-API response JSON).",
+        }
+    try:
+        size = path_obj.stat().st_size
+    except OSError:
+        size = 0
+    if size <= 0:
+        return {
+            "severity": "missing-evidence-artifact",
+            "evidence": f"evidence_artifact_path={path_str!r} is empty (0 bytes)",
+            "remediation": "The artifact exists but is empty — the test likely failed "
+                          "before writing data. Re-run the test and confirm the artifact "
+                          "is populated.",
+        }
+    return None
+
+
 def verify_live_verification_claim(
     verification_artifact: dict[str, Any] | None = None,
     bug_description: dict[str, Any] | None = None,
     out_path: Path | str | None = None,
 ) -> dict[str, Any]:
-    """v2.2.0 Layer-3 tool — verify that a "verified live" claim is valid.
+    """v2.2.0 + v2.4.0 Layer-3 tool — verify that a "verified live" claim is valid.
 
-    Checks the verification artifact against the 6 named gap severities:
-      1. gesture-substitution — empty-region click instead of user gesture
-      2. self-verification-loop — agent wrote the test that asserts its own fix
-      3. prefill-masking — pre-populated state where the bug can't manifest
-      4. missing-screenshot — no captured after-state evidence
-      5. missing-deployed-url — test against localhost / no URL
-      6. missing-semantic-assertion — no observable-behavior check
+    Checks the verification artifact against the 8 named gap severities:
+      1. gesture-substitution — empty-region click instead of user gesture (v2.2.0)
+      2. self-verification-loop — agent wrote the test that asserts its own fix (v2.2.0)
+      3. prefill-masking — pre-populated state where the bug can't manifest (v2.2.0)
+      4. missing-screenshot — no captured after-state evidence (v2.2.0)
+      5. missing-deployed-url — test against localhost / no URL (v2.2.0)
+      6. missing-semantic-assertion — no observable-behavior check (v2.2.0)
+      7. external-state-not-asserted — assertion against internal proxy when
+         feature touches an external system (v2.4.0)
+      8. missing-evidence-artifact — no on-disk artifact citation (v2.4.0)
 
     Args:
       verification_artifact: dict carrying click_targets[], setup_actions[],
@@ -1032,6 +1230,22 @@ def verify_live_verification_claim(
             "remediation": "Add at least one assertion on the OBSERVABLE behavior. The test must "
                           "check what a user would notice, not the agent's assumed internal state.",
         })
+
+    # v2.4.0 — External-state assertion (only fires when feature_kind is in
+    # the external-system list)
+    esa_gap = _detect_external_state_not_asserted(artifact)
+    if esa_gap:
+        gaps.append(esa_gap)
+
+    # v2.4.0 — Evidence-artifact citation (only fires when the artifact's
+    # evidence_artifact_path field is populated by the caller; pre-v2.4.0
+    # callers that don't supply the field don't fire the severity, preserving
+    # backwards compatibility. To make this discipline stricter — required by
+    # default — flip the if-guard to always run.)
+    if "evidence_artifact_path" in artifact:
+        ea_gap = _detect_missing_evidence_artifact(artifact)
+        if ea_gap:
+            gaps.append(ea_gap)
 
     verdict = {
         "tool": "verify-live-verification-claim",

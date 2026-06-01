@@ -598,3 +598,262 @@ def test_optional_vao_fields_tuple_includes_v2_2_0(schema_module):
 
 def test_valid_live_verification_values_set(schema_module):
     assert schema_module.VALID_LIVE_VERIFICATION_VALUES == {"pass", "n/a", "fail"}
+
+
+# ===========================================================================
+# v2.4.0 — external-state-not-asserted severity
+# ===========================================================================
+
+
+@pytest.mark.parametrize("feature_kind,proxy_assertion", [
+    ("email", "expect(response.body.email_dispatch_status).toBe(\"sent\")"),
+    ("email", "expect(sendgridResponse.statusCode).toBe(202)"),
+    ("payment", "expect(intent.status).toBe(\"succeeded\")"),
+    ("payment", "expect(paymentIntent.client_secret).toBeDefined()"),
+    ("push", "expect(fcmResponse.message_id).toBeDefined()"),
+    ("webhook-outbound", "expect(triggerResponse.statusCode).toBe(200)"),
+    ("oauth", "expect(tokenEndpointResponse.access_token).toBeDefined()"),
+    ("blob-storage", "expect(uploadResponse.statusCode).toBe(200)"),
+])
+def test_external_state_not_asserted_fires(vao_tools, feature_kind, proxy_assertion):
+    """For each external-system feature_kind, an assertion against an internal
+    proxy WITHOUT external_state_assertion → fires the severity."""
+    art = _valid_artifact()
+    art["feature_kind"] = feature_kind
+    art["assertions"] = [proxy_assertion]
+    # external_state_assertion is INTENTIONALLY ABSENT
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    assert v["valid"] is False
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "external-state-not-asserted" in severities
+
+
+@pytest.mark.parametrize("feature_kind", [
+    "email", "payment", "push", "webhook-outbound", "oauth", "blob-storage",
+])
+def test_external_state_not_asserted_with_valid_esa_passes(vao_tools, feature_kind):
+    """When external_state_assertion.passes is true AND cites the external
+    system, the severity does NOT fire."""
+    art = _valid_artifact()
+    art["feature_kind"] = feature_kind
+    art["external_state_assertion"] = {
+        "external_system": "test-external-system",
+        "queried_at": "2026-05-31T22:14:00Z",
+        "query_method": "activity_api",
+        "observed_state": {"event": "delivered"},
+        "passes": True,
+    }
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "external-state-not-asserted" not in severities
+
+
+def test_external_state_not_asserted_does_not_fire_without_feature_kind(vao_tools):
+    """Backwards-compat: artifacts with no feature_kind don't fire the v2.4.0
+    severity even if they look external-system-shaped."""
+    art = _valid_artifact()
+    # feature_kind intentionally absent
+    art["assertions"] = ["expect(response.body.email_dispatch_status).toBe(\"sent\")"]
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "external-state-not-asserted" not in severities
+
+
+def test_external_state_not_asserted_does_not_fire_for_non_external_kind(vao_tools):
+    """A feature_kind not in the external-system list (e.g., 'ui-only') doesn't
+    fire the severity even with no external_state_assertion."""
+    art = _valid_artifact()
+    art["feature_kind"] = "ui-only"
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "external-state-not-asserted" not in severities
+
+
+def test_external_state_evidence_names_smoking_gun_proxy_field(vao_tools):
+    """When the artifact's assertions reference a forbidden proxy field, the
+    gap's evidence field names that smoking gun."""
+    art = _valid_artifact()
+    art["feature_kind"] = "email"
+    art["assertions"] = ["expect(response.body.email_dispatch_status).toBe(\"sent\")"]
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    esa_gaps = [g for g in v["gaps"] if g["severity"] == "external-state-not-asserted"]
+    assert esa_gaps
+    assert "email_dispatch_status" in esa_gaps[0]["evidence"]
+
+
+def test_external_state_partial_esa_passes_field_required(vao_tools):
+    """external_state_assertion with passes=false → severity fires."""
+    art = _valid_artifact()
+    art["feature_kind"] = "email"
+    art["external_state_assertion"] = {
+        "external_system": "sendgrid",
+        "queried_at": "2026-05-31T22:14:00Z",
+        "query_method": "activity_api",
+        "observed_state": {"event": "bounced"},
+        "passes": False,
+    }
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "external-state-not-asserted" in severities
+
+
+# ===========================================================================
+# v2.4.0 — missing-evidence-artifact severity
+# ===========================================================================
+
+
+def test_missing_evidence_artifact_when_path_is_null(vao_tools):
+    art = _valid_artifact()
+    art["evidence_artifact_path"] = None
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    assert v["valid"] is False
+    assert any(g["severity"] == "missing-evidence-artifact" for g in v["gaps"])
+
+
+def test_missing_evidence_artifact_when_path_is_empty(vao_tools):
+    art = _valid_artifact()
+    art["evidence_artifact_path"] = ""
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" in severities
+
+
+def test_missing_evidence_artifact_when_path_nonexistent(vao_tools):
+    art = _valid_artifact()
+    art["evidence_artifact_path"] = "/absolutely/nonexistent/path/trace.zip"
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" in severities
+
+
+def test_missing_evidence_artifact_when_path_is_directory(vao_tools, tmp_path):
+    art = _valid_artifact()
+    art["evidence_artifact_path"] = str(tmp_path)
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" in severities
+
+
+def test_missing_evidence_artifact_when_file_is_empty(vao_tools, tmp_path):
+    empty_file = tmp_path / "empty-trace.zip"
+    empty_file.write_bytes(b"")
+    art = _valid_artifact()
+    art["evidence_artifact_path"] = str(empty_file)
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" in severities
+
+
+def test_missing_evidence_artifact_does_not_fire_when_field_absent(vao_tools):
+    """Backwards-compat: artifacts without evidence_artifact_path don't fire
+    the severity (the v2.2.0 fixtures still pass)."""
+    art = _valid_artifact()
+    # evidence_artifact_path intentionally absent
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" not in severities
+
+
+def test_missing_evidence_artifact_does_not_fire_when_file_valid(vao_tools, tmp_path):
+    valid_file = tmp_path / "valid-trace.zip"
+    valid_file.write_bytes(b"fake but non-empty trace content")
+    art = _valid_artifact()
+    art["evidence_artifact_path"] = str(valid_file)
+    v = vao_tools.verify_live_verification_claim(art, _valid_bug())
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" not in severities
+
+
+# ===========================================================================
+# v2.4.0 — synthetic fixture round-trips
+# ===========================================================================
+
+
+@pytest.fixture(scope="module")
+def fixture_external_state(plugin_root: Path):
+    return json.loads(
+        (plugin_root / "tests" / "fixtures" / "vao" / "external-state-not-asserted-email-invite.json").read_text()
+    )
+
+
+@pytest.fixture(scope="module")
+def fixture_fabricated(plugin_root: Path):
+    return json.loads(
+        (plugin_root / "tests" / "fixtures" / "vao" / "fabricated-verification-table.json").read_text()
+    )
+
+
+def test_fixture_external_state_caught(vao_tools, fixture_external_state):
+    v = vao_tools.verify_live_verification_claim(
+        verification_artifact=fixture_external_state["verification_artifact"],
+        bug_description=fixture_external_state["bug_description"],
+    )
+    assert v["valid"] is False
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "external-state-not-asserted" in severities
+
+
+def test_fixture_fabricated_caught(vao_tools, fixture_fabricated):
+    v = vao_tools.verify_live_verification_claim(
+        verification_artifact=fixture_fabricated["verification_artifact"],
+        bug_description=fixture_fabricated["bug_description"],
+    )
+    assert v["valid"] is False
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "missing-evidence-artifact" in severities
+
+
+def test_fixture_external_state_corrected_passes(vao_tools, fixture_external_state, tmp_path):
+    """The _corrected_verification_artifact must PASS the tool (valid: True).
+    Since the fixture's cited paths don't exist on disk, we rewrite them to
+    a real tmp file before calling the tool."""
+    corrected = dict(fixture_external_state["_corrected_verification_artifact"])
+    real_artifact = tmp_path / "sendgrid-activity-api-response.json"
+    real_artifact.write_text(json.dumps({"event": "delivered", "recipient": "paul.ingram0322@gmail.com"}))
+    real_screenshot = tmp_path / "corrected.png"
+    real_screenshot.write_bytes(b"fake png")
+    corrected["evidence_artifact_path"] = str(real_artifact)
+    corrected["screenshot_path"] = str(real_screenshot)
+    v = vao_tools.verify_live_verification_claim(
+        verification_artifact=corrected,
+        bug_description=fixture_external_state["bug_description"],
+    )
+    assert v["valid"] is True, f"corrected fixture must pass; gaps={v['gaps']}"
+
+
+def test_fixture_fabricated_corrected_passes(vao_tools, fixture_fabricated, tmp_path):
+    """The _corrected_verification_artifact for the fabrication fixture must
+    PASS the tool when its cited paths are made real."""
+    corrected = dict(fixture_fabricated["_corrected_verification_artifact"])
+    real_trace = tmp_path / "trace.zip"
+    real_trace.write_bytes(b"fake non-empty playwright trace zip content")
+    real_screenshot = tmp_path / "corrected.png"
+    real_screenshot.write_bytes(b"fake png")
+    corrected["evidence_artifact_path"] = str(real_trace)
+    corrected["screenshot_path"] = str(real_screenshot)
+    v = vao_tools.verify_live_verification_claim(
+        verification_artifact=corrected,
+        bug_description=fixture_fabricated["bug_description"],
+    )
+    assert v["valid"] is True, f"corrected fabricated fixture must pass; gaps={v['gaps']}"
+
+
+# ===========================================================================
+# v2.4.0 — module-level constants are exported correctly
+# ===========================================================================
+
+
+def test_external_system_feature_kinds_constant(vao_tools):
+    assert hasattr(vao_tools, "_EXTERNAL_SYSTEM_FEATURE_KINDS")
+    kinds = vao_tools._EXTERNAL_SYSTEM_FEATURE_KINDS
+    for canonical in ("email", "payment", "push", "webhook-outbound", "oauth", "blob-storage"):
+        assert canonical in kinds
+
+
+def test_forbidden_proxy_assertion_fields_map(vao_tools):
+    assert hasattr(vao_tools, "_FORBIDDEN_PROXY_ASSERTION_FIELDS")
+    m = vao_tools._FORBIDDEN_PROXY_ASSERTION_FIELDS
+    # Each external-system kind has a non-empty forbidden-list
+    for kind in ("email", "payment", "push", "webhook-outbound", "oauth", "blob-storage"):
+        assert kind in m
+        assert len(m[kind]) > 0

@@ -1,0 +1,72 @@
+{
+  "_meta": {
+    "fixture_name": "external-state-not-asserted-email-invite",
+    "failure_shape": "v2.4.0 External-state assertion — failure mode: agent satisfied v2.2.0 4-attestation discipline but asserted against internal proxy (backend response field / SendGrid HTTP 202 ack) instead of external system observable state (SendGrid Activity API event=delivered / inbox arrival)",
+    "originating_failure": "heirship-app-v3 transcript: 'backend logs show REQ POST .../invites for all 3 addresses → 201, and the SendGrid hook logged status=202 (accepted) for paul.ingram0322@gmail.com, paul@blackravenadvisors.com, edrobinski@gmail.com.' User pushed back: 'I dont see any invites to either account.' The agent's semantic assertion was on an INTERNAL PROXY (the backend's response field about its own send-attempt OR SendGrid's HTTP 202 ack about its own queue-accept). Neither proves the email reached the inbox.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-live-verification-claim",
+    "expected_severity": "external-state-not-asserted"
+  },
+  "verification_artifact": {
+    "feature_kind": "email",
+    "target_url": "https://heirship-app-v3-836582039669.us-central1.run.app",
+    "screenshot_path": "/tmp/heirship-invite-after.png",
+    "evidence_artifact_path": "/tmp/heirship-invite-trace.zip",
+    "click_targets": [
+      {
+        "selector": "button[data-action=open-matter-and-send-invite]",
+        "coord": [600, 500]
+      }
+    ],
+    "assertions": [
+      "expect(response.body.email_dispatch_status).toBe(\"sent\")",
+      "expect(sendgridResponse.statusCode).toBe(202)"
+    ],
+    "setup_actions": [
+      "await page.goto('https://heirship-app-v3-836582039669.us-central1.run.app/ta/new')",
+      "await fillWizardSteps(page, fixtureMatter)"
+    ],
+    "observed_state": "Confirmation screen shows: 'Invite sent to paul.ingram0322@gmail.com'"
+  },
+  "bug_description": {
+    "summary": "Family invite email must reach the recipient's inbox after wizard completion",
+    "gesture_pattern": "complete new-matter wizard → click 'Open matter and send invite' → recipient must receive email at their inbox",
+    "requires_blank_state": false
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-live-verification-claim",
+    "valid": false,
+    "expected_severities": ["external-state-not-asserted"],
+    "expected_evidence_substring": "feature_kind='email'"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "what a correct verification looks like — assertion is against SendGrid Activity API event=delivered, the EXTERNAL system's observable downstream state",
+    "feature_kind": "email",
+    "target_url": "https://heirship-app-v3-836582039669.us-central1.run.app",
+    "screenshot_path": "/tmp/heirship-invite-after-corrected.png",
+    "evidence_artifact_path": "/tmp/heirship-sendgrid-activity-api-response.json",
+    "click_targets": [
+      {
+        "selector": "button[data-action=open-matter-and-send-invite]",
+        "coord": [600, 500]
+      }
+    ],
+    "assertions": [
+      "expect(sendgridActivityRecord.event).toBe(\"delivered\")",
+      "expect(sendgridActivityRecord.delivered_at).toBeDefined()",
+      "expect(sendgridActivityRecord.recipient).toBe(\"paul.ingram0322@gmail.com\")"
+    ],
+    "external_state_assertion": {
+      "external_system": "sendgrid",
+      "queried_at": "2026-05-31T22:14:00Z",
+      "query_method": "activity_api",
+      "observed_state": {
+        "event": "delivered",
+        "delivered_at": "2026-05-31T22:14:08Z",
+        "recipient": "paul.ingram0322@gmail.com",
+        "subject": "You're invited to Park Family Trust on Heir Apparent"
+      },
+      "passes": true
+    }
+  }
+}

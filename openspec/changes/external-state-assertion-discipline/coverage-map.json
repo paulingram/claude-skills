@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "change": "external-state-assertion-discipline",
+  "version": "2.4.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "common-pipeline-conventions documents External-state assertion (v2.4.0)", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-2", "title": "common-pipeline-conventions documents Evidence-artifact citation (v2.4.0)", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-3", "title": "verify_live_verification_claim detects external-state-not-asserted", "layer": "infra",
+     "covered_by": ["hooks/vao_tools.py", "tests/test_vao_live_verification_claim.py", "tests/fixtures/vao/external-state-not-asserted-email-invite.json"]},
+    {"id": "REQ-4", "title": "verify_live_verification_claim detects missing-evidence-artifact", "layer": "infra",
+     "covered_by": ["hooks/vao_tools.py", "tests/test_vao_live_verification_claim.py", "tests/fixtures/vao/fabricated-verification-table.json"]},
+    {"id": "REQ-5", "title": "external-state-not-asserted-email-invite synthetic fixture exists", "layer": "infra",
+     "covered_by": ["tests/fixtures/vao/external-state-not-asserted-email-invite.json", "tests/test_vao_live_verification_claim.py"]},
+    {"id": "REQ-6", "title": "fabricated-verification-table synthetic fixture exists", "layer": "infra",
+     "covered_by": ["tests/fixtures/vao/fabricated-verification-table.json", "tests/test_vao_live_verification_claim.py"]},
+    {"id": "REQ-7", "title": "Structural tests assert the v2.4.0 framework is wired", "layer": "infra",
+     "covered_by": ["tests/test_vao_live_verification_claim.py", "tests/test_verified_live_discipline.py"]},
+    {"id": "REQ-8", "title": "Version is bumped to 2.4.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md", "docs/CODEBASE_MAP.md", "docs/INTEGRATION_MAP.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md — add 2 sub-sections to existing v2.2.0 ## Verified-live discipline section; preserves canonical-home authority"},
+    {"id": "RD-2", "decision": "extend", "anchor": "hooks/vao_tools.py — 6 v2.2.0 severities live here; the 2 new severities are the same concern at higher levels"},
+    {"id": "RD-3", "decision": "decline", "anchor": "NO new schema field — the v2.2.0 live_verification_review optional field already cites verdict_path; the tool's verdict gains new gap entries"},
+    {"id": "RD-4", "decision": "decline", "anchor": "NO new agent — same scoping as v2.2.0 RD-7; deterministic checks don't need judgment-heavy reviewer"},
+    {"id": "RD-5", "decision": "build-new", "anchor": "tests/fixtures/vao/external-state-not-asserted-email-invite.json + tests/fixtures/vao/fabricated-verification-table.json — each new failure mode needs a canonical positive case"},
+    {"id": "RD-6", "decision": "decline", "anchor": "NO new test file — extend existing test_vao_live_verification_claim.py + test_verified_live_discipline.py; co-locates with v2.2.0 tests"},
+    {"id": "RD-7", "decision": "deferred", "anchor": "Live HTTPS probing — v2.4.x extension"},
+    {"id": "RD-8", "decision": "deferred", "anchor": "MCP-direct integration with Gmail/SendGrid/Stripe/etc. — v2.4.x extension"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test + tool extension. The plugin's PRODUCT gains stronger verified-live discipline; the plugin's OWN test surface is pytest stdlib-only.",
+  "implementing_commits": []
+}
