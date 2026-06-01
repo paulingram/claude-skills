@@ -19,11 +19,13 @@ scaffold that the pipeline then customizes and drives through its normal build/r
 
 ## Available phenotypes
 
+All three production seeds ship as of v2.3.0 — run `python3 scripts/phenotypes/phenotypes.py list` for the live engine view.
+
 | Label | Kind | Summary |
 |---|---|---|
-| `user-management` | pair | Production user-management system — async API backend + SPA frontend + RBAC + orgs, OpenTofu-deployed. |
-
-_(Deferred / planned: `config-management` (OpenTofu), `ai-management` (AI agent prompt + versioning layer).)_
+| `user-management` | pair | Production multi-tenant user-management system — async FastAPI + SQLAlchemy-async + Postgres + Redis backend, React+Vite+shadcn+TanStack SPA frontend, ECS-AWS OpenTofu deploy. Dual-credential auth (opaque-session-token + scoped-api-key + OIDC-JWKS), N-layer RBAC, org hierarchy, audit, managed SQL/cache/LB/secrets/object-store/KMS. |
+| `config-management` | singleton | Multi-service, multi-env, multi-cloud OpenTofu monorepo — one feature-flagged service module (create / reuse / disabled per primitive), platform / load-balancer / service / registry root layers composed via remote state, hierarchical state keys + var-file envs, registry-manifest config-discovery convention. |
+| `ai-management` | pair | Multi-tenant control plane for LLM agents — prompts as versioned, inheritable template config (prototype-chain `deep_merge` resolution + immutable version snapshots + draft / publish / rollback), a single swappable model gateway with an override allowlist, per-tenant budgets, and an authoring / versioning / testing console. Deploys via the `config-management` phenotype. |
 
 ## Using a phenotype
 

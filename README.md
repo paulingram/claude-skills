@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.3.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.4.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2394%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2482%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,16 +67,29 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.3.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.4.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **Phenotypes** | A library of pre-made, generalized, *deployable* architectures — a blueprint + a parameterized scaffold (starter code + OpenTofu) + metadata — under `phenotypes/`. Three seeds ship: `user-management`, `config-management`, `ai-management`. |
-| **`--phenotype <label>`** | Seed a run from a phenotype, or let the pipeline propose a match reuse-first (a rung above build-new) — surfaced for confirmation, never applied silently. |
-| **`absorb`** | `/architect-team:absorb-phenotype <path> --label <name>` — analyze any arbitrary codebase, generalize it, and ingest it as a new labeled phenotype (read-only on the source; validated before it lands). |
-| **Engine** | `scripts/phenotypes/phenotypes.py` (stdlib) — `discover` / `match` / `emit`; the `phenotypes` consumption skill + the `phenotype-absorption` playbook (two new skills). |
+| **External-state assertion** | The v2.2.0 verified-live discipline caught "agent didn't drive the deployed URL / used a corner-click / tested pre-populated state." v2.4.0 closes the next rung up: when a feature touches an EXTERNAL system (email / payment / push / webhook-outbound / oauth / blob-storage), the semantic assertion MUST query the external system's own observable downstream state — NOT the backend's response field about its own attempt, NOT the third-party API's queue-accept ack (SendGrid 202 ≠ delivered), NOT UI display text. Per-kind required-vs-forbidden targets documented in the canonical `## Verified-live discipline (v2.2.0)` section. New 7th severity `external-state-not-asserted` in `verify_live_verification_claim`. |
+| **Evidence-artifact citation** | Every "verified live" claim MUST include `evidence_artifact_path` pointing to a concrete on-disk file (Playwright trace `.zip` / `.har` / `.json` network log / external-API response dump JSON / screenshot / raw log). The file must exist, be > 0 bytes, and be a file (not a directory). The agent's prose `assertions[]` is no longer accepted as evidence the assertion was made. New 8th severity `missing-evidence-artifact`. |
+| **Canonical heirship fixtures** | `external-state-not-asserted-email-invite.json` reproduces the verbatim heirship-app-v3 case where an agent claimed "SendGrid logged status=202 (accepted)" and the user never received the email. `fabricated-verification-table.json` reproduces the verbatim case where an agent presented a 3-row ✅ "sent" table without a Playwright run that actually captured the results. |
+| **Backwards-compatible** | Schema v7 unchanged. v2.0.0 / v2.1.0 / v2.2.0 / v2.3.0 evidence files validate as before. Artifacts without `feature_kind` or `evidence_artifact_path` don't fire the new severities. +50 net tests (2432 → 2482); zero regressions. |
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  CARRIED FROM v2.3.0 — PHENOTYPE SUBSYSTEM  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+| Capability | What it does |
+|---|---|
+| **Phenotypes** | A library of pre-made, generalized, *deployable* application architectures — each one a blueprint + a parameterized scaffold (starter code + OpenTofu) + metadata — under `phenotypes/`. **Three production seeds ship** in v2.3.0+: `user-management` (async FastAPI + SQLAlchemy-async + Postgres + Redis backend + React/Vite/shadcn frontend + ECS-AWS deploy; dual-credential auth, N-layer RBAC, org hierarchy, audit), `config-management` (multi-service multi-env multi-cloud OpenTofu monorepo with feature-flagged service modules + hierarchical state keys + registry-manifest discovery), `ai-management` (multi-tenant LLM control plane: prompts as versioned inheritable template config with prototype-chain deep_merge + draft/publish/rollback + per-tenant budgets + swappable model gateway + authoring console; deploys via the `config-management` phenotype). |
+| **`--phenotype <label>`** | Seed a run from a known phenotype (`/architect-team --phenotype user-management "<what you want>"`), OR let the pipeline propose a match reuse-first (a rung above build-new) — surfaced for confirmation, never applied silently. |
+| **`absorb`** | `/architect-team:absorb-phenotype <path> --label <name>` — analyze any arbitrary codebase, generalize it (strip names / secrets / account-specifics; parameterize), and ingest it as a new labeled phenotype. Read-only on the source; validated by the engine before it lands under `phenotypes/<label>/`. |
+| **Engine** | `scripts/phenotypes/phenotypes.py` (stdlib) exposes 5 CLI subcommands: `list` (show all available phenotypes), `show <label>` (full manifest detail), `match <description>` (reuse-first scoring), `validate <label>` (lint phenotype.json + blueprint.md + scaffold structure), `emit <label> <out-dir>` (render the parameterized scaffold to disk). Backed by two new skills: `phenotypes` (consumption playbook — when to suggest one, how to fill parameters, how it interacts with reuse-first design) + `phenotype-absorption` (capture playbook — how to ingest a reference codebase into a new phenotype). |
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
