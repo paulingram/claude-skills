@@ -964,14 +964,54 @@ Backends that emit async states (loading / pending / processing / done / error /
 
 For each state in `wiring_mandate.async_states_expected[]`, the Playwright `ui_text_after_render` MUST contain a state-named element. Missing = `async-status-not-surfaced` severity.
 
+### Pattern propagation mandate (v2.7.0)
+
+When an agent fixes ONE mock-state instance under a `wiring_mandate`, it MUST sweep the codebase for the SAME shared source and fix ALL consumers in the same change — not announce one fix and offer the sweep as a follow-up. The follow-up offer is itself the bug this section closes.
+
+**Verbatim user prose driving the rule:**
+
+> "One honest caveat for later: the other client walkthrough screens (intake steps, review) read from the same one-time-seeded WtData copy, so they may show similarly stale data in live mode. I fixed the Workspace (what you reported) and noted the pattern; say the word if you want me to sweep the rest of the client app for the same gap. like its dumb that the agents are not actively like, hey its fake data and you said none so I will fix it all"
+
+**Canonical failure shape — the heirship walkthrough case:**
+
+- `Workspace.tsx` reads `useWalkthroughData()` → was originally seeded ONCE into a local `WtData` copy → workspace renders stale data
+- `IntakeSteps.tsx` reads the SAME `useWalkthroughData()` → same one-time seed, same staleness
+- `ReviewPanel.tsx` reads the SAME `useWalkthroughData()` → same one-time seed, same staleness
+- Agent fixes `Workspace.tsx` to refetch on focus, leaves `IntakeSteps.tsx` and `ReviewPanel.tsx` untouched, and announces the gap as "say the word if you want me to sweep"
+- The user said "no mock data" — that mandate covers EVERY consumer of the shared source. A partial fix is a discipline failure.
+
+**The mandate (non-negotiable):**
+
+1. **Trace the source.** When an agent finds a mock-state instance, it identifies WHAT the source is: a shared fixture import (`import { WtData } from '../fixtures/wt-data'`), a shared hook (`useWalkthroughData`), a shared seed function (`seedWtData`), a shared context value, a shared store slice.
+2. **Enumerate consumers.** Grep the codebase for ALL files that import or call the same source. The list is the consumer set.
+3. **Fix every consumer in the same change.** Every consumer in the enumerated set MUST land in the same diff. Partial fixes are forbidden.
+4. **Surface the sweep, never offer it.** The post-fix report names every consumer the sweep touched and the verification that each now reads live. The phrase *"say the word if you want me to sweep the rest"* is FORBIDDEN — the sweep happens automatically.
+
+**6th severity — `shared-mock-source-not-swept`** (added to `verify_live_data_wiring` in v2.7.0):
+
+- Triggers when `wiring_mandate.shared_mock_sources[]` (or the artifact's `codebase_scan.consumer_files{}` map) names a source S with N consumer files, AND the diff modified strictly fewer than N consumers, AND any unfixed consumer file still contains a mock-state signature referencing S.
+- Evidence carries the source identifier, the unfixed consumer file paths, and the verbatim signature line that survives.
+
+**3 canonical shared-source signatures:**
+
+| Signature class | Examples |
+|---|---|
+| **Shared fixture import** | `import { WtData } from '../fixtures/wt-data'` / `import seedData from './seed-data.json'` |
+| **Shared hook** | `useWalkthroughData()` / `useMockBackend()` / `useSeedData()` |
+| **Shared seed function** | `seedWtData()` / `bootstrapMockState()` / `initOneTimeSeed()` |
+
+When the `wiring_mandate` does NOT carry a `shared_mock_sources` field, the v2.7.0 detector is a no-op — backwards-compatible.
+
 ### Cross-references
 
-- `hooks/vao_tools.py::verify_live_data_wiring` — the deterministic Layer 3 tool (9th in the VAO module).
+- `hooks/vao_tools.py::verify_live_data_wiring` — the deterministic Layer 3 tool (9th in the VAO module; 6 severities in v2.7.0).
 - `hooks/vao_tools.py::_MOCK_STATE_SIGNATURES` — the canonical pattern list ≥ 12 entries.
 - `skills/interaction-completeness/SKILL.md` `## Live-data wiring axis (v2.6.0)` — the 3-reviewer swarm extension.
-- `agents/interaction-reviewer.md` `## Live-data wiring audit (v2.6.0)` — the per-reviewer audit protocol.
-- `tests/fixtures/vao/live-data-mock-residue.json` — the canonical positive case (verbatim heirship-app-v3).
-- `tests/test_vao_live_data_wiring.py` + `tests/test_live_data_wiring_discipline.py` — structural tests.
+- `agents/interaction-reviewer.md` `## Live-data wiring audit (v2.6.0)` — the per-reviewer audit protocol (extended in v2.7.0 with the sweep step).
+- `agents/frontend.md` `## Pattern propagation mandate (v2.7.0)` — the implementer-side discipline.
+- `tests/fixtures/vao/live-data-mock-residue.json` — v2.6.0 canonical case (verbatim heirship-app-v3).
+- `tests/fixtures/vao/shared-mock-source-not-swept.json` — v2.7.0 canonical case (walkthrough WtData partial sweep).
+- `tests/test_vao_live_data_wiring.py` + `tests/test_live_data_wiring_discipline.py` + `tests/test_pattern_propagation_discipline.py` — structural tests.
 - Companion to v2.0.0 `verify_no_fake_data` (catches NEW fake data) + v2.2.0 verified-live + v2.4.0 external-state + evidence-artifact disciplines.
 
 ## Where this skill plugs in

@@ -365,3 +365,167 @@ def test_mocks_path_excluded_from_mock_state_residue(vao_tools):
     v = vao_tools.verify_live_data_wiring(artifact, {"mandate_kind": "live-data-wiring"})
     severities = {g["severity"] for g in v["gaps"]}
     assert "mock-state-residue" not in severities
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.7.0 Pattern propagation — 6th severity shared-mock-source-not-swept
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def sweep_fixture_data(plugin_root: Path) -> dict:
+    path = plugin_root / "tests" / "fixtures" / "vao" / "shared-mock-source-not-swept.json"
+    return json.loads(path.read_text())
+
+
+def test_sweep_fixture_bad_fires_shared_mock_source_not_swept(vao_tools, sweep_fixture_data):
+    v = vao_tools.verify_live_data_wiring(
+        sweep_fixture_data["verification_artifact"],
+        sweep_fixture_data["wiring_mandate"],
+    )
+    assert v["valid"] is False
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "shared-mock-source-not-swept" in severities
+
+
+def test_sweep_fixture_corrected_passes(vao_tools, sweep_fixture_data):
+    v = vao_tools.verify_live_data_wiring(
+        sweep_fixture_data["_corrected_verification_artifact"],
+        sweep_fixture_data["wiring_mandate"],
+    )
+    assert v["valid"] is True
+    assert v["gaps"] == []
+
+
+def test_sweep_only_some_consumers_fires(vao_tools):
+    """1 of 3 consumers modified; 2 unfixed → fires."""
+    artifact = {
+        "diff_files": [{"path": "src/A.tsx", "added_lines": []}],
+        "touched_file_contents": {
+            "src/B.tsx": "import { SharedSrc } from '../state';",
+            "src/C.tsx": "const x = SharedSrc.get();",
+        },
+    }
+    mandate = {
+        "mandate_kind": "live-data-wiring",
+        "shared_mock_sources": [
+            {"name": "SharedSrc", "consumer_files": ["src/A.tsx", "src/B.tsx", "src/C.tsx"]},
+        ],
+    }
+    v = vao_tools.verify_live_data_wiring(artifact, mandate)
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "shared-mock-source-not-swept" in severities
+
+
+def test_sweep_all_consumers_modified_passes(vao_tools):
+    """All 3 of 3 consumers fixed → no severity fires."""
+    artifact = {
+        "diff_files": [
+            {"path": "src/A.tsx", "added_lines": []},
+            {"path": "src/B.tsx", "added_lines": []},
+            {"path": "src/C.tsx", "added_lines": []},
+        ],
+        "touched_file_contents": {
+            "src/A.tsx": "const x = useLive();",
+            "src/B.tsx": "const y = useLive();",
+            "src/C.tsx": "const z = useLive();",
+        },
+    }
+    mandate = {
+        "mandate_kind": "live-data-wiring",
+        "shared_mock_sources": [
+            {"name": "SharedSrc", "consumer_files": ["src/A.tsx", "src/B.tsx", "src/C.tsx"]},
+        ],
+    }
+    v = vao_tools.verify_live_data_wiring(artifact, mandate)
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "shared-mock-source-not-swept" not in severities
+
+
+def test_sweep_zero_consumers_modified_does_not_fire(vao_tools):
+    """0 of 3 consumers modified → v2.6.0 severities apply, not v2.7.0."""
+    artifact = {
+        "diff_files": [{"path": "unrelated.ts", "added_lines": []}],
+        "touched_file_contents": {
+            "src/A.tsx": "const x = SharedSrc.get();",
+            "src/B.tsx": "const y = SharedSrc.get();",
+            "src/C.tsx": "const z = SharedSrc.get();",
+        },
+    }
+    mandate = {
+        "mandate_kind": "live-data-wiring",
+        "shared_mock_sources": [
+            {"name": "SharedSrc", "consumer_files": ["src/A.tsx", "src/B.tsx", "src/C.tsx"]},
+        ],
+    }
+    v = vao_tools.verify_live_data_wiring(artifact, mandate)
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "shared-mock-source-not-swept" not in severities
+
+
+def test_sweep_no_shared_sources_field_is_noop(vao_tools):
+    """Mandate without shared_mock_sources → severity never fires (backwards-compat)."""
+    artifact = {
+        "diff_files": [{"path": "src/A.tsx", "added_lines": []}],
+        "touched_file_contents": {
+            "src/B.tsx": "import { SharedSrc } from '../state';",
+        },
+    }
+    mandate = {"mandate_kind": "live-data-wiring"}
+    v = vao_tools.verify_live_data_wiring(artifact, mandate)
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "shared-mock-source-not-swept" not in severities
+
+
+def test_sweep_codebase_scan_consumer_files_path(vao_tools):
+    """Source named via codebase_scan.consumer_files{} (input shape b)."""
+    artifact = {
+        "diff_files": [{"path": "src/A.tsx", "added_lines": []}],
+        "touched_file_contents": {
+            "src/B.tsx": "import { WtData } from '../fixtures/wt-data';",
+        },
+        "codebase_scan": {
+            "consumer_files": {
+                "WtData": ["src/A.tsx", "src/B.tsx"],
+            },
+        },
+    }
+    mandate = {"mandate_kind": "live-data-wiring"}
+    v = vao_tools.verify_live_data_wiring(artifact, mandate)
+    # Note: when only codebase_scan provides the source, has_mandate is true
+    # (mandate_kind is set) but the v2.7.0 detector still runs over codebase_scan.
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "shared-mock-source-not-swept" in severities
+
+
+def test_sweep_gap_carries_source_and_unfixed_consumer(vao_tools, sweep_fixture_data):
+    v = vao_tools.verify_live_data_wiring(
+        sweep_fixture_data["verification_artifact"],
+        sweep_fixture_data["wiring_mandate"],
+    )
+    shared = [g for g in v["gaps"] if g["severity"] == "shared-mock-source-not-swept"]
+    assert shared, "no shared-mock-source-not-swept findings"
+    for g in shared:
+        assert g.get("source"), f"missing source field: {g}"
+        assert g.get("unfixed_consumer"), f"missing unfixed_consumer field: {g}"
+        assert g.get("evidence"), f"missing evidence: {g}"
+
+
+def test_sweep_severity_appears_at_least_twice_for_two_unfixed(vao_tools):
+    """3 consumers, 1 fixed, 2 unfixed → at least 2 findings."""
+    artifact = {
+        "diff_files": [{"path": "src/A.tsx", "added_lines": []}],
+        "touched_file_contents": {
+            "src/B.tsx": "import { S } from '../state';",
+            "src/C.tsx": "const x = S.get();",
+        },
+    }
+    mandate = {
+        "mandate_kind": "live-data-wiring",
+        "shared_mock_sources": [
+            {"name": "S", "consumer_files": ["src/A.tsx", "src/B.tsx", "src/C.tsx"]},
+        ],
+    }
+    v = vao_tools.verify_live_data_wiring(artifact, mandate)
+    shared = [g for g in v["gaps"] if g["severity"] == "shared-mock-source-not-swept"]
+    assert len(shared) >= 2

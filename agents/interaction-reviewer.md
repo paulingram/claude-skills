@@ -160,6 +160,22 @@ Round 2 convergence merges all three `live_data_wiring_findings` blocks the same
 
 When the slice carries NO `wiring_mandate`, skip this audit entirely — it is conditional on the mandate.
 
+### Pattern propagation sweep (v2.7.0)
+
+After your v2.6.0 audit finds any mock-state instance, you run an **additional sweep step** to check whether the source of that mock instance is shared by other components that were NOT fixed. The v2.7.0 6th severity `shared-mock-source-not-swept` fires when the diff fixed some consumers of a shared source but left others.
+
+Per-reviewer sweep protocol:
+
+1. **Identify the shared source** of any mock signature you found — a fixture import (`import { WtData } from '../fixtures/wt-data'`), a hook (`useWalkthroughData`), a seed function (`seedWtData`), a context value, a store slice.
+2. **Enumerate consumers across the codebase.** Use `rg "<source-name>"` from the workspace root to enumerate every file that imports or calls the source. The list is the consumer set for that source.
+3. **Compare against the diff.** For each consumer file, check whether the diff modified it. If at least ONE consumer was modified but others were not, the unmodified consumers are unfixed.
+4. **Confirm the unfixed consumers still reference the source.** Read the file's current state; if the import / hook call / seed call still survives, the consumer is unfixed AND the source still lives there.
+5. **Emit a `shared-mock-source-not-swept` finding** for each unfixed consumer, naming the source + the unfixed file path.
+
+The finding goes into the same `live_data_wiring_findings` Round-1 block as the v2.6.0 severities; Round-2 convergence handles it the same way; a converged finding becomes a `live-data-wiring-gap` SR. The SR's acceptance criteria are explicit: every consumer of the named shared source is fixed in the same change — NOT a follow-up.
+
+The 6th severity is in scope ONLY when the slice's `wiring_mandate` carries a `shared_mock_sources` field OR the verification artifact's `codebase_scan.consumer_files{}` map is populated. Absent both, the sweep is a no-op.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** You may Read / Glob / Grep / LS / Bash / NotebookRead the codebase, and Write only your own draft (and, if you are reviewer 1, the converged map and the SRs). You may NOT Edit or Write any source file.

@@ -1595,21 +1595,127 @@ def _detect_async_status_not_surfaced(
     return gaps
 
 
+def _detect_shared_mock_source_not_swept(
+    wiring_mandate: dict[str, Any],
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """v2.7.0 — when a wiring_mandate names a shared_mock_source (e.g.,
+    'WtData' / 'useWalkthroughData' / 'seedWtData') with N known consumer
+    files, the diff MUST modify every consumer. If the diff modified only
+    some AND any unmodified consumer still imports/calls the source,
+    fires shared-mock-source-not-swept.
+
+    Two input shapes are supported:
+      (a) wiring_mandate.shared_mock_sources[] = [
+            {"name": "WtData", "consumer_files": ["src/Workspace.tsx",
+             "src/IntakeSteps.tsx", "src/ReviewPanel.tsx"]},
+            ...
+          ]
+      (b) verification_artifact.codebase_scan.consumer_files = {
+            "WtData": ["src/Workspace.tsx", "src/IntakeSteps.tsx", ...],
+            ...
+          }
+    Detection uses the union of (a) and (b).
+    """
+    sources_from_mandate = wiring_mandate.get("shared_mock_sources") or []
+    codebase_scan = verification_artifact.get("codebase_scan") or {}
+    consumer_files_scan = codebase_scan.get("consumer_files") or {}
+    diff_files = verification_artifact.get("diff_files") or []
+    touched = verification_artifact.get("touched_file_contents") or {}
+
+    # Files the diff modified (path strings).
+    modified_paths: set[str] = set()
+    for df in diff_files:
+        if isinstance(df, dict) and isinstance(df.get("path"), str):
+            modified_paths.add(df["path"])
+
+    # Normalize sources_from_mandate (list of dict or list of str).
+    sources: dict[str, list[str]] = {}
+    for src in sources_from_mandate:
+        if isinstance(src, dict):
+            name = src.get("name")
+            files = src.get("consumer_files") or []
+            if isinstance(name, str) and name and isinstance(files, list):
+                sources[name] = [f for f in files if isinstance(f, str)]
+        elif isinstance(src, str) and src:
+            sources.setdefault(src, [])
+    for name, files in consumer_files_scan.items():
+        if isinstance(name, str) and name and isinstance(files, list):
+            existing = sources.get(name, [])
+            merged = list(dict.fromkeys(existing + [f for f in files if isinstance(f, str)]))
+            sources[name] = merged
+
+    if not sources:
+        return []
+
+    gaps: list[dict[str, Any]] = []
+    for source_name, consumer_files in sources.items():
+        if not consumer_files:
+            continue
+        unfixed = [f for f in consumer_files if f not in modified_paths]
+        # If every consumer was modified, the sweep is complete.
+        if not unfixed:
+            continue
+        # If the diff didn't touch ANY consumer, the v2.6.0 detectors handle
+        # it (mock-state-residue + network-not-intercepted). v2.7.0 fires
+        # only when SOME consumers were fixed and OTHERS were left.
+        fixed_count = len(consumer_files) - len(unfixed)
+        if fixed_count == 0:
+            continue
+        # Confirm each unfixed file still references the source (either
+        # via signature substring in touched contents, or — when contents
+        # are not provided — by being explicitly named in codebase_scan).
+        scan_unfixed = codebase_scan.get("unfixed_consumer_files") or []
+        for unfixed_path in unfixed:
+            content = touched.get(unfixed_path, "")
+            still_uses_source = (
+                (source_name in content) if isinstance(content, str) else False
+            ) or (unfixed_path in scan_unfixed)
+            # When the scan explicitly enumerates this consumer but we have
+            # no content, treat the explicit enumeration as evidence the
+            # source still survives (the scan ran codebase-wide grep).
+            if not still_uses_source and not content and unfixed_path in consumer_files:
+                still_uses_source = True
+            if still_uses_source:
+                gaps.append({
+                    "severity": "shared-mock-source-not-swept",
+                    "source": source_name,
+                    "unfixed_consumer": unfixed_path,
+                    "evidence": (
+                        f"wiring_mandate.shared_mock_sources names {source_name!r} with "
+                        f"{len(consumer_files)} consumer files; the diff fixed "
+                        f"{fixed_count}/{len(consumer_files)} consumers but left "
+                        f"{unfixed_path!r} unmodified while it still references the source."
+                    ),
+                    "remediation": (
+                        "v2.7.0 Pattern propagation mandate. When a wiring_mandate names a "
+                        "shared mock source, every consumer of that source MUST be fixed in "
+                        "the same change. Sweep all consumers; do NOT offer the sweep as a "
+                        "follow-up. The phrase 'say the word if you want me to sweep the rest' "
+                        "is the discipline failure this severity catches."
+                    ),
+                })
+    return gaps
+
+
 def verify_live_data_wiring(
     verification_artifact: dict[str, Any] | None = None,
     wiring_mandate: dict[str, Any] | None = None,
     out_path: Path | str | None = None,
 ) -> dict[str, Any]:
-    """v2.6.0 Layer-3 tool — verify the agent removed mock state when the
-    requirement mandated live data wiring.
+    """v2.6.0 + v2.7.0 Layer-3 tool — verify the agent removed mock state
+    when the requirement mandated live data wiring AND swept every consumer
+    of any shared mock source named by the mandate.
 
-    Checks the verification artifact against the 5 named severities:
+    Checks the verification artifact against the 6 named severities:
       1. mock-state-residue — MSW / Mirage / faker / fixture / mock-flag
          signatures still present in production code paths
       2. live-response-not-rendered — UI doesn't show captured network value
       3. mock-fallback-uncovered — ?? mockValue / || MOCK_DEFAULT patterns
       4. network-not-intercepted — mandated endpoint never fetched
       5. async-status-not-surfaced — async state never rendered in UI
+      6. shared-mock-source-not-swept — diff fixed some consumers of a
+         named shared mock source but left others (v2.7.0)
 
     Args:
       verification_artifact: dict with diff_files[], touched_file_contents{},
@@ -1641,6 +1747,7 @@ def verify_live_data_wiring(
         mandate.get("mandate_kind")
         or mandate.get("endpoints")
         or mandate.get("async_states_expected")
+        or mandate.get("shared_mock_sources")
     )
     if not has_mandate:
         verdict = {
@@ -1660,6 +1767,7 @@ def verify_live_data_wiring(
     gaps += _detect_live_response_not_rendered(playwright_summary)
     gaps += _detect_network_not_intercepted(mandate, playwright_summary)
     gaps += _detect_async_status_not_surfaced(mandate, playwright_summary)
+    gaps += _detect_shared_mock_source_not_swept(mandate, artifact)
 
     verdict = {
         "tool": "verify-live-data-wiring",

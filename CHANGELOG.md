@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0] — 2026-06-01 — Pattern propagation mandate
+
+**ADDITIVE — backwards-compatible.** Extends v2.6.0's Live-data wiring discipline with a 6th severity and a new agent-side mandate. Schema v7 unchanged. v2.6.0 fixtures + behavior continue to validate; runs without `wiring_mandate.shared_mock_sources[]` are a no-op for the new severity.
+
+### The failure shape this closes (verbatim from the user)
+
+> "One honest caveat for later: the other client walkthrough screens (intake steps, review) read from the same one-time-seeded WtData copy, so they may show similarly stale data in live mode. I fixed the Workspace (what you reported) and noted the pattern; say the word if you want me to sweep the rest of the client app for the same gap. like its dumb that the agents are not actively like, hey its fake data and you said none so I will fix it all"
+
+The frontend agent, working under a v2.6.0 `wiring_mandate`, found mock state in `Workspace.tsx`, fixed it, noted the same pattern existed in `IntakeSteps.tsx` and `ReviewPanel.tsx` (both reading from the same one-time-seeded `WtData` copy via the same `useWalkthroughData` hook), and **offered the sweep as a follow-up** rather than executing it. The user's mandate ("no mock data") covered every consumer of the shared source. A partial fix was a partial honor of the mandate.
+
+### What v2.7.0 ships
+
+1. **NEW `### Pattern propagation mandate (v2.7.0)` sub-section** in the existing canonical `## Live-data wiring discipline (v2.6.0)` section of `skills/common-pipeline-conventions/SKILL.md`. Names the rule, the verbatim user prose, the 3 canonical shared-source signature classes (shared fixture import / shared hook / shared seed function), the 3-step sweep protocol (trace → enumerate → fix), and the explicit forbiddance of the *"say the word if you want me to sweep"* phrasing.
+
+2. **6th severity in `verify_live_data_wiring`** — `shared-mock-source-not-swept`. Fires when the wiring_mandate names a `shared_mock_sources[]` entry with N consumer files AND the diff modified strictly fewer than N consumers AND any unfixed consumer still references the source. Two input shapes supported: `wiring_mandate.shared_mock_sources[].consumer_files` (mandate-driven) and `verification_artifact.codebase_scan.consumer_files{}` (scan-driven). Each gap carries `source` + `unfixed_consumer` fields.
+
+3. **NEW `## Pattern propagation mandate (v2.7.0)` section** in `agents/frontend.md`. The implementer-side discipline: when fixing one mock-state instance under a `wiring_mandate`, sweep the codebase for the same source and fix ALL consumers in the same change. Forbidden phrase: *"say the word if you want me to sweep"*.
+
+4. **EXTENDED `## Live-data wiring audit (v2.6.0)`** in `agents/interaction-reviewer.md` with a `### Pattern propagation sweep (v2.7.0)` sub-section documenting the 5-step audit protocol (identify shared source → enumerate consumers → compare against diff → confirm unfixed still reference source → emit `shared-mock-source-not-swept` finding).
+
+5. **NEW canonical fixture** `tests/fixtures/vao/shared-mock-source-not-swept.json` reproducing the verbatim heirship walkthrough case (Workspace.tsx fixed to use `useQuery`; IntakeSteps.tsx + ReviewPanel.tsx still call `useWalkthroughData()` and read the stale `WtData` copy; UI shows mixed live + stale data). The bad version fires `shared-mock-source-not-swept` × 4 (2 sources × 2 unfixed consumers); the `_corrected_verification_artifact` passes cleanly with all 3 consumers swept.
+
+6. **+26 new tests** — 9 in `tests/test_vao_live_data_wiring.py` (extending the v2.6.0 suite with sweep-severity coverage) and 17 in `tests/test_pattern_propagation_discipline.py` (canonical sub-section + agent extensions + fixture round-trip + cross-references). 2557 → 2583 passing; zero regressions.
+
+### Why v2.6.0 alone didn't catch it
+
+v2.6.0's 5 severities catch the per-component case: mock state survives, fallback uncovered, network never intercepted, response not rendered, async state never surfaced. But each is local — they look at ONE consumer at a time. The cross-component case ("agent fixed one consumer, left siblings unfixed") was a gap.
+
+v2.7.0's 6th severity asks: *"given the requirement said no mock data, did the agent sweep every consumer of the shared source — or just the one reported?"*
+
+### Backwards compatibility
+
+- Runs without `wiring_mandate.shared_mock_sources[]` AND without `codebase_scan.consumer_files{}`: the 6th severity is a no-op.
+- v2.6.0 fixture `live-data-mock-residue.json`: bad version still fires the same 4 v2.6.0 severities; corrected version still passes.
+- Schema v7 unchanged.
+
 ## [2.6.0] — 2026-06-01 — Live-data wiring discipline
 
 **ADDITIVE — backwards-compatible.** Schema v7 unchanged (the `live_verification_review` optional field added in v2.2.0 absorbs the new tool's verdict). 9th Layer 3 tool added; no existing tool's contract changes; runs without a `wiring_mandate` annotation are a no-op (`valid: True, gaps: []`).

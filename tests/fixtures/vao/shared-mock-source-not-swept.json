@@ -1,0 +1,143 @@
+{
+  "_meta": {
+    "fixture_name": "shared-mock-source-not-swept",
+    "failure_shape": "v2.7.0 Pattern propagation — failure mode: agent finds ONE mock-state instance under a wiring_mandate, fixes the reported component, leaves the OTHER consumers of the same shared source (here, a one-time-seeded WtData copy via useWalkthroughData) unmodified, and offers the sweep as a follow-up ('say the word'). The unfixed consumers continue to render stale data.",
+    "originating_failure": "heirship walkthrough transcript: 'One honest caveat for later: the other client walkthrough screens (intake steps, review) read from the same one-time-seeded WtData copy, so they may show similarly stale data in live mode. I fixed the Workspace (what you reported) and noted the pattern; say the word if you want me to sweep the rest of the client app for the same gap. like its dumb that the agents are not actively like, hey its fake data and you said none so I will fix it all'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-live-data-wiring",
+    "expected_severity": "shared-mock-source-not-swept"
+  },
+  "wiring_mandate": {
+    "mandate_kind": "live-data-wiring",
+    "mandate_phrase": "no mock data — wire the walkthrough to live data",
+    "endpoints": [
+      "/api/walkthrough/{matter_id}"
+    ],
+    "async_states_expected": [
+      "loading",
+      "done"
+    ],
+    "shared_mock_sources": [
+      {
+        "name": "WtData",
+        "consumer_files": [
+          "src/walkthrough/Workspace.tsx",
+          "src/walkthrough/IntakeSteps.tsx",
+          "src/walkthrough/ReviewPanel.tsx"
+        ]
+      },
+      {
+        "name": "useWalkthroughData",
+        "consumer_files": [
+          "src/walkthrough/Workspace.tsx",
+          "src/walkthrough/IntakeSteps.tsx",
+          "src/walkthrough/ReviewPanel.tsx"
+        ]
+      }
+    ]
+  },
+  "verification_artifact": {
+    "feature_kind": "frontend-wiring",
+    "target_url": "https://heirship-app-v3.example.com/walkthrough/abc-123",
+    "diff_files": [
+      {
+        "path": "src/walkthrough/Workspace.tsx",
+        "added_lines": [
+          "import { useQuery } from '@tanstack/react-query';",
+          "const { data: walkthrough } = useQuery(['walkthrough', matterId], () => api.walkthrough.get(matterId), { refetchOnWindowFocus: true });",
+          "return <WorkspaceLayout data={walkthrough} />;"
+        ]
+      }
+    ],
+    "touched_file_contents": {
+      "src/walkthrough/Workspace.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function Workspace({ matterId }: Props) {\n  const { data: walkthrough } = useQuery(['walkthrough', matterId], () => api.walkthrough.get(matterId), { refetchOnWindowFocus: true });\n  return <WorkspaceLayout data={walkthrough} />;\n}",
+      "src/walkthrough/IntakeSteps.tsx": "import { useWalkthroughData } from '../state/walkthrough';\n\nexport function IntakeSteps() {\n  const { WtData } = useWalkthroughData();\n  return <StepList steps={WtData.intake} />;\n}",
+      "src/walkthrough/ReviewPanel.tsx": "import { useWalkthroughData } from '../state/walkthrough';\n\nexport function ReviewPanel() {\n  const { WtData } = useWalkthroughData();\n  return <ReviewView review={WtData.review} />;\n}"
+    },
+    "codebase_scan": {
+      "consumer_files": {
+        "WtData": [
+          "src/walkthrough/Workspace.tsx",
+          "src/walkthrough/IntakeSteps.tsx",
+          "src/walkthrough/ReviewPanel.tsx"
+        ],
+        "useWalkthroughData": [
+          "src/walkthrough/Workspace.tsx",
+          "src/walkthrough/IntakeSteps.tsx",
+          "src/walkthrough/ReviewPanel.tsx"
+        ]
+      },
+      "unfixed_consumer_files": [
+        "src/walkthrough/IntakeSteps.tsx",
+        "src/walkthrough/ReviewPanel.tsx"
+      ]
+    },
+    "playwright_trace_summary": {
+      "captured_network_requests": [
+        {"url": "/api/walkthrough/abc-123", "response_body": {"matter_title": "Estate of Jane Doe"}}
+      ],
+      "ui_text_after_render": "Workspace · Estate of Jane Doe · loading · done · Intake steps (stale) · Review (stale)",
+      "tamper_test_run": true,
+      "tamper_test_dom_changed": false
+    }
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-live-data-wiring",
+    "valid": false,
+    "expected_severities": ["shared-mock-source-not-swept"],
+    "expected_unfixed_consumer_substring": "IntakeSteps.tsx"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "what a correct sweep looks like — all 3 consumers of WtData / useWalkthroughData fixed in the same change",
+    "feature_kind": "frontend-wiring",
+    "target_url": "https://heirship-app-v3.example.com/walkthrough/abc-123",
+    "diff_files": [
+      {
+        "path": "src/walkthrough/Workspace.tsx",
+        "added_lines": [
+          "const { data: walkthrough } = useQuery(['walkthrough', matterId], () => api.walkthrough.get(matterId));"
+        ]
+      },
+      {
+        "path": "src/walkthrough/IntakeSteps.tsx",
+        "added_lines": [
+          "const { data: intake } = useQuery(['intake', matterId], () => api.walkthrough.intake(matterId));"
+        ]
+      },
+      {
+        "path": "src/walkthrough/ReviewPanel.tsx",
+        "added_lines": [
+          "const { data: review } = useQuery(['review', matterId], () => api.walkthrough.review(matterId));"
+        ]
+      }
+    ],
+    "touched_file_contents": {
+      "src/walkthrough/Workspace.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function Workspace({ matterId }: Props) {\n  const { data: walkthrough } = useQuery(['walkthrough', matterId], () => api.walkthrough.get(matterId));\n  return <WorkspaceLayout data={walkthrough} />;\n}",
+      "src/walkthrough/IntakeSteps.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function IntakeSteps({ matterId }: Props) {\n  const { data: intake } = useQuery(['intake', matterId], () => api.walkthrough.intake(matterId));\n  return <StepList steps={intake?.steps ?? []} />;\n}",
+      "src/walkthrough/ReviewPanel.tsx": "import { useQuery } from '@tanstack/react-query';\nimport { api } from '../api/client';\n\nexport function ReviewPanel({ matterId }: Props) {\n  const { data: review } = useQuery(['review', matterId], () => api.walkthrough.review(matterId));\n  return <ReviewView review={review} />;\n}"
+    },
+    "codebase_scan": {
+      "consumer_files": {
+        "WtData": [
+          "src/walkthrough/Workspace.tsx",
+          "src/walkthrough/IntakeSteps.tsx",
+          "src/walkthrough/ReviewPanel.tsx"
+        ],
+        "useWalkthroughData": [
+          "src/walkthrough/Workspace.tsx",
+          "src/walkthrough/IntakeSteps.tsx",
+          "src/walkthrough/ReviewPanel.tsx"
+        ]
+      },
+      "unfixed_consumer_files": []
+    },
+    "playwright_trace_summary": {
+      "captured_network_requests": [
+        {"url": "/api/walkthrough/abc-123", "response_body": {"matter_title": "Estate of Jane Doe"}}
+      ],
+      "ui_text_after_render": "Workspace · Estate of Jane Doe · loading · done · Intake steps (live) · Review (live)",
+      "tamper_test_run": true,
+      "tamper_test_dom_changed": true
+    }
+  }
+}

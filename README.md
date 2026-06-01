@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 6 . 0
+                        ─── C T 6 ───   v 2 . 7 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.6.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.7.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2559%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2583%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,17 +67,23 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.6.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.7.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **Live-data wiring discipline** | When the requirement carries parity-implying language (*"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"*), the orchestrator annotates the slice with a `wiring_mandate` and the 3 `interaction-reviewer` agents extend their Round-1 mandate with a 2-pass audit: (1) Playwright pass — capture every mandated endpoint's network request + response, assert the rendered DOM contains the response value, run a tamper test; (2) Code-side audit — grep the diff + touched files for the 32-entry `_MOCK_STATE_SIGNATURES` constant (MSW imports, Mirage, faker, fixture imports, mock flags like `VITE_USE_MOCK`, fallback patterns like `?? mockData`). Each gap is one of 5 named severities: `mock-state-residue` / `live-response-not-rendered` / `mock-fallback-uncovered` / `network-not-intercepted` / `async-status-not-surfaced`. |
-| **9th Layer 3 tool — `verify_live_data_wiring`** | NEW deterministic verification function + `verify-live-data-wiring` CLI subcommand in `hooks/vao_tools.py`. Consumes the convergence report's union of findings; verdict feeds the existing v2.2.0 `live_verification_review` schema-v7 optional field. Trivially passes (`valid: True, gaps: []`) when no `wiring_mandate` — fully backwards-compatible. |
-| **NO new agent — swarm extension** | The existing v0.9.19 3-reviewer `interaction-completeness` convergence protocol is UNCHANGED in shape. Each reviewer's mandate is extended; the same 3 parallel reviewers + Round-2 round-robin + Round-3 system-architect robustness review now also reason across `live_data_wiring_findings`. A converged finding becomes a `live-data-wiring-gap` solution requirement the existing fix loop acts on. |
-| **Closes a real heirship-app-v3 failure** | The backend extracted 71 facts + 13 persons via real LLM pipeline; the frontend slice applied the new UI but left pre-existing mock state in DocumentsPane / FactsSidebar / PersonsSidebar (fixture imports + `?? mockData` fallbacks + `VITE_USE_MOCK` flag + MSW handler). Pre-v2.6.0: every existing layer was satisfied (controls were wired — to the mock layer; pages were live — rendering mock data; no fake data ADDED — it was pre-existing). v2.6.0 is the first layer that asks *"given the requirement said REMOVE mocks, is the mock layer actually gone?"* |
-| **Backwards-compatible** | Schema v7 unchanged; runs without a `wiring_mandate` are a no-op; 8 existing Layer 3 tools' contracts unchanged. +45 net tests (2514 → 2559); zero regressions. |
+| **Pattern propagation mandate** | When an agent fixes ONE mock-state instance under a `wiring_mandate`, it MUST sweep the codebase for the SAME shared source and fix ALL consumers in the same change — not announce one fix and offer the sweep as a follow-up. The follow-up offer (*"say the word if you want me to sweep the rest"*) is itself the discipline failure this section catches. 3 canonical shared-source signatures: shared fixture import / shared hook / shared seed function. 3-step sweep protocol: trace the source → enumerate all consumers → fix every consumer in this change. |
+| **6th severity — `shared-mock-source-not-swept`** | Added to `verify_live_data_wiring`. Fires when `wiring_mandate.shared_mock_sources[]` names a source with N consumer files AND the diff modified strictly fewer than N consumers AND any unfixed consumer still references the source. Two input shapes: mandate-driven (`shared_mock_sources[].consumer_files`) and scan-driven (`verification_artifact.codebase_scan.consumer_files{}`). Each gap carries `source` + `unfixed_consumer` for unambiguous remediation. |
+| **Implementer + reviewer extensions** | `agents/frontend.md` gains a `## Pattern propagation mandate (v2.7.0)` section: when fixing one mock instance under a mandate, sweep all consumers in THIS change. `agents/interaction-reviewer.md` extends its v2.6.0 audit with a 5-step sweep protocol (identify → enumerate → compare → confirm → emit). |
+| **Closes the verbatim heirship walkthrough failure** | Workspace.tsx fixed to use live data; IntakeSteps.tsx + ReviewPanel.tsx still call the same `useWalkthroughData()` hook reading the same one-time-seeded `WtData` copy; UI shows mixed live + stale data; agent offered the sweep as a follow-up. v2.7.0's 6th severity catches this verbatim. |
+| **Backwards-compatible** | Schema v7 unchanged; v2.6.0 fixtures continue to validate; runs without `shared_mock_sources[]` AND without `codebase_scan.consumer_files{}` are a no-op for the new severity. +26 net tests (2557 → 2583); zero regressions. |
+
+### Carried forward from v2.6.0 — live-data wiring discipline
+
+| Capability | What it does |
+|---|---|
+| **5 severities + 2-pass workflow** | The 9th Layer 3 tool `verify_live_data_wiring` enforces `mock-state-residue` / `live-response-not-rendered` / `mock-fallback-uncovered` / `network-not-intercepted` / `async-status-not-surfaced` via Playwright + tamper test + code-side audit. The 3-reviewer `interaction-completeness` swarm extension audits each slice carrying a `wiring_mandate`. |
 
 ### Carried forward from v2.5.0 — in-flight clarification discipline
 

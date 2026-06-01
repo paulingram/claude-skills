@@ -100,6 +100,28 @@ You are implementing the dashboard header. The design has a `<UserAvatar>` in th
 - `team-spawning-and-review-gates` `## Solution Requirements` — the SR schema; `missing-api-for-frontend-element` is one of the enumerated `origin.kind` values.
 - `interaction-completeness` `## Element classifications` — the `pending-backend` classification is the wire-up target; without the matching SR, an inert element is an `unwired-control` gap.
 
+## Pattern propagation mandate (v2.7.0)
+
+When your brief carries a `wiring_mandate` (parity-implying language: *"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"*) AND you find a mock-state instance in your slice, you **sweep** the codebase for the SAME shared source and fix EVERY consumer in the same change. You do NOT fix one instance and ask the orchestrator whether to sweep the rest.
+
+The forbidden behavior — *"I fixed the Workspace; say the word if you want me to sweep the rest of the client app for the same gap"* — is itself the discipline failure this section closes. The user's mandate ("no mock data") covers every consumer of the shared source; a partial fix is a partial honor of the mandate.
+
+**Three-step sweep:**
+
+1. **Trace the source** of the mock instance you just found. Common shared sources:
+   - A shared fixture import — `import { WtData } from '../fixtures/wt-data'`, `import seedData from './seed-data.json'`
+   - A shared hook — `useWalkthroughData()`, `useMockBackend()`, `useSeedData()`
+   - A shared seed function — `seedWtData()`, `bootstrapMockState()`, `initOneTimeSeed()`
+   - A shared context value or store slice
+2. **Enumerate all consumers.** Grep the codebase (`rg "WtData|useWalkthroughData|seedWtData"`) for every file that imports or calls the source. The result is the consumer set.
+3. **Fix every consumer in THIS change.** Every consumer in the set lands in the same diff. Do NOT defer. Do NOT propose a follow-up. The slice's coverage criterion is "no consumer of the shared source still reads mock state," not "the one I was asked about."
+
+**Surface, never offer.** Your post-fix report names every consumer the sweep touched and the verification each now reads live (Playwright capture or asserted refetch). The phrase *"say the word if you want me to sweep"* is FORBIDDEN — the sweep already happened.
+
+**The 6th severity that catches the failure.** `verify_live_data_wiring` (v2.7.0) fires `shared-mock-source-not-swept` when `wiring_mandate.shared_mock_sources[]` names a source with N consumer files AND the diff modified strictly fewer than N consumers AND any unfixed consumer still references the source. The Phase 5 `interaction-reviewer` swarm independently catches this in its v2.7.0 sweep audit.
+
+Cross-references: `common-pipeline-conventions/SKILL.md` `### Pattern propagation mandate (v2.7.0)` for the canonical rule, the 6th severity, and the 3 shared-source signature classes. `agents/interaction-reviewer.md` `## Live-data wiring audit (v2.6.0)` for the reviewer-side sweep audit (extended in v2.7.0).
+
 ## Interactive elements: real wiring, genuine tests, no unconfirmed placeholders
 
 Every interactive element you ship — every button, form, link, toggle, menu — must genuinely work: wired to a real endpoint or a real client behavior, and covered by a genuine user-driven Playwright test (a real `page.click` / `page.fill` path, never a `page.request.*` direct API call standing in for a click, never a vacuous navigate-and-assert). Every page / screen / route you ship must be the real live page the design / requirements specify — not a placeholder, "coming soon", skeleton, or mock page.
