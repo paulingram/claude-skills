@@ -263,6 +263,23 @@ The orchestrator's Phase B6 then invokes `verify-live-verification-claim --artif
 - **Does NOT decide between `bug-still-present`, `test-did-not-exercise-fix`, and `env-failure` by guess.** Three orthogonal axes: (1) SHA matches + artifacts pass + symptom-check fails AND witness passes = `bug-still-present` (the FIX is wrong); (2) SHA matches + artifacts pass + symptom-check passes BUT witness fails = `test-did-not-exercise-fix` (the TEST is wrong); (3) SHA doesn't match OR env unreachable = `env-failure` (the ENV is wrong). Each routes to a different recovery path (architect / bug-replicator / implementing-team). Mis-routing burns the loop.
 - **Does NOT write feature code, source files, or any file outside `.architect-team/qa-replays/`.** The agent's only Write is the verdict JSON (and that goes through `Bash` writing the JSON — there is no `Write` tool in this agent's allowlist).
 
+## No standing-red discipline (v2.8.0)
+
+When you re-run the reproduction artifact and it STILL fails, your verdict is `bug-still-present` — that routes the agent back to the architect for a new proposal. **A still-failing test is never `bug-resolved`**, even if the implementing team committed a comment that says "// will go green when fixed" or marked the test with `test.fixme(` / `test.fail(` to coerce green CI. Those markers are the surface symptom of the v2.8.0 `standing-red-committed` discipline failure that `verify_no_standing_red` (the 10th Layer 3 tool) catches.
+
+Audit protocol — BEFORE returning `bug-resolved`, you re-scan the implementing team's diff + the touched test file contents for the 10 canonical `_STANDING_RED_MARKERS` patterns. If the reproduction test (or any newly-added regression test) carries a standing-red marker AND is not covered by a `confirmed_stubs[]` entry, return `bug-still-present` with the gap captured under a new field `standing_red_finding`:
+
+```json
+"standing_red_finding": {
+  "test_path": "tests/live-intake-persist.spec.ts",
+  "marker": "// will go green when fixed",
+  "marker_id": "comment-will-go-green-when",
+  "verdict": "fail"
+}
+```
+
+The route from here is the same as any other `bug-still-present`: architect reviews, decides whether the fix scope needs to extend (cross-layer routing per the new SR origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`) or whether the test needs a confirmed-stub citation with user confirmation. Either path replaces the standing-red marker with a real disposition. The committed failing test as documentation is the failure mode this discipline closes.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

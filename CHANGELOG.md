@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0] — 2026-06-01 — No standing-red discipline
+
+**ADDITIVE — backwards-compatible.** Schema v7 unchanged. 10th Layer 3 tool added; no existing tool's contract changes; pre-v2.8.0 artifacts (without `cross_layer_diagnosis` and without standing-red markers in test files) validate unchanged.
+
+### The failure shape this closes (verbatim from the user)
+
+> "One bug NOT fixed — B23 (firm dashboards reflect intake): confirmed real + diagnosed, but it's a backend gap, not frontend. The client's submitted spouse/child don't surface in the §25 aggregate the TA/attorney read. I proved the frontend is correct (FinalReview fires the family-graph flush; the planner builds the spouse/child persons + relationships), so the gap is in executeFamilyGraphSync → backend v3 person/relationship → Neo4j → aggregate — plausibly entangled with this session's Neo4j migration. I committed a standing red regression test (live-intake-persist.spec.ts) that documents the exact gap and will go green when it's fixed"
+
+The agent's diagnostic work was correct (frontend localized clean; backend Neo4j path named). The right action was to route a `cross-layer-backend-required` solution requirement so the backend team fixed the aggregate in the same run. Instead the agent committed the failing test as documentation of the gap with comments like `// will go green when it's fixed`, declared victory on the rest of the run, and shipped visible red CI as "we know it's broken." That's exactly what CI is supposed to forbid.
+
+### What v2.8.0 ships
+
+1. **NEW canonical `## No standing-red discipline (v2.8.0)` section** in `skills/common-pipeline-conventions/SKILL.md`. Names the rule, the verbatim B23 prose, the 10 canonical `_STANDING_RED_MARKERS` patterns (10-marker table), the 2 named severities, the cross-layer routing rule (use SR origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`), the confirmed-stub carve-out, and the forbidden user-facing phrases.
+
+2. **NEW 10th Layer 3 tool — `verify_no_standing_red`** in `hooks/vao_tools.py`. Deterministic verification function + `verify-no-standing-red` CLI subcommand. Module constant `_STANDING_RED_MARKERS` (16+ patterns covering comment phrases + `test.fixme(` / `it.fixme(` / `test.fail(` / `it.fail(` / `@pytest.mark.xfail`). Module constant `_CROSS_LAYER_SR_ORIGIN_KINDS` (the 2 canonical SR kinds). 2 named severities:
+
+   | Severity | Trigger |
+   |---|---|
+   | `standing-red-committed` | Newly-added test file contains a standing-red marker AND is not covered by a `confirmed_stubs[]` entry |
+   | `cross-layer-fix-not-routed` | `cross_layer_diagnosis` names an unfixed layer AND a standing-red test was committed AND no SR with cross-layer-* origin kind was created |
+
+   Trivially passes when no standing-red markers AND no `cross_layer_diagnosis` — fully backwards-compatible.
+
+3. **EXTENDED 4 agent bodies** with `## No standing-red discipline (v2.8.0)` sections:
+   - `agents/bug-replicator.md` — when authoring repro tests, never apply standing-red markers; return new `needs-cross-layer-fix` verdict for cross-layer cases.
+   - `agents/qa-replayer.md` — `## Verification-Claim Audit (v2.2.0)` companion: re-scan for standing-red markers; a still-failing test with a marker is `bug-still-present` with a new `standing_red_finding` field.
+   - `agents/frontend.md` — cross-layer bugs route via `cross-layer-backend-required` SR; the committed test is the SR's acceptance criterion, NOT the SR itself.
+   - `agents/backend.md` — symmetric: cross-layer bugs route via `cross-layer-frontend-required` SR.
+
+4. **NEW canonical fixture** `tests/fixtures/vao/standing-red-cross-layer-bug.json` reproducing the verbatim B23 case (Playwright spec for the §25 aggregate that should surface spouse + child; standing-red comments naming the executeFamilyGraphSync → Neo4j gap; `cross_layer_diagnosis.unfixed_layer = "backend"`; no SR created). Bad version fires `standing-red-committed` × 3 (3 marker patterns matched) + `cross-layer-fix-not-routed` × 1. `_corrected_verification_artifact` shows the same diagnosis routed via SR (no standing-red comments; `solution_requirements_created[]` with `cross-layer-backend-required` origin), and passes cleanly.
+
+5. **+52 new tests** — 26 in `tests/test_vao_no_standing_red.py` (tool contract + 2 severities × {pos, neg} + 7 markers parametrized + confirmed-stub carve-out + determinism + fixture round-trip + CLI exit codes) and 26 in `tests/test_no_standing_red_discipline.py` (canonical section + 4 agent extensions + markers list + cross-layer rule + confirmed-stub carve-out + fixture). 2583 → 2635 passing; zero regressions.
+
+### Forbidden phrases (in user-facing reports)
+
+- *"standing red regression test"*
+- *"will go green when it's fixed"* / *"will go green once fixed"*
+- *"I committed a regression test that documents the gap"*
+- *"the test fails for the right reason"* (when used as a substitute for routing the fix)
+- *"punt to later"* / *"defer to a future change"* (when used as a substitute for a confirmed-stub or an SR)
+
+### Backwards compatibility
+
+- Runs without `cross_layer_diagnosis` and without standing-red markers in test files: the tool returns `valid: True, gaps: []` — zero behavior change.
+- The 9 existing Layer 3 tools' contracts are unchanged; v2.6.0 / v2.7.0 fixtures continue to validate.
+- Schema v7 unchanged.
+
 ## [2.7.0] — 2026-06-01 — Pattern propagation mandate
 
 **ADDITIVE — backwards-compatible.** Extends v2.6.0's Live-data wiring discipline with a 6th severity and a new agent-side mandate. Schema v7 unchanged. v2.6.0 fixtures + behavior continue to validate; runs without `wiring_mandate.shared_mock_sources[]` are a no-op for the new severity.

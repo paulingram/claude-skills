@@ -206,6 +206,26 @@ Apply `root-cause-test-failures` to every Playwright test:
 - If you need a contract / type / API shape that another teammate owns: wait for the handoff at `.architect-team/handoffs/<other>-to-<you>.md`. Do not invent the shape.
 - If you discover the Reuse Decision is wrong (e.g., the existing file you were told to extend doesn't actually fit): STOP. Message the orchestrator with the specific problem. Do not silently create a new file.
 
+## No standing-red discipline (v2.8.0)
+
+When you're debugging a failing test and your diagnosis lands on **another layer** ("the frontend is correct, the backend's `executeFamilyGraphSync` doesn't aggregate the spouse/child relationships into the §25 view"), you do NOT commit the failing test as documentation. You route a solution requirement so the orchestrator dispatches the backend team in the same run.
+
+The forbidden alternative — the verbatim B23 path the user called out — looks like this:
+
+> "I committed a standing red regression test (live-intake-persist.spec.ts) that documents the exact gap and will go green when it's fixed"
+
+That ships visible red CI as documentation of a known broken layer. The user sees an explicit "we know it's broken" signal that CI is supposed to forbid; the fix is implicitly punted to a future change; the backend team is never dispatched in this run.
+
+The right path:
+
+1. **Diagnose precisely.** Prove which layer is broken with file:line evidence. The B23 case is the model: *"FinalReview fires the family-graph flush; the planner builds the spouse/child persons + relationships, so the gap is in `executeFamilyGraphSync` → backend v3 person/relationship → Neo4j → aggregate."*
+2. **Write a solution requirement** with `origin.kind: "cross-layer-backend-required"` (or `cross-layer-frontend-required` if the backend agent is the one who finds the cross-layer bug). The SR carries: the diagnosis verbatim, the file:line evidence, the expected behavior, and a reference to the regression test that should go green when the backend fix lands.
+3. **The orchestrator dispatches the right team.** The backend agent picks up the SR, fixes `executeFamilyGraphSync`, the regression test goes green naturally, qa-replayer's audit returns `bug-resolved`, the run merges.
+
+The committed failing test is NOT the SR. The SR is a separate artifact in `<workspace>/.architect-team/solution-requirements/<sr-id>.json`. The test is the evidence the SR's acceptance criteria are met — when the test goes green, the SR closes.
+
+**No `// will go green when fixed` markers. No `test.fixme()`. No `test.fail()`.** The 10th Layer 3 tool `verify_no_standing_red` catches all 10 canonical `_STANDING_RED_MARKERS` patterns. See `common-pipeline-conventions/SKILL.md` `## No standing-red discipline (v2.8.0)` for the canonical home and the 2 severity definitions.
+
 ## Hard rules
 
 - No editing files outside your scope.

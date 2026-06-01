@@ -1779,6 +1779,235 @@ def verify_live_data_wiring(
 
 
 # ===========================================================================
+# Tool 10 — verify-no-standing-red (v2.8.0)
+# ===========================================================================
+
+_STANDING_RED_MARKERS: tuple[tuple[str, str], ...] = (
+    ("comment-standing-red", "// standing red"),
+    ("comment-standing-red-block", "/* standing red"),
+    ("comment-will-go-green-when", "will go green when"),
+    ("comment-will-go-green-once", "will go green once"),
+    ("comment-documents-the-gap", "documents the gap"),
+    ("comment-known-broken", "known broken"),
+    ("comment-known-bug", "known bug"),
+    ("comment-not-yet-fixed", "not yet fixed"),
+    ("comment-red-regression", "// red regression"),
+    ("comment-standing-failure", "standing failure"),
+    ("test-fixme-fn", "test.fixme("),
+    ("it-fixme-fn", "it.fixme("),
+    ("test-fail-fn", "test.fail("),
+    ("it-fail-fn", "it.fail("),
+    ("pytest-xfail", "@pytest.mark.xfail"),
+    ("pytest-xfail-raw", "pytest.xfail("),
+)
+
+_CROSS_LAYER_SR_ORIGIN_KINDS: frozenset[str] = frozenset({
+    "cross-layer-backend-required",
+    "cross-layer-frontend-required",
+})
+
+
+def _looks_like_test_path(path: str) -> bool:
+    """Test files are where standing-red markers MATTER. A standing-red
+    marker in a non-test file is a separate code-smell, but it's not the
+    discipline failure this tool catches."""
+    if not isinstance(path, str):
+        return False
+    lower = path.lower()
+    return (
+        ".spec." in lower
+        or ".test." in lower
+        or "/tests/" in lower
+        or "/test/" in lower
+        or "/__tests__/" in lower
+        or lower.startswith("tests/")
+        or lower.startswith("test/")
+        or lower.endswith("_test.py")
+        or lower.endswith("test.py")
+        or lower.endswith("_spec.rb")
+    )
+
+
+def _detect_standing_red_committed(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """A newly-added test file contains a standing-red marker AND is not
+    covered by a confirmed_stubs[] entry → fire."""
+    diff_files = verification_artifact.get("diff_files") or []
+    touched = verification_artifact.get("touched_file_contents") or {}
+    confirmed_stubs = verification_artifact.get("confirmed_stubs") or []
+    # Confirmed-stub entries can be strings (path) or dicts ({path, reason, user_confirmed_at}).
+    confirmed_paths: set[str] = set()
+    for stub in confirmed_stubs:
+        if isinstance(stub, str):
+            confirmed_paths.add(stub)
+        elif isinstance(stub, dict):
+            p = stub.get("path") or stub.get("test_path")
+            if isinstance(p, str):
+                confirmed_paths.add(p)
+
+    gaps: list[dict[str, Any]] = []
+    seen_pairs: set[tuple[str, str]] = set()
+
+    def scan_text(path: str, text: str) -> None:
+        if not _looks_like_test_path(path):
+            return
+        if path in confirmed_paths:
+            return
+        text_lower = text.lower()
+        for marker_id, pattern in _STANDING_RED_MARKERS:
+            if pattern.lower() in text_lower:
+                key = (path, marker_id)
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                gaps.append({
+                    "severity": "standing-red-committed",
+                    "test_path": path,
+                    "marker_id": marker_id,
+                    "marker": pattern,
+                    "evidence": (
+                        f"test file {path!r} contains standing-red marker {pattern!r} "
+                        f"(marker_id={marker_id}); not covered by a confirmed_stubs[] entry"
+                    ),
+                    "remediation": (
+                        "v2.8.0 No standing-red discipline. Replace the failing test "
+                        "with a real fix that makes the test pass, OR route the unfixed "
+                        "layer via a solution requirement (origin.kind: "
+                        "cross-layer-backend-required / cross-layer-frontend-required), "
+                        "OR mark this test as a confirmed_stub with explicit user "
+                        "confirmation. A failing test committed as documentation is "
+                        "the failure mode this discipline closes."
+                    ),
+                })
+
+    for df in diff_files:
+        if not isinstance(df, dict):
+            continue
+        path = df.get("path")
+        if not isinstance(path, str):
+            continue
+        # Scan added_lines first (the change introduced the marker).
+        added = df.get("added_lines") or []
+        if added:
+            scan_text(path, "\n".join(a for a in added if isinstance(a, str)))
+        # Also scan the file's current contents if provided.
+        content = touched.get(path)
+        if isinstance(content, str):
+            scan_text(path, content)
+
+    # Test files in touched_file_contents that weren't in the diff (the agent
+    # may have authored a test in this change without listing it in diff_files).
+    for path, content in touched.items():
+        if not isinstance(path, str) or not isinstance(content, str):
+            continue
+        scan_text(path, content)
+
+    return gaps
+
+
+def _detect_cross_layer_fix_not_routed(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """When the agent's cross-layer diagnosis names an unfixed layer AND a
+    standing-red test was committed AND no SR of cross-layer-* origin kind
+    was created → fire."""
+    diagnosis = verification_artifact.get("cross_layer_diagnosis") or {}
+    if not isinstance(diagnosis, dict):
+        return []
+    unfixed_layer = diagnosis.get("unfixed_layer")
+    if not isinstance(unfixed_layer, str) or not unfixed_layer:
+        return []
+
+    # Was a standing-red test committed for this diagnosis?
+    standing_red_gaps = _detect_standing_red_committed(verification_artifact)
+    if not standing_red_gaps:
+        return []
+
+    # Was an SR of cross-layer-* origin kind created?
+    srs = verification_artifact.get("solution_requirements_created") or []
+    routed = False
+    for sr in srs:
+        if not isinstance(sr, dict):
+            continue
+        origin = sr.get("origin") or {}
+        kind = origin.get("kind") if isinstance(origin, dict) else None
+        if isinstance(kind, str) and kind in _CROSS_LAYER_SR_ORIGIN_KINDS:
+            routed = True
+            break
+
+    if routed:
+        return []
+
+    return [{
+        "severity": "cross-layer-fix-not-routed",
+        "unfixed_layer": unfixed_layer,
+        "evidence": (
+            f"cross_layer_diagnosis names {unfixed_layer!r} as the unfixed layer; "
+            f"{len(standing_red_gaps)} standing-red test(s) committed for the "
+            f"diagnosed bug; no SR with origin.kind in {sorted(_CROSS_LAYER_SR_ORIGIN_KINDS)!r} "
+            f"was created."
+        ),
+        "remediation": (
+            "v2.8.0 No standing-red discipline. The diagnosis correctly identified "
+            "a cross-layer bug. Route the unfixed layer via a solution requirement "
+            "with origin.kind=cross-layer-backend-required (or "
+            "cross-layer-frontend-required) so the orchestrator dispatches the right "
+            "team in the same run. The committed standing-red test is documentation "
+            "of the gap, NOT a substitute for the fix."
+        ),
+    }]
+
+
+def verify_no_standing_red(
+    verification_artifact: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.8.0 Layer-3 tool — verify the agent did NOT commit a failing test
+    as documentation of a known bug.
+
+    Checks the verification artifact against the 2 named severities:
+      1. standing-red-committed — a newly-added test contains a standing-red
+         marker AND is not covered by a confirmed_stubs[] entry
+      2. cross-layer-fix-not-routed — cross_layer_diagnosis names an unfixed
+         layer AND a standing-red test was committed AND no SR of
+         cross-layer-* origin kind was created
+
+    Args:
+      verification_artifact: dict with diff_files[], touched_file_contents{},
+        confirmed_stubs[], cross_layer_diagnosis{}, solution_requirements_created[].
+      out_path: optional path to write the verdict JSON.
+
+    Returns::
+
+        {
+          "tool": "verify-no-standing-red",
+          "valid": bool,
+          "gaps": [{"severity", "test_path"|"unfixed_layer", "evidence", "remediation"}],
+          "verdict_at": "<ISO 8601 UTC>"
+        }
+
+    Trivially passes when no standing-red markers AND no cross_layer_diagnosis
+    — fully backwards-compatible with pre-v2.8.0 artifacts.
+
+    Deterministic / bit-stable output for given inputs (sorted-keys + indent=2).
+    """
+    artifact = verification_artifact or {}
+    gaps: list[dict[str, Any]] = []
+
+    gaps += _detect_standing_red_committed(artifact)
+    gaps += _detect_cross_layer_fix_not_routed(artifact)
+
+    verdict = {
+        "tool": "verify-no-standing-red",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -1837,6 +2066,10 @@ def main(argv: list[str] | None = None) -> int:
     ldw.add_argument("--mandate", required=True, help="Path to wiring-mandate JSON.")
     ldw.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    nsr = sub.add_parser("verify-no-standing-red")
+    nsr.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
+    nsr.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -1881,6 +2114,12 @@ def main(argv: list[str] | None = None) -> int:
         verdict = verify_live_data_wiring(
             verification_artifact=_load_json(args.artifact),
             wiring_mandate=_load_json(args.mandate),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-no-standing-red":
+        verdict = verify_no_standing_red(
+            verification_artifact=_load_json(args.artifact),
             out_path=args.out,
         )
         ok = verdict["valid"]

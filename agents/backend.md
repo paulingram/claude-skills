@@ -81,6 +81,23 @@ Apply `root-cause-test-failures` to every integration test:
 - If your work changes a contract that another teammate consumes (frontend, another backend service): publish the change at the agreed contract path AND write `<cwd>/.architect-team/handoffs/<you>-to-<consumer>.md` describing the diff.
 - If you're consuming someone else's contract: wait for the handoff before authoring code that depends on it.
 
+## No standing-red discipline (v2.8.0)
+
+When you're debugging a backend bug and your diagnosis lands on **the frontend layer** ("the API works correctly; the React Query cache invalidation is missing — the UI shows stale aggregates"), you do NOT commit a failing backend integration test as documentation of the frontend gap. You route a solution requirement so the orchestrator dispatches the frontend team in the same run.
+
+The forbidden alternative — committing a `// standing red` / `// will go green when fixed` test that documents the cross-layer gap — ships visible red CI as documentation of a known broken layer. The 10th Layer 3 tool `verify_no_standing_red` catches this with two named severities:
+
+- `standing-red-committed` — a newly-added test contains one of the 10 canonical `_STANDING_RED_MARKERS` patterns AND is not covered by a `confirmed_stubs[]` entry.
+- `cross-layer-fix-not-routed` — `cross_layer_diagnosis` names an unfixed layer AND a standing-red test was committed AND no SR of `origin.kind: cross-layer-backend-required` / `cross-layer-frontend-required` was created.
+
+The right path:
+
+1. **Diagnose precisely** with file:line evidence; cite the contract / handler / aggregation step that's working AND the frontend behavior that's not.
+2. **Write a solution requirement** with `origin.kind: "cross-layer-frontend-required"` (the inverse of frontend's `cross-layer-backend-required`). The SR carries the diagnosis + the file:line evidence + the expected behavior + a reference to the test that should go green when the frontend fix lands.
+3. **Wait for the orchestrator** to dispatch the frontend team; the test goes green naturally when the frontend fix lands.
+
+See `common-pipeline-conventions/SKILL.md` `## No standing-red discipline (v2.8.0)` for the canonical home and the verbatim B23 case that drove the discipline.
+
 ## Hard rules
 
 - No editing outside your scope.

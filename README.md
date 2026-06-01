@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 7 . 0
+                        ─── C T 6 ───   v 2 . 8 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.7.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.8.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2583%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2635%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,17 +67,23 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.7.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.8.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **Pattern propagation mandate** | When an agent fixes ONE mock-state instance under a `wiring_mandate`, it MUST sweep the codebase for the SAME shared source and fix ALL consumers in the same change — not announce one fix and offer the sweep as a follow-up. The follow-up offer (*"say the word if you want me to sweep the rest"*) is itself the discipline failure this section catches. 3 canonical shared-source signatures: shared fixture import / shared hook / shared seed function. 3-step sweep protocol: trace the source → enumerate all consumers → fix every consumer in this change. |
-| **6th severity — `shared-mock-source-not-swept`** | Added to `verify_live_data_wiring`. Fires when `wiring_mandate.shared_mock_sources[]` names a source with N consumer files AND the diff modified strictly fewer than N consumers AND any unfixed consumer still references the source. Two input shapes: mandate-driven (`shared_mock_sources[].consumer_files`) and scan-driven (`verification_artifact.codebase_scan.consumer_files{}`). Each gap carries `source` + `unfixed_consumer` for unambiguous remediation. |
-| **Implementer + reviewer extensions** | `agents/frontend.md` gains a `## Pattern propagation mandate (v2.7.0)` section: when fixing one mock instance under a mandate, sweep all consumers in THIS change. `agents/interaction-reviewer.md` extends its v2.6.0 audit with a 5-step sweep protocol (identify → enumerate → compare → confirm → emit). |
-| **Closes the verbatim heirship walkthrough failure** | Workspace.tsx fixed to use live data; IntakeSteps.tsx + ReviewPanel.tsx still call the same `useWalkthroughData()` hook reading the same one-time-seeded `WtData` copy; UI shows mixed live + stale data; agent offered the sweep as a follow-up. v2.7.0's 6th severity catches this verbatim. |
-| **Backwards-compatible** | Schema v7 unchanged; v2.6.0 fixtures continue to validate; runs without `shared_mock_sources[]` AND without `codebase_scan.consumer_files{}` are a no-op for the new severity. +26 net tests (2557 → 2583); zero regressions. |
+| **No standing-red discipline** | Agents MUST NOT commit a failing test as documentation of a known bug. When a regression is diagnosed — including cross-layer cases where one layer is correct and the other is broken — the only valid endings are: (a) fix every layer the diagnosis names in this change, (b) route the unfixed layer via a solution requirement so the orchestrator dispatches the right team, OR (c) escalate for an explicit confirmed-stub decision. Committing a failing test that *"will go green when fixed"* ships visible red CI as a substitute for routing the fix — exactly what CI is supposed to forbid. |
+| **10th Layer 3 tool — `verify_no_standing_red`** | NEW deterministic verification function + `verify-no-standing-red` CLI subcommand in `hooks/vao_tools.py`. `_STANDING_RED_MARKERS` constant covers 16 patterns including `// standing red` / `// will go green when fixed` / `// known broken` / `// documents the gap` / `test.fixme(` / `it.fixme(` / `test.fail(` / `@pytest.mark.xfail`. 2 named severities: `standing-red-committed` (marker in newly-added test, no confirmed-stub citation) / `cross-layer-fix-not-routed` (cross-layer diagnosis + standing-red + no SR of `cross-layer-backend-required` / `cross-layer-frontend-required` origin kind). Trivially passes when no markers AND no `cross_layer_diagnosis` — fully backwards-compatible. |
+| **4 agent body extensions** | `agents/bug-replicator.md` gains new `needs-cross-layer-fix` verdict. `agents/qa-replayer.md` gains new `standing_red_finding` field on `bug-still-present` verdict. `agents/frontend.md` + `agents/backend.md` document cross-layer routing via SR (never standing-red). |
+| **Closes the verbatim heirship B23 failure** | Agent correctly proved frontend correct + backend broken (`executeFamilyGraphSync` → Neo4j aggregate misses spouse/child), then committed `live-intake-persist.spec.ts` as a standing-red regression test with `// will go green when it's fixed` instead of routing a `cross-layer-backend-required` SR. v2.8.0's 2 severities catch the verbatim case. |
+| **Backwards-compatible** | Schema v7 unchanged; 9 existing Layer 3 tools' contracts unchanged; v2.6.0 + v2.7.0 fixtures continue to validate. +52 net tests (2583 → 2635); zero regressions. |
+
+### Carried forward from v2.7.0 — pattern propagation mandate
+
+| Capability | What it does |
+|---|---|
+| **6th severity in `verify_live_data_wiring`** | `shared-mock-source-not-swept` fires when a `wiring_mandate.shared_mock_sources[]` entry names N consumer files but the diff modified fewer than N. The 3-step sweep protocol (trace → enumerate → fix) is documented in `common-pipeline-conventions/SKILL.md` + `agents/frontend.md` + `agents/interaction-reviewer.md`. |
 
 ### Carried forward from v2.6.0 — live-data wiring discipline
 

@@ -1,0 +1,103 @@
+{
+  "_meta": {
+    "fixture_name": "standing-red-cross-layer-bug",
+    "failure_shape": "v2.8.0 No standing-red discipline — failure mode: agent correctly diagnoses a cross-layer bug (frontend correct, backend broken), commits a failing regression test as documentation of the gap ('// will go green when it's fixed'), declares victory on the rest of the run, never routes a cross-layer-backend-required solution requirement so the backend agent could fix the actual gap in the same run.",
+    "originating_failure": "heirship walkthrough B23: 'One bug NOT fixed — B23 (firm dashboards reflect intake): confirmed real + diagnosed, but it's a backend gap, not frontend. The client's submitted spouse/child don't surface in the §25 aggregate the TA/attorney read. I proved the frontend is correct (FinalReview fires the family-graph flush; the planner builds the spouse/child persons + relationships), so the gap is in executeFamilyGraphSync → backend v3 person/relationship → Neo4j → aggregate — plausibly entangled with this session's Neo4j migration. I committed a standing red regression test (live-intake-persist.spec.ts) that documents the exact gap and will go green when it's fixed'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-no-standing-red",
+    "expected_severities": ["standing-red-committed", "cross-layer-fix-not-routed"]
+  },
+  "verification_artifact": {
+    "feature_kind": "bug-fix",
+    "diff_files": [
+      {
+        "path": "client/tests/live-intake-persist.spec.ts",
+        "added_lines": [
+          "import { test, expect } from '@playwright/test';",
+          "",
+          "// standing red regression — will go green when it's fixed",
+          "// documents the gap: FinalReview fires family-graph flush, but executeFamilyGraphSync",
+          "// → backend v3 person/relationship → Neo4j → §25 aggregate fails to surface spouse+child.",
+          "test('§25 aggregate surfaces spouse and child after FinalReview flush', async ({ page }) => {",
+          "  await page.goto('/intake/abc-123/final-review');",
+          "  await page.click('button[data-action=flush]');",
+          "  await page.goto('/dashboard/firm/section-25');",
+          "  await expect(page.locator('[data-testid=person-row]')).toContainText('Jane Doe (spouse)');",
+          "  await expect(page.locator('[data-testid=person-row]')).toContainText('Sam Doe (child)');",
+          "});"
+        ]
+      }
+    ],
+    "touched_file_contents": {
+      "client/tests/live-intake-persist.spec.ts": "import { test, expect } from '@playwright/test';\n\n// standing red regression — will go green when it's fixed\n// documents the gap: FinalReview fires family-graph flush, but executeFamilyGraphSync\n// → backend v3 person/relationship → Neo4j → §25 aggregate fails to surface spouse+child.\ntest('§25 aggregate surfaces spouse and child after FinalReview flush', async ({ page }) => {\n  await page.goto('/intake/abc-123/final-review');\n  await page.click('button[data-action=flush]');\n  await page.goto('/dashboard/firm/section-25');\n  await expect(page.locator('[data-testid=person-row]')).toContainText('Jane Doe (spouse)');\n  await expect(page.locator('[data-testid=person-row]')).toContainText('Sam Doe (child)');\n});"
+    },
+    "cross_layer_diagnosis": {
+      "unfixed_layer": "backend",
+      "rationale": "FinalReview fires the family-graph flush; the planner builds the spouse/child persons + relationships; the gap is in executeFamilyGraphSync → backend v3 person/relationship → Neo4j → aggregate",
+      "evidence_files": [
+        "client/src/intake/FinalReview.tsx:142",
+        "client/src/planner/familyGraph.ts:88",
+        "backend/services/v3/person.py:201",
+        "backend/services/v3/aggregate.py:67"
+      ]
+    },
+    "confirmed_stubs": [],
+    "solution_requirements_created": []
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-no-standing-red",
+    "valid": false,
+    "expected_severities": ["standing-red-committed", "cross-layer-fix-not-routed"],
+    "expected_marker_substring": "will go green when"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — same diagnosis, but the unfixed layer is routed via a solution requirement (origin.kind=cross-layer-backend-required) and the test does NOT carry standing-red markers. The orchestrator dispatches the backend agent in the same run; the backend agent fixes executeFamilyGraphSync; the test goes green naturally; the SR closes.",
+    "feature_kind": "bug-fix",
+    "diff_files": [
+      {
+        "path": "client/tests/live-intake-persist.spec.ts",
+        "added_lines": [
+          "import { test, expect } from '@playwright/test';",
+          "",
+          "test('§25 aggregate surfaces spouse and child after FinalReview flush', async ({ page }) => {",
+          "  await page.goto('/intake/abc-123/final-review');",
+          "  await page.click('button[data-action=flush]');",
+          "  await page.goto('/dashboard/firm/section-25');",
+          "  await expect(page.locator('[data-testid=person-row]')).toContainText('Jane Doe (spouse)');",
+          "  await expect(page.locator('[data-testid=person-row]')).toContainText('Sam Doe (child)');",
+          "});"
+        ]
+      }
+    ],
+    "touched_file_contents": {
+      "client/tests/live-intake-persist.spec.ts": "import { test, expect } from '@playwright/test';\n\ntest('§25 aggregate surfaces spouse and child after FinalReview flush', async ({ page }) => {\n  await page.goto('/intake/abc-123/final-review');\n  await page.click('button[data-action=flush]');\n  await page.goto('/dashboard/firm/section-25');\n  await expect(page.locator('[data-testid=person-row]')).toContainText('Jane Doe (spouse)');\n  await expect(page.locator('[data-testid=person-row]')).toContainText('Sam Doe (child)');\n});"
+    },
+    "cross_layer_diagnosis": {
+      "unfixed_layer": "backend",
+      "rationale": "FinalReview fires the family-graph flush; the planner builds the spouse/child persons + relationships; the gap is in executeFamilyGraphSync → backend v3 person/relationship → Neo4j → aggregate",
+      "evidence_files": [
+        "client/src/intake/FinalReview.tsx:142",
+        "client/src/planner/familyGraph.ts:88",
+        "backend/services/v3/person.py:201",
+        "backend/services/v3/aggregate.py:67"
+      ]
+    },
+    "confirmed_stubs": [],
+    "solution_requirements_created": [
+      {
+        "id": "SR-B23-101",
+        "title": "Fix executeFamilyGraphSync → §25 aggregate for spouse/child relationships",
+        "origin": {
+          "kind": "cross-layer-backend-required",
+          "discovered_by": "bug-replicator",
+          "diagnosis_ref": "B23"
+        },
+        "acceptance_criteria": [
+          "backend/services/v3/person.py spouse + child relationships persist to Neo4j",
+          "backend/services/v3/aggregate.py §25 query surfaces both relationships",
+          "client/tests/live-intake-persist.spec.ts goes green against the live dev backend"
+        ]
+      }
+    ]
+  }
+}

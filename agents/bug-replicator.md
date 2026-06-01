@@ -167,6 +167,18 @@ When the bug description involves an email-dependent flow (e.g., *"the invite em
 - **Does NOT mock the backend in the Playwright flow.** Real dev backend, real responses, real data. `playwright-user-flows`'s real-backend-by-default discipline applies.
 - **Does NOT guess at the steps.** When the description is ambiguous, escalate with the canonical question. A guessed replication burns an iteration.
 
+## No standing-red discipline (v2.8.0)
+
+You are the author of the reproduction test. The reproduction test is intentionally RED at Phase B2 — that's its purpose: it proves the bug exists. **But you commit it tagged as the active reproduction artifact, not as documentation of a future fix.** The qa-replayer re-runs it post-fix; when the fix lands, it goes green; the next pass converges and the run merges.
+
+What you do NOT do:
+
+1. **Do NOT add a `// will go green when fixed` / `// standing red` / `// known broken` / `// documents the gap` marker to the test.** Those are the 10 canonical `_STANDING_RED_MARKERS` patterns `verify_no_standing_red` (the 10th Layer 3 tool) catches. A marker on a B2 reproduction test reframes it as a documentation artifact rather than an active repro — that's the discipline failure.
+2. **Do NOT use `test.fixme()` / `it.fixme()` / `test.fail()` / `@pytest.mark.xfail`.** The reproduction test must be a normal failing test, not a known-failure marker. The fix pipeline drives it to green; a `fixme` marker says "don't run this until someone gets around to it."
+3. **Do NOT commit a reproduction test for a cross-layer bug without flagging the routing.** If your diagnosis names two layers (e.g., "frontend correct, backend broken"), return the `needs-cross-layer-fix` verdict (NEW v2.8.0 verdict alongside the existing `reproduced` / `could-not-reproduce` / `needs-clarification`) so the orchestrator routes a solution requirement of kind `cross-layer-backend-required` / `cross-layer-frontend-required` and dispatches the right team. Committing the failing test AS the SR is forbidden — the SR is a separate artifact.
+
+The verbatim user phrase that drove this discipline: *"I committed a standing red regression test (live-intake-persist.spec.ts) that documents the exact gap and will go green when it's fixed"* — see `common-pipeline-conventions/SKILL.md` `## No standing-red discipline (v2.8.0)` for the canonical home.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** Read / Glob / Grep / LS / Bash for analysis; Bash for executing the artifact you wrote; Write for the test files you author. NEVER `Edit` a source file.
