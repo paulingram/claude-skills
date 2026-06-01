@@ -31,6 +31,10 @@ The opt-in rule above applies to **process gates** — interruptions to the pipe
 
 Run Phases −1 → 1, present the validated proposal / design / specs / tasks / coverage-map package, write `<workspace>/.architect-team/escalation-pending.md` describing what is being awaited, and PAUSE. Resume Phases 2 → 8 when the user replies *"proceed"* (or revises the proposal and replies). Otherwise the default is the full Phases −1 → 8 build, no pause. (Domain gates inside Phase −1 — the Phase −1D bulk-verify — still fire even when `--proposal-first` is engaged: they precede the pause and the user's verifications inform the proposal the user then reviews.)
 
+### In-flight clarification handling (v2.5.0)
+
+If the user injects a message mid-run (after this skill has begun executing Phase −2 / −1 / 0 / 1 / 2 / 3 / 3b / 4 / 5 / 6 / 7 / 8) AND the message does NOT explicitly cancel the run AND is NOT a fresh `/architect-team:<command>` invocation, the orchestrator MUST treat the message as a **clarification or scope amendment to the IN-FLIGHT run** — append it verbatim to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`, re-evaluate the in-flight phase against the amended brief (re-run Phase 0 → 1 if scope materially shifted; otherwise fold into the next phase's inputs), and continue the pipeline. The orchestrator MUST NOT (a) solve the clarification with tools directly bypassing the pipeline, (b) answer conversationally and continue without folding, (c) spawn a sibling `/architect-team` invocation, or (d) silently ignore. Full rules + the 3 detection signals + 4 forbidden anti-patterns + cancellation channel in `common-pipeline-conventions/SKILL.md` `## In-flight clarification discipline (v2.5.0)`.
+
 ## Inputs
 
 `$ARGUMENTS` (bound by the `/architect-team` command as `$REQ_DIR`) is the **requirement**. It comes in ONE of two forms — **both are first-class, fully-supported inputs**:

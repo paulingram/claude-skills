@@ -2,6 +2,100 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] — 2026-06-01 — In-flight clarification discipline
+
+**ADDITIVE — backwards-compatible.** No schema change. No code change. No hook change. No new agent. Pure documentation + structural-test discipline. v2.0.0/v2.1.0/v2.2.0/v2.3.0/v2.4.0 evidence files validate unchanged.
+
+### The failure shape this closes (verbatim from the user)
+
+> "if I give instructions while the teams are runnign but do not put a direct referecne to architect-teams, it does not try to solve without the architect team. it should always reference the architect team and use that skill as long as we are in the middle of a run, ie I might interrupt and add some clarity. it needs to add that to the architect-team guidance, not try to sovle outside of that"
+
+Concrete example:
+
+```
+User: /architect-team build the dashboard
+[pipeline starts; Phase −2 triage runs; Phase −1 mapping dispatches]
+User: "wait, also include a CSV export button"
+```
+
+Without v2.5.0, the orchestrator (mid-execution) sees the second message — which lacks any `/architect-team` prefix — and may:
+- Open a file and start implementing CSV export directly, bypassing Phase 0 normalization, Phase 1 validation, Phase 2 team spawn, Phase 3 review gates, Phase 8 doc-currency + commit.
+- Treat the message as a question and answer it conversationally.
+- Spawn a fresh `/architect-team` invocation as a sibling, splitting state across two coverage maps + two openspec changes + two commit ranges.
+- Silently ignore the message and proceed to the next phase action.
+
+ALL four reactions bypass the pipeline's structural discipline. The right reaction: **fold the clarification into the IN-FLIGHT run's brief, re-evaluate the in-flight phase against the amended brief, continue executing the pipeline.**
+
+### Symmetric counterpart to v2.0.0 Layer 6
+
+| Layer | Failure caught | Direction |
+|---|---|---|
+| **v2.0.0 Layer 6** (`skill_invocation_audit.py`) | User typed `/architect-team:X` AND orchestrator applied methodology by hand instead of invoking the Skill | Forward — "user used the framework; agent bypassed it" |
+| **v2.5.0** (in-flight clarification) | User did NOT type `/architect-team` AND a pipeline is in-flight AND orchestrator treats message as a new standalone task | Inverse — "user is in the framework; agent should NOT bypass to handle a clarification" |
+
+Together they close both directions of "the agent should not operate outside the framework."
+
+### Three enforcement layers (same shape as v1.6.0 / v1.7.0 / v2.0.0 / v2.2.0 / v2.4.0)
+
+1. **NEW `## In-flight clarification discipline (v2.5.0)` canonical section** in `skills/common-pipeline-conventions/SKILL.md`. Documents:
+   - **3 detection signals** (any one means "pipeline in-flight"):
+     - `<workspace>/.architect-team/intake-state.json` exists AND `completed_at` is null OR `phase` field is < 8 OR `status: in_progress`
+     - `<workspace>/.architect-team/escalation-pending.md` exists (pipeline paused waiting for user)
+     - `<workspace>/.architect-team/teammates/*.json` with no matching `reviews/<task-id>.json` (running teammates)
+   - **The rule**: append the message verbatim to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`; re-evaluate the in-flight phase (re-run Phase 0/1 if scope materially shifted; otherwise fold into next phase's inputs); continue the pipeline.
+   - **4 forbidden anti-patterns** by name:
+     - `solve-with-tools-directly` — opening a file and editing it because the user said "fix the typo"
+     - `answer-conversationally` — replying with explanation but not folding the clarification
+     - `spawn-sibling-invocation` — calling `Skill(architect-team)` as a new run
+     - `silently-ignore` — typing an acknowledgment and going back to the phase action without folding
+   - **Cancellation channel**: the only mid-run release. Explicit channels — `/architect-team cancel`, `/architect-team stop`, plain prose ("cancel", "stop", "abort", "kill this run") OR a new explicit `/architect-team:<command>` Skill-invocation request (v2.0.0 Layer 6 regex). The default leans heavily toward "fold into pipeline" — ambiguous prose is treated as clarification, not cancel.
+
+2. **Cross-references in 3 pipeline-driving SKILL.md bodies**: `skills/architect-team-pipeline/SKILL.md`, `skills/bug-fix-pipeline/SKILL.md`, `skills/mini-architect-team-pipeline/SKILL.md` each gain a one-paragraph `### In-flight clarification handling (v2.5.0)` sub-section pointing at the canonical home.
+
+3. **Cross-references in 3 pipeline-driving slash command bodies**: `commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md` each gain a top-level `## In-flight clarification discipline (v2.5.0)` section so the discipline is in scope from the moment the user invokes the command.
+
+### Per-run clarifications log
+
+New artifact at `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md` captures verbatim user injections per run with phase context. Schema is intentionally informal in v2.5.0 (a Markdown body with timestamp + phase header per injection); formal JSON schema deferred to v2.5.x.
+
+### Test count
+
+v2.4.0 baseline: 2482 / 1 skipped.
+v2.5.0: **2514 / 1 skipped** (+32 net).
+
+32 new tests in `tests/test_in_flight_clarification_discipline.py`:
+- Canonical section presence + appears exactly once
+- 3 detection signals named (parametrized)
+- 4 forbidden anti-patterns named (parametrized)
+- 3 cancellation phrases named (parametrized)
+- Default-leans-toward-fold documented
+- Clarifications log path documented
+- 3 pipeline body cross-references (parametrized × 2)
+- 3 slash command body cross-references (parametrized × 2)
+- Symmetry with v2.0.0 Layer 6 cited
+- Coverage-map JSON consistency
+
+### Files added
+
+- `tests/test_in_flight_clarification_discipline.py` (32 tests)
+- `openspec/changes/in-flight-clarification-discipline/` (proposal + design + tasks + coverage-map + spec)
+
+### Files modified
+
+- `skills/common-pipeline-conventions/SKILL.md` — adds canonical `## In-flight clarification discipline (v2.5.0)` section.
+- `skills/architect-team-pipeline/SKILL.md`, `skills/bug-fix-pipeline/SKILL.md`, `skills/mini-architect-team-pipeline/SKILL.md` — each adds a cross-reference sub-section.
+- `commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md` — each adds a top-level cross-reference section.
+- `tests/test_dispatch_banner.py` — version-consistency assertion bumped 2.4.0 → 2.5.0.
+- `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` — 2.4.0 → 2.5.0.
+- `README.md` banner v 2 . 4 . 0 → v 2 . 5 . 0; tests badge 2482 → 2514; "NEW IN v2.4.0" panel becomes "NEW IN v2.5.0" with v2.4.0 carried forward.
+- `CLAUDE.md` lead refresh.
+
+### Deferred to v2.5.x
+
+- **Runtime detector (`SessionStart`-fired)** — a hook that reads `intake-state.json` and emits a one-line reminder in the orchestrator's context. v2.5.0 ships at the documentation + structural-test layer; runtime detection is the natural follow-on.
+- **Formal JSON schema for clarifications log** — v2.5.0 ships the informal Markdown shape.
+- **Explicit `/architect-team:cancel` command** — v2.5.0 documents the cancellation channel via prose recognition; an explicit command is the formal v2.5.x extension.
+
 ## [2.4.0] — 2026-05-31 — External-state assertion + Evidence-artifact citation
 
 **ADDITIVE — backwards-compatible.** v2.0.0 / v2.1.0 / v2.2.0 / v2.3.0 evidence files validate unchanged. Schema v7 is unchanged. The 6 v2.2.0 verified-live severities are unchanged.

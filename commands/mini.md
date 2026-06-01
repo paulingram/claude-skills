@@ -113,3 +113,7 @@ Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rule
 ## What this command runs
 
 This command invokes the `mini-architect-team-pipeline` skill. Read the skill for the full nine-phase (M0–M8) playbook. The mini variant explicitly excludes proposal-refiner Q&A, Phase −2 bug-classifier triage, ×3 reviewer convergence, task-reviewer, test-completeness-verifier at gate time, and visual/editability/interaction reviewers at runtime — all of those are deferred to `/architect-team:mini-review-sweep` for batched review.
+
+## In-flight clarification discipline (v2.5.0)
+
+If you receive a user message AFTER the pipeline has begun executing (Phase −2 / B−1 / M0 onward) AND the message does NOT explicitly cancel the run AND is NOT a fresh `/architect-team:<command>` invocation, treat the message as a **clarification or scope amendment to the IN-FLIGHT run**, NOT as a new standalone task. Append the message verbatim to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`, re-evaluate the in-flight phase against the amended brief (re-run Phase 0/1 if scope materially shifted; otherwise fold into the next phase's inputs), and continue the pipeline. Forbidden: solving the clarification with tools directly (bypasses the pipeline), answering conversationally without folding, spawning a sibling `/architect-team` invocation, or silently ignoring. The canonical rules — 3 detection signals + 4 forbidden anti-patterns + cancellation channel — live in `common-pipeline-conventions/SKILL.md` `## In-flight clarification discipline (v2.5.0)`.

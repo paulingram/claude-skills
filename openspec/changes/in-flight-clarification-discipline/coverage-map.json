@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "change": "in-flight-clarification-discipline",
+  "version": "2.5.0",
+  "requirements": [
+    {"id": "REQ-1", "title": "common-pipeline-conventions documents the in-flight clarification discipline", "layer": "discipline",
+     "covered_by": ["skills/common-pipeline-conventions/SKILL.md", "tests/test_in_flight_clarification_discipline.py"]},
+    {"id": "REQ-2", "title": "3 pipeline-driving SKILL.md bodies cross-reference the new canonical section", "layer": "discipline",
+     "covered_by": ["skills/architect-team-pipeline/SKILL.md", "skills/bug-fix-pipeline/SKILL.md", "skills/mini-architect-team-pipeline/SKILL.md", "tests/test_in_flight_clarification_discipline.py"]},
+    {"id": "REQ-3", "title": "architect-team Skill body cross-references the new canonical section", "layer": "discipline",
+     "covered_by": ["skills/architect-team/SKILL.md", "tests/test_in_flight_clarification_discipline.py"]},
+    {"id": "REQ-4", "title": "3 pipeline-driving slash command bodies cross-reference the new canonical section", "layer": "discipline",
+     "covered_by": ["commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md", "tests/test_in_flight_clarification_discipline.py"]},
+    {"id": "REQ-5", "title": "Structural tests assert the v2.5.0 framework is wired", "layer": "infra",
+     "covered_by": ["tests/test_in_flight_clarification_discipline.py"]},
+    {"id": "REQ-6", "title": "Version is bumped to 2.5.0", "layer": "infra",
+     "covered_by": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"]}
+  ],
+  "reuse_decisions": [
+    {"id": "RD-1", "decision": "extend", "anchor": "skills/common-pipeline-conventions/SKILL.md — canonical home for cross-cutting disciplines; same shape as v1.4/1.6/1.7/1.8/2.0/2.2/2.4 sections"},
+    {"id": "RD-2", "decision": "extend", "anchor": "3 pipeline SKILL.md bodies + entry-point architect-team Skill body — cross-reference; same shape as v1.4.0/v1.6.0/v2.2.0 fan-out"},
+    {"id": "RD-3", "decision": "extend", "anchor": "3 pipeline-driving slash command bodies — reference at the command-body level so the orchestrator carries the rule from minute zero"},
+    {"id": "RD-4", "decision": "decline", "anchor": "NO new hook — runtime detection deferred to v2.5.x; documentation-discipline is the v2.5.0 scope"},
+    {"id": "RD-5", "decision": "decline", "anchor": "NO new agent — orchestrator is the actor; no new role"},
+    {"id": "RD-6", "decision": "build-new", "anchor": "tests/test_in_flight_clarification_discipline.py — each discipline gets a dedicated structural-test file; same shape as scope-discipline / teammate-git-discipline / etc."},
+    {"id": "RD-7", "decision": "deferred", "anchor": "Runtime SessionStart-fired in-flight-detect check — v2.5.x"},
+    {"id": "RD-8", "decision": "deferred", "anchor": "Per-clarification persistence JSON schema — v2.5.x"},
+    {"id": "RD-9", "decision": "deferred", "anchor": "Explicit /architect-team cancel command implementation — v2.5.x"}
+  ],
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation + structural-test change. No Python runtime change, no new commands, no new agents, no schema change.",
+  "implementing_commits": []
+}

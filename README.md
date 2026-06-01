@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 4 . 0
+                        ─── C T 6 ───   v 2 . 5 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.4.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.5.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2482%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2514%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,16 +67,24 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.4.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.5.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **External-state assertion** | The v2.2.0 verified-live discipline caught "agent didn't drive the deployed URL / used a corner-click / tested pre-populated state." v2.4.0 closes the next rung up: when a feature touches an EXTERNAL system (email / payment / push / webhook-outbound / oauth / blob-storage), the semantic assertion MUST query the external system's own observable downstream state — NOT the backend's response field about its own attempt, NOT the third-party API's queue-accept ack (SendGrid 202 ≠ delivered), NOT UI display text. Per-kind required-vs-forbidden targets documented in the canonical `## Verified-live discipline (v2.2.0)` section. New 7th severity `external-state-not-asserted` in `verify_live_verification_claim`. |
-| **Evidence-artifact citation** | Every "verified live" claim MUST include `evidence_artifact_path` pointing to a concrete on-disk file (Playwright trace `.zip` / `.har` / `.json` network log / external-API response dump JSON / screenshot / raw log). The file must exist, be > 0 bytes, and be a file (not a directory). The agent's prose `assertions[]` is no longer accepted as evidence the assertion was made. New 8th severity `missing-evidence-artifact`. |
-| **Canonical heirship fixtures** | `external-state-not-asserted-email-invite.json` reproduces the verbatim heirship-app-v3 case where an agent claimed "SendGrid logged status=202 (accepted)" and the user never received the email. `fabricated-verification-table.json` reproduces the verbatim case where an agent presented a 3-row ✅ "sent" table without a Playwright run that actually captured the results. |
-| **Backwards-compatible** | Schema v7 unchanged. v2.0.0 / v2.1.0 / v2.2.0 / v2.3.0 evidence files validate as before. Artifacts without `feature_kind` or `evidence_artifact_path` don't fire the new severities. +50 net tests (2432 → 2482); zero regressions. |
+| **In-flight clarification discipline** | When a pipeline run is mid-execution (Phase −2 → 8 / B−1 → B8 / M0 → M7) and the user injects a message that does NOT explicitly invoke `/architect-team` AND is NOT a cancellation, the orchestrator MUST treat it as a **clarification or scope amendment to the IN-FLIGHT run** — append to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`, re-evaluate the in-flight phase, continue the pipeline. NEW canonical `## In-flight clarification discipline (v2.5.0)` section in `common-pipeline-conventions/SKILL.md` documents the 3 detection signals (`intake-state.json` phase < 8 / `escalation-pending.md` / unresolved teammate manifests), 4 forbidden anti-patterns (`solve-with-tools-directly` / `answer-conversationally` / `spawn-sibling-invocation` / `silently-ignore`), and the cancellation channel (only `/architect-team cancel` / `stop` / `abort` / plain-prose equivalents release the pipeline). |
+| **Symmetric counterpart to v2.0.0 Layer 6** | Layer 6's `skill_invocation_audit.py` catches the forward case: "user typed `/architect-team:X` AND agent applied methodology by hand." v2.5.0 catches the inverse: "user did NOT type `/architect-team` AND a pipeline is in-flight AND orchestrator treats message as a new standalone task." Together they close BOTH directions of "the agent should not operate outside the framework." |
+| **Per-run clarifications log** | New artifact at `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md` captures verbatim user injections per run with phase context. Read at run completion; the final report references each clarification. Formal JSON schema deferred to v2.5.x. |
+| **Backwards-compatible** | No schema change. No code change. No hook change. No new agent. Pure documentation + structural-test discipline. The 3 pipeline-driving SKILL.md bodies + the 3 pipeline-driving slash command bodies all gain a cross-reference to the new canonical section. +32 net tests (2482 → 2514); zero regressions. |
+
+### Carried forward from v2.4.0 — verified-live discipline
+
+| Capability | What it does |
+|---|---|
+| **External-state assertion** | For features that touch external systems (email / payment / push / webhook-outbound / oauth / blob-storage), the semantic assertion MUST query the external system's own observable state — NOT a backend response field, NOT a 3rd-party API queue-accept ack (SendGrid 202 ≠ delivered), NOT UI display text. 7th severity `external-state-not-asserted` in `verify_live_verification_claim`. |
+| **Evidence-artifact citation** | Every "verified live" claim MUST include `evidence_artifact_path` pointing to a concrete on-disk file (Playwright trace `.zip` / network log / external-API response dump / screenshot). The agent's prose `assertions[]` is no longer accepted as evidence. 8th severity `missing-evidence-artifact`. |
+| **Canonical heirship fixtures** | `external-state-not-asserted-email-invite.json` (verbatim "SendGrid logged status=202" case where the user never received the email) + `fabricated-verification-table.json` (verbatim 3-row ✅ "sent" table case where no Playwright run actually captured the results). |
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
