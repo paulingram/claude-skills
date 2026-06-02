@@ -151,3 +151,194 @@ def test_gitignore_excludes_mempalace_workspace_dir(plugin_root: Path) -> None:
     assert gitignore.exists(), ".gitignore missing"
     content = gitignore.read_text(encoding="utf-8")
     assert ".mempalace/" in content, ".gitignore does not exclude .mempalace/"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.9.0 — polyglot Python invocation in the slash command
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_mempalace_install_command_uses_polyglot_python_pattern(plugin_root: Path) -> None:
+    """The single Invocation code block must use `python3 ... || python ...`.
+    Splitting into two blocks (bare-python first, polyglot as 'retry') was
+    the v2.8.0 bug — the harness stops on the first block's failure and
+    never reaches the fallback."""
+    content = _read(plugin_root, COMMAND_RELATIVE_PATH)
+    # The polyglot pattern must be present.
+    assert "python3 " in content and "|| python " in content, (
+        "mempalace-install command does not use the python3 || python polyglot pattern"
+    )
+
+
+def test_mempalace_install_command_has_no_bare_python_first_block(plugin_root: Path) -> None:
+    """The first runnable code block (```!) must NOT be a bare `python X.py`
+    invocation. Bare-python-first is the v2.8.0 bug this release closes."""
+    content = _read(plugin_root, COMMAND_RELATIVE_PATH)
+    lines = content.splitlines()
+    in_block = False
+    first_block_lines: list[str] = []
+    for line in lines:
+        if line.strip() == "```!":
+            in_block = True
+            continue
+        if in_block and line.strip() == "```":
+            break
+        if in_block:
+            first_block_lines.append(line)
+    assert first_block_lines, "no ```! invocation block found in mempalace-install command"
+    first_block_text = "\n".join(first_block_lines)
+    # The FIRST runnable block must include the polyglot fallback. A line
+    # starting with bare `python ` (no `3`, no `|| python`) is the bug.
+    starts_with_bare = first_block_text.lstrip().startswith("python ") and "python3 " not in first_block_text
+    assert not starts_with_bare, (
+        f"mempalace-install first ```! block runs bare python without a python3 fallback:\n"
+        f"{first_block_text!r}"
+    )
+
+
+def test_all_command_files_use_polyglot_when_invoking_python(plugin_root: Path) -> None:
+    """Audit ALL command files in commands/ — any ```! block that invokes
+    Python must use the polyglot `python3 ... || python ...` pattern."""
+    cmd_dir = plugin_root / "commands"
+    offenders: list[str] = []
+    for md in sorted(cmd_dir.glob("*.md")):
+        text = md.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        in_block = False
+        block_buf: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped == "```!":
+                in_block = True
+                block_buf = []
+                continue
+            if in_block and stripped == "```":
+                # End of block — audit it.
+                body = "\n".join(block_buf)
+                uses_python = (
+                    "python " in body or "python3 " in body or "python" + os.sep in body
+                )
+                if uses_python:
+                    has_polyglot = ("python3 " in body) and ("|| python " in body)
+                    if not has_polyglot:
+                        offenders.append(f"{md.name}: {body!r}")
+                in_block = False
+                block_buf = []
+                continue
+            if in_block:
+                block_buf.append(line)
+    assert not offenders, (
+        "command files invoke Python without the python3 || python polyglot pattern:\n"
+        + "\n".join(offenders)
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.9.0 — PATH-self-heal: _locate_pip_user_binary + _bridge_to_path_dir
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_locate_pip_user_binary_returns_none_when_absent(install_script_module, tmp_path: Path) -> None:
+    """When no candidate dir holds the binary, _locate_pip_user_binary returns None."""
+    install_script_module._candidate_user_bin_dirs = lambda: [tmp_path / "nonexistent"]
+    assert install_script_module._locate_pip_user_binary("mempalace") is None
+
+
+def test_locate_pip_user_binary_finds_binary_in_candidate(install_script_module, tmp_path: Path) -> None:
+    """When a candidate dir holds the binary, _locate_pip_user_binary returns its path."""
+    fake_bin = tmp_path / "fake-user-bin"
+    fake_bin.mkdir(parents=True)
+    fake_mp = fake_bin / "mempalace"
+    fake_mp.write_text("#!/bin/sh\necho 9.9.9")
+    fake_mp.chmod(0o755)
+    install_script_module._candidate_user_bin_dirs = lambda: [fake_bin]
+    result = install_script_module._locate_pip_user_binary("mempalace")
+    assert result is not None
+    assert result == fake_mp
+
+
+def test_bridge_to_path_dir_symlinks_unix(install_script_module, tmp_path: Path) -> None:
+    """On Unix the bridge step symlinks the located binary into dest_dir."""
+    import platform
+    if platform.system() == "Windows":
+        pytest.skip("Unix-specific symlink behavior")
+    fake_bin = tmp_path / "fake-user-bin"
+    fake_bin.mkdir(parents=True)
+    for name in ("mempalace", "mempalace-mcp"):
+        p = fake_bin / name
+        p.write_text("#!/bin/sh\necho 9.9.9")
+        p.chmod(0o755)
+    install_script_module._candidate_user_bin_dirs = lambda: [fake_bin]
+    # Force `which` to fail so the bridge fires.
+    install_script_module._which = lambda name: None
+    dest = tmp_path / "fake-local-bin"
+    result = install_script_module._bridge_to_path_dir(("mempalace", "mempalace-mcp"), dest_dir=dest)
+    assert result.status == "ok"
+    assert (dest / "mempalace").is_symlink()
+    assert (dest / "mempalace-mcp").is_symlink()
+
+
+def test_bridge_to_path_dir_skipped_when_binary_on_path(install_script_module, tmp_path: Path) -> None:
+    """When the binary is already on PATH, the bridge step is a no-op."""
+    install_script_module._which = lambda name: "/usr/bin/" + name
+    result = install_script_module._bridge_to_path_dir(("mempalace",), dest_dir=tmp_path)
+    assert result.status == "skipped"
+    assert "already on PATH" in result.detail
+
+
+def test_bridge_to_path_dir_skipped_when_not_found_anywhere(install_script_module, tmp_path: Path) -> None:
+    """When the binary is not on PATH AND not in any candidate dir, the bridge
+    step skips with a diagnostic (no symlink attempted)."""
+    install_script_module._which = lambda name: None
+    install_script_module._candidate_user_bin_dirs = lambda: [tmp_path / "nowhere"]
+    result = install_script_module._bridge_to_path_dir(("mempalace",), dest_dir=tmp_path / "dest")
+    assert result.status == "skipped"
+    assert "not found" in result.detail.lower() or "not on PATH" in result.detail
+
+
+def test_bridge_to_path_dir_idempotent(install_script_module, tmp_path: Path) -> None:
+    """Running the bridge twice with the same source + dest yields the same
+    symlink (no failure on re-run; replaces the existing link)."""
+    import platform
+    if platform.system() == "Windows":
+        pytest.skip("Unix-specific symlink behavior")
+    fake_bin = tmp_path / "fake-user-bin"
+    fake_bin.mkdir(parents=True)
+    fake_mp = fake_bin / "mempalace"
+    fake_mp.write_text("#!/bin/sh\necho 9.9.9")
+    fake_mp.chmod(0o755)
+    install_script_module._candidate_user_bin_dirs = lambda: [fake_bin]
+    install_script_module._which = lambda name: None
+    dest = tmp_path / "fake-local-bin"
+    r1 = install_script_module._bridge_to_path_dir(("mempalace",), dest_dir=dest)
+    r2 = install_script_module._bridge_to_path_dir(("mempalace",), dest_dir=dest)
+    assert r1.status == "ok"
+    assert r2.status == "ok"
+    assert (dest / "mempalace").is_symlink()
+
+
+def test_bridged_binaries_constant(install_script_module) -> None:
+    """The _BRIDGED_BINARIES tuple is the explicit allowlist of names the
+    installer self-heals — keep it short and named."""
+    assert install_script_module._BRIDGED_BINARIES == ("mempalace", "mempalace-mcp")
+
+
+def test_install_via_pip_falls_back_to_python_dash_m_pip(install_script_module, monkeypatch) -> None:
+    """When pip is not on PATH but python is, install_via_pip uses
+    `python -m pip install --user`."""
+    monkeypatch.setattr(install_script_module, "_which", lambda name: {
+        "pip": None, "pip3": None, "python3": "/usr/bin/python3",
+    }.get(name))
+    captured = {}
+    def fake_run(cmd, capture=True, check=False):
+        captured["cmd"] = cmd
+        class P:
+            returncode = 0
+            stdout = "ok"
+            stderr = ""
+        return P()
+    monkeypatch.setattr(install_script_module, "_run", fake_run)
+    result = install_script_module.install_via_pip()
+    assert result.status == "ok"
+    assert "-m" in captured["cmd"]
+    assert "pip" in captured["cmd"]

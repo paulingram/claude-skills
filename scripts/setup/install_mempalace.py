@@ -28,12 +28,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, asdict, field
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
+
+# v2.9.0 — binaries the installer is responsible for bridging to PATH when
+# pip --user lands them outside the user's existing PATH. Keep this list
+# short and explicit: the installer never symlinks unrelated executables.
+_BRIDGED_BINARIES: tuple[str, ...] = ("mempalace", "mempalace-mcp")
 
 
 @dataclass
@@ -99,13 +105,215 @@ def install_via_uv() -> StepResult:
 def install_via_pip() -> StepResult:
     pip = _which("pip") or _which("pip3")
     if not pip:
-        return StepResult(name="pip-install", status="skipped", detail="pip not on PATH")
+        # The interpreter may have pip available as a module even when no
+        # `pip` / `pip3` script exists on PATH (common on stripped-down
+        # macOS Python installs). Try `python -m pip install --user`.
+        py = _which("python3") or _which("python") or sys.executable
+        if not py:
+            return StepResult(name="pip-install", status="skipped", detail="neither pip nor python on PATH")
+        proc = _run([py, "-m", "pip", "install", "--user", "mempalace"])
+        if proc.returncode == 0:
+            return StepResult(name="pip-install", status="ok",
+                              detail=f"{py} -m pip install --user mempalace succeeded")
+        tail = (proc.stderr or proc.stdout or "")[-300:]
+        return StepResult(name="pip-install", status="fail",
+                          detail=f"python -m pip install failed: {tail}")
     # User-site to avoid touching system Python.
     proc = _run([pip, "install", "--user", "mempalace"])
     if proc.returncode == 0:
         return StepResult(name="pip-install", status="ok", detail="pip install --user mempalace succeeded")
     tail = (proc.stderr or proc.stdout or "")[-300:]
     return StepResult(name="pip-install", status="fail", detail=f"pip install failed: {tail}")
+
+
+# ---------------------------------------------------------------------------
+# v2.9.0 PATH-self-heal — closes the heirship pip-user-bin-not-on-PATH case
+# ---------------------------------------------------------------------------
+
+
+def _candidate_user_bin_dirs() -> list[Path]:
+    """Enumerate directories where `pip install --user` plausibly placed
+    the mempalace binary across macOS, Linux, and Windows.
+
+    Order matters: probe `python -m site --user-base` first (authoritative
+    for the active interpreter), then fall back to well-known per-platform
+    paths so we still find the binary if the active interpreter differs
+    from the one pip used.
+    """
+    cands: list[Path] = []
+    seen: set[Path] = set()
+
+    def _add(p: Path) -> None:
+        try:
+            resolved = p.resolve()
+        except OSError:
+            resolved = p
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        cands.append(p)
+
+    # 1. Authoritative: the active interpreter's user-base.
+    for py in (_which("python3"), _which("python"), sys.executable):
+        if not py:
+            continue
+        try:
+            out = _run([py, "-m", "site", "--user-base"])
+            user_base = out.stdout.strip()
+        except Exception:
+            continue
+        if not user_base:
+            continue
+        base = Path(user_base)
+        # Unix: <base>/bin. Windows: <base>\\Python<XY>\\Scripts.
+        if platform.system() == "Windows":
+            for sub in base.glob("Python*/Scripts"):
+                _add(sub)
+        else:
+            _add(base / "bin")
+
+    # 2. Well-known macOS pip-user layouts (~/Library/Python/<X.Y>/bin).
+    if platform.system() == "Darwin":
+        for py_ver_dir in (Path.home() / "Library" / "Python").glob("*/bin"):
+            _add(py_ver_dir)
+
+    # 3. Linux ~/.local/bin (also the conventional bridge target, but probe
+    #    it as a candidate too — the binary might already be there from a
+    #    distribution-default Python install).
+    if platform.system() != "Windows":
+        _add(Path.home() / ".local" / "bin")
+
+    # 4. Windows AppData layouts (additional locations beyond user-base).
+    if platform.system() == "Windows":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            for sub in (Path(appdata) / "Python").glob("Python*/Scripts"):
+                _add(sub)
+
+    return cands
+
+
+def _locate_pip_user_binary(name: str) -> Optional[Path]:
+    """Return the absolute path to a user-site binary even when it is not
+    on PATH. None if no candidate location contains the binary."""
+    if platform.system() == "Windows":
+        candidates = (f"{name}.exe", name)
+    else:
+        candidates = (name,)
+    for d in _candidate_user_bin_dirs():
+        if not d.exists() or not d.is_dir():
+            continue
+        for fname in candidates:
+            p = d / fname
+            if p.exists() and p.is_file():
+                return p
+    return None
+
+
+def _path_contains(target: Path) -> bool:
+    """True if `target` is one of the PATH directories of the current shell."""
+    path_env = os.environ.get("PATH", "")
+    for entry in path_env.split(os.pathsep):
+        if not entry:
+            continue
+        try:
+            if Path(entry).resolve() == target.resolve():
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _bridge_to_path_dir(binaries: Iterable[str], dest_dir: Optional[Path] = None) -> StepResult:
+    """Locate any of `binaries` in the pip-user-bin candidate dirs and
+    symlink them into `dest_dir` (default `~/.local/bin` on Unix).
+
+    Returns:
+      - status=ok with detail naming the bridge target + PATH coverage status
+      - status=skipped when nothing needed bridging (binary already on PATH,
+        or no candidate location holds the binary)
+      - status=fail when bridging encountered an error (permission /
+        Windows symlink-without-admin / etc.)
+    """
+    # If every requested binary is already reachable, nothing to bridge.
+    already_reachable = [b for b in binaries if _which(b)]
+    needs_bridge = [b for b in binaries if not _which(b)]
+    if not needs_bridge:
+        return StepResult(
+            name="path-bridge",
+            status="skipped",
+            detail=f"binaries already on PATH: {sorted(already_reachable)!r}",
+        )
+
+    # Locate each needed binary in a pip-user bin dir.
+    located: dict[str, Path] = {}
+    for b in needs_bridge:
+        p = _locate_pip_user_binary(b)
+        if p is not None:
+            located[b] = p
+
+    if not located:
+        return StepResult(
+            name="path-bridge",
+            status="skipped",
+            detail=f"binaries not on PATH and not found in any pip-user-bin candidate: "
+                   f"{sorted(needs_bridge)!r}",
+        )
+
+    # Windows: symlinking requires admin or developer-mode. Emit the explicit
+    # PATH instruction instead of attempting and silently failing.
+    if platform.system() == "Windows":
+        src_dirs = sorted({str(p.parent) for p in located.values()})
+        instr = (
+            f"Detected binaries at {src_dirs!r}. Add the directory to PATH with:\n"
+            f'    setx PATH "%PATH%;{src_dirs[0]}"\n'
+            f"(restart your terminal to pick up the new PATH.)"
+        )
+        return StepResult(name="path-bridge", status="ok", detail=instr)
+
+    # Unix: symlink to dest_dir (default ~/.local/bin).
+    dest = dest_dir if dest_dir is not None else (Path.home() / ".local" / "bin")
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return StepResult(name="path-bridge", status="fail",
+                          detail=f"could not create {dest}: {e}")
+
+    bridged: list[str] = []
+    for binary_name, src in located.items():
+        link = dest / binary_name
+        # Remove existing dangling/broken symlinks idempotently.
+        if link.is_symlink() or link.exists():
+            try:
+                link.unlink()
+            except OSError as e:
+                return StepResult(name="path-bridge", status="fail",
+                                  detail=f"could not replace {link}: {e}")
+        try:
+            link.symlink_to(src)
+            bridged.append(f"{binary_name} -> {src}")
+        except OSError as e:
+            return StepResult(name="path-bridge", status="fail",
+                              detail=f"symlink {link} -> {src} failed: {e}")
+
+    if not bridged:
+        return StepResult(name="path-bridge", status="skipped",
+                          detail="no binaries needed bridging after re-check")
+
+    on_path = _path_contains(dest)
+    if on_path:
+        return StepResult(
+            name="path-bridge",
+            status="ok",
+            detail=f"symlinked into {dest} (already on PATH): {bridged!r}",
+        )
+    instr = (
+        f"symlinked into {dest} (NOT on PATH yet). Add it with:\n"
+        f'    export PATH="{dest}:$PATH"\n'
+        f"in ~/.zshrc (zsh) or ~/.bashrc (bash); then open a new shell. "
+        f"Bridged: {bridged!r}"
+    )
+    return StepResult(name="path-bridge", status="ok", detail=instr)
 
 
 def build_mcp_command(palace_path: Optional[str]) -> str:
@@ -180,13 +388,80 @@ def main(argv: list[str]) -> int:
                 report.steps.append(StepResult(name="detect-post", status="ok",
                                                detail=f"mempalace now reachable at {path}: {version}"))
             else:
-                msg = (
-                    "Install command reported success but `mempalace` is still not on PATH.\n"
-                    "Open a new shell (PATH refresh) and retry, or run "
-                    "`uv tool update-shell` if uv-installed."
-                )
-                report.steps.append(StepResult(name="detect-post", status="fail", detail=msg))
-                return _emit(report, args.json, exit_code=1)
+                # v2.9.0 — pip --user often lands the binary outside PATH (the
+                # classic macOS `~/Library/Python/<X.Y>/bin` case). Self-heal:
+                # locate the binary, symlink it into ~/.local/bin, re-detect.
+                report.steps.append(StepResult(
+                    name="detect-post",
+                    status="skipped",
+                    detail="install succeeded but mempalace not on PATH; attempting path-bridge",
+                ))
+                bridge_result = _bridge_to_path_dir(_BRIDGED_BINARIES)
+                report.steps.append(bridge_result)
+                if bridge_result.status == "ok":
+                    # Re-probe PATH for the post-bridge binary. On Unix the new
+                    # symlink should be reachable if ~/.local/bin is on PATH;
+                    # if it isn't yet, the bridge step's detail tells the user
+                    # how to add it. On Windows the bridge step printed the
+                    # setx instruction and didn't symlink.
+                    path, version = detect_mempalace()
+                    if path:
+                        report.mempalace_installed = True
+                        report.mempalace_path = path
+                        report.mempalace_version = version
+                        report.steps.append(StepResult(
+                            name="detect-post-bridge",
+                            status="ok",
+                            detail=f"mempalace reachable after path-bridge at {path}: {version}",
+                        ))
+                    else:
+                        # Bridge succeeded mechanically but PATH coverage was
+                        # lacking (the bridge step's detail explains how to
+                        # add ~/.local/bin to PATH). Surface the located
+                        # binary so the user can use the absolute path
+                        # immediately, then open a new shell once PATH is set.
+                        located = _locate_pip_user_binary("mempalace")
+                        if located is not None:
+                            report.mempalace_installed = True
+                            report.mempalace_path = str(located)
+                            try:
+                                v_out = _run([str(located), "--version"])
+                                report.mempalace_version = (
+                                    (v_out.stdout.strip() or v_out.stderr.strip()) or None
+                                )
+                            except Exception:
+                                report.mempalace_version = None
+                            report.steps.append(StepResult(
+                                name="detect-post-bridge",
+                                status="ok",
+                                detail=f"mempalace symlinked but PATH not yet refreshed; "
+                                       f"absolute binary path is {located}",
+                            ))
+                        else:
+                            msg = (
+                                "Install command reported success but `mempalace` is still not on PATH "
+                                "and the path-bridge step could not locate it.\n"
+                                "Open a new shell (PATH refresh) and retry, or run "
+                                "`uv tool update-shell` if uv-installed."
+                            )
+                            report.steps.append(StepResult(
+                                name="detect-post-bridge",
+                                status="fail",
+                                detail=msg,
+                            ))
+                            return _emit(report, args.json, exit_code=1)
+                else:
+                    msg = (
+                        "Install command reported success but `mempalace` is still not on PATH, "
+                        "and the path-bridge self-heal could not resolve it.\n"
+                        f"Bridge step detail: {bridge_result.detail}"
+                    )
+                    report.steps.append(StepResult(
+                        name="detect-post-bridge",
+                        status="fail",
+                        detail=msg,
+                    ))
+                    return _emit(report, args.json, exit_code=1)
 
     # Step 4 — per-workspace palace + MCP wire-up advice.
     palace_path: Optional[str] = None

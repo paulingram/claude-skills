@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.0] — 2026-06-01 — MemPalace installer self-heal + polyglot Python in commands
+
+**ADDITIVE — backwards-compatible.** Pure installer + slash-command robustness. Schema v7 unchanged; 10 Layer-3 tools unchanged; no agent body changes.
+
+### The failure shape this closes (verbatim from the user)
+
+> "Unknown command: /architect-team-setup … /architect-team:mempalace-install … Error: Shell command failed for pattern '\`\`\`! python …/install_mempalace.py' … (eval):1: command not found: python … MemPalace install — summary … [+] pip-install pip install --user mempalace succeeded … [x] detect-post Install command reported success but `mempalace` is still not on PATH … must handle all types of python and need to powerfully complete install of mempalace. must work under all conditions"
+
+Two distinct bugs surfaced from the same install attempt on macOS:
+
+1. **`commands/mempalace-install.md` ran bare `python` first.** The command file had TWO `\`\`\`!` invocation blocks: the first ran bare `python …`, the second was the `python3 || python` polyglot "retry." The Claude Code harness executes blocks sequentially and stops on the first failure — so on macOS systems with only `python3`, the bare-python block failed and the polyglot fallback was never reached.
+2. **`pip install --user mempalace` succeeded but the binary wasn't on PATH.** On macOS, `pip --user` lands binaries in `~/Library/Python/<X.Y>/bin`, which isn't on the default user PATH. The installer's `detect-post` step correctly reported `mempalace not on PATH` — and then surrendered to the user. The user had to manually locate the binary, identify a directory already on PATH (`~/.local/bin`), and symlink it themselves.
+
+The user's directive was unambiguous: *"must handle all types of python and need to powerfully complete install of mempalace. must work under all conditions."*
+
+### What v2.9.0 ships
+
+1. **`commands/mempalace-install.md` collapses to a single polyglot block.** The bare-`python` block is removed; the remaining block uses `python3 "…" || python "…"`. On macOS / Linux the `python3` form succeeds and `||` short-circuits; on Windows the `python3` form fails fast (Microsoft Store shim) and `||` falls through to the `python` form. Exactly one of the two interpreters runs the script — no harness early-stop. A structural test now audits all 14 command files for the same pattern.
+
+2. **`scripts/setup/install_mempalace.py` self-heals the PATH gap.** Two new helpers:
+   - `_locate_pip_user_binary(name)` — probes `python -m site --user-base`, then well-known per-platform fallback dirs (macOS `~/Library/Python/*/bin`, Linux `~/.local/bin`, Windows `Python*/Scripts`), and returns the absolute path even when the binary isn't on PATH.
+   - `_bridge_to_path_dir(binaries, dest_dir)` — symlinks located binaries into `~/.local/bin` (Unix) or emits the explicit `setx PATH` instruction (Windows; symlinks need admin/developer mode there). Idempotent (replaces existing symlinks).
+   - Wired into `main()` as a new `path-bridge` step that fires after `detect-post` fails. Re-detects via PATH; if still not reachable but bridging succeeded, surfaces the absolute binary path so the user can use it immediately while opening a new shell.
+
+3. **`install_via_pip()` falls back to `python -m pip` when no `pip` / `pip3` script is on PATH.** Some stripped-down macOS Python installs ship pip-as-a-module only.
+
+4. **The `_BRIDGED_BINARIES` allowlist** is an explicit named tuple `("mempalace", "mempalace-mcp")`. The installer never symlinks unrelated executables — keeping the bridge scope-bounded.
+
+5. **+11 new tests** in `tests/test_mempalace_install.py` covering: polyglot Python pattern in the slash command + audit across all 14 command files + `_locate_pip_user_binary` (none + found) + `_bridge_to_path_dir` (symlinks-unix + skipped-when-on-PATH + skipped-when-not-found + idempotent) + `_BRIDGED_BINARIES` constant + `install_via_pip`'s `python -m pip` fallback. 2635 → 2646 passing; zero regressions.
+
+### How the v2.9.0 installer flow looks under the heirship case
+
+```
+[-] detect-pre        mempalace not on PATH; will install
+[-] uv-install        uv not on PATH
+[+] pip-install       pip install --user mempalace succeeded
+[-] detect-post       install succeeded but mempalace not on PATH; attempting path-bridge
+[+] path-bridge       symlinked into /Users/<u>/.local/bin (already on PATH): ['mempalace -> /Users/<u>/Library/Python/3.9/bin/mempalace', 'mempalace-mcp -> /Users/<u>/Library/Python/3.9/bin/mempalace-mcp']
+[+] detect-post-bridge mempalace reachable after path-bridge at /Users/<u>/.local/bin/mempalace: 3.3.5
+```
+
+When `~/.local/bin` isn't on PATH yet, the bridge step succeeds AND the `detect-post-bridge` step surfaces the absolute binary path so the user can use it immediately, plus the bridge step's `detail` includes the verbatim `export PATH="…"` instruction.
+
+### Backwards compatibility
+
+- Already-installed mempalace (binary on PATH): unchanged behavior; `detect-pre` succeeds and the installer exits 0 without touching anything.
+- macOS + uv-installed: unchanged; `uv tool install` puts binaries in a managed PATH location.
+- Linux + pip-user where `~/.local/bin` is already on PATH: unchanged; `detect-post` succeeds, `path-bridge` never fires.
+- Windows: the bridge step surfaces the explicit `setx PATH` instruction (no symlink — Windows symlinks require admin/developer mode).
+
 ## [2.8.0] — 2026-06-01 — No standing-red discipline
 
 **ADDITIVE — backwards-compatible.** Schema v7 unchanged. 10th Layer 3 tool added; no existing tool's contract changes; pre-v2.8.0 artifacts (without `cross_layer_diagnosis` and without standing-red markers in test files) validate unchanged.

@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 8 . 0
+                        ─── C T 6 ───   v 2 . 9 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.8.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.9.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2635%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2646%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,11 +67,21 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.8.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.9.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
+|---|---|
+| **MemPalace installer self-heal** | `pip install --user mempalace` succeeds but lands the binary in `~/Library/Python/<X.Y>/bin` (macOS) or `Python*/Scripts` (Windows) — directories rarely on the user's default PATH. Pre-v2.9.0 the installer reported `mempalace not on PATH` and surrendered. v2.9.0 adds a new `path-bridge` step: `_locate_pip_user_binary()` probes `python -m site --user-base` + well-known per-platform fallback dirs; `_bridge_to_path_dir()` symlinks the binary into `~/.local/bin` (Unix) or emits the explicit `setx PATH` instruction (Windows). The installer then re-detects; if PATH coverage is incomplete the step surfaces the absolute binary path so the user can use it immediately while opening a new shell. |
+| **Polyglot Python in commands/mempalace-install.md** | The command file had TWO `\`\`\`!` invocation blocks: bare `python` first, polyglot `python3 || python` as the "retry." The harness executes blocks sequentially and stops on the first failure — on macOS systems with only `python3`, the bare-python block failed and the polyglot fallback was never reached. v2.9.0 collapses to a single polyglot block; a structural test now audits **all 14 command files** for the pattern. |
+| **`install_via_pip()` falls back to `python -m pip`** | Some stripped-down macOS Python installs ship pip-as-a-module only (no `pip` / `pip3` script on PATH). v2.9.0 detects the gap and uses `<python> -m pip install --user`. |
+| **`_BRIDGED_BINARIES` allowlist** | An explicit named tuple `("mempalace", "mempalace-mcp")` — the installer NEVER symlinks unrelated executables, keeping the bridge scope-bounded. |
+| **Backwards-compatible** | Already-installed mempalace + uv-installed + Linux pip-user (where `~/.local/bin` is already on PATH) are all unchanged. +11 net tests (2635 → 2646); zero regressions. |
+
+### Carried forward from v2.8.0 — no standing-red discipline
+
+| Capability | What it does |
 |---|---|
 | **No standing-red discipline** | Agents MUST NOT commit a failing test as documentation of a known bug. When a regression is diagnosed — including cross-layer cases where one layer is correct and the other is broken — the only valid endings are: (a) fix every layer the diagnosis names in this change, (b) route the unfixed layer via a solution requirement so the orchestrator dispatches the right team, OR (c) escalate for an explicit confirmed-stub decision. Committing a failing test that *"will go green when fixed"* ships visible red CI as a substitute for routing the fix — exactly what CI is supposed to forbid. |
 | **10th Layer 3 tool — `verify_no_standing_red`** | NEW deterministic verification function + `verify-no-standing-red` CLI subcommand in `hooks/vao_tools.py`. `_STANDING_RED_MARKERS` constant covers 16 patterns including `// standing red` / `// will go green when fixed` / `// known broken` / `// documents the gap` / `test.fixme(` / `it.fixme(` / `test.fail(` / `@pytest.mark.xfail`. 2 named severities: `standing-red-committed` (marker in newly-added test, no confirmed-stub citation) / `cross-layer-fix-not-routed` (cross-layer diagnosis + standing-red + no SR of `cross-layer-backend-required` / `cross-layer-frontend-required` origin kind). Trivially passes when no markers AND no `cross_layer_diagnosis` — fully backwards-compatible. |

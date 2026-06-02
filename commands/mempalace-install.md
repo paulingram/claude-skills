@@ -21,16 +21,10 @@ The command never silently modifies the user's Claude Code config, never auto-ru
 ## Invocation
 
 ```!
-python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS
-```
-
-If `python` is unavailable, retry with `python3`:
-
-```!
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py" $ARGUMENTS
 ```
 
-The `|| python ...` fallback runs when `python3` isn't on PATH — the canonical Unix idiom is `python3` (Linux/macOS), the canonical Windows idiom is `python` (and `python3` there triggers the Microsoft Store shim by default). The script's logic is identical under either invocation; the fallback never fires on systems where `python3` works.
+This is the **polyglot Python pattern** the plugin uses everywhere. `python3` is the canonical Unix idiom (Linux / macOS); `python` is the canonical Windows idiom (and `python3` there triggers the Microsoft Store shim by default). The `||` fallback only fires when the first form fails to start a Python interpreter, so on either platform exactly one of the two invocations runs the script. The script's logic is identical under either name. **Do NOT split this into two separate code blocks** — the harness executes blocks sequentially and stops on the first failure, which would defeat the fallback (the v2.9.0 bug this consolidation closes).
 
 ## After the script runs, summarize:
 
