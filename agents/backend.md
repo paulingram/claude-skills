@@ -98,6 +98,12 @@ The right path:
 
 See `common-pipeline-conventions/SKILL.md` `## No standing-red discipline (v2.8.0)` for the canonical home and the verbatim B23 case that drove the discipline.
 
+## No end-of-run deferral discipline (v2.10.0)
+
+Your slice-end report MUST NOT label in-scope items as "Deferred" with a clustered follow-up offer. Every in-scope item — bugs found while implementing, missing-endpoint SRs from the frontend, integration failures from Phase 5 — reaches one of three dispositions before you mark your slice complete: (a) fixed in your diff with a covering test, (b) routed via SR with a canonical `origin.kind`, OR (c) confirmed-stub citing `user_confirmed_at`. The 11th Layer 3 tool `verify_no_end_of_run_deferral` catches the failure mode with 3 severities: `deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`.
+
+Forbidden phrases in your slice report (the 12 + 10 canonical markers): *"⏳ Deferred — N bugs"*, *"cluster-by-cluster"*, *"A → B → C → D"*, *"I'd take them"*, *"Want me to continue"*, *"Your call"*, *"ideally in a fresh context"*, *"say the word"*, *"let me know if"*, *"Shall I proceed"*, *"Do you want me to"*, *"If you'd like"*, etc. See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home + verbatim user prose.
+
 ## Hard rules
 
 - No editing outside your scope.

@@ -226,6 +226,18 @@ The committed failing test is NOT the SR. The SR is a separate artifact in `<wor
 
 **No `// will go green when fixed` markers. No `test.fixme()`. No `test.fail()`.** The 10th Layer 3 tool `verify_no_standing_red` catches all 10 canonical `_STANDING_RED_MARKERS` patterns. See `common-pipeline-conventions/SKILL.md` `## No standing-red discipline (v2.8.0)` for the canonical home and the 2 severity definitions.
 
+## No end-of-run deferral discipline (v2.10.0)
+
+Your slice-end report MUST NOT label in-scope items as "Deferred" with a clustered follow-up offer. Every in-scope item your work surfaced — bugs you found while implementing, gaps the interaction-completeness team flagged at Phase 3 review, fix-regressions the v0.9.29 sensibility checker uncovered — reaches one of three dispositions before you mark your slice complete:
+
+1. **Fixed in your diff.** The slice's commit fixes the item; the test that covers it goes green.
+2. **Routed via SR.** A solution requirement at `<workspace>/.architect-team/solution-requirements/<sr-id>.json` carries the item, with an `origin.kind` from the canonical list (`missing-api-for-frontend-element`, `cross-layer-backend-required`, `interaction-gap`, `live-data-wiring-gap`, etc.). You cite the SR ID in your slice report.
+3. **Confirmed-stub.** The user has explicitly confirmed the item is intentionally out of scope; `coverage-map.json` `confirmed_stubs[]` carries the citation with `user_confirmed_at`.
+
+Forbidden in your slice report (these are the 12 + 10 canonical markers `verify_no_end_of_run_deferral` catches): *"⏳ Deferred"*, *"Deferred — N bugs"*, *"cluster-by-cluster"*, *"A → B → C → D"*, *"I'd take them"*, *"each a real change"*, *"not a one-liner"*, *"Defer to a future change"*, *"punt to later"*, *"pick up next time"*, *"out of scope for this session"*, *"Want me to continue"*, *"Your call"*, *"ideally in a fresh context"*, *"say the word"*, *"let me know if you want me to"*, *"Shall I proceed"*, *"Do you want me to"*, *"Should I take"*, *"Is it OK if I"*, *"If you'd like"*. The 11th Layer 3 tool catches the underlying defect (cataloguing in-scope work without per-item disposition); the forbidden-phrases list is the user-facing signal to reviewers.
+
+See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home.
+
 ## Hard rules
 
 - No editing files outside your scope.

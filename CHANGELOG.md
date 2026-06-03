@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.10.0] — 2026-06-03 — No end-of-run deferral discipline
+
+**ADDITIVE — backwards-compatible.** Schema v7 unchanged. 11th Layer 3 tool added; the 10 existing tools' contracts are unchanged; pre-v2.10.0 artifacts (without `final_report` text) validate unchanged.
+
+### The failure shape this closes (verbatim from the user)
+
+> "⏳ Deferred — 7 bugs, 4 work-items (each a real change, not a one-liner) … Want me to continue with the deferred 7? I'd take them cluster-by-cluster (A → B → C → D), each gated + redeployed + Playwright-verified the same way — ideally in a fresh context so I'm not extending an already-long session. Your call. … this is not allowed. fix it and ensure your fix is strong"
+
+The agent did the diagnostic work correctly — it identified 7 real bugs and 4 real work-items, named the file:line evidence, even clustered them by subsystem (A: family-tree detail + live-update, B: heir-intake nav queue, C: activity log, D: doc DOB extraction). The defect is the **ending** of the run: instead of fixing them (the v0.9.20 default-mode-of-operation rule), routing them via SR (the v1.7/v2.8 channel), or confirmed-stub-ing them (the v0.9.18 channel), the agent labelled them `⏳ Deferred` and asked the user *"Want me to continue?"*
+
+### How this differs from neighboring disciplines
+
+| Discipline | Failure shape | Where the defect fires |
+|---|---|---|
+| **v0.9.36 anti-deferral** (mid-run) | Agent finds bug mid-run → silently defers to "next run" without authorization. | DURING execution, between phases. |
+| **v1.4.0 scope discipline** (intake) | Agent narrows the user's prompt at intake before any work starts. | AT intake, before Phase 0. |
+| **v2.8.0 no standing-red** | Agent commits a failing regression test as documentation of a known bug. | At commit time, as a code artifact. |
+| **v2.10.0 no end-of-run deferral** | Agent ends the run with a catalogued list of in-scope items labelled "Deferred" + a "Want me to continue?" follow-up offer. | At end-of-run, as the final report shape. |
+
+The four disciplines are all expressions of the same root principle — **the agent does the work; it does not bounce the work back to the user with framing that makes the bounce look acceptable** — fired at four different moments in the timeline.
+
+### What v2.10.0 ships
+
+1. **NEW canonical `## No end-of-run deferral discipline (v2.10.0)` section** in `skills/common-pipeline-conventions/SKILL.md`. Names the rule, the verbatim heirship prose, the comparison table vs neighbor disciplines, the 3 named severities, the 12-marker `_DEFERRAL_CATALOG_MARKERS` allowlist + 10-marker `_FOLLOWUP_QUESTION_MARKERS` allowlist, and the 3 valid item dispositions (fixed in this change / SR routed / confirmed-stub with `user_confirmed_at`).
+
+2. **NEW 11th Layer 3 tool — `verify_no_end_of_run_deferral`** in `hooks/vao_tools.py`. Deterministic verification function + `verify-no-end-of-run-deferral` CLI subcommand. Module constants `_DEFERRAL_CATALOG_MARKERS` (16 patterns covering `⏳ Deferred`, `Deferred — `, `cluster-by-cluster`, `A → B → C`, `each a real change`, `not a one-liner`, `I'd take them`, `Defer to a future change`, `punt to later`, `pick up next time`, `out of scope for this session`, …), `_FOLLOWUP_QUESTION_MARKERS` (10 patterns covering `Want me to continue`, `Your call`, `ideally in a fresh context`, `say the word`, `let me know if`, `Shall I proceed`, `Do you want me to`, `Should I take`, `Is it OK if I`, `If you'd like`), and `_ITEM_DISPOSITION_CITATIONS` (the sanctioned per-item citation patterns: `SR-`, `commit-sha:`, `confirmed_stub`, `confirmed-stub`, `implementing_commits`). 3 named severities:
+
+   | Severity | Trigger |
+   |---|---|
+   | `deferred-work-catalog` | final_report contains any deferral-catalog marker |
+   | `followup-decision-question` | final_report contains any followup-question marker |
+   | `wrap-up-with-known-bugs` | final_report enumerates ≥ 3 bulleted items AND no per-item disposition (commit-sha / SR / confirmed-stub) is cited in either the artifact or the report text |
+
+   Trivially passes when `final_report` is empty / absent — fully backwards-compatible.
+
+3. **EXTENDED 4 agent bodies** with `## No end-of-run deferral discipline (v2.10.0)` sections:
+   - `agents/system-architect.md` — Master Review Audit gains an `end_of_run_deferral_finding` block; a populated finding is a hard-fail verdict (same shape as v1.4.0 `scope_fidelity_finding`).
+   - `agents/qa-replayer.md` — verdict cannot be `bug-resolved` if a deferral marker is detected; new `end_of_run_deferral_finding` field alongside `standing_red_finding` (v2.8.0).
+   - `agents/frontend.md` + `agents/backend.md` — implementer-side discipline; explicitly lists the 12 + 10 forbidden phrases and the 3 valid item dispositions.
+
+4. **NEW canonical fixture** `tests/fixtures/vao/in-scope-deferral-cluster-list.json` reproducing the verbatim heirship case (7 bugs + 4 work-items clustered A → B → C → D with `⏳ Deferred` header + `Want me to continue?` + `cluster-by-cluster` + `Your call`). Bad version fires 12 distinct gaps across all 3 severities. `_corrected_verification_artifact` shows the same 11 items each dispositioned: 4 fixed-in-change with `commit-sha:` citations, 5 routed via 4 SRs with canonical origin kinds (`missing-api-for-frontend-element` / `cross-layer-backend-required` / `interaction-gap`), 2 confirmed-stubs with `user_confirmed_at` timestamps. Passes cleanly.
+
+5. **+76 new tests** — 27 in `tests/test_vao_no_end_of_run_deferral.py` (tool contract + 12 deferral markers parametrized + 10 followup markers parametrized + 3 disposition channels × {pos, neg} + under-threshold bullet count + determinism + CLI exit codes + fixture round-trip) and 49 in `tests/test_no_end_of_run_deferral_discipline.py` (canonical section + 4 agent extensions + 6 marker presence in canonical section + 3 disposition documentation + neighbor-discipline comparison table + forbidden phrase coverage + fixture shape). 2646 → 2722 passing; zero regressions.
+
+### Backwards compatibility
+
+- Runs without `final_report` text in the verification artifact: tool returns `valid: True, gaps: []` — zero behavior change.
+- The 10 existing Layer 3 tools' contracts are unchanged; v2.6.0 / v2.7.0 / v2.8.0 / v2.9.0 fixtures continue to validate.
+- Schema v7 unchanged.
+
 ## [2.9.0] — 2026-06-01 — MemPalace installer self-heal + polyglot Python in commands
 
 **ADDITIVE — backwards-compatible.** Pure installer + slash-command robustness. Schema v7 unchanged; 10 Layer-3 tools unchanged; no agent body changes.

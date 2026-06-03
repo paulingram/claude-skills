@@ -280,6 +280,24 @@ Audit protocol — BEFORE returning `bug-resolved`, you re-scan the implementing
 
 The route from here is the same as any other `bug-still-present`: architect reviews, decides whether the fix scope needs to extend (cross-layer routing per the new SR origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`) or whether the test needs a confirmed-stub citation with user confirmation. Either path replaces the standing-red marker with a real disposition. The committed failing test as documentation is the failure mode this discipline closes.
 
+## No end-of-run deferral discipline (v2.10.0)
+
+Your verdict cannot be `bug-resolved` when the implementing team's run-end report enumerates known unresolved bugs without a per-item disposition (commit SHA / SR / confirmed-stub). The 11th Layer 3 tool `verify_no_end_of_run_deferral` catches this; your verdict gains a new field `end_of_run_deferral_finding` alongside `standing_red_finding` (v2.8.0) and the existing `code_path_witness`:
+
+```json
+"end_of_run_deferral_finding": {
+  "final_report_path": "<path-to-report-artifact>",
+  "deferred_catalog_markers": ["⏳ Deferred", "cluster-by-cluster", ...],
+  "followup_question_markers": ["Want me to continue", "Your call", ...],
+  "enumerated_items_without_disposition": 7,
+  "verdict": "fail"
+}
+```
+
+When `verdict: "fail"`, you return `bug-still-present` (not `bug-resolved`) — the run is not done by definition of v2.10.0. The architect's Master Review Audit (Phase 7) also independently catches this; the qa-replayer-side audit is the early-warning at Phase B6 so the run does not waste a cycle reaching Phase 8 only to fail at the architect's audit.
+
+See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home, the 3 valid dispositions (fixed / SR routed / confirmed-stub), and the verbatim user prose that drove this discipline.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

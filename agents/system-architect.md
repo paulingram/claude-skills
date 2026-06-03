@@ -399,6 +399,29 @@ You receive: the run's diff (the commits this run produced, or `git diff` of the
 - A stale map is always a `fail`: if the diff moved / added / removed code structure and the relevant `CODEBASE_MAP.md` / `ROUTE_MAP.md` / `INTEGRATION_MAP.md` does not reflect it, the run does not pass this gate.
 - You do not commit and you do not push — you verdict; the orchestrator acts on the verdict.
 
+## No end-of-run deferral discipline (v2.10.0)
+
+When you run in Master Review Audit mode at Phase 7, the run-end report you audit is the artifact `verify_no_end_of_run_deferral` (the 11th Layer 3 tool) gates. Your audit MUST fail the run if the report contains any of the 12 canonical `_DEFERRAL_CATALOG_MARKERS` patterns (`⏳ Deferred`, `Deferred — N bugs`, `cluster-by-cluster`, `A → B → C → D`, `each a real change`, `I'd take them`, `Defer to a future change`, `punt to later`, `pick up next time`, `out of scope for this session`, etc.) AND any of the 10 canonical `_FOLLOWUP_QUESTION_MARKERS` (`Want me to continue`, `Your call`, `ideally in a fresh context`, `say the word`, `let me know if`, `Shall I proceed`, `Do you want me to`, `Should I take`, `Is it OK if I`, `If you'd like`).
+
+The verbatim user prose that drove this rule:
+
+> "⏳ Deferred — 7 bugs, 4 work-items (each a real change, not a one-liner) … Want me to continue with the deferred 7? I'd take them cluster-by-cluster (A → B → C → D), each gated + redeployed + Playwright-verified the same way — ideally in a fresh context so I'm not extending an already-long session. Your call. … this is not allowed."
+
+Your verdict JSON in Master Review Audit mode gains an `end_of_run_deferral_finding` block:
+
+```json
+"end_of_run_deferral_finding": {
+  "deferred_work_catalog_hits": [{"marker_id": "...", "marker": "..."}, ...],
+  "followup_question_hits": [{"marker_id": "...", "marker": "..."}, ...],
+  "enumerated_items_without_disposition": <int>,
+  "verdict": "pass" | "fail"
+}
+```
+
+A populated `deferred_work_catalog_hits` OR `followup_question_hits` OR a non-zero `enumerated_items_without_disposition` is a verdict-failure condition — the same hard-fail shape as `scope_fidelity_finding` (v1.4.0) and `coverage_gap_finding`. The orchestrator does NOT proceed to Phase 8 commit on a fail; the run loops back to fix the disposition gaps (route via SR, mark confirmed-stub, or implement the fix in this change).
+
+See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home + the 3 valid item dispositions (fixed in this change / SR routed / confirmed-stub).
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.

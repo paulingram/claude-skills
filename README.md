@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 9 . 0
+                        ─── C T 6 ───   v 2 . 10 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.9.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.10.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2646%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2722%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,17 +67,23 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.9.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.10.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **MemPalace installer self-heal** | `pip install --user mempalace` succeeds but lands the binary in `~/Library/Python/<X.Y>/bin` (macOS) or `Python*/Scripts` (Windows) — directories rarely on the user's default PATH. Pre-v2.9.0 the installer reported `mempalace not on PATH` and surrendered. v2.9.0 adds a new `path-bridge` step: `_locate_pip_user_binary()` probes `python -m site --user-base` + well-known per-platform fallback dirs; `_bridge_to_path_dir()` symlinks the binary into `~/.local/bin` (Unix) or emits the explicit `setx PATH` instruction (Windows). The installer then re-detects; if PATH coverage is incomplete the step surfaces the absolute binary path so the user can use it immediately while opening a new shell. |
-| **Polyglot Python in commands/mempalace-install.md** | The command file had TWO `\`\`\`!` invocation blocks: bare `python` first, polyglot `python3 || python` as the "retry." The harness executes blocks sequentially and stops on the first failure — on macOS systems with only `python3`, the bare-python block failed and the polyglot fallback was never reached. v2.9.0 collapses to a single polyglot block; a structural test now audits **all 14 command files** for the pattern. |
-| **`install_via_pip()` falls back to `python -m pip`** | Some stripped-down macOS Python installs ship pip-as-a-module only (no `pip` / `pip3` script on PATH). v2.9.0 detects the gap and uses `<python> -m pip install --user`. |
-| **`_BRIDGED_BINARIES` allowlist** | An explicit named tuple `("mempalace", "mempalace-mcp")` — the installer NEVER symlinks unrelated executables, keeping the bridge scope-bounded. |
-| **Backwards-compatible** | Already-installed mempalace + uv-installed + Linux pip-user (where `~/.local/bin` is already on PATH) are all unchanged. +11 net tests (2635 → 2646); zero regressions. |
+| **No end-of-run deferral discipline** | Agents MUST NOT end a run by cataloguing in-scope work as "Deferred" and bouncing the unfixed items back to the user as a "Want me to continue?" decision question. Every in-scope item has exactly ONE valid disposition at run-end: (a) fixed in this change, (b) routed via SR with a canonical `origin.kind`, OR (c) confirmed-stub with `user_confirmed_at`. The verbatim heirship case (*"⏳ Deferred — 7 bugs, 4 work-items … cluster-by-cluster (A → B → C → D) … Want me to continue? … Your call"*) is the canonical failure mode. |
+| **11th Layer 3 tool — `verify_no_end_of_run_deferral`** | NEW deterministic verification function + `verify-no-end-of-run-deferral` CLI subcommand in `hooks/vao_tools.py`. `_DEFERRAL_CATALOG_MARKERS` (16 patterns: `⏳ Deferred`, `cluster-by-cluster`, `A → B → C`, `I'd take them`, `not a one-liner`, `Defer to a future change`, `punt to later`, `out of scope for this session`, …) + `_FOLLOWUP_QUESTION_MARKERS` (10 patterns: `Want me to continue`, `Your call`, `ideally in a fresh context`, `say the word`, `Shall I proceed`, `Do you want me to`, `Should I take`, `Is it OK if I`, `If you'd like`, …) + `_ITEM_DISPOSITION_CITATIONS` (the sanctioned per-item citation patterns). 3 named severities: `deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`. Trivially passes when `final_report` is empty. |
+| **4 agent body extensions** | `agents/system-architect.md` Master Review Audit gains an `end_of_run_deferral_finding` block (hard-fail). `agents/qa-replayer.md` cannot return `bug-resolved` if deferral markers fire. `agents/frontend.md` + `agents/backend.md` enumerate the 12 + 10 forbidden phrases and the 3 valid dispositions. |
+| **Closes the verbatim heirship 7-bugs-4-work-items case** | Agent identified 7 bugs + 4 work-items (clusters A · Family-tree detail; B · Heir-intake nav queue; C · Activity log; D · Doc DOB extraction), labelled them all `⏳ Deferred`, asked *"Want me to continue with the deferred 7? … cluster-by-cluster (A → B → C → D) … Your call."* User reply: *"this is not allowed. fix it and ensure your fix is strong."* v2.10.0's 3 severities catch every aspect of this verbatim pattern. |
+| **Backwards-compatible** | Schema v7 unchanged; 10 existing Layer 3 tools' contracts unchanged; v2.6.0 / v2.7.0 / v2.8.0 / v2.9.0 fixtures continue to validate. +76 net tests (2646 → 2722); zero regressions. |
+
+### Carried forward from v2.9.0 — MemPalace installer self-heal + polyglot Python in commands
+
+| Capability | What it does |
+|---|---|
+| **Installer PATH self-heal** | `_locate_pip_user_binary()` + `_bridge_to_path_dir()` symlink macOS `~/Library/Python/*/bin` binaries into `~/.local/bin`; `python -m pip install --user` fallback when no `pip` script is on PATH. `_BRIDGED_BINARIES = ("mempalace", "mempalace-mcp")` is an explicit allowlist. The slash command uses the single polyglot `python3 ... || python ...` invocation pattern; a structural test audits all 14 command files. |
 
 ### Carried forward from v2.8.0 — no standing-red discipline
 
@@ -944,7 +950,9 @@ Tests validate: plugin/marketplace JSON; all 26 skill frontmatters; all 27 agent
            v2.5.0  ─ in-flight clarification discipline — when a pipeline is mid-execution and the user injects a message without `/architect-team`, fold it into the in-flight brief as a scope amendment rather than spawning a sibling workflow; 3 detection signals + 4 forbidden anti-patterns; symmetric counterpart to v2.0.0 Layer 6
            v2.6.0  ─ live-data wiring discipline — when the requirement mandates live data, agents must remove pre-existing mock state (not just refrain from adding new mock state); 9th Layer-3 tool `verify_live_data_wiring` with 5 severities (mock-state-residue / live-response-not-rendered / mock-fallback-uncovered / network-not-intercepted / async-status-not-surfaced); 2-pass workflow (Playwright + tamper test, then code-side audit); extends the 3-reviewer Phase 5 swarm
            v2.7.0  ─ pattern propagation mandate — when an agent fixes one mock-state instance under a `wiring_mandate`, it MUST sweep the codebase for the same shared source and fix ALL consumers in the same change (no follow-up offers); 6th severity `shared-mock-source-not-swept`; 3-step sweep protocol; closes the verbatim WtData walkthrough case
-   ◆       v2.8.0  ─ no standing-red discipline — agents MUST NOT commit a failing test as documentation of a known bug; cross-layer bugs route via SR (origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`), never via a committed `// will go green when fixed` test; 10th Layer-3 tool `verify_no_standing_red` with 2 severities (`standing-red-committed` / `cross-layer-fix-not-routed`); closes the verbatim heirship B23 case (current)
+           v2.8.0  ─ no standing-red discipline — agents MUST NOT commit a failing test as documentation of a known bug; cross-layer bugs route via SR (origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`), never via a committed `// will go green when fixed` test; 10th Layer-3 tool `verify_no_standing_red` with 2 severities (`standing-red-committed` / `cross-layer-fix-not-routed`); closes the verbatim heirship B23 case
+           v2.9.0  ─ MemPalace installer self-heal + polyglot Python in commands — `_locate_pip_user_binary()` + `_bridge_to_path_dir()` symlink macOS `~/Library/Python/*/bin` binaries into `~/.local/bin`; `python -m pip install --user` fallback when no `pip` script is on PATH; `_BRIDGED_BINARIES` allowlist; single polyglot `python3 ... || python ...` block in `commands/mempalace-install.md`; structural test audits all 14 command files
+   ◆       v2.10.0 ─ no end-of-run deferral discipline — agents MUST NOT end a run by cataloguing in-scope work as "Deferred" with a "Want me to continue?" follow-up offer; every item has one of 3 valid dispositions (fixed in this change / SR routed / confirmed-stub); 11th Layer-3 tool `verify_no_end_of_run_deferral` with 3 severities (`deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`); closes the verbatim heirship 7-bugs-4-work-items A→B→C→D cluster-list case (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

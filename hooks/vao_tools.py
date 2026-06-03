@@ -2008,6 +2008,258 @@ def verify_no_standing_red(
 
 
 # ===========================================================================
+# Tool 11 — verify-no-end-of-run-deferral (v2.10.0)
+# ===========================================================================
+
+# Phrases that signal an end-of-run "Deferred" catalog. Each entry is matched
+# case-insensitively as a substring against the agent's final_report text.
+# Keep the list tight: false positives (legitimate uses of "deferred" in
+# architectural decision documentation, etc.) are mitigated by requiring
+# a marker AND by allowing the artifact to declare a per-item disposition
+# (SR or confirmed-stub) — see _detect_wrap_up_with_known_bugs.
+_DEFERRAL_CATALOG_MARKERS: tuple[tuple[str, str], ...] = (
+    ("hourglass-deferred", "⏳ Deferred"),
+    ("hourglass-emoji-deferred", "⏳ deferred"),
+    ("deferred-em-dash", "Deferred — "),
+    ("deferred-en-dash", "Deferred – "),
+    ("deferred-N-bug", "deferred 7 bug"),
+    ("deferred-N-bug-variant", "deferred N bug"),
+    ("cluster-by-cluster", "cluster-by-cluster"),
+    ("a-arrow-b-arrow-c", "A → B → C"),
+    ("a-arrow-b-arrow-c-ascii", "A -> B -> C"),
+    ("each-a-real-change", "each a real change"),
+    ("not-a-one-liner", "not a one-liner"),
+    ("i-would-take-them", "I'd take them"),
+    ("defer-future-change", "Defer to a future change"),
+    ("punt-to-later", "punt to later"),
+    ("pick-up-next-time", "pick up next time"),
+    ("out-of-scope-this-session", "out of scope for this session"),
+)
+
+# Phrases that signal an end-of-run followup-decision question. The agent
+# is asking the user to decide what to do next AFTER the run claims to be
+# complete — the v0.9.20 forbidden "do you want me to proceed?" gate.
+_FOLLOWUP_QUESTION_MARKERS: tuple[tuple[str, str], ...] = (
+    ("want-me-to-continue", "Want me to continue"),
+    ("your-call", "Your call"),
+    ("ideally-fresh-context", "ideally in a fresh context"),
+    ("say-the-word", "say the word"),
+    ("let-me-know-if", "let me know if"),
+    ("shall-i-proceed", "Shall I proceed"),
+    ("do-you-want-me-to", "Do you want me to"),
+    ("should-i-take", "Should I take"),
+    ("is-it-ok-if-i", "Is it OK if I"),
+    ("if-youd-like", "If you'd like"),
+)
+
+# An item in the final report is considered "dispositioned" when it carries
+# at least one of these citations to a sanctioned channel.
+_ITEM_DISPOSITION_CITATIONS: tuple[str, ...] = (
+    "commit-sha:",
+    "SR-",  # solution requirement id (SR-101 / SR-B23-101 / etc.)
+    "confirmed_stub",
+    "confirmed-stub",
+    "implementing_commits",
+)
+
+
+def _scan_markers(text: str, markers: tuple[tuple[str, str], ...]) -> list[tuple[str, str]]:
+    """Return the list of (marker_id, pattern) found in `text` (case-insensitive)."""
+    if not isinstance(text, str) or not text:
+        return []
+    lower = text.lower()
+    hits: list[tuple[str, str]] = []
+    for marker_id, pattern in markers:
+        if pattern.lower() in lower:
+            hits.append((marker_id, pattern))
+    return hits
+
+
+def _detect_deferred_work_catalog(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """The final report names items as 'deferred' / clusters them under
+    A→B→C→D framing / uses any of the canonical deferral-catalog markers."""
+    final_report = verification_artifact.get("final_report") or ""
+    if not isinstance(final_report, str) or not final_report:
+        return []
+    hits = _scan_markers(final_report, _DEFERRAL_CATALOG_MARKERS)
+    gaps: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for marker_id, pattern in hits:
+        if marker_id in seen_ids:
+            continue
+        seen_ids.add(marker_id)
+        gaps.append({
+            "severity": "deferred-work-catalog",
+            "marker_id": marker_id,
+            "marker": pattern,
+            "evidence": (
+                f"final_report contains deferral-catalog marker {pattern!r} "
+                f"(marker_id={marker_id})"
+            ),
+            "remediation": (
+                "v2.10.0 No end-of-run deferral discipline. Every in-scope item "
+                "must reach one of three dispositions by run-end: (a) fixed in "
+                "this change, (b) routed via a solution requirement with a "
+                "canonical origin.kind, OR (c) explicit confirmed-stub with "
+                "user-citation. Cataloguing items as 'Deferred' with a clustered "
+                "follow-up offer is the failure mode this discipline closes."
+            ),
+        })
+    return gaps
+
+
+def _detect_followup_decision_question(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """The final report ends with a 'Want me to continue?' / 'Your call' /
+    'ideally in a fresh context' style follow-up question that bounces the
+    work decision back to the user."""
+    final_report = verification_artifact.get("final_report") or ""
+    if not isinstance(final_report, str) or not final_report:
+        return []
+    hits = _scan_markers(final_report, _FOLLOWUP_QUESTION_MARKERS)
+    gaps: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for marker_id, pattern in hits:
+        if marker_id in seen_ids:
+            continue
+        seen_ids.add(marker_id)
+        gaps.append({
+            "severity": "followup-decision-question",
+            "marker_id": marker_id,
+            "marker": pattern,
+            "evidence": (
+                f"final_report contains followup-question marker {pattern!r} "
+                f"(marker_id={marker_id})"
+            ),
+            "remediation": (
+                "v2.10.0 No end-of-run deferral discipline. Run-end is forward "
+                "motion (per v0.9.20 default-mode-of-operation), not a checkpoint "
+                "where the user picks which clusters to authorize next. Either "
+                "the work was done OR the work was routed via SR — never "
+                "bounced back as a 'Want me to continue?' decision question."
+            ),
+        })
+    return gaps
+
+
+def _detect_wrap_up_with_known_bugs(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """The final report enumerates ≥ 3 in-scope items AND none of them has
+    a sanctioned per-item disposition (commit-sha / SR / confirmed-stub)."""
+    final_report = verification_artifact.get("final_report") or ""
+    if not isinstance(final_report, str) or not final_report:
+        return []
+
+    # Heuristic: count bullets / numbered items in the report.
+    bullet_lines = 0
+    for line in final_report.splitlines():
+        stripped = line.lstrip()
+        if not stripped:
+            continue
+        if (
+            stripped.startswith("- ")
+            or stripped.startswith("* ")
+            or stripped.startswith("• ")
+            or (len(stripped) >= 2 and stripped[0].isdigit() and stripped[1] in ".)")
+            or (len(stripped) >= 3 and stripped[:2].isdigit() and stripped[2] in ".)")
+        ):
+            bullet_lines += 1
+
+    if bullet_lines < 3:
+        return []
+
+    # Are any per-item dispositions cited?
+    srs = verification_artifact.get("solution_requirements_created") or []
+    confirmed_stubs = verification_artifact.get("confirmed_stubs") or []
+    implementing_commits = verification_artifact.get("implementing_commits") or []
+    has_dispositions = bool(srs) or bool(confirmed_stubs) or bool(implementing_commits)
+
+    # Also accept inline citations in the report text.
+    has_inline_citation = any(
+        citation in final_report for citation in _ITEM_DISPOSITION_CITATIONS
+    )
+
+    if has_dispositions or has_inline_citation:
+        return []
+
+    return [{
+        "severity": "wrap-up-with-known-bugs",
+        "bullet_count": bullet_lines,
+        "evidence": (
+            f"final_report enumerates {bullet_lines} bulleted / numbered items "
+            f"with no per-item disposition citation (no solution_requirements_created, "
+            f"no confirmed_stubs, no implementing_commits, no inline commit-sha/SR/"
+            f"confirmed-stub references in the report text)."
+        ),
+        "remediation": (
+            "v2.10.0 No end-of-run deferral discipline. Every enumerated in-scope "
+            "item must cite ONE of: (a) the commit SHA range that fixed it, "
+            "(b) the SR ID with origin.kind that routed it, OR (c) the confirmed-stub "
+            "entry with user-citation. An enumerated list with no per-item disposition "
+            "is the wrap-up-with-known-bugs failure mode."
+        ),
+    }]
+
+
+def verify_no_end_of_run_deferral(
+    verification_artifact: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.10.0 Layer-3 tool — verify the agent did NOT end the run by
+    cataloguing in-scope work as 'Deferred' and bouncing the unfixed items
+    back to the user as a 'Want me to continue?' decision question.
+
+    Checks the verification artifact against the 3 named severities:
+      1. deferred-work-catalog — final report contains a canonical
+         deferral-catalog marker (12-pattern allowlist)
+      2. followup-decision-question — final report contains a canonical
+         followup-question marker (10-pattern allowlist)
+      3. wrap-up-with-known-bugs — final report enumerates ≥ 3 in-scope
+         items AND no per-item disposition (commit-sha / SR / confirmed-stub)
+         is cited
+
+    Args:
+      verification_artifact: dict with final_report (str — the agent's
+        verbatim user-facing run-end report), solution_requirements_created[]
+        (the SRs the run routed), confirmed_stubs[] (entries with
+        user_confirmed_at), implementing_commits[] (commit SHA ranges).
+      out_path: optional path to write the verdict JSON.
+
+    Returns::
+
+        {
+          "tool": "verify-no-end-of-run-deferral",
+          "valid": bool,
+          "gaps": [{"severity", "marker_id"|"bullet_count", "evidence", "remediation"}],
+          "verdict_at": "<ISO 8601 UTC>"
+        }
+
+    Trivially passes when final_report is empty / absent — fully
+    backwards-compatible with pre-v2.10.0 artifacts.
+
+    Deterministic / bit-stable output for given inputs (sorted-keys + indent=2).
+    """
+    artifact = verification_artifact or {}
+    gaps: list[dict[str, Any]] = []
+
+    gaps += _detect_deferred_work_catalog(artifact)
+    gaps += _detect_followup_decision_question(artifact)
+    gaps += _detect_wrap_up_with_known_bugs(artifact)
+
+    verdict = {
+        "tool": "verify-no-end-of-run-deferral",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -2070,6 +2322,10 @@ def main(argv: list[str] | None = None) -> int:
     nsr.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
     nsr.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    nerd = sub.add_parser("verify-no-end-of-run-deferral")
+    nerd.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
+    nerd.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -2119,6 +2375,12 @@ def main(argv: list[str] | None = None) -> int:
         ok = verdict["valid"]
     elif args.tool == "verify-no-standing-red":
         verdict = verify_no_standing_red(
+            verification_artifact=_load_json(args.artifact),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-no-end-of-run-deferral":
+        verdict = verify_no_end_of_run_deferral(
             verification_artifact=_load_json(args.artifact),
             out_path=args.out,
         )
