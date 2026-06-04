@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.16.0] — 2026-06-04 — Stop-hook fix: duplicate-output bug + `.architect-team/in-progress.md` 4th disposition
+
+**ADDITIVE — backwards-compatible.** Closes two real-world Stop-hook annoyances reported verbatim by the user. No new discipline, no new Layer 3 tool — pure ergonomics + correctness fix.
+
+### Failure shape #1 — duplicate BLOCKED output
+
+The user reported that the `pipeline-completion-audit` Stop hook's BLOCKED message kept printing twice on every Stop event. Root cause: the v2.9.0 polyglot pattern `python3 X --check || python X --check` was used to invoke the hook from `commands/architect-team.md`, `commands/bug-fix.md`, and `commands/ux-test.md`. The polyglot's `||` fallback fires whenever the LEFT command exits non-zero. For an INSTALLER script that's correct (non-zero means "install failed" which is also what "python3 not available" means). For a HOOK script that returns 2 = BLOCKED meaningfully, the `||` fallback fires on the legitimate BLOCKED exit, re-executes the script, and prints the BLOCKED message a second time.
+
+### Failure shape #2 — no "actively in-progress" disposition
+
+The hook offered 3 valid resolutions when BLOCKED: (1) complete the work, (2) `.architect-team/escalation-pending.md` for human-decision pauses, (3) remove `.architect-team/` for abandoned runs. But there was no marker for "the agent is legitimately waiting on a background process (replicator / qa-replayer / deploy poll / etc.) — let me end this turn and come back to it." The hook fired on every such Stop, and the agent had to either re-do work or surrender the turn.
+
+### What v2.16.0 ships
+
+1. **Duplicate-output fix.** All 3 command files invoking `pipeline-completion-audit.py` switched from the v2.9.0 polyglot `python3 X --check || python X --check` to the v2.16.0 detect-once pattern `$(command -v python3 || command -v python) X --check`. The shell command substitution `$(...)` selects the first interpreter that EXISTS, then invokes the script ONCE. No double-execution regardless of exit code.
+
+2. **`.architect-team/in-progress.md` marker — 4th valid disposition.** New constant `IN_PROGRESS_MARKER = "in-progress.md"` + `IN_PROGRESS_FRESHNESS_SECONDS = 3600` (1 hour default). New helper `_in_progress_is_fresh(at)` returns True iff the marker exists AND mtime is within the freshness window. Wired into both the Stop-hook branch and the `--check` standalone-gate branch BEFORE the audit runs. Stale markers (> 1 hour) are treated as missing — an abandoned run cannot silently bypass the audit forever.
+
+3. **BLOCKED message rewritten** to enumerate all 4 dispositions clearly:
+   - (1) complete the work,
+   - (2) `.architect-team/escalation-pending.md` for human-decision pauses,
+   - (3) `.architect-team/in-progress.md` for actively-waiting-on-background-work cases (refresh the marker every 30 minutes),
+   - (4) remove `.architect-team/` for abandoned runs.
+
+4. **Polyglot structural test updated** (`tests/test_mempalace_install.py::test_all_command_files_use_polyglot_when_invoking_python`) to accept EITHER the v2.9.0 `python3 X || python X` pattern (still correct for install scripts) OR the v2.16.0 `$(command -v python3 || command -v python) X` pattern (correct for hook scripts with meaningful non-zero exits).
+
+5. **+16 new tests** in `tests/test_pipeline_completion_audit_in_progress.py`: constants exist; `_in_progress_is_fresh` returns True for fresh / False for stale / False for missing / True at threshold; CLI `--check` mode respects the marker (fresh → exit 0, stale → BLOCK, missing → BLOCK, no `.architect-team/` → exit 0); BLOCKED message documents 4 dispositions + freshness threshold; the 3 command files use the v2.16.0 detect-once pattern. 2936 → 2952 passing; zero regressions.
+
+### Agent discipline
+
+When a pipeline run is actively in-progress (e.g., the replicator is mid-execution, qa-replayer is re-running, a deploy is being polled), the agent SHOULD touch `.architect-team/in-progress.md` BEFORE returning control to the user. The marker discipline: refresh it (touch it again) every ~30 minutes while the work continues. The 1-hour freshness threshold gives margin; if the agent forgets to refresh, the next Stop fires the audit and surfaces the violations.
+
+### Backwards compatibility
+
+- The v2.9.0 polyglot pattern is preserved as one of two accepted patterns in the structural test.
+- Existing `escalation-pending.md` flow is unchanged.
+- Existing exit codes (0 = allow, 2 = BLOCK) are unchanged.
+- Adding the marker is purely opt-in — runs without it continue to behave exactly as v2.15.0.
+
 ## [2.15.0] — 2026-06-04 — Dedicated `/architect-team:visual-to-api` slash command
 
 **ADDITIVE — backwards-compatible.** Pure ergonomics fix — no new discipline, no new Layer 3 tool. Closes the user-reported friction that the `visual-to-api-design` skill (v2.13.0) had no explicit entry point and relied on Phase 0 heuristic detection of prose patterns or input shape.

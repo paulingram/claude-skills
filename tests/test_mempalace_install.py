@@ -198,7 +198,23 @@ def test_mempalace_install_command_has_no_bare_python_first_block(plugin_root: P
 
 def test_all_command_files_use_polyglot_when_invoking_python(plugin_root: Path) -> None:
     """Audit ALL command files in commands/ — any ```! block that invokes
-    Python must use the polyglot `python3 ... || python ...` pattern."""
+    Python must use ONE of the accepted polyglot patterns:
+
+      (a) v2.9.0 install-script polyglot: `python3 ... || python ...`
+          (the original pattern; correct for scripts where exit non-zero
+          means "install failed", which is also what python3-not-available
+          means).
+
+      (b) v2.16.0 detect-once polyglot: `$(command -v python3 || command -v python) ...`
+          (the new pattern; correct for HOOK scripts where exit non-zero is
+          meaningful — e.g., `pipeline-completion-audit.py --check` returns
+          2 for BLOCKED. The v2.9.0 `||` pattern double-executed the script
+          and double-printed the BLOCKED message; v2.16.0 detects the
+          interpreter ONCE via shell command substitution and invokes the
+          script ONCE).
+
+    Either pattern is acceptable. A block that uses neither is flagged.
+    """
     cmd_dir = plugin_root / "commands"
     offenders: list[str] = []
     for md in sorted(cmd_dir.glob("*.md")):
@@ -213,14 +229,15 @@ def test_all_command_files_use_polyglot_when_invoking_python(plugin_root: Path) 
                 block_buf = []
                 continue
             if in_block and stripped == "```":
-                # End of block — audit it.
                 body = "\n".join(block_buf)
                 uses_python = (
                     "python " in body or "python3 " in body or "python" + os.sep in body
                 )
                 if uses_python:
-                    has_polyglot = ("python3 " in body) and ("|| python " in body)
-                    if not has_polyglot:
+                    # Accept either polyglot pattern:
+                    has_v290_polyglot = ("python3 " in body) and ("|| python " in body)
+                    has_v2160_polyglot = "command -v python3" in body and "command -v python" in body
+                    if not (has_v290_polyglot or has_v2160_polyglot):
                         offenders.append(f"{md.name}: {body!r}")
                 in_block = False
                 block_buf = []
@@ -228,7 +245,9 @@ def test_all_command_files_use_polyglot_when_invoking_python(plugin_root: Path) 
             if in_block:
                 block_buf.append(line)
     assert not offenders, (
-        "command files invoke Python without the python3 || python polyglot pattern:\n"
+        "command files invoke Python without an accepted polyglot pattern "
+        "(v2.9.0 `python3 X || python X` OR v2.16.0 "
+        "`$(command -v python3 || command -v python) X`):\n"
         + "\n".join(offenders)
     )
 

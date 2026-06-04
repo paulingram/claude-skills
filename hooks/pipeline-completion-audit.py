@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,31 @@ TEST_FAILURE_ORIGINS = {
 ITERATION_CEILING = 20
 
 ESCALATION_MARKER = "escalation-pending.md"
+
+# v2.16.0 — `.architect-team/in-progress.md` is the 4th valid disposition.
+# When present AND mtime is within IN_PROGRESS_FRESHNESS_SECONDS, the audit
+# treats the run as legitimately mid-execution and returns 0 (allow Stop).
+# Discipline: the agent touches this file periodically while a background
+# operation (replicator / qa-replayer / deploy poll / etc.) is in flight;
+# stale (> threshold) markers are treated as missing, so an abandoned run
+# does NOT silently bypass the audit forever.
+IN_PROGRESS_MARKER = "in-progress.md"
+IN_PROGRESS_FRESHNESS_SECONDS = 3600  # 1 hour default
+
+
+def _in_progress_is_fresh(at: Path) -> bool:
+    """Return True if `.architect-team/in-progress.md` exists and is fresh.
+    A fresh in-progress marker is the v2.16.0 4th valid disposition — the
+    agent is legitimately waiting on a background process; the hook allows
+    the Stop. Stale markers are treated as missing."""
+    marker = at / IN_PROGRESS_MARKER
+    try:
+        if not marker.exists():
+            return False
+        age = time.time() - marker.stat().st_mtime
+        return 0 <= age <= IN_PROGRESS_FRESHNESS_SECONDS
+    except OSError:
+        return False
 
 
 def _load_json(path: Path) -> Any | None:
@@ -402,10 +428,23 @@ def _emit_block(violations: list[str]) -> int:
     print(
         "pipeline-completion-audit: BLOCKED — the architect-team run is incomplete:\n  - "
         + lines
-        + "\n\nResolve each item, OR — if this run is intentionally paused for a human "
-        "decision — create .architect-team/escalation-pending.md describing what the "
-        "human must decide, then stop again. If this architect-team run is abandoned, "
-        "remove the .architect-team/ directory (it is gitignored runtime state).",
+        + "\n\nFour valid resolutions:\n"
+        "  1. Complete the work (write the missing verdict/state files; the audit "
+        "re-runs on the next Stop and unblocks).\n"
+        "  2. If this run is intentionally paused for a human decision — create "
+        ".architect-team/escalation-pending.md describing what the human must decide, "
+        "then stop again.\n"
+        "  3. If this run is actively mid-execution and waiting on a background "
+        "process (replicator / qa-replayer / deploy poll / etc.) — touch "
+        f".architect-team/{IN_PROGRESS_MARKER} (the v2.16.0 4th disposition). The "
+        f"audit allows the Stop while the marker is fresh (mtime within "
+        f"{IN_PROGRESS_FRESHNESS_SECONDS}s = "
+        f"{IN_PROGRESS_FRESHNESS_SECONDS // 60} minutes). Refresh the marker "
+        "(touch it again) before the threshold to keep the run unblocked. Stale "
+        "markers are treated as missing — an abandoned run cannot silently bypass "
+        "the audit forever.\n"
+        "  4. If this run is abandoned, remove the .architect-team/ directory (it is "
+        "gitignored runtime state).",
         file=sys.stderr,
     )
     return 2
@@ -420,6 +459,8 @@ def main(argv: list[str]) -> int:
             # Standalone pre-commit gate — no stdin.
             if (at / ESCALATION_MARKER).exists():
                 return 0
+            if _in_progress_is_fresh(at):
+                return 0  # v2.16.0 — actively mid-execution
             is_real, violations = audit(root)
             if not is_real or not violations:
                 return 0
@@ -435,6 +476,8 @@ def main(argv: list[str]) -> int:
             return 0  # already fired once this stop — never loop
         if (at / ESCALATION_MARKER).exists():
             return 0  # legitimately paused for the human
+        if _in_progress_is_fresh(at):
+            return 0  # v2.16.0 — agent is actively waiting on background work
         is_real, violations = audit(root)
         if not is_real or not violations:
             return 0
