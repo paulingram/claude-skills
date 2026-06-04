@@ -20,6 +20,7 @@ EXPECTED_COMMANDS: set[str] = {
     "cleanup-worktrees",
     "status",
     "absorb-phenotype",
+    "visual-to-api",
 }
 
 REQUIRED_KEYS = {"description"}

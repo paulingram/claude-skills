@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.15.0] — 2026-06-04 — Dedicated `/architect-team:visual-to-api` slash command
+
+**ADDITIVE — backwards-compatible.** Pure ergonomics fix — no new discipline, no new Layer 3 tool. Closes the user-reported friction that the `visual-to-api-design` skill (v2.13.0) had no explicit entry point and relied on Phase 0 heuristic detection of prose patterns or input shape.
+
+### The failure shape this closes
+
+After shipping `visual-to-api-design` in v2.13.0, the user asked: *"how do we call for codebase review mode"*. The answer: the skill was triggered via prose patterns or input shape at Phase 0, not via a dedicated command. For a workflow users will invoke regularly, prose-based detection is friction — easy to get wrong, easy to forget the magic phrasings.
+
+### What v2.15.0 ships
+
+1. **NEW `/architect-team:visual-to-api <codebase-path>` slash command** at `commands/visual-to-api.md`. Thin wrapper that:
+   - Prints the dispatch-mode banner (Agent Teams vs subagents fallback) as the first user-visible action.
+   - Runs the v1.3.0 auto-cleanup of merged worktrees.
+   - Parses arguments: first non-flag token = codebase path (required); flags `--no-commit` / `--no-push` / `--no-compact` / `--allow-push-to-default` / `--proposal-first` (with natural-language opt-out support).
+   - **Skips proposal-refiner explicitly** — the visual-to-API pipeline produces its own structured artifacts, so the free-text grading loop is the wrong shape.
+   - **Sets `intake_mode: "visual-to-api"`** in `<workspace>/.architect-team/intake-state.json` using the v2.9.0 polyglot Python pattern (`python3 ... || python ...`).
+   - Invokes the `architect-team-pipeline` skill.
+
+2. **EXTENDED `skills/visual-to-api-design/SKILL.md` `## When this skill runs` section** — documents the 4 trigger paths in order:
+   1. **Explicit signal (v2.15.0 — canonical):** `intake_mode == "visual-to-api"` in intake-state.json, set by the dedicated slash command. SHORT-CIRCUITS the heuristic detection.
+   2. Heuristic — codebase + no requirements.
+   3. Heuristic — partial requirements + explicit derive ask.
+   4. Heuristic — prose pattern.
+
+   The pipeline at Phase 0 reads the signal in this order: check explicit first, fall back to heuristic.
+
+3. **Slash command count**: 14 → 15. Registered in `tests/test_commands.py::EXPECTED_COMMANDS`. README skill grid updated.
+
+4. **+18 new tests** in `tests/test_visual_to_api_command.py` (command file exists + frontmatter shape + argument-hint + references skill + documents intake_mode signal + skips refiner + invokes pipeline + documents all 4 stages + polyglot Python audit + 4 flags supported + commit message template + compact prompt block + safety rules + cross-references + skill body documents explicit signal + skill body documents short-circuits-heuristic + command registered in EXPECTED_COMMANDS). 2918 → 2936 passing; zero regressions.
+
+### Backwards compatibility
+
+- The heuristic detection paths from v2.13.0 are preserved verbatim; existing users who trigger the pipeline via prose continue to work.
+- No Layer 3 tool contract changes. No schema changes. No agent body changes.
+
 ## [2.14.0] — 2026-06-04 — No implementation-time scope cut discipline
 
 **ADDITIVE — backwards-compatible.** Schema v7 unchanged. 14th Layer 3 tool added; the 13 existing tools' contracts unchanged; runs without `scope_mandate.full_build_required: true` are a no-op (fully backwards-compatible).
