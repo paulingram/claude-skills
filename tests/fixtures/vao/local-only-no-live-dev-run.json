@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "fixture_name": "local-only-no-live-dev-run",
+    "failure_shape": "v2.13.0 UX-test environment sequencing — failure mode: every persona's playwright_test_runs[] used a localhost / 127.0.0.1 entry_url. The deployed dev URL was never independently verified. Tests passed locally; the deployed bundle (with real env vars, real CDN, real third-party widgets) was never tested.",
+    "originating_failure": "verbatim user prose: 'additionally, UX testing should have priorities - if we have a dev site, UX testing must first occur on local and then finally on the real live dev site. Right now, all my stuff tests locally and never tests the full spectrum'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-per-persona-path-coverage (v2.11.0 extended in v2.13.0)",
+    "expected_severities": ["live-dev-environment-not-tested"]
+  },
+  "persona_inventory": {
+    "feature_slug": "matter-intake",
+    "personas": [
+      {
+        "persona_id": "client",
+        "entry_point": "https://heirship-app-v3.example.com/invite/abc",
+        "submit_interaction": "button[data-testid=create]",
+        "backend_call_interaction": "button[data-testid=create]"
+      },
+      {
+        "persona_id": "attorney",
+        "entry_point": "https://heirship-app-v3.example.com/atty/matters",
+        "submit_interaction": "button[data-action=save]",
+        "backend_call_interaction": "button[data-action=save]"
+      }
+    ]
+  },
+  "verification_artifact": {
+    "playwright_test_runs": [
+      {
+        "persona_id": "client",
+        "entry_url": "http://localhost:3000/invite/abc",
+        "clicks_with_timing": [
+          {"selector": "button[data-testid=create]", "ts_ms": 1000},
+          {"selector": "button[data-testid=create]", "ts_ms": 1300}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["spinner"],
+        "loading_state_delays_ms": [80]
+      },
+      {
+        "persona_id": "attorney",
+        "entry_url": "http://127.0.0.1:3000/atty/matters",
+        "clicks_with_timing": [
+          {"selector": "button[data-action=save]", "ts_ms": 1500},
+          {"selector": "button[data-action=save]", "ts_ms": 1800}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["Saving..."],
+        "loading_state_delays_ms": [90]
+      }
+    ]
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-per-persona-path-coverage",
+    "valid": false,
+    "expected_severity_count_min": 2,
+    "expected_missing_environment_for_all": "live-dev"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — every persona has BOTH a local run AND a live-dev run.",
+    "playwright_test_runs": [
+      {
+        "persona_id": "client",
+        "entry_url": "http://localhost:3000/invite/abc",
+        "clicks_with_timing": [
+          {"selector": "button[data-testid=create]", "ts_ms": 1000},
+          {"selector": "button[data-testid=create]", "ts_ms": 1300}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["spinner"],
+        "loading_state_delays_ms": [80]
+      },
+      {
+        "persona_id": "client",
+        "entry_url": "https://heirship-app-v3.example.com/invite/abc",
+        "clicks_with_timing": [
+          {"selector": "button[data-testid=create]", "ts_ms": 1000},
+          {"selector": "button[data-testid=create]", "ts_ms": 1300}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["spinner"],
+        "loading_state_delays_ms": [110]
+      },
+      {
+        "persona_id": "attorney",
+        "entry_url": "http://127.0.0.1:3000/atty/matters",
+        "clicks_with_timing": [
+          {"selector": "button[data-action=save]", "ts_ms": 1500},
+          {"selector": "button[data-action=save]", "ts_ms": 1800}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["Saving..."],
+        "loading_state_delays_ms": [90]
+      },
+      {
+        "persona_id": "attorney",
+        "entry_url": "https://heirship-app-v3.example.com/atty/matters",
+        "clicks_with_timing": [
+          {"selector": "button[data-action=save]", "ts_ms": 1500},
+          {"selector": "button[data-action=save]", "ts_ms": 1800}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["Saving..."],
+        "loading_state_delays_ms": [100]
+      }
+    ]
+  }
+}

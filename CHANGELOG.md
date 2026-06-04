@@ -2,6 +2,63 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.13.0] — 2026-06-04 — Dynamic affordance discovery + UX env-sequencing + Visual-to-API design pipeline
+
+**ADDITIVE — backwards-compatible.** Schema v7 unchanged. 13th Layer 3 tool added; v2.11.0 tool extended with a 5th severity; new skill `visual-to-api-design` added (skill count 31 → 32; new SR origin kind `api-design-stage-incomplete`).
+
+### Three failure shapes closed in one release
+
+| Failure shape | User prose | What v2.13.0 ships |
+|---|---|---|
+| **Affordance discovery gap** | "I used the latest to review a codebase and while it got most correct, it missed dynamic requirements to handle file uplaods despite the site clearly having the need for this" | NEW 13th Layer 3 tool `verify_affordance_coverage` + `_AFFORDANCE_SIGNATURES` dict (extensible; v2.13.0 ships `file-upload` with 42 canonical signatures) + canonical fixture |
+| **UX-test environment imbalance** | "additionally, UX testing should have priorities - if we have a dev site, UX testing must first occur on local and then finally on the real live dev site. Right now, all my stuff tests locally and never tests the full spectrum" | EXTENSION to v2.11.0 `verify_per_persona_path_coverage` with 5th severity `live-dev-environment-not-tested` + `_LOCAL_ENV_HOST_PATTERNS` constant + canonical fixture |
+| **Visual-to-API workflow gap** | "the first thin our agents should do is 1) discover the overall context… 2) per persona research… 3) complete catalog of each page… 4) backend that solves for the front end use case… you will do this with 3 agents who review each others work at each stage for completeness" | NEW skill `visual-to-api-design` documenting a 4-stage pipeline (context → per-persona research → page catalog → backend design) with 3-reviewer convergence per stage + per-stage checklists + new SR origin kind |
+
+### What v2.13.0 ships
+
+#### Discipline 1: Dynamic affordance discovery (v2.13.0)
+
+1. **NEW canonical `## Dynamic affordance discovery discipline (v2.13.0)` section** in `skills/common-pipeline-conventions/SKILL.md`. Names the rule, the verbatim user prose, the `_AFFORDANCE_SIGNATURES` dictionary shape (extensible to file-download / realtime / notifications in future versions), and the 3 valid dispositions.
+
+2. **NEW 13th Layer 3 tool — `verify_affordance_coverage`** in `hooks/vao_tools.py`. Deterministic verification function + `verify-affordance-coverage` CLI subcommand. Module constants `_FILE_UPLOAD_AFFORDANCE_SIGNATURES` (42 patterns spanning HTML / JS APIs / dropzone libraries / backend middleware / cloud storage SDKs / UI text / server routes) and `_AFFORDANCE_SIGNATURES` dict (initially `{"file-upload": _FILE_UPLOAD_AFFORDANCE_SIGNATURES}`; extensible). Single severity `affordance-not-addressed` with `affordance_kind` + `signature_ids` + `matched_files` fields. Trivially passes when no `codebase_scan`.
+
+3. **EXTENDED 3 agent bodies** with `## Dynamic affordance discovery discipline (v2.13.0)` sections: `system-architect.md` (Master Review Audit gains `affordance_coverage_finding` block); `frontend.md` (implementer cannot ship if a detected affordance is unaddressed); `codebase-map-reviewer.md` (review must verify CODEBASE_MAP enumerates detected affordances).
+
+4. **NEW canonical fixture** `tests/fixtures/vao/file-upload-affordance-missed.json` reproducing the verbatim user case: codebase carries `<input type="file">` + `enctype="multipart/form-data"` + multer + AWS S3 `PutObject` + react-dropzone + "Upload Document" UI text; requirements inventory does NOT include `file-upload`. Bad version fires; `_corrected` adds `file-upload` to `addressed_affordances[]` and passes.
+
+#### Discipline 2: UX-test environment sequencing (v2.13.0)
+
+1. **NEW canonical `## UX-test environment sequencing discipline (v2.13.0)` section** in `skills/common-pipeline-conventions/SKILL.md`. Names the rule: every persona must be tested in BOTH local AND live-dev environments (local for fast feedback; live-dev for deployed-bundle verification).
+
+2. **EXTENDED v2.11.0 `verify_per_persona_path_coverage`** with NEW 5th severity `live-dev-environment-not-tested`. Module constants `_LOCAL_ENV_HOST_PATTERNS` (`localhost` / `127.0.0.1` / `0.0.0.0` / `file://` / `.local` / `::1` / `host.docker.internal`) + helper `_is_local_env_url(url)`. Detector fires when a persona has runs in only ONE environment (local-only OR live-dev-only).
+
+3. **EXTENDED 2 agent bodies**: `qa-replayer.md` (verdict gains `environments_observed` field per persona); `frontend.md` (slice-end report cites BOTH a local + live-dev playwright run per persona).
+
+4. **NEW canonical fixture** `tests/fixtures/vao/local-only-no-live-dev-run.json` reproducing the verbatim user case (every persona tested only against `localhost`; live-dev URL never independently verified). Bad version fires for every persona; `_corrected` adds a live-dev twin per persona and passes.
+
+#### Discipline 3: Visual-to-API design pipeline (v2.13.0)
+
+1. **NEW SKILL `skills/visual-to-api-design/SKILL.md`** — documents a 4-stage codebase-to-API-design pipeline with 3-reviewer convergence per stage:
+   - **Stage 1 — Context discovery** (application_purpose / industry / use_case / pages_count / personas_count)
+   - **Stage 2 — Per-persona research** (each persona's research_sources / expected_workflows / expected_data_needs / expected_affordances) — checklisted against Stage 1's `personas_count`
+   - **Stage 3 — Page catalog** (every page → every element with classification + blurb + dynamic-or-static + backend-need) — checklisted against Stage 1's `pages_count` + Stage 2's `expected_workflows` + `expected_affordances`
+   - **Stage 4 — Backend design from frontend** — 4 nested layers (data → services → schema → api) each checklisted against the prior + against Stage 3's elements with `needs_backend: true`
+   - 3-reviewer convergence per stage (Round 1 independent → Round 2 round-robin → Round 3 system-architect)
+   - New SR origin kind `api-design-stage-incomplete`
+
+2. **Skill grid count**: 31 → 32 skills.
+
+#### Tests
+
+3. **+97 new tests** — 25 in `tests/test_vao_affordance_coverage.py` (4 representative signature classes parametrized + addressed + confirmed-stub + clean + case-insensitive + gap-shape + determinism + fixture round-trip + CLI exit codes), 8 in `tests/test_vao_per_persona_path_coverage.py` (extension: 8 local-vs-live URLs parametrized + local-only fires + live-only fires + both passes + no-runs-doesn't-fire + env-seq fixture round-trip + constants), 17 in `tests/test_dynamic_affordance_discovery_discipline.py` (canonical section + 5 agent extension headers + signature documentation + cross-references), 18 in `tests/test_visual_to_api_design_skill.py` (frontmatter + 4 stages documented + required fields per stage + 4 backend layers + 3-reviewer convergence + checklist table + cross-references + operating rules). 2783 → 2880 passing; zero regressions.
+
+### Backwards compatibility
+
+- v2.10.0 / v2.11.0 / v2.12.0 fixtures continue to validate.
+- Runs without `codebase_scan` are a no-op for `verify_affordance_coverage`.
+- Runs without `persona_inventory.personas[]` are still a no-op for v2.11.0 tool; the new severity also no-ops in that case.
+- Schema v7 unchanged.
+
 ## [2.12.0] — 2026-06-03 — Cross-discipline gate consistency hotfix
 
 **ADDITIVE — backwards-compatible.** Pure consistency fixes uncovered by the v2.12.0 internal audit ("review our code and make sure that we are optimized and all our gates are logical and not adverse to one another"). Schema v7 unchanged; 12 Layer 3 tools unchanged in count; no agent body changes.

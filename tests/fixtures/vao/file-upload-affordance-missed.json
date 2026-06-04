@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "fixture_name": "file-upload-affordance-missed",
+    "failure_shape": "v2.13.0 Dynamic affordance discovery — failure mode: agent reviewed a codebase that clearly carries file-upload code (HTML `<input type=\"file\">`, multer middleware, AWS S3 PutObject, 'Upload Document' UI text, react-dropzone import) but produced a requirements inventory that did NOT include `file-upload` in addressed_affordances[]. The agent's review caught most requirements correctly; file-upload silently slipped through.",
+    "originating_failure": "verbatim user prose: 'I used the latest to review a codebase and while it got most correct, it missed dynamic requirements to handle file uplaods despite the site clearly having the need for this'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-affordance-coverage",
+    "expected_severities": ["affordance-not-addressed"]
+  },
+  "requirements_inventory": {
+    "addressed_affordances": [],
+    "confirmed_stubs": []
+  },
+  "verification_artifact": {
+    "feature_kind": "codebase-review",
+    "codebase_scan": {
+      "files_scanned": [
+        {
+          "path": "src/components/DocumentsPane.tsx",
+          "content_excerpt": "import { useDropzone } from 'react-dropzone';\n\nexport function DocumentsPane({ matterId }: Props) {\n  const { getRootProps, getInputProps } = useDropzone({ accept: 'image/*,application/pdf' });\n  return (\n    <div {...getRootProps()}>\n      <input type=\"file\" {...getInputProps()} multiple />\n      <button>Upload Document</button>\n    </div>\n  );\n}"
+        },
+        {
+          "path": "src/components/IntakeForm.tsx",
+          "content_excerpt": "<form enctype=\"multipart/form-data\" onSubmit={handleSubmit}>\n  <label>Choose file</label>\n  <input type=\"file\" name=\"attachment\" accept=\".pdf\" />\n  <button type=\"submit\">Attach</button>\n</form>"
+        },
+        {
+          "path": "server/routes/upload.ts",
+          "content_excerpt": "import multer from 'multer';\nimport { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';\n\nconst upload = multer({ storage: multer.memoryStorage() });\nconst s3 = new S3Client({ region: 'us-east-1' });\n\nrouter.post('/upload', upload.single('file'), async (req, res) => {\n  const params = { Bucket: 'docs', Key: req.file.originalname, Body: req.file.buffer };\n  await s3.send(new PutObjectCommand(params));\n  res.json({ ok: true });\n});"
+        },
+        {
+          "path": "server/routes/attachments.ts",
+          "content_excerpt": "// presigned URL flow\nconst signed = await getSignedUrl(s3, command, { expiresIn: 3600 });\nrouter.post('/attachments/sign', (req, res) => res.json({ signed }));"
+        }
+      ]
+    }
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-affordance-coverage",
+    "valid": false,
+    "expected_affordance_kind": "file-upload",
+    "expected_signature_id_substring": "html-file-input"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — same codebase scan, but the requirements inventory addresses the file-upload affordance. The implementation provides upload handling end-to-end.",
+    "feature_kind": "codebase-review",
+    "codebase_scan": {
+      "files_scanned": [
+        {"path": "src/components/DocumentsPane.tsx", "content_excerpt": "import { useDropzone } from 'react-dropzone'; <input type=\"file\" /> Upload Document"},
+        {"path": "server/routes/upload.ts", "content_excerpt": "import multer from 'multer'; PutObjectCommand"}
+      ]
+    }
+  },
+  "_corrected_requirements_inventory": {
+    "_note": "Either of these inventory shapes makes the corrected verification artifact pass.",
+    "addressed_affordances": ["file-upload"],
+    "confirmed_stubs": []
+  }
+}

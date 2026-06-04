@@ -394,3 +394,117 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
     inv.write_text(json.dumps(fixture_data["persona_inventory"]))
     rc = _run_cli(plugin_root, art, inv, out)
     assert rc != 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.13.0 — UX-test environment sequencing (5th severity)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_local_env_host_patterns_constant_exists(vao_tools):
+    assert hasattr(vao_tools, "_LOCAL_ENV_HOST_PATTERNS")
+    patterns = vao_tools._LOCAL_ENV_HOST_PATTERNS
+    assert "localhost" in patterns
+    assert "127.0.0.1" in patterns
+    assert "file://" in patterns
+    assert ".local" in patterns
+
+
+@pytest.mark.parametrize("url,expected_local", [
+    ("http://localhost:3000", True),
+    ("http://127.0.0.1:3000", True),
+    ("http://0.0.0.0:8080", True),
+    ("file:///tmp/index.html", True),
+    ("http://myproject.local", True),
+    ("https://heirship-app-v3.example.com", False),
+    ("https://dev.heirship-app.com", False),
+    ("https://app.example.com", False),
+])
+def test_is_local_env_url(vao_tools, url, expected_local):
+    assert vao_tools._is_local_env_url(url) is expected_local
+
+
+def test_local_only_persona_fires_live_dev_not_tested(vao_tools):
+    inventory = {"personas": [{
+        "persona_id": "client",
+        "entry_point": "https://app.example.com/invite",
+    }]}
+    artifact = {"playwright_test_runs": [{
+        "persona_id": "client",
+        "entry_url": "http://localhost:3000/invite",
+    }]}
+    v = vao_tools.verify_per_persona_path_coverage(artifact, inventory)
+    sev = {g["severity"] for g in v["gaps"]}
+    assert "live-dev-environment-not-tested" in sev
+    # Find the gap and confirm missing_environment is "live-dev"
+    gap = next(g for g in v["gaps"] if g["severity"] == "live-dev-environment-not-tested")
+    assert gap["missing_environment"] == "live-dev"
+    assert gap["persona_id"] == "client"
+
+
+def test_live_dev_only_persona_fires_live_dev_not_tested(vao_tools):
+    """Direction matters — only live-dev (no local) ALSO fires."""
+    inventory = {"personas": [{
+        "persona_id": "client",
+        "entry_point": "https://app.example.com/invite",
+    }]}
+    artifact = {"playwright_test_runs": [{
+        "persona_id": "client",
+        "entry_url": "https://app.example.com/invite",
+    }]}
+    v = vao_tools.verify_per_persona_path_coverage(artifact, inventory)
+    sev = {g["severity"] for g in v["gaps"]}
+    assert "live-dev-environment-not-tested" in sev
+    gap = next(g for g in v["gaps"] if g["severity"] == "live-dev-environment-not-tested")
+    assert gap["missing_environment"] == "local"
+
+
+def test_both_environments_passes(vao_tools):
+    inventory = {"personas": [{
+        "persona_id": "client",
+        "entry_point": "https://app.example.com/invite",
+    }]}
+    artifact = {"playwright_test_runs": [
+        {"persona_id": "client", "entry_url": "http://localhost:3000/invite"},
+        {"persona_id": "client", "entry_url": "https://app.example.com/invite"},
+    ]}
+    v = vao_tools.verify_per_persona_path_coverage(artifact, inventory)
+    sev = {g["severity"] for g in v["gaps"]}
+    assert "live-dev-environment-not-tested" not in sev
+
+
+def test_no_runs_at_all_does_not_fire_live_dev(vao_tools):
+    """If a persona has zero runs, the existing persona-path-not-tested
+    fires; live-dev-environment-not-tested does NOT (it's about
+    environment imbalance, not zero coverage)."""
+    inventory = {"personas": [{
+        "persona_id": "client",
+        "entry_point": "https://app.example.com/invite",
+    }]}
+    artifact = {"playwright_test_runs": []}
+    v = vao_tools.verify_per_persona_path_coverage(artifact, inventory)
+    sev = {g["severity"] for g in v["gaps"]}
+    assert "persona-path-not-tested" in sev
+    assert "live-dev-environment-not-tested" not in sev
+
+
+# Canonical env-sequencing fixture round-trip
+
+def test_env_seq_fixture_bad_fires_live_dev_not_tested(vao_tools, plugin_root):
+    fx_path = plugin_root / "tests" / "fixtures" / "vao" / "local-only-no-live-dev-run.json"
+    fx = json.loads(fx_path.read_text())
+    v = vao_tools.verify_per_persona_path_coverage(
+        fx["verification_artifact"], fx["persona_inventory"],
+    )
+    assert v["valid"] is False
+    sev = {g["severity"] for g in v["gaps"]}
+    assert "live-dev-environment-not-tested" in sev
+
+
+def test_env_seq_fixture_corrected_passes(vao_tools, plugin_root):
+    fx_path = plugin_root / "tests" / "fixtures" / "vao" / "local-only-no-live-dev-run.json"
+    fx = json.loads(fx_path.read_text())
+    v = vao_tools.verify_per_persona_path_coverage(
+        fx["_corrected_verification_artifact"], fx["persona_inventory"],
+    )
+    assert v["valid"] is True

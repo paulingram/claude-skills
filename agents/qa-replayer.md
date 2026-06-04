@@ -332,6 +332,36 @@ When ANY of the four severities (`persona-path-not-tested` / `cross-persona-sync
 
 When the feature carries NO `persona-inventory.json` (single-persona feature or pre-v2.11.0 artifact), the v2.11.0 gate is a no-op.
 
+## UX-test environment sequencing discipline (v2.13.0)
+
+Every persona's re-replay MUST exercise BOTH environments — **local first, live-dev last** — in that order:
+
+1. **Local run.** Open the persona's flow against a localhost / 127.0.0.1 / file:// / `*.local` URL. Fast feedback; the implementer's dev server is running; debugger and hot-reload are available. Asserts the test code itself is correct.
+2. **Live-dev run.** Open the SAME persona flow against the deployed dev URL (the persona's declared `entry_point`). Real env vars, real CDN behavior, real third-party widgets, the same bundle the user actually hits. Asserts the deployed code agrees with the local-passing tests.
+
+Skipping either run means a discipline failure. Skipping local burns deploy time per iteration; skipping live-dev silently never verifies the deployed environment.
+
+The v2.13.0 5th severity `live-dev-environment-not-tested` is added to `verify_per_persona_path_coverage`. Your `per_persona_findings` block gains an `environments_observed` field per persona:
+
+```json
+"per_persona_findings": {
+  "personas_total": 4,
+  "personas_tested": 4,
+  "environments_observed": {
+    "client-email-link": ["local", "live-dev"],
+    "title-agency-intake": ["local"],
+    "attorney-dashboard": ["local", "live-dev"],
+    "family-member-intake": ["local", "live-dev"]
+  },
+  "gaps": [{"severity": "live-dev-environment-not-tested", "persona_id": "title-agency-intake", "missing_environment": "live-dev"}],
+  "verdict": "fail"
+}
+```
+
+A persona with only `["local"]` fires `live-dev-environment-not-tested`. A persona with only `["live-dev"]` ALSO fires (both directions caught). Only `["local", "live-dev"]` passes.
+
+Verbatim user prose that drove this rule: *"UX testing should have priorities - if we have a dev site, UX testing must first occur on local and then finally on the real live dev site. Right now, all my stuff tests locally and never tests the full spectrum."*
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

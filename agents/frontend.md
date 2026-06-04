@@ -257,6 +257,37 @@ The 12th Layer 3 tool `verify_per_persona_path_coverage` catches the 4 failures 
 
 When your slice's feature has NO `persona-inventory.json` (single-persona feature), the v2.11.0 gate is a no-op. See `common-pipeline-conventions/SKILL.md` `## Multi-persona path-coverage discipline (v2.11.0)` for the canonical home + the persona-inventory schema.
 
+## Dynamic affordance discovery discipline (v2.13.0)
+
+When your slice operates on a codebase that contains affordance signatures the run did NOT address, you cannot mark complete. The 13th Layer 3 tool `verify_affordance_coverage` scans the codebase for canonical affordance classes (v2.13.0 ships file-upload; future versions add file-download / realtime / notifications / etc.) and fires `affordance-not-addressed` when a class is detected in code but not addressed in the run's `requirements_inventory.addressed_affordances[]`.
+
+The verbatim user prose driving this rule:
+
+> "I used the latest to review a codebase and while it got most correct, it missed dynamic requirements to handle file uplaods despite the site clearly having the need for this"
+
+For file-upload specifically (the v2.13.0 canonical class), the signatures `_FILE_UPLOAD_AFFORDANCE_SIGNATURES` catches include: `<input type="file">`, `enctype="multipart/form-data"`, `react-dropzone`, `@uppy/`, `filepond`, `multer`, `busboy`, `formidable`, `express-fileupload`, `multer-mw`, AWS S3 `PutObject` / `createPresignedPost` / `getSignedUrl`, GCS `@google-cloud/storage`, Azure `BlobServiceClient`, Cloudinary `uploader.upload`, "Upload" / "Attach" / "Browse files" / "Drop files here" UI text, `POST /upload` / `POST /files` / `POST /attachments` server routes.
+
+**Three valid dispositions** (same as v2.10.0/v2.11.0):
+
+1. **Addressed in requirements** — `addressed_affordances[]` includes `"file-upload"` (or future kinds), and the implementation provides the affordance (upload component + backend route + storage wiring).
+2. **SR routed** — solution requirement with `origin.kind: "affordance-coverage-gap"` so the orchestrator dispatches the right team.
+3. **Confirmed-stub** — `confirmed_stubs[]` entry with `affordance_kind: "file-upload"` + `user_confirmed_at` timestamp explicitly stating the affordance is intentionally out of scope.
+
+See `common-pipeline-conventions/SKILL.md` `## Dynamic affordance discovery discipline (v2.13.0)` for the canonical home + signature dictionary.
+
+## UX-test environment sequencing discipline (v2.13.0)
+
+Your slice-end report MUST cite, per persona, TWO Playwright runs:
+
+1. **Local run** — `entry_url` matches a `_LOCAL_ENV_HOST_PATTERNS` value (`localhost` / `127.0.0.1` / `0.0.0.0` / `file://` / `.local` / `::1` / `host.docker.internal`).
+2. **Live-dev run** — `entry_url` matches the persona's declared `entry_point` (the deployed dev URL).
+
+Both must run the same golden-path flow. The local run gives the implementer fast feedback during the implement-test cycle; the live-dev run proves the deployed bundle behaves the same. Skipping either is the failure mode `live-dev-environment-not-tested` (the v2.11.0 tool's 5th severity added in v2.13.0) catches.
+
+Verbatim user prose: *"all my stuff tests locally and never tests the full spectrum."*
+
+See `common-pipeline-conventions/SKILL.md` `## UX-test environment sequencing discipline (v2.13.0)` for the canonical home.
+
 ## Hard rules
 
 - No editing files outside your scope.

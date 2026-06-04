@@ -1285,6 +1285,106 @@ v2.11.0 is the first layer that asks: **"given this feature serves N personas, d
 - `tests/test_vao_per_persona_path_coverage.py` + `tests/test_multi_persona_path_coverage_discipline.py` — structural tests.
 - Companion to v2.6.0 live-data wiring (catches mock-state survival on the one tested path) + v2.7.0 pattern propagation (catches partial sweep within ONE persona's path) — different axis, same root principle: ship the COMPLETE verification the feature requires, not the persona-narrow slice of it.
 
+## Dynamic affordance discovery discipline (v2.13.0)
+
+When the pipeline is given a codebase (either to review/audit or to build into), the intake phase MUST scan the codebase for **affordance signatures** — UI elements, libraries, and backend code paths that signal a user-facing capability (file upload, file download, real-time updates, notifications, etc.). Any affordance class that is **present in the code** but **not addressed in the run's requirements inventory** is a discipline failure: the run will silently leave the affordance unsupported and the user will hit it in production.
+
+### The failure shape this closes (verbatim from the user)
+
+> "I used the latest to review a codebase and while it got most correct, it missed dynamic requirements to handle file uplaods despite the site clearly having the need for this"
+
+The agent ran a codebase review, produced a requirements inventory, got *most* of it right — but the inventory did not name **file upload** as a requirement even though the codebase clearly had file-upload code (`<input type="file">`, `enctype="multipart/form-data"`, `import multer`, AWS S3 `PutObject` calls, "Upload" buttons in the UI). The user observed the gap manually; the framework did not catch it. v2.13.0 makes this structurally impossible.
+
+### The rule (non-negotiable)
+
+For every codebase the pipeline operates on, the intake phase produces an **affordance inventory** alongside the requirements inventory. The inventory enumerates which canonical affordance classes are detected in the codebase. Each detected class MUST then be addressed in one of three sanctioned ways:
+
+1. **Addressed in requirements** — the requirements inventory carries an entry covering the affordance (e.g., a requirement for "file upload with progress + virus scan + S3 backing store").
+2. **SR routed** — a solution requirement with `origin.kind: "affordance-coverage-gap"` is created so the orchestrator dispatches the right team in a follow-up run.
+3. **Confirmed-stub** — an entry in `coverage-map.json` `confirmed_stubs[]` with `user_confirmed_at` explicitly stating the affordance is intentionally out of scope for this run.
+
+A detected affordance class with NONE of the three is `affordance-not-addressed`. The new 13th Layer 3 tool `verify_affordance_coverage` is the gate.
+
+### v2.13.0 ships one canonical affordance class: file-upload
+
+The `_AFFORDANCE_SIGNATURES["file-upload"]` constant carries 25+ signature patterns spanning the full stack:
+
+| Layer | Signature patterns (representative subset) |
+|---|---|
+| **HTML / DOM** | `<input type="file"`, `accept="image/*"`, `multiple` attribute on file inputs, `enctype="multipart/form-data"` |
+| **JavaScript APIs** | `FileReader`, `new FormData()`, `input.files`, `event.dataTransfer.files`, `URL.createObjectURL` |
+| **Drag-and-drop libraries** | `react-dropzone`, `@uppy/`, `filepond`, `dropzone-js`, `vue-upload-component`, `ng-file-upload` |
+| **Backend middleware** | `multer`, `busboy`, `formidable`, `express-fileupload`, `koa-multer`, Django `FileField`, Flask `request.files`, FastAPI `UploadFile` |
+| **Cloud storage SDKs** | AWS S3 `PutObject` / `createPresignedPost` / `getSignedUrl`, GCS `@google-cloud/storage`, Azure `BlobServiceClient`, Cloudinary `uploader.upload`, Uploadcare `uploadFile` |
+| **UI text patterns** | "Upload", "Attach", "Add file", "Browse files", "Drop files here", "Choose file" |
+| **Server routes** | `POST /upload`, `POST /files`, `POST /attachments`, `PUT /signed-url` |
+
+The framework is extensible: future versions will add `file-download` (export, save-as, blob URLs, CSV/PDF generation), `realtime` (WebSocket, SSE, polling, Pusher, Supabase Realtime), `notifications` (in-app, push, email triggers), and others. v2.13.0 ships file-upload as the first canonical class.
+
+### Severity
+
+Single severity `affordance-not-addressed` with structured evidence:
+
+```json
+{
+  "severity": "affordance-not-addressed",
+  "affordance_kind": "file-upload",
+  "signature_id": "html-file-input",
+  "signature_pattern": "<input type=\"file\"",
+  "matched_files": ["src/components/DocumentsPane.tsx:42", "src/api/routes/upload.ts:18"],
+  "evidence": "codebase carries 'file-upload' signatures in 2 files; requirements_inventory.addressed_affordances does NOT include 'file-upload'.",
+  "remediation": "Add a 'file-upload' requirement to the inventory, OR route via SR with origin.kind=affordance-coverage-gap, OR mark as confirmed-stub."
+}
+```
+
+### Cross-references
+
+- `hooks/vao_tools.py::verify_affordance_coverage` — the 13th Layer 3 tool.
+- `hooks/vao_tools.py::_AFFORDANCE_SIGNATURES` + `_FILE_UPLOAD_AFFORDANCE_SIGNATURES` — the canonical signature dictionary + the v2.13.0 file-upload subset.
+- `agents/system-architect.md` `## Dynamic affordance discovery discipline (v2.13.0)` — intake-mode affordance-scan + Master Review Audit gate.
+- `agents/frontend.md` `## Dynamic affordance discovery discipline (v2.13.0)` — implementer cannot ship if a detected affordance is unaddressed.
+- `agents/codebase-map-reviewer.md` `## Dynamic affordance discovery discipline (v2.13.0)` — CODEBASE_MAP.md must enumerate detected affordances.
+- `tests/fixtures/vao/file-upload-affordance-missed.json` — verbatim user case (codebase carries `<input type="file">` + multer + S3 PutObject + "Upload Document" UI text; requirements miss the file-upload affordance).
+- `tests/test_vao_affordance_coverage.py` + `tests/test_dynamic_affordance_discovery_discipline.py` — structural tests.
+- New SR origin kind: `affordance-coverage-gap` joins the canonical list (`missing-api-for-frontend-element` / `cross-layer-backend-required` / `cross-layer-frontend-required` / `interaction-gap` / `live-data-wiring-gap` / `persona-path-coverage-gap`).
+
+## UX-test environment sequencing discipline (v2.13.0)
+
+UX tests MUST run in BOTH environments — **LOCAL first, LIVE DEV last** — in that order. The local pass is fast feedback (debugger, hot-reload, breakpoints); the live-dev pass is real-world verification (the deployed bundle, real env vars, the same URL the user hits). Running tests only locally silently never verifies the deployed code. Running tests only against the live dev URL loses the fast-feedback loop and burns deploy time per iteration.
+
+### The failure shape this closes (verbatim from the user)
+
+> "additionally, UX testing should have priorities - if we have a dev site, UX testing must first occur on local and then finally on the real live dev site. Right now, all my stuff tests locally and never tests the full spectrum"
+
+The framework's contract (v2.11.0 `entry_point` is a deployed URL) was correct on paper but the actual execution kept hitting `localhost`. Tests passed locally; the deployed environment was never independently verified; gaps that only appeared in the deployed bundle (env-var differences, CDN behavior, third-party widgets that don't load over `localhost`) went undetected.
+
+### The rule (non-negotiable)
+
+Every persona in the v2.11.0 `persona-inventory.json` MUST have AT LEAST TWO entries in `playwright_test_runs[]` with the same `persona_id`:
+
+1. **One local run** — `entry_url` matches a `_LOCAL_ENV_HOST_PATTERNS` value (`localhost`, `127.0.0.1`, `0.0.0.0`, `file://`, `*.local`).
+2. **One live-dev run** — `entry_url` matches the persona's `entry_point` (the deployed URL declared in `persona-inventory.json`).
+
+Both runs must execute the same golden-path flow. The local run gives the implementer the debugger-equipped fast feedback; the live-dev run proves the deployed bundle agrees.
+
+### Severity
+
+`live-dev-environment-not-tested` — added to `verify_per_persona_path_coverage` (v2.11.0 extended). Fires when:
+
+- A persona has at least one `playwright_test_runs[]` entry against a `_LOCAL_ENV_HOST_PATTERNS` value AND no entry against the declared `entry_point` URL, OR
+- A persona has at least one entry against the declared `entry_point` URL AND no entry against any `_LOCAL_ENV_HOST_PATTERNS` value.
+
+Both directions are caught — local-only AND live-only are equally forbidden. A persona run for which NEITHER environment ran is still caught by the existing v2.11.0 `persona-path-not-tested` severity.
+
+### Cross-references
+
+- `hooks/vao_tools.py::verify_per_persona_path_coverage` — v2.11.0 tool, extended in v2.13.0 with the 5th severity.
+- `hooks/vao_tools.py::_LOCAL_ENV_HOST_PATTERNS` — the canonical local-host pattern list.
+- `agents/qa-replayer.md` `## UX-test environment sequencing discipline (v2.13.0)` — re-replay protocol now mandates both environments.
+- `agents/frontend.md` `## UX-test environment sequencing discipline (v2.13.0)` — implementer's slice-end report cites BOTH a local + live-dev playwright run per persona.
+- `tests/fixtures/vao/local-only-no-live-dev-run.json` — verbatim user case (all 4 personas tested only against localhost; none against the deployed dev URL).
+- Companion to v2.11.0 multi-persona path-coverage (same axis — per-persona test execution) + v2.2.0 verified-live discipline (which mandates the deployed URL be invoked but doesn't require the BOTH-environments sequence).
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.

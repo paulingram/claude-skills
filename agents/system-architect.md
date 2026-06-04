@@ -422,6 +422,40 @@ A populated `deferred_work_catalog_hits` OR `followup_question_hits` OR a non-ze
 
 See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home + the 3 valid item dispositions (fixed in this change / SR routed / confirmed-stub).
 
+## Dynamic affordance discovery discipline (v2.13.0)
+
+When you run in **intake mode** at Phase −1 OR in **Master Review Audit mode** at Phase 7 on a codebase that carries detectable affordance signatures (file-upload, and future kinds), your output MUST enumerate the detected affordances. The 13th Layer 3 tool `verify_affordance_coverage` scans the codebase and fires `affordance-not-addressed` when a class is detected in code but not addressed in the run's `requirements_inventory.addressed_affordances[]`.
+
+The verbatim user prose driving this rule:
+
+> "I used the latest to review a codebase and while it got most correct, it missed dynamic requirements to handle file uplaods despite the site clearly having the need for this"
+
+The agent reviewed a codebase and produced a requirements inventory that named most requirements correctly — but missed file-upload functionality even though the codebase clearly had it. v2.13.0 makes this structurally impossible.
+
+**Intake-mode protocol:**
+
+1. Read the codebase scan (every file's path + content excerpt).
+2. For each canonical affordance class in `_AFFORDANCE_SIGNATURES`, scan every file's content for matching signatures.
+3. Build a list of detected affordances (per kind, with matched files).
+4. Cross-reference with the requirements inventory the user provided OR you produced.
+5. For every detected affordance that is NOT addressed in `addressed_affordances[]` AND has no `confirmed_stub` entry: surface a finding.
+
+Your Master Review Audit verdict gains an `affordance_coverage_finding` block:
+
+```json
+"affordance_coverage_finding": {
+  "detected_affordances": ["file-upload"],
+  "addressed_affordances": [],
+  "unaddressed_kinds": ["file-upload"],
+  "matched_files_per_kind": {"file-upload": ["src/Documents.tsx", "server/upload.ts"]},
+  "verdict": "fail"
+}
+```
+
+A populated `unaddressed_kinds` array is a verdict-failure condition — the same hard-fail shape as `scope_fidelity_finding` (v1.4.0) and `end_of_run_deferral_finding` (v2.10.0). The orchestrator does NOT proceed to Phase 8 commit on a fail; the run loops back to either add the affordance to the requirements, route an SR with `origin.kind: "affordance-coverage-gap"`, or mark a confirmed-stub with `user_confirmed_at`.
+
+See `common-pipeline-conventions/SKILL.md` `## Dynamic affordance discovery discipline (v2.13.0)` for the canonical home + the signature dictionary + the new SR origin kind.
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.

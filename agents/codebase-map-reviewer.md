@@ -73,6 +73,14 @@ Return a single JSON object (no prose around it — just the JSON):
 - `status: "ok"` → all spot-checks passed and you found no significant omissions or stale entries.
 - `status: "deficient"` → at least one item in `deficiencies`. Each item is specific and actionable.
 
+## Dynamic affordance discovery discipline (v2.13.0)
+
+When reviewing a `CODEBASE_MAP.md` for a codebase that carries detectable affordance signatures (v2.13.0 ships `file-upload`; future versions add `file-download` / `realtime` / `notifications` / etc.), your review MUST verify the map enumerates detected affordances. A map that names modules, routes, and API endpoints correctly but omits the affordance inventory leaves the run vulnerable to the v2.13.0 failure mode (codebase clearly has file-upload; requirements miss it; run ships incomplete).
+
+For each canonical affordance class in `hooks/vao_tools.py::_AFFORDANCE_SIGNATURES`, check whether the map's affordance-inventory section (or equivalent) names it AND cites the matched files. A detected affordance not enumerated in the map is a deficiency to surface. The 13th Layer 3 tool `verify_affordance_coverage` is the structural gate downstream; your review is the upstream check that the inventory exists in the first place.
+
+See `common-pipeline-conventions/SKILL.md` `## Dynamic affordance discovery discipline (v2.13.0)` for the canonical home + the signature dictionary.
+
 ## Hard rules
 
 - No fixing the map. You review, you do not edit.

@@ -2327,6 +2327,20 @@ _DOUBLE_SUBMIT_TIMING_THRESHOLD_MS: int = 500
 # longer is observable as "frozen UI" by the user.
 _LOADING_STATE_MAX_DELAY_MS: int = 200
 
+# v2.13.0 — Patterns that identify a LOCAL test environment URL. A Playwright
+# `entry_url` matching any of these (case-insensitive substring) counts as a
+# local run. Anything not matching counts as a live-dev run (the persona's
+# declared `entry_point` URL is the canonical live-dev target).
+_LOCAL_ENV_HOST_PATTERNS: tuple[str, ...] = (
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "file://",
+    ".local",
+    "::1",
+    "host.docker.internal",
+)
+
 
 def _matches_loading_hint(state_text: str) -> bool:
     if not isinstance(state_text, str) or not state_text:
@@ -2643,9 +2657,270 @@ def verify_per_persona_path_coverage(
     gaps += _detect_cross_persona_sync_not_asserted(inventory, artifact)
     gaps += _detect_double_submit_not_tested(inventory, artifact)
     gaps += _detect_loading_state_not_asserted(inventory, artifact)
+    gaps += _detect_live_dev_environment_not_tested(inventory, artifact)
 
     verdict = {
         "tool": "verify-per-persona-path-coverage",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+def _is_local_env_url(url: str) -> bool:
+    """A Playwright entry_url is a LOCAL run if it matches any of the
+    _LOCAL_ENV_HOST_PATTERNS. Anything else is a remote (live-dev) run."""
+    if not isinstance(url, str) or not url:
+        return False
+    lower = url.lower()
+    return any(p in lower for p in _LOCAL_ENV_HOST_PATTERNS)
+
+
+def _detect_live_dev_environment_not_tested(
+    persona_inventory: dict[str, Any],
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """v2.13.0 — Every persona MUST have BOTH a local run AND a live-dev run.
+    Fires `live-dev-environment-not-tested` when a persona is tested in only
+    one environment.
+    """
+    personas = persona_inventory.get("personas") or []
+    runs = verification_artifact.get("playwright_test_runs") or []
+
+    # Map persona_id → set of env classifications observed.
+    persona_envs: dict[str, set[str]] = {}
+    for r in runs:
+        if not isinstance(r, dict):
+            continue
+        pid = r.get("persona_id")
+        url = r.get("entry_url")
+        if not isinstance(pid, str) or not pid or not isinstance(url, str):
+            continue
+        env = "local" if _is_local_env_url(url) else "live-dev"
+        persona_envs.setdefault(pid, set()).add(env)
+
+    gaps: list[dict[str, Any]] = []
+    for p in personas:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("persona_id")
+        if not isinstance(pid, str) or not pid:
+            continue
+        envs = persona_envs.get(pid, set())
+        # If persona was never tested at all, the existing
+        # persona-path-not-tested detector handles it; skip here.
+        if not envs:
+            continue
+        # If both environments observed, no gap.
+        if "local" in envs and "live-dev" in envs:
+            continue
+        missing = "live-dev" if "local" in envs else "local"
+        gaps.append({
+            "severity": "live-dev-environment-not-tested",
+            "persona_id": pid,
+            "missing_environment": missing,
+            "observed_environments": sorted(envs),
+            "entry_point": p.get("entry_point", "<not declared>"),
+            "evidence": (
+                f"persona {pid!r} has Playwright runs in {sorted(envs)!r} "
+                f"environment(s); the {missing!r} environment was never tested."
+            ),
+            "remediation": (
+                "v2.13.0 UX-test environment sequencing discipline. Every "
+                "persona MUST be tested in BOTH local AND live-dev "
+                "environments. The local pass gives fast feedback "
+                "(debugger / hot-reload); the live-dev pass verifies the "
+                "deployed bundle (real env vars / real CDN / real auth). "
+                f"Add a Playwright run with entry_url matching the {missing!r} "
+                "environment. Local URLs match _LOCAL_ENV_HOST_PATTERNS "
+                "(localhost / 127.0.0.1 / .local / file:// / etc.); "
+                "live-dev URLs are the persona's declared entry_point."
+            ),
+        })
+    return gaps
+
+
+# ===========================================================================
+# Tool 13 — verify-affordance-coverage (v2.13.0)
+# ===========================================================================
+
+# v2.13.0 file-upload affordance signatures. Each entry is (signature_id,
+# substring pattern). Patterns are matched case-insensitively against the
+# combined content of files_scanned[]. The list is intentionally broad
+# (covers HTML / JS APIs / dropzone libs / backend middleware / cloud SDKs /
+# UI text / server routes) so the discipline catches the affordance no
+# matter where in the stack it lives.
+_FILE_UPLOAD_AFFORDANCE_SIGNATURES: tuple[tuple[str, str], ...] = (
+    # HTML / DOM
+    ("html-file-input", '<input type="file"'),
+    ("html-file-input-single", "type='file'"),
+    ("accept-attr-image", 'accept="image/'),
+    ("accept-attr-pdf", 'accept=".pdf'),
+    ("multipart-form-enctype", 'enctype="multipart/form-data"'),
+    ("multipart-content-type", "multipart/form-data"),
+    # JavaScript APIs
+    ("filereader-api", "FileReader"),
+    ("new-formdata", "new FormData("),
+    ("formdata-append", ".append("),
+    ("input-files-prop", "input.files"),
+    ("datatransfer-files", "dataTransfer.files"),
+    ("create-object-url", "URL.createObjectURL"),
+    # Dropzone libraries (JS)
+    ("react-dropzone", "react-dropzone"),
+    ("uppy-import", "@uppy/"),
+    ("filepond-import", "filepond"),
+    ("dropzone-js", "dropzone-js"),
+    ("vue-upload", "vue-upload-component"),
+    ("ng-file-upload", "ng-file-upload"),
+    # Backend middleware
+    ("multer-mw", "multer"),
+    ("busboy-mw", "busboy"),
+    ("formidable-mw", "formidable"),
+    ("express-fileupload", "express-fileupload"),
+    ("koa-multer", "koa-multer"),
+    ("django-filefield", "models.FileField"),
+    ("flask-files", "request.files"),
+    ("fastapi-uploadfile", "UploadFile"),
+    # Cloud storage SDKs
+    ("aws-s3-putobject", "PutObject"),
+    ("aws-s3-presigned-post", "createPresignedPost"),
+    ("aws-s3-presigned-url", "getSignedUrl"),
+    ("gcs-import", "@google-cloud/storage"),
+    ("azure-blob-import", "BlobServiceClient"),
+    ("cloudinary-upload", "uploader.upload"),
+    ("uploadcare-upload", "uploadcare"),
+    # UI text patterns
+    ("upload-button-text", ">Upload<"),
+    ("attach-button-text", ">Attach<"),
+    ("add-file-text", "Add file"),
+    ("browse-files-text", "Browse files"),
+    ("drop-files-here-text", "Drop files here"),
+    ("choose-file-text", "Choose file"),
+    # Server routes
+    ("post-upload-route", '"/upload"'),
+    ("post-files-route", '"/files"'),
+    ("post-attachments-route", '"/attachments"'),
+)
+
+# v2.13.0 affordance dictionary. v2.13.0 ships one canonical class
+# (file-upload). Future versions add file-download / realtime /
+# notifications / etc. — each new affordance is a new key with its own
+# signature tuple. The detector iterates over the dict; new affordances
+# Just Work.
+_AFFORDANCE_SIGNATURES: dict[str, tuple[tuple[str, str], ...]] = {
+    "file-upload": _FILE_UPLOAD_AFFORDANCE_SIGNATURES,
+}
+
+
+def _scan_file_content(
+    content: str, signatures: tuple[tuple[str, str], ...]
+) -> list[tuple[str, str]]:
+    """Return list of (signature_id, pattern) hits found in `content`.
+    Case-insensitive substring match."""
+    if not isinstance(content, str) or not content:
+        return []
+    lower = content.lower()
+    hits: list[tuple[str, str]] = []
+    for sig_id, pattern in signatures:
+        if pattern.lower() in lower:
+            hits.append((sig_id, pattern))
+    return hits
+
+
+def _detect_affordance_not_addressed(
+    verification_artifact: dict[str, Any],
+    requirements_inventory: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """For each canonical affordance class, scan the codebase. If any
+    signature matches AND the requirements inventory does NOT address that
+    class, fire `affordance-not-addressed`."""
+    codebase_scan = verification_artifact.get("codebase_scan") or {}
+    files_scanned = codebase_scan.get("files_scanned") or []
+    addressed = requirements_inventory.get("addressed_affordances") or []
+    addressed_set: set[str] = {
+        str(a).lower() for a in addressed if isinstance(a, str)
+    }
+    confirmed_stubs = requirements_inventory.get("confirmed_stubs") or []
+    confirmed_stub_kinds: set[str] = set()
+    for stub in confirmed_stubs:
+        if isinstance(stub, dict):
+            k = stub.get("affordance_kind")
+            if isinstance(k, str):
+                confirmed_stub_kinds.add(k.lower())
+
+    gaps: list[dict[str, Any]] = []
+    for kind, sigs in _AFFORDANCE_SIGNATURES.items():
+        # Aggregate hits per kind across all scanned files.
+        per_file_hits: dict[str, list[tuple[str, str]]] = {}
+        for f in files_scanned:
+            if not isinstance(f, dict):
+                continue
+            path = f.get("path") or ""
+            content = f.get("content_excerpt") or f.get("content") or ""
+            if not isinstance(path, str) or not isinstance(content, str):
+                continue
+            hits = _scan_file_content(content, sigs)
+            if hits:
+                per_file_hits[path] = hits
+
+        if not per_file_hits:
+            continue  # affordance not detected in codebase
+        if kind in addressed_set or kind in confirmed_stub_kinds:
+            continue  # addressed in requirements or explicitly stubbed
+
+        # Construct a single gap per affordance kind summarizing the hits.
+        matched_files = sorted(per_file_hits.keys())
+        all_sig_ids = sorted({sig_id for hits in per_file_hits.values() for sig_id, _ in hits})
+        first_pattern = next(iter(per_file_hits.values()))[0][1]
+        gaps.append({
+            "severity": "affordance-not-addressed",
+            "affordance_kind": kind,
+            "signature_ids": all_sig_ids,
+            "first_matched_pattern": first_pattern,
+            "matched_files": matched_files,
+            "evidence": (
+                f"codebase carries {kind!r} affordance signatures in "
+                f"{len(matched_files)} file(s) ({matched_files[:3]!r}...); "
+                f"requirements_inventory.addressed_affordances does NOT include "
+                f"{kind!r} AND no confirmed_stub covers it."
+            ),
+            "remediation": (
+                f"v2.13.0 Dynamic affordance discovery discipline. The codebase "
+                f"clearly carries {kind!r} functionality, so the run's "
+                f"requirements MUST address it. Add a requirement for {kind!r} "
+                f"to the inventory's addressed_affordances[] OR route a "
+                f"solution requirement with origin.kind=affordance-coverage-gap "
+                f"OR mark this affordance as confirmed_stub with user_confirmed_at."
+            ),
+        })
+    return gaps
+
+
+def verify_affordance_coverage(
+    verification_artifact: dict[str, Any] | None = None,
+    requirements_inventory: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.13.0 Layer-3 tool — verify the run's requirements inventory addresses
+    every canonical affordance class detected in the codebase.
+
+    Single severity: ``affordance-not-addressed`` (with structured
+    affordance_kind + signature_ids + matched_files fields). The
+    ``_AFFORDANCE_SIGNATURES`` dict is the extensible canonical registry;
+    v2.13.0 ships with one class (``file-upload``) and 40+ signatures.
+
+    Trivially passes when no codebase_scan or no files_scanned[].
+
+    Returns ``{"tool": "verify-affordance-coverage", "valid": bool,
+    "gaps": [...], "verdict_at": "<ISO 8601 UTC>"}``.
+    """
+    artifact = verification_artifact or {}
+    inventory = requirements_inventory or {}
+    gaps = _detect_affordance_not_addressed(artifact, inventory)
+
+    verdict = {
+        "tool": "verify-affordance-coverage",
         "valid": len(gaps) == 0,
         "gaps": gaps,
         "verdict_at": _utc_now_iso(),
@@ -2725,6 +3000,11 @@ def main(argv: list[str] | None = None) -> int:
     pppc.add_argument("--inventory", required=True, help="Path to persona-inventory JSON.")
     pppc.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    ac = sub.add_parser("verify-affordance-coverage")
+    ac.add_argument("--artifact", required=True, help="Path to verification-artifact JSON with codebase_scan.")
+    ac.add_argument("--inventory", required=True, help="Path to requirements-inventory JSON with addressed_affordances[].")
+    ac.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -2788,6 +3068,13 @@ def main(argv: list[str] | None = None) -> int:
         verdict = verify_per_persona_path_coverage(
             verification_artifact=_load_json(args.artifact),
             persona_inventory=_load_json(args.inventory),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-affordance-coverage":
+        verdict = verify_affordance_coverage(
+            verification_artifact=_load_json(args.artifact),
+            requirements_inventory=_load_json(args.inventory),
             out_path=args.out,
         )
         ok = verdict["valid"]

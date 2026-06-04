@@ -37,6 +37,7 @@ EXPECTED_SKILLS: set[str] = {
     "interactive-mockup-discovery",
     "phenotypes",
     "phenotype-absorption",
+    "visual-to-api-design",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
