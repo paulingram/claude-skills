@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.20.0] — 2026-06-04 — Deploy mandate discipline
+
+**ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"when I say deploy an application 1) I dont want it to ask me tons of questions or override me on phases. when I say fully deploy it must have 1 criteria 100% of all elements active and real and functional. anything less is failure."*
+
+### The failure shape this closes (verbatim audience-loom-ai transcript)
+
+The user asked for a deep-review of 4 codebases + a plan to build the synthetic-audience backend. The agent produced `SYNTHETIC_AUDIENCE_BACKEND_PLAN.md` (correct), then built 3 ADJACENT dependencies (UAM auth fix, `ai-service-backend` attachment support, 3 demo behavioral agents created direct-via-API), then reported *"Plan ✅ delivered / Key dependencies ✅ live / The product (synthetic-audience-backend + audience-loom-ai wiring + deployed URL) — not built"* and offered *"Want me to start the thin slice now, or go straight for the full backend build?"* The actual product backend had zero lines written. The actual product frontend was 100% mock data, no API client, no login, never deployed. The agent passed off adjacent dependency work as the deployment, AND asked the user to choose between thin-slice and full-build — both forbidden patterns under a deploy mandate.
+
+### What v2.20.0 ships
+
+1. **NEW canonical section `## Deploy mandate discipline (v2.20.0)`** in `skills/common-pipeline-conventions/SKILL.md` — names the 5-criterion binding contract (`deploy_target_url` + `frontend_url` + `login_verified` + `live_data_for_every_screen` + `no_mock_residue`), the 4 named severities, deploy mandate verbs + completeness modifiers, target-kind narrowing rules (`fullstack` / `thin-slice` / `api-only` / `spa-only`), new SR origin kind `deploy-mandate-not-satisfied`, and explicit forbidden anti-patterns.
+
+2. **NEW 18th Layer 3 tool `verify_deploy_mandate_satisfied`** in `hooks/vao_tools.py` + CLI subcommand. Module constants: `_DEPLOY_MANDATE_VERBS` (15 patterns: deploy/launch/ship/publish/go live/push to prod/etc.), `_DEPLOY_COMPLETENESS_MODIFIERS` (23 patterns: fully/100%/all elements/real and functional/anything less is failure/log into/etc.), `_PLAN_ONLY_DELIVERABLE_MARKERS` (12 patterns: Plan ✅ delivered/_PLAN.md/blueprint/roadmap/etc.), `_ADJACENT_DEPENDENCY_MARKERS` (13 patterns: auth fix/demo agents/building blocks/existing platforms not your app/etc.), `_PARTIAL_DEPLOY_MARKERS` (11 patterns: thin slice/quick win/phase 1 live/etc.), `_LOCAL_DEPLOY_URL_MARKERS` (6 patterns). 4 severities + 7 binding-criterion gaps. Helper `detect_deploy_mandate_in_prompt(prompt) -> dict` classifies user prompts. Trivially passes when `deploy_mandate.active != True` — fully backwards-compatible.
+
+3. **NEW Phase −2 deploy-mandate detection** in `skills/architect-team-pipeline/SKILL.md` — orchestrator runs the prompt classifier immediately after the triage `bug-classifier` verdict; persists `deploy_mandate` into `intake-state.json`; carries it in every teammate's spawn brief.
+
+4. **NEW Phase 8 / B8 / M7 final gate** wired into all 3 pipeline bodies — invokes the 18th Layer 3 tool BEFORE commit + push (or before auto-merge for mini). Any of the 4 severities blocks the commit and routes SRs.
+
+5. **Agent body extensions** in 4 agents: `agents/frontend.md` (cannot mark Phase 3 self-review as pass with unwired elements > 0 or mock residue > 0; forbidden to offer the user a thin-slice choice mid-implementation); `agents/backend.md` (must deploy to a real reachable URL with health check 200 — adjacent service deploys do NOT count); `agents/qa-replayer.md` (new `deploy_mandate_finding` verdict block; verdict cannot be `bug-resolved` when any binding criterion is unmet); `agents/system-architect.md` Master Review Audit gains hard-fail `deploy_mandate_finding` block parallel to v1.4.0 `scope_fidelity_finding` and v2.14.0 `implementation_scope_cut_finding`.
+
+6. **NEW canonical fixture `tests/fixtures/vao/deploy-mandate-not-satisfied.json`** — verbatim audience-loom-ai case (deploy_mandate active, target_kind=fullstack; verification_artifact missing deploy_target_url + localhost frontend_url + login_verified=false + zero live_data_assertions + 47 mock_residue + 23 unwired_elements + 3 adjacent services deployed; final_report cites plan-only + adjacent + thin-slice markers). Bad version fires all 4 severities with 9 distinct gaps. `_corrected_verification_artifact` shows the same product correctly deployed: backend at real URL + frontend at real URL + 12 screens with live data + login verified + zero mock residue + zero unwired elements; passes cleanly.
+
+7. **54 new tests** across `tests/test_vao_deploy_mandate.py` (34 — module constants, prompt classifier, severity-by-severity, target-kind handling, fixture round-trip, determinism) + `tests/test_deploy_mandate_discipline.py` (20 — canonical home, 5 binding criteria, target-kinds, verbatim user prose, new SR origin kind, 4 agent body extensions, deploy_mandate_finding block, 3 pipeline body wirings (Phase −2 + Phase 8 + Phase B8 + Phase M7), polyglot Python pattern, fixture presence + meta consistency, cross-references to v2.14.0 + v2.10.0). **3127 → 3181 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Schema v7 UNCHANGED. v2.20.0 ships its own Layer 3 tool but adds no new required evidence field.
+- All prior fixtures continue to validate.
+- A run with `deploy_mandate.active != True` sees the 18th tool as a complete no-op (returns `{valid: True, gaps: [], deploy_mandate_active: False}`).
+- Existing pipelines with no deploy-mandate prompts behave identically to v2.19.0.
+
+### Companion-discipline cross-references
+
+- v2.14.0 No implementation-time scope cut (catches "⚠️ Honest scope statement" mid-implementation) — different surface (M0 foundation framing), same root principle as v2.20.0 (the agent does the work; does NOT make unilateral judgment calls about scope).
+- v2.10.0 No end-of-run deferral (catches "Want me to continue?" follow-up questions) — different surface (end-of-run deferred catalog), same root principle as v2.20.0 (forbidden to offer the user a thin-slice choice mid-deploy-mandate).
+- v2.6.0 Live-data wiring (catches mock-state residue) + v2.11.0 Multi-persona path-coverage (verifies persona breadth) — v2.20.0 enforces these at the deploy-mandate boundary specifically.
+
 ## [2.19.0] — 2026-06-04 — In-flight clarification injection mechanism
 
 **ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"we need a way of interrupting and injecting additional context and asks so that the skill redirects. like it can be moving and I have a second thought, I need to send that in and have it affect the work."*

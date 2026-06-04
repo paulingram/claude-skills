@@ -237,6 +237,16 @@ Read `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`:
 
 ## Phase M7 — Auto-merge to main
 
+### Deploy mandate final gate (v2.20.0)
+
+If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool BEFORE the auto-merge sequence:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json"
+```
+
+Any of the 4 severities blocks the auto-merge. The mini loop routes the failure back to Phase M8 cycle as `verdict: red` with the deploy-mandate gap as the explicit failure reason; the architect re-spawns to satisfy the missing binding criterion. See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
+
 On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. **This is the only point in any architect-team pipeline that pushes to `main` directly.**
 
 ### Doc-currency single-pass

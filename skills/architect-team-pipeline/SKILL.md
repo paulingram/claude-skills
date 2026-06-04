@@ -126,6 +126,19 @@ When no flag forces the verdict, proceed to step 1.
 
 The triage layer is bounded at depth 1: a `mixed` spawn sets `triage_done: true` on the feature-pipeline subagent, which skips Phase −2 and proceeds directly to Phase −1 — Intake & Mapping. A `mixed` spawn does NOT spawn another `mixed` (the spawned feature-pipeline can't itself triage). The MemPalace wake-up (above this section) STILL runs in spawned subagents — it is unconditional.
 
+### Phase −2 deploy-mandate detection (v2.20.0)
+
+Immediately after the triage `bug-classifier` verdict (or when an explicit `--bug-fix` / `--feature-only` flag short-circuits the classifier), the orchestrator runs the deploy-mandate classifier against the verbatim user prompt:
+
+```python
+from hooks.vao_tools import detect_deploy_mandate_in_prompt
+mandate = detect_deploy_mandate_in_prompt(user_prompt)  # {active, target_kind, ...}
+```
+
+If `mandate.active == true`, the orchestrator persists `deploy_mandate = mandate` into `<workspace>/.architect-team/intake-state.json` AND carries it in every teammate's spawn brief (extending the v0.9.13 manifest schema). Phase 5 cross-layer and Phase 8 final-gate then invoke the 18th Layer 3 tool `verify_deploy_mandate_satisfied` against the verification artifact.
+
+When `mandate.active == false`, no deploy-mandate state is set; the v2.20.0 tool is a no-op for the rest of the run. Per `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)`.
+
 ## Phase 0.1 — Discipline freshness check (v2.18.0)
 
 Runs AFTER the Phase −2 triage (so the bug-fix-pipeline branch inherits the same check) and BEFORE Phase −1 — Intake & Mapping. Per `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`:
@@ -386,6 +399,18 @@ Once all task groups report complete:
 6. Once all requirements are satisfied AND the master-review audit verdict is `overall: pass`, run `openspec archive <change-name>` to merge deltas into the canonical specs.
 
 ## Phase 8 — Final Report
+
+### Deploy mandate final gate (v2.20.0)
+
+If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool BEFORE emitting the final report:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json"
+```
+
+A non-zero exit (any of the 4 severities — `deploy-mandate-not-satisfied` / `plan-only-deliverable-on-deploy-mandate` / `adjacent-dependencies-claimed-as-deployment` / `partial-deploy-passed-off-as-deploy`) is a hard-fail. The orchestrator MUST NOT commit or push the run. The fix loop kicks in: route SRs with `origin.kind: "deploy-mandate-not-satisfied"`; the existing team-dispatch surface (backend if missing `deploy_target_url`; frontend if missing `frontend_url` or `unwired_elements_count > 0`) handles each gap.
+
+See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
 Emit a final report containing:
 

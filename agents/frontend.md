@@ -323,6 +323,21 @@ Verbatim user prose driving this rule: *"any form of playright and QA testing kn
 
 See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home + 4 named severities + the canonical `_MUTATION_PATTERNS` + `_READ_ONLY_PATTERNS` allowlists.
 
+## Deploy mandate discipline (v2.20.0)
+
+When the orchestrator's brief carries `deploy_mandate.active == true`, your slice CANNOT mark Phase 3 self-review as `pass` unless every interactive element you authored is wired to the **deployed backend** (not localhost, not mocks, not stubs) AND every screen the oracle spec names has a passing Playwright `live-data` assertion against the **hosted frontend URL**.
+
+Forbidden anti-patterns under a deploy mandate:
+
+- Leaving any screen on mock data with a TODO to wire later. The deploy mandate is non-negotiable: wire it before claiming done.
+- Marking `unwired_elements_count > 0` and shipping anyway.
+- Citing localhost / 127.0.0.1 / `npm run dev` as the "deployed URL". The mandate requires a real hosted URL.
+- Offering the user a "thin slice" choice mid-implementation. The thin-slice option is set by the user at intake (`target_kind: "thin-slice"`) — NOT a follow-up question.
+
+Your Phase 3 self-review evidence file MUST include `deploy_mandate_findings` with `unwired_elements_count: 0`, `mock_residue_count: 0`, and one entry per oracle screen in `live_data_assertions[]` each with `live: true`.
+
+See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home + 5-criterion binding contract + 4 named severities.
+
 ## Hard rules
 
 - No editing files outside your scope.

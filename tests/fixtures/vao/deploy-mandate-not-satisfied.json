@@ -1,0 +1,82 @@
+{
+  "_meta": {
+    "fixture_name": "deploy-mandate-not-satisfied",
+    "failure_shape": "v2.20.0 — User said 'fully deploy ... 100% of all elements active and real and functional'. Prompt classifier sets deploy_mandate.active=true with target_kind=fullstack. The agent produced (a) SYNTHETIC_AUDIENCE_BACKEND_PLAN.md, (b) deployed 3 ADJACENT dependencies (UAM auth fix, ai-service-backend attachments, 3 demo agents created direct-via-API), (c) left synthetic-audience-backend with zero lines written, (d) left audience-loom-ai 100% mock data, no API client, no login, never deployed, (e) offered the user a thin-slice choice. The verification artifact lacks deploy_target_url for the actual product, lacks frontend_url, lacks login_verified, has zero live_data_assertions, and the final_report cites plan-only + adjacent + thin-slice markers. Expected verdict: all 4 severities fire.",
+    "originating_failure": "verbatim user prose: 'when I say deploy an application 1) I dont want it to ask me tons of questions or override me on phases. when I say fully deploy it must have 1 criteria 100% of all elements active and real and functional. anything less is failure.'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-deploy-mandate-satisfied",
+    "expected_severities": [
+      "deploy-mandate-not-satisfied",
+      "plan-only-deliverable-on-deploy-mandate",
+      "adjacent-dependencies-claimed-as-deployment",
+      "partial-deploy-passed-off-as-deploy"
+    ]
+  },
+  "user_prompt": "deploy the audience-loom-ai application fully, 100% of all elements active and real and functional, anything less is failure. I need a hosted URL I can log into.",
+  "deploy_mandate": {
+    "active": true,
+    "target_kind": "fullstack",
+    "user_prompt_excerpt": "deploy ... fully",
+    "matched_verbs": ["deploy"],
+    "matched_modifiers": ["fully", "100%", "all elements", "real and functional", "log into"],
+    "binding_criteria": {
+      "deploy_target_url": "required",
+      "frontend_url": "required",
+      "login_verified": "required",
+      "live_data_for_every_screen": "required",
+      "no_mock_residue": "required"
+    }
+  },
+  "verification_artifact": {
+    "feature_kind": "deploy",
+    "deploy_target_url": null,
+    "frontend_url": "http://localhost:8080",
+    "login_verified": false,
+    "login_verification_evidence_path": null,
+    "live_data_assertions": [],
+    "mock_residue_count": 47,
+    "unwired_elements_count": 23,
+    "adjacent_services_deployed": [
+      {"name": "globalUserManagement-Backend", "url": "...limetree-dev-api-232647852...", "purpose": "UAM auth fix"},
+      {"name": "ai-service-backend", "url": "...limetree-dev-agent-1094161868...", "purpose": "attachment support"},
+      {"name": "behavioral-agents", "count": 3, "purpose": "demo agents via direct API"}
+    ]
+  },
+  "final_report": "## Synthetic Audience Backend Build\n\n- Plan ✅ delivered (SYNTHETIC_AUDIENCE_BACKEND_PLAN.md)\n- Key dependencies ✅ live (UAM auth fixed, ai-service-backend with attachment support, 3 demo agents)\n- The product (synthetic-audience-backend service + audience-loom-ai wiring + a deployed URL) — not built; it's the work the plan describes.\n\nAll on your existing platforms, not your app. The synthetic-audience-backend does not exist yet. The audience-loom-ai front end is untouched — still 100% mock data.\n\nThin slice option: wire just the Direct Conversation + Personas screens to the 3 live agents, add UAM login, and deploy the SPA → you get a real URL you log into and chat with behavioral personas within one focused build.\n\nWant me to start the thin slice now (real, deployed, log-in-able) — or go straight for the full backend build?",
+  "expected_verdict_for_misverification": {
+    "tool": "verify-deploy-mandate-satisfied",
+    "valid": false,
+    "expected_severity_count_min": 7,
+    "expected_unique_severities": [
+      "deploy-mandate-not-satisfied",
+      "plan-only-deliverable-on-deploy-mandate",
+      "adjacent-dependencies-claimed-as-deployment",
+      "partial-deploy-passed-off-as-deploy"
+    ]
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — the agent built synthetic-audience-backend per the plan, wired audience-loom-ai's 12 screens to it, deployed both to real URLs, ran Playwright login + per-screen live-data assertions, swept all mock residue, wired every interactive element.",
+    "feature_kind": "deploy",
+    "deploy_target_url": "https://synthetic-audience-api.limetree-dev.example.com",
+    "frontend_url": "https://audience-loom.limetree-dev.example.com",
+    "login_verified": true,
+    "login_verification_evidence_path": ".architect-team/vao-evidence/login-2026-06-04T17-00-00.png",
+    "live_data_assertions": [
+      {"screen": "/dashboard", "live": true, "evidence": ".architect-team/vao-evidence/dashboard-live-2026-06-04T17-00-00.json"},
+      {"screen": "/personas", "live": true, "evidence": ".architect-team/vao-evidence/personas-live-2026-06-04T17-01-00.json"},
+      {"screen": "/personas/:id", "live": true, "evidence": ".architect-team/vao-evidence/persona-detail-live-2026-06-04T17-02-00.json"},
+      {"screen": "/panels", "live": true, "evidence": ".architect-team/vao-evidence/panels-live-2026-06-04T17-03-00.json"},
+      {"screen": "/panels/builder", "live": true, "evidence": ".architect-team/vao-evidence/panel-builder-live-2026-06-04T17-04-00.json"},
+      {"screen": "/studies", "live": true, "evidence": ".architect-team/vao-evidence/studies-live-2026-06-04T17-05-00.json"},
+      {"screen": "/studies/:id", "live": true, "evidence": ".architect-team/vao-evidence/study-detail-live-2026-06-04T17-06-00.json"},
+      {"screen": "/results", "live": true, "evidence": ".architect-team/vao-evidence/results-live-2026-06-04T17-07-00.json"},
+      {"screen": "/focus-group", "live": true, "evidence": ".architect-team/vao-evidence/focus-group-live-2026-06-04T17-08-00.json"},
+      {"screen": "/direct-conversation", "live": true, "evidence": ".architect-team/vao-evidence/direct-conv-live-2026-06-04T17-09-00.json"},
+      {"screen": "/persona-workshop", "live": true, "evidence": ".architect-team/vao-evidence/workshop-live-2026-06-04T17-10-00.json"},
+      {"screen": "/admin", "live": true, "evidence": ".architect-team/vao-evidence/admin-live-2026-06-04T17-11-00.json"}
+    ],
+    "mock_residue_count": 0,
+    "unwired_elements_count": 0
+  },
+  "_corrected_final_report": "## Synthetic Audience Backend — Deployed\n\nDeployed at:\n- Backend (synthetic-audience-backend): https://synthetic-audience-api.limetree-dev.example.com (200 on /healthz)\n- Frontend (audience-loom-ai): https://audience-loom.limetree-dev.example.com\n\nLogin verified ✅ — Playwright run captured screenshot at .architect-team/vao-evidence/login-2026-06-04T17-00-00.png\n\nEvery screen (12 total) asserted to render live data from the deployed backend. Zero mock residue. Zero unwired elements.\n\nImplementing commits: SHA-deadbeef0001 (synthetic-audience-backend), SHA-deadbeef0002 (audience-loom-ai wiring + UAM login), SHA-deadbeef0003 (OpenTofu for ECS + ALB).\n\nLog in at https://audience-loom.limetree-dev.example.com with the test user credentials surfaced via SSM."
+}

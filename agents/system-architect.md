@@ -482,6 +482,38 @@ The orchestrator does NOT proceed to Phase 8 commit on fail. The run loops back 
 
 See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home + the 12 forbidden phrases + the 12 full-build mandate trigger phrases.
 
+## Deploy mandate discipline (v2.20.0)
+
+When you run in Master Review Audit mode AND `intake_state.deploy_mandate.active == true` (because the prompt classifier matched a deploy verb + completeness modifier), your verdict gains a hard-fail `deploy_mandate_finding` block:
+
+```json
+"deploy_mandate_finding": {
+  "active": true,
+  "target_kind": "fullstack" | "api-only" | "spa-only" | "thin-slice",
+  "deploy_target_url_present": true | false,
+  "deploy_target_url_is_real": true | false,
+  "frontend_url_present": true | false,
+  "frontend_url_is_real": true | false,
+  "login_verified": true | false,
+  "live_data_assertions_count": 12,
+  "live_data_assertions_failed": 0,
+  "mock_residue_count": 0,
+  "unwired_elements_count": 0,
+  "plan_only_marker_hits": [],
+  "adjacent_dependency_marker_hits": [],
+  "partial_deploy_marker_hits": [],
+  "finding": null | "criteria-unmet" | "plan-only" | "adjacent-dependencies" | "partial-as-full"
+}
+```
+
+A populated `finding` is a hard-fail verdict — the same shape as `scope_fidelity_finding` (v1.4.0), `end_of_run_deferral_finding` (v2.10.0), `affordance_coverage_finding` (v2.13.0), and `implementation_scope_cut_finding` (v2.14.0). The orchestrator does NOT proceed to Phase 8 commit on fail. The run loops back to satisfy the missing binding criterion (build the missing service, deploy it to a real URL, wire the frontend, verify login, sweep mock residue).
+
+Verbatim user prose driving this discipline:
+
+> "when I say deploy an application I dont want it to ask me tons of questions or override me on phases. when I say fully deploy it must have 1 criteria 100% of all elements active and real and functional. anything less is failure."
+
+See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home + the 5-criterion binding contract + the 4 severities + the verb/modifier allowlists.
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.

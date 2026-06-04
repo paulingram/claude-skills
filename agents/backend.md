@@ -122,6 +122,21 @@ The Phase 5 cross-layer integration gate filters tests by environment via the 15
 
 See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home.
 
+## Deploy mandate discipline (v2.20.0)
+
+When the orchestrator's brief carries `deploy_mandate.active == true`, your backend service MUST be deployed to a **real, reachable URL** (ECS / Lambda / Cloud Run / Fly / Render / k8s — NOT localhost, NOT `npm run dev`, NOT `uvicorn --reload`) and return 200 on a health endpoint BEFORE you can mark Phase 3 self-review as `pass`. Your evidence file's `deploy_mandate_findings` MUST include `deploy_target_url` (the real URL) AND `health_check_status: 200`.
+
+Forbidden anti-patterns under a deploy mandate:
+
+- Claiming "endpoints implemented" when nothing is deployed. Implementation ≠ deployment.
+- Building only the schema / data model / a few endpoints and stopping. The deploy mandate's success criterion is **every endpoint the spec names is live**, not "the foundation is laid."
+- Deploying a sibling service the spec did NOT name (e.g., `ai-service-backend` attachment support when the spec names `synthetic-audience-backend`) and citing it as the deploy. That is `adjacent-dependencies-claimed-as-deployment` (v2.20.0 severity #3).
+- Recording `deploy_target_url` as localhost / 127.0.0.1 / file://. Those fail the `_is_localhost_or_file` check and trip the 18th Layer 3 tool.
+
+When the spec names a new service that does not exist yet, you build it from scratch — the deploy mandate does NOT permit "this would take too long; use the existing one instead."
+
+See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home + 5-criterion binding contract + 4 named severities.
+
 ## Hard rules
 
 - No editing outside your scope.

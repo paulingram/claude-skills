@@ -406,6 +406,39 @@ Verbatim user prose: *"when deploying to production, any testing must be non-des
 
 See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home.
 
+## Deploy mandate discipline (v2.20.0)
+
+When the run's brief carries `deploy_mandate.active == true`, your verdict CANNOT be `bug-resolved` (in the bug-fix pipeline) OR the equivalent positive verdict (in the main pipeline) unless ALL FIVE binding criteria are met:
+
+1. `deploy_target_url` is set, non-localhost, returns 200 on health check.
+2. `frontend_url` is set, non-localhost, returns the SPA HTML.
+3. `login_verified == true` with a captured Playwright screenshot at `login_verification_evidence_path`.
+4. `live_data_assertions[]` has one entry per oracle screen, each with `live == true`.
+5. `mock_residue_count == 0` AND `unwired_elements_count == 0`.
+
+Your verdict JSON MUST include a new `deploy_mandate_finding` block (parallel to `standing_red_finding` from v2.8.0 and `prod_safety_classification_finding` from v2.17.0):
+
+```json
+{
+  "deploy_mandate_finding": {
+    "active": true,
+    "target_kind": "fullstack" | "api-only" | "spa-only" | "thin-slice",
+    "deploy_target_url": "...",
+    "frontend_url": "...",
+    "login_verified": true,
+    "live_data_screens_covered": 12,
+    "live_data_screens_failed": 0,
+    "mock_residue_count": 0,
+    "unwired_elements_count": 0,
+    "verdict": "all-criteria-met" | "criteria-unmet"
+  }
+}
+```
+
+When `verdict == "criteria-unmet"`, your top-level verdict is `bug-still-present` (bug-fix pipeline) or `deploy-mandate-unmet` (a new verdict added to the main pipeline's QA gate). The orchestrator routes back to the responsible team via SR with `origin.kind: deploy-mandate-not-satisfied`.
+
+See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.
