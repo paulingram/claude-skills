@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.18.0] — 2026-06-04 — Codebase discipline registry + auto-update
+
+**ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"so for many of these changes, we need to probably also restructure either docs in a codebase or requirements etc.. so 1) we know if our system is already running / updated or if we need to execute an update, such as the classifier, and then we need to do this automatically when detected."*
+
+### The failure shape this closes
+
+CT6 ships discipline-bearing releases (v2.17.0 added the prod-safe classifier; v2.6.0 the live-data wiring audit; v2.11.0 the multi-persona path-coverage; v2.13.0 the affordance coverage). Shipping the PLUGIN does not retroactively apply each discipline's per-codebase work (annotations, persona inventories, mock removals, file-upload classifications) to the user's target codebases. Without v2.18.0, the user must remember which discipline to run against which codebase, and when. v2.18.0 makes the plugin self-aware: at the start of every pipeline run, it reads a per-codebase **discipline registry** and auto-executes any auto-apply-safe discipline that is missing or stale, before the user's actual work begins.
+
+### What v2.18.0 ships
+
+1. **NEW canonical section `## Codebase discipline registry (v2.18.0)`** in `skills/common-pipeline-conventions/SKILL.md` — names the registry schema (`<workspace>/.architect-team/discipline-registry.json`), the 3 severities (`discipline-registry-missing` / `discipline-not-applied` / `discipline-stale`), the catalog of currently-registered disciplines (v2.17.0 / v2.6.0 / v2.11.0 / v2.13.0), the auto-apply-safe vs SR-route-only distinction, the Phase 0.1 auto-update protocol, and the new SR origin kind `discipline-not-applied`.
+
+2. **NEW module `hooks/discipline_registry.py`** (stdlib-only). Exports `DISCIPLINE_CATALOG` (4 initial entries), `REGISTRY_RELATIVE_PATH`, `SCHEMA_VERSION`, `freshness_check(workspace, catalog) -> list[gaps]`, `read_registry`, `write_registry`, `record_application`. Per-discipline detect functions encode the "is this applied?" predicate (e.g., for v2.17.0: every test file in the codebase carries `@prod-safe` or `@not-prod-safe` in its first 20 lines).
+
+3. **NEW 16th Layer 3 tool `verify_discipline_registry_current`** in `hooks/vao_tools.py` + CLI subcommand `verify-discipline-registry-current --workspace <path> --out <verdict-path>`. Returns standard verdict shape `{tool, valid, gaps, verdict_at}`. Each gap carries `{severity, discipline, ct6_version, auto_apply_safe, auto_update_command, auto_update_skill, sr_origin_kind, evidence, remediation}`. Lazy-imports `discipline_registry` to preserve vao_tools' stdlib-only contract for unaffected runs.
+
+4. **NEW Phase 0.1 — Discipline freshness check** wired into the 3 pipeline bodies: `architect-team-pipeline/SKILL.md` (after Phase −2 triage, before Phase −1 intake) + `bug-fix-pipeline/SKILL.md` (after MemPalace wake-up, before Phase B−1) + `mini-architect-team-pipeline/SKILL.md` (after MemPalace wake-up, before Phase M0). Each pipeline invokes the Layer 3 tool via the polyglot `python3 ... || python ...` pattern, reads the verdict, auto-applies each safe discipline, routes the rest as SRs. Best-effort — tool failure never blocks the run.
+
+5. **NEW 17th slash command `/architect-team:discipline-status`** at `commands/discipline-status.md`. Read-only by default; `--apply` flag triggers auto-execution. Reports per-discipline status (applied / not-applied / stale / trivially-applied), the registry path, and the last freshness-check timestamp. Same logic Phase 0.1 fires automatically, exposed as a user-triggered standalone command.
+
+6. **NEW canonical fixture `tests/fixtures/vao/discipline-registry-not-applied.json`** — a target codebase with 3 unannotated tests + a file-upload affordance + missing persona inventory + no registry file. Bad version fires `discipline-registry-missing` + `discipline-not-applied` for 3 disciplines. `_corrected_workspace_files` shows the annotated + persona-inventory-populated + registry-present shape that passes the v2.17.0 + v2.11.0 checks cleanly.
+
+7. **47 new tests** across `tests/test_vao_discipline_registry.py` (26 — module constants, registry I/O, per-discipline detection, 16th Layer 3 tool round-trip, fixture round-trip, determinism) + `tests/test_discipline_registry_discipline.py` (15 — canonical home, 3 pipeline body wiring, polyglot Python pattern, fixture presence, module exports) + `tests/test_discipline_status_command.py` (8). **3025 → 3074 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Schema v7 is UNCHANGED. v2.18.0 ships its own Layer 3 tool but adds no new required evidence field.
+- All prior fixture round-trips and discipline assertions remain valid.
+- A workspace with no `discipline-registry.json` and no codebase surface that any catalog discipline covers is treated as "all applied" — no findings, no Phase 0.1 auto-execute.
+- The Phase 0.1 check is best-effort: subprocess failure, missing workspace path, or unreadable registry file surface a one-line note and the pipeline proceeds. The discipline mechanism never blocks a pipeline run.
+- Existing pipelines that ran before v2.18.0 will, on their first v2.18.0 invocation, auto-create the registry, detect the prod-safe-test-classification gap (the only auto-apply-safe entry), and auto-apply via the v2.17.0 classifier in mass-classify mode. Subsequent runs see the registry entry and skip.
+
+### Companion-discipline cross-references
+
+- v2.17.0 prod-safe test classification — the first registered discipline (its application is the first `disciplines_applied` entry in any registry).
+- v2.6.0 live-data wiring + v2.11.0 multi-persona path-coverage + v2.13.0 affordance coverage — SR-route-only disciplines that v2.18.0 surfaces but does not auto-execute (each has human-judgment edges that auto-execution can't safely handle).
+- v2.5.0 in-flight clarification discipline — runs independently when the user injects a mid-run message; Phase 0.1 itself does not interrupt that flow.
+
 ## [2.17.0] — 2026-06-04 — Prod-safe test classification discipline
 
 **ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"update such that any form of playright and QA testing knows that when deploying to production, any testing must be non-destructive and perform no mutations to any data / no changes. So we will want to ensure this. also we will want every test written to be properly classified into prod safe or not. give us a skill to evaluate the current tests and mass classify them and then auto classify on go forward basis."*

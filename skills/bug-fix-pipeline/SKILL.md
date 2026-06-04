@@ -71,6 +71,16 @@ After EVERY background Agent dispatch in this pipeline (Phase B−1 mapping ralp
 
 If the user injects a message mid-run (after this skill has begun executing any of Phase B−1 → B8) AND the message does NOT explicitly cancel the run AND is NOT a fresh `/architect-team:<command>` invocation, the orchestrator MUST treat the message as a **clarification or scope amendment to the IN-FLIGHT bug-fix run** — append it verbatim to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`, re-evaluate the in-flight phase (re-run Phase B0 → B1 replication if scope materially shifted; otherwise fold into the next phase's inputs), and continue the pipeline. The orchestrator MUST NOT solve the clarification with tools directly bypassing the pipeline, answer conversationally without folding, spawn a sibling `/architect-team` invocation, or silently ignore. Full rules in `common-pipeline-conventions/SKILL.md` `## In-flight clarification discipline (v2.5.0)`.
 
+## Phase B0.1 — Discipline freshness check (v2.18.0)
+
+Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-registry-current`, auto-apply safe disciplines, route the rest as SRs. See `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`. Runs AFTER the MemPalace wake-up + entry-condition checks above and BEFORE Phase B−1.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json"
+```
+
+Best-effort — a failure of the verify-tool never blocks the bug-fix loop; surface a one-line note and proceed.
+
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
 Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence; same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.

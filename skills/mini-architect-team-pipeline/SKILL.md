@@ -68,6 +68,16 @@ These deferrals are the source of the mini variant's speed. The accompanying tra
 
 If the user injects a message mid-run (after this skill has begun executing any of Phase M0 → M7) AND the message does NOT explicitly cancel the run AND is NOT a fresh `/architect-team:<command>` invocation, the orchestrator MUST treat the message as a **clarification or scope amendment to the IN-FLIGHT mini run** — append it verbatim to `<workspace>/.architect-team/clarifications/<run-id>-<ts>.md`, re-evaluate the in-flight phase (re-run Phase M0 → M2 if scope materially shifted; otherwise fold into the next phase's inputs), and continue the pipeline. The orchestrator MUST NOT solve the clarification with tools directly, answer conversationally without folding, spawn a sibling `/architect-team` invocation, or silently ignore. Full rules in `common-pipeline-conventions/SKILL.md` `## In-flight clarification discipline (v2.5.0)`.
 
+## Phase M0.1 — Discipline freshness check (v2.18.0)
+
+Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-registry-current`, auto-apply safe disciplines, route the rest as SRs. See `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`. Runs AFTER the MemPalace wake-up and BEFORE Phase M0 intake.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json"
+```
+
+Best-effort — a failure of the verify-tool never blocks the mini loop; surface a one-line note and proceed.
+
 ## Phase M0 — Intake
 
 Detect the input form per `## Inputs`. Resolve `$REQ_DIR`:

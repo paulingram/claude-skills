@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "fixture_name": "discipline-registry-not-applied",
+    "failure_shape": "v2.18.0 — A target codebase has 3 test files (none annotated), a persona-inventory missing, a file-upload affordance in source, and no `.architect-team/discipline-registry.json`. Expected freshness-check verdict: `discipline-registry-missing` fires once + `discipline-not-applied` fires for prod-safe-test-classification (auto-apply-safe), multi-persona-path-coverage (SR-route), affordance-coverage (SR-route). live-data-wiring is not detected (no mock-state imports in this sample).",
+    "originating_failure": "verbatim user prose: 'so for many of these changes, we need to probably also restructure either docs in a codebase or requirements etc.. so 1) we know if our system is already running / updated or if we need to execute an update, such as the classifier, and then we need to do this automatically when detected.'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-discipline-registry-current",
+    "expected_severities": ["discipline-registry-missing", "discipline-not-applied"],
+    "expected_disciplines_unapplied": [
+      "prod-safe-test-classification",
+      "multi-persona-path-coverage",
+      "affordance-coverage"
+    ]
+  },
+  "workspace_synthetic_files": {
+    "tests/login.spec.ts": "import { test, expect } from '@playwright/test';\n\ntest('login', async ({ page }) => {\n  await page.goto('/login');\n  await expect(page.locator('h1')).toBeVisible();\n});\n",
+    "tests/dashboard.spec.ts": "import { test, expect } from '@playwright/test';\n\ntest('dashboard', async ({ page }) => {\n  await page.goto('/dashboard');\n  await expect(page.locator('h1')).toBeVisible();\n});\n",
+    "tests/upload.spec.ts": "import { test, expect } from '@playwright/test';\n\ntest('upload', async ({ page }) => {\n  await page.goto('/upload');\n  await page.setInputFiles('input[type=file]', '/tmp/x.pdf');\n});\n",
+    "src/UploadForm.tsx": "import React from 'react';\nexport const UploadForm = () => (\n  <form encType=\"multipart/form-data\">\n    <input type=\"file\" name=\"document\" />\n    <button type=\"submit\">Upload</button>\n  </form>\n);\n"
+  },
+  "_corrected_workspace_files": {
+    "_note": "Correct shape — every test annotated; persona-inventory.json exists; registry file enumerates the auto-apply-safe discipline as applied. live-data-wiring + affordance-coverage are still SR-route-only and surface as SRs rather than auto-execute.",
+    "tests/login.spec.ts": "// @prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('login', async ({ page }) => {\n  await page.goto('/login');\n  await expect(page.locator('h1')).toBeVisible();\n});\n",
+    "tests/dashboard.spec.ts": "// @prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('dashboard', async ({ page }) => {\n  await page.goto('/dashboard');\n  await expect(page.locator('h1')).toBeVisible();\n});\n",
+    "tests/upload.spec.ts": "// @not-prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('upload', async ({ page }) => {\n  await page.goto('/upload');\n  await page.setInputFiles('input[type=file]', '/tmp/x.pdf');\n});\n",
+    "src/UploadForm.tsx": "import React from 'react';\nexport const UploadForm = () => (\n  <form encType=\"multipart/form-data\">\n    <input type=\"file\" name=\"document\" />\n    <button type=\"submit\">Upload</button>\n  </form>\n);\n",
+    ".architect-team/discipline-registry.json": "{\n  \"schema_version\": \"1.0\",\n  \"ct6_version_last_seen\": \"2.18.0\",\n  \"disciplines_applied\": [\n    {\n      \"discipline\": \"prod-safe-test-classification\",\n      \"ct6_version\": \"2.17.0\",\n      \"applied_at\": \"2026-06-04T15:00:00Z\",\n      \"applied_by_run_id\": null,\n      \"artifact_path\": \".architect-team/test-prod-safety/classification-report-2026-06-04T15-00-00.json\",\n      \"summary\": {\"prod_safe\": 2, \"not_prod_safe\": 1, \"ambiguous\": 0, \"unclassified\": 0}\n    }\n  ],\n  \"last_freshness_check\": \"2026-06-04T15:30:00Z\"\n}\n",
+    ".architect-team/persona-inventory.json": "{\n  \"personas\": [\n    {\"persona_id\": \"user\", \"entry_point\": \"/login\"}\n  ]\n}\n"
+  }
+}

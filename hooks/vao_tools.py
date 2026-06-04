@@ -3553,6 +3553,94 @@ def verify_test_prod_safety_classification(
 
 
 # ===========================================================================
+# v2.18.0 — verify_discipline_registry_current (16th Layer 3 tool)
+# ===========================================================================
+
+
+def verify_discipline_registry_current(
+    workspace: str | Path,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.18.0 Layer-3 tool — verify the per-codebase discipline registry is
+    current relative to the CT6 catalog. Returns standard verdict shape:
+
+      { tool, valid, gaps, verdict_at }
+
+    Each gap carries:
+      { severity, discipline, ct6_version, auto_apply_safe,
+        auto_update_command, auto_update_skill, sr_origin_kind,
+        evidence, remediation }
+
+    Severities:
+      - discipline-registry-missing — registry file does not exist (and at
+        least one catalog discipline is unapplied — a workspace with all
+        disciplines trivially-applied does NOT trigger this severity)
+      - discipline-not-applied — no registry entry AND codebase shows the
+        discipline has not been applied
+      - discipline-stale — registry has an entry BUT codebase shows it is
+        no longer applied (surface advanced past applied_at)
+    """
+    # Lazy import — keeps vao_tools' stdlib-only contract clean when the
+    # discipline_registry module is unused.
+    from hooks.discipline_registry import (
+        DISCIPLINE_CATALOG,
+        REGISTRY_RELATIVE_PATH,
+        freshness_check,
+    )
+
+    workspace_path = Path(workspace)
+    # Check registry presence BEFORE calling freshness_check (which writes
+    # the registry's last_freshness_check timestamp as a side effect).
+    registry_present = (workspace_path / REGISTRY_RELATIVE_PATH).exists()
+    findings = freshness_check(workspace_path, DISCIPLINE_CATALOG)
+    gaps: list[dict[str, Any]] = []
+
+    if not registry_present and findings:
+        gaps.append({
+            "severity": "discipline-registry-missing",
+            "discipline": None,
+            "ct6_version": None,
+            "auto_apply_safe": True,
+            "auto_update_command": None,
+            "auto_update_skill": None,
+            "sr_origin_kind": None,
+            "evidence": (
+                f"per-codebase discipline registry "
+                f"{REGISTRY_RELATIVE_PATH!r} does not exist at workspace "
+                f"{str(workspace_path)!r} and at least one catalog "
+                f"discipline is unapplied."
+            ),
+            "remediation": (
+                "v2.18.0 codebase discipline registry. Phase 0.1 of the "
+                "next pipeline run will create the registry and apply any "
+                "auto-apply-safe disciplines. Manual creation is also fine "
+                "via `/architect-team:discipline-status --apply`."
+            ),
+        })
+
+    for f in findings:
+        gaps.append({
+            "severity": f["severity"],
+            "discipline": f["discipline"],
+            "ct6_version": f["ct6_version"],
+            "auto_apply_safe": f["auto_apply_safe"],
+            "auto_update_command": f.get("auto_update_command"),
+            "auto_update_skill": f.get("auto_update_skill"),
+            "sr_origin_kind": f.get("sr_origin_kind"),
+            "evidence": f["evidence"],
+            "remediation": f["remediation"],
+        })
+
+    verdict = {
+        "tool": "verify-discipline-registry-current",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -3639,6 +3727,10 @@ def main(argv: list[str] | None = None) -> int:
     tpsc.add_argument("--target", required=True, help="Path to run-target JSON with url.")
     tpsc.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    drc = sub.add_parser("verify-discipline-registry-current")
+    drc.add_argument("--workspace", required=True, help="Path to the target codebase workspace (the repo root).")
+    drc.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -3723,6 +3815,12 @@ def main(argv: list[str] | None = None) -> int:
         verdict = verify_test_prod_safety_classification(
             verification_artifact=_load_json(args.artifact),
             run_target=_load_json(args.target),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-discipline-registry-current":
+        verdict = verify_discipline_registry_current(
+            workspace=args.workspace,
             out_path=args.out,
         )
         ok = verdict["valid"]
