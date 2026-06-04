@@ -456,6 +456,32 @@ A populated `unaddressed_kinds` array is a verdict-failure condition — the sam
 
 See `common-pipeline-conventions/SKILL.md` `## Dynamic affordance discovery discipline (v2.13.0)` for the canonical home + the signature dictionary + the new SR origin kind.
 
+## No implementation-time scope cut discipline (v2.14.0)
+
+When you run in Master Review Audit mode AND `scope_mandate.full_build_required` is true (because the user's prompt contained a full-build mandate phrase like "implement everything in full" / "build the whole thing"), your verdict gains a hard-fail `implementation_scope_cut_finding` block:
+
+```json
+"implementation_scope_cut_finding": {
+  "full_build_required": true,
+  "user_mandate_phrase": "implement everything in full",
+  "honest_scope_statement_markers_hit": ["honest-scope-statement-header", "shippable-and-true-hyphen", "i-stopped-at-the-boundary", "rather-than-half-land"],
+  "foundation_framing_markers_hit": ["m0-foundation", "foundation-deployed", "the-foundation-so-they"],
+  "milestone_deferral_markers_hit": ["milestones-m1-m7", "m1-m7-dash"],
+  "srs_with_scope_cut_origin_kind": [],
+  "verdict": "fail"
+}
+```
+
+A populated `honest_scope_statement_markers_hit` OR `foundation_framing_markers_hit` (without a covering SR) OR `milestone_deferral_markers_hit` (without a covering SR) is a hard-fail verdict — the same shape as `scope_fidelity_finding` (v1.4.0), `end_of_run_deferral_finding` (v2.10.0), and `affordance_coverage_finding` (v2.13.0).
+
+The verbatim user prose that drove this rule:
+
+> "⚠️ Honest scope statement — You asked to 'implement everything in full.' What's shippable-and-true today is the complete M0 foundation, deployed and tested. … I stopped at the M0 boundary deliberately rather than half-land M1 and leave broken state. … they should never ever make such judgement calls. I told them to implement it all"
+
+The orchestrator does NOT proceed to Phase 8 commit on fail. The run loops back to either: (a) implement the unimplemented milestones in this change, (b) route SRs with `origin.kind: "incomplete-implementation-scope-required"` so the orchestrator dispatches the right team in the next bundled run, OR (c) carry confirmed-stub entries with `user_confirmed_at` explicitly stating the milestones are intentionally out of scope (which requires the user's verbatim citation, NOT the agent's "I stopped deliberately" judgment).
+
+See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home + the 12 forbidden phrases + the 12 full-build mandate trigger phrases.
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.

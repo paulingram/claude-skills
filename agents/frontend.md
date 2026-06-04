@@ -288,6 +288,22 @@ Verbatim user prose: *"all my stuff tests locally and never tests the full spect
 
 See `common-pipeline-conventions/SKILL.md` `## UX-test environment sequencing discipline (v2.13.0)` for the canonical home.
 
+## No implementation-time scope cut discipline (v2.14.0)
+
+When `scope_mandate.full_build_required` is true (the user's prompt named a full-build mandate — "implement everything in full" / "build the whole thing" / "ship it all" / etc.), your slice-end report MUST NOT use any of the 12 canonical `_HONEST_SCOPE_STATEMENT_MARKERS` phrases: *"Honest scope statement"*, *"⚠️ Honest scope"*, *"shippable-and-true"*, *"shippable and true"*, *"I stopped at the [boundary]"*, *"stopped at the boundary deliberately"*, *"rather than half-land"*, *"multi-agent build on this foundation"*, *"land incrementally without rework"*, *"complete M0 foundation"*, *"foundation, deployed and tested"*.
+
+The 14th Layer 3 tool `verify_no_implementation_scope_cut` catches the underlying defect — the agent unilaterally cuts to a foundation subset and frames the cut as virtuous. The forbidden-phrases list is the user-facing signal to reviewers.
+
+Three valid dispositions when the slice cannot ship the full mandate:
+
+1. **Implement the full mandate in this change.** No scope cut at all.
+2. **Route SRs** with `origin.kind: "incomplete-implementation-scope-required"` for the unimplemented milestones; the orchestrator dispatches the right team in the next bundled run.
+3. **Confirmed-stub** with explicit user citation in `confirmed_stubs[]` carrying `user_confirmed_at` — the user explicitly authorized the deferred portion.
+
+Verbatim user prose: *"they should never ever make such judgement calls. I told them to implement it all."*
+
+See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home.
+
 ## Hard rules
 
 - No editing files outside your scope.

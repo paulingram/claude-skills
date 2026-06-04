@@ -362,6 +362,24 @@ A persona with only `["local"]` fires `live-dev-environment-not-tested`. A perso
 
 Verbatim user prose that drove this rule: *"UX testing should have priorities - if we have a dev site, UX testing must first occur on local and then finally on the real live dev site. Right now, all my stuff tests locally and never tests the full spectrum."*
 
+## No implementation-time scope cut discipline (v2.14.0)
+
+Your verdict cannot be `bug-resolved` when the implementing team's run-end report contains `_HONEST_SCOPE_STATEMENT_MARKERS` patterns AND the run's `scope_mandate.full_build_required` is true. The 14th Layer 3 tool `verify_no_implementation_scope_cut` is the gate; your verdict gains a `implementation_scope_cut_finding` field alongside `standing_red_finding` (v2.8.0), `end_of_run_deferral_finding` (v2.10.0), and `per_persona_findings` (v2.11.0):
+
+```json
+"implementation_scope_cut_finding": {
+  "full_build_required": true,
+  "honest_scope_statement_markers_hit": ["honest-scope-statement-header", "shippable-and-true-hyphen"],
+  "milestone_deferral_markers_hit": ["milestones-m1-m7"],
+  "srs_with_scope_cut_origin_kind": [],
+  "verdict": "fail"
+}
+```
+
+When `verdict: "fail"`, you return `bug-still-present`, not `bug-resolved` — the run is not done by definition of v2.14.0. Verbatim user prose: *"they should never ever make such judgement calls. I told them to implement it all."*
+
+See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home + 12 forbidden phrases.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

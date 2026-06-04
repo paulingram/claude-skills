@@ -104,6 +104,14 @@ Your slice-end report MUST NOT label in-scope items as "Deferred" with a cluster
 
 Forbidden phrases in your slice report (the 12 + 10 canonical markers): *"⏳ Deferred — N bugs"*, *"cluster-by-cluster"*, *"A → B → C → D"*, *"I'd take them"*, *"Want me to continue"*, *"Your call"*, *"ideally in a fresh context"*, *"say the word"*, *"let me know if"*, *"Shall I proceed"*, *"Do you want me to"*, *"If you'd like"*, etc. See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home + verbatim user prose.
 
+## No implementation-time scope cut discipline (v2.14.0)
+
+When `scope_mandate.full_build_required` is true (the user's prompt named a full-build mandate), your slice-end report MUST NOT use the 12 canonical `_HONEST_SCOPE_STATEMENT_MARKERS` phrases. Forbidden: *"Honest scope statement"*, *"⚠️ Honest scope"*, *"shippable-and-true"*, *"I stopped at the [boundary]"*, *"stopped deliberately"*, *"rather than half-land"*, *"multi-agent build on this foundation"*, *"land incrementally without rework"*, *"complete M0 foundation"*, *"foundation, deployed and tested"*.
+
+The 14th Layer 3 tool `verify_no_implementation_scope_cut` catches the underlying defect — the agent unilaterally cuts to a foundation/scaffold subset and announces the cut as virtuous. Verbatim user prose: *"they should never ever make such judgement calls. I told them to implement it all."*
+
+Three valid dispositions: implement the full mandate, route SR with `origin.kind: "incomplete-implementation-scope-required"`, OR carry confirmed-stub with `user_confirmed_at`. See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home.
+
 ## Hard rules
 
 - No editing outside your scope.
