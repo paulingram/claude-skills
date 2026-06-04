@@ -238,6 +238,25 @@ Forbidden in your slice report (these are the 12 + 10 canonical markers `verify_
 
 See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home.
 
+## Multi-persona path-coverage discipline (v2.11.0)
+
+When your slice touches a feature that serves more than one user persona (a client receiving an email invite; an attorney monitoring a dashboard; a title-agency assistant entering intake data; a family member completing their own form), the orchestrator hands you a `persona-inventory.json` artifact at `<workspace>/.architect-team/persona-inventory/<feature-slug>.json`. Your slice-end report MUST cite AT LEAST ONE Playwright test PER PERSONA that:
+
+1. **Opens the persona's `entry_point` URL** (the live dev URL — not a localhost route, not a unit test, not a mocked render).
+2. **Executes the persona's user-flow against the live backend** (per the v2.6.0 live-data wiring discipline).
+3. **Asserts every entry in `expected_data_visibility[]` appears in the rendered DOM** (per the v2.6.0 `live-response-not-rendered` rule).
+4. **Asserts every `cross_persona_dependencies[]` entry holds** — your test creates data as persona A, then opens persona B's `entry_point`, then asserts the data appears.
+5. **Asserts double-submit idempotency** on every form-submit interaction — click the submit button TWICE within 500ms and assert the backend records exactly ONE entry.
+6. **Asserts a loading-state UI surfaces** on every backend-call interaction — within 200ms of the click, the DOM must contain one of the canonical `_LOADING_STATE_UI_HINTS` (`spinner`, `Loading...`, `Submitting...`, `skeleton`, `aria-busy="true"`, `progress-bar`, `Saving...`, etc.). A backend call without a loading indicator is the canonical heirship double-submit failure: *"two matters were created (I think I hit the create matter twice because it took a long time for for anything to happen and it looked frozen)"* — the user clicked twice because the UI looked frozen, because there was no loading state.
+
+The 12th Layer 3 tool `verify_per_persona_path_coverage` catches the 4 failures (`persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`); your slice cannot ship if any fires.
+
+**The verbatim heirship case driving this rule:**
+
+> "I entered in with the email link. Filled in information and it did not show on the title side. … two matters were created (I think I hit the create matter twice because it took a long time for for anything to happen and it looked frozen). And the attorney view doesn't show anything and the attorney view doesn't show all the roles. Also, I tried filling in the information through the title agency view (simulating someone assisting the client on intake) and none of the information saved or registered. … this is unacceptable that you would claim a fix and fail to test it. then you will need test every fix and ensure your pipeline for that user type actually achieves its goal."
+
+When your slice's feature has NO `persona-inventory.json` (single-persona feature), the v2.11.0 gate is a no-op. See `common-pipeline-conventions/SKILL.md` `## Multi-persona path-coverage discipline (v2.11.0)` for the canonical home + the persona-inventory schema.
+
 ## Hard rules
 
 - No editing files outside your scope.

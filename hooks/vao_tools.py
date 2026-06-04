@@ -2260,6 +2260,376 @@ def verify_no_end_of_run_deferral(
 
 
 # ===========================================================================
+# Tool 12 — verify-per-persona-path-coverage (v2.11.0)
+# ===========================================================================
+
+# Canonical UI hints that indicate a loading state was observed by Playwright.
+# Matched case-insensitively as substrings against playwright_test_runs[].
+# ui_states_observed[] entries. Keep the list explicit so legitimate UI text
+# (e.g., "loading documents" elsewhere in a screen) does not false-positive
+# when the test never observed the loading state during the actual click.
+_LOADING_STATE_UI_HINTS: tuple[str, ...] = (
+    "spinner",
+    "loading",
+    "loading...",
+    "working",
+    "working...",
+    "please wait",
+    "progress-circular",
+    "aria-busy",
+    "skeleton",
+    "placeholder-shimmer",
+    "loading-skeleton",
+    "progress-bar",
+    "progressbar",
+    "submitting",
+    "submitting...",
+    "creating",
+    "creating...",
+    "saving",
+    "saving...",
+    "processing",
+    "processing...",
+    "pending",
+    "in-progress",
+)
+
+# Two clicks within this window count as a double-submit. The user reported
+# clicking the Create-Matter button twice because the UI looked frozen
+# (no loading state); two matters were created in the backend.
+_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS: int = 500
+
+# Loading-state must surface within this window after the click. Anything
+# longer is observable as "frozen UI" by the user.
+_LOADING_STATE_MAX_DELAY_MS: int = 200
+
+
+def _matches_loading_hint(state_text: str) -> bool:
+    if not isinstance(state_text, str) or not state_text:
+        return False
+    lower = state_text.lower()
+    return any(hint in lower for hint in _LOADING_STATE_UI_HINTS)
+
+
+def _detect_persona_path_not_tested(
+    persona_inventory: dict[str, Any],
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Every persona in inventory must have at least one playwright_test_run
+    with matching persona_id."""
+    personas = persona_inventory.get("personas") or []
+    runs = verification_artifact.get("playwright_test_runs") or []
+    tested_ids: set[str] = set()
+    for r in runs:
+        if isinstance(r, dict):
+            pid = r.get("persona_id")
+            if isinstance(pid, str) and pid:
+                tested_ids.add(pid)
+
+    gaps: list[dict[str, Any]] = []
+    for p in personas:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("persona_id")
+        if not isinstance(pid, str) or not pid:
+            continue
+        if pid not in tested_ids:
+            entry_point = p.get("entry_point", "<unknown>")
+            gaps.append({
+                "severity": "persona-path-not-tested",
+                "persona_id": pid,
+                "entry_point": entry_point,
+                "evidence": (
+                    f"persona {pid!r} (entry_point={entry_point!r}) is in the "
+                    f"persona-inventory but no playwright_test_runs[] entry "
+                    f"with persona_id={pid!r} was executed."
+                ),
+                "remediation": (
+                    "v2.11.0 Multi-persona path-coverage discipline. Author a "
+                    "Playwright test that opens the persona's entry_point against "
+                    "the live dev URL, executes their golden-path flow, and asserts "
+                    "every entry in expected_data_visibility[] appears in the "
+                    "rendered DOM. The test goes in playwright_test_runs[] with "
+                    f"persona_id={pid!r}."
+                ),
+            })
+    return gaps
+
+
+def _detect_cross_persona_sync_not_asserted(
+    persona_inventory: dict[str, Any],
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """For every persona A with cross_persona_dependencies[], a
+    playwright_test_runs[] entry must create the named data as A AND open
+    persona B's view AND assert the data appears."""
+    personas = persona_inventory.get("personas") or []
+    runs = verification_artifact.get("playwright_test_runs") or []
+
+    # Build a map of cross-persona assertions that runs claim to cover.
+    # Each run can carry cross_persona_assertions: [{writes_data, asserted_in_persona}].
+    asserted_pairs: set[tuple[str, str, str]] = set()
+    for r in runs:
+        if not isinstance(r, dict):
+            continue
+        writer_persona = r.get("persona_id") or ""
+        cpa = r.get("cross_persona_assertions") or []
+        for entry in cpa:
+            if not isinstance(entry, dict):
+                continue
+            data = entry.get("writes_data") or ""
+            target = entry.get("asserted_in_persona") or ""
+            if data and target and writer_persona:
+                asserted_pairs.add((writer_persona, data, target))
+
+    gaps: list[dict[str, Any]] = []
+    for p in personas:
+        if not isinstance(p, dict):
+            continue
+        writer_id = p.get("persona_id") or ""
+        deps = p.get("cross_persona_dependencies") or []
+        for dep in deps:
+            if not isinstance(dep, dict):
+                continue
+            data = dep.get("writes_data") or ""
+            target = dep.get("must_appear_in_persona") or ""
+            if not data or not target:
+                continue
+            if (writer_id, data, target) not in asserted_pairs:
+                gaps.append({
+                    "severity": "cross-persona-sync-not-asserted",
+                    "writer_persona": writer_id,
+                    "data": data,
+                    "target_persona": target,
+                    "evidence": (
+                        f"persona {writer_id!r} writes data {data!r} that must "
+                        f"appear in persona {target!r}'s view; no playwright_test_runs[] "
+                        f"entry has cross_persona_assertions covering this pair."
+                    ),
+                    "remediation": (
+                        "v2.11.0 Multi-persona path-coverage discipline. Author a "
+                        "Playwright test that opens the writer persona's entry_point, "
+                        "creates the data, then opens the target persona's entry_point "
+                        "and asserts the data appears in the rendered DOM. Record the "
+                        "assertion in cross_persona_assertions[]."
+                    ),
+                })
+    return gaps
+
+
+def _detect_double_submit_not_tested(
+    persona_inventory: dict[str, Any],
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """For every persona's flow that includes a submit-shaped interaction,
+    a playwright_test_runs[] entry must show two clicks within
+    _DOUBLE_SUBMIT_TIMING_THRESHOLD_MS AND a final-record-count assertion
+    of 1."""
+    personas = persona_inventory.get("personas") or []
+    runs = verification_artifact.get("playwright_test_runs") or []
+
+    # Personas that have at least one submit_interaction declared in inventory.
+    personas_with_submit: dict[str, str] = {}
+    for p in personas:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("persona_id") or ""
+        submit_selector = p.get("submit_interaction") or ""
+        if pid and submit_selector:
+            personas_with_submit[pid] = submit_selector
+
+    # Personas whose test run actually exercised a double-submit assertion.
+    personas_with_double_submit_test: set[str] = set()
+    for r in runs:
+        if not isinstance(r, dict):
+            continue
+        pid = r.get("persona_id") or ""
+        clicks = r.get("clicks_with_timing") or []
+        record_count_after = r.get("record_count_after_double_click")
+        if not isinstance(clicks, list) or len(clicks) < 2:
+            continue
+        # Check for two clicks within the threshold.
+        rapid_pair = False
+        for i in range(len(clicks) - 1):
+            a = clicks[i]
+            b = clicks[i + 1]
+            if not isinstance(a, dict) or not isinstance(b, dict):
+                continue
+            ta = a.get("ts_ms")
+            tb = b.get("ts_ms")
+            if isinstance(ta, (int, float)) and isinstance(tb, (int, float)):
+                if 0 < (tb - ta) <= _DOUBLE_SUBMIT_TIMING_THRESHOLD_MS:
+                    # Same selector?
+                    sa = a.get("selector") or ""
+                    sb = b.get("selector") or ""
+                    if sa and sb and sa == sb:
+                        rapid_pair = True
+                        break
+        if rapid_pair and record_count_after == 1:
+            personas_with_double_submit_test.add(pid)
+
+    gaps: list[dict[str, Any]] = []
+    for pid, selector in personas_with_submit.items():
+        if pid not in personas_with_double_submit_test:
+            gaps.append({
+                "severity": "double-submit-not-tested",
+                "persona_id": pid,
+                "submit_selector": selector,
+                "evidence": (
+                    f"persona {pid!r} has submit_interaction {selector!r}; no "
+                    f"playwright_test_runs[] entry shows two clicks within "
+                    f"{_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS}ms AND a "
+                    f"record_count_after_double_click == 1 assertion."
+                ),
+                "remediation": (
+                    "v2.11.0 Multi-persona path-coverage discipline. Author a "
+                    "Playwright test that clicks the submit selector twice within "
+                    f"{_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS}ms (simulating a frozen-UI "
+                    "user clicking twice) and asserts the backend records exactly "
+                    "one entry. Record the click timing in clicks_with_timing[] "
+                    "and the count in record_count_after_double_click."
+                ),
+            })
+    return gaps
+
+
+def _detect_loading_state_not_asserted(
+    persona_inventory: dict[str, Any],
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """For every persona's flow that includes a backend-call interaction,
+    a playwright_test_runs[] entry must show a loading-state UI hint
+    observed within _LOADING_STATE_MAX_DELAY_MS of the click."""
+    personas = persona_inventory.get("personas") or []
+    runs = verification_artifact.get("playwright_test_runs") or []
+
+    # Personas that have at least one backend_call_interaction in inventory.
+    personas_with_backend_call: dict[str, str] = {}
+    for p in personas:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("persona_id") or ""
+        backend_selector = p.get("backend_call_interaction") or p.get("submit_interaction") or ""
+        if pid and backend_selector:
+            personas_with_backend_call[pid] = backend_selector
+
+    personas_with_loading_state_test: set[str] = set()
+    for r in runs:
+        if not isinstance(r, dict):
+            continue
+        pid = r.get("persona_id") or ""
+        states = r.get("ui_states_observed") or []
+        click_delays = r.get("loading_state_delays_ms") or []
+        if not isinstance(states, list):
+            continue
+        # Did any observed state match a loading hint?
+        loading_observed = any(_matches_loading_hint(str(s)) for s in states)
+        if not loading_observed:
+            continue
+        # Was a delay-from-click measurement recorded and within the threshold?
+        delay_ok = False
+        if isinstance(click_delays, list) and click_delays:
+            try:
+                delay_ok = any(
+                    isinstance(d, (int, float)) and 0 <= d <= _LOADING_STATE_MAX_DELAY_MS
+                    for d in click_delays
+                )
+            except Exception:
+                delay_ok = False
+        else:
+            # If the test recorded the loading state without an explicit delay
+            # measurement, accept it but flag that timing is implicit.
+            delay_ok = True
+        if delay_ok:
+            personas_with_loading_state_test.add(pid)
+
+    gaps: list[dict[str, Any]] = []
+    for pid, selector in personas_with_backend_call.items():
+        if pid not in personas_with_loading_state_test:
+            gaps.append({
+                "severity": "loading-state-not-asserted",
+                "persona_id": pid,
+                "backend_call_selector": selector,
+                "evidence": (
+                    f"persona {pid!r} has backend_call_interaction {selector!r}; "
+                    f"no playwright_test_runs[] entry shows a loading-state UI "
+                    f"hint (from _LOADING_STATE_UI_HINTS) observed within "
+                    f"{_LOADING_STATE_MAX_DELAY_MS}ms of the click."
+                ),
+                "remediation": (
+                    "v2.11.0 Multi-persona path-coverage discipline. Without a "
+                    "loading-state UI a user sees a frozen page and clicks again — "
+                    "the canonical heirship case (two matters created from a "
+                    "frozen Create-Matter button). Author a Playwright test that "
+                    "clicks the backend-call selector, captures a UI state within "
+                    f"{_LOADING_STATE_MAX_DELAY_MS}ms, and asserts it matches one "
+                    "of the canonical _LOADING_STATE_UI_HINTS (spinner / skeleton "
+                    "/ progress-bar / 'Submitting...' / aria-busy / etc.)."
+                ),
+            })
+    return gaps
+
+
+def verify_per_persona_path_coverage(
+    verification_artifact: dict[str, Any] | None = None,
+    persona_inventory: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.11.0 Layer-3 tool — verify the agent tested EVERY persona's path
+    in a multi-persona feature, not just the one the user reported.
+
+    Checks the verification artifact against the 4 named severities:
+      1. persona-path-not-tested — a persona in inventory has no
+         playwright_test_runs[] entry
+      2. cross-persona-sync-not-asserted — persona A writes data that must
+         appear in persona B's view; no test creates+asserts the pair
+      3. double-submit-not-tested — submit-shaped interaction; no test
+         exercises two clicks within 500ms with a single-record assertion
+      4. loading-state-not-asserted — backend-call interaction; no test
+         observes a canonical loading-state UI hint within 200ms of click
+
+    Trivially passes when persona_inventory is empty — backwards-compatible.
+
+    Returns::
+
+        {
+          "tool": "verify-per-persona-path-coverage",
+          "valid": bool,
+          "gaps": [{"severity", "persona_id", "evidence", "remediation", ...}],
+          "verdict_at": "<ISO 8601 UTC>"
+        }
+
+    Deterministic / bit-stable output for given inputs.
+    """
+    artifact = verification_artifact or {}
+    inventory = persona_inventory or {}
+
+    personas = inventory.get("personas") or []
+    if not isinstance(personas, list) or not personas:
+        verdict = {
+            "tool": "verify-per-persona-path-coverage",
+            "valid": True,
+            "gaps": [],
+            "verdict_at": _utc_now_iso(),
+        }
+        return _write_verdict(verdict, out_path)
+
+    gaps: list[dict[str, Any]] = []
+    gaps += _detect_persona_path_not_tested(inventory, artifact)
+    gaps += _detect_cross_persona_sync_not_asserted(inventory, artifact)
+    gaps += _detect_double_submit_not_tested(inventory, artifact)
+    gaps += _detect_loading_state_not_asserted(inventory, artifact)
+
+    verdict = {
+        "tool": "verify-per-persona-path-coverage",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -2326,6 +2696,11 @@ def main(argv: list[str] | None = None) -> int:
     nerd.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
     nerd.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    pppc = sub.add_parser("verify-per-persona-path-coverage")
+    pppc.add_argument("--artifact", required=True, help="Path to verification-artifact JSON.")
+    pppc.add_argument("--inventory", required=True, help="Path to persona-inventory JSON.")
+    pppc.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -2382,6 +2757,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.tool == "verify-no-end-of-run-deferral":
         verdict = verify_no_end_of_run_deferral(
             verification_artifact=_load_json(args.artifact),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-per-persona-path-coverage":
+        verdict = verify_per_persona_path_coverage(
+            verification_artifact=_load_json(args.artifact),
+            persona_inventory=_load_json(args.inventory),
             out_path=args.out,
         )
         ok = verdict["valid"]

@@ -298,6 +298,40 @@ When `verdict: "fail"`, you return `bug-still-present` (not `bug-resolved`) — 
 
 See `common-pipeline-conventions/SKILL.md` `## No end-of-run deferral discipline (v2.10.0)` for the canonical home, the 3 valid dispositions (fixed / SR routed / confirmed-stub), and the verbatim user prose that drove this discipline.
 
+## Multi-persona path-coverage discipline (v2.11.0)
+
+When the feature under fix-replay carries a `persona-inventory.json` artifact at `<workspace>/.architect-team/persona-inventory/<feature-slug>.json`, your `bug-resolved` verdict is BLOCKED until you have re-run the reproduction artifacts FOR EVERY PERSONA in the inventory — not just the persona the user reported the bug from. The 12th Layer 3 tool `verify_per_persona_path_coverage` is the gate; your verdict gains a new field `per_persona_findings` alongside `standing_red_finding` (v2.8.0) and `end_of_run_deferral_finding` (v2.10.0):
+
+```json
+"per_persona_findings": {
+  "personas_total": 4,
+  "personas_tested": 4,
+  "gaps": [],
+  "double_submit_assertions_present": true,
+  "loading_state_assertions_present": true,
+  "cross_persona_sync_assertions_present": true,
+  "verdict": "pass"
+}
+```
+
+The verbatim heirship case this catches:
+
+> "I entered in with the email link. Filled in information and it did not show on the title side. Also, two matters were created (I think I hit the create matter twice because it took a long time for for anything to happen and it looked frozen). And the attorney view doesn't show anything and the attorney view doesn't show all the roles. Also, I tried filling in the information through the title agency view (simulating someone assisting the client on intake) and none of the information saved or registered. … this is unacceptable that you would claim a fix and fail to test it."
+
+The agent's prior verification covered ONE persona's entry point and stopped. The other three personas' paths (title-agency / attorney / family-member) were silently broken. v2.11.0 makes that pattern structurally impossible by requiring a per-persona Playwright run for each entry in the inventory.
+
+**Re-replay protocol when persona-inventory.json is present:**
+
+1. **Enumerate** every persona in the inventory.
+2. **Re-run** the reproduction artifact AS each persona — open their `entry_point`, drive their golden-path, assert their `expected_data_visibility[]` rendered.
+3. **For every `cross_persona_dependencies[]`** entry: open the writer persona's `entry_point`, create the data, then open the target persona's `entry_point` and assert the data appears.
+4. **For every persona with a `submit_interaction` selector**: re-run a double-submit test (two clicks within 500ms, assert exactly ONE record exists).
+5. **For every persona with a `backend_call_interaction` selector**: re-run a loading-state assertion (click + observe a canonical `_LOADING_STATE_UI_HINTS` value in the rendered DOM within 200ms).
+
+When ANY of the four severities (`persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`) fires, your verdict is `bug-still-present` (not `bug-resolved`). The orchestrator loops back to fix the missing coverage.
+
+When the feature carries NO `persona-inventory.json` (single-persona feature or pre-v2.11.0 artifact), the v2.11.0 gate is a no-op.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

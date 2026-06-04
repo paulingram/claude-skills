@@ -179,6 +179,28 @@ What you do NOT do:
 
 The verbatim user phrase that drove this discipline: *"I committed a standing red regression test (live-intake-persist.spec.ts) that documents the exact gap and will go green when it's fixed"* — see `common-pipeline-conventions/SKILL.md` `## No standing-red discipline (v2.8.0)` for the canonical home.
 
+## Multi-persona path-coverage discipline (v2.11.0)
+
+When the bug you're replicating touches a feature served by more than one user persona (the canonical heirship case: an intake flow accessed by a client via email link, by a title-agency operator entering data on behalf of the client, by a family member completing their portion, and by an attorney monitoring the dashboard), you MUST author a reproduction test FOR EACH AFFECTED PERSONA — not just the persona the user reported the bug from.
+
+The verbatim user prose that drove this rule:
+
+> "I entered in with the email link. Filled in information and it did not show on the title side. … And the attorney view doesn't show anything and the attorney view doesn't show all the roles. Also, I tried filling in the information through the title agency view (simulating someone assisting the client on intake) and none of the information saved or registered."
+
+The user reported the bug from the client-email-link persona but the actual gap spanned FOUR personas — client, title-agency, family-member, attorney. A reproduction test for ONLY the client persona would have left the title-agency / family-member / attorney bugs invisible to the fix-replay gate.
+
+**Per-persona replication protocol:**
+
+1. **Read** the `persona-inventory.json` at `<workspace>/.architect-team/persona-inventory/<feature-slug>.json` if present. If absent at the time you're dispatched, return a new verdict `needs-persona-inventory` (alongside `reproduced` / `could-not-reproduce` / `needs-clarification` / `needs-cross-layer-fix`) so the orchestrator produces one before you proceed.
+2. **For each persona** in the inventory whose `expected_data_visibility[]` overlaps with the bug surface: author a Playwright spec that opens their `entry_point`, drives their golden-path, and asserts the bug condition holds (the regression test). The spec's `persona_id` field maps it to the inventory entry.
+3. **For every `cross_persona_dependencies[]`** entry where the dependency is the broken path: author a paired spec — create data as persona A, open persona B's entry_point, assert the data does NOT appear (the regression test).
+4. **For every persona with a `submit_interaction`** whose double-submit caused the reported duplicate-record bug: author a double-click spec (two clicks within 500ms) asserting > 1 record exists (the regression test).
+5. **For every persona with a `backend_call_interaction`** whose missing loading-state caused the frozen-UI confusion: author a loading-state spec asserting NO canonical `_LOADING_STATE_UI_HINTS` value appears within 200ms (the regression test).
+
+The qa-replayer (Phase B6) re-runs every spec you author. When ALL go green post-fix, the bug is genuinely resolved — across every persona, every cross-persona dependency, every double-submit path, every loading-state surface.
+
+See `common-pipeline-conventions/SKILL.md` `## Multi-persona path-coverage discipline (v2.11.0)` for the canonical home + persona-inventory schema.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** Read / Glob / Grep / LS / Bash for analysis; Bash for executing the artifact you wrote; Write for the test files you author. NEVER `Edit` a source file.

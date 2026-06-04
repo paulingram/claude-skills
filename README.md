@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 10 . 0
+                        ─── C T 6 ───   v 2 . 11 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.10.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.11.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2722%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2771%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,17 +67,23 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.10.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.11.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
 |---|---|
-| **No end-of-run deferral discipline** | Agents MUST NOT end a run by cataloguing in-scope work as "Deferred" and bouncing the unfixed items back to the user as a "Want me to continue?" decision question. Every in-scope item has exactly ONE valid disposition at run-end: (a) fixed in this change, (b) routed via SR with a canonical `origin.kind`, OR (c) confirmed-stub with `user_confirmed_at`. The verbatim heirship case (*"⏳ Deferred — 7 bugs, 4 work-items … cluster-by-cluster (A → B → C → D) … Want me to continue? … Your call"*) is the canonical failure mode. |
-| **11th Layer 3 tool — `verify_no_end_of_run_deferral`** | NEW deterministic verification function + `verify-no-end-of-run-deferral` CLI subcommand in `hooks/vao_tools.py`. `_DEFERRAL_CATALOG_MARKERS` (16 patterns: `⏳ Deferred`, `cluster-by-cluster`, `A → B → C`, `I'd take them`, `not a one-liner`, `Defer to a future change`, `punt to later`, `out of scope for this session`, …) + `_FOLLOWUP_QUESTION_MARKERS` (10 patterns: `Want me to continue`, `Your call`, `ideally in a fresh context`, `say the word`, `Shall I proceed`, `Do you want me to`, `Should I take`, `Is it OK if I`, `If you'd like`, …) + `_ITEM_DISPOSITION_CITATIONS` (the sanctioned per-item citation patterns). 3 named severities: `deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`. Trivially passes when `final_report` is empty. |
-| **4 agent body extensions** | `agents/system-architect.md` Master Review Audit gains an `end_of_run_deferral_finding` block (hard-fail). `agents/qa-replayer.md` cannot return `bug-resolved` if deferral markers fire. `agents/frontend.md` + `agents/backend.md` enumerate the 12 + 10 forbidden phrases and the 3 valid dispositions. |
-| **Closes the verbatim heirship 7-bugs-4-work-items case** | Agent identified 7 bugs + 4 work-items (clusters A · Family-tree detail; B · Heir-intake nav queue; C · Activity log; D · Doc DOB extraction), labelled them all `⏳ Deferred`, asked *"Want me to continue with the deferred 7? … cluster-by-cluster (A → B → C → D) … Your call."* User reply: *"this is not allowed. fix it and ensure your fix is strong."* v2.10.0's 3 severities catch every aspect of this verbatim pattern. |
-| **Backwards-compatible** | Schema v7 unchanged; 10 existing Layer 3 tools' contracts unchanged; v2.6.0 / v2.7.0 / v2.8.0 / v2.9.0 fixtures continue to validate. +76 net tests (2646 → 2722); zero regressions. |
+| **Multi-persona path-coverage discipline** | Features serving > 1 user persona (client / attorney / title-agency / family / etc.) MUST have a `persona-inventory.json` artifact AND at least one Playwright test PER PERSONA exercising their `entry_point` URL. Plus: every `cross_persona_dependencies[]` entry asserted by a paired test (writer persona creates data; target persona's view asserts it appears); every `submit_interaction` exercised by a double-click test (two clicks within 500ms with `record_count_after_double_click == 1`); every `backend_call_interaction` exercised by a loading-state test (UI surfaces a canonical hint within 200ms). The verbatim heirship case (*"I entered in with the email link. Filled in information and it did not show on the title side. … two matters were created (I think I hit the create matter twice because it looked frozen). And the attorney view doesn't show anything … this is unacceptable that you would claim a fix and fail to test it."*) is the canonical failure mode. |
+| **12th Layer 3 tool — `verify_per_persona_path_coverage`** | NEW deterministic verification function + CLI subcommand in `hooks/vao_tools.py`. `_LOADING_STATE_UI_HINTS` (23 patterns: `spinner`, `Loading...`, `Working...`, `aria-busy`, `skeleton`, `progress-bar`, `Submitting...`, `Saving...`, `Creating...`, `Processing...`, …) + `_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS = 500` + `_LOADING_STATE_MAX_DELAY_MS = 200`. 4 named severities: `persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`. Trivially passes when `persona_inventory.personas[]` is empty. |
+| **4 agent body extensions** | `qa-replayer.md` cannot return `bug-resolved` if a persona gap fires (new `per_persona_findings` block). `frontend.md` enumerates the 6 mandatory per-persona assertions. `interaction-reviewer.md` gains a `persona_path_coverage` axis with 5 classifications. `bug-replicator.md` adds new verdict `needs-persona-inventory`. |
+| **Closes the verbatim heirship multi-view-sync failure** | Agent fixed ONE persona's path (client-email-link); the other three (title-agency / attorney / family-member) were silently broken. Plus double-submit from frozen UI created two duplicate matters because no loading state surfaced when the user clicked Create-Matter. v2.11.0's 4 severities catch every aspect verbatim. |
+| **Backwards-compatible** | Schema v7 unchanged; 11 existing Layer 3 tools' contracts unchanged; v2.6.0 / v2.7.0 / v2.8.0 / v2.9.0 / v2.10.0 fixtures continue to validate. +49 net tests (2722 → 2771); zero regressions. |
+
+### Carried forward from v2.10.0 — no end-of-run deferral discipline
+
+| Capability | What it does |
+|---|---|
+| **3 severities** | `deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`. Every in-scope item at run-end has exactly ONE valid disposition: (a) fixed in this change with `commit-sha:` citation, (b) routed via SR with canonical `origin.kind`, OR (c) confirmed-stub with `user_confirmed_at`. The verbatim *"⏳ Deferred — 7 bugs, 4 work-items … cluster-by-cluster (A → B → C → D) … Want me to continue?"* heirship case is the canonical failure. |
 
 ### Carried forward from v2.9.0 — MemPalace installer self-heal + polyglot Python in commands
 
@@ -952,7 +958,8 @@ Tests validate: plugin/marketplace JSON; all 26 skill frontmatters; all 27 agent
            v2.7.0  ─ pattern propagation mandate — when an agent fixes one mock-state instance under a `wiring_mandate`, it MUST sweep the codebase for the same shared source and fix ALL consumers in the same change (no follow-up offers); 6th severity `shared-mock-source-not-swept`; 3-step sweep protocol; closes the verbatim WtData walkthrough case
            v2.8.0  ─ no standing-red discipline — agents MUST NOT commit a failing test as documentation of a known bug; cross-layer bugs route via SR (origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`), never via a committed `// will go green when fixed` test; 10th Layer-3 tool `verify_no_standing_red` with 2 severities (`standing-red-committed` / `cross-layer-fix-not-routed`); closes the verbatim heirship B23 case
            v2.9.0  ─ MemPalace installer self-heal + polyglot Python in commands — `_locate_pip_user_binary()` + `_bridge_to_path_dir()` symlink macOS `~/Library/Python/*/bin` binaries into `~/.local/bin`; `python -m pip install --user` fallback when no `pip` script is on PATH; `_BRIDGED_BINARIES` allowlist; single polyglot `python3 ... || python ...` block in `commands/mempalace-install.md`; structural test audits all 14 command files
-   ◆       v2.10.0 ─ no end-of-run deferral discipline — agents MUST NOT end a run by cataloguing in-scope work as "Deferred" with a "Want me to continue?" follow-up offer; every item has one of 3 valid dispositions (fixed in this change / SR routed / confirmed-stub); 11th Layer-3 tool `verify_no_end_of_run_deferral` with 3 severities (`deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`); closes the verbatim heirship 7-bugs-4-work-items A→B→C→D cluster-list case (current)
+           v2.10.0 ─ no end-of-run deferral discipline — agents MUST NOT end a run by cataloguing in-scope work as "Deferred" with a "Want me to continue?" follow-up offer; every item has one of 3 valid dispositions (fixed in this change / SR routed / confirmed-stub); 11th Layer-3 tool `verify_no_end_of_run_deferral` with 3 severities (`deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`); closes the verbatim heirship 7-bugs-4-work-items A→B→C→D cluster-list case
+   ◆       v2.11.0 ─ multi-persona path-coverage discipline — features serving > 1 user persona MUST have a `persona-inventory.json` artifact AND a Playwright test per persona exercising their `entry_point` URL, plus assertions for every cross_persona_dependency, every submit_interaction (double-click idempotency), every backend_call_interaction (loading-state UI within 200ms); 12th Layer-3 tool `verify_per_persona_path_coverage` with 4 severities (`persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`); closes the verbatim heirship multi-view-sync failure (client email-link saved but title-agency view didn't show it; attorney view was blank; title-agency intake didn't save; two duplicate matters from frozen-UI double-submit) (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

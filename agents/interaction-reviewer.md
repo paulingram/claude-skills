@@ -176,6 +176,24 @@ The finding goes into the same `live_data_wiring_findings` Round-1 block as the 
 
 The 6th severity is in scope ONLY when the slice's `wiring_mandate` carries a `shared_mock_sources` field OR the verification artifact's `codebase_scan.consumer_files{}` map is populated. Absent both, the sweep is a no-op.
 
+## Multi-persona path-coverage discipline (v2.11.0)
+
+When the slice's feature carries a `persona-inventory.json` artifact, your Round-1 classification gains a `persona_path_coverage` axis alongside element classification + page classification + dynamic-value detection + live-data wiring audit. For each persona in the inventory you classify:
+
+| Classification | Meaning |
+|---|---|
+| `tested-with-cross-persona-sync` | Persona has ≥ 1 Playwright run + the cross_persona_dependencies are asserted in a paired test |
+| `tested-but-cross-persona-sync-missing` | Persona has ≥ 1 Playwright run but a `cross_persona_dependencies[]` entry has no paired assertion → fires `cross-persona-sync-not-asserted` |
+| `entry-point-untested` | Persona has zero Playwright runs against their `entry_point` → fires `persona-path-not-tested` |
+| `submit-no-double-click-test` | Persona has a `submit_interaction` selector but no double-click idempotency test → fires `double-submit-not-tested` |
+| `backend-call-no-loading-state-test` | Persona has a `backend_call_interaction` selector but no loading-state assertion within 200ms → fires `loading-state-not-asserted` |
+
+Round-2 convergence reasons across the three reviewers' `persona_path_coverage` blocks the same way it reasons across element and page classifications. Converged findings become solution requirements with `origin.kind: "persona-path-coverage-gap"` that the existing fix loop acts on.
+
+The 12th Layer 3 tool `verify_per_persona_path_coverage` is invoked once per slice with the convergence-report's union of findings; its verdict is the authoritative Phase 5 gate alongside `verify_live_data_wiring` (v2.6.0).
+
+When the slice carries NO `persona-inventory.json`, the v2.11.0 axis is a no-op.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** You may Read / Glob / Grep / LS / Bash / NotebookRead the codebase, and Write only your own draft (and, if you are reviewer 1, the converged map and the SRs). You may NOT Edit or Write any source file.

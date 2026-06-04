@@ -1170,6 +1170,121 @@ A final report that lists the item under any other disposition — "Deferred", "
 - `tests/test_vao_no_end_of_run_deferral.py` + `tests/test_no_end_of_run_deferral_discipline.py` — structural tests.
 - Companion to v0.9.36 anti-deferral (mid-run version), v1.4.0 scope discipline (intake-narrowing version), v2.8.0 no-standing-red (commit-time version) — same root principle ("agent does the work; does NOT bounce it back to the user") fired at four different moments in the timeline.
 
+## Multi-persona path-coverage discipline (v2.11.0)
+
+Features that serve more than one user persona (a client receiving an email invite; an attorney monitoring a dashboard; a title-agency assistant entering intake data on behalf of a client; a family member completing their own intake; etc.) MUST be tested from EVERY persona's path before any fix on the feature is claimed complete. Testing one persona's golden path and declaring the fix shipped — when the OTHER personas' views still don't render, still don't persist, or still don't sync — is the failure mode this discipline closes.
+
+### The failure shape this closes (verbatim from the user)
+
+> "in the last bug run, we flagged that the views were not syncing up correctly. however, it has gotten worse. For example: I entered in with the email link. Filled in information and it did not show on the title side. Also, two matters were created (I think I hit the create matter twice because it took a long time for for anything to happen and it looked frozen). And the attorney view doesn't show anything and And the attorney view doesn't show all the roles. Also, I tried filling in the information through the title agency view (simulating someone assisting the client on intake) and none of the information saved or registered. … this is unacceptable that you would claim a fix and fail to test it. then you will need test every fix and ensure your pipeline for that user type actually achieves its goal."
+
+The agent claimed a fix on a multi-persona feature (client / family / title-agency / attorney views around the matter-intake flow). The user verified the fix manually and found FOUR distinct failures the agent's verification missed:
+
+1. **Client email-link path → title-agency view: data didn't persist.** The agent tested the client form but didn't verify it surfaced on the title-agency side.
+2. **Double-submit from frozen UI: two matters created.** The Create-Matter button had no loading indicator; the backend call took several seconds; the user clicked twice; two duplicate matters landed in the database.
+3. **Attorney view: blank.** The agent didn't open the attorney dashboard against the same matter to verify it rendered anything.
+4. **Title-agency intake (someone assisting the client): nothing saved.** The agent didn't simulate the persona of a title-agency operator using the intake form on behalf of a client — a distinct UX path with its own data-persistence requirements.
+
+The agent's verification covered exactly ONE persona's entry point and stopped. The other three personas' paths were silently broken and the run was claimed complete.
+
+### The rule (non-negotiable)
+
+Every feature MUST carry a `persona-inventory.json` artifact at `<workspace>/.architect-team/persona-inventory/<feature-slug>.json` documenting EVERY user persona the feature serves. The artifact is produced at intake (Phase −1 or `bug-fix-pipeline` Phase B−1) and frozen before any implementer dispatch. Schema:
+
+```json
+{
+  "feature_slug": "matter-intake-multi-persona",
+  "personas": [
+    {
+      "persona_id": "client-email-link",
+      "entry_point": "https://<dev-url>/invite/<token>",
+      "expected_views": ["intake-form", "submission-confirmation"],
+      "expected_data_visibility": ["matter.client_email", "matter.client_name"],
+      "cross_persona_dependencies": [
+        {"writes_data": "matter.client_email", "must_appear_in_persona": "title-agency-dashboard"},
+        {"writes_data": "matter.client_name", "must_appear_in_persona": "attorney-dashboard"}
+      ]
+    },
+    {
+      "persona_id": "title-agency-intake",
+      "entry_point": "https://<dev-url>/ta/new",
+      "expected_views": ["matter-form", "client-detail-panel"],
+      "expected_data_visibility": ["matter.client_email", "matter.attorney_assigned"],
+      "cross_persona_dependencies": []
+    },
+    {
+      "persona_id": "attorney-dashboard",
+      "entry_point": "https://<dev-url>/atty/matters",
+      "expected_views": ["matter-list", "matter-detail", "role-assignments"],
+      "expected_data_visibility": ["matter.client_name", "matter.roles[]"],
+      "cross_persona_dependencies": []
+    },
+    {
+      "persona_id": "family-member-intake",
+      "entry_point": "https://<dev-url>/family/invite/<token>",
+      "expected_views": ["family-form", "submission-confirmation"],
+      "expected_data_visibility": ["matter.family_members[]"],
+      "cross_persona_dependencies": [
+        {"writes_data": "matter.family_members[]", "must_appear_in_persona": "attorney-dashboard"},
+        {"writes_data": "matter.family_members[]", "must_appear_in_persona": "title-agency-dashboard"}
+      ]
+    }
+  ]
+}
+```
+
+The implementer's slice-end report and the qa-replayer's post-fix verification MUST cite at least one Playwright test per persona that:
+
+1. **Opens the persona's `entry_point` URL.** Not a localhost route, not a unit test, not a mocked render — the live dev URL.
+2. **Executes the persona's user-flow against the live backend.** Per the v2.6.0 live-data wiring discipline.
+3. **Asserts every entry in `expected_data_visibility[]` appears in the rendered DOM.** Per the v2.6.0 `live-response-not-rendered` rule.
+4. **Asserts every `cross_persona_dependencies[]` entry holds.** A test creates data as persona A, then opens persona B's `entry_point`, then asserts the data appears.
+5. **Asserts double-submit idempotency on every form-submit interaction.** Per the new v2.11.0 `double-submit-not-tested` severity.
+6. **Asserts a loading-state UI surfaces on every backend-call interaction.** Per the new v2.11.0 `loading-state-not-asserted` severity.
+
+### 4 named severities
+
+| Severity | Trigger |
+|---|---|
+| `persona-path-not-tested` | `persona_inventory.personas[]` names a persona AND no `playwright_test_runs[]` entry has matching `persona_id` |
+| `cross-persona-sync-not-asserted` | Persona A has a `cross_persona_dependencies[]` entry naming persona B AND no `playwright_test_runs[]` entry creates data as A and asserts it in B's view |
+| `double-submit-not-tested` | A persona's flow has a submit-shaped interaction AND no `playwright_test_runs[].clicks_with_timing[]` shows two clicks within `_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS` (500ms) with a final-record-count assertion of 1 |
+| `loading-state-not-asserted` | A persona's flow has a backend-call interaction AND no `playwright_test_runs[].ui_states_observed[]` contains a `_LOADING_STATE_UI_HINTS` value (`loading`, `spinner`, `skeleton`, `progress`, `wait`, `pending`, …) within 200ms of the click |
+
+### Canonical UI hints for loading-state detection
+
+| Hint class | Patterns |
+|---|---|
+| **Spinner** | `spinner`, `Loading...`, `Working...`, `Please wait`, `progress-circular`, `aria-busy="true"` |
+| **Skeleton** | `skeleton`, `placeholder-shimmer`, `loading-skeleton`, `<Skeleton`, `bg-shimmer` |
+| **Progress bar** | `progress-bar`, `<progress>`, `role="progressbar"`, `progress-linear` |
+| **Disabled-button-with-spinner** | button `disabled` attribute set + inline spinner SVG / spinner class |
+| **Status text** | `Submitting...`, `Creating matter...`, `Saving...`, `Processing...` |
+
+### Why existing layers don't catch this
+
+| Existing layer | What it catches | Why it missed multi-persona |
+|---|---|---|
+| `playwright-user-flows` | A flow is genuine (real click, real backend) | The flow IS genuine — for the ONE persona the agent tested |
+| `interaction-completeness` | Every interactive element is wired | The elements ARE wired — for the ONE persona's view |
+| `verify_live_data_wiring` (v2.6.0) | Mock state survived production code | Mock state didn't survive — but only one persona's path was checked |
+| `dev-api-integration-testing` | Tests exercise real backend | They do — for one persona's HTTP requests |
+| `interaction-completeness` 3-reviewer swarm | 3 reviewers converge on element classification | They classify for ONE persona's view, not across personas |
+
+v2.11.0 is the first layer that asks: **"given this feature serves N personas, did the verification exercise EVERY persona's entry point AND assert cross-persona data sync?"**
+
+### Cross-references
+
+- `hooks/vao_tools.py::verify_per_persona_path_coverage` — the 12th Layer 3 tool.
+- `hooks/vao_tools.py::_LOADING_STATE_UI_HINTS` + `_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS` — the canonical detection constants.
+- `agents/qa-replayer.md` `## Multi-persona path-coverage discipline (v2.11.0)` — post-fix per-persona re-replay gate.
+- `agents/frontend.md` `## Multi-persona path-coverage discipline (v2.11.0)` — implementer's per-persona test mandate.
+- `agents/interaction-reviewer.md` `## Multi-persona path-coverage discipline (v2.11.0)` — 3-reviewer swarm extension.
+- `agents/bug-replicator.md` `## Multi-persona path-coverage discipline (v2.11.0)` — cross-persona repro test mandate.
+- `tests/fixtures/vao/multi-persona-path-coverage-gap.json` — verbatim heirship canonical case (4 personas; only 1 tested; cross-persona sync broken; double-submit caused duplicate matters).
+- `tests/test_vao_per_persona_path_coverage.py` + `tests/test_multi_persona_path_coverage_discipline.py` — structural tests.
+- Companion to v2.6.0 live-data wiring (catches mock-state survival on the one tested path) + v2.7.0 pattern propagation (catches partial sweep within ONE persona's path) — different axis, same root principle: ship the COMPLETE verification the feature requires, not the persona-narrow slice of it.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.

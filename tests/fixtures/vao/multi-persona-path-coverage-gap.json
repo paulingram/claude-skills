@@ -1,0 +1,153 @@
+{
+  "_meta": {
+    "fixture_name": "multi-persona-path-coverage-gap",
+    "failure_shape": "v2.11.0 Multi-persona path-coverage — failure mode: agent claimed a fix on a multi-persona feature (client / family / title-agency / attorney views around the matter-intake flow) but tested only ONE persona's path. The other three personas' paths were silently broken: client→title-agency cross-persona sync didn't persist; attorney view didn't render anything; title-agency intake didn't save. Plus a double-submit bug from no loading-state UI caused two duplicate matters when the user clicked the frozen-looking button twice.",
+    "originating_failure": "heirship transcript: 'in the last bug run, we flagged that the views were not syncing up correctly. however, it has gotten worse. For example: I entered in with the email link. Filled in information and it did not show on the title side. Also, two matters were created (I think I hit the create matter twice because it took a long time for for anything to happen and it looked frozen). And the attorney view doesn't show anything and the attorney view doesn't show all the roles. Also, I tried filling in the information through the title agency view (simulating someone assisting the client on intake) and none of the information saved or registered. … this is unacceptable that you would claim a fix and fail to test it. then you will need test every fix and ensure your pipeline for that user type actually achieves its goal.'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-per-persona-path-coverage",
+    "expected_severities": ["persona-path-not-tested", "cross-persona-sync-not-asserted", "double-submit-not-tested", "loading-state-not-asserted"]
+  },
+  "persona_inventory": {
+    "feature_slug": "matter-intake-multi-persona",
+    "personas": [
+      {
+        "persona_id": "client-email-link",
+        "entry_point": "https://heirship-app-v3.example.com/invite/abc-token",
+        "expected_views": ["intake-form", "submission-confirmation"],
+        "expected_data_visibility": ["matter.client_email", "matter.client_name"],
+        "submit_interaction": "button[data-testid=create-matter]",
+        "backend_call_interaction": "button[data-testid=create-matter]",
+        "cross_persona_dependencies": [
+          {"writes_data": "matter.client_email", "must_appear_in_persona": "title-agency-dashboard"},
+          {"writes_data": "matter.client_name", "must_appear_in_persona": "attorney-dashboard"}
+        ]
+      },
+      {
+        "persona_id": "title-agency-intake",
+        "entry_point": "https://heirship-app-v3.example.com/ta/new",
+        "expected_views": ["matter-form", "client-detail-panel"],
+        "expected_data_visibility": ["matter.client_email", "matter.attorney_assigned"],
+        "submit_interaction": "button[data-action=save-matter]",
+        "backend_call_interaction": "button[data-action=save-matter]",
+        "cross_persona_dependencies": [
+          {"writes_data": "matter.attorney_assigned", "must_appear_in_persona": "attorney-dashboard"}
+        ]
+      },
+      {
+        "persona_id": "attorney-dashboard",
+        "entry_point": "https://heirship-app-v3.example.com/atty/matters",
+        "expected_views": ["matter-list", "matter-detail", "role-assignments"],
+        "expected_data_visibility": ["matter.client_name", "matter.roles[]"],
+        "cross_persona_dependencies": []
+      },
+      {
+        "persona_id": "family-member-intake",
+        "entry_point": "https://heirship-app-v3.example.com/family/invite/abc-token",
+        "expected_views": ["family-form", "submission-confirmation"],
+        "expected_data_visibility": ["matter.family_members[]"],
+        "submit_interaction": "button[data-action=submit-family]",
+        "backend_call_interaction": "button[data-action=submit-family]",
+        "cross_persona_dependencies": [
+          {"writes_data": "matter.family_members[]", "must_appear_in_persona": "attorney-dashboard"},
+          {"writes_data": "matter.family_members[]", "must_appear_in_persona": "title-agency-dashboard"}
+        ]
+      }
+    ]
+  },
+  "verification_artifact": {
+    "feature_kind": "bug-fix",
+    "playwright_test_runs": [
+      {
+        "persona_id": "client-email-link",
+        "entry_url": "https://heirship-app-v3.example.com/invite/abc-token",
+        "assertions": [
+          "expect(page.locator('input[name=client-email]')).toHaveValue('jane@example.com')",
+          "expect(page.locator('h1')).toContainText('Matter Created')"
+        ],
+        "clicks_with_timing": [
+          {"selector": "button[data-testid=create-matter]", "ts_ms": 1000}
+        ],
+        "ui_states_observed": []
+      }
+    ],
+    "solution_requirements_created": [],
+    "confirmed_stubs": []
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-per-persona-path-coverage",
+    "valid": false,
+    "expected_severity_count_min": 4,
+    "expected_personas_missing_test": ["title-agency-intake", "attorney-dashboard", "family-member-intake"]
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — Playwright test per persona, cross-persona sync assertions covering every dependency, double-submit assertions on every submit_interaction, loading-state assertions on every backend_call_interaction.",
+    "feature_kind": "bug-fix",
+    "playwright_test_runs": [
+      {
+        "persona_id": "client-email-link",
+        "entry_url": "https://heirship-app-v3.example.com/invite/abc-token",
+        "assertions": [
+          "expect(page.locator('input[name=client-email]')).toHaveValue('jane@example.com')",
+          "expect(page.locator('h1')).toContainText('Matter Created')"
+        ],
+        "clicks_with_timing": [
+          {"selector": "button[data-testid=create-matter]", "ts_ms": 1000},
+          {"selector": "button[data-testid=create-matter]", "ts_ms": 1200}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["Creating matter...", "spinner"],
+        "loading_state_delays_ms": [80, 120],
+        "cross_persona_assertions": [
+          {"writes_data": "matter.client_email", "asserted_in_persona": "title-agency-dashboard"},
+          {"writes_data": "matter.client_name", "asserted_in_persona": "attorney-dashboard"}
+        ]
+      },
+      {
+        "persona_id": "title-agency-intake",
+        "entry_url": "https://heirship-app-v3.example.com/ta/new",
+        "assertions": [
+          "expect(page.locator('input[name=client-email]')).toHaveValue('jane@example.com')",
+          "expect(page.locator('text=Attorney assigned')).toBeVisible()"
+        ],
+        "clicks_with_timing": [
+          {"selector": "button[data-action=save-matter]", "ts_ms": 2000},
+          {"selector": "button[data-action=save-matter]", "ts_ms": 2150}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["Saving...", "aria-busy=true"],
+        "loading_state_delays_ms": [60, 90],
+        "cross_persona_assertions": [
+          {"writes_data": "matter.attorney_assigned", "asserted_in_persona": "attorney-dashboard"}
+        ]
+      },
+      {
+        "persona_id": "attorney-dashboard",
+        "entry_url": "https://heirship-app-v3.example.com/atty/matters",
+        "assertions": [
+          "expect(page.locator('[data-testid=matter-row]')).toContainText('Jane Doe')",
+          "expect(page.locator('[data-testid=role]')).toHaveCount(3)"
+        ],
+        "clicks_with_timing": [],
+        "ui_states_observed": []
+      },
+      {
+        "persona_id": "family-member-intake",
+        "entry_url": "https://heirship-app-v3.example.com/family/invite/abc-token",
+        "assertions": [
+          "expect(page.locator('h1')).toContainText('Family Submission Received')"
+        ],
+        "clicks_with_timing": [
+          {"selector": "button[data-action=submit-family]", "ts_ms": 3000},
+          {"selector": "button[data-action=submit-family]", "ts_ms": 3100}
+        ],
+        "record_count_after_double_click": 1,
+        "ui_states_observed": ["Submitting...", "skeleton"],
+        "loading_state_delays_ms": [70, 110],
+        "cross_persona_assertions": [
+          {"writes_data": "matter.family_members[]", "asserted_in_persona": "attorney-dashboard"},
+          {"writes_data": "matter.family_members[]", "asserted_in_persona": "title-agency-dashboard"}
+        ]
+      }
+    ]
+  }
+}

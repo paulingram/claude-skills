@@ -2,6 +2,63 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0] — 2026-06-03 — Multi-persona path-coverage discipline
+
+**ADDITIVE — backwards-compatible.** Schema v7 unchanged. 12th Layer 3 tool added; the 11 existing tools' contracts are unchanged; pre-v2.11.0 artifacts (without `persona-inventory.json`) validate unchanged.
+
+### The failure shape this closes (verbatim from the user)
+
+> "in the last bug run, we flagged that the views were not syncing up correctly. however, it has gotten worse. For example: I entered in with the email link. Filled in information and it did not show on the title side. Also, two matters were created (I think I hit the create matter twice because it took a long time for for anything to happen and it looked frozen). And the attorney view doesn't show anything and the attorney view doesn't show all the roles. Also, I tried filling in the information through the title agency view (simulating someone assisting the client on intake) and none of the information saved or registered. … this is unacceptable that you would claim a fix and fail to test it. then you will need test every fix and ensure your pipeline for that user type actually achieves its goal."
+
+The agent claimed a fix on a multi-persona feature (client / family / title-agency / attorney views around the matter-intake flow) but tested ONE persona's path and stopped. Four distinct failures the agent's verification missed:
+
+1. **Client email-link → title-agency view: data didn't persist.** No test created data as the client and asserted it appeared in the title-agency view.
+2. **Double-submit from frozen UI: two matters created.** The Create-Matter button had no loading indicator; the backend call took several seconds; the user clicked twice; two duplicates landed in the database.
+3. **Attorney view: blank.** The agent never opened the attorney dashboard against the same matter to verify it rendered.
+4. **Title-agency intake form (someone assisting the client): nothing saved.** The agent never simulated the title-agency-operator persona — a distinct UX path with its own persistence requirements.
+
+### What v2.11.0 ships
+
+1. **NEW canonical `## Multi-persona path-coverage discipline (v2.11.0)` section** in `skills/common-pipeline-conventions/SKILL.md`. Names the rule, the verbatim heirship prose, the `persona-inventory.json` schema (`persona_id` / `entry_point` / `expected_views` / `expected_data_visibility[]` / `cross_persona_dependencies[]` / `submit_interaction` / `backend_call_interaction`), the 4 named severities, the canonical `_LOADING_STATE_UI_HINTS` (spinner / skeleton / progress-bar / aria-busy / Submitting... / Saving... / Creating... / etc.), the double-submit timing threshold (500ms) and loading-state-max-delay (200ms), and the comparison table showing why existing layers (`playwright-user-flows` / `interaction-completeness` / `verify_live_data_wiring` / `dev-api-integration-testing` / `interaction-completeness` 3-reviewer swarm) didn't catch this.
+
+2. **NEW 12th Layer 3 tool — `verify_per_persona_path_coverage`** in `hooks/vao_tools.py`. Deterministic verification function + `verify-per-persona-path-coverage` CLI subcommand. Module constants `_LOADING_STATE_UI_HINTS` (23 patterns covering spinner / Loading... / Working... / aria-busy / skeleton / progress-bar / Submitting... / Saving... / Creating... / Processing... / pending / in-progress / …), `_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS = 500`, `_LOADING_STATE_MAX_DELAY_MS = 200`. 4 named severities:
+
+   | Severity | Trigger |
+   |---|---|
+   | `persona-path-not-tested` | persona in inventory but no Playwright run with matching `persona_id` |
+   | `cross-persona-sync-not-asserted` | persona A has cross_persona_dependency naming B; no test creates data as A AND asserts in B |
+   | `double-submit-not-tested` | persona has submit_interaction selector; no test shows two clicks within 500ms with record_count_after_double_click == 1 |
+   | `loading-state-not-asserted` | persona has backend_call_interaction; no test observes a `_LOADING_STATE_UI_HINTS` value within 200ms of the click |
+
+   Trivially passes when `persona_inventory.personas[]` is empty — fully backwards-compatible.
+
+3. **EXTENDED 4 agent bodies** with `## Multi-persona path-coverage discipline (v2.11.0)` sections:
+   - `agents/qa-replayer.md` — verdict gains `per_persona_findings` block; cannot return `bug-resolved` when a persona gap fires.
+   - `agents/frontend.md` — implementer's slice-end report cites a Playwright test per persona; the 6 mandatory assertions are enumerated.
+   - `agents/interaction-reviewer.md` — Round-1 classification gains `persona_path_coverage` axis with 5 classifications; convergence reasons across the three reviewers' blocks.
+   - `agents/bug-replicator.md` — when authoring repro test for cross-persona bug, authors tests for EVERY affected persona; new verdict `needs-persona-inventory` joins existing 4 verdicts.
+
+4. **NEW canonical fixture** `tests/fixtures/vao/multi-persona-path-coverage-gap.json` reproducing the verbatim heirship case (4 personas: client-email-link / title-agency-intake / attorney-dashboard / family-member-intake; only client-email-link tested; no cross-persona sync assertions; no double-submit test; no loading-state assertion). Bad version fires 14 distinct gaps across all 4 severities. `_corrected_verification_artifact` shows all 4 personas tested with cross-persona assertions, double-submit assertions, and loading-state assertions — passes cleanly.
+
+5. **+49 new tests** — 30 in `tests/test_vao_per_persona_path_coverage.py` (tool contract + 4 severities × pos/neg variants + constants + double-submit edge cases + loading-state delay edge cases + determinism + fixture round-trip + CLI exit codes) and 19 in `tests/test_multi_persona_path_coverage_discipline.py` (canonical section + 4 agent extensions + persona-inventory schema fields + loading-state hint coverage + fixture round-trip + cross-references). 2722 → 2771 passing; zero regressions.
+
+### Why existing layers don't catch this
+
+| Existing layer | What it catches | Why it missed multi-persona |
+|---|---|---|
+| `playwright-user-flows` | A flow is genuine | The flow IS genuine — for the ONE persona tested |
+| `interaction-completeness` | Every element is wired | Wired — for the ONE persona's view |
+| `verify_live_data_wiring` (v2.6.0) | Mock state survived | Didn't survive — but only one persona's path checked |
+| `dev-api-integration-testing` | Tests exercise real backend | They do — for one persona's HTTP requests |
+
+v2.11.0 is the first layer that asks: **"given this feature serves N personas, did the verification exercise EVERY persona's entry point AND assert cross-persona data sync?"**
+
+### Backwards compatibility
+
+- Runs without `persona-inventory.json` (single-persona feature): tool returns `valid: True, gaps: []` — zero behavior change.
+- The 11 existing Layer 3 tools' contracts are unchanged; v2.6.0 / v2.7.0 / v2.8.0 / v2.9.0 / v2.10.0 fixtures continue to validate.
+- Schema v7 unchanged.
+
 ## [2.10.0] — 2026-06-03 — No end-of-run deferral discipline
 
 **ADDITIVE — backwards-compatible.** Schema v7 unchanged. 11th Layer 3 tool added; the 10 existing tools' contracts are unchanged; pre-v2.10.0 artifacts (without `final_report` text) validate unchanged.
