@@ -32,9 +32,9 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 13 slash commands like
-> `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
-> CLAUDE TEAM SIX is the user-facing name.
+> compatibility with existing installations + the 18 slash commands like
+> `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
+> `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
 ![version](https://img.shields.io/badge/version-2.19.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
@@ -67,9 +67,18 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.12.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.19.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+| Capability | What changed |
+|---|---|
+| **In-flight clarification injection mechanism** | v2.5.0 documented the discipline; v2.19.0 ships the runtime mechanism. Per-run inbox JSONL at `<workspace>/.architect-team/inbox/<run-id>.jsonl` + a new `/architect-team:inject <message>` slash command (works from a separate terminal session) + a phase-boundary check protocol wired into all 3 pipeline bodies (at the start of every numbered phase + after every subagent dispatch returns) + the 17th Layer 3 tool `verify_inflight_clarifications_processed` gating Phase 8 against silently-ignored messages. 3 classifications (`scope-amendment` re-runs upstream phase / `clarification` folds into next phase / `out-of-scope` records-only). New SR origin kind `clarification-requires-rerun`. **+51 net tests (3075 → 3127).** |
+| **Codebase discipline registry + Phase 0.1 auto-update (v2.18.0)** | Per-codebase JSON registry at `.architect-team/discipline-registry.json` tracking which CT6 disciplines have been applied to which codebase. New `hooks/discipline_registry.py` module + 4-entry `DISCIPLINE_CATALOG` (prod-safe-test-classification auto-apply-safe / live-data-wiring SR-route / multi-persona-path-coverage SR-route / affordance-coverage SR-route). 16th Layer 3 tool `verify_discipline_registry_current` + new Phase 0.1 wiring in all 3 pipelines (auto-applies safe disciplines, routes the rest as SRs) + 17th slash command `/architect-team:discipline-status [--apply]`. Closes *"so for many of these changes, we need to probably also restructure either docs in a codebase or requirements etc.. so we know if our system is already running / updated or if we need to execute an update."* **+47 net tests (3025 → 3075).** |
+| **Prod-safe test classification discipline (v2.17.0)** | Every Playwright / QA test MUST carry `// @prod-safe` (only reads — safe-against-production) or `// @not-prod-safe` (contains mutations) in its first 20 lines. When a run targets a production URL (not matching the 15 dev/staging URL exclusions), the runner filters to `@prod-safe` tests only. 15th Layer 3 tool `verify_test_prod_safety_classification` covering 37 mutation patterns (HTTP POST/PUT/PATCH/DELETE / form submits / file uploads / DB writes via prisma/knex/raw SQL / cloud storage / external sends via SendGrid/Twilio/Stripe) + 17 read-only patterns. 4 severities (`unclassified-test` / `prod-deployment-runs-unsafe-test` / `mutation-in-prod-safe-test` / `classification-mismatch`). NEW skill `test-prod-safety-classifier` (mass-classify + auto-classify modes) + NEW 16th slash command `/architect-team:classify-test-prod-safety`. **+71 net tests (2952 → 3024).** |
+| **Backwards-compatible** | Schema v7 UNCHANGED across all three releases. v2.17.0 / v2.18.0 / v2.19.0 each fully no-op when their relevant surface is absent (no test files → classifier passes / no codebase surface → no findings / empty inbox → Layer 3 tool returns valid). All prior fixtures continue to validate. |
+
+### Carried forward from v2.12.0 — cross-discipline gate consistency hotfix
 
 | Capability | What changed |
 |---|---|
