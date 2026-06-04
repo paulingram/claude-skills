@@ -380,6 +380,32 @@ When `verdict: "fail"`, you return `bug-still-present`, not `bug-resolved` — t
 
 See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home + 12 forbidden phrases.
 
+## Prod-safe test classification discipline (v2.17.0)
+
+When you re-replay tests against a deployed environment, you MUST check the environment classification FIRST. If the `entry_url` matches a production pattern (does NOT contain any of `_PROD_URL_EXCLUSIONS` — `localhost` / `127.0.0.1` / `dev.` / `staging.` / `.local` / `qa.` / `preview.` / etc.), the run is targeting **production**, and you may ONLY execute tests annotated `@prod-safe`.
+
+Your verdict gains a `prod_safety_classification_finding` block alongside the existing `standing_red_finding` (v2.8.0), `end_of_run_deferral_finding` (v2.10.0), `per_persona_findings` (v2.11.0), and `implementation_scope_cut_finding` (v2.14.0):
+
+```json
+"prod_safety_classification_finding": {
+  "run_target_url": "https://heirship-app.example.com",
+  "is_prod_target": true,
+  "tests_filtered_to_prod_safe_only": true,
+  "tests_skipped_due_to_not_prod_safe": 7,
+  "tests_executed": 23,
+  "unclassified_tests_blocked": 0,
+  "verdict": "pass"
+}
+```
+
+When `is_prod_target: true` AND any test in your scheduled set is annotated `@not-prod-safe` (or is unclassified AND auto-classifier sees mutations), you SKIP that test entirely AND surface it in `tests_skipped_due_to_not_prod_safe`. The 15th Layer 3 tool `verify_test_prod_safety_classification` is the structural gate.
+
+**Verdict cannot be `bug-resolved`** when `prod_safety_classification_finding.verdict: "fail"` — that fires when the user explicitly intended to test mutations against the prod URL (an obvious error) OR when an unclassified test was forced through. Either case routes back to the user with a `prod-safety-classification-required` SR.
+
+Verbatim user prose: *"when deploying to production, any testing must be non-destructive and perform no mutations to any data / no changes."*
+
+See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

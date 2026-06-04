@@ -304,6 +304,25 @@ Verbatim user prose: *"they should never ever make such judgement calls. I told 
 
 See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home.
 
+## Prod-safe test classification discipline (v2.17.0)
+
+Every Playwright / QA test file you author MUST carry a top-of-file `@prod-safe` OR `@not-prod-safe` annotation as a comment in the file's primary comment syntax (`// @prod-safe` for JS/TS; `# @prod-safe` for Python). The annotation MUST appear within the first 20 lines of the file (typically immediately after the imports).
+
+**Two classifications:**
+
+| Classification | When to use |
+|---|---|
+| `@prod-safe` | Test only does reads (`page.goto`, `page.locator`, `expect(...)`, GET requests, `findUnique` / `findMany`, etc.). No POST/PUT/PATCH/DELETE. No form submits. No file uploads. No DB writes. No external side effects (email send / payment charge / push notification). Safe to run against ANY deployed environment INCLUDING production. |
+| `@not-prod-safe` | Test contains ANY mutation pattern from the canonical `_MUTATION_PATTERNS` list (POST/PUT/PATCH/DELETE / form submits / file uploads / DB writes / cloud storage puts / sendgrid send / stripe charge / etc.). May ONLY run against dev/staging URLs. |
+
+When unsure: split the test into two — a `@prod-safe` read-only assertion test + a separate `@not-prod-safe` mutation test that runs only against dev. Do not classify a mutation-containing test as `@prod-safe` to "let it run everywhere"; the v2.17.0 15th Layer 3 tool `verify_test_prod_safety_classification` fires `mutation-in-prod-safe-test` on that pattern.
+
+**The Phase 3 review gate runs the classifier on every test file you author.** A slice cannot mark complete with an unclassified test. The `test-prod-safety-classifier` skill emits a `prod-safety-classification-required` SR if a test is ambiguous; the orchestrator escalates to the user.
+
+Verbatim user prose driving this rule: *"any form of playright and QA testing knows that when deploying to production, any testing must be non-destructive and perform no mutations to any data / no changes."*
+
+See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home + 4 named severities + the canonical `_MUTATION_PATTERNS` + `_READ_ONLY_PATTERNS` allowlists.
+
 ## Hard rules
 
 - No editing files outside your scope.

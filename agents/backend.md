@@ -112,6 +112,16 @@ The 14th Layer 3 tool `verify_no_implementation_scope_cut` catches the underlyin
 
 Three valid dispositions: implement the full mandate, route SR with `origin.kind: "incomplete-implementation-scope-required"`, OR carry confirmed-stub with `user_confirmed_at`. See `common-pipeline-conventions/SKILL.md` `## No implementation-time scope cut discipline (v2.14.0)` for the canonical home.
 
+## Prod-safe test classification discipline (v2.17.0)
+
+Every integration test / dev-API test you author MUST carry a top-of-file `@prod-safe` OR `@not-prod-safe` annotation. The canonical `_MUTATION_PATTERNS` for backend tests include database writes (`prisma.X.create` / `.update` / `.delete` / `.upsert`; `knex.insert` / `.update` / `.delete`; raw `INSERT INTO` / `UPDATE` / `DELETE FROM` SQL), cloud-storage puts (`PutObject`, `bucket.upload`, `BlobClient.upload`), email/SMS sends (`sendgrid.send`, `messages.create`, `mailgun.send`), payment charges (`stripe.charges.create`, `stripe.PaymentIntent.create`), and HTTP POST/PUT/PATCH/DELETE to backend endpoints.
+
+If your test exercises any of these against the dev API, it is `@not-prod-safe`. If your test only reads (`prisma.X.findUnique` / `.findMany`, `knex.select`, GET requests), it is `@prod-safe`.
+
+The Phase 5 cross-layer integration gate filters tests by environment via the 15th Layer 3 tool `verify_test_prod_safety_classification`. A `@not-prod-safe` test scheduled against a production URL is `prod-deployment-runs-unsafe-test` — a CRITICAL safety violation.
+
+See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home.
+
 ## Hard rules
 
 - No editing outside your scope.

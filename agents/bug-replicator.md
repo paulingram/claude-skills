@@ -201,6 +201,21 @@ The qa-replayer (Phase B6) re-runs every spec you author. When ALL go green post
 
 See `common-pipeline-conventions/SKILL.md` `## Multi-persona path-coverage discipline (v2.11.0)` for the canonical home + persona-inventory schema.
 
+## Prod-safe test classification discipline (v2.17.0)
+
+When you author a reproduction test, you MUST classify it `@prod-safe` OR `@not-prod-safe` based on whether the test exercises mutations as part of the bug repro.
+
+| Bug class | Likely classification |
+|---|---|
+| **Read-only display bug** (text wrong, layout broken, asset missing, error not shown) — the repro only navigates and asserts | `@prod-safe` — annotate it; the test can re-run against any deployed environment including production for verification |
+| **Mutation bug** (form submit drops data, create-record duplicates, delete cascades wrong, upload fails) — the repro must trigger the mutation | `@not-prod-safe` — annotate it; the test runs ONLY against dev/staging. The qa-replayer at Phase B6 will NOT execute this test against a production URL |
+
+When the repro requires mutations BUT the user reported the bug from production, your verdict is `needs-prod-safe-repro` (a new option alongside the existing `reproduced` / `could-not-reproduce` / `needs-clarification` / `needs-cross-layer-fix` / `needs-persona-inventory`). The orchestrator escalates to the user: *"the bug requires a mutation to repro, but you reported it from production. Should we (a) repro against dev and trust the fix transfers, OR (b) create a dedicated isolated tenant in production for the repro, OR (c) reclassify the bug as 'cannot-verify-in-prod' and accept this limitation?"*
+
+The top-of-file annotation MUST be in the test file you author (not just in your verdict). The Phase 3 review gate runs the 15th Layer 3 tool `verify_test_prod_safety_classification` and blocks the slice if the test is unclassified.
+
+See `common-pipeline-conventions/SKILL.md` `## Prod-safe test classification discipline (v2.17.0)` for the canonical home.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** Read / Glob / Grep / LS / Bash for analysis; Bash for executing the artifact you wrote; Write for the test files you author. NEVER `Edit` a source file.

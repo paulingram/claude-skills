@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.17.0] — 2026-06-04 — Prod-safe test classification discipline
+
+**ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"update such that any form of playright and QA testing knows that when deploying to production, any testing must be non-destructive and perform no mutations to any data / no changes. So we will want to ensure this. also we will want every test written to be properly classified into prod safe or not. give us a skill to evaluate the current tests and mass classify them and then auto classify on go forward basis."*
+
+### The failure shape this closes
+
+Existing playwright-user-flows (v2.6.0 / v2.11.0) mandates real backend tests; v2.4.0 verified-live mandates the deployed URL. But neither distinguishes **dev/staging deployed URL** from **production deployed URL**. A test that creates a matter, sends an invite email, or uploads a document — perfectly valid against dev — corrupts production data if accidentally pointed at the prod URL. v2.17.0 makes that structurally impossible via mandatory file-level annotations and a Layer 3 verification tool that gates Phase 3 review.
+
+### What v2.17.0 ships
+
+1. **NEW canonical section `## Prod-safe test classification discipline (v2.17.0)`** in `skills/common-pipeline-conventions/SKILL.md` — names the 3 classifications (`@prod-safe` / `@not-prod-safe` / `ambiguous`), the annotation contract (per-language comment form, first 20 lines), the execution rule (prod URL → only `@prod-safe` runs), the 4 severities, mutation/read-only signature tables, and the new SR origin kind `prod-safety-classification-required`.
+
+2. **NEW 15th Layer 3 tool `verify_test_prod_safety_classification`** in `hooks/vao_tools.py` (stdlib-only, deterministic). 5 detector severities by name: `unclassified-test` / `prod-deployment-runs-unsafe-test` / `mutation-in-prod-safe-test` / `classification-mismatch`. Module constants: `_PROD_SAFE_ANNOTATIONS` (4 patterns), `_NOT_PROD_SAFE_ANNOTATIONS` (4 patterns), `_MUTATION_PATTERNS` (37 named patterns covering HTTP/DB/cloud/external-service mutations), `_READ_ONLY_PATTERNS` (17 patterns), `_PROD_URL_EXCLUSIONS` (15 dev/staging substrings). CLI subcommand `verify-test-prod-safety-classification`. Output `{tool, valid, gaps, verdict_at}` with each gap carrying `{severity, test_path, evidence, remediation, ...severity-specific-fields}`. Trivially passes when no `test_files` present — fully backwards-compatible.
+
+3. **NEW skill `skills/test-prod-safety-classifier/SKILL.md`** — 33rd skill. Mode 1 (`mass-classify`): scan codebase → check annotation → auto-classify via patterns → reconcile → inject annotations (with `--write-annotations`) → escalate ambiguous. Mode 2 (`auto-classify`): runs at Phase 3 review gate; emits `prod-safety-classification-required` SR for ambiguous cases. Output artifact at `<workspace>/.architect-team/test-prod-safety/classification-report-<ts>.json`.
+
+4. **NEW slash command `/architect-team:classify-test-prod-safety`** — 16th command. Argument-hint `[<glob | codebase-path>] [--write-annotations] [--dry-run]`. Default is `--dry-run` (preview-only). Bundles the standard dispatch-banner + worktree auto-cleanup + git workflow.
+
+5. **Agent body extensions** in 4 agents — `agents/frontend.md`, `agents/backend.md`, `agents/qa-replayer.md`, `agents/bug-replicator.md` each carry a `## Prod-safe test classification discipline (v2.17.0)` section. Frontend + backend agents MUST annotate every authored test. The qa-replayer's new `prod_safety_classification_finding` verdict block tracks `run_target_url`, `is_prod_target`, `tests_filtered_to_prod_safe_only`, `tests_skipped_due_to_not_prod_safe`, `tests_executed`. Bug-replicator's section documents repro-test classification per mutation profile + the new `needs-prod-safe-repro` verdict for prod-only mutation bugs.
+
+6. **NEW canonical fixture `tests/fixtures/vao/prod-safe-test-classification-required.json`** — 4 test files exercising each of the 4 severities (unclassified read-only / `@prod-safe` with POST / `@not-prod-safe` against prod URL / clean `@prod-safe` passing). Each carries a `_corrected_verification_artifact` showing the valid shape. Both negative AND `_corrected` positive round-trips tested.
+
+7. **71 new tests** across `tests/test_vao_test_prod_safety_classification.py` (35 — module constants, helper detection, severity-by-severity, fixture round-trip, determinism, sidecar persistence) + `tests/test_prod_safe_classification_discipline.py` (18 — canonical home, agent body extensions, fixture presence, schema v7 backwards compat, mutation/read-only signature tables) + `tests/test_test_prod_safety_classifier_skill.py` (10) + `tests/test_classify_test_prod_safety_command.py` (8). **3020 → ~3091 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Schema v7 is UNCHANGED. The discipline ships its own `verify-test-prod-safety-classification` Layer 3 tool but does not add a new required field to `REQUIRED_EVIDENCE_FIELDS`.
+- v2.0.0 / v2.1.0 / v2.2.0 / v2.3.0 / v2.4.0 / v2.5.0 / v2.6.0 / v2.7.0 / v2.8.0 / v2.9.0 / v2.10.0 / v2.11.0 / v2.12.0 / v2.13.0 / v2.14.0 / v2.15.0 / v2.16.0 evidence files validate unchanged.
+- Runs with no `test_files` in their verification artifact get `{valid: True, gaps: []}` from the new tool — fully no-op.
+- Existing tests that don't yet carry annotations fail the discipline on next Phase 3 review — the `mass-classify` mode is the migration path. The orchestrator surfaces the count + suggested annotations; the user opts into `--write-annotations` to apply them.
+
+### Companion-discipline cross-references
+
+- v2.6.0 live-data wiring (catches mock-state on the tested path) + v2.11.0 multi-persona path-coverage (verifies persona breadth) + v2.13.0 UX-test env sequencing (local-first then live-dev) — different axis, same root principle: tests must do the right thing in the right environment. v2.17.0 closes the production-safety gap that those leave open.
+
 ## [2.16.0] — 2026-06-04 — Stop-hook fix: duplicate-output bug + `.architect-team/in-progress.md` 4th disposition
 
 **ADDITIVE — backwards-compatible.** Closes two real-world Stop-hook annoyances reported verbatim by the user. No new discipline, no new Layer 3 tool — pure ergonomics + correctness fix.

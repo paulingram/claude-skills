@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "fixture_name": "prod-safe-test-classification-required",
+    "failure_shape": "v2.17.0 Prod-safe test classification — failure mode: a codebase has 4 test files exhibiting each of the 4 named severities. (1) Unannotated test that only reads — `unclassified-test`. (2) Annotated `@prod-safe` but contains `page.request.post` — `mutation-in-prod-safe-test` AND `classification-mismatch`. (3) Annotated `@not-prod-safe` and scheduled against a production URL — `prod-deployment-runs-unsafe-test`. (4) Properly annotated `@prod-safe` clean test against production — passes (no gap).",
+    "originating_failure": "verbatim user prose: 'update such that any form of playright and QA testing knows that when deploying to production, any testing must be non-destructive and perform no mutations to any data / no changes. So we will want to ensure this. also we will want every test written to be properly classified into prod safe or not.'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-test-prod-safety-classification",
+    "expected_severities": ["unclassified-test", "mutation-in-prod-safe-test", "classification-mismatch", "prod-deployment-runs-unsafe-test"]
+  },
+  "run_target": {
+    "url": "https://heirship-app.example.com",
+    "environment_label": "production",
+    "captured_at": "2026-06-04T15:00:00Z"
+  },
+  "verification_artifact": {
+    "feature_kind": "test-suite-classification",
+    "test_files": [
+      {
+        "path": "tests/auth/login.spec.ts",
+        "content": "import { test, expect } from '@playwright/test';\n\ntest('login page renders', async ({ page }) => {\n  await page.goto('/login');\n  await expect(page.locator('h1')).toHaveText('Sign In');\n});"
+      },
+      {
+        "path": "tests/matter/create.spec.ts",
+        "content": "// @prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('create matter via API', async ({ page, request }) => {\n  await page.goto('/matters/new');\n  await page.request.post('/api/matters', { data: { client: 'Jane' } });\n  await expect(page.locator('.success-toast')).toBeVisible();\n});"
+      },
+      {
+        "path": "tests/upload/document.spec.ts",
+        "content": "// @not-prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('upload document', async ({ page }) => {\n  await page.goto('/matters/123/documents');\n  await page.setInputFiles('input[type=file]', '/tmp/doc.pdf');\n  await expect(page.locator('.uploaded-doc')).toBeVisible();\n});"
+      },
+      {
+        "path": "tests/dashboard/render.spec.ts",
+        "content": "// @prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('dashboard renders all panels', async ({ page }) => {\n  await page.goto('/dashboard');\n  await expect(page.locator('[data-testid=matter-count]')).toBeVisible();\n  await expect(page.locator('[data-testid=person-count]')).toBeVisible();\n});"
+      }
+    ]
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-test-prod-safety-classification",
+    "valid": false,
+    "expected_severity_count_min": 4,
+    "expected_unique_severities": ["unclassified-test", "mutation-in-prod-safe-test", "classification-mismatch", "prod-deployment-runs-unsafe-test"]
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — all test files in the schedule are @prod-safe; the @not-prod-safe mutation tests (matter/create + upload/document) were filtered out of the run schedule because run_target is production. The login test was annotated and the @prod-safe mutation conflict was resolved by removing the bogus annotation.",
+    "feature_kind": "test-suite-classification",
+    "test_files": [
+      {
+        "path": "tests/auth/login.spec.ts",
+        "content": "// @prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('login page renders', async ({ page }) => {\n  await page.goto('/login');\n  await expect(page.locator('h1')).toHaveText('Sign In');\n});"
+      },
+      {
+        "path": "tests/dashboard/render.spec.ts",
+        "content": "// @prod-safe\nimport { test, expect } from '@playwright/test';\n\ntest('dashboard renders all panels', async ({ page }) => {\n  await page.goto('/dashboard');\n  await expect(page.locator('[data-testid=matter-count]')).toBeVisible();\n  await expect(page.locator('[data-testid=person-count]')).toBeVisible();\n});"
+      }
+    ]
+  },
+  "_corrected_run_target": {
+    "_note": "Same prod URL; the @not-prod-safe upload test is removed from the test_files schedule (the orchestrator filters it for prod runs).",
+    "url": "https://heirship-app.example.com",
+    "environment_label": "production",
+    "captured_at": "2026-06-04T15:00:00Z"
+  }
+}

@@ -21,6 +21,7 @@ EXPECTED_COMMANDS: set[str] = {
     "status",
     "absorb-phenotype",
     "visual-to-api",
+    "classify-test-prod-safety",
 }
 
 REQUIRED_KEYS = {"description"}
