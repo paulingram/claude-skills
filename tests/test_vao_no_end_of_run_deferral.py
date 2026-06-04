@@ -321,3 +321,95 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
     art.write_text(json.dumps(fixture_data["verification_artifact"]))
     rc = _run_cli(plugin_root, art, out)
     assert rc != 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.12.0 — Cross-discipline gate consistency regressions
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_v211_per_persona_success_report_does_not_trip_v210_wrap_up(vao_tools):
+    """v2.12.0 fix — a legitimate v2.11.0 per-persona success report
+    enumerating 4 personas with `tested green` outcomes used to trip
+    v2.10.0's `wrap-up-with-known-bugs` because `_ITEM_DISPOSITION_CITATIONS`
+    didn't recognize per-persona disposition channels. The fix extended the
+    citation list to include `playwright_test_runs` / `per_persona_findings`
+    / `tested green` / `persona_id:` / `entry_point:`."""
+    report = (
+        "All 4 personas tested with full path coverage:\n"
+        "\n"
+        "- client-email-link: tested green; entry_point opened; "
+        "cross-persona sync to title-agency asserted\n"
+        "- title-agency-intake: tested green; form saves; attorney sees the change\n"
+        "- attorney-dashboard: tested green; all roles render\n"
+        "- family-member-intake: tested green; loading state surfaces\n"
+        "\n"
+        "Per-persona Playwright runs all green. Run complete.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "wrap-up-with-known-bugs" not in severities, (
+        "v2.11.0 success report wrongly fires v2.10.0 wrap-up-with-known-bugs"
+    )
+
+
+def test_playwright_test_runs_array_counts_as_disposition(vao_tools):
+    """A verification artifact carrying playwright_test_runs[] is sufficient
+    disposition — even when the report has no inline citation tokens."""
+    report = (
+        "Run summary:\n"
+        "- item alpha: done\n"
+        "- item beta: done\n"
+        "- item gamma: done\n"
+    )
+    artifact = {
+        "final_report": report,
+        "playwright_test_runs": [
+            {"persona_id": "a"}, {"persona_id": "b"}, {"persona_id": "c"},
+        ],
+    }
+    v = vao_tools.verify_no_end_of_run_deferral(artifact)
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "wrap-up-with-known-bugs" not in severities
+
+
+def test_per_persona_findings_object_counts_as_disposition(vao_tools):
+    """A verification artifact carrying per_persona_findings is sufficient
+    disposition."""
+    report = (
+        "Run summary:\n"
+        "- item alpha: done\n"
+        "- item beta: done\n"
+        "- item gamma: done\n"
+    )
+    artifact = {
+        "final_report": report,
+        "per_persona_findings": {"personas_total": 3, "personas_tested": 3, "gaps": []},
+    }
+    v = vao_tools.verify_no_end_of_run_deferral(artifact)
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "wrap-up-with-known-bugs" not in severities
+
+
+def test_heirship_deferral_still_fires_after_v212_widening(vao_tools, fixture_data):
+    """Regression — widening the disposition channels must NOT weaken the
+    detection of the verbatim heirship deferral case. The v2.10.0 fixture
+    must continue to fire all 3 severities."""
+    v = vao_tools.verify_no_end_of_run_deferral(fixture_data["verification_artifact"])
+    severities = {g["severity"] for g in v["gaps"]}
+    assert "deferred-work-catalog" in severities
+    assert "followup-decision-question" in severities
+    assert "wrap-up-with-known-bugs" in severities
+
+
+def test_disposition_citations_constant_includes_v211_tokens(vao_tools):
+    """The v2.12.0 widening must include the persona-coverage citation tokens."""
+    blob = " ".join(vao_tools._ITEM_DISPOSITION_CITATIONS).lower()
+    assert "playwright_test_runs" in blob
+    assert "per_persona_findings" in blob
+    assert "tested green" in blob or "tested-green" in blob
+    assert "persona_id" in blob
+    # And the prior v2.10.0 tokens remain.
+    assert "commit-sha:" in vao_tools._ITEM_DISPOSITION_CITATIONS
+    assert "SR-" in vao_tools._ITEM_DISPOSITION_CITATIONS
+    assert "confirmed_stub" in vao_tools._ITEM_DISPOSITION_CITATIONS

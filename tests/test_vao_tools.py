@@ -361,3 +361,64 @@ def test_all_tools_write_sorted_keys_for_determinism(vao_tools, tmp_path: Path):
     # Sorted-keys: divergences before match_pct before matched before tool
     # before verdict_at — alphabetical order.
     assert raw.index('"divergences"') < raw.index('"match_pct"') < raw.index('"matched"') < raw.index('"tool"')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.12.0 — Unified _is_test_path detector (cross-tool consistency)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_unified_is_test_path_recognizes_v260_dir_markers(vao_tools):
+    """The v2.6.0 audit recognized tests/ / __tests__/ / __mocks__/ /
+    test/ / fixtures/ / mocks/ as test paths."""
+    for p in ("tests/foo.py", "__tests__/foo.ts", "__mocks__/api.ts",
+              "test/foo.py", "fixtures/data.json", "mocks/db.json"):
+        assert vao_tools._is_test_path(p), f"path {p!r} should be a test path"
+
+
+def test_unified_is_test_path_recognizes_v280_filename_suffixes(vao_tools):
+    """The v2.8.0 audit recognized _test.py / test.py / _spec.rb basename
+    suffixes as test paths. v2.12.0 unification preserved them."""
+    for p in ("src/foo_test.py", "src/footest.py", "spec/bar_spec.rb"):
+        assert vao_tools._is_test_path(p), f"path {p!r} should be a test path"
+
+
+def test_unified_is_test_path_recognizes_infix_markers(vao_tools):
+    """`.test.` / `.spec.` infixes in the basename signal a test file."""
+    for p in ("src/foo.test.ts", "src/bar.spec.ts", "src/foo.test.tsx"):
+        assert vao_tools._is_test_path(p), f"path {p!r} should be a test path"
+
+
+def test_unified_is_test_path_recognizes_pytest_test_prefix(vao_tools):
+    """`test_*.py` is the pytest convention; v2.12.0 unification preserved it."""
+    assert vao_tools._is_test_path("tests/test_foo.py")
+    assert vao_tools._is_test_path("src/test_unit.py")
+
+
+def test_unified_is_test_path_rejects_production_paths(vao_tools):
+    """Production-code paths must not be classified as test paths."""
+    for p in ("src/foo.py", "src/foo.ts", "src/Button.stories.tsx",
+              "src/api/client.py", "lib/util.js", "docs/foo.md"):
+        assert not vao_tools._is_test_path(p), f"path {p!r} should NOT be a test path"
+
+
+def test_unified_is_test_path_handles_non_string_input(vao_tools):
+    """Non-string input returns False without raising (defensive)."""
+    assert vao_tools._is_test_path(None) is False
+    assert vao_tools._is_test_path(123) is False
+    assert vao_tools._is_test_path("") is False
+
+
+def test_looks_like_test_path_is_alias_of_is_test_path(vao_tools):
+    """v2.12.0 — `_looks_like_test_path` is preserved as a deprecated alias
+    that delegates to `_is_test_path`. Both must agree on every input."""
+    paths = [
+        "tests/foo.py", "src/foo.test.ts", "fixtures/data.json", "__mocks__/api.ts",
+        "src/foo_test.py", "src/foo.py", "src/bar.spec.ts", "src/Button.stories.tsx",
+        "test/foo.py", "mocks/db.json", "spec/bar_spec.rb", "src/api/client.py",
+        "src/test_unit.py", "lib/util.js", None, "", 123,
+    ]
+    for p in paths:
+        assert vao_tools._is_test_path(p) == vao_tools._looks_like_test_path(p), (
+            f"path {p!r}: _is_test_path and _looks_like_test_path disagree"
+        )

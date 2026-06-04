@@ -310,24 +310,52 @@ _FAKE_DATA_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
 
 
 def _is_test_path(file_path: str) -> bool:
-    """Heuristic — a file path is a TEST file if it lives under a tests dir,
-    has a .test. or .spec. infix, or its filename starts with test_. Test
-    files may legitimately contain fake data; the fake-data audit only
-    flags hits in production code.
+    """v2.12.0 — UNIFIED test-path detector. Recognizes the UNION of all
+    test-file heuristics across the plugin (v2.0.0 fake-data audit + v2.8.0
+    standing-red audit + future detectors). A file path is a TEST file if:
+
+      - It lives under a recognized test directory: ``tests/``, ``__tests__/``,
+        ``__mocks__/``, ``test/``, ``fixtures/``, ``mocks/``.
+      - It has a ``.test.`` or ``.spec.`` infix in its basename.
+      - Its basename starts with ``test_`` (pytest convention).
+      - Its basename ends with ``_test.py`` / ``test.py`` (Go-pytest convention).
+      - Its basename ends with ``_spec.rb`` (Ruby rspec convention).
+
+    Test files may legitimately contain fake data, standing-red markers, and
+    other patterns the production-code audits forbid; this function lets
+    every Layer 3 tool exclude them consistently. Returns ``False`` for
+    non-string input rather than raising.
     """
+    if not isinstance(file_path, str) or not file_path:
+        return False
     fp = file_path.lower().replace("\\", "/")
-    # Path-anchored markers — fire if the path STARTS with or CONTAINS the marker.
-    test_markers = ("tests/", "__tests__/", "__mocks__/", "test/", "fixtures/", "mocks/")
-    if any(fp.startswith(m) or f"/{m}" in fp for m in test_markers):
+    # Path-anchored test-directory markers — startswith OR contains as `/.../`.
+    test_dir_markers = ("tests/", "__tests__/", "__mocks__/", "test/", "fixtures/", "mocks/")
+    if any(fp.startswith(m) or f"/{m}" in fp for m in test_dir_markers):
         return True
-    # Filename-style markers — .test. / .spec. infixes in the basename.
+    # Filename-infix markers — .test. / .spec.
     if ".test." in fp or ".spec." in fp:
         return True
-    # Python-style test files: test_*.py.
+    # Basename-based markers.
     base = fp.rsplit("/", 1)[-1]
     if base.startswith("test_"):
         return True
+    if base.endswith("_test.py") or base.endswith("test.py"):
+        return True
+    if base.endswith("_spec.rb"):
+        return True
     return False
+
+
+def _looks_like_test_path(path: str) -> bool:
+    """Deprecated alias for :func:`_is_test_path` — preserved for v2.8.0 call
+    sites until they migrate. v2.12.0 unified the two detectors after the
+    audit found they diverged on 3 of 8 test paths (``fixtures/`` and
+    ``__mocks__/`` were test paths for v2.6.0 but not v2.8.0; ``_test.py``
+    suffix was a test path for v2.8.0 but not v2.6.0). New code should call
+    :func:`_is_test_path` directly.
+    """
+    return _is_test_path(path)
 
 
 def verify_no_fake_data(
@@ -1807,27 +1835,6 @@ _CROSS_LAYER_SR_ORIGIN_KINDS: frozenset[str] = frozenset({
 })
 
 
-def _looks_like_test_path(path: str) -> bool:
-    """Test files are where standing-red markers MATTER. A standing-red
-    marker in a non-test file is a separate code-smell, but it's not the
-    discipline failure this tool catches."""
-    if not isinstance(path, str):
-        return False
-    lower = path.lower()
-    return (
-        ".spec." in lower
-        or ".test." in lower
-        or "/tests/" in lower
-        or "/test/" in lower
-        or "/__tests__/" in lower
-        or lower.startswith("tests/")
-        or lower.startswith("test/")
-        or lower.endswith("_test.py")
-        or lower.endswith("test.py")
-        or lower.endswith("_spec.rb")
-    )
-
-
 def _detect_standing_red_committed(
     verification_artifact: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -2060,6 +2067,15 @@ _ITEM_DISPOSITION_CITATIONS: tuple[str, ...] = (
     "confirmed_stub",
     "confirmed-stub",
     "implementing_commits",
+    # v2.12.0 — v2.11.0 per-persona coverage IS a sanctioned disposition channel.
+    # Without these tokens, a legitimate v2.11.0 final report (per-persona
+    # findings + Playwright run citations) trips v2.10.0's wrap-up gate.
+    "playwright_test_runs",
+    "per_persona_findings",
+    "persona_id:",
+    "tested green",
+    "tested-green",
+    "entry_point:",
 )
 
 
@@ -2176,7 +2192,15 @@ def _detect_wrap_up_with_known_bugs(
     srs = verification_artifact.get("solution_requirements_created") or []
     confirmed_stubs = verification_artifact.get("confirmed_stubs") or []
     implementing_commits = verification_artifact.get("implementing_commits") or []
-    has_dispositions = bool(srs) or bool(confirmed_stubs) or bool(implementing_commits)
+    # v2.12.0 — v2.11.0 per-persona path-coverage is a sanctioned disposition
+    # channel. A run that lists per-persona test outcomes IS dispositioned
+    # (the playwright_test_runs[] array is the citation).
+    playwright_runs = verification_artifact.get("playwright_test_runs") or []
+    per_persona_findings = verification_artifact.get("per_persona_findings") or {}
+    has_dispositions = bool(
+        srs or confirmed_stubs or implementing_commits
+        or playwright_runs or per_persona_findings
+    )
 
     # Also accept inline citations in the report text.
     has_inline_citation = any(

@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.12.0] — 2026-06-03 — Cross-discipline gate consistency hotfix
+
+**ADDITIVE — backwards-compatible.** Pure consistency fixes uncovered by the v2.12.0 internal audit ("review our code and make sure that we are optimized and all our gates are logical and not adverse to one another"). Schema v7 unchanged; 12 Layer 3 tools unchanged in count; no agent body changes.
+
+### What the audit found
+
+| Finding | Severity | Root cause | Fix |
+|---|---|---|---|
+| **FINDING 1** — v2.10.0 `wrap-up-with-known-bugs` fires on legitimate v2.11.0 per-persona success reports | HIGH (adversarial gate) | `_ITEM_DISPOSITION_CITATIONS` did not recognize `playwright_test_runs[]` / `per_persona_findings` / `tested green` / `persona_id:` / `entry_point:` as valid disposition channels | Extended `_ITEM_DISPOSITION_CITATIONS` with 6 v2.11.0 tokens; extended `_detect_wrap_up_with_known_bugs` to also treat a non-empty `playwright_test_runs[]` or `per_persona_findings` object in the verification artifact as a per-item disposition |
+| **FINDING 2** — `_is_test_path` (v2.6.0) and `_looks_like_test_path` (v2.8.0) diverged on 3 of 8 test paths | MEDIUM (duplicate code with subtle disagreement) | Two functions evolved independently — v2.6.0 recognized `fixtures/` / `__mocks__/` / `mocks/`; v2.8.0 recognized `_test.py` / `test.py` / `_spec.rb` suffixes; neither recognized the other set | Unified into a single `_is_test_path` with the UNION of all heuristics; `_looks_like_test_path` is preserved as a deprecated alias that delegates |
+
+### What the audit did NOT find (clean dimensions)
+
+- **Zero overlap** across `_STANDING_RED_MARKERS` (v2.8.0) / `_DEFERRAL_CATALOG_MARKERS` / `_FOLLOWUP_QUESTION_MARKERS` (v2.10.0) / `_LOADING_STATE_UI_HINTS` (v2.11.0) / `_MOCK_STATE_SIGNATURES` (v2.6.0). The 5 marker constants serve orthogonal purposes.
+- **`say the word`** appears in both `_FOLLOWUP_QUESTION_MARKERS` (v2.10.0 structural enforcer) and v2.7.0 pattern-propagation narrative — consistent (the structural enforcer + the precedent).
+- **SR origin.kind catalog** is comprehensive: 16 distinct kinds documented across the codebase (`cross-layer-backend-required` / `cross-layer-frontend-required` / `interaction-gap` / `live-data-wiring-gap` / `missing-api-for-frontend-element` / `persona-path-coverage-gap` / `rca-product-bug` / `playwright-failure` / `integration-testing-failure` / `test-completeness-failure` / `test-coverage-gap` / `unwired-control` / `visual-fidelity-drift` / `verified-live-suspect` / `editability-gap` / `email-integration-failure`).
+- **vao_tools.py** at 2798 lines is large but proportional to 12 tools × ~150 lines each. No urgent refactor.
+
+### What v2.12.0 ships
+
+1. **`_ITEM_DISPOSITION_CITATIONS` widened** with 6 v2.11.0 persona-coverage citation tokens: `playwright_test_runs`, `per_persona_findings`, `persona_id:`, `tested green`, `tested-green`, `entry_point:`. The v2.10.0 token set (`commit-sha:` / `SR-` / `confirmed_stub` / `confirmed-stub` / `implementing_commits`) is preserved.
+
+2. **`_detect_wrap_up_with_known_bugs` extended** to recognize `playwright_test_runs[]` (non-empty) and `per_persona_findings` (truthy object) in the verification artifact as per-item disposition channels — parallel to `solution_requirements_created[]` / `confirmed_stubs[]` / `implementing_commits[]`.
+
+3. **`_is_test_path` unified** to recognize the UNION of all 9 test-path heuristics across the plugin (the 6 directory markers from v2.6.0 + the 3 filename-suffix markers from v2.8.0 + `.test.` / `.spec.` infix + pytest `test_*` prefix). Defensive — returns False on non-string input rather than raising. `_looks_like_test_path` is preserved as a deprecated alias that delegates to `_is_test_path`.
+
+4. **+12 new regression tests** — 5 in `tests/test_vao_no_end_of_run_deferral.py` (v2.11.0 per-persona success report does NOT trip v2.10.0 wrap-up; `playwright_test_runs[]` counts as disposition; `per_persona_findings` counts as disposition; verbatim heirship deferral STILL fires after widening; `_ITEM_DISPOSITION_CITATIONS` includes v2.11.0 tokens) + 7 in `tests/test_vao_tools.py` (unified `_is_test_path` recognizes v2.6.0 dir markers / v2.8.0 filename suffixes / `.test.` / `.spec.` infix / pytest `test_*` prefix; rejects production paths; handles non-string input; `_looks_like_test_path` is alias of `_is_test_path` and they agree on every input).
+
+5. **2771 → 2783 passing** (+12 net); zero regressions.
+
+### Backwards compatibility
+
+- v2.10.0 detection of legitimate deferred-work catalogs is UNCHANGED — the verbatim heirship case (`⏳ Deferred — 7 bugs, 4 work-items … cluster-by-cluster (A → B → C → D) … Want me to continue? … Your call`) still fires all 3 severities.
+- v2.6.0 mock-state audit on test paths is UNCHANGED — `__mocks__/` / `fixtures/` / `mocks/` / `tests/` paths continue to be excluded.
+- v2.8.0 standing-red audit on test paths is UNCHANGED — `_test.py` / `_spec.rb` / `.test.` / `.spec.` paths continue to be excluded.
+- The v2.11.0 fixtures + v2.10.0 fixtures continue to validate.
+- Schema v7 unchanged.
+
 ## [2.11.0] — 2026-06-03 — Multi-persona path-coverage discipline
 
 **ADDITIVE — backwards-compatible.** Schema v7 unchanged. 12th Layer 3 tool added; the 11 existing tools' contracts are unchanged; pre-v2.11.0 artifacts (without `persona-inventory.json`) validate unchanged.

@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 2 . 11 . 0
+                        ─── C T 6 ───   v 2 . 12 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`).
 > CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-2.11.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-2.12.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-2771%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-2783%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,11 +67,19 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v2.11.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v2.12.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
 | Capability | What changed |
+|---|---|
+| **Cross-discipline gate consistency hotfix** | Internal audit ("review our code and make sure that we are optimized and all our gates are logical and not adverse to one another") uncovered two issues. **FINDING 1 (HIGH)**: v2.10.0 `wrap-up-with-known-bugs` fired on legitimate v2.11.0 per-persona success reports because `_ITEM_DISPOSITION_CITATIONS` did not recognize `playwright_test_runs[]` / `per_persona_findings` / `tested green` / `persona_id:` / `entry_point:` as valid disposition channels. **FIXED** — citation list widened with 6 v2.11.0 tokens; detector now also treats non-empty `playwright_test_runs[]` and `per_persona_findings` in the artifact as per-item disposition. **FINDING 2 (MEDIUM)**: `_is_test_path` (v2.6.0) and `_looks_like_test_path` (v2.8.0) diverged on 3 of 8 test paths (one recognized `__mocks__/` / `fixtures/` / `mocks/`, the other recognized `_test.py` / `_spec.rb` suffixes). **FIXED** — unified into one `_is_test_path` with the UNION of all heuristics; `_looks_like_test_path` is preserved as a deprecated alias. |
+| **What the audit did NOT find** | Zero overlap across `_STANDING_RED_MARKERS` (v2.8.0) / `_DEFERRAL_CATALOG_MARKERS` / `_FOLLOWUP_QUESTION_MARKERS` (v2.10.0) / `_LOADING_STATE_UI_HINTS` (v2.11.0) / `_MOCK_STATE_SIGNATURES` (v2.6.0). SR `origin.kind` catalog is comprehensive (16 distinct kinds). `vao_tools.py` at 2798 lines is large but proportional. |
+| **Backwards-compatible** | The verbatim heirship deferral case (`⏳ Deferred — 7 bugs, 4 work-items … cluster-by-cluster … Want me to continue?`) STILL fires all 3 severities. v2.6.0 mock-state + v2.8.0 standing-red exclusions are unchanged. +12 net tests (2771 → 2783); zero regressions. |
+
+### Carried forward from v2.11.0 — multi-persona path-coverage discipline
+
+| Capability | What it does |
 |---|---|
 | **Multi-persona path-coverage discipline** | Features serving > 1 user persona (client / attorney / title-agency / family / etc.) MUST have a `persona-inventory.json` artifact AND at least one Playwright test PER PERSONA exercising their `entry_point` URL. Plus: every `cross_persona_dependencies[]` entry asserted by a paired test (writer persona creates data; target persona's view asserts it appears); every `submit_interaction` exercised by a double-click test (two clicks within 500ms with `record_count_after_double_click == 1`); every `backend_call_interaction` exercised by a loading-state test (UI surfaces a canonical hint within 200ms). The verbatim heirship case (*"I entered in with the email link. Filled in information and it did not show on the title side. … two matters were created (I think I hit the create matter twice because it looked frozen). And the attorney view doesn't show anything … this is unacceptable that you would claim a fix and fail to test it."*) is the canonical failure mode. |
 | **12th Layer 3 tool — `verify_per_persona_path_coverage`** | NEW deterministic verification function + CLI subcommand in `hooks/vao_tools.py`. `_LOADING_STATE_UI_HINTS` (23 patterns: `spinner`, `Loading...`, `Working...`, `aria-busy`, `skeleton`, `progress-bar`, `Submitting...`, `Saving...`, `Creating...`, `Processing...`, …) + `_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS = 500` + `_LOADING_STATE_MAX_DELAY_MS = 200`. 4 named severities: `persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`. Trivially passes when `persona_inventory.personas[]` is empty. |
@@ -959,7 +967,8 @@ Tests validate: plugin/marketplace JSON; all 26 skill frontmatters; all 27 agent
            v2.8.0  ─ no standing-red discipline — agents MUST NOT commit a failing test as documentation of a known bug; cross-layer bugs route via SR (origin kinds `cross-layer-backend-required` / `cross-layer-frontend-required`), never via a committed `// will go green when fixed` test; 10th Layer-3 tool `verify_no_standing_red` with 2 severities (`standing-red-committed` / `cross-layer-fix-not-routed`); closes the verbatim heirship B23 case
            v2.9.0  ─ MemPalace installer self-heal + polyglot Python in commands — `_locate_pip_user_binary()` + `_bridge_to_path_dir()` symlink macOS `~/Library/Python/*/bin` binaries into `~/.local/bin`; `python -m pip install --user` fallback when no `pip` script is on PATH; `_BRIDGED_BINARIES` allowlist; single polyglot `python3 ... || python ...` block in `commands/mempalace-install.md`; structural test audits all 14 command files
            v2.10.0 ─ no end-of-run deferral discipline — agents MUST NOT end a run by cataloguing in-scope work as "Deferred" with a "Want me to continue?" follow-up offer; every item has one of 3 valid dispositions (fixed in this change / SR routed / confirmed-stub); 11th Layer-3 tool `verify_no_end_of_run_deferral` with 3 severities (`deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`); closes the verbatim heirship 7-bugs-4-work-items A→B→C→D cluster-list case
-   ◆       v2.11.0 ─ multi-persona path-coverage discipline — features serving > 1 user persona MUST have a `persona-inventory.json` artifact AND a Playwright test per persona exercising their `entry_point` URL, plus assertions for every cross_persona_dependency, every submit_interaction (double-click idempotency), every backend_call_interaction (loading-state UI within 200ms); 12th Layer-3 tool `verify_per_persona_path_coverage` with 4 severities (`persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`); closes the verbatim heirship multi-view-sync failure (client email-link saved but title-agency view didn't show it; attorney view was blank; title-agency intake didn't save; two duplicate matters from frozen-UI double-submit) (current)
+           v2.11.0 ─ multi-persona path-coverage discipline — features serving > 1 user persona MUST have a `persona-inventory.json` artifact AND a Playwright test per persona exercising their `entry_point` URL, plus assertions for every cross_persona_dependency, every submit_interaction (double-click idempotency), every backend_call_interaction (loading-state UI within 200ms); 12th Layer-3 tool `verify_per_persona_path_coverage` with 4 severities (`persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`); closes the verbatim heirship multi-view-sync failure
+   ◆       v2.12.0 ─ cross-discipline gate consistency hotfix — internal audit uncovered v2.10.0 wrap-up-with-known-bugs falsely firing on legitimate v2.11.0 per-persona success reports (citation list widened with 6 v2.11.0 tokens) + two duplicate test-path detectors (`_is_test_path` and `_looks_like_test_path`) diverging on 3 of 8 paths (unified into one); the verbatim heirship deferral case STILL fires (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
