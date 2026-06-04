@@ -23,6 +23,7 @@ EXPECTED_COMMANDS: set[str] = {
     "visual-to-api",
     "classify-test-prod-safety",
     "discipline-status",
+    "inject",
 }
 
 REQUIRED_KEYS = {"description"}

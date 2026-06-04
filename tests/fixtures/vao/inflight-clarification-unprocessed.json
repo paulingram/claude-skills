@@ -1,0 +1,76 @@
+{
+  "_meta": {
+    "fixture_name": "inflight-clarification-unprocessed",
+    "failure_shape": "v2.19.0 — A pipeline run reaches Phase 8 with 3 inbox messages: message #1 was processed (classification: scope-amendment, action: re-ran Phase 2 dispatch with CSV-export added); message #2 was processed (classification: clarification, action: folded into Phase 3 review brief); message #3 is unprocessed (`processed_at: null`). Expected verdict: 1 `clarification-silently-ignored` gap.",
+    "originating_failure": "verbatim user prose: 'we need a way of interrupting and injecting additional context and asks so that the skill redirects. like it can be moving and I have a second thought, I need to send that in and have it affect the work.'",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-inflight-clarifications-processed",
+    "run_id": "run-2026-06-04-001",
+    "expected_severities": ["clarification-silently-ignored"],
+    "expected_unprocessed_count": 1
+  },
+  "inbox_messages": [
+    {
+      "message_id": "msg-001-csv-export",
+      "text": "also include CSV export on the dashboard",
+      "injected_at": "2026-06-04T15:42:00Z",
+      "injected_via": "slash-command",
+      "source_session": null,
+      "processed_at": "2026-06-04T15:43:00Z",
+      "classification": "scope-amendment",
+      "action_taken": "Phase 2 dispatch re-run with CSV-export deliverable added; backend + frontend teammates re-spawned with updated coverage map."
+    },
+    {
+      "message_id": "msg-002-title-bar",
+      "text": "keep the title bar consistent across all pages",
+      "injected_at": "2026-06-04T16:05:00Z",
+      "injected_via": "natural-language-mid-run",
+      "source_session": "claude-session-abc123",
+      "processed_at": "2026-06-04T16:05:30Z",
+      "classification": "clarification",
+      "action_taken": "Folded into Phase 3 review brief as design-fidelity constraint; interaction-reviewer agent's checklist updated."
+    },
+    {
+      "message_id": "msg-003-sku-vs-id",
+      "text": "use SKU not product id for the search-bar",
+      "injected_at": "2026-06-04T16:30:00Z",
+      "injected_via": "slash-command",
+      "source_session": null,
+      "processed_at": null,
+      "classification": null,
+      "action_taken": null
+    }
+  ],
+  "_corrected_inbox_messages": [
+    {
+      "message_id": "msg-001-csv-export",
+      "text": "also include CSV export on the dashboard",
+      "injected_at": "2026-06-04T15:42:00Z",
+      "injected_via": "slash-command",
+      "source_session": null,
+      "processed_at": "2026-06-04T15:43:00Z",
+      "classification": "scope-amendment",
+      "action_taken": "Phase 2 dispatch re-run with CSV-export deliverable added; backend + frontend teammates re-spawned with updated coverage map."
+    },
+    {
+      "message_id": "msg-002-title-bar",
+      "text": "keep the title bar consistent across all pages",
+      "injected_at": "2026-06-04T16:05:00Z",
+      "injected_via": "natural-language-mid-run",
+      "source_session": "claude-session-abc123",
+      "processed_at": "2026-06-04T16:05:30Z",
+      "classification": "clarification",
+      "action_taken": "Folded into Phase 3 review brief as design-fidelity constraint; interaction-reviewer agent's checklist updated."
+    },
+    {
+      "message_id": "msg-003-sku-vs-id",
+      "text": "use SKU not product id for the search-bar",
+      "injected_at": "2026-06-04T16:30:00Z",
+      "injected_via": "slash-command",
+      "source_session": null,
+      "processed_at": "2026-06-04T16:35:00Z",
+      "classification": "clarification",
+      "action_taken": "Folded into Phase 3 review brief; search-bar component spec updated to use SKU not product id."
+    }
+  ]
+}

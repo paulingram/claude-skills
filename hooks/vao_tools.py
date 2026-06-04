@@ -3641,6 +3641,71 @@ def verify_discipline_registry_current(
 
 
 # ===========================================================================
+# v2.19.0 — verify_inflight_clarifications_processed (17th Layer 3 tool)
+# ===========================================================================
+
+
+def verify_inflight_clarifications_processed(
+    workspace: str | Path,
+    run_id: str,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.19.0 Layer-3 tool — verify every clarification injected into the
+    in-flight inbox has been processed. Fires at Phase 8 of every pipeline.
+
+    2 severities:
+      - clarification-silently-ignored — message in inbox has processed_at=null
+      - unprocessed-clarification-at-phase-boundary — phase boundary was
+        crossed (next phase's start_time > inbox message's injected_at) but
+        the message was not yet marked processed at that point. Currently
+        emitted only when the inbox carries a `phase_log` array alongside
+        the JSONL — when no phase log is present, this severity does not
+        fire (orchestrator-discipline self-audit is the future runtime layer).
+    """
+    from hooks.inflight_inbox import read_inbox, unprocessed_messages
+
+    workspace_path = Path(workspace)
+    messages = read_inbox(workspace_path, run_id)
+    unprocessed = [m for m in messages if m.get("processed_at") is None]
+
+    gaps: list[dict[str, Any]] = []
+    for m in unprocessed:
+        gaps.append({
+            "severity": "clarification-silently-ignored",
+            "message_id": m.get("message_id"),
+            "text": (m.get("text") or "")[:200],
+            "injected_at": m.get("injected_at"),
+            "injected_via": m.get("injected_via"),
+            "evidence": (
+                f"in-flight inbox message {m.get('message_id')!r} "
+                f"(injected at {m.get('injected_at')!r} via "
+                f"{m.get('injected_via')!r}) was never processed by the "
+                f"orchestrator — processed_at is null at Phase 8."
+            ),
+            "remediation": (
+                "v2.19.0 in-flight clarification injection mechanism. Every "
+                "inbox message MUST be classified at a phase boundary (see "
+                "the canonical home in common-pipeline-conventions/SKILL.md "
+                "## In-flight clarification injection mechanism (v2.19.0)). "
+                "Read the message, classify as scope-amendment / clarification "
+                "/ out-of-scope per v2.5.0, take the named action, then "
+                "`hooks.inflight_inbox.mark_processed(...)`. Re-run Phase 8 "
+                "once all messages are processed."
+            ),
+        })
+
+    verdict = {
+        "tool": "verify-inflight-clarifications-processed",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "total_messages": len(messages),
+        "unprocessed_count": len(unprocessed),
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -3730,6 +3795,11 @@ def main(argv: list[str] | None = None) -> int:
     drc = sub.add_parser("verify-discipline-registry-current")
     drc.add_argument("--workspace", required=True, help="Path to the target codebase workspace (the repo root).")
     drc.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
+    icp = sub.add_parser("verify-inflight-clarifications-processed")
+    icp.add_argument("--workspace", required=True, help="Path to the target codebase workspace.")
+    icp.add_argument("--run-id", required=True, help="The current run-id to inspect.")
+    icp.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
     args = parser.parse_args(argv)
 
@@ -3821,6 +3891,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.tool == "verify-discipline-registry-current":
         verdict = verify_discipline_registry_current(
             workspace=args.workspace,
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-inflight-clarifications-processed":
+        verdict = verify_inflight_clarifications_processed(
+            workspace=args.workspace,
+            run_id=args.run_id,
             out_path=args.out,
         )
         ok = verdict["valid"]

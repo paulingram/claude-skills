@@ -147,6 +147,32 @@ Runs AFTER the Phase −2 triage (so the bug-fix-pipeline branch inherits the sa
 
 **Currently auto-applied disciplines (v2.18.0):** prod-safe-test-classification (v2.17.0). Future disciplines wire by appending to `hooks/discipline_registry.py::DISCIPLINE_CATALOG`.
 
+## Phase-boundary inbox check (v2.19.0)
+
+At the **start of every numbered phase below** (Phase −1 / 0 / 1 / 2 / 3 / 3b / 4 / 5 / 6 / 7 / 8) AND **after every subagent dispatch returns**, the orchestrator MUST read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` BEFORE proceeding.
+
+```python
+from hooks.inflight_inbox import unprocessed_messages, mark_processed
+messages = unprocessed_messages(workspace, run_id)
+for msg in messages:
+    # Apply v2.5.0 in-flight clarification discipline:
+    # - classify as scope-amendment | clarification | out-of-scope
+    # - take the named action (re-run upstream phase / fold into current / record-only)
+    # - record disposition
+    mark_processed(workspace, run_id, msg['message_id'],
+                   classification="...", action_taken="...")
+```
+
+Phase 8 invokes the 17th Layer 3 tool to gate against silently-ignored messages:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json"
+```
+
+A `clarification-silently-ignored` gap is a Phase 8 gate failure — process the message, mark it processed, re-run Phase 8.
+
+See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home + the slash-command channel (`/architect-team:inject <message>`).
+
 ## Phase −1 — Intake & Mapping (REQUIRED, runs before Phase 0)
 
 Follow the `intake-and-mapping` skill. Briefly:

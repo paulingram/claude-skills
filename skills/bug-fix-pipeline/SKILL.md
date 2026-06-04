@@ -81,6 +81,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-cu
 
 Best-effort — a failure of the verify-tool never blocks the bug-fix loop; surface a one-line note and proceed.
 
+## Phase-boundary inbox check (v2.19.0)
+
+Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every numbered bug-fix phase (B−1 / B0 / B1 / B2 / B3 / B4 / B5 / B6 / B6b / B7 / B8) AND after every subagent dispatch returns, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0, mark_processed. Phase B8 invokes the 17th Layer 3 tool to gate against silently-ignored messages.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json"
+```
+
+See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home.
+
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
 Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence; same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.

@@ -78,6 +78,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-cu
 
 Best-effort — a failure of the verify-tool never blocks the mini loop; surface a one-line note and proceed.
 
+## Phase-boundary inbox check (v2.19.0)
+
+Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every mini phase (M0 / M1 / M2 / M3 / M4 / M5 / M6 / M7) AND after every subagent dispatch returns, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0, mark_processed. Phase M7 invokes the 17th Layer 3 tool to gate against silently-ignored messages.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json"
+```
+
+See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home.
+
 ## Phase M0 — Intake
 
 Detect the input form per `## Inputs`. Resolve `$REQ_DIR`:

@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.19.0] — 2026-06-04 — In-flight clarification injection mechanism
+
+**ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"we need a way of interrupting and injecting additional context and asks so that the skill redirects. like it can be moving and I have a second thought, I need to send that in and have it affect the work."*
+
+### The failure shape this closes
+
+v2.5.0 documented the in-flight clarification discipline (WHAT the orchestrator does when the user injects a mid-run message) but left the injection channel implicit — the user typed into the REPL, the orchestrator noticed at the next turn boundary. For a long-running pipeline (Phase 2 multi-team dispatch, Phase 5 cross-layer integration), the user might be in a different terminal entirely OR want to durably queue a thought without waiting for an arbitrary turn boundary. v2.19.0 makes the channel **explicit, durable, and cross-session**.
+
+### What v2.19.0 ships
+
+1. **NEW canonical section `## In-flight clarification injection mechanism (v2.19.0)`** in `skills/common-pipeline-conventions/SKILL.md` — extends v2.5.0 by documenting the per-run inbox JSONL artifact at `<workspace>/.architect-team/inbox/<run-id>.jsonl`, the message schema (7 structured fields: message_id / text / injected_at / injected_via / source_session / processed_at / classification / action_taken), the 3 injection channels (slash-command / natural-language-mid-run / external-webhook-future), the phase-boundary check protocol, the 2 named severities, the new SR origin kind `clarification-requires-rerun`, and the 3 message classifications (`scope-amendment` re-runs upstream phase / `clarification` folds into next phase / `out-of-scope` records but does not act).
+
+2. **NEW module `hooks/inflight_inbox.py`** (stdlib-only). Exports `INBOX_RELATIVE_DIR`, `INJECTION_VIAS`, `CLASSIFICATIONS`, `read_inbox`, `append_clarification` (rejects empty/invalid input), `mark_processed` (rewrites in place; never deletes/reorders), `unprocessed_messages`, `current_run_id` (reads intake-state.json), `inbox_path_for`.
+
+3. **NEW 17th Layer 3 tool `verify_inflight_clarifications_processed`** in `hooks/vao_tools.py` + CLI subcommand. Fires at Phase 8 of every pipeline. Single severity `clarification-silently-ignored` per unprocessed message. Returns standard verdict shape with `total_messages` + `unprocessed_count` fields. Trivially passes when inbox is empty.
+
+4. **NEW Phase-boundary inbox check wiring** in all 3 pipeline bodies — `architect-team-pipeline/SKILL.md` (`## Phase-boundary inbox check (v2.19.0)` section after Phase 0.1, before Phase −1), `bug-fix-pipeline/SKILL.md` (same shape, B-phase analog), `mini-architect-team-pipeline/SKILL.md` (same shape, M-phase analog). Each documents the at-start-of-every-numbered-phase + after-every-subagent-dispatch-returns protocol; each invokes the 17th Layer 3 tool at Phase 8 / B8 / M7 via the polyglot `python3 ... || python ...` pattern.
+
+5. **NEW 18th slash command `/architect-team:inject <message>`** at `commands/inject.md`. Auto-detects the active run via `intake-state.json`; appends the verbatim message to the inbox JSONL with `injected_via: slash-command`. Works from the same Claude Code session at a turn boundary OR from a separate terminal session. Clean "no active run" report when no pipeline is in flight.
+
+6. **NEW canonical fixture `tests/fixtures/vao/inflight-clarification-unprocessed.json`** — a run with 3 inbox messages: msg #1 (CSV-export) processed as `scope-amendment`, msg #2 (title-bar) processed as `clarification`, msg #3 (SKU-vs-id) unprocessed. Bad version fires `clarification-silently-ignored` × 1. `_corrected_inbox_messages` shows all 3 processed (msg #3 added a `processed_at` + classification + action_taken) and passes cleanly.
+
+7. **51 new tests** across `tests/test_vao_inflight_clarifications.py` (28 — module constants, inbox I/O happy + edge cases + invalid-input rejection, current_run_id, 17th Layer 3 tool happy + empty + partial-processed, fixture round-trip, determinism) + `tests/test_inflight_injection_discipline.py` (15 — canonical home, 2 severities, message schema, 3 channels, new SR origin kind, 3 classifications, 3 pipeline body cross-refs, polyglot Python pattern, fixture presence, module exports, Layer 3 tool count) + `tests/test_inject_command.py` (8 — frontmatter, helper invocation, no-active-run handling, dispatch banner, polyglot pattern). **3075 → 3126 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Schema v7 is UNCHANGED. v2.19.0 ships its own Layer 3 tool but adds no new required evidence field.
+- Existing v2.5.0 evidence files validate unchanged.
+- A pipeline run with no inbox messages (the typical case) sees `valid: True, total_messages: 0` from the 17th tool — fully no-op.
+- The phase-boundary check is discipline (orchestrator behavior), not a runtime hook — failure to read the inbox at a phase boundary surfaces at Phase 8 via the 17th tool, not as a hard pre-phase block.
+- `/architect-team:inject` is a NEW user-facing surface; existing commands are unchanged.
+
+### Companion-discipline cross-references
+
+- v2.5.0 in-flight clarification discipline (the WHAT) — v2.19.0 is the HOW. Same conceptual axis (mid-run user input); v2.19.0 makes it durable, cross-session, and verifiable.
+- v2.10.0 no-end-of-run deferral — different surface (the agent's end-of-run report) but same root principle (the orchestrator does the work, does not silently defer). v2.19.0 catches the mid-run analogue.
+
 ## [2.18.0] — 2026-06-04 — Codebase discipline registry + auto-update
 
 **ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"so for many of these changes, we need to probably also restructure either docs in a codebase or requirements etc.. so 1) we know if our system is already running / updated or if we need to execute an update, such as the classifier, and then we need to do this automatically when detected."*
