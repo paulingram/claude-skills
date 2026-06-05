@@ -226,6 +226,10 @@ def test_audit_returns_pass_when_skill_was_invoked(audit_module, tmp_path: Path)
     ledger = [
         {"tool": "Bash", "args": {"command": "ls"}, "ts": "2026-05-29T10:00:30Z"},
         {"tool": "Skill", "args": {"skill": "architect-team-pipeline"}, "ts": "2026-05-29T10:01:00Z"},
+        # v2.22.0 — pipeline must be FOLLOWED (Agent dispatches > 0), not
+        # just invoked. Without this entry the v2.22.0 strengthening would
+        # fire solo-implementation-instead-of-team-dispatch.
+        {"tool": "Agent", "args": {"subagent_type": "architect-team:system-architect"}, "ts": "2026-05-29T10:01:30Z"},
     ]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
@@ -248,7 +252,11 @@ def test_audit_pass_with_either_skill_name_form(audit_module, tmp_path: Path):
     architect-team-pipeline` — both satisfy the request."""
     transcript = [{"role": "user", "ts": "2026-05-29T10:00:00Z", "text": "/architect-team"}]
     for name in ("architect-team", "architect-team-pipeline"):
-        ledger = [{"tool": "Skill", "args": {"skill": name}, "ts": "2026-05-29T10:01:00Z"}]
+        ledger = [
+            {"tool": "Skill", "args": {"skill": name}, "ts": "2026-05-29T10:01:00Z"},
+            # v2.22.0 — Agent dispatch required to show pipeline was followed
+            {"tool": "Agent", "args": {"subagent_type": "architect-team:system-architect"}, "ts": "2026-05-29T10:01:30Z"},
+        ]
         transcript_path = tmp_path / f"t-{name}.json"
         ledger_path = tmp_path / f"l-{name}.jsonl"
         transcript_path.write_text(json.dumps(transcript))

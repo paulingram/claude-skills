@@ -352,8 +352,43 @@ def audit_session(
             })
 
     unmatched = [r for r in requests_found if not r["matched"]]
-    verdict_value = "pass" if not unmatched else "fail"
-    exit_code = 0 if not unmatched else 2
+
+    # v2.22.0 — additional pipeline-bypass detection. Even when the user's
+    # Skill request IS matched (verdict would otherwise be pass), we audit
+    # whether the matched pipeline was actually FOLLOWED (Agent dispatches
+    # > 0). A matched Skill call with zero subsequent Agent dispatches
+    # signals the orchestrator applied methodology by hand.
+    pipeline_bypass_gaps: list[dict[str, Any]] = []
+    matched_pipeline_requests = [
+        r for r in requests_found if r["matched"] and any(
+            s in ("architect-team-pipeline", "bug-fix-pipeline",
+                  "mini-architect-team-pipeline", "ux-test-builder")
+            for s in r.get("expected_skills", [])
+        )
+    ]
+    if matched_pipeline_requests:
+        agent_dispatches = sum(
+            1 for entry in ledger
+            if (entry.get("tool") or entry.get("tool_name") or "") == "Agent"
+        )
+        if agent_dispatches == 0:
+            pipeline_bypass_gaps.append({
+                "severity": "solo-implementation-instead-of-team-dispatch",
+                "evidence": (
+                    f"matched pipeline-driving Skill invocation(s) "
+                    f"({len(matched_pipeline_requests)}) but zero Agent "
+                    f"dispatches in the ledger. The pipeline was invoked "
+                    f"but never executed its multi-agent dispatch."
+                ),
+                "remediation": (
+                    "v2.22.0 no pipeline-bypass discipline. Re-invoke the "
+                    "pipeline and follow it — Phase 2 MUST dispatch backend "
+                    "+ frontend subagents via Agent tool calls."
+                ),
+            })
+
+    verdict_value = "pass" if (not unmatched and not pipeline_bypass_gaps) else "fail"
+    exit_code = 0 if verdict_value == "pass" else 2
 
     if audited_at is None:
         # Defer import to keep stdlib-only at module load; isoformat() is
@@ -369,6 +404,7 @@ def audit_session(
         "verdict": verdict_value,
         "requests_found": requests_found,
         "unmatched_requests": unmatched,
+        "pipeline_bypass_gaps": pipeline_bypass_gaps,
         "exit_code_if_invoked_as_hook": exit_code,
     }
 

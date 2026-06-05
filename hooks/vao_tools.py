@@ -4441,6 +4441,314 @@ def verify_target_element_measured(
 
 
 # ===========================================================================
+# v2.22.0 — verify_no_pipeline_bypass (20th Layer 3 tool)
+# ===========================================================================
+
+
+_PIPELINE_CONFESSION_MARKERS = (
+    # Bypass admission
+    "i bypassed all of that",
+    "bypassed all of",
+    "built it solo",
+    "built solo",
+    "i built solo",
+    "i overrode your",
+    "overrode your explicit choice",
+    "overrode your choice",
+    "i overrode",
+    "wrote the code, tested it myself",
+    "tested it myself, and committed it directly",
+    "committed it directly",
+    # Element confession (past-tense bypass)
+    "no subagents",
+    "no independent review",
+    "no openspec",
+    "no worktree",
+    "the producer was the checker",
+    "i tested it myself",
+    # Rationalization
+    "driving directly from the plan",
+    "drove directly from the plan",
+    "tokens into code instead of",
+    "mapping/spec ceremony",
+    "re-running the mapping/spec",
+    "skipped the ceremony",
+    "i'd already mapped the",
+    "put tokens into code",
+    # Post-hoc framing
+    "the honest framing is",
+    "i told you i was",
+    "your call to make",
+    "not mine to make silently",
+    "deserve to know",
+    "to be straight about that",
+    "should be straight about that",
+)
+
+
+_PIPELINE_DRIVING_SKILLS = (
+    "architect-team-pipeline",
+    "bug-fix-pipeline",
+    "mini-architect-team-pipeline",
+    "ux-test-builder",
+)
+
+
+_PIPELINE_SLASH_COMMAND_PREFIXES = (
+    "/architect-team",
+    "/architect-team:bug-fix",
+    "/architect-team:mini",
+    "/architect-team:ux-test",
+)
+
+
+def _scan_ledger_for_pipeline_elements(
+    toolcall_ledger: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Count pipeline-element invocations in the ledger. Returns:
+
+      {
+        "skill_invocations": int,           # Skill tool calls naming a pipeline skill
+        "agent_dispatches": int,            # Agent tool calls
+        "openspec_calls": int,              # Bash with openspec subcommands
+        "worktree_creations": int,          # Bash with git worktree add
+        "review_evidence_files": int,       # Write/Edit calls into .architect-team/reviews/
+        "first_source_edit_before_skill": bool,  # source modification preceded ANY Skill call
+      }
+    """
+    counts = {
+        "skill_invocations": 0,
+        "agent_dispatches": 0,
+        "openspec_calls": 0,
+        "worktree_creations": 0,
+        "review_evidence_files": 0,
+        "first_source_edit_before_skill": False,
+    }
+    if not isinstance(toolcall_ledger, list):
+        return counts
+
+    skill_seen = False
+    for entry in toolcall_ledger:
+        if not isinstance(entry, dict):
+            continue
+        tool = (entry.get("tool") or entry.get("tool_name") or "").strip()
+        inp = entry.get("tool_input") or entry.get("input") or {}
+        if not isinstance(inp, dict):
+            inp = {}
+
+        # Skill invocations
+        if tool == "Skill":
+            skill_name = (inp.get("skill") or inp.get("skill_name") or "").strip()
+            if any(name in skill_name for name in _PIPELINE_DRIVING_SKILLS):
+                counts["skill_invocations"] += 1
+                skill_seen = True
+            continue
+
+        # Agent dispatches
+        if tool == "Agent":
+            counts["agent_dispatches"] += 1
+            continue
+
+        # Source modifications BEFORE any Skill call → bypass signal
+        if tool in ("Edit", "Write", "NotebookEdit") and not skill_seen:
+            path = (inp.get("file_path") or inp.get("path") or "").lower()
+            # Only count source edits — not edits to .architect-team/ state
+            if path and ".architect-team" not in path and ".mempalace" not in path:
+                counts["first_source_edit_before_skill"] = True
+
+        # Review evidence file writes
+        if tool in ("Write", "Edit"):
+            path = (inp.get("file_path") or inp.get("path") or "")
+            if "/.architect-team/reviews/" in path or "/reviews/" in path and ".json" in path:
+                counts["review_evidence_files"] += 1
+
+        # Bash for openspec / worktree
+        if tool == "Bash":
+            command = (inp.get("command") or "").lower()
+            if "openspec " in command or command.startswith("openspec"):
+                counts["openspec_calls"] += 1
+            if "git worktree add" in command:
+                counts["worktree_creations"] += 1
+
+    return counts
+
+
+def _detect_pipeline_invoked(user_prompt: str) -> bool:
+    """A pipeline command is invoked if the prompt starts with (or contains
+    early) one of the pipeline-driving slash command prefixes."""
+    if not isinstance(user_prompt, str) or not user_prompt.strip():
+        return False
+    lower = user_prompt.strip().lower()
+    return any(lower.startswith(p) for p in _PIPELINE_SLASH_COMMAND_PREFIXES) or any(
+        p in lower[:200] for p in _PIPELINE_SLASH_COMMAND_PREFIXES
+    )
+
+
+def _detect_no_worktree_optout(user_prompt: str) -> bool:
+    if not isinstance(user_prompt, str):
+        return False
+    lower = user_prompt.lower()
+    return any(p in lower for p in ("--no-worktree", "no worktree", "don't create a worktree", "single tree", "in place"))
+
+
+def _detect_no_openspec_optout(user_prompt: str) -> bool:
+    if not isinstance(user_prompt, str):
+        return False
+    lower = user_prompt.lower()
+    return any(p in lower for p in ("--no-openspec", "no openspec", "skip openspec"))
+
+
+def _detect_confession_markers(final_report: str) -> list[str]:
+    if not isinstance(final_report, str) or not final_report.strip():
+        return []
+    lower = final_report.lower()
+    return [m for m in _PIPELINE_CONFESSION_MARKERS if m in lower]
+
+
+def verify_no_pipeline_bypass(
+    user_prompt: str = "",
+    toolcall_ledger: list[dict[str, Any]] | None = None,
+    final_report: str = "",
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.22.0 Layer-3 tool — verify the pipeline was actually followed, not
+    bypassed.
+
+    Trivially passes (`valid: True, gaps: []`) when the user prompt does NOT
+    invoke a pipeline-driving slash command AND no confession markers are
+    detected — backwards-compatible.
+
+    5 named severities:
+      - pipeline-bypassed-after-slash-command — pipeline invoked, source
+        modification preceded any Skill call
+      - solo-implementation-instead-of-team-dispatch — pipeline invoked,
+        zero Agent dispatches in the ledger
+      - independent-review-bypassed — pipeline invoked, zero review evidence
+        files written
+      - openspec-bypassed — pipeline invoked, zero openspec Bash calls
+        (unless --no-openspec opt-in)
+      - pipeline-confession-language-detected — final_report contains the
+        canonical bypass-confession markers
+    """
+    pipeline_invoked = _detect_pipeline_invoked(user_prompt or "")
+    confession_hits = _detect_confession_markers(final_report or "")
+    counts = _scan_ledger_for_pipeline_elements(toolcall_ledger)
+    gaps: list[dict[str, Any]] = []
+
+    # Confession-language detection fires regardless of pipeline_invoked —
+    # the agent's own admission is sufficient evidence.
+    if confession_hits:
+        gaps.append({
+            "severity": "pipeline-confession-language-detected",
+            "matched_markers": confession_hits[:8],
+            "evidence": (
+                f"final_report contains {len(confession_hits)} bypass-"
+                f"confession marker(s): {confession_hits[:5]!r}. The agent "
+                f"admitted bypassing the pipeline. Confession is sufficient "
+                f"evidence — re-run is required."
+            ),
+            "remediation": (
+                "v2.22.0 no pipeline-bypass discipline. Re-invoke the "
+                "pipeline against the same user prompt. The bypassed work "
+                "must be re-evaluated through the proper multi-agent "
+                "dispatch + independent review + OpenSpec + worktree flow. "
+                "If the user explicitly authorized the bypass, that "
+                "authorization must be cited verbatim in the final report "
+                "(NOT post-hoc rationalization)."
+            ),
+        })
+
+    # The remaining 4 severities only fire when pipeline was actually invoked
+    if not pipeline_invoked:
+        verdict = {
+            "tool": "verify-no-pipeline-bypass",
+            "valid": len(gaps) == 0,
+            "gaps": gaps,
+            "pipeline_invoked": False,
+            "verdict_at": _utc_now_iso(),
+        }
+        return _write_verdict(verdict, out_path)
+
+    if counts["first_source_edit_before_skill"]:
+        gaps.append({
+            "severity": "pipeline-bypassed-after-slash-command",
+            "evidence": (
+                "user prompt invokes a pipeline slash command but the "
+                "toolcall ledger shows a source-code Edit/Write BEFORE any "
+                "Skill(architect-team-pipeline / bug-fix-pipeline / ...) "
+                "call. The agent applied methodology by hand."
+            ),
+            "remediation": (
+                "v2.22.0 no pipeline-bypass discipline. Re-invoke the "
+                "pipeline. The first action after a pipeline slash command "
+                "MUST be a Skill invocation, NOT a source edit."
+            ),
+        })
+
+    if counts["agent_dispatches"] == 0:
+        gaps.append({
+            "severity": "solo-implementation-instead-of-team-dispatch",
+            "agent_dispatches": 0,
+            "evidence": (
+                "user prompt invokes a pipeline slash command but the "
+                "ledger contains zero Agent tool calls. The pipeline's "
+                "parallel backend/frontend dispatch never happened; the "
+                "orchestrator did all the work itself."
+            ),
+            "remediation": (
+                "v2.22.0 no pipeline-bypass discipline. The architect-team "
+                "pipeline REQUIRES Phase 2 to dispatch backend + frontend "
+                "subagents in parallel. Zero Agent dispatches means the "
+                "pipeline did not run. Re-invoke with the actual subagent "
+                "spawn flow."
+            ),
+        })
+
+    if counts["review_evidence_files"] == 0 and counts["agent_dispatches"] > 0:
+        gaps.append({
+            "severity": "independent-review-bypassed",
+            "review_evidence_files": 0,
+            "evidence": (
+                "subagents were dispatched but zero independent-review "
+                "evidence files were written under .architect-team/reviews/. "
+                "Producer === checker. The v6 evidence schema requires "
+                "independent_review.reviewer != teammate."
+            ),
+            "remediation": (
+                "v2.22.0 no pipeline-bypass discipline. Spawn task-reviewer "
+                "agents per the v6 evidence schema. Producer cannot be its "
+                "own checker."
+            ),
+        })
+
+    if counts["openspec_calls"] == 0 and not _detect_no_openspec_optout(user_prompt or ""):
+        gaps.append({
+            "severity": "openspec-bypassed",
+            "openspec_calls": 0,
+            "evidence": (
+                "user prompt invokes a pipeline slash command and did not "
+                "opt out of OpenSpec; ledger has zero openspec Bash calls."
+            ),
+            "remediation": (
+                "v2.22.0 no pipeline-bypass discipline. Run `openspec init` "
+                "/ `openspec validate` / `openspec archive` per the "
+                "pipeline's Phase 0 / Phase 8 contract. Skipping OpenSpec "
+                "means the change is undocumented in the spec layer."
+            ),
+        })
+
+    verdict = {
+        "tool": "verify-no-pipeline-bypass",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "pipeline_invoked": True,
+        "counts": counts,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -4545,6 +4853,12 @@ def main(argv: list[str] | None = None) -> int:
     tem = sub.add_parser("verify-target-element-measured")
     tem.add_argument("--artifact", required=True, help="Path to verification-artifact JSON with target_element_selector + measured_element_selector + reachability_status.")
     tem.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
+    npb = sub.add_parser("verify-no-pipeline-bypass")
+    npb.add_argument("--prompt", required=True, help="Path to file containing user_prompt text.")
+    npb.add_argument("--ledger", required=True, help="Path to toolcall-ledger JSONL/JSON.")
+    npb.add_argument("--final-report", required=False, default=None, help="Optional path to final_report text.")
+    npb.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
     args = parser.parse_args(argv)
 
@@ -4660,6 +4974,19 @@ def main(argv: list[str] | None = None) -> int:
     elif args.tool == "verify-target-element-measured":
         verdict = verify_target_element_measured(
             verification_artifact=_load_json(args.artifact),
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-no-pipeline-bypass":
+        prompt_text = Path(args.prompt).read_text(encoding="utf-8")
+        ledger = _load_log(args.ledger)
+        final_report_text = ""
+        if args.final_report:
+            final_report_text = Path(args.final_report).read_text(encoding="utf-8")
+        verdict = verify_no_pipeline_bypass(
+            user_prompt=prompt_text,
+            toolcall_ledger=ledger,
+            final_report=final_report_text,
             out_path=args.out,
         )
         ok = verdict["valid"]
