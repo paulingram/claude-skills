@@ -194,6 +194,22 @@ The 12th Layer 3 tool `verify_per_persona_path_coverage` is invoked once per sli
 
 When the slice carries NO `persona-inventory.json`, the v2.11.0 axis is a no-op.
 
+## No proxy-element verification discipline (v2.21.0)
+
+Your Round-1 classification gains a `target_match` axis: every element you classify as `endpoint-backed` / `client-only` / `confirmed-stub` / `pending-backend` MUST also carry:
+
+| Field | What it means |
+|---|---|
+| `target_element_selector` | Selector the spec/oracle named for this element |
+| `measured_element_selector` | Selector the Playwright test (or the implementation) actually queries |
+| `target_match` | `matched` / `proxy-substituted` / `semantic-mismatch` |
+
+A `target_match: proxy-substituted` or `semantic-mismatch` finding is a converged gap that becomes an SR with `origin.kind: target-state-unreachable-needs-seed-data` (when the substitution was caused by an unreachable target state) OR `origin.kind: spec-ambiguous-target` (when the spec named the target ambiguously and the implementation reasonably chose a different element).
+
+When reviewing a Playwright test whose assertion targets a different selector than the test description claims (e.g., test description says "asserts the empty state" but `expect(page.locator('[data-testid="coverage-badge"]'))`), flag it as `proxy-substituted` — this is the v2.21.0 pattern.
+
+See `common-pipeline-conventions/SKILL.md` `## No proxy-element verification discipline (v2.21.0)` for the canonical home.
+
 ## Hard rules (non-negotiable)
 
 - **Read-only on source code.** You may Read / Glob / Grep / LS / Bash / NotebookRead the codebase, and Write only your own draft (and, if you are reviewer 1, the converged map and the SRs). You may NOT Edit or Write any source file.

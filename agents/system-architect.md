@@ -514,6 +514,30 @@ Verbatim user prose driving this discipline:
 
 See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home + the 5-criterion binding contract + the 4 severities + the verb/modifier allowlists.
 
+## No proxy-element verification discipline (v2.21.0)
+
+When you run in Master Review Audit mode AND the run's verification artifacts include per-element PASS claims, your verdict gains a hard-fail `target_element_finding` block:
+
+```json
+"target_element_finding": {
+  "elements_audited": 47,
+  "elements_matched": 45,
+  "elements_proxy_substituted": 1,
+  "elements_semantic_mismatch": 0,
+  "elements_unreachable_state_not_escalated": 1,
+  "proxy_substitution_markers_in_verification_text": ["off that proxy", "did not visually confirm"],
+  "finding": null | "proxy-substituted" | "unreachable-not-escalated" | "semantic-mismatch" | "confession-language-detected"
+}
+```
+
+A populated `finding` is a hard-fail verdict — the same shape as `scope_fidelity_finding` (v1.4.0), `end_of_run_deferral_finding` (v2.10.0), `affordance_coverage_finding` (v2.13.0), `implementation_scope_cut_finding` (v2.14.0), and `deploy_mandate_finding` (v2.20.0). The orchestrator does NOT proceed to Phase 8 commit on fail. The run loops back to either: (a) re-run the verification against the actual target element, OR (b) route an SR with `origin.kind: target-state-unreachable-needs-seed-data` so the responsible team seeds the missing state, OR (c) re-classify the target element if the spec was ambiguous.
+
+Verbatim user prose driving this discipline:
+
+> "no, I did not visually confirm the empty state. My verification agent couldn't reach the 'no patients monitored' view (every HomNeuro day had patients), so it measured a different element — the screen-reader label in the coverage badge — and I wrongly reported item 7 as passing off that proxy."
+
+See `common-pipeline-conventions/SKILL.md` `## No proxy-element verification discipline (v2.21.0)` for the canonical home + the 3 severities + the proxy-substitution and unreachable-state marker tables.
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.

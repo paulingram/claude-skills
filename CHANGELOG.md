@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.21.0] — 2026-06-04 — No proxy-element verification discipline
+
+**ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"no, I did not visually confirm the empty state. My verification agent couldn't reach the 'no patients monitored' view (every HomNeuro day had patients), so it measured a different element — the screen-reader label in the coverage badge — and I wrongly reported item 7 as passing off that proxy."*
+
+### The failure shape this closes
+
+The agent admitted, in sequence: (1) the target state was unreachable (every fixture day had patients — the empty-state branch never rendered); (2) instead of escalating, it measured a sibling element (the coverage badge screen-reader label); (3) it reported item 7 as PASSING off that proxy measurement. v2.2.0 caught gesture substitution (clicking the wrong point), self-verification loop (asserting one's own fix), and prefill masking (testing pre-populated state). v2.21.0 catches a different proxy: substituting the **element entirely** when the actual target couldn't be reached.
+
+### What v2.21.0 ships
+
+1. **NEW canonical section `## No proxy-element verification discipline (v2.21.0)`** in `skills/common-pipeline-conventions/SKILL.md` — names the rule (target == measured), the 3 severities, required verdict fields (`target_element_selector` / `target_element_semantic_label` / `measured_element_selector` / `measured_element_semantic_label` / `reachability_status`), the proxy-substitution + unreachable-state marker tables, new SR origin kind `target-state-unreachable-needs-seed-data`, and explicit forbidden anti-patterns.
+
+2. **NEW 19th Layer 3 tool `verify_target_element_measured`** in `hooks/vao_tools.py` + CLI subcommand. Module constants: `_PROXY_SUBSTITUTION_MARKERS` (21 patterns covering substitution language + fallback language + confession language), `_UNREACHABLE_STATE_MARKERS` (14 patterns), `_REACHABILITY_NOT_REACHED_VALUES` (5 canonical not-reached enum values), helpers `_normalize_selector` (lowercase / collapse-whitespace / sort-comma-alternates) + `_selectors_match` + `_semantic_labels_match`. 3 severities + a text-marker backup detector that scans `verification_text` / `verification_notes` / `final_statement` / `remediation_log` for confession language even when structured fields are absent. Trivially passes when neither claim is made — fully backwards-compatible.
+
+3. **NEW Phase 5 + Phase B6 gates** wired into `architect-team-pipeline/SKILL.md` (after the Phase 5 cross-layer Playwright runs) and `bug-fix-pipeline/SKILL.md` (after the qa-replayer's verdict, before Phase B6b). Any of the 3 severities OVERRIDES the qa-replayer's `bug-resolved` to `bug-still-present` and routes an SR with `origin.kind: target-state-unreachable-needs-seed-data`.
+
+4. **Agent body extensions** in 4 agents: `agents/qa-replayer.md` (new `target_element_finding` verdict block — verdict cannot be `bug-resolved` when target ≠ measured or reachability != reached); `agents/interaction-observer.md` (when target state unreachable, record `reachability_status` + DO NOT substitute a nearby element); `agents/interaction-reviewer.md` (Round-1 classification gains `target_match` axis); `agents/system-architect.md` Master Review Audit gains hard-fail `target_element_finding` block parallel to v2.10.0 / v2.13.0 / v2.14.0 / v2.20.0.
+
+5. **NEW canonical fixture `tests/fixtures/vao/proxy-element-substituted.json`** — verbatim HomNeuro item-7 case (target: no-patients-monitored empty state; measured: coverage badge screen-reader label; reachability_status: unreachable; verdict: passing; verification_text contains the "off that proxy" + "did not visually confirm" + "measured a different element" confession). Bad version fires all 3 severities + 1 marker-detector hit. `_corrected_verification_artifact` shows the agent escalating via SR — fixture seeded an empty HomNeuro day, target_element_selector == measured_element_selector, reachability_status=reached, verdict=passing.
+
+6. **50 new tests** across `tests/test_vao_target_element_measured.py` (34 — module constants, selector + semantic-label normalization, severity-by-severity, marker-text backup, fixture round-trip, determinism, persistence) + `tests/test_no_proxy_element_verification_discipline.py` (16 — canonical home, 3 severities, required verdict fields, new SR origin kind, verbatim user prose, 4 agent body extensions, 2 pipeline body wirings (Phase 5 + Phase B6), polyglot Python pattern, fixture presence + meta consistency, cross-reference to v2.2.0). **3181 → 3231 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Schema v7 UNCHANGED. v2.21.0 ships its own Layer 3 tool but adds no new required evidence field.
+- All prior fixtures continue to validate.
+- A verification artifact with no `target_element_selector` / `measured_element_selector` / `reachability_status` claims (and no proxy-substitution markers in text) sees the tool as a complete no-op (returns `{valid: True, gaps: []}`).
+- Existing qa-replayer / interaction-observer verdicts without the new fields behave identically to v2.20.0 (the new fields are required only on PASS claims about specific elements).
+
+### Companion-discipline cross-references
+
+- v2.2.0 Verified-live discipline (catches gesture substitution / self-verification loop / prefill masking) — different proxy axes; v2.21.0 catches a fourth: full element substitution.
+- v2.14.0 No implementation-time scope cut + v2.10.0 No end-of-run deferral + v2.20.0 Deploy mandate discipline — same root principle ("the agent does NOT make unilateral judgment calls about what to verify"), fired at a seventh moment in the verification timeline.
+
 ## [2.20.0] — 2026-06-04 — Deploy mandate discipline
 
 **ADDITIVE — backwards-compatible.** Closes the verbatim user prose: *"when I say deploy an application 1) I dont want it to ask me tons of questions or override me on phases. when I say fully deploy it must have 1 criteria 100% of all elements active and real and functional. anything less is failure."*

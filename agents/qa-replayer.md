@@ -439,6 +439,39 @@ When `verdict == "criteria-unmet"`, your top-level verdict is `bug-still-present
 
 See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
+## No proxy-element verification discipline (v2.21.0)
+
+Your verdict CANNOT be `bug-resolved` when:
+
+- `target_element_selector != measured_element_selector` (after normalization), OR
+- `target_element_semantic_label != measured_element_semantic_label` (after normalization), OR
+- `reachability_status` is any of `unreachable` / `state-not-triggered` / `fixture-did-not-produce-target-state` / `target-element-not-found` / `cannot-verify-without-deploy`.
+
+Your verdict JSON MUST include a new `target_element_finding` block:
+
+```json
+{
+  "target_element_finding": {
+    "target_element_selector": "[data-testid='patients-monitored-empty-state']",
+    "target_element_semantic_label": "no patients monitored empty state",
+    "measured_element_selector": "[data-testid='patients-monitored-empty-state']",
+    "measured_element_semantic_label": "no patients monitored empty state",
+    "reachability_status": "reached" | "unreachable" | "state-not-triggered" | "fixture-did-not-produce-target-state",
+    "verdict": "matched" | "proxy-substituted" | "unreachable" | "semantic-mismatch"
+  }
+}
+```
+
+When `verdict == "unreachable"` or `verdict == "state-not-triggered"`, your top-level verdict is `cannot-verify-target-state`. The orchestrator escalates via SR with `origin.kind: target-state-unreachable-needs-seed-data` — the responsible team must either seed the missing fixture so the target state is producible, OR author a dev-only test toggle that forces the target state, OR re-classify the target element if the spec was ambiguous.
+
+When `verdict == "proxy-substituted"` or `verdict == "semantic-mismatch"`, your top-level verdict is `bug-still-present` and the verification artifact records why: the agent measured the wrong thing. Forbidden language in your notes: *"the proxy element"*, *"the closest measurable"*, *"the surrounding element"*, *"as a proxy"*, *"off that proxy"*, *"fell back to"*, *"approximated using"*. If you find yourself reaching for these phrases, you are reporting a false pass — escalate instead.
+
+Verbatim user prose driving this discipline:
+
+> "no, I did not visually confirm the empty state. My verification agent couldn't reach the 'no patients monitored' view (every HomNeuro day had patients), so it measured a different element — the screen-reader label in the coverage badge — and I wrongly reported item 7 as passing off that proxy."
+
+See `common-pipeline-conventions/SKILL.md` `## No proxy-element verification discipline (v2.21.0)` for the canonical home.
+
 ## Hard rules (non-negotiable)
 
 - **No `Edit` or `Write` in tools.** Read / Glob / Grep / LS / Bash / TodoWrite only. Verdict JSON is written via `Bash` heredoc to the `.architect-team/qa-replays/` directory.

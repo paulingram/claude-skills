@@ -4175,6 +4175,272 @@ def verify_deploy_mandate_satisfied(
 
 
 # ===========================================================================
+# v2.21.0 — verify_target_element_measured (19th Layer 3 tool)
+# ===========================================================================
+
+
+_PROXY_SUBSTITUTION_MARKERS = (
+    # Substitution language
+    "measured a different element",
+    "off that proxy",
+    "off a proxy",
+    "as a proxy",
+    "used as a proxy",
+    "via a proxy",
+    "as the proxy",
+    "the proxy element",
+    # Fallback language
+    "fell back to measuring",
+    "the closest measurable",
+    "the surrounding element",
+    "the sibling element",
+    "the nearest measurable",
+    "approximated using",
+    "used the label instead",
+    "label instead of the",
+    # Confession language
+    "did not visually confirm",
+    "wrongly reported as passing",
+    "i wrongly reported",
+    "passing off",
+    "claimed pass on the",
+)
+
+
+_UNREACHABLE_STATE_MARKERS = (
+    "couldn't reach",
+    "could not reach",
+    "unable to reach",
+    "could not trigger",
+    "couldn't trigger",
+    "no fixture had",
+    "no test data with",
+    "seed data didn't include",
+    "the state was never produced",
+    "never observed the",
+    "every X had Y",  # template marker — actual strings detected via regex below
+    "every record had",
+    "every day had",
+    "every row had",
+)
+
+
+_REACHABILITY_NOT_REACHED_VALUES = (
+    "unreachable",
+    "state-not-triggered",
+    "fixture-did-not-produce-target-state",
+    "target-element-not-found",
+    "cannot-verify-without-deploy",
+)
+
+
+def _normalize_selector(sel: Any) -> str:
+    """Normalize a selector for structural comparison: lowercase, collapse
+    whitespace, sort comma-separated alternates."""
+    if not isinstance(sel, str):
+        return ""
+    # collapse internal whitespace + lowercase + strip
+    parts = [p.strip().lower() for p in sel.split(",")]
+    parts = [" ".join(p.split()) for p in parts if p]
+    parts.sort()
+    return ",".join(parts)
+
+
+def _selectors_match(target: Any, measured: Any) -> bool:
+    """True iff target and measured selectors are structurally equivalent."""
+    if target is None and measured is None:
+        return True
+    if target is None or measured is None:
+        return False
+    return _normalize_selector(target) == _normalize_selector(measured)
+
+
+def _semantic_labels_match(target: Any, measured: Any) -> bool:
+    """True iff semantic labels are structurally equivalent (case + whitespace
+    + punctuation insensitive)."""
+    if target is None and measured is None:
+        return True
+    if target is None or measured is None:
+        return False
+    if not isinstance(target, str) or not isinstance(measured, str):
+        return False
+
+    def norm(s: str) -> str:
+        return " ".join(s.lower().replace("-", " ").replace("_", " ").split())
+
+    return norm(target) == norm(measured)
+
+
+def _detect_proxy_element_substituted(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    target_sel = verification_artifact.get("target_element_selector")
+    measured_sel = verification_artifact.get("measured_element_selector")
+    verdict = (verification_artifact.get("verdict") or "").lower()
+    # Only fire when verdict is positive — substitution on a non-passing
+    # verdict is just notes, not fraud.
+    if verdict not in ("passing", "pass", "bug-resolved", "resolved", "verified", "✅"):
+        return []
+    if target_sel is None and measured_sel is None:
+        return []  # no claim; the discipline doesn't apply
+    if _selectors_match(target_sel, measured_sel):
+        return []
+    return [{
+        "severity": "proxy-element-substituted",
+        "target_element_selector": target_sel,
+        "measured_element_selector": measured_sel,
+        "verdict": verdict,
+        "evidence": (
+            f"target_element_selector ({target_sel!r}) and "
+            f"measured_element_selector ({measured_sel!r}) do not match, but "
+            f"verdict is {verdict!r}. Substituting any proxy element to claim "
+            f"PASS is forbidden under v2.21.0."
+        ),
+        "remediation": (
+            "v2.21.0 no proxy-element verification discipline. Either (a) "
+            "re-run the verification against the actual target element "
+            "(target_element_selector), OR (b) escalate via SR with "
+            "origin.kind='target-state-unreachable-needs-seed-data' so the "
+            "responsible team seeds the missing state and the verification "
+            "can re-run."
+        ),
+    }]
+
+
+def _detect_unreachable_state_not_escalated(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    reachability = (verification_artifact.get("reachability_status") or "").lower()
+    verdict = (verification_artifact.get("verdict") or "").lower()
+    if reachability in ("", "reached"):
+        return []
+    if reachability not in _REACHABILITY_NOT_REACHED_VALUES:
+        return []
+    if verdict not in ("passing", "pass", "bug-resolved", "resolved", "verified", "✅"):
+        return []  # not passing — the discipline only catches false-pass
+    return [{
+        "severity": "unreachable-state-not-escalated",
+        "reachability_status": reachability,
+        "verdict": verdict,
+        "evidence": (
+            f"reachability_status={reachability!r} but verdict={verdict!r}. "
+            f"The target state was not reached; the verification did not "
+            f"happen; verdict CANNOT be pass under v2.21.0."
+        ),
+        "remediation": (
+            "v2.21.0 no proxy-element verification discipline. Change verdict "
+            "to 'cannot-verify' (or the pipeline-specific equivalent). "
+            "Escalate via SR with origin.kind="
+            "'target-state-unreachable-needs-seed-data' so the responsible "
+            "team produces the missing target state."
+        ),
+    }]
+
+
+def _detect_semantic_target_mismatch(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    target_label = verification_artifact.get("target_element_semantic_label")
+    measured_label = verification_artifact.get("measured_element_semantic_label")
+    verdict = (verification_artifact.get("verdict") or "").lower()
+    if verdict not in ("passing", "pass", "bug-resolved", "resolved", "verified", "✅"):
+        return []
+    if target_label is None and measured_label is None:
+        return []
+    if _semantic_labels_match(target_label, measured_label):
+        return []
+    return [{
+        "severity": "semantic-target-mismatch",
+        "target_element_semantic_label": target_label,
+        "measured_element_semantic_label": measured_label,
+        "verdict": verdict,
+        "evidence": (
+            f"target_element_semantic_label={target_label!r} "
+            f"≠ measured_element_semantic_label={measured_label!r}, "
+            f"yet verdict={verdict!r}. Different semantic role = different "
+            f"element = no PASS under v2.21.0."
+        ),
+        "remediation": (
+            "v2.21.0 no proxy-element verification discipline. The agent "
+            "measured a semantically different element than the spec named. "
+            "Either re-run against the named target element or escalate via "
+            "SR — never silently pass."
+        ),
+    }]
+
+
+def _detect_proxy_substitution_markers_in_text(
+    verification_artifact: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Heuristic backup: scan the verification_text / verification_notes /
+    final_statement fields for confession language even when the structured
+    fields are absent."""
+    fields = (
+        "verification_text",
+        "verification_notes",
+        "final_statement",
+        "remediation_log",
+    )
+    chunks = [verification_artifact.get(f, "") for f in fields]
+    text = "\n".join(c for c in chunks if isinstance(c, str))
+    if not text.strip():
+        return []
+    lower = text.lower()
+    hits = [m for m in _PROXY_SUBSTITUTION_MARKERS if m in lower]
+    if not hits:
+        return []
+    return [{
+        "severity": "proxy-element-substituted",
+        "matched_markers": hits[:5],
+        "evidence": (
+            f"verification text contains confession/fallback language "
+            f"{hits[:3]!r} signaling proxy substitution. Even without "
+            f"structured target/measured selector fields, this confession is "
+            f"sufficient to fire the v2.21.0 severity."
+        ),
+        "remediation": (
+            "v2.21.0 no proxy-element verification discipline. Rewrite the "
+            "verification to measure the actual target element OR escalate "
+            "via SR. Never use 'proxy' / 'closest measurable' / 'the "
+            "surrounding element' language to justify a PASS."
+        ),
+    }]
+
+
+def verify_target_element_measured(
+    verification_artifact: dict[str, Any] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v2.21.0 Layer-3 tool — verify the target element was measured (not a
+    proxy / sibling / nearby fallback).
+
+    Trivially passes (`valid: True, gaps: []`) when neither
+    `target_element_selector` nor `measured_element_selector` is set AND no
+    proxy-substitution markers appear in verification text — backwards-
+    compatible.
+
+    3 named severities:
+      - `proxy-element-substituted` — target ≠ measured selector while verdict is passing
+      - `unreachable-state-not-escalated` — reachability_status != reached while verdict is passing
+      - `semantic-target-mismatch` — target semantic label ≠ measured semantic label while verdict is passing
+    """
+    artifact = verification_artifact or {}
+    gaps: list[dict[str, Any]] = []
+    gaps += _detect_proxy_element_substituted(artifact)
+    gaps += _detect_unreachable_state_not_escalated(artifact)
+    gaps += _detect_semantic_target_mismatch(artifact)
+    gaps += _detect_proxy_substitution_markers_in_text(artifact)
+
+    verdict = {
+        "tool": "verify-target-element-measured",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -4275,6 +4541,10 @@ def main(argv: list[str] | None = None) -> int:
     dms.add_argument("--mandate", required=True, help="Path to deploy-mandate JSON with active/target_kind.")
     dms.add_argument("--final-report", required=False, default=None, help="Optional path to final_report text.")
     dms.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
+    tem = sub.add_parser("verify-target-element-measured")
+    tem.add_argument("--artifact", required=True, help="Path to verification-artifact JSON with target_element_selector + measured_element_selector + reachability_status.")
+    tem.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
     args = parser.parse_args(argv)
 
@@ -4384,6 +4654,12 @@ def main(argv: list[str] | None = None) -> int:
             verification_artifact=_load_json(args.artifact),
             deploy_mandate=_load_json(args.mandate),
             final_report=final_report_text,
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-target-element-measured":
+        verdict = verify_target_element_measured(
+            verification_artifact=_load_json(args.artifact),
             out_path=args.out,
         )
         ok = verdict["valid"]

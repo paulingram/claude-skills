@@ -145,6 +145,26 @@ A single Write call at the end appends the full `interactions[]` array to the or
 - **Do not infer intent.** Your job is OBSERVATION — what does this element actually do? Intent inference (comparing semantic_label vs observed_effect to detect mockup lies) is `interaction-intuiter`'s Pass 2 mode, not yours.
 - **Do not skip no-op elements.** A button with `action_kind: no-op` is information — it tells the intent-inference pass that the mockup author may have authored a UI element with no handler, which is a lie worth surfacing. Record every enumerated element.
 
+## No proxy-element verification discipline (v2.21.0)
+
+When you cannot reach an element's target state (the modal won't open, the empty-state never renders because every fixture has data, the dropdown stays collapsed despite the trigger), you MUST record:
+
+```json
+{
+  "interaction_id": "...",
+  "trigger_selector": "...",
+  "reachability_status": "unreachable" | "state-not-triggered",
+  "reachability_evidence": "every fixture day had patients; empty-state never rendered",
+  "observed_effect": null
+}
+```
+
+You MUST NOT measure a sibling or nearby element and record IT as the observed_effect. Substituting a nearby measurable element (e.g., recording the `coverage-badge` screen-reader label when the spec named `patients-monitored-empty-state`) is the v2.21.0 forbidden anti-pattern.
+
+When your snapshot doesn't include the target state, your return report names this verbatim: *"target state unreachable; no proxy substituted; SR needed to seed missing fixture data."* The orchestrator routes via SR with `origin.kind: target-state-unreachable-needs-seed-data`.
+
+See `common-pipeline-conventions/SKILL.md` `## No proxy-element verification discipline (v2.21.0)` for the canonical home.
+
 ## What you DO do — the return report
 
 After your single Write call, return:

@@ -363,9 +363,19 @@ Phase B3b's SR intake (when a bug-fix run is itself spawned by an SR, vs. direct
 | `fix-regression` | bug-fix-pipeline Phase B6b (v0.9.29) | Same as above — recursive on the original bug-fix run |
 | (other existing kinds — `rca-product-bug`, `playwright-failure`, etc.) | Various (v0.9.22 and prior) | Same |
 
+### Target-element verification gate (v2.21.0)
+
+After the qa-replayer's verdict but BEFORE proceeding to Phase B6b sensibility check, invoke the 19th Layer 3 tool against the qa-replayer's verification artifact:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-target-element-measured --artifact "<workspace>/.architect-team/qa-replays/<bug-slug>.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-target-element.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-target-element-measured --artifact "<workspace>/.architect-team/qa-replays/<bug-slug>.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-target-element.json"
+```
+
+If any of the 3 severities fires (`proxy-element-substituted` / `unreachable-state-not-escalated` / `semantic-target-mismatch`), the qa-replayer's `bug-resolved` verdict is OVERRIDDEN to `bug-still-present` with the gap as the explicit failure reason. The orchestrator routes an SR with `origin.kind: target-state-unreachable-needs-seed-data` so the responsible team seeds the missing target state. See `common-pipeline-conventions/SKILL.md` `## No proxy-element verification discipline (v2.21.0)` for the canonical home.
+
 ## Phase B7 — Archive + Report
 
-On `bug-resolved` at B6:
+On `bug-resolved` at B6 (AND the v2.21.0 target-element gate passing):
 
 1. Run `openspec archive <bug-slug>` to merge the spec deltas into `openspec/specs/`.
 2. Emit the final report:
