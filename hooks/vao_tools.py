@@ -4749,6 +4749,94 @@ def verify_no_pipeline_bypass(
 
 
 # ===========================================================================
+# v3.0.0 — verify_no_unilateral_override (21st Layer 3 tool — META)
+# ===========================================================================
+
+
+def verify_no_unilateral_override(
+    text: str = "",
+    text_sources: dict[str, str] | None = None,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """v3.0.0 META Layer-3 tool — unified unilateral-override + virtue-framed-
+    confession detector.
+
+    Consolidates the marker-text detection halves of v2.10.0 / v2.14.0 /
+    v2.20.0 / v2.21.0 / v2.22.0 disciplines into a single detector. Fires
+    on the pattern: virtue-framed opener + element-of-bypass admission in
+    the same text.
+
+    Inputs:
+      - `text`: a single text artifact (e.g., final_report). Convenience
+        shorthand; equivalent to text_sources={"text": text}.
+      - `text_sources`: dict mapping source-name → text. Use this when you
+        want per-source breakdown (e.g., {"final_report": "...",
+        "verification_text": "...", "verification_notes": "..."}).
+
+    Trivially passes when all sources are empty / non-string — fully
+    backwards-compatible.
+
+    Single severity:
+      - `unilateral-override-with-virtue-framed-confession` — fires per
+        source. Per-gap fields include source name + matched openers +
+        matched admissions + high_confidence boolean.
+    """
+    from hooks.override_markers import detect_virtue_framed_override
+
+    sources: dict[str, str] = {}
+    if text:
+        sources["text"] = text
+    if text_sources:
+        for k, v in text_sources.items():
+            if isinstance(v, str) and v.strip():
+                sources[k] = v
+
+    gaps: list[dict[str, Any]] = []
+    for source_name, source_text in sources.items():
+        result = detect_virtue_framed_override(source_text)
+        if not result["fires"]:
+            continue
+        gaps.append({
+            "severity": "unilateral-override-with-virtue-framed-confession",
+            "source": source_name,
+            "openers_matched": result["openers_matched"][:8],
+            "admissions_matched": result["admissions_matched"][:8],
+            "high_confidence": result["high_confidence"],
+            "evidence": (
+                f"source {source_name!r} contains both a virtue-framed "
+                f"opener (e.g., {result['openers_matched'][0]!r}) AND "
+                f"{len(result['admissions_matched'])} element-of-bypass "
+                f"admission(s) (e.g., {result['admissions_matched'][0]!r}). "
+                f"The agent unilaterally overrode the user's explicit "
+                f"choice and is now post-hoc confessing with virtuous "
+                f"framing. {('HIGH-CONFIDENCE — ≥ 2 distinct admissions.' if result['high_confidence'] else 'Low-confidence — 1 admission.')}"
+            ),
+            "remediation": (
+                "v3.0.0 unilateral-override discipline (META). The right "
+                "behavior is to NOT unilaterally override in the first "
+                "place. If the user's request is genuinely impossible or "
+                "ambiguous, halt-and-disclose BEFORE acting: 'I am not "
+                "going to [X] because [verbatim user authorization or "
+                "structural blocker]. Want [X] anyway? Reply ...'. After "
+                "the fact, virtuous-confession framing is forbidden — "
+                "either the work is correct (commit it) or it is not "
+                "(revert and re-run). Re-invoke the pipeline against the "
+                "same user prompt; do not commit the confession-laden "
+                "artifact."
+            ),
+        })
+
+    verdict = {
+        "tool": "verify-no-unilateral-override",
+        "valid": len(gaps) == 0,
+        "gaps": gaps,
+        "sources_inspected": list(sources.keys()),
+        "verdict_at": _utc_now_iso(),
+    }
+    return _write_verdict(verdict, out_path)
+
+
+# ===========================================================================
 # CLI
 # ===========================================================================
 
@@ -4859,6 +4947,10 @@ def main(argv: list[str] | None = None) -> int:
     npb.add_argument("--ledger", required=True, help="Path to toolcall-ledger JSONL/JSON.")
     npb.add_argument("--final-report", required=False, default=None, help="Optional path to final_report text.")
     npb.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
+    nuo = sub.add_parser("verify-no-unilateral-override")
+    nuo.add_argument("--sources", required=True, help="Path to JSON file mapping source-name -> text (or {\"text\": \"...\"} for a single source).")
+    nuo.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
     args = parser.parse_args(argv)
 
@@ -4987,6 +5079,13 @@ def main(argv: list[str] | None = None) -> int:
             user_prompt=prompt_text,
             toolcall_ledger=ledger,
             final_report=final_report_text,
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-no-unilateral-override":
+        sources = _load_json(args.sources)
+        verdict = verify_no_unilateral_override(
+            text_sources=sources if isinstance(sources, dict) else {"text": str(sources)},
             out_path=args.out,
         )
         ok = verdict["valid"]

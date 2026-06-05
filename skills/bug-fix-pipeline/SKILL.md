@@ -400,6 +400,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfi
 
 Any of the 4 severities blocks the commit. The bug-fix loop routes SRs with `origin.kind: "deploy-mandate-not-satisfied"`. See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
+### Unilateral-override meta-gate (v3.0.0)
+
+After the deploy-mandate gate, run the 21st Layer 3 tool as a meta-confession check across all text artifacts the bug-fix run produced (final_report, qa-replayer verdict notes, bug-replicator reproduction-text, remediation_log):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json"
+```
+
+Single severity `unilateral-override-with-virtue-framed-confession` blocks the commit. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
+
 Same flow as `architect-team-pipeline` Phase 8 — **documentation-currency gate first** (the `doc-updater` agent dispatch + the `system-architect` Documentation Currency Audit + the commit-blocking gate, per v0.9.23 — same dispatch, same audit, same enforcement as the main pipeline), then completion audit gate, default-branch guard (the work lands on `architect-team/<bug-slug>` feature branch unless `--allow-push-to-default`), commit with the standard message template, push to the feature branch, recommend a PR. Auto-compact prompt at the very end (unless `--no-compact`).
 
 **Documentation-currency gate at Phase B8 (per the `documentation-currency` skill + v0.9.23's `doc-updater` agent):**

@@ -247,6 +247,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfi
 
 Any of the 4 severities blocks the auto-merge. The mini loop routes the failure back to Phase M8 cycle as `verdict: red` with the deploy-mandate gap as the explicit failure reason; the architect re-spawns to satisfy the missing binding criterion. See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
+### Unilateral-override meta-gate (v3.0.0)
+
+After the deploy-mandate gate, run the 21st Layer 3 tool as a meta-confession check across all text artifacts the mini run produced (architect's M3 self-confirm verdict, mini-qa M5 verdict notes, M6 final summary):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json"
+```
+
+Single severity `unilateral-override-with-virtue-framed-confession` blocks the auto-merge; routes to Phase M8 cycle as red. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
+
 On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. **This is the only point in any architect-team pipeline that pushes to `main` directly.**
 
 ### Doc-currency single-pass

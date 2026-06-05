@@ -1,0 +1,162 @@
+"""Structural tests for the v3.0.0 Unilateral-override discipline (META)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+# ---- canonical section ----
+
+
+def test_canonical_section_present() -> None:
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    assert "## Unilateral-override discipline (v3.0.0) — META" in body
+
+
+def test_canonical_home_names_unified_pattern() -> None:
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
+    assert "Virtue-framed opener" in section
+    assert "Element-of-bypass admission" in section
+
+
+def test_canonical_home_lists_5_prior_surfaces() -> None:
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
+    for v in ("v2.10.0", "v2.14.0", "v2.20.0", "v2.21.0", "v2.22.0"):
+        assert v in section
+
+
+def test_canonical_home_documents_two_layer_enforcement() -> None:
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
+    assert "Post-hoc detection" in section
+    assert "Pre-action runtime guardrail" in section
+    assert "PreToolUse" in section
+
+
+def test_canonical_home_names_single_severity() -> None:
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
+    assert "unilateral-override-with-virtue-framed-confession" in section
+
+
+def test_canonical_home_documents_high_confidence_flag() -> None:
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
+    assert "high_confidence" in section
+
+
+# ---- pipeline body wiring ----
+
+
+def test_architect_team_pipeline_has_meta_gate() -> None:
+    body = (REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md").read_text()
+    assert "Unilateral-override meta-gate (v3.0.0)" in body
+    assert "verify-no-unilateral-override" in body
+
+
+def test_bug_fix_pipeline_has_meta_gate() -> None:
+    body = (REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md").read_text()
+    assert "Unilateral-override meta-gate (v3.0.0)" in body
+    assert "verify-no-unilateral-override" in body
+
+
+def test_mini_pipeline_has_meta_gate() -> None:
+    body = (REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md").read_text()
+    assert "Unilateral-override meta-gate (v3.0.0)" in body
+    assert "verify-no-unilateral-override" in body
+
+
+def test_pipelines_use_polyglot_python_pattern() -> None:
+    for path in (
+        REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md",
+        REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md",
+        REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md",
+    ):
+        body = path.read_text()
+        invocations = [
+            ln for ln in body.splitlines()
+            if "verify-no-unilateral-override" in ln
+            and "python3" in ln
+            and "|| python" in ln
+        ]
+        assert invocations, f"{path.name}: missing polyglot v3.0.0 invocation"
+
+
+# ---- hook registration ----
+
+
+def test_pretool_hook_registered_in_hooks_json() -> None:
+    hooks = json.loads((REPO_ROOT / "hooks" / "hooks.json").read_text())
+    assert "PreToolUse" in hooks["hooks"]
+    pretool = hooks["hooks"]["PreToolUse"]
+    matchers = {entry["matcher"] for entry in pretool}
+    assert matchers >= {"Edit", "Write", "NotebookEdit"}
+
+
+def test_pretool_hook_uses_guardrail_script() -> None:
+    hooks = json.loads((REPO_ROOT / "hooks" / "hooks.json").read_text())
+    for entry in hooks["hooks"]["PreToolUse"]:
+        for hook in entry["hooks"]:
+            assert "pretool_unilateral_override_guard.py" in hook["command"]
+
+
+def test_pretool_hook_uses_polyglot_python_pattern() -> None:
+    hooks = json.loads((REPO_ROOT / "hooks" / "hooks.json").read_text())
+    for entry in hooks["hooks"]["PreToolUse"]:
+        for hook in entry["hooks"]:
+            assert "python3 " in hook["command"]
+            assert "|| python " in hook["command"]
+
+
+# ---- module / file existence ----
+
+
+def test_override_markers_module_exists() -> None:
+    assert (REPO_ROOT / "hooks" / "override_markers.py").exists()
+
+
+def test_pretool_guardrail_script_exists() -> None:
+    assert (REPO_ROOT / "hooks" / "pretool_unilateral_override_guard.py").exists()
+
+
+def test_canonical_fixture_exists() -> None:
+    fx_path = REPO_ROOT / "tests" / "fixtures" / "vao" / "unilateral-override-meta.json"
+    assert fx_path.exists()
+
+
+def test_canonical_fixture_meta_documents_complementarity() -> None:
+    fx_path = REPO_ROOT / "tests" / "fixtures" / "vao" / "unilateral-override-meta.json"
+    fx = json.loads(fx_path.read_text())
+    assert fx["_meta"]["expected_severity"] == "unilateral-override-with-virtue-framed-confession"
+    assert len(fx["_meta"]["expected_sources_fired"]) == 3
+
+
+# ---- module exports ----
+
+
+def test_override_markers_module_exports() -> None:
+    from hooks import override_markers
+    for name in (
+        "VIRTUE_FRAMED_OPENERS",
+        "ELEMENT_OF_BYPASS_ADMISSIONS",
+        "detect_virtue_framed_override",
+        "pipeline_confession_markers",
+        "proxy_substitution_markers",
+        "deferral_catalog_markers",
+        "followup_question_markers",
+        "honest_scope_statement_markers",
+        "plan_only_deliverable_markers",
+        "adjacent_dependency_markers",
+        "partial_deploy_markers",
+    ):
+        assert hasattr(override_markers, name), f"override_markers missing {name!r}"
+
+
+def test_vao_tools_exports_21st_layer3_tool() -> None:
+    from hooks import vao_tools
+    assert hasattr(vao_tools, "verify_no_unilateral_override")

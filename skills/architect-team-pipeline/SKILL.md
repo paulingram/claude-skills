@@ -422,6 +422,20 @@ A non-zero exit (any of the 4 severities — `deploy-mandate-not-satisfied` / `p
 
 See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
+### Unilateral-override meta-gate (v3.0.0)
+
+After all per-discipline Phase 8 gates pass, run the 21st Layer 3 tool as a META-confession check across every text artifact the run produced (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json"
+```
+
+Where `<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json` is a JSON dict mapping source-name → text content (e.g., `{"final_report": "...", "verification_text": "...", "qa_replayer_notes": "..."}`).
+
+A single severity (`unilateral-override-with-virtue-framed-confession`) fires when ANY source contains a virtue-framed opener + element-of-bypass admission. The orchestrator MUST NOT commit on a fail — re-invoke the pipeline against the same user prompt and produce text without the confession ritual.
+
+See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home + the unified marker dictionary.
+
 Emit a final report containing:
 
 - For each original requirement: implementing commit(s) → test(s) → Playwright flow(s)
