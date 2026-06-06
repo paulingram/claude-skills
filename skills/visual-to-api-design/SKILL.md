@@ -1,11 +1,214 @@
 ---
 name: visual-to-api-design
-description: Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE the API design from what the screens reveal. Runs a 4-stage pipeline — context-discovery → per-persona research → page catalog → backend-from-frontend design — with 3-reviewer convergence per stage and per-stage checklists that gate the next stage. Each stage's output is a frozen structured artifact; the next stage uses the prior artifact as its checklist. Stage 4 (backend design) is checked against Stage 3 (page catalog) for completeness — every element on every page MUST trace to a data point in the API mock; every API endpoint MUST trace to a service that delivers the data. The pipeline is invoked at Phase 0 when the requirement is "review this codebase / design the API for this visual."
+description: Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE the API design from what the screens reveal. Runs the Exploration Pipeline — a scope-gated 7-stage flow (scope detection → personas+classification → per-persona objectives → page/element catalog + route<->persona map + reusable-component architecture → OpenSpec conversion → per-page REST returns → consolidated API design → backend data architecture) — with 3-reviewer convergence per stage, each convergence wrapped in a ralph-loop whose completion-promise is total reviewer agreement, and per-stage checklists that gate the next stage. The original 4-stage flow (context-discovery → per-persona research → page catalog → backend-from-frontend design) and its `/architect-team:visual-to-api` command remain valid as a SUBSET. Each stage's output is a frozen structured artifact; the next stage uses the prior artifact as its checklist. Stage 4 (backend design) is checked against Stage 3 (page catalog) for completeness — every element on every page MUST trace to a data point in the API mock; every API endpoint MUST trace to a service that delivers the data. The OpenSpec-producing stages call the openspec skill (`openspec-propose` / `opsx:propose`), not hand-written JSON. The pipeline is invoked at Phase 0 when the requirement is "review this codebase / design the API for this visual."
 ---
 
-# Visual-to-API Design Pipeline
+# Visual-to-API Design Pipeline (the Exploration Pipeline)
 
-When the architect-team is given a visual codebase (a UI repo, a Figma export, a deployed site URL) but no explicit requirements OR only partial requirements, this skill produces the API design that the visual code implies. The pipeline runs in 4 stages, each stage frozen before the next begins, each stage reviewed by 3 independent agents in convergence (the v0.9.19 pattern), each stage's output the explicit checklist the next stage must satisfy.
+When the architect-team is given a visual codebase (a UI repo, a Figma export, a deployed site URL) but no explicit requirements OR only partial requirements, this skill produces the API design — and, when frontend is in scope, the persona research, page/element catalog, reusable-component architecture, per-page REST returns, and consolidated API design — that the visual code implies. This is the **Exploration Pipeline**: a scope-gated **7-stage** flow, each stage frozen before the next begins, each stage reviewed by 3 independent agents in convergence (the v0.9.19 pattern) **inside a `ralph-loop:ralph-loop`** whose completion-promise is total reviewer agreement, each stage's output the explicit checklist the next stage must satisfy.
+
+**The original 4-stage flow is a strict SUBSET of the 7-stage pipeline** (see `## The 4 stages (the original subset)` below): Stage 1 (context discovery) is a subset of Exploration Stage 1, Stage 2 (per-persona research) of Exploration Stage 2, Stage 3 (page catalog) of Exploration Stage 3a, and Stage 4 (backend design from frontend) of Exploration Stages 5+6+7. The 4-stage subset and the `/architect-team:visual-to-api` command remain valid and unchanged.
+
+## The Exploration Pipeline — 7 stages
+
+The Exploration Pipeline runs 7 stages. Frontend stages (1–6) run only when frontend is in scope; the backend stage (7) runs only when backend is in scope; Stage 0 always runs and decides the branch. Each stage produces a frozen JSON artifact at `<workspace>/.architect-team/visual-to-api-design/<feature-slug>/stage-<N>-<name>.json` AND (for the stages that own a standardized doc) one of the five canonical `*_MAP.md` documents in `<codebase>/docs/`. Each stage runs the v0.9.19 3-reviewer convergence protocol (Round 1 independent → Round 2 round-robin → Round 3 architect) **inside a `ralph-loop:ralph-loop`**, and reads the prior stage's frozen artifact as its CHECKLIST.
+
+### Governance — every stage's convergence runs inside a ralph-loop
+
+Every stage's 3-reviewer doc-passing convergence is wrapped in the `ralph-loop:ralph-loop` skill (the `/ralph-loop` command). The loop body is the 3-reviewer convergence; the loop's `--completion-promise` is **total agreement across all reviewers that the stage document meets every required step (100% fidelity)**. The loop exits ONLY when all three reviewers AND the Round-3 architect agree the stage doc satisfies every checklist item; the `--max-iterations` cap prevents runaway. Each stage below names its own promise string. The canonical invocation shape (matching `intake-and-mapping`):
+
+```bash
+/ralph-loop "<stage convergence prompt>" --completion-promise "<STAGE-N PROMISE>" --max-iterations <N>
+```
+
+When the convergence reaches total agreement, the loop body emits the stage's exact promise line, which trips the completion-promise and exits the loop. A stage whose reviewers cannot converge within `--max-iterations` escalates via the `api-design-stage-incomplete` SR rather than freezing a half-agreed artifact.
+
+### Run-time inputs — `language`, `component_libraries`, `ancillary_docs`
+
+The target `language`, the `component_libraries`, and the `ancillary_docs` are read from the **requirements-brief frontmatter** or a **project config** (`<codebase>/.architect-team.config` / brief frontmatter). They are NEVER guessed. When frontend/component work is in scope and any of these inputs is absent, the skill **escalates via a domain gate** (an `AskUserQuestion`-style prompt, consistent with `common-pipeline-conventions` `## Scope discipline`) — it does not invent a language or a component library. `ancillary_docs` (product briefs, brand guidelines, market research, competitor docs) are a **first-class Stage 1 input**, read alongside the codebase.
+
+### The five standardized documentation artifacts
+
+The Exploration Pipeline emits five fixed-name documents into `<codebase>/docs/`. Their names, paths, and frontmatter schemas are **canonicalized in `common-pipeline-conventions`** (the `## Standardized documentation naming` standard — another teammate owns that section); this skill REFERENCES that standard rather than duplicating it. The five docs and their producing stage:
+
+| Doc | Path | Produced by | Frontmatter (per the canonical standard) |
+|---|---|---|---|
+| `PERSONA_MAP.md` | `<codebase>/docs/` | Stage 2 | `{generated_at, personas_count, source_ancillary_docs[]}` |
+| `COMPONENT_ARCHITECTURE_MAP.md` | `<codebase>/docs/` | Stage 3c | `{generated_at, language, component_libraries[], elements_total, components_total, coverage}` |
+| `API_RETURNS_MAP.md` | `<codebase>/docs/` | Stage 5 | `{generated_at, pages_count, returns_count}` |
+| `API_DESIGN_MAP.md` | `<codebase>/docs/` | Stage 6 | `{generated_at, endpoints_count, user_types[]}` |
+| `DATA_ARCHITECTURE_MAP.md` | `<codebase>/docs/` | Stage 7 | `{generated_at, db_types[], phenotypes_used[], openspec_change}` |
+
+These are auto-generated whenever the Exploration Pipeline runs against a project (frontend docs only when frontend is in scope; `DATA_ARCHITECTURE_MAP.md` only when backend is in scope), created-on-ask in standalone mode, and follow the existing `*_MAP.md` convention.
+
+### Stage 0 — Scope detection
+
+**Goal:** classify the run and branch the downstream stages. Stage 0 ALWAYS runs.
+
+**What it does:** surfaces the existing `intake-and-mapping` classification and classifies the run as exactly one of three scope outcomes:
+
+- **`frontend-only`** — UI present, no backend to design; run Stages 1–6, skip Stage 7.
+- **`backend-only`** — backend/data work with no UI to catalog; skip the frontend stages (1–6), run Stage 7.
+- **`both`** — full Exploration; run Stages 1–7.
+
+**Branching rule (stated explicitly):** **the frontend stages (1–6) run if and only if frontend is in scope; the backend stage (7) runs if and only if backend is in scope.** A `both` run executes all seven; a `frontend-only` run stops after Stage 6; a `backend-only` run runs Stage 7 directly against whatever API/data requirements exist.
+
+**Required output** (`stage-0-scope.json`): `{stage: 0, name: "scope-detection", scope: "frontend-only" | "backend-only" | "both", frontend_in_scope: bool, backend_in_scope: bool, classification_source: "intake-and-mapping", frozen_at, _human_review_required}`.
+
+**ralph-loop:** the 3-reviewer scope-classification convergence is wrapped in `/ralph-loop "classify run scope (frontend-only | backend-only | both) from the intake-and-mapping output; all reviewers agree on the branch" --completion-promise "STAGE-0 SCOPE COMPLETE — all reviewers agree on scope + branch" --max-iterations 5`.
+
+### Stage 1 — Personas + application classification
+
+**Goal:** when frontend is in scope, catalog ALL personas (user types) and classify the whole application. **Reuses Exploration Stage 1 (context discovery)** — see `### Stage 1 — Context discovery` in the subset section below for the exact `stage-1-context.json` shape; Stage 1 of the Exploration Pipeline extends it by reading the configured `ancillary_docs` as a first-class input.
+
+**What it does:** enumerates every distinct persona/user-type AND produces the application classification (`application_purpose` / `industry` / `use_case_summary`), reading the frontend PLUS the configured `ancillary_docs`. The persona enumeration is the seed for Stage 2's per-persona objective document.
+
+**Required output:** the existing `stage-1-context.json` (see subset section) with `ancillary_docs_read: [...]` added — the list of ancillary docs consumed.
+
+**ralph-loop:** wrapped in `/ralph-loop "discover personas + application classification from the frontend + ancillary_docs; all reviewers agree the persona list + classification are complete" --completion-promise "STAGE-1 CONTEXT COMPLETE — all reviewers agree personas + classification are complete" --max-iterations 8`.
+
+### Stage 2 — Per-persona objectives → `PERSONA_MAP.md`
+
+**Goal:** for each persona, write an objective document describing what that persona wants to achieve in this industry while using this product. **Reuses Exploration Stage 2 (per-persona research)** — see `### Stage 2 — Per-persona research` in the subset section for the `stage-2-personas.json` shape.
+
+**Output doc:** `<codebase>/docs/PERSONA_MAP.md` — **one objective section per persona**, each section carrying: the persona's **role**, the **industry context**, and the **objectives** they want to achieve with the product. Frontmatter `{generated_at, personas_count, source_ancillary_docs[]}` per the canonical naming standard.
+
+**Stage-2 CHECKLIST against Stage 1:** every persona in Stage 1's persona list MUST appear as a `PERSONA_MAP.md` section; the count MUST match.
+
+**ralph-loop:** wrapped in `/ralph-loop "write one PERSONA_MAP.md objective section per persona (role + industry context + product objectives); all reviewers agree every persona is covered" --completion-promise "STAGE-2 PERSONA_MAP COMPLETE — all reviewers agree every persona has an objective section" --max-iterations 8`.
+
+### Stage 3a — Page/element catalog
+
+**Goal:** list every page, then every element on each page, capturing for each element its `type`, its `html_attributes`, and a `value_class: dynamic | static` classification. **Reuses Exploration Stage 3 (page catalog) + `design-fidelity-mapping` (DESIGN_MAP).** See `### Stage 3 — Page catalog` in the subset section for the per-element shape this extends.
+
+**Per-element capture (stated explicitly):**
+
+- **`type`** — the element classification (form-input-text, submit-button, file-upload, data-row, etc.).
+- **`html_attributes`** — the element's tag + salient HTML attributes, **captured UNCONDITIONALLY from source for every element, regardless of design inputs.** Computed-style attributes are added ONLY when design inputs exist (reusing DESIGN_MAP's per-element computed-style capture). Raw-HTML-attribute capture never blocks; it degrades to tag+attributes when no DESIGN_MAP is present.
+- **`value_class: dynamic | static`** — classified per **`dynamic-value-discovery`**: classify from CONTEXT (is this a per-user / per-record / per-state value?), **never from the literal** on the screen. A name field showing "John Smith" is `dynamic` even though the mockup shows a constant.
+
+**Required output** (`stage-3a-page-element-catalog.json`): per page, every element with `{type, html_attributes, value_class}` plus the existing subset fields (`element_id`, `classification`, `blurb`, `is_dynamic`, `needs_backend`, `backend_endpoint_hint`).
+
+**ralph-loop:** wrapped in `/ralph-loop "catalog every page → every element with {type, html_attributes captured unconditionally, value_class dynamic|static via dynamic-value-discovery}; all reviewers agree every element on every page is catalogued" --completion-promise "STAGE-3A CATALOG COMPLETE — all reviewers agree every element is captured with attributes + value_class" --max-iterations 10`.
+
+### Stage 3b — Route<->persona map
+
+**Goal:** construct the route inventory and cross-map every route to the personas it impacts. **Reuses `frontend-route-mapping` (ROUTE_MAP).**
+
+**What it does:** builds the ROUTE_MAP via `frontend-route-mapping`, then annotates **each route with the personas it impacts** (drawn from the Stage 2 `PERSONA_MAP.md`). Every route in the ROUTE_MAP carries an `impacted_personas: [...]` annotation.
+
+**Required output** (`stage-3b-route-persona-map.json`): the ROUTE_MAP with each route annotated `{route, ..., impacted_personas: [persona_id, ...]}`.
+
+**Stage-3b CHECKLIST:** every route in the ROUTE_MAP has at least one impacted persona OR an explicit `impacted_personas: []` with a justification (e.g., a public/unauthenticated route); every persona in `PERSONA_MAP.md` is referenced by at least one route.
+
+**ralph-loop:** wrapped in `/ralph-loop "build the ROUTE_MAP and annotate every route with impacted personas from PERSONA_MAP; all reviewers agree every route maps to its personas" --completion-promise "STAGE-3B ROUTE-PERSONA COMPLETE — all reviewers agree every route is annotated with impacted personas" --max-iterations 8`.
+
+### Stage 3c — Reusable-component architecture → `COMPONENT_ARCHITECTURE_MAP.md` (NET-NEW)
+
+**Goal (the single net-new stage):** propose a reusable-component architecture in the configured `language` + `component_libraries`, map every catalogued element 1:1 to a proposed component (100% coverage), record the exact per-page placement of each component, and declare each component's expected payload consumption. This is a **multi-agent (>=3) doc-passing task.**
+
+**What it does:**
+
+- **Proposes components in the configured `language` + `component_libraries`** (read from the brief/config per `### Run-time inputs`; absence escalates via a domain gate, never guessed).
+- **Maps every catalogued element (from Stage 3a) to a proposed component — 100% coverage**, verified via a **`verify-every-element`-style check** (`hooks/vao_tools.py::verify-every-element` pattern, reused per RD-9): every element_id in the Stage 3a catalog appears in exactly one component's `covers_element_ids`. An uncovered element fails the stage.
+- **Records the exact per-page placement of each component.** When design inputs exist (a DESIGN_MAP is present), placement is **pixel-perfect** (per-screen coordinates / asset placement). Otherwise it degrades to a **structural-placement** mode recording which page/region each component occupies (no pixel coordinates). The placement mode never blocks; it degrades.
+- **Declares each component's expected payload consumption** — the data shape the component expects to render (which feeds Stage 5's per-page returns).
+
+**Output doc:** `<codebase>/docs/COMPONENT_ARCHITECTURE_MAP.md`. Frontmatter `{generated_at, language, component_libraries[], elements_total, components_total, coverage}` per the canonical naming standard.
+
+**Stage-3c CHECKLIST against Stage 3a:** the UNION of every component's `covers_element_ids` MUST equal the full set of element_ids in the Stage 3a catalog (100% coverage). Every component declares a `placement` (pixel-perfect or structural) and an `expected_payload`.
+
+**ralph-loop:** the >=3-agent doc-passing convergence is wrapped in `/ralph-loop "propose reusable components in the configured language + component_libraries; map every element 1:1 (100% coverage, verify-every-element-style); record exact per-page placement (pixel-perfect when DESIGN_MAP exists, structural otherwise); declare each component's expected payload; all reviewers agree on 100% coverage + placement + payload" --completion-promise "STAGE-3C COMPONENT-ARCHITECTURE COMPLETE — all reviewers agree 100% element coverage + placement + payload" --max-iterations 10`.
+
+### Stage 4 — Conversion → OpenSpec via the openspec skill
+
+**Goal:** convert the component-architecture conversion plan (Stages 3a–3c) into OpenSpec documents **using the openspec skill** — `openspec-propose` / `opsx:propose` — NOT hand-written JSON. >=3 agents in parallel; validate 100% conversion.
+
+**What it does (stated explicitly):**
+
+- **Invokes the openspec skill** (`openspec-propose` / `opsx:propose`) to author the conversion OpenSpec. The skill body NAMES the openspec skill explicitly; this stage does NOT hand-write OpenSpec JSON or spec files.
+- **>=3 agents in parallel** each draft a slice of the conversion; they converge.
+- **Validates 100% conversion** — a coverage check confirms 100% of the conversion plan (every page, every route, every component from Stages 3a/3b/3c) is represented in the produced OpenSpec artifacts. A plan item with no OpenSpec representation fails the stage.
+
+**Required output** (`stage-4-openspec-conversion.json`): the openspec change name produced + a coverage manifest mapping every conversion-plan item → its OpenSpec requirement/spec. (The OpenSpec documents themselves live wherever the openspec skill writes them.)
+
+**Stage-4 CHECKLIST:** 100% of the conversion plan is represented in the OpenSpec; the OpenSpec was authored via the openspec skill (not hand-written).
+
+**ralph-loop:** wrapped in `/ralph-loop "convert the component-architecture plan to OpenSpec via the openspec skill (openspec-propose / opsx:propose), >=3 agents; validate 100% of the plan is converted; all reviewers agree conversion is complete" --completion-promise "STAGE-4 OPENSPEC-CONVERSION COMPLETE — all reviewers agree 100% of the plan is converted via the openspec skill" --max-iterations 8`.
+
+### Stage 5 — Per-page REST returns → `API_RETURNS_MAP.md`
+
+**Goal:** specify, per page, the **most efficient** REST/API returns powering that page — the data needed and its shape — such that every element's data source is identified and 100% of data-bearing elements are covered.
+
+**"Most efficient" — the measurable definition (the strict ralph-loop exit predicate):**
+
+- **Over-fetch budget = 0 unconsumed top-level fields** — no returned top-level field may be consumed by zero elements on the page. The over-fetch check FLAGS any return field consumed by no element.
+- **Shared pages reuse one return shape** — pages sharing the same data reuse a single return shape rather than redefining it.
+
+**What it does:** for each page, lists the API return shape(s) powering it and **maps every dynamic element (from Stage 3a `value_class: dynamic`) to a field in a return.** Every data-bearing element has an identified return source.
+
+**Output doc:** `<codebase>/docs/API_RETURNS_MAP.md`. Frontmatter `{generated_at, pages_count, returns_count}` per the canonical naming standard.
+
+**Stage-5 CHECKLIST against Stage 3a + Stage 3c:** every `value_class: dynamic` element maps to a return field; the over-fetch check returns 0 unconsumed top-level fields per page; shared-data pages reuse one shape.
+
+**ralph-loop:** wrapped in `/ralph-loop "specify per-page REST returns; map every dynamic element to a return field; enforce over-fetch budget = 0 unconsumed top-level fields and shared-page shape reuse; all reviewers agree every data-bearing element has an efficient return source" --completion-promise "STAGE-5 API_RETURNS COMPLETE — all reviewers agree 100% of dynamic elements have an efficient return source (0 over-fetch)" --max-iterations 10`.
+
+### Stage 6 — Consolidated API design + play-test → `API_DESIGN_MAP.md`
+
+**Goal:** holistically propose a target API structure that **maximizes endpoint reusability**, provides **CRUD operations where the data model requires them**, and **shapes returns by user-type**; then **design-time play-test (desk-trace)** each page against the proposed API.
+
+**"Max reusability" — the measurable definition (the strict ralph-loop exit predicate):**
+
+- **Every page's needs are satisfiable from the consolidated endpoint set** — no page requires a return the consolidated set can't produce.
+- **No two endpoints serve identical element sets** — duplicate-coverage endpoints are consolidated.
+
+**The play-test is a design-time DESK-TRACE, not a running server** (per resolved design decision 1). For each page, document the trace: **every component (from Stage 3c) → the proposed endpoint call (or the consolidated return field) that satisfies its payload consumption.** A running mock-server-from-OpenSpec contract test is explicitly DEFERRED to the implementation pipeline (architect-team Phases 2–8), since the API is not built during exploration. The desk-trace's exit criterion is **100% of components on 100% of pages satisfied** by an endpoint call or a consolidated return.
+
+**What it does:** defines the consolidated endpoint set with CRUD coverage and per-user-type response shaping; documents a play-test trace for **every page (100%)** showing each component is satisfied by an endpoint call or a consolidated return.
+
+**Output doc:** `<codebase>/docs/API_DESIGN_MAP.md`. Frontmatter `{generated_at, endpoints_count, user_types[]}` per the canonical naming standard.
+
+**Stage-6 CHECKLIST against Stage 5 + Stage 3c:** every page satisfiable from the consolidated set; no two endpoints serve identical element sets; 100% of pages carry a play-test desk-trace; CRUD present where the data model needs it; returns shaped by user-type.
+
+**ralph-loop:** wrapped in `/ralph-loop "consolidate the API for max reusability (every page satisfiable, no two endpoints serve identical element sets), CRUD where the data model needs it, return-by-user-type; desk-trace play-test every page (100%) showing each component calls an endpoint or consumes a consolidated return; all reviewers agree" --completion-promise "STAGE-6 API_DESIGN COMPLETE — all reviewers agree the consolidated API satisfies 100% of pages (desk-traced) with max reuse" --max-iterations 10`.
+
+### Stage 7 — Backend data architecture + phenotype gates → `DATA_ARCHITECTURE_MAP.md`
+
+**Goal (runs IFF backend is in scope):** derive the data architecture from the components + API requirements — reading the personas + platform use case — design an **extensibility-first schema for anticipated AND examined potential use cases**, select database types, fire the `phenotypes` domain gates, and THEN emit execution-ready OpenSpec requirements via the openspec skill.
+
+**What it does:**
+
+- **Reads the personas (`PERSONA_MAP.md`) + the platform use case** (Stage 1 classification) as the design inputs.
+- **Designs an extensibility-first schema** for the anticipated use cases AND the examined potential use cases (it records which potential use cases were considered).
+- **Selects the database type(s)** (relational / document / graph / key-value / time-series) with the selection rationale.
+- **Fires the `phenotypes` domain gates** (per RD-8; these are `AskUserQuestion`-style domain gates, never silent application):
+  - **user-management** — "Does this need a user-management layer? I can base it on the `phenotypes/user-management` phenotype, or follow new guidance." 
+  - **AI-management** — "Does this need an AI-management layer? I can base it on the `phenotypes/ai-management` phenotype, or follow new guidance."
+  - **config-management (deploy)** — "Does OpenTofu (or an equivalent IaC) already exist for deploy? If not, I can use the `phenotypes/config-management` phenotype (ships OpenTofu `.tf.tmpl`)."
+- **Emits execution-ready OpenSpec requirements via the openspec skill** (`openspec-propose` / `opsx:propose`) — the final data-architecture requirements are OpenSpec, authored via the openspec skill, NOT hand-written.
+
+**Output doc:** `<codebase>/docs/DATA_ARCHITECTURE_MAP.md` — records the extensible schema, the DB-type selection, and the anticipated/potential use cases considered. Frontmatter `{generated_at, db_types[], phenotypes_used[], openspec_change}` per the canonical naming standard.
+
+**Stage-7 CHECKLIST against Stage 6 + Stage 1:** the schema covers every data point implied by the consolidated API (Stage 6) and every persona need (Stage 1/2); the three phenotype domain gates fired; the final requirements are OpenSpec authored via the openspec skill.
+
+**ralph-loop:** wrapped in `/ralph-loop "derive an extensibility-first data architecture (anticipated + potential use cases), select DB types, fire the user-management / ai-management / config-management phenotype domain gates, then emit execution-ready OpenSpec via the openspec skill; all reviewers agree the architecture is extensible + complete" --completion-promise "STAGE-7 DATA_ARCHITECTURE COMPLETE — all reviewers agree the schema is extensible, DB types selected, phenotype gates fired, OpenSpec emitted via the openspec skill" --max-iterations 10`.
+
+### Exploration Pipeline — stage→doc→ralph-loop→checklist summary
+
+| Stage | Scope gate | Reuses | Output doc | OpenSpec skill | ralph-loop completion-promise (abbrev.) |
+|---|---|---|---|---|---|
+| 0 — Scope detection | always | `intake-and-mapping` | `stage-0-scope.json` | — | STAGE-0 SCOPE COMPLETE |
+| 1 — Personas + classification | frontend | Exploration Stage 1 (context discovery) | `stage-1-context.json` (+ `ancillary_docs_read`) | — | STAGE-1 CONTEXT COMPLETE |
+| 2 — Per-persona objectives | frontend | Exploration Stage 2 (per-persona research) | `PERSONA_MAP.md` | — | STAGE-2 PERSONA_MAP COMPLETE |
+| 3a — Page/element catalog | frontend | Exploration Stage 3 + `design-fidelity-mapping` | `stage-3a-...json` | — | STAGE-3A CATALOG COMPLETE |
+| 3b — Route<->persona map | frontend | `frontend-route-mapping` (ROUTE_MAP) | `stage-3b-...json` | — | STAGE-3B ROUTE-PERSONA COMPLETE |
+| 3c — Reusable-component architecture (NET-NEW) | frontend | `verify-every-element` (coverage) | `COMPONENT_ARCHITECTURE_MAP.md` | — | STAGE-3C COMPONENT-ARCHITECTURE COMPLETE |
+| 4 — Conversion → OpenSpec | frontend | `openspec-propose` / `opsx:propose` | `stage-4-...json` | **yes** | STAGE-4 OPENSPEC-CONVERSION COMPLETE |
+| 5 — Per-page REST returns | frontend | `dynamic-value-discovery` | `API_RETURNS_MAP.md` | — | STAGE-5 API_RETURNS COMPLETE |
+| 6 — Consolidated API design + play-test | frontend | Exploration Stage 4 (api layer) | `API_DESIGN_MAP.md` | — | STAGE-6 API_DESIGN COMPLETE |
+| 7 — Backend data architecture + phenotype gates | backend | `phenotypes` (user/ai/config-management) + openspec skill | `DATA_ARCHITECTURE_MAP.md` | **yes** | STAGE-7 DATA_ARCHITECTURE COMPLETE |
+
+The OpenSpec-producing stages are **Stage 4** and **Stage 7** — both call the openspec skill (`openspec-propose` / `opsx:propose`), never hand-written JSON.
 
 ## The failure shape this closes (verbatim from the user)
 
@@ -13,9 +216,9 @@ When the architect-team is given a visual codebase (a UI repo, a Figma export, a
 
 Existing reviews of visual codebases jumped straight to "what does this UI do?" without first establishing context, persona research, exhaustive page catalog, OR a checklist-driven backend design. The result was an API design that *mostly* covered what was on screen but missed entire affordances (the v2.13.0 file-upload case) AND missed per-element data needs (a name field that should be dynamic but was treated as static). v2.13.0 ships the structured pipeline that makes both gaps structurally impossible.
 
-## The 4 stages
+## The 4 stages (the original subset)
 
-Each stage produces a frozen JSON artifact stored at `<workspace>/.architect-team/visual-to-api-design/<feature-slug>/stage-<N>-<name>.json`. Each stage runs the v0.9.19 3-reviewer convergence protocol (3 independent reviewer agents → round-robin Round 2 → architect Round 3) before its artifact is frozen. Each subsequent stage reads the prior stage's frozen artifact as its CHECKLIST.
+The original 4-stage flow is the canonical SUBSET of the Exploration Pipeline (see `## The Exploration Pipeline — 7 stages` above) and remains valid and unchanged — invoked directly by the `/architect-team:visual-to-api` command. Each stage produces a frozen JSON artifact stored at `<workspace>/.architect-team/visual-to-api-design/<feature-slug>/stage-<N>-<name>.json`. Each stage runs the v0.9.19 3-reviewer convergence protocol (3 independent reviewer agents → round-robin Round 2 → architect Round 3) before its artifact is frozen; in the full Exploration Pipeline that convergence is additionally wrapped in a `ralph-loop:ralph-loop` (see governance above), but the 4-stage subset's convergence semantics are unchanged. Each subsequent stage reads the prior stage's frozen artifact as its CHECKLIST.
 
 ### Stage 1 — Context discovery
 
@@ -268,6 +471,14 @@ The explicit signal is the canonical way for users to FORCE this pipeline when t
 - `hooks/vao_tools.py::verify_affordance_coverage` — the 13th Layer 3 tool that catches the file-upload-style affordance gap Stage 3 element classifications must address.
 - `agents/system-architect.md` `Visual-to-API Design Audit` mode (NEW v2.13.0) — runs Round 3 of every stage.
 - `agents/codebase-map-reviewer.md` — the existing reviewer pattern this skill's per-stage reviewers extend.
+- `ralph-loop:ralph-loop` (the `/ralph-loop` skill) — every Exploration Pipeline stage's 3-reviewer convergence runs INSIDE this loop with a total-agreement completion-promise (same pattern as `intake-and-mapping`).
+- The openspec skill — `openspec-propose` / `opsx:propose` — the OpenSpec authoring mechanism Stages 4 and 7 call (never hand-written JSON).
+- `skills/design-fidelity-mapping/SKILL.md` (DESIGN_MAP) — Stage 3a reuses its per-element type/attribute/static-dynamic capture; unconditional raw-HTML-attribute capture is added on top.
+- `skills/frontend-route-mapping/SKILL.md` (ROUTE_MAP) — Stage 3b reuses the route inventory and annotates each route with impacted personas.
+- `skills/dynamic-value-discovery/SKILL.md` — Stage 3a's `value_class: dynamic | static` classification follows it (classify from context, never the literal); feeds Stage 5's per-page returns.
+- `skills/phenotypes/SKILL.md` (`phenotypes/user-management`, `phenotypes/ai-management`, `phenotypes/config-management`) — Stage 7 fires the three phenotype domain gates (user-management / AI-management / OpenTofu config-management).
+- `hooks/vao_tools.py::verify-every-element` — the 100%-coverage checker pattern Stages 3c and 5 reuse (every element mapped to a component / a return field).
+- `common-pipeline-conventions` `## Standardized documentation naming` — the canonical home of the five `*_MAP.md` doc names + paths + frontmatter schemas (`PERSONA_MAP.md`, `COMPONENT_ARCHITECTURE_MAP.md`, `API_RETURNS_MAP.md`, `API_DESIGN_MAP.md`, `DATA_ARCHITECTURE_MAP.md`); this skill references that standard rather than duplicating it.
 - New SR origin kind `api-design-stage-incomplete` — routes incomplete-stage findings back to the reviewer team.
 - Companion to v2.6.0 live-data wiring (catches mock-state survival on the built feature) + v2.11.0 multi-persona path-coverage (verifies the built feature works per persona) — different axis, same root principle: **the structured-checklist pattern catches what ad-hoc review misses**. This skill provides the upstream structure; v2.6.0/v2.11.0/v2.13.0 affordance discovery provide the downstream verification.
 
@@ -280,3 +491,8 @@ The explicit signal is the canonical way for users to FORCE this pipeline when t
 5. **Cross-stage references by SHA.** Each stage's artifact carries `based_on_stage_<N-1>: "<sha-of-prior-artifact>"` so downstream verification can prove the chain.
 6. **No deferral.** Per v2.10.0 — every stage that finds a gap routes an SR (`api-design-stage-incomplete`); it does not catalogue the gaps as "deferred" at the end of the run.
 7. **Stage 4's API layer MUST cover every Stage 3 element marked `needs_backend: true`.** No partial API designs; the v2.7.0 pattern-propagation discipline applies (no follow-up offers).
+8. **Every stage runs inside a ralph-loop.** Each of the 7 Exploration Pipeline stages wraps its 3-reviewer convergence in `ralph-loop:ralph-loop` with an explicit `--completion-promise` = total reviewer agreement (100% fidelity). A stage cannot freeze on partial agreement; non-convergence within `--max-iterations` routes an `api-design-stage-incomplete` SR.
+9. **OpenSpec is authored via the openspec skill.** Stages 4 and 7 produce OpenSpec via `openspec-propose` / `opsx:propose` — NEVER hand-written OpenSpec JSON or spec files.
+10. **Scope gates the frontend/backend stages.** Stage 0 classifies `frontend-only | backend-only | both`; the frontend stages (1–6) run iff frontend is in scope and the backend stage (7) runs iff backend is in scope.
+11. **Run-time inputs are read, never guessed.** `language`, `component_libraries`, and `ancillary_docs` come from the brief frontmatter or project config; absence (when FE/component work is in scope) escalates via a domain gate.
+12. **The 4-stage subset stays valid.** The original 4-stage flow + the `/architect-team:visual-to-api` command remain a valid, unchanged subset of the 7-stage Exploration Pipeline.
