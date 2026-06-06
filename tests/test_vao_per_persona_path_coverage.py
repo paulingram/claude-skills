@@ -36,7 +36,7 @@ def fixture_path(plugin_root: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def fixture_data(fixture_path: Path) -> dict:
-    return json.loads(fixture_path.read_text())
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -327,7 +327,7 @@ def test_written_file_is_sorted_keys_indent_2(vao_tools, fixture_data, tmp_path)
         fixture_data["persona_inventory"],
         out_path=out,
     )
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     parsed = json.loads(raw)
     expected = json.dumps(parsed, sort_keys=True, indent=2)
     assert raw.strip() == expected.strip()
@@ -380,8 +380,8 @@ def test_cli_exits_0_on_clean(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "artifact.json"
     inv = tmp_path / "inventory.json"
     out = tmp_path / "verdict.json"
-    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]))
-    inv.write_text(json.dumps(fixture_data["persona_inventory"]))
+    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]), encoding="utf-8")
+    inv.write_text(json.dumps(fixture_data["persona_inventory"]), encoding="utf-8")
     rc = _run_cli(plugin_root, art, inv, out)
     assert rc == 0
 
@@ -390,8 +390,8 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "artifact.json"
     inv = tmp_path / "inventory.json"
     out = tmp_path / "verdict.json"
-    art.write_text(json.dumps(fixture_data["verification_artifact"]))
-    inv.write_text(json.dumps(fixture_data["persona_inventory"]))
+    art.write_text(json.dumps(fixture_data["verification_artifact"]), encoding="utf-8")
+    inv.write_text(json.dumps(fixture_data["persona_inventory"]), encoding="utf-8")
     rc = _run_cli(plugin_root, art, inv, out)
     assert rc != 0
 
@@ -492,7 +492,7 @@ def test_no_runs_at_all_does_not_fire_live_dev(vao_tools):
 
 def test_env_seq_fixture_bad_fires_live_dev_not_tested(vao_tools, plugin_root):
     fx_path = plugin_root / "tests" / "fixtures" / "vao" / "local-only-no-live-dev-run.json"
-    fx = json.loads(fx_path.read_text())
+    fx = json.loads(fx_path.read_text(encoding="utf-8"))
     v = vao_tools.verify_per_persona_path_coverage(
         fx["verification_artifact"], fx["persona_inventory"],
     )
@@ -503,7 +503,7 @@ def test_env_seq_fixture_bad_fires_live_dev_not_tested(vao_tools, plugin_root):
 
 def test_env_seq_fixture_corrected_passes(vao_tools, plugin_root):
     fx_path = plugin_root / "tests" / "fixtures" / "vao" / "local-only-no-live-dev-run.json"
-    fx = json.loads(fx_path.read_text())
+    fx = json.loads(fx_path.read_text(encoding="utf-8"))
     v = vao_tools.verify_per_persona_path_coverage(
         fx["_corrected_verification_artifact"], fx["persona_inventory"],
     )

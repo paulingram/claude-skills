@@ -186,8 +186,8 @@ def test_audit_returns_fail_when_skill_not_invoked(audit_module, tmp_path: Path)
     ]
     transcript_path = tmp_path / "transcript.json"
     ledger_path = tmp_path / "ledger.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("\n".join(json.dumps(e) for e in ledger))
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("\n".join(json.dumps(e) for e in ledger), encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -205,8 +205,8 @@ def test_audit_writes_verdict_json(audit_module, tmp_path: Path):
     transcript = [{"role": "user", "ts": "2026-05-29T10:00:00Z", "text": "/architect-team"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -216,7 +216,7 @@ def test_audit_writes_verdict_json(audit_module, tmp_path: Path):
     )
     verdict_file = tmp_path / "run-out-skill-invocation-audit.json"
     assert verdict_file.exists()
-    on_disk = json.loads(verdict_file.read_text())
+    on_disk = json.loads(verdict_file.read_text(encoding="utf-8"))
     assert on_disk["verdict"] == "fail"
     assert on_disk["run_id"] == "run-out"
 
@@ -233,8 +233,8 @@ def test_audit_returns_pass_when_skill_was_invoked(audit_module, tmp_path: Path)
     ]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("\n".join(json.dumps(e) for e in ledger))
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("\n".join(json.dumps(e) for e in ledger), encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -259,8 +259,8 @@ def test_audit_pass_with_either_skill_name_form(audit_module, tmp_path: Path):
         ]
         transcript_path = tmp_path / f"t-{name}.json"
         ledger_path = tmp_path / f"l-{name}.jsonl"
-        transcript_path.write_text(json.dumps(transcript))
-        ledger_path.write_text("\n".join(json.dumps(e) for e in ledger))
+        transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+        ledger_path.write_text("\n".join(json.dumps(e) for e in ledger), encoding="utf-8")
         verdict = audit_module.audit_session(
             transcript_path=transcript_path,
             ledger_path=ledger_path,
@@ -278,8 +278,8 @@ def test_audit_skill_invocation_must_be_after_request_ts(audit_module, tmp_path:
     ledger = [{"tool": "Skill", "args": {"skill": "architect-team-pipeline"}, "ts": "2026-05-29T09:00:00Z"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("\n".join(json.dumps(e) for e in ledger))
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("\n".join(json.dumps(e) for e in ledger), encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -295,8 +295,8 @@ def test_audit_no_requests_passes_trivially(audit_module, tmp_path: Path):
     transcript = [{"role": "user", "ts": "2026-05-29T10:00:00Z", "text": "Hello!"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -314,8 +314,8 @@ def test_audit_assistant_messages_ignored(audit_module, tmp_path: Path):
     transcript = [{"role": "assistant", "ts": "2026-05-29T10:00:00Z", "text": "I will use /architect-team now"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -336,8 +336,8 @@ def test_audit_handles_content_list_messages(audit_module, tmp_path: Path):
     }]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -367,8 +367,8 @@ def test_cli_exits_zero_on_pass(plugin_root: Path, tmp_path: Path):
     transcript = [{"role": "user", "text": "hello"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     r = _run_cli(
         plugin_root,
         "--transcript", str(transcript_path),
@@ -383,8 +383,8 @@ def test_cli_exits_two_on_fail(plugin_root: Path, tmp_path: Path):
     transcript = [{"role": "user", "ts": "2026-05-29T10:00:00Z", "text": "/architect-team"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     r = _run_cli(
         plugin_root,
         "--transcript", str(transcript_path),
@@ -401,8 +401,8 @@ def test_cli_quiet_suppresses_stderr(plugin_root: Path, tmp_path: Path):
     transcript = [{"role": "user", "ts": "2026-05-29T10:00:00Z", "text": "/architect-team"}]
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(transcript))
-    ledger_path.write_text("")
+    transcript_path.write_text(json.dumps(transcript), encoding="utf-8")
+    ledger_path.write_text("", encoding="utf-8")
     r = _run_cli(
         plugin_root,
         "--transcript", str(transcript_path),
@@ -426,11 +426,11 @@ def test_skill_not_invoked_fixture_blocks(audit_module, plugin_root: Path, tmp_p
     fixture_path = plugin_root / "tests" / "fixtures" / "vao" / "skill-not-invoked.json"
     if not fixture_path.exists():
         pytest.skip("fixture not authored yet — covered by Slice D")
-    fixture = json.loads(fixture_path.read_text())
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
     transcript_path = tmp_path / "transcript.json"
     ledger_path = tmp_path / "ledger.jsonl"
-    transcript_path.write_text(json.dumps(fixture["transcript"]))
-    ledger_path.write_text("\n".join(json.dumps(e) for e in fixture["ledger"]))
+    transcript_path.write_text(json.dumps(fixture["transcript"]), encoding="utf-8")
+    ledger_path.write_text("\n".join(json.dumps(e) for e in fixture["ledger"]), encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,
@@ -451,7 +451,7 @@ def test_common_pipeline_conventions_documents_skill_invocation_discipline(plugi
     """REQ-16 — common-pipeline-conventions/SKILL.md MUST contain the
     canonical `## Skill-invocation discipline (v2.0.0)` section."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## Skill-invocation discipline (v2.0.0)" in body, (
         "common-pipeline-conventions must contain the canonical "
         "## Skill-invocation discipline (v2.0.0) section"
@@ -461,7 +461,7 @@ def test_common_pipeline_conventions_documents_skill_invocation_discipline(plugi
 def test_common_pipeline_conventions_documents_user_precedence_rule(plugin_root: Path):
     """The section must name the user-precedence rule explicitly."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     body_lower = body.lower()
     assert "user explicit instructions" in body_lower or "user explicit instruction" in body_lower, (
         "the section must name the user-precedence rule"
@@ -474,7 +474,7 @@ def test_common_pipeline_conventions_documents_user_precedence_rule(plugin_root:
 def test_common_pipeline_conventions_forbids_methodology_by_hand(plugin_root: Path):
     """The section must name the forbidden anti-pattern."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     body_lower = body.lower()
     assert "methodology by hand" in body_lower or "by hand" in body_lower, (
         "the section must name 'applied methodology by hand' as the forbidden anti-pattern"
@@ -484,7 +484,7 @@ def test_common_pipeline_conventions_forbids_methodology_by_hand(plugin_root: Pa
 def test_common_pipeline_conventions_names_both_surface_forms(plugin_root: Path):
     """The section must name both the slash-command form AND the prose form."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     body_lower = body.lower()
     assert "slash" in body_lower, "the section must name the slash-command form"
     assert "prose" in body_lower, "the section must name the prose form"

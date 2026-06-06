@@ -250,7 +250,7 @@ def test_clean_not_prod_safe_against_dev_passes() -> None:
 
 
 def test_canonical_fixture_bad_fires_all_4_severities() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     result = verify_test_prod_safety_classification(fx["verification_artifact"], fx["run_target"])
     assert result["valid"] is False
     sevs = sorted({g["severity"] for g in result["gaps"]})
@@ -258,7 +258,7 @@ def test_canonical_fixture_bad_fires_all_4_severities() -> None:
 
 
 def test_canonical_fixture_corrected_passes() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     result = verify_test_prod_safety_classification(
         fx["_corrected_verification_artifact"], fx["_corrected_run_target"]
     )
@@ -270,20 +270,20 @@ def test_canonical_fixture_corrected_passes() -> None:
 
 
 def test_output_is_deterministic_sorted_keys_indent_2() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     a = verify_test_prod_safety_classification(fx["verification_artifact"], fx["run_target"])
     b = verify_test_prod_safety_classification(fx["verification_artifact"], fx["run_target"])
     assert json.dumps(a, sort_keys=True, indent=2) == json.dumps(b, sort_keys=True, indent=2)
 
 
 def test_output_carries_tool_name() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     result = verify_test_prod_safety_classification(fx["verification_artifact"], fx["run_target"])
     assert result["tool"] == "verify-test-prod-safety-classification"
 
 
 def test_output_carries_verdict_at_iso_string() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     result = verify_test_prod_safety_classification(fx["verification_artifact"], fx["run_target"])
     assert "verdict_at" in result
     assert isinstance(result["verdict_at"], str)
@@ -294,7 +294,7 @@ def test_output_carries_verdict_at_iso_string() -> None:
 
 
 def test_each_gap_carries_required_fields() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     result = verify_test_prod_safety_classification(fx["verification_artifact"], fx["run_target"])
     for g in result["gaps"]:
         assert "severity" in g
@@ -324,10 +324,10 @@ def test_missing_feature_kind_returns_passing_noop() -> None:
 
 def test_out_path_writes_sidecar(tmp_path: Path) -> None:
     out = tmp_path / "verdict.json"
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     verify_test_prod_safety_classification(
         fx["verification_artifact"], fx["run_target"], out_path=str(out)
     )
     assert out.exists()
-    persisted = json.loads(out.read_text())
+    persisted = json.loads(out.read_text(encoding="utf-8"))
     assert persisted["tool"] == "verify-test-prod-safety-classification"

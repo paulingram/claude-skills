@@ -28,13 +28,13 @@ import pytest
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## Live-data wiring discipline (v2.6.0)" in body
 
 
 def test_canonical_section_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert body.count("## Live-data wiring discipline (v2.6.0)") == 1
 
 
@@ -52,7 +52,7 @@ def test_canonical_section_appears_once(plugin_root: Path):
 ])
 def test_canonical_section_names_severity(plugin_root: Path, severity: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert severity in body, f"severity {severity!r} not named in canonical section"
 
 
@@ -63,7 +63,7 @@ def test_canonical_section_names_severity(plugin_root: Path, severity: str):
 
 def test_canonical_section_documents_two_pass_workflow(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     # Playwright pass + code-side audit must both be named
     assert "playwright" in body
     assert "code" in body  # code-side audit
@@ -78,13 +78,13 @@ def test_canonical_section_documents_two_pass_workflow(plugin_root: Path):
 
 def test_canonical_section_names_wiring_mandate_annotation(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "wiring_mandate" in body
 
 
 def test_canonical_section_names_at_least_3_mandate_phrases(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     phrases = [
         "wire to live data",
         "remove mock",
@@ -103,7 +103,7 @@ def test_canonical_section_names_at_least_3_mandate_phrases(plugin_root: Path):
 
 def test_canonical_section_references_3_reviewer_swarm(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     assert "3-reviewer" in body or "3 reviewer" in body or "three reviewer" in body or "interaction-completeness" in body
 
 
@@ -114,7 +114,7 @@ def test_canonical_section_references_3_reviewer_swarm(plugin_root: Path):
 
 def test_canonical_section_documents_async_status_rule(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     states = ["loading", "processing", "done", "pending"]
     hits = sum(1 for s in states if s in body)
     assert hits >= 3, f"async-status canonical state list incomplete: {hits} states"
@@ -127,13 +127,13 @@ def test_canonical_section_documents_async_status_rule(plugin_root: Path):
 
 def test_interaction_completeness_has_live_data_wiring_axis(plugin_root: Path):
     skill = plugin_root / "skills" / "interaction-completeness" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## Live-data wiring axis (v2.6.0)" in body
 
 
 def test_interaction_completeness_references_live_data_wiring_findings(plugin_root: Path):
     skill = plugin_root / "skills" / "interaction-completeness" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "live_data_wiring_findings" in body
 
 
@@ -144,13 +144,13 @@ def test_interaction_completeness_references_live_data_wiring_findings(plugin_ro
 
 def test_interaction_reviewer_has_live_data_wiring_audit_section(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-reviewer.md"
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "## Live-data wiring audit (v2.6.0)" in body
 
 
 def test_interaction_reviewer_documents_2_pass_audit(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-reviewer.md"
-    body = agent.read_text().lower()
+    body = agent.read_text(encoding="utf-8").lower()
     assert "playwright" in body
     assert "code-side" in body or "code side" in body
     assert "tamper" in body
@@ -165,7 +165,7 @@ def test_coverage_map_change_name(plugin_root: Path):
     coverage = plugin_root / "openspec" / "changes" / "live-data-wiring-discipline" / "coverage-map.json"
     if not coverage.exists():
         pytest.skip("coverage map archived; structural assertions live in archive")
-    data = json.loads(coverage.read_text())
+    data = json.loads(coverage.read_text(encoding="utf-8"))
     assert data["change"] == "live-data-wiring-discipline"
     assert data["version"] == "2.6.0"
 
@@ -174,7 +174,7 @@ def test_coverage_map_requirements_cover_all_pillars(plugin_root: Path):
     coverage = plugin_root / "openspec" / "changes" / "live-data-wiring-discipline" / "coverage-map.json"
     if not coverage.exists():
         pytest.skip("coverage map archived; structural assertions live in archive")
-    data = json.loads(coverage.read_text())
+    data = json.loads(coverage.read_text(encoding="utf-8"))
     titles = " | ".join(r["title"] for r in data["requirements"])
     assert "common-pipeline-conventions" in titles
     assert "Layer 3 tool" in titles

@@ -59,7 +59,7 @@ def schema_module(plugin_root: Path):
 
 
 def _load_fixture(name: str) -> dict:
-    return json.loads((FIXTURES_DIR / f"{name}.json").read_text())
+    return json.loads((FIXTURES_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ def test_fixture_exists_and_parses(fixture_name):
     """REQ-10 — all 7 canonical fixtures exist under tests/fixtures/vao/."""
     fixture_path = FIXTURES_DIR / f"{fixture_name}.json"
     assert fixture_path.exists(), f"missing canonical fixture: {fixture_path}"
-    data = json.loads(fixture_path.read_text())
+    data = json.loads(fixture_path.read_text(encoding="utf-8"))
     assert "_meta" in data, f"{fixture_name} missing _meta block documenting the failure shape"
     assert "fixture_name" in data["_meta"]
     assert "failure_shape" in data["_meta"]
@@ -282,8 +282,8 @@ def test_skill_not_invoked_fixture_caught_by_audit(audit_module, tmp_path: Path)
     fixture = _load_fixture("skill-not-invoked")
     transcript_path = tmp_path / "t.json"
     ledger_path = tmp_path / "l.jsonl"
-    transcript_path.write_text(json.dumps(fixture["transcript"]))
-    ledger_path.write_text("\n".join(json.dumps(e) for e in fixture["ledger"]))
+    transcript_path.write_text(json.dumps(fixture["transcript"]), encoding="utf-8")
+    ledger_path.write_text("\n".join(json.dumps(e) for e in fixture["ledger"]), encoding="utf-8")
     verdict = audit_module.audit_session(
         transcript_path=transcript_path,
         ledger_path=ledger_path,

@@ -36,7 +36,7 @@ def fixture_path(plugin_root: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def fixture_data(fixture_path: Path) -> dict:
-    return json.loads(fixture_path.read_text())
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -248,7 +248,7 @@ def test_deterministic_output_modulo_timestamp(vao_tools, fixture_data):
 def test_written_file_is_indent_2_sorted(vao_tools, fixture_data, tmp_path):
     out = tmp_path / "verdict.json"
     vao_tools.verify_no_standing_red(fixture_data["verification_artifact"], out_path=out)
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     parsed = json.loads(raw)
     expected = json.dumps(parsed, sort_keys=True, indent=2)
     assert raw.strip() == expected.strip()
@@ -291,7 +291,7 @@ def _run_cli(plugin_root: Path, artifact_path: Path, out_path: Path) -> int:
 def test_cli_exits_0_on_clean(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "artifact.json"
     out = tmp_path / "verdict.json"
-    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]))
+    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]), encoding="utf-8")
     rc = _run_cli(plugin_root, art, out)
     assert rc == 0
 
@@ -299,6 +299,6 @@ def test_cli_exits_0_on_clean(plugin_root, fixture_data, tmp_path):
 def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "artifact.json"
     out = tmp_path / "verdict.json"
-    art.write_text(json.dumps(fixture_data["verification_artifact"]))
+    art.write_text(json.dumps(fixture_data["verification_artifact"]), encoding="utf-8")
     rc = _run_cli(plugin_root, art, out)
     assert rc != 0

@@ -350,7 +350,7 @@ def test_writes_verdict_file(vao_tools, tmp_path: Path):
         out_path=out,
     )
     assert out.exists()
-    data = json.loads(out.read_text())
+    data = json.loads(out.read_text(encoding="utf-8"))
     assert data["tool"] == "verify-live-verification-claim"
 
 
@@ -361,7 +361,7 @@ def test_sorted_keys_in_output(vao_tools, tmp_path: Path):
         bug_description=_valid_bug(),
         out_path=out,
     )
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     assert raw.index('"gaps"') < raw.index('"tool"') < raw.index('"valid"') < raw.index('"verdict_at"')
 
 
@@ -373,21 +373,21 @@ def test_sorted_keys_in_output(vao_tools, tmp_path: Path):
 @pytest.fixture(scope="module")
 def fixture_gesture(plugin_root: Path):
     return json.loads(
-        (plugin_root / "tests" / "fixtures" / "vao" / "gesture-substitution-corner-click.json").read_text()
+        (plugin_root / "tests" / "fixtures" / "vao" / "gesture-substitution-corner-click.json").read_text(encoding="utf-8")
     )
 
 
 @pytest.fixture(scope="module")
 def fixture_loop(plugin_root: Path):
     return json.loads(
-        (plugin_root / "tests" / "fixtures" / "vao" / "self-authored-unit-test-loop.json").read_text()
+        (plugin_root / "tests" / "fixtures" / "vao" / "self-authored-unit-test-loop.json").read_text(encoding="utf-8")
     )
 
 
 @pytest.fixture(scope="module")
 def fixture_prefill(plugin_root: Path):
     return json.loads(
-        (plugin_root / "tests" / "fixtures" / "vao" / "prefill-masking-demo-matter.json").read_text()
+        (plugin_root / "tests" / "fixtures" / "vao" / "prefill-masking-demo-matter.json").read_text(encoding="utf-8")
     )
 
 
@@ -456,8 +456,8 @@ def test_cli_exits_zero_on_valid(plugin_root: Path, tmp_path: Path):
     import subprocess, sys
     art_path = tmp_path / "art.json"
     bug_path = tmp_path / "bug.json"
-    art_path.write_text(json.dumps(_valid_artifact()))
-    bug_path.write_text(json.dumps(_valid_bug()))
+    art_path.write_text(json.dumps(_valid_artifact()), encoding="utf-8")
+    bug_path.write_text(json.dumps(_valid_bug()), encoding="utf-8")
     r = subprocess.run(
         [sys.executable, str(plugin_root / "hooks" / "vao_tools.py"),
          "verify-live-verification-claim",
@@ -475,8 +475,8 @@ def test_cli_exits_two_on_gesture_substitution(plugin_root: Path, tmp_path: Path
     art["click_targets"] = [{"selector": "body", "coord": [8, 8]}]
     art_path = tmp_path / "art.json"
     bug_path = tmp_path / "bug.json"
-    art_path.write_text(json.dumps(art))
-    bug_path.write_text(json.dumps(_valid_bug()))
+    art_path.write_text(json.dumps(art), encoding="utf-8")
+    bug_path.write_text(json.dumps(_valid_bug()), encoding="utf-8")
     r = subprocess.run(
         [sys.executable, str(plugin_root / "hooks" / "vao_tools.py"),
          "verify-live-verification-claim",
@@ -772,14 +772,14 @@ def test_missing_evidence_artifact_does_not_fire_when_file_valid(vao_tools, tmp_
 @pytest.fixture(scope="module")
 def fixture_external_state(plugin_root: Path):
     return json.loads(
-        (plugin_root / "tests" / "fixtures" / "vao" / "external-state-not-asserted-email-invite.json").read_text()
+        (plugin_root / "tests" / "fixtures" / "vao" / "external-state-not-asserted-email-invite.json").read_text(encoding="utf-8")
     )
 
 
 @pytest.fixture(scope="module")
 def fixture_fabricated(plugin_root: Path):
     return json.loads(
-        (plugin_root / "tests" / "fixtures" / "vao" / "fabricated-verification-table.json").read_text()
+        (plugin_root / "tests" / "fixtures" / "vao" / "fabricated-verification-table.json").read_text(encoding="utf-8")
     )
 
 
@@ -809,7 +809,7 @@ def test_fixture_external_state_corrected_passes(vao_tools, fixture_external_sta
     a real tmp file before calling the tool."""
     corrected = dict(fixture_external_state["_corrected_verification_artifact"])
     real_artifact = tmp_path / "sendgrid-activity-api-response.json"
-    real_artifact.write_text(json.dumps({"event": "delivered", "recipient": "paul.ingram0322@gmail.com"}))
+    real_artifact.write_text(json.dumps({"event": "delivered", "recipient": "paul.ingram0322@gmail.com"}), encoding="utf-8")
     real_screenshot = tmp_path / "corrected.png"
     real_screenshot.write_bytes(b"fake png")
     corrected["evidence_artifact_path"] = str(real_artifact)

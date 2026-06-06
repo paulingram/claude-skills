@@ -241,7 +241,7 @@ def test_writes_verdict_file(vao_tools, tmp_path: Path):
         out_path=out,
     )
     assert out.exists()
-    data = json.loads(out.read_text())
+    data = json.loads(out.read_text(encoding="utf-8"))
     assert data["tool"] == "verify-interactions-honored"
 
 
@@ -253,7 +253,7 @@ def test_sorted_keys_in_output(vao_tools, tmp_path: Path):
         oracle_spec={},
         out_path=out,
     )
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     # Alphabetical key order: gaps before honored_count before matched before tool before total_count before verdict_at
     assert raw.index('"gaps"') < raw.index('"honored_count"') < raw.index('"matched"') < raw.index('"tool"')
     assert raw.index('"tool"') < raw.index('"total_count"') < raw.index('"verdict_at"')
@@ -306,7 +306,7 @@ def test_resolved_intent_dict_shape(vao_tools):
 @pytest.fixture(scope="module")
 def logout_misroute_fixture(plugin_root: Path):
     return json.loads(
-        (plugin_root / "tests" / "fixtures" / "vao" / "interactive-mockup-logout-misroute.json").read_text()
+        (plugin_root / "tests" / "fixtures" / "vao" / "interactive-mockup-logout-misroute.json").read_text(encoding="utf-8")
     )
 
 
@@ -471,8 +471,8 @@ def test_cli_exits_zero_on_pass(plugin_root: Path, tmp_path: Path):
     import subprocess, sys
     components_path = tmp_path / "components.json"
     oracle_path = tmp_path / "oracle.json"
-    components_path.write_text(json.dumps([]))
-    oracle_path.write_text(json.dumps({}))
+    components_path.write_text(json.dumps([]), encoding="utf-8")
+    oracle_path.write_text(json.dumps({}), encoding="utf-8")
     r = subprocess.run(
         [sys.executable, str(plugin_root / "hooks" / "vao_tools.py"),
          "verify-interactions-honored",
@@ -491,14 +491,14 @@ def test_cli_exits_two_on_misroute(plugin_root: Path, tmp_path: Path):
     components_path.write_text(json.dumps([{
         "path": "p.tsx",
         "handlers": [{"trigger_selector": "#x", "action_kind": "navigate", "target_url_or_state": "/wrong"}],
-    }]))
+    }]), encoding="utf-8")
     oracle_path.write_text(json.dumps({
         "interactions": [{
             "trigger_selector": "#x",
             "action_kind": "navigate",
             "target_url_or_state": "/right",
         }],
-    }))
+    }), encoding="utf-8")
     r = subprocess.run(
         [sys.executable, str(plugin_root / "hooks" / "vao_tools.py"),
          "verify-interactions-honored",

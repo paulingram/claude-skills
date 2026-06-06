@@ -268,7 +268,7 @@ def test_locate_pip_user_binary_finds_binary_in_candidate(install_script_module,
     fake_bin = tmp_path / "fake-user-bin"
     fake_bin.mkdir(parents=True)
     fake_mp = fake_bin / "mempalace"
-    fake_mp.write_text("#!/bin/sh\necho 9.9.9")
+    fake_mp.write_text("#!/bin/sh\necho 9.9.9", encoding="utf-8")
     fake_mp.chmod(0o755)
     install_script_module._candidate_user_bin_dirs = lambda: [fake_bin]
     result = install_script_module._locate_pip_user_binary("mempalace")
@@ -285,7 +285,7 @@ def test_bridge_to_path_dir_symlinks_unix(install_script_module, tmp_path: Path)
     fake_bin.mkdir(parents=True)
     for name in ("mempalace", "mempalace-mcp"):
         p = fake_bin / name
-        p.write_text("#!/bin/sh\necho 9.9.9")
+        p.write_text("#!/bin/sh\necho 9.9.9", encoding="utf-8")
         p.chmod(0o755)
     install_script_module._candidate_user_bin_dirs = lambda: [fake_bin]
     # Force `which` to fail so the bridge fires.
@@ -324,7 +324,7 @@ def test_bridge_to_path_dir_idempotent(install_script_module, tmp_path: Path) ->
     fake_bin = tmp_path / "fake-user-bin"
     fake_bin.mkdir(parents=True)
     fake_mp = fake_bin / "mempalace"
-    fake_mp.write_text("#!/bin/sh\necho 9.9.9")
+    fake_mp.write_text("#!/bin/sh\necho 9.9.9", encoding="utf-8")
     fake_mp.chmod(0o755)
     install_script_module._candidate_user_bin_dirs = lambda: [fake_bin]
     install_script_module._which = lambda name: None

@@ -36,7 +36,7 @@ def fixture_path(plugin_root: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def fixture_data(fixture_path: Path) -> dict:
-    return json.loads(fixture_path.read_text())
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@ def test_written_file_is_sorted_keys_indent_2(vao_tools, fixture_data, tmp_path)
         fixture_data["scope_mandate"],
         out_path=out,
     )
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     parsed = json.loads(raw)
     expected = json.dumps(parsed, sort_keys=True, indent=2)
     assert raw.strip() == expected.strip()
@@ -264,8 +264,8 @@ def test_cli_exits_0_on_clean(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "art.json"
     man = tmp_path / "mandate.json"
     out = tmp_path / "out.json"
-    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]))
-    man.write_text(json.dumps(fixture_data["scope_mandate"]))
+    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]), encoding="utf-8")
+    man.write_text(json.dumps(fixture_data["scope_mandate"]), encoding="utf-8")
     assert _run_cli(plugin_root, art, man, out) == 0
 
 
@@ -273,8 +273,8 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "art.json"
     man = tmp_path / "mandate.json"
     out = tmp_path / "out.json"
-    art.write_text(json.dumps(fixture_data["verification_artifact"]))
-    man.write_text(json.dumps(fixture_data["scope_mandate"]))
+    art.write_text(json.dumps(fixture_data["verification_artifact"]), encoding="utf-8")
+    man.write_text(json.dumps(fixture_data["scope_mandate"]), encoding="utf-8")
     assert _run_cli(plugin_root, art, man, out) != 0
 
 
@@ -284,19 +284,19 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## No implementation-time scope cut discipline (v2.14.0)" in body
 
 
 def test_canonical_section_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert body.count("\n## No implementation-time scope cut discipline (v2.14.0)\n") == 1
 
 
 def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "implement everything in full" in body
     assert "should never ever make such judgement" in body
     assert "M0 foundation" in body
@@ -310,5 +310,5 @@ def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
 ])
 def test_agent_body_has_v2_14_0_section(plugin_root: Path, agent_file: str):
     agent = plugin_root / "agents" / agent_file
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "## No implementation-time scope cut discipline (v2.14.0)" in body

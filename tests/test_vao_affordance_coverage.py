@@ -36,7 +36,7 @@ def fixture_path(plugin_root: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def fixture_data(fixture_path: Path) -> dict:
-    return json.loads(fixture_path.read_text())
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 # Tool existence + verdict shape
@@ -193,7 +193,7 @@ def test_written_file_is_sorted_keys_indent_2(vao_tools, fixture_data, tmp_path)
         fixture_data["requirements_inventory"],
         out_path=out,
     )
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     parsed = json.loads(raw)
     expected = json.dumps(parsed, sort_keys=True, indent=2)
     assert raw.strip() == expected.strip()
@@ -237,8 +237,8 @@ def test_cli_exits_0_on_clean(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "art.json"
     inv = tmp_path / "inv.json"
     out = tmp_path / "out.json"
-    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]))
-    inv.write_text(json.dumps(fixture_data["_corrected_requirements_inventory"]))
+    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]), encoding="utf-8")
+    inv.write_text(json.dumps(fixture_data["_corrected_requirements_inventory"]), encoding="utf-8")
     assert _run_cli(plugin_root, art, inv, out) == 0
 
 
@@ -246,6 +246,6 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
     art = tmp_path / "art.json"
     inv = tmp_path / "inv.json"
     out = tmp_path / "out.json"
-    art.write_text(json.dumps(fixture_data["verification_artifact"]))
-    inv.write_text(json.dumps(fixture_data["requirements_inventory"]))
+    art.write_text(json.dumps(fixture_data["verification_artifact"]), encoding="utf-8")
+    inv.write_text(json.dumps(fixture_data["requirements_inventory"]), encoding="utf-8")
     assert _run_cli(plugin_root, art, inv, out) != 0

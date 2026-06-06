@@ -51,10 +51,17 @@ _BYPASS_ALLOWED_PATH_FRAGMENTS = (
 def _find_workspace(start: Path) -> Path | None:
     """Walk up from `start` looking for a directory containing `.architect-team/`.
 
-    Returns the workspace root or None if no such ancestor exists.
+    Returns the workspace root or None if no such ancestor exists. The bare
+    filesystem root (drive anchor on Windows, `/` on POSIX) is never treated
+    as a workspace: a stray `C:\\.architect-team` / `/.architect-team` must not
+    capture an unrelated subtree. The walk terminates at the root and returns
+    None when no real marker is found.
     """
     start = start.resolve()
+    root = Path(start.anchor)
     for candidate in (start, *start.parents):
+        if candidate == root:
+            continue
         if (candidate / ".architect-team").is_dir():
             return candidate
     return None

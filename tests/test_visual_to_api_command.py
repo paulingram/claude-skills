@@ -136,14 +136,14 @@ def test_command_cross_references_visual_to_api_design_skill(plugin_root: Path):
 
 def test_skill_body_documents_explicit_signal(plugin_root: Path):
     skill = plugin_root / "skills" / "visual-to-api-design" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "intake_mode" in body
     assert "v2.15.0" in body or "/architect-team:visual-to-api" in body
 
 
 def test_skill_body_documents_signal_short_circuits_heuristic(plugin_root: Path):
     skill = plugin_root / "skills" / "visual-to-api-design" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "SHORT-CIRCUITS" in body or "short-circuits" in body.lower()
     # The order is: explicit signal first, then heuristic fallback
     assert "explicit signal" in body.lower() or "Explicit signal" in body
@@ -152,5 +152,5 @@ def test_skill_body_documents_signal_short_circuits_heuristic(plugin_root: Path)
 def test_command_registered_in_expected_commands(plugin_root: Path):
     """The command MUST be registered in tests/test_commands.py EXPECTED_COMMANDS."""
     test_file = plugin_root / "tests" / "test_commands.py"
-    body = test_file.read_text()
+    body = test_file.read_text(encoding="utf-8")
     assert '"visual-to-api"' in body or "'visual-to-api'" in body

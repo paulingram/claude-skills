@@ -16,38 +16,38 @@ import pytest
 
 def test_dynamic_affordance_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## Dynamic affordance discovery discipline (v2.13.0)" in body
 
 
 def test_dynamic_affordance_canonical_section_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert body.count("\n## Dynamic affordance discovery discipline (v2.13.0)\n") == 1
 
 
 def test_env_sequencing_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## UX-test environment sequencing discipline (v2.13.0)" in body
 
 
 def test_env_sequencing_canonical_section_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert body.count("\n## UX-test environment sequencing discipline (v2.13.0)\n") == 1
 
 
 def test_dynamic_affordance_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "missed dynamic requirements to handle file uplaods" in body or "file uplaods" in body
     assert "file-upload" in body
 
 
 def test_env_sequencing_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "local" in body.lower() and "live dev" in body.lower()
     assert "tests locally and never tests the full spectrum" in body
 
@@ -58,13 +58,13 @@ def test_env_sequencing_quotes_verbatim_user_prose(plugin_root: Path):
 ])
 def test_canonical_section_names_severity(plugin_root: Path, severity: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert severity in body
 
 
 def test_dynamic_affordance_section_documents_file_upload_signatures(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     # At least 5 representative signature classes named in the table
     expected = ['<input type="file"', "multipart/form-data", "react-dropzone",
                 "multer", "PutObject", "Upload"]
@@ -85,20 +85,20 @@ def test_dynamic_affordance_section_documents_file_upload_signatures(plugin_root
 ])
 def test_agent_body_has_v2_13_0_section(plugin_root: Path, agent_file: str, section_header: str):
     agent = plugin_root / "agents" / agent_file
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert section_header in body, f"agents/{agent_file} missing {section_header!r}"
 
 
 def test_system_architect_documents_affordance_coverage_finding_field(plugin_root: Path):
     agent = plugin_root / "agents" / "system-architect.md"
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "affordance_coverage_finding" in body
     assert "unaddressed_kinds" in body
 
 
 def test_qa_replayer_documents_environments_observed_field(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "environments_observed" in body
 
 
@@ -118,7 +118,7 @@ def test_env_seq_fixture_exists(plugin_root: Path):
 
 def test_affordance_fixture_carries_required_shape(plugin_root: Path):
     f = plugin_root / "tests" / "fixtures" / "vao" / "file-upload-affordance-missed.json"
-    data = json.loads(f.read_text())
+    data = json.loads(f.read_text(encoding="utf-8"))
     assert "requirements_inventory" in data
     assert "verification_artifact" in data
     assert "_corrected_verification_artifact" in data
@@ -136,7 +136,7 @@ def test_affordance_fixture_carries_required_shape(plugin_root: Path):
 
 def test_canonical_section_cross_references_tool(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "verify_affordance_coverage" in body
     assert "_AFFORDANCE_SIGNATURES" in body
     assert "_LOCAL_ENV_HOST_PATTERNS" in body
@@ -144,12 +144,12 @@ def test_canonical_section_cross_references_tool(plugin_root: Path):
 
 def test_canonical_section_cross_references_fixtures(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "file-upload-affordance-missed.json" in body
     assert "local-only-no-live-dev-run.json" in body
 
 
 def test_canonical_section_names_new_sr_origin_kind(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "affordance-coverage-gap" in body

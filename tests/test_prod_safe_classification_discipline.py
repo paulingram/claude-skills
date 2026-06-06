@@ -17,12 +17,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_v2_17_0_section_present_in_common_pipeline_conventions() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     assert "## Prod-safe test classification discipline (v2.17.0)" in body
 
 
 def test_canonical_home_names_4_severities() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     for sev in (
         "unclassified-test",
         "prod-deployment-runs-unsafe-test",
@@ -33,19 +33,19 @@ def test_canonical_home_names_4_severities() -> None:
 
 
 def test_canonical_home_names_3_classifications() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     for cls in ("`@prod-safe`", "`@not-prod-safe`", "`ambiguous`"):
         assert cls in body
 
 
 def test_canonical_home_names_annotation_forms() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     assert "// @prod-safe" in body
     assert "# @prod-safe" in body
 
 
 def test_canonical_home_includes_verbatim_user_prose() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     assert "deploying to production" in body
     assert "non-destructive" in body
     assert "mass classify" in body
@@ -55,7 +55,7 @@ def test_canonical_home_includes_verbatim_user_prose() -> None:
 
 
 def test_new_sr_origin_kind_documented() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     assert "prod-safety-classification-required" in body
 
 
@@ -63,22 +63,22 @@ def test_new_sr_origin_kind_documented() -> None:
 
 
 def test_frontend_agent_has_v2_17_0_section() -> None:
-    body = (REPO_ROOT / "agents" / "frontend.md").read_text()
+    body = (REPO_ROOT / "agents" / "frontend.md").read_text(encoding="utf-8")
     assert "## Prod-safe test classification discipline (v2.17.0)" in body
 
 
 def test_backend_agent_has_v2_17_0_section() -> None:
-    body = (REPO_ROOT / "agents" / "backend.md").read_text()
+    body = (REPO_ROOT / "agents" / "backend.md").read_text(encoding="utf-8")
     assert "## Prod-safe test classification discipline (v2.17.0)" in body
 
 
 def test_qa_replayer_agent_has_v2_17_0_section() -> None:
-    body = (REPO_ROOT / "agents" / "qa-replayer.md").read_text()
+    body = (REPO_ROOT / "agents" / "qa-replayer.md").read_text(encoding="utf-8")
     assert "## Prod-safe test classification discipline (v2.17.0)" in body
 
 
 def test_bug_replicator_agent_has_v2_17_0_section() -> None:
-    body = (REPO_ROOT / "agents" / "bug-replicator.md").read_text()
+    body = (REPO_ROOT / "agents" / "bug-replicator.md").read_text(encoding="utf-8")
     assert "## Prod-safe test classification discipline (v2.17.0)" in body
 
 
@@ -90,7 +90,7 @@ def test_canonical_fixture_exists() -> None:
         REPO_ROOT / "tests" / "fixtures" / "vao" / "prod-safe-test-classification-required.json"
     )
     assert fx_path.exists()
-    fx = json.loads(fx_path.read_text())
+    fx = json.loads(fx_path.read_text(encoding="utf-8"))
     assert "verification_artifact" in fx
     assert "run_target" in fx
     assert "_corrected_verification_artifact" in fx
@@ -100,7 +100,7 @@ def test_canonical_fixture_meta_lists_4_severities() -> None:
     fx_path = (
         REPO_ROOT / "tests" / "fixtures" / "vao" / "prod-safe-test-classification-required.json"
     )
-    fx = json.loads(fx_path.read_text())
+    fx = json.loads(fx_path.read_text(encoding="utf-8"))
     sevs = fx["expected_verdict_for_misverification"]["expected_unique_severities"]
     assert sorted(sevs) == sorted([
         "unclassified-test",
@@ -124,7 +124,7 @@ def test_schema_v7_unchanged_required_fields_count() -> None:
 
 
 def test_qa_replayer_section_mentions_prod_url_filter() -> None:
-    body = (REPO_ROOT / "agents" / "qa-replayer.md").read_text()
+    body = (REPO_ROOT / "agents" / "qa-replayer.md").read_text(encoding="utf-8")
     assert "## Prod-safe test classification discipline (v2.17.0)" in body
     section = body.split("## Prod-safe test classification discipline (v2.17.0)", 1)[1]
     section = section.split("\n## ", 1)[0]
@@ -136,7 +136,7 @@ def test_qa_replayer_section_mentions_prod_url_filter() -> None:
 
 
 def test_canonical_home_cross_references_v2_6_0_and_v2_11_0() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     section = body.split("## Prod-safe test classification discipline (v2.17.0)", 1)[1]
     section = section.split("\n## ", 1)[0]
     assert "v2.6.0" in section
@@ -147,7 +147,7 @@ def test_canonical_home_cross_references_v2_6_0_and_v2_11_0() -> None:
 
 
 def test_canonical_home_lists_mutation_signature_classes() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     section = body.split("## Prod-safe test classification discipline (v2.17.0)", 1)[1]
     section = section.split("\n## ", 1)[0]
     for cls in (
@@ -162,7 +162,7 @@ def test_canonical_home_lists_mutation_signature_classes() -> None:
 
 
 def test_canonical_home_lists_read_only_signatures() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text()
+    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
     section = body.split("## Prod-safe test classification discipline (v2.17.0)", 1)[1]
     section = section.split("\n## ", 1)[0]
     for needle in ("page.goto", "page.locator", "expect(", "findUnique"):

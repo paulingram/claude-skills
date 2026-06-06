@@ -97,7 +97,7 @@ def test_read_intake_state_returns_dict_when_present(tmp_path: Path) -> None:
     (tmp_path / ".architect-team").mkdir()
     (tmp_path / ".architect-team" / "intake-state.json").write_text(
         json.dumps({"run_id": "r1", "status": "in_progress", "phase": 2})
-    )
+    , encoding="utf-8")
     state = _read_intake_state(tmp_path)
     assert state is not None
     assert state["run_id"] == "r1"
@@ -105,7 +105,7 @@ def test_read_intake_state_returns_dict_when_present(tmp_path: Path) -> None:
 
 def test_read_intake_state_returns_none_on_malformed_json(tmp_path: Path) -> None:
     (tmp_path / ".architect-team").mkdir()
-    (tmp_path / ".architect-team" / "intake-state.json").write_text("not json")
+    (tmp_path / ".architect-team" / "intake-state.json").write_text("not json", encoding="utf-8")
     assert _read_intake_state(tmp_path) is None
 
 
@@ -157,7 +157,7 @@ def _make_workspace_with_active_pipeline(tmp_path: Path, run_id: str = "r1") -> 
     (tmp_path / ".architect-team").mkdir()
     (tmp_path / ".architect-team" / "intake-state.json").write_text(
         json.dumps({"run_id": run_id, "status": "in_progress", "phase": 2})
-    )
+    , encoding="utf-8")
     return tmp_path
 
 
@@ -197,7 +197,7 @@ def test_not_in_progress_status_passes(tmp_path: Path) -> None:
     (tmp_path / ".architect-team").mkdir()
     (tmp_path / ".architect-team" / "intake-state.json").write_text(
         json.dumps({"run_id": "r1", "status": "completed", "phase": 8})
-    )
+    , encoding="utf-8")
     ec, msg = check_payload({
         "tool_name": "Edit",
         "tool_input": {"file_path": str(tmp_path / "src/x.py")},
@@ -210,7 +210,7 @@ def test_phase_8_or_higher_passes(tmp_path: Path) -> None:
     (tmp_path / ".architect-team").mkdir()
     (tmp_path / ".architect-team" / "intake-state.json").write_text(
         json.dumps({"run_id": "r1", "status": "in_progress", "phase": 8})
-    )
+    , encoding="utf-8")
     ec, msg = check_payload({
         "tool_name": "Edit",
         "tool_input": {"file_path": str(tmp_path / "src/x.py")},
@@ -224,7 +224,7 @@ def test_active_pipeline_with_skill_in_ledger_passes(tmp_path: Path) -> None:
     (ws / ".architect-team" / "run-history").mkdir()
     (ws / ".architect-team" / "run-history" / "r1-toolcalls.jsonl").write_text(
         json.dumps({"tool": "Skill", "tool_input": {"skill": "architect-team-pipeline"}}) + "\n"
-    )
+    , encoding="utf-8")
     ec, msg = check_payload({
         "tool_name": "Edit",
         "tool_input": {"file_path": str(ws / "src/x.py")},
@@ -238,7 +238,7 @@ def test_active_pipeline_with_bug_fix_skill_in_ledger_passes(tmp_path: Path) -> 
     (ws / ".architect-team" / "run-history").mkdir()
     (ws / ".architect-team" / "run-history" / "r1-toolcalls.jsonl").write_text(
         json.dumps({"tool": "Skill", "tool_input": {"skill": "bug-fix-pipeline"}}) + "\n"
-    )
+    , encoding="utf-8")
     ec, msg = check_payload({
         "tool_name": "Edit",
         "tool_input": {"file_path": str(ws / "src/x.py")},

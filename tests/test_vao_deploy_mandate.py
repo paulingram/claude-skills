@@ -310,7 +310,7 @@ def test_clean_artifact_passes() -> None:
 
 
 def test_canonical_fixture_bad_fires_all_4_severities() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_deploy_mandate_satisfied(
         fx["verification_artifact"], fx["deploy_mandate"], fx["final_report"]
     )
@@ -321,7 +321,7 @@ def test_canonical_fixture_bad_fires_all_4_severities() -> None:
 
 
 def test_canonical_fixture_corrected_passes() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_deploy_mandate_satisfied(
         fx["_corrected_verification_artifact"],
         fx["deploy_mandate"],
@@ -347,7 +347,7 @@ def test_output_persists_to_out_path(tmp_path: Path) -> None:
     out = tmp_path / "verdict.json"
     verify_deploy_mandate_satisfied({}, {"active": True}, "", out_path=str(out))
     assert out.exists()
-    persisted = json.loads(out.read_text())
+    persisted = json.loads(out.read_text(encoding="utf-8"))
     assert persisted["tool"] == "verify-deploy-mandate-satisfied"
 
 

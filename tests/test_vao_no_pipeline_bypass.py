@@ -310,7 +310,7 @@ def test_no_op_when_pipeline_not_invoked_and_no_confession() -> None:
 
 
 def test_canonical_fixture_bad_fires_4_severities() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_no_pipeline_bypass(
         fx["user_prompt"], fx["toolcall_ledger"], fx["final_report"]
     )
@@ -321,7 +321,7 @@ def test_canonical_fixture_bad_fires_4_severities() -> None:
 
 
 def test_canonical_fixture_corrected_passes() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_no_pipeline_bypass(
         fx["user_prompt"], fx["_corrected_ledger"], fx["_corrected_final_report"]
     )

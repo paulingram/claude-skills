@@ -245,7 +245,7 @@ def test_artifact_without_claims_passes() -> None:
 
 
 def test_canonical_fixture_bad_fires_3_severities() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_target_element_measured(fx["verification_artifact"])
     assert v["valid"] is False
     sevs = sorted({g["severity"] for g in v["gaps"]})
@@ -254,7 +254,7 @@ def test_canonical_fixture_bad_fires_3_severities() -> None:
 
 
 def test_canonical_fixture_corrected_passes() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_target_element_measured(fx["_corrected_verification_artifact"])
     assert v["valid"] is True
 
@@ -271,7 +271,7 @@ def test_output_persists_to_out_path(tmp_path: Path) -> None:
     out = tmp_path / "verdict.json"
     verify_target_element_measured({}, out_path=str(out))
     assert out.exists()
-    persisted = json.loads(out.read_text())
+    persisted = json.loads(out.read_text(encoding="utf-8"))
     assert persisted["tool"] == "verify-target-element-measured"
 
 

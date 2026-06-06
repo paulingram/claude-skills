@@ -40,7 +40,7 @@ def _make_at(tmp_path: Path) -> Path:
     at.mkdir()
     bf = at / "bug-fix" / "fix-foo"
     bf.mkdir(parents=True)
-    (bf / "intake.json").write_text(json.dumps({"slug": "fix-foo"}))
+    (bf / "intake.json").write_text(json.dumps({"slug": "fix-foo"}), encoding="utf-8")
     return at
 
 
@@ -75,7 +75,7 @@ def test_missing_marker_is_not_fresh(hook_module, tmp_path):
 def test_fresh_marker_is_fresh(hook_module, tmp_path):
     at = tmp_path / ".architect-team"
     at.mkdir()
-    (at / "in-progress.md").write_text("active")
+    (at / "in-progress.md").write_text("active", encoding="utf-8")
     assert hook_module._in_progress_is_fresh(at) is True
 
 
@@ -83,7 +83,7 @@ def test_stale_marker_is_not_fresh(hook_module, tmp_path):
     at = tmp_path / ".architect-team"
     at.mkdir()
     marker = at / "in-progress.md"
-    marker.write_text("stale")
+    marker.write_text("stale", encoding="utf-8")
     # Force mtime to 2 hours ago.
     past = time.time() - 7200
     os.utime(marker, (past, past))
@@ -94,7 +94,7 @@ def test_marker_at_exact_threshold_is_fresh(hook_module, tmp_path):
     at = tmp_path / ".architect-team"
     at.mkdir()
     marker = at / "in-progress.md"
-    marker.write_text("borderline")
+    marker.write_text("borderline", encoding="utf-8")
     # Set mtime to exactly the threshold ago.
     past = time.time() - hook_module.IN_PROGRESS_FRESHNESS_SECONDS + 10
     os.utime(marker, (past, past))
@@ -118,7 +118,7 @@ def _run_hook(plugin_root: Path, cwd: Path, mode: str = "--check") -> tuple[int,
 def test_check_mode_with_fresh_marker_exits_0(plugin_root, tmp_path):
     """A fresh in-progress.md marker overrides the violation and allows Stop."""
     at = _make_at(tmp_path)
-    (at / "in-progress.md").write_text("active")
+    (at / "in-progress.md").write_text("active", encoding="utf-8")
     rc, stderr = _run_hook(plugin_root, tmp_path)
     assert rc == 0, f"expected exit 0 with fresh marker; got {rc}; stderr: {stderr}"
 
@@ -128,7 +128,7 @@ def test_check_mode_with_stale_marker_blocks(plugin_root, tmp_path):
     still BLOCKS."""
     at = _make_at(tmp_path)
     marker = at / "in-progress.md"
-    marker.write_text("stale")
+    marker.write_text("stale", encoding="utf-8")
     past = time.time() - 7200
     os.utime(marker, (past, past))
     rc, stderr = _run_hook(plugin_root, tmp_path)

@@ -85,7 +85,7 @@ def test_oracle_match_writes_verdict_file(vao_tools, tmp_path: Path):
     out = tmp_path / "verdict.json"
     vao_tools.verify_oracle_match(built, oracle, out_path=out)
     assert out.exists()
-    data = json.loads(out.read_text())
+    data = json.loads(out.read_text(encoding="utf-8"))
     assert data["tool"] == "verify-oracle-match"
 
 
@@ -357,7 +357,7 @@ def test_all_tools_write_sorted_keys_for_determinism(vao_tools, tmp_path: Path):
     oracle = {"tree": {"x": 1}}
     out = tmp_path / "v.json"
     vao_tools.verify_oracle_match({"tree": {"x": 1}}, oracle, out_path=out)
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     # Sorted-keys: divergences before match_pct before matched before tool
     # before verdict_at — alphabetical order.
     assert raw.index('"divergences"') < raw.index('"match_pct"') < raw.index('"matched"') < raw.index('"tool"')

@@ -37,7 +37,7 @@ def fixture_path(plugin_root: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def fixture_data(fixture_path: Path) -> dict:
-    return json.loads(fixture_path.read_text())
+    return json.loads(fixture_path.read_text(encoding="utf-8"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ def test_written_file_is_indent_2_sorted_keys(vao_tools, fixture_data, tmp_path)
         fixture_data["wiring_mandate"],
         out_path=out,
     )
-    raw = out.read_text()
+    raw = out.read_text(encoding="utf-8")
     parsed = json.loads(raw)
     expected = json.dumps(parsed, sort_keys=True, indent=2) + ("\n" if raw.endswith("\n") else "")
     # Determinism: re-serialization with sort_keys=True matches what's on disk.
@@ -325,8 +325,8 @@ def test_cli_exits_0_on_corrected(plugin_root: Path, fixture_data, tmp_path):
     art = tmp_path / "artifact.json"
     mand = tmp_path / "mandate.json"
     out = tmp_path / "verdict.json"
-    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]))
-    mand.write_text(json.dumps(fixture_data["wiring_mandate"]))
+    art.write_text(json.dumps(fixture_data["_corrected_verification_artifact"]), encoding="utf-8")
+    mand.write_text(json.dumps(fixture_data["wiring_mandate"]), encoding="utf-8")
     rc = _run_cli(plugin_root, art, mand, out)
     assert rc == 0, f"CLI returned {rc}"
 
@@ -335,8 +335,8 @@ def test_cli_exits_2_on_bad(plugin_root: Path, fixture_data, tmp_path):
     art = tmp_path / "artifact.json"
     mand = tmp_path / "mandate.json"
     out = tmp_path / "verdict.json"
-    art.write_text(json.dumps(fixture_data["verification_artifact"]))
-    mand.write_text(json.dumps(fixture_data["wiring_mandate"]))
+    art.write_text(json.dumps(fixture_data["verification_artifact"]), encoding="utf-8")
+    mand.write_text(json.dumps(fixture_data["wiring_mandate"]), encoding="utf-8")
     rc = _run_cli(plugin_root, art, mand, out)
     assert rc != 0, "CLI should not return 0 on invalid"
 
@@ -375,7 +375,7 @@ def test_mocks_path_excluded_from_mock_state_residue(vao_tools):
 @pytest.fixture(scope="module")
 def sweep_fixture_data(plugin_root: Path) -> dict:
     path = plugin_root / "tests" / "fixtures" / "vao" / "shared-mock-source-not-swept.json"
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_sweep_fixture_bad_fires_shared_mock_source_not_swept(vao_tools, sweep_fixture_data):

@@ -145,7 +145,7 @@ def test_output_carries_verdict_at() -> None:
 
 
 def test_canonical_fixture_bad_fires_3_sources() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_no_unilateral_override(text_sources=fx["text_sources"])
     assert v["valid"] is False
     sources_fired = sorted({g["source"] for g in v["gaps"]})
@@ -154,13 +154,13 @@ def test_canonical_fixture_bad_fires_3_sources() -> None:
 
 
 def test_canonical_fixture_bad_all_fired_are_high_confidence() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     v = verify_no_unilateral_override(text_sources=fx["text_sources"])
     assert all(g["high_confidence"] for g in v["gaps"])
 
 
 def test_canonical_fixture_corrected_passes() -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     corrected = {k: v for k, v in fx["_corrected_text_sources"].items() if k != "_note"}
     v = verify_no_unilateral_override(text_sources=corrected)
     assert v["valid"] is True
@@ -173,7 +173,7 @@ def test_output_persists_to_out_path(tmp_path: Path) -> None:
     out = tmp_path / "verdict.json"
     verify_no_unilateral_override(text="hello", out_path=str(out))
     assert out.exists()
-    persisted = json.loads(out.read_text())
+    persisted = json.loads(out.read_text(encoding="utf-8"))
     assert persisted["tool"] == "verify-no-unilateral-override"
 
 

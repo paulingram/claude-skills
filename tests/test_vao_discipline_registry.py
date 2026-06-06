@@ -227,7 +227,7 @@ def test_tool_persists_to_out_path(tmp_path: Path) -> None:
     out = tmp_path / "verdict.json"
     verify_discipline_registry_current(tmp_path, out_path=str(out))
     assert out.exists()
-    persisted = json.loads(out.read_text())
+    persisted = json.loads(out.read_text(encoding="utf-8"))
     assert persisted["tool"] == "verify-discipline-registry-current"
 
 
@@ -235,7 +235,7 @@ def test_tool_persists_to_out_path(tmp_path: Path) -> None:
 
 
 def test_canonical_fixture_bad_fires_expected_severities(tmp_path: Path) -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     _materialize(tmp_path, fx["workspace_synthetic_files"])
     v = verify_discipline_registry_current(tmp_path)
     sevs = {g["severity"] for g in v["gaps"]}
@@ -246,7 +246,7 @@ def test_canonical_fixture_bad_fires_expected_severities(tmp_path: Path) -> None
 
 
 def test_canonical_fixture_corrected_shape_passes(tmp_path: Path) -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     # Materialize all corrected files EXCEPT the meta-note "_note" key
     files = {k: v for k, v in fx["_corrected_workspace_files"].items() if k != "_note"}
     _materialize(tmp_path, files)

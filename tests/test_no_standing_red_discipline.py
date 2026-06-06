@@ -28,7 +28,7 @@ import pytest
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "## No standing-red discipline (v2.8.0)" in body
 
 
@@ -37,7 +37,7 @@ def test_canonical_section_appears_once(plugin_root: Path):
     lines (e.g., `agents/qa-replayer.md ## No standing-red discipline (v2.8.0)`)
     don't count — only newline-anchored headers."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert body.count("\n## No standing-red discipline (v2.8.0)\n") == 1
 
 
@@ -47,7 +47,7 @@ def test_canonical_section_appears_once(plugin_root: Path):
 ])
 def test_canonical_section_names_severity(plugin_root: Path, severity: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert severity in body
 
 
@@ -57,20 +57,20 @@ def test_canonical_section_names_severity(plugin_root: Path, severity: str):
 ])
 def test_canonical_section_names_sr_origin_kinds(plugin_root: Path, origin_kind: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert origin_kind in body
 
 
 def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     assert "will go green when" in body
     assert "standing red" in body
 
 
 def test_canonical_section_documents_10_canonical_markers(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     # The 10-marker table must include at least 8 canonical patterns named here
     expected_patterns = [
         "// standing red", "will go green when", "known broken", "// documents the gap",
@@ -82,13 +82,13 @@ def test_canonical_section_documents_10_canonical_markers(plugin_root: Path):
 
 def test_canonical_section_documents_confirmed_stub_carveout(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     assert "confirmed-stub" in body or "confirmed_stub" in body or "confirmed stub" in body
 
 
 def test_canonical_section_documents_forbidden_phrases(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text().lower()
+    body = skill.read_text(encoding="utf-8").lower()
     assert "forbidden phrases" in body or "forbidden" in body
 
 
@@ -104,33 +104,33 @@ def test_canonical_section_documents_forbidden_phrases(plugin_root: Path):
 ])
 def test_agent_body_has_no_standing_red_section(plugin_root: Path, agent_file: str):
     agent = plugin_root / "agents" / agent_file
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "## No standing-red discipline (v2.8.0)" in body, \
         f"agents/{agent_file} missing v2.8.0 section"
 
 
 def test_bug_replicator_names_needs_cross_layer_fix_verdict(plugin_root: Path):
     agent = plugin_root / "agents" / "bug-replicator.md"
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "needs-cross-layer-fix" in body
 
 
 def test_qa_replayer_names_standing_red_finding_field(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "standing_red_finding" in body
 
 
 def test_frontend_agent_quotes_verbatim_b23(plugin_root: Path):
     agent = plugin_root / "agents" / "frontend.md"
-    body = agent.read_text().lower()
+    body = agent.read_text(encoding="utf-8").lower()
     assert "will go green when" in body
     assert "standing red" in body
 
 
 def test_backend_agent_names_cross_layer_frontend_required(plugin_root: Path):
     agent = plugin_root / "agents" / "backend.md"
-    body = agent.read_text()
+    body = agent.read_text(encoding="utf-8")
     assert "cross-layer-frontend-required" in body
 
 
@@ -145,7 +145,7 @@ def test_fixture_exists(plugin_root: Path):
 
 def test_fixture_is_valid_json_with_required_shape(plugin_root: Path):
     fixture = plugin_root / "tests" / "fixtures" / "vao" / "standing-red-cross-layer-bug.json"
-    data = json.loads(fixture.read_text())
+    data = json.loads(fixture.read_text(encoding="utf-8"))
     assert "verification_artifact" in data
     assert "_corrected_verification_artifact" in data
     bad = data["verification_artifact"]
@@ -155,7 +155,7 @@ def test_fixture_is_valid_json_with_required_shape(plugin_root: Path):
 
 def test_corrected_fixture_routes_via_sr(plugin_root: Path):
     fixture = plugin_root / "tests" / "fixtures" / "vao" / "standing-red-cross-layer-bug.json"
-    data = json.loads(fixture.read_text())
+    data = json.loads(fixture.read_text(encoding="utf-8"))
     corrected = data["_corrected_verification_artifact"]
     srs = corrected.get("solution_requirements_created", [])
     assert srs, "corrected version must include at least one SR"
@@ -169,12 +169,12 @@ def test_corrected_fixture_routes_via_sr(plugin_root: Path):
 
 def test_canonical_section_cross_references_layer3_tool(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "verify_no_standing_red" in body
     assert "_STANDING_RED_MARKERS" in body
 
 
 def test_canonical_section_cross_references_fixture(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text()
+    body = skill.read_text(encoding="utf-8")
     assert "standing-red-cross-layer-bug.json" in body

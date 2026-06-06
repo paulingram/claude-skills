@@ -147,14 +147,14 @@ def test_current_run_id_none_when_no_state(tmp_path: Path) -> None:
 def test_current_run_id_returns_from_intake_state(tmp_path: Path) -> None:
     state_dir = tmp_path / ".architect-team"
     state_dir.mkdir()
-    (state_dir / "intake-state.json").write_text(json.dumps({"run_id": "r-xyz-123"}))
+    (state_dir / "intake-state.json").write_text(json.dumps({"run_id": "r-xyz-123"}), encoding="utf-8")
     assert current_run_id(tmp_path) == "r-xyz-123"
 
 
 def test_current_run_id_none_when_malformed_state(tmp_path: Path) -> None:
     state_dir = tmp_path / ".architect-team"
     state_dir.mkdir()
-    (state_dir / "intake-state.json").write_text("not json")
+    (state_dir / "intake-state.json").write_text("not json", encoding="utf-8")
     assert current_run_id(tmp_path) is None
 
 
@@ -227,7 +227,7 @@ def _materialize_inbox(workspace: Path, run_id: str, messages: list[dict]) -> No
 
 
 def test_canonical_fixture_bad_fires_clarification_silently_ignored(tmp_path: Path) -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     rid = fx["_meta"]["run_id"]
     _materialize_inbox(tmp_path, rid, fx["inbox_messages"])
     v = verify_inflight_clarifications_processed(tmp_path, rid)
@@ -238,7 +238,7 @@ def test_canonical_fixture_bad_fires_clarification_silently_ignored(tmp_path: Pa
 
 
 def test_canonical_fixture_corrected_passes_cleanly(tmp_path: Path) -> None:
-    fx = json.loads(FIXTURE.read_text())
+    fx = json.loads(FIXTURE.read_text(encoding="utf-8"))
     rid = fx["_meta"]["run_id"]
     _materialize_inbox(tmp_path, rid, fx["_corrected_inbox_messages"])
     v = verify_inflight_clarifications_processed(tmp_path, rid)
