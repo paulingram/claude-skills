@@ -15,6 +15,7 @@ Behavioural / integration testing of the live multi-agent pipeline remains
 outside an automated pytest suite by nature; these tests close the *consistency*
 blind spot, not the behavioural one.
 """
+import importlib
 import importlib.util
 import sys
 from pathlib import Path
@@ -92,12 +93,28 @@ def test_shared_schema_has_all_seventeen_required_fields(plugin_root: Path) -> N
 def test_stop_hook_test_failure_origins_match_pipeline_skill(plugin_root: Path) -> None:
     """The Stop hook decides which SRs need a diagnostic plan from its
     TEST_FAILURE_ORIGINS set; that set must match the test-failure origins the
-    pipeline skill (Phase 3b) routes through diagnostic-research-team."""
+    pipeline skill (Phase 3b) routes through diagnostic-research-team.
+
+    The set now lives in hooks/shared_rule_constants.py (the single code source
+    of truth); the Stop hook imports it. We assert the hook's attribute IS that
+    shared constant (so the two cannot drift) and source the expected origins
+    from the shared module."""
+    # Import the shared module via the PACKAGE path — the SAME fully-qualified
+    # name the hook resolves when it does `from hooks.shared_rule_constants
+    # import ...`. (Loading it under a bare name via spec_from_file_location
+    # would be a second copy with equal-but-not-identical objects, breaking the
+    # `is` check below.) pytest sets `pythonpath = .` so this resolves.
+    shared = importlib.import_module("hooks.shared_rule_constants")
     module = _import_file(
         "pipeline_completion_audit",
         plugin_root / "hooks" / "pipeline-completion-audit.py",
     )
-    origins = module.TEST_FAILURE_ORIGINS
+    # The hook must SOURCE the set from the shared module — same object.
+    assert module.TEST_FAILURE_ORIGINS is shared.TEST_FAILURE_ORIGINS, (
+        "the Stop hook's TEST_FAILURE_ORIGINS is not the shared constant — it "
+        "has been re-declared locally and could drift"
+    )
+    origins = shared.TEST_FAILURE_ORIGINS
     assert len(origins) == 6, f"expected 6 test-failure origins, got {sorted(origins)}"
     pipeline = _read(plugin_root, "skills", "architect-team-pipeline", "SKILL.md")
     for origin in origins:

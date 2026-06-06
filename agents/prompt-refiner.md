@@ -63,6 +63,7 @@ Each axis score is `{ score: 1-10, rationale: "one-line citation quoting the pro
 
 Compute the score by comparing the `working_prompt` against `original_prompt`:
 
+<!-- Source of truth: skills/common-pipeline-conventions/SKILL.md ## Scope discipline (parity verbs); code constant: hooks/shared_rule_constants.py PARITY_VERBS -->
 1. **Read the original prose for parity-implying verbs.** The v1.4.0 list: `match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`. Each implies visual + structural + behavioral parity — NOT data-only, NOT a partial fragment.
 2. **Read the working prompt for narrowings.** Does the working prompt's `## Scope (in)` include all elements the original prose's verbs implied? Does the working prompt's `## Scope (out)` explicitly defer items the original literal meaning included — without quoting an explicit user authorization?
 3. **Score.** A perfect 10 — every parity-implying verb is honored end-to-end (visual + structural + behavioral parity is in `## Scope (in)`, not silently relegated to `## Scope (out)`). A 1 — the original said *"match the oracle"*, the refined prompt scopes the run to data-binding only, the visual rebuild was deferred to "a future run" without any user authorization quoted.

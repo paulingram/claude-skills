@@ -6,7 +6,9 @@ note: "Doc refresh 2026-06-04T16:00 for v2.19.0 — In-flight clarification inje
 
 # Codebase Map
 
-> The `architect-team` Claude Code plugin. Last refreshed 2026-06-01T18:00 for **v2.8.0 — No standing-red discipline** (additive extension closing the verbatim heirship B23 cross-layer-bug failure). v2.7.0 (pattern propagation mandate) / v2.6.0 (live-data wiring discipline) / v2.5.0 (in-flight clarification) / v2.4.0 (external-state assertion + evidence-artifact citation) refreshes earlier the same day.
+> The `architect-team` Claude Code plugin. **v3.1.0 (2026-06-06) — rule-source consolidation + Windows test portability:** NEW `hooks/shared_rule_constants.py` is the single CODE source of truth for `FORBIDDEN_GIT_OPERATIONS` / `TEST_FAILURE_ORIGINS` / `PARITY_VERBS` / `ACTION_KIND_VALUES` (imported by `hooks/vao_tools.py` + `hooks/pipeline-completion-audit.py`); NEW `scripts/setup/agent_boilerplate_blocks.py` + `scripts/setup/sync_agent_boilerplate.py` single-source the 3 byte-identical agent blocks (`## Forbidden git operations` / `## Checkpoint discipline` / `## Operating context`) with a `tests/test_agent_boilerplate_sync.py` drift guard; encoding + `_find_workspace` + `_in_progress_is_fresh` portability fixes make the full suite green under both cp1252 and `PYTHONUTF8=1` (3419 passed + 5 skipped). Additive, zero behavior change. _NOTE: the per-version inventory counts in the sections below were last fully refreshed at v2.8.0 and predate v3.0.0/v3.1.0._
+>
+> _(Historical refresh, v2.8.0, 2026-06-01T18:00 — No standing-red discipline; v2.7.0 pattern propagation / v2.6.0 live-data wiring / v2.5.0 in-flight clarification / v2.4.0 external-state assertion refreshes earlier the same day.)_
 
 ## 1. System Overview
 

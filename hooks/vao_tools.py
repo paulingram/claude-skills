@@ -52,6 +52,21 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+# The forbidden-git-operations list is the single source of truth in
+# ``hooks/shared_rule_constants.py`` (so it cannot drift from the prose home in
+# common-pipeline-conventions ## Teammate git discipline). Import it under its
+# historical local name. Support both invocation shapes: as a package
+# (``hooks.vao_tools`` — repo root on sys.path) and as a bare module (the
+# hook-runner executes hooks with the ``hooks/`` dir itself on sys.path).
+try:  # pragma: no cover - exercised by both import paths in the suite
+    from hooks.shared_rule_constants import (
+        FORBIDDEN_GIT_OPERATIONS as _FORBIDDEN_GIT_PATTERNS,
+    )
+except ImportError:  # pragma: no cover - bare-module fallback
+    from shared_rule_constants import (
+        FORBIDDEN_GIT_OPERATIONS as _FORBIDDEN_GIT_PATTERNS,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Common output helpers
@@ -228,14 +243,10 @@ def _count_leaves(node: Any) -> int:
 # The six forbidden teammate-git operations from v1.6.0's discipline. Each
 # pattern matches the destructive shape WITHOUT firing on legitimate
 # read/inspect operations (`git status`, `git log`, `git diff`, etc).
-_FORBIDDEN_GIT_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
-    ("git stash", re.compile(r"\bgit\s+stash\b(?!\s+list)", re.IGNORECASE)),
-    ("git reset --hard", re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE)),
-    ("git rebase", re.compile(r"\bgit\s+rebase\b", re.IGNORECASE)),
-    ("git commit --amend", re.compile(r"\bgit\s+commit\s+.*--amend\b", re.IGNORECASE)),
-    ("git checkout other-branch", re.compile(r"\bgit\s+checkout\s+(?!--|HEAD)(?:-[bB]\s+)?[\w./-]+\b", re.IGNORECASE)),
-    ("git clean -f", re.compile(r"\bgit\s+clean\s+(?:.*-f|\.\s)", re.IGNORECASE)),
-)
+#
+# The list itself now lives in ``hooks/shared_rule_constants.py`` (the single
+# code source of truth) and is imported at module top as
+# ``_FORBIDDEN_GIT_PATTERNS`` — the local name and downstream use are unchanged.
 
 
 def verify_baseline_clean(

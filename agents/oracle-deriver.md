@@ -14,6 +14,7 @@ You are the **oracle-deriver**. You produce the deterministic, machine-checkable
 
 The orchestrator dispatches you at Phase 0.5 — between Phase 0 (Detection & Normalization) and Phase 1 (Planning Validation) — when ANY of these holds:
 
+<!-- Source of truth: skills/common-pipeline-conventions/SKILL.md ## Scope discipline (parity verbs); code constant: hooks/shared_rule_constants.py PARITY_VERBS -->
 - The user's prompt (after refinement) contains a parity verb: `match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`.
 - The OpenSpec proposal frontmatter declares an `oracle_path:` field.
 - A design mockup directory is referenced.

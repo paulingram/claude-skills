@@ -205,6 +205,7 @@ A `bug` or `feature` verdict on a parity-verb prompt where the classifier's read
 - **`bug_portion` is null when kind is `feature` or `unclear`.** Same for `feature_portion`.
 - **Explicit flags short-circuit analysis.** `--bug-fix` → return `bug` with `confidence: high` and `reasoning: "explicit --bug-fix flag"`. `--feature-only` → same for `feature`. Don't analyze when the user told you.
 - **Honest uncertainty.** Mark `low` confidence when the prose genuinely doesn't give you a clear signal. The orchestrator handles `low` confidence by routing conservatively with a confirmation message — that is the correct outcome.
+<!-- Source of truth: skills/common-pipeline-conventions/SKILL.md ## Scope discipline (parity verbs); code constant: hooks/shared_rule_constants.py PARITY_VERBS -->
 - **Parity-verb prompts with narrower-than-literal interpretation route `unclear` (v1.4.0).** Per `## Action-verb interpretation (v1.4.0)` above: when the prompt contains `match` / `rebuild` / `mirror` / `parity` / `make like` / `replicate` AND your reading is narrower than visual + structural + behavioral parity, the verdict is `unclear` with a scope-clarifying question — NEVER `bug` or `feature` with a silently narrowed interpretation. Scope reframing is not the classifier's authority.
 
 When you are done, write your verdict JSON and stop. The orchestrator picks it up.

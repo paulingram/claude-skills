@@ -41,14 +41,16 @@ from typing import Any
 
 # Origins whose SRs route through diagnostic-research-team — they MUST carry a
 # diagnostic plan once processed. Mirrors architect-team-pipeline Phase 3b.
-TEST_FAILURE_ORIGINS = {
-    "rca-product-bug",
-    "playwright-failure",
-    "integration-failure",
-    "integration-testing-failure",
-    "test-completeness-failure",
-    "visual-fidelity-cascade",
-}
+#
+# The set itself is the single source of truth in
+# ``hooks/shared_rule_constants.py`` (so it cannot drift). Import it under its
+# historical local name. Support both invocation shapes: as a package
+# (``hooks.pipeline_completion_audit`` — repo root on sys.path) and as a bare
+# module (the hook-runner executes hooks with the ``hooks/`` dir on sys.path).
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.shared_rule_constants import TEST_FAILURE_ORIGINS
+except ImportError:  # pragma: no cover - bare-module fallback
+    from shared_rule_constants import TEST_FAILURE_ORIGINS
 
 # Global dev-loop iteration ceiling. Past this the orchestrator must have
 # escalated rather than ground on. Generous — a large multi-group spec with
@@ -77,8 +79,12 @@ def _in_progress_is_fresh(at: Path) -> bool:
     try:
         if not marker.exists():
             return False
-        age = time.time() - marker.stat().st_mtime
-        return 0 <= age <= IN_PROGRESS_FRESHNESS_SECONDS
+        # Clamp sub-microsecond future skew to 0: on Windows a just-written
+        # file's st_mtime can read a fraction ahead of the next time.time(),
+        # making `age` slightly negative; the old `0 <= age` guard then wrongly
+        # treated a freshly-touched marker as not-fresh (~12% flaky in-suite).
+        age = max(0.0, time.time() - marker.stat().st_mtime)
+        return age <= IN_PROGRESS_FRESHNESS_SECONDS
     except OSError:
         return False
 

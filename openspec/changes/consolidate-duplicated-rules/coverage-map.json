@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "change": "consolidate-duplicated-rules",
+  "version": "3.1.0",
+  "generated_at": "2026-06-06T19:16:07Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — plugin self-development (Markdown + stdlib Python + pytest). No product frontend/backend layers, no live app, no dev API. The PRODUCT gains single-source-of-truth + drift guards; the plugin's own verification surface is the pytest suite.",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_excerpt": "one stdlib-only module exporting the rule enumerations that were duplicated as literals",
+      "spec_requirement_id": "rule-source-consolidation/Shared rule-constants module",
+      "scenarios": ["module imports cleanly and exposes the four names", "the constants carry the documented values"],
+      "acceptance_criteria": [
+        "hooks/shared_rule_constants.py imports with no side effects and exposes FORBIDDEN_GIT_OPERATIONS, ACTION_KIND_VALUES, TEST_FAILURE_ORIGINS, PARITY_VERBS",
+        "PARITY_VERBS == the 6 parity verbs; FORBIDDEN_GIT_OPERATIONS covers the 6 forbidden ops; ACTION_KIND_VALUES == the 7 action kinds"
+      ],
+      "layer": "infra",
+      "owning_team": "slice-a",
+      "task_ids": ["A1"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/test_shared_rule_constants.py"], "integration": [], "e2e": []},
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_excerpt": "vao_tools.py and pipeline-completion-audit.py SHALL derive ... from the shared module ... behavior unchanged",
+      "spec_requirement_id": "rule-source-consolidation/VAO tooling consumes the shared constants",
+      "scenarios": ["vao_tools derives the forbidden-git list from the shared module", "pipeline-completion-audit derives test-failure origins from the shared module", "behavior is unchanged"],
+      "acceptance_criteria": [
+        "vao_tools.py sources its forbidden-git-op set from shared_rule_constants.FORBIDDEN_GIT_OPERATIONS (no duplicate literal)",
+        "pipeline-completion-audit.py TEST_FAILURE_ORIGINS is the shared constant (imported)",
+        "all pre-existing vao_tools + completion-audit tests pass unchanged"
+      ],
+      "layer": "infra",
+      "owning_team": "slice-a",
+      "task_ids": ["A2", "A3", "A5"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/test_vao_tools.py", "tests/test_cross_consistency.py"], "integration": [], "e2e": []},
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_excerpt": "the parity-verb list SHALL have a single authoritative source ... source-of-truth header comment ... consistency test",
+      "spec_requirement_id": "rule-source-consolidation/Scope-discipline parity-verb single source",
+      "scenarios": ["agent files cite the canonical source", "a consistency test pins the inline lists to the constant"],
+      "acceptance_criteria": [
+        "prompt-refiner.md, bug-classifier.md, system-architect.md, oracle-deriver.md each carry a source-of-truth comment referencing common-pipeline-conventions ## Scope discipline",
+        "the consistency test asserts every PARITY_VERBS verb appears in each of the 4 agents; canonical ## Scope discipline prose unchanged"
+      ],
+      "layer": "infra",
+      "owning_team": "slice-a",
+      "task_ids": ["A4", "A6"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/test_shared_rule_constants.py", "tests/test_scope_discipline.py"], "integration": [], "e2e": []},
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_excerpt": "canonical source for the three byte-identical agent boilerplate blocks plus an idempotent regenerator",
+      "spec_requirement_id": "rule-source-consolidation/Canonical agent-boilerplate source and sync regenerator",
+      "scenarios": ["a canonical source exists for the three blocks", "the sync regenerator is idempotent"],
+      "acceptance_criteria": [
+        "the canonical text of each of the 3 blocks is defined in exactly one place",
+        "scripts/setup/sync_agent_boilerplate.py run against a synced tree makes no changes and reports zero drift"
+      ],
+      "layer": "infra",
+      "owning_team": "slice-b",
+      "task_ids": ["B1", "B2"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/test_agent_boilerplate_sync.py"], "integration": [], "e2e": []},
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_excerpt": "drift guard asserting every standard agent's copy of each shared block is byte-identical to canonical",
+      "spec_requirement_id": "rule-source-consolidation/Agent-boilerplate drift guard",
+      "scenarios": ["the drift guard passes on the synced tree", "the drift guard fails on injected drift"],
+      "acceptance_criteria": [
+        "tests/test_agent_boilerplate_sync.py collects >=1 test per shared block and passes",
+        "variants (adversarial-reviewer, oracle-deriver, interaction-observer) are allowlisted; injected drift in any standard agent fails the test"
+      ],
+      "layer": "infra",
+      "owning_team": "slice-b",
+      "task_ids": ["B3"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/test_agent_boilerplate_sync.py"], "integration": [], "e2e": []},
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "source_excerpt": "zero behavior change ... full pytest suite SHALL pass",
+      "spec_requirement_id": "rule-source-consolidation/Zero behavior change with a green suite",
+      "scenarios": ["the suite is green after consolidation"],
+      "acceptance_criteria": [
+        "openspec validate --all --strict passes",
+        "python -m pytest from repo root: zero failures; passed >= baseline 2394 + new tests; 1 skipped",
+        "no discipline's enforcement semantics changed (master-review audit overall: pass)"
+      ],
+      "layer": "infra",
+      "owning_team": "orchestrator",
+      "task_ids": ["G1", "G2", "G3", "G4"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/"], "integration": [], "e2e": []},
+      "status": "pending"
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "source_excerpt": "Document & release as v3.1.0",
+      "spec_requirement_id": "rule-source-consolidation/Version bump and documentation currency",
+      "scenarios": ["plugin metadata at 3.1.0", "CHANGELOG carries the v3.1.0 entry"],
+      "acceptance_criteria": [
+        "plugin.json and marketplace.json both version 3.1.0",
+        "CHANGELOG first entry is ## [3.1.0]; README + CLAUDE.md + CODEBASE_MAP reflect the new module/script/tests"
+      ],
+      "layer": "infra",
+      "owning_team": "orchestrator",
+      "task_ids": ["R1", "R2", "R3"],
+      "implementing_commits": [],
+      "tests": {"unit": ["tests/test_dispatch_banner.py"], "integration": [], "e2e": []},
+      "status": "pending"
+    }
+  ]
+}

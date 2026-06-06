@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.0] — 2026-06-06 — Rule-source consolidation (single source of truth + drift guards) + Windows test portability
+
+**MINOR — additive, fully backwards-compatible, ZERO behavior change.** Two logical changes shipped on one branch as two commits.
+
+### Rule-source consolidation (`rule-source-consolidation`)
+
+A four-sweep duplication inventory found rule-logic maintained in multiple physical places with nothing enforcing sync. Most discipline *prose* was already consolidated (the three pipeline bodies + the dispatch-mode / in-flight-clarification rules already reference-back to `common-pipeline-conventions` rather than restate). The drift-prone remainder is now single-sourced ADDITIVELY — without removing the load-bearing inline copies (a dispatched subagent must carry its rules in its own context), so all ~211 duplication-asserting tests stay green.
+
+1. **NEW `hooks/shared_rule_constants.py`** (stdlib-only, no import side effects) — the single CODE source of truth for the enumerations previously duplicated as literals: `FORBIDDEN_GIT_OPERATIONS` (moved verbatim from `vao_tools.py`), `TEST_FAILURE_ORIGINS` (moved verbatim from `pipeline-completion-audit.py`), `PARITY_VERBS` (the 6 scope-discipline parity verbs), `ACTION_KIND_VALUES` (the 7-value interaction vocab). Documents each rule's canonical PROSE home in `common-pipeline-conventions`.
+2. **`hooks/vao_tools.py`** + **`hooks/pipeline-completion-audit.py`** now IMPORT their forbidden-git and test-failure-origin sets from the shared module (dual-path import; local names + all downstream use unchanged). Behavior byte-identical.
+3. **NEW canonical agent-boilerplate source** + **`scripts/setup/sync_agent_boilerplate.py`** (idempotent regenerator with `--check`) for the three byte-identical blocks duplicated across the ~30 agents (`## Forbidden git operations` ×27, `## Checkpoint discipline` ×27, `## Operating context` ×27). `operating-context` is a prefix-match block (6 agents append role text, which the sync preserves). The inline blocks stay; they are now derived/verified rather than independently maintained.
+4. **NEW `tests/test_agent_boilerplate_sync.py`** drift guard — every standard agent's block must be byte-identical to canonical; the role-specific variants (`adversarial-reviewer`, `oracle-deriver`, `interaction-observer`) are explicitly allowlisted.
+5. **Scope-discipline single source** — the `PARITY_VERBS` constant + source-of-truth header comments in `prompt-refiner` / `bug-classifier` / `system-architect` / `oracle-deriver` pointing at `common-pipeline-conventions ## Scope discipline`; a consistency test pins the inline lists to the constant.
+6. **NEW `tests/test_shared_rule_constants.py`** + re-pointed `tests/test_cross_consistency.py` (asserts the hook/skill test-failure-origin agreement against the shared constant, not by prose match).
+
+### Windows test portability (separate commit)
+
+7. **`encoding="utf-8"` sweep** — 43 test files had `read_text()` / `write_text()` calls without an explicit encoding; under the Windows default cp1252 locale they raised `UnicodeDecodeError` on UTF-8 bytes in committed `.md` files (~280 failures + 13 errors at baseline `097bb97`). All now pass an explicit `encoding="utf-8"`.
+8. **`hooks/pretool_unilateral_override_guard.py` `_find_workspace`** — skips the bare filesystem root as a candidate so it returns `None` when no workspace marker exists (it had matched a stray `C:\.architect-team` at the drive root). Found-case behavior preserved.
+9. **`hooks/pipeline-completion-audit.py` `_in_progress_is_fresh`** — clamps sub-microsecond future `st_mtime` skew to 0 so a freshly-touched marker is never spuriously treated as stale (was ~12% flaky in-suite on Windows).
+
+### Verification
+
+Full pytest suite: **3419 passed, 5 skipped, 0 failed** under BOTH the Windows default (cp1252) AND `PYTHONUTF8=1` (baseline was ~280 failed under cp1252; +45 new consolidation tests). No discipline's enforcement semantics changed. `openspec validate consolidate-duplicated-rules --strict` passes. (Note: 5 unrelated, pre-existing un-archived OpenSpec change folders remain `--all` invalid — `mempalace-mine-syntax-fix`, `mini-architect-team-pipeline`, `producer-checker-enforcement`, `test-completeness-enforcement`, +1 — out of scope here.)
+
 ## [3.0.0] — 2026-06-04 — Unified Unilateral-Override discipline + PreToolUse runtime guardrail (META)
 
 **MAJOR — additive, fully backwards-compatible.** Architectural consolidation closing the root cause behind v2.10.0 / v2.14.0 / v2.20.0 / v2.21.0 / v2.22.0. All five disciplines caught surface manifestations of ONE pattern: virtue-framed opener + element-of-bypass admission. v3.0.0 ships the meta-discipline that detects it at the source AND adds a pre-action runtime guardrail that blocks the bypass BEFORE the agent has the chance to produce confession language.
