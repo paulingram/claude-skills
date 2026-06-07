@@ -47,13 +47,32 @@ Each codebase's mapping work is independent of every other codebase's mapping wo
 
 **Map invalidation (closes the wrong-but-fresh-map hole).** A timestamp newer than the last commit only proves the map is *recent* — not *correct*. If any agent later in the run discovers the map is materially wrong — a teammate finds a module the map never listed, the integration agent finds an integration the map missed, a diagnostic-researcher traces a path the map mis-described — that agent records the codebase in `intake-state.json`'s `map_invalidated` array. That flag forces the NEXT run's Step 1 to re-derive + re-review the map regardless of timestamps, so a wrong map can never silently survive on freshness alone. The flag is cleared for a codebase once its re-derived map passes the Step 3 three-reviewer loop.
 
-### Step 2: Run cartographer
+### Step 2: Run cartographer-team (v3.4.0 — delegates to the new skill)
 
-Trigger the `cartographer` plugin's own flow against the codebase. It produces `<codebase>/docs/CODEBASE_MAP.md` with `last_mapped` frontmatter.
+As of v3.4.0, the cartographer + 3-reviewer convergence flow is encapsulated in the `cartographer-team` skill (`skills/cartographer-team/SKILL.md`). Steps 2 + 3 + the 3-reviewer loop in Step 4 are now ONE dispatch to that skill.
 
-### Step 3: If frontend, run route-mapper
+Invoke `cartographer-team` (use the Skill tool with `skill: cartographer-team`) with:
 
-For codebases classified as frontend or fullstack, additionally spawn the `route-mapper` agent. It produces `<codebase>/docs/ROUTE_MAP.md` with `last_routed` frontmatter per the `frontend-route-mapping` skill's schema.
+```json
+{
+  "codebase_path": "<absolute-path>",
+  "classification": "<frontend|backend|fullstack|library|infra|data-pipeline>",
+  "output_path": "<codebase>/docs/CODEBASE_MAP.md",
+  "produce_route_map": true,  // or false for non-frontend classifications
+  "route_map_output_path": "<codebase>/docs/ROUTE_MAP.md",
+  "frontend_read_only": false,  // intake-and-mapping callers always work on the project's actual codebase
+  "freshness_check": true,
+  "completion_promise": "CODEBASE MAP COMPLETE"
+}
+```
+
+The skill body documents the full 5-phase flow internally (C1 freshness pre-check / C2 cartographer / C3 3-reviewer convergence / C4 MemPalace mine / C5 return verdict). Behavior is preserved bit-for-bit; only the implementation location moved from inline-in-this-skill-body to dispatch-the-skill.
+
+**Why delegate:** the `architect-team-pipeline` Phase 0b Branch B (greenfield API + frontend reference) needs the same cartographer + 3-reviewer pattern but with `frontend_read_only: true` and an alternate output path. Sharing one skill body means both pipelines run identical code paths.
+
+### Step 3: If frontend, route-mapper runs inside cartographer-team
+
+`cartographer-team` produces `ROUTE_MAP.md` for frontend / fullstack classifications when `produce_route_map: true`. Same skill, same convergence pattern, same output location.
 
 The route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill IF AND ONLY IF design inputs exist (screenshots/Figma in `$REQ_DIR`, design tokens / Storybook / assets in the codebase). The codebase-map-reviewers MUST NOT flag the absence of DESIGN_MAP.md when no design inputs exist — it is intentionally conditional. When design inputs DO exist, all three docs (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP) are reviewed together by the 3-reviewer ralph loop.
 
@@ -104,15 +123,39 @@ Per the `interaction-intuition` skill:
 
 Phase −1D is a domain gate, not a process gate — it fires whenever the gathered low-confidence union is non-empty, regardless of `--proposal-first`.
 
-## Integration mapping (one ralph loop, all codebases)
+## Integration mapping (v3.4.0 — delegates to domain-research-team)
 
-After every codebase has a complete map:
+As of v3.4.0, the integration-synthesis flow (3 researchers in parallel + round-robin convergence + master-synthesizer) is encapsulated in the `domain-research-team` skill (`skills/domain-research-team/SKILL.md`).
+
+Invoke `domain-research-team` (use the Skill tool with `skill: domain-research-team`) with:
+
+```json
+{
+  "output_kind": "integration-map",
+  "output_path": "<workspace>/docs/INTEGRATION_MAP.md",
+  "codebase_inputs": ["<absolute-path-to-codebase-1>", "<...>"],
+  "doc_inputs": [],
+  "frontend_read_only": false,
+  "industry_hint": null,  // optional
+  "completion_promise": "INTEGRATION MAP COMPLETE"
+}
+```
+
+The skill body documents the full 5-phase flow internally (R1 input parsing / R2 3 researchers with outside-research mandate / R3 round-robin convergence / R4 master synthesis / R5 return verdict).
+
+**Important nuance for integration-mapping callers:** the `domain-research-team` skill's mandatory outside-research mandate is broader than the prior `integration-explorer` flow — researchers now ALSO perform industry / market / competitor research even for the integration-mapping use case. This is intentional: outside research surfaces integration patterns and cross-service contracts that the codebase alone may not reveal. The output map's frontmatter records `outside_research_citations_count` for traceability.
+
+The prior 3 `integration-explorer` agents are now invoked AS researchers by `domain-research-team` (the agent is the same; the skill wraps it). Behavior is preserved structurally — same 3-way convergence + master synthesis + confirmation pass.
+
+**Legacy inline flow (preserved for reference, no longer the active code path):**
+
+The pre-v3.4.0 inline flow ran 3 `integration-explorer` agents directly with the synthesis prompt below. That flow now runs INSIDE `domain-research-team` Phase R2. The prompt below documents the conceptual contract; the skill body documents the canonical implementation:
 
 ```
 /ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE" --max-iterations 8
 ```
 
-Synthesis prompt:
+Synthesis prompt (legacy reference):
 
 1. Spawn 3 `integration-explorer` agents IN PARALLEL. Each receives:
    - Every `<codebase>/docs/CODEBASE_MAP.md`.

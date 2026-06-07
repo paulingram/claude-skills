@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.0] — 2026-06-06 — Backend-from-frontend modularization (Phase 0b + 3 new analysis skills)
+
+**MINOR — additive, fully backwards-compatible.** Closes the user prose: *"for the backend logic phase 0, we need to create a reusable skill that is a subset of our last front end update ... if backend only, we determine if its an existing or greenfield API task with a front end codebase we can reference or documentation ... perhaps this means we have to break out those analysis capabilities as their own skills."*
+
+Extracts 3 analysis primitives that were previously inline in `intake-and-mapping` and `visual-to-api-design` into standalone reusable skills, AND adds a new `Phase 0b — Backend dispatch check` that handles backend-shaped requests with optional frontend OR documentation references.
+
+### What v3.4.0 ships
+
+1. **NEW canonical section `## Backend-from-frontend dispatch + analysis modularization (v3.4.0)`** in `skills/common-pipeline-conventions/SKILL.md` documenting the 4-branch Phase 0b decision tree (existing API extension / greenfield + frontend ref / greenfield + docs ref / pure greenfield), the frontend-read-only enforcement, the domain-research-team outside-research mandate, and cross-references to all refactored skills.
+
+2. **NEW skill `cartographer-team`** (`skills/cartographer-team/SKILL.md`) — CT6's multi-agent wrapper around the external cartographer plugin call. Producer triggers cartographer; 3× `codebase-map-reviewer` agents audit + confirm 100% coverage; targeted re-mapping iterates until convergence inside a ralph-loop with completion-promise `"CODEBASE MAP COMPLETE"`. Caller-configurable output path so frontend-read-only mode (Phase 0b) routes output to `<workspace>/.architect-team/frontend-reference/<codebase-slug>/` instead of `<codebase>/docs/`. 5-phase flow: C1 freshness pre-check / C2 cartographer / C3 3-reviewer convergence / C4 MemPalace mine / C5 return.
+
+3. **NEW skill `domain-research-team`** (`skills/domain-research-team/SKILL.md`) — 3-researcher domain analysis with **MANDATORY outside research** that fires regardless of input completeness. Caller passes codebase OR docs OR both; the 3 researchers parse the inputs AND each performs ≥ 4 outside-research queries (industry / market / competitor / authoritative source) per the user's verbatim mandate: *"if no docs but have front end, it must find and extract the personas and then actually perform outside research. it must do this anyway even if docs are provided."* Round-robin convergence + master-synthesizer produces the final map. 5-phase flow: R1 input parsing / R2 3 researchers + outside research / R3 round-robin convergence / R4 master synthesis / R5 return.
+
+4. **NEW skill `api-design-from-frontend`** (`skills/api-design-from-frontend/SKILL.md`) — extracts Stages 5+6+7 of `visual-to-api-design` (per-page REST returns → consolidated API design + desk-trace play-test → backend data architecture + phenotype gates + openspec authoring via `openspec-propose`) as a standalone reusable skill. Each stage's 3-reviewer convergence wraps in a ralph-loop with total-agreement completion-promise. Callers: `visual-to-api-design` (refactored to delegate Stage 5+ here), `architect-team-pipeline` Phase 0b backend dispatch.
+
+5. **NEW `domain-researcher` agent** (`agents/domain-researcher.md`) — opus, color amber. Tools include `WebFetch` + `WebSearch` (in addition to the standard read/grep/glob/bash/write set) for the outside-research mandate. Spawned ×3 by `domain-research-team` at Phase R2. Carries the standard CT6 boilerplate (Operating context v1.0.0 + Forbidden git operations + Checkpoint discipline).
+
+6. **NEW `## Phase 0b — Backend dispatch check (v3.4.0)`** section in `skills/architect-team-pipeline/SKILL.md` positioned between Phase 0a (Visual-to-API dispatch, v3.3.1) and Phase 0 (Detection & Normalization). Documents the 4-branch decision tree + the frontend-read-only enforcement + how Phase 0 reacts when a dispatch fires. Parallel architecture to v3.3.1's Phase 0a.
+
+7. **Refactored `skills/intake-and-mapping/SKILL.md`** — Step 2 (cartographer + 3-reviewer convergence) now delegates to the `cartographer-team` skill via the Skill tool. Integration mapping (Step C) delegates to `domain-research-team` with `output_kind: integration-map`. Behavior preserved bit-for-bit; only the implementation location moved from inline-in-skill-body to dispatch-the-skill. The integration-mapping use case now benefits from the new mandatory outside-research enrichment.
+
+8. **Refactored `skills/visual-to-api-design/SKILL.md`** — Stages 1+2 delegate to `domain-research-team` (with `output_kind: persona-map`). Stages 5+6+7 delegate to `api-design-from-frontend`. The 7-stage Exploration Pipeline flow is preserved structurally; internal modularity now allows the same primitives to be called from other pipelines.
+
+9. **80 new tests** across `tests/test_domain_research_team_skill.py` (15), `tests/test_cartographer_team_skill.py` (12), `tests/test_api_design_from_frontend_skill.py` (13), `tests/test_phase_0b_backend_dispatch.py` (15), `tests/test_domain_researcher_agent.py` (10), `tests/test_backend_from_frontend_discipline.py` (12 — cross-skill refactor symmetry, registration). **3535 → 3615 passing**; zero regressions.
+
+### Frontend-read-only enforcement (non-negotiable)
+
+When Phase 0b dispatches against a frontend codebase as a REFERENCE (not a refactor target):
+
+- `intake-state.json::frontend_read_only` is set to `true` for the entire run.
+- All 3 dispatched skills (`cartographer-team`, `domain-research-team`, `api-design-from-frontend`) route output to `<workspace>/.architect-team/frontend-reference/<codebase-slug>/` instead of `<frontend-codebase>/docs/`.
+- The frontend codebase's working tree is NEVER modified. Any `Write` / `Edit` targeting a path under `frontend_reference_codebase` during this run is a v3.0.0 unilateral-override violation.
+- The v3.0.0 PreToolUse guardrail's `.architect-team/` allow-prefix covers the alternate paths; the discipline is enforced at runtime as well as via skill-body documentation.
+
+### Reusability matrix — which callers benefit
+
+| Skill | Current callers as of v3.4.0 |
+|---|---|
+| `cartographer-team` | `intake-and-mapping` Step 2 / `architect-team-pipeline` Phase 0b Branch B / `bug-fix-pipeline` Phase B−1 |
+| `domain-research-team` | `intake-and-mapping` Step C (integration mapping) / `visual-to-api-design` Stages 1+2 / `architect-team-pipeline` Phase 0b Branches B + C |
+| `api-design-from-frontend` | `visual-to-api-design` Stages 5+6+7 / `architect-team-pipeline` Phase 0b Branches B + C |
+| `domain-researcher` (agent) | spawned ×3 by `domain-research-team` |
+
+### Backwards compatibility
+
+- Schema v7 UNCHANGED.
+- All prior fixtures continue to validate.
+- The refactored `intake-and-mapping` + `visual-to-api-design` flows preserve their previous behavior bit-for-bit; only the internal modularization changed.
+- Existing per-skill tests that aren't covered by the new delegation pattern still apply.
+- The 7-stage Exploration Pipeline (v3.2.0) flow is unchanged structurally; Stages 1+2 and 5+6+7 just now run inside dispatched skills.
+
+### Companion to v3.3.1
+
+v3.3.1 made Phase 0a's Visual-to-API dispatch symmetric between `architect-team-pipeline` and `visual-to-api-design`. v3.4.0 applies the same architectural principle to the backend-from-frontend surface — explicit dispatch contracts on both sides + symmetry tests preventing future drift. Modular, reusable analysis skills with documented dispatch ladders are now the CT6 pattern for any cross-pipeline reuse.
+
 ## [3.3.1] — 2026-06-06 — Visual-to-API dispatch symmetry (Phase 0a)
 
 **PATCH — documentation hardening, no behavior change.** Closes the contract-symmetry gap between `architect-team-pipeline/SKILL.md` and `visual-to-api-design/SKILL.md`.

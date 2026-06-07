@@ -59,6 +59,8 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 ### Stage 1 — Personas + application classification
 
+**v3.4.0 — delegation to `domain-research-team`.** Stages 1 and 2 are encapsulated in the `domain-research-team` skill (`skills/domain-research-team/SKILL.md`), which carries the mandatory outside-research enrichment v3.4.0 adds. visual-to-api-design invokes the skill once with `output_kind: persona-map`, the frontend codebase + configured `ancillary_docs` as inputs, and the `<codebase>/docs/PERSONA_MAP.md` output path. The persona enumeration + per-persona objectives come back as one final map; visual-to-api-design proceeds to Stage 3 with that map as the binding input.
+
 **Goal:** when frontend is in scope, catalog ALL personas (user types) and classify the whole application. **Reuses Exploration Stage 1 (context discovery)** — see `### Stage 1 — Context discovery` in the subset section below for the exact `stage-1-context.json` shape; Stage 1 of the Exploration Pipeline extends it by reading the configured `ancillary_docs` as a first-class input.
 
 **What it does:** enumerates every distinct persona/user-type AND produces the application classification (`application_purpose` / `industry` / `use_case_summary`), reading the frontend PLUS the configured `ancillary_docs`. The persona enumeration is the seed for Stage 2's per-persona objective document.
@@ -138,7 +140,26 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 ### Stage 5 — Per-page REST returns → `API_RETURNS_MAP.md`
 
-**Goal:** specify, per page, the **most efficient** REST/API returns powering that page — the data needed and its shape — such that every element's data source is identified and 100% of data-bearing elements are covered.
+**v3.4.0 — delegation to `api-design-from-frontend`.** Stages 5, 6, and 7 are extracted into the `api-design-from-frontend` skill (`skills/api-design-from-frontend/SKILL.md`) for reuse by the `architect-team-pipeline` Phase 0b backend dispatch. This Exploration Pipeline still drives the same 3 stages; it does so by invoking `api-design-from-frontend` once with the Stage 3+4 artifacts as inputs and the `<codebase>/docs/` paths as the output directory. The stage descriptions below remain as the canonical contract documentation.
+
+```json
+// invoked at the start of Stage 5 by visual-to-api-design
+{
+  "persona_map_path": "<codebase>/docs/PERSONA_MAP.md",
+  "component_architecture_map_path": "<codebase>/docs/COMPONENT_ARCHITECTURE_MAP.md",
+  "page_catalog_path": "<workspace>/.architect-team/visual-to-api-design/<feature-slug>/stage-3-pages.json",
+  "frontend_reference_path": "<codebase-absolute-path>",
+  "doc_inputs": [],
+  "output_dir": "<codebase>/docs",
+  "openspec_change_name": "<change-slug>",
+  "frontend_read_only": false,
+  "completion_promise": "API DESIGN COMPLETE"
+}
+```
+
+`api-design-from-frontend` produces all 3 output maps (Stages A1+A2+A3) under one orchestration; visual-to-api-design no longer drives each Stage 5/6/7 ralph-loop directly. Behavior preserved bit-for-bit.
+
+**Goal (Stage 5 contract):** specify, per page, the **most efficient** REST/API returns powering that page — the data needed and its shape — such that every element's data source is identified and 100% of data-bearing elements are covered.
 
 **"Most efficient" — the measurable definition (the strict ralph-loop exit predicate):**
 

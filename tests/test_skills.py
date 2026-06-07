@@ -40,6 +40,9 @@ EXPECTED_SKILLS: set[str] = {
     "visual-to-api-design",
     "test-prod-safety-classifier",
     "test-run-monitor",
+    "cartographer-team",
+    "domain-research-team",
+    "api-design-from-frontend",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
