@@ -102,13 +102,15 @@ After binding `$REQ_DIR` and parsing the flags, AND BEFORE invoking the `mini-ar
      python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))" \
        || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))"
      ```
-     The helper creates the worktree at `<parent-of-repo>/<repo-name>-<slug>/` on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
+     The helper creates the worktree at `<parent-of-repo>/.<repo-name>-worktrees/<slug>/` (the hidden per-project container, v3.6.0) on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
   3. `chdir` into `$WORKTREE_PATH`. Every subsequent step — including the Skill-tool invocation of `mini-architect-team-pipeline` — runs with `$WORKTREE_PATH` as cwd. The Phase M7 auto-merge-to-main behavior is unchanged: the mini pipeline fast-forwards `main` (in the MAIN worktree) to the run-branch tip from inside the run worktree.
   4. Surface a one-line note to the user: *"Auto-worktree: created `<WORKTREE_PATH>` on branch `architect-team/<slug>`. Pass `--no-worktree` next time to skip."*
 
 On creation failure (parent dir not writable, base branch missing, slug exhausted — the helper raises `RuntimeError` with an actionable message), surface the error verbatim and STOP. Do NOT silently fall back to the current checkout. The user re-runs with `--no-worktree` if they want single-tree mode.
 
-Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the cleanup recommendation emitted at Phase M7 success, and the re-entry detection logic.
+At Phase M7 the mini pipeline auto-merges its branch to main and cleans its own worktree; it aligns this with `finalize_run_worktree($WORKTREE_PATH)` (v3.6.0) — since the branch is merged, finalize removes the worktree + branch (or, if M7 already removed it, finalize is a no-op). On the rare unmerged path it prints the returned `warning`. Unmerged work is never auto-deleted.
+
+Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the end-of-run merge check emitted at Phase M7 success, and the re-entry detection logic.
 
 ## What this command runs
 

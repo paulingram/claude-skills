@@ -188,14 +188,14 @@ When True, the auto-worktree step is a no-op and the pipeline runs in the curren
 
 The `--no-worktree` flag joins the existing flag set (`--no-commit`, `--no-push`, `--no-compact`, `--allow-push-to-default`, `--proposal-first`, `--no-refine`). Natural-language equivalents recognized at parse time: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*. When `--no-worktree` is set, the auto-worktree step is skipped and the pipeline runs in the current cwd — exactly the v1.1.0 behavior, no functional difference.
 
-### Path convention — `<parent-of-repo>/<repo-name>-<slug>/`
+### Path convention — `<parent-of-repo>/.<repo-name>-worktrees/<slug>/`
 
-The worktree directory goes next to the main repo, named with the repo basename plus the slug:
+The worktree directory goes inside a single hidden per-project container next to the main repo, named `.<repo-name>-worktrees`, with the slug as the leaf:
 
-- Repo at `/Users/foo/projects/myapp` with slug `add-billing` -> worktree at `/Users/foo/projects/myapp-add-billing/`
-- Repo at `/Users/foo/myapp` with slug `fix-login` -> worktree at `/Users/foo/myapp-fix-login/`
+- Repo at `/Users/foo/projects/myapp` with slug `add-billing` -> worktree at `/Users/foo/projects/.myapp-worktrees/add-billing/`
+- Repo at `/Users/foo/myapp` with slug `fix-login` -> worktree at `/Users/foo/.myapp-worktrees/fix-login/`
 
-This keeps related working trees co-located on disk for easy `cd`-around discovery and matches the convention used by the upstream `superpowers:using-git-worktrees` skill for ad-hoc worktrees.
+All of a project's run worktrees collect in this single hidden folder, keeping the parent directory uncluttered while remaining co-located for easy `cd`-around discovery. The old flat `<repo>-<slug>` layout is still recognized by cleanup + slug-derivation for backward compatibility with pre-v3.6.0 on-disk worktrees.
 
 ### Branch convention — `architect-team/<slug>`
 
@@ -205,20 +205,21 @@ The branch the new worktree is checked out on. This is exactly the existing Phas
 
 If EITHER the candidate path OR the candidate branch already exists, the helper appends a numeric suffix until both are free:
 
-- `architect-team/add-billing` and `myapp-add-billing/` both free -> use them.
-- `architect-team/add-billing` exists -> try `architect-team/add-billing-2` + `myapp-add-billing-2/`.
-- `myapp-add-billing-2/` also exists -> try `-3`.
+- `architect-team/add-billing` and `.myapp-worktrees/add-billing/` both free -> use them.
+- `architect-team/add-billing` exists -> try `architect-team/add-billing-2` + `.myapp-worktrees/add-billing-2/`.
+- `.myapp-worktrees/add-billing-2/` also exists -> try `-3`.
 - ... bounded at 999 suffix attempts before raising.
 
 A stale branch from a prior run that the user did not delete is the common case; the suffix bump silently handles it. No manual cleanup of stale branches is required to start a new run.
 
-### Cleanup semantics — NOT automatic; pipeline recommends at success
+### Cleanup semantics — end-of-run merge check (v3.6.0)
 
-The pipeline does NOT auto-clean the worktree after Phase 8 (or B8, M7) succeeds. The user may want to inspect the run, run additional manual tests, or use the worktree as the launching point for a follow-up. Each pipeline's Phase 8 success emits a recommendation at the end of the final report:
+At Phase 8 / B8 / M7 the pipeline calls `finalize_run_worktree(worktree_path, against="origin/main")`:
 
-> Your run worktree is at `<path>` on branch `architect-team/<slug>`. The work is on `main` (mini) / on the run branch awaiting PR (full / bug-fix). To clean up: `git worktree remove <path> && git branch -d architect-team/<slug>`. (Or leave it for inspection — the worktree is harmless.)
+- **If the run branch is already merged into `origin/main`** -> the helper removes the worktree AND deletes the branch, returning `{removed: True, merged: True, reason: "merged-removed", warning: None}`. (If git refuses because the worktree is the current cwd, it degrades to `reason: "merge-detected-removal-deferred"` with a warning; the next run's sweep removes it.)
+- **If the run branch is NOT yet merged** (the common full / bug-fix end-of-run state — branch just pushed, PR pending) -> the helper LEAVES the worktree on disk and returns `{removed: False, merged: False, reason: "unmerged-retained", warning: <text>}`. The orchestrator prints `warning` verbatim; it names the path, states the folder persists until the branch is merged (after which the next run's sweep removes it), and gives the manual command `git worktree remove <path> && git branch -d <branch>`.
 
-When the user is ready, they run the two commands. The `cleanup_run_worktree` helper exposes the same operation programmatically (`cleanup_run_worktree(path, remove_branch=True)`), idempotent on a worktree that is already gone.
+Unmerged work is NEVER auto-deleted. The `cleanup_run_worktree` helper still exposes the raw remove operation programmatically (`cleanup_run_worktree(path, remove_branch=True)`), idempotent on a worktree that is already gone.
 
 ### Auto-cleanup (v1.3.0)
 
@@ -258,12 +259,24 @@ branch in THIS run; that's safe because the worktree's purpose is now
 fulfilled and the next thing the orchestrator does is emit the `/compact`
 prompt and end the turn.
 
+**Trigger 3 — End-of-run merge check (v3.6.0).** At Phase 8 / B8 / M7 every
+pipeline calls `finalize_run_worktree(worktree_path)` on its own run
+worktree. If the branch is merged into `origin/main`, finalize removes the
+worktree + branch immediately (no waiting for the next run's sweep); if it is
+NOT merged, finalize leaves the folder and returns an explicit `warning`
+naming the path + the manual cleanup command, which the orchestrator prints
+verbatim. Unmerged work is never auto-deleted — finalize is the in-run
+counterpart to trigger 1's cross-run sweep.
+
 **Merged-branch detection mechanism.** `git merge-base --is-ancestor
 <branch> <against>` is the probe. Exit 0 means the branch tip is reachable
 from `<against>` (fast-forward or merge-commit landed); exit 1 means it
 isn't (either un-merged, OR squash-merged where main carries a different
 SHA). The probe is run against `origin/main` by default; the explicit
 cleanup command exposes `--against <ref>` for branch-specific workflows.
+Detection is keyed off the BRANCH, not the worktree's on-disk location, so
+BOTH old-flat (`<repo>-<slug>`) and new-container (`.<repo>-worktrees/<slug>`)
+worktrees are recognized identically — the merge probe is layout-agnostic.
 
 **Squash-merge limitation.** `--is-ancestor` doesn't detect squash-merges.
 A branch you squash-merged into main is NOT recognized as merged (different

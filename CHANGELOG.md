@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0] — 2026-06-07 — Worktree end-of-run merge check + hidden per-project container layout
+
+**MINOR — additive, fully backwards-compatible.** Two improvements to the auto-worktree lifecycle in `scripts/setup/worktree_lifecycle.py`.
+
+### What v3.6.0 ships
+
+1. **End-of-run merge check — NEW `finalize_run_worktree(worktree_path=None, against="origin/main", branch=None) -> dict`.** Called at Phase 8 / B8 / M7. When a run's `architect-team/<slug>` branch is already merged into `origin/main`, finalize removes the worktree AND deletes its branch (`{removed: True, merged: True, reason: "merged-removed"}`). When the branch is NOT yet merged (the common full / bug-fix end-of-run state — branch just pushed, PR pending), finalize LEAVES the worktree on disk and returns a persistence `warning` naming the path, stating the folder persists until the branch is merged, and giving the literal manual command `git worktree remove <path> && git branch -d <branch>` (`{removed: False, merged: False, reason: "unmerged-retained"}`). A no-op (`reason: "not-a-run-worktree"`) on any non-`architect-team/*` branch. Best-effort: any subprocess failure is reflected in the returned dict rather than raised; if git refuses to remove the cwd worktree the reason degrades to `"merge-detected-removal-deferred"` (the next run's sweep removes it). **Unmerged work is NEVER auto-deleted.**
+
+2. **Hidden per-project container layout.** New worktrees are created at `<parent-of-repo>/.<repo-name>-worktrees/<slug>/` (a single hidden per-project container) instead of the flat `<parent>/<repo-name>-<slug>/`. New internal `_container_dir(parent_dir, repo_name)` centralizes the computation; `create_run_worktree` `mkdir(parents=True, exist_ok=True)` the container before `git worktree add`; `_resolve_collision` bumps `-2`/`-3` candidates inside the container.
+
+3. **Backward-compatible dual-layout sweep.** `_slug_from_worktree_path` is now dual-layout: it recognizes the new container layout (`.<repo>-worktrees/<slug>`) AND the old flat layout (`<repo>-<slug>`), with a no-git-context heuristic fallback for both. Merge detection in `list_merged_architect_team_worktrees` / `cleanup_merged_worktrees` is keyed off the BRANCH (`git merge-base --is-ancestor`), so it is layout-agnostic — pre-v3.6.0 on-disk flat worktrees and new container worktrees are both swept identically.
+
+4. **No git post-merge hook** — explicitly out of scope. The sweep (trigger 1) + the new end-of-run merge check (trigger 3) cover the need non-invasively without writing into `.git/hooks`.
+
+### Tests
+
+`tests/test_worktree_lifecycle.py` create/collision tests updated to the new `.main-repo-worktrees/<slug>` layout (+ container-dir existence assertion). NEW `tests/test_worktree_merge_finalize.py` (real `git init` + self-remote `origin/main` + `git worktree add`, no mocks): merged-removal, unmerged-warning, non-run-branch no-op, dual-layout slug derivation, and a dual-layout backward-compat sweep (old-flat + new-container both removed).
+
+### Backwards compatibility
+
+- Module stays stdlib-only; the six existing public functions' contracts are unchanged.
+- Old flat `<repo>-<slug>` worktrees on disk are still recognized by cleanup + slug-derivation.
+- Branch naming `architect-team/<slug>` is unchanged.
+
 ## [3.5.0] — 2026-06-06 — Data Engineering Exploration Pipeline (Phase 0c) + Phenotype convergence rules
 
 **MINOR — additive, fully backwards-compatible.** Closes the gap surfaced in v3.4.0's honest assessment: pure data engineering / data architecture work (dbt projects / Airflow DAGs / Snowflake warehouses / Databricks lakehouses / Kafka streaming / data meshes / feature stores / data products) had no structured exploration pipeline analogous to `visual-to-api-design`. v3.5.0 ships the data-plane analog plus codifies phenotype convergence rules.

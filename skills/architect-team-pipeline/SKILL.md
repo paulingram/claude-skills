@@ -657,6 +657,16 @@ If the working tree had unstaged or staged user changes BEFORE the pipeline star
 - If the repo has detached HEAD or no upstream configured for the current branch, skip the push, mention it in the report, and tell the user how to set the upstream (`git push -u origin <branch>`).
 - Do NOT push to `main` if the change has not been peer-reviewed by a human reviewer AND the repo's branch-protection policy requires reviews — the orchestrator does NOT have judgment to override branch protection. If push is rejected by branch protection, surface the rejection and stop.
 
+### End-of-run worktree finalize (v3.6.0)
+
+After the auto-commit / push output and BEFORE the auto-compact prompt, finalize the run worktree (only when this run created one — `AUTO_WORKTREE` was true and `$WORKTREE_PATH` is set). Invoke `finalize_run_worktree` via the polyglot Python pattern per `common-pipeline-conventions` `## Cross-platform Python invocation`:
+
+```bash
+python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import finalize_run_worktree; from pathlib import Path; r = finalize_run_worktree(Path('${WORKTREE_PATH}')); print(r.get('warning') or f\"Worktree finalized: {r.get('reason')}\")" || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import finalize_run_worktree; from pathlib import Path; r = finalize_run_worktree(Path('${WORKTREE_PATH}')); print(r.get('warning') or f\"Worktree finalized: {r.get('reason')}\")"
+```
+
+If the run branch is already merged into `origin/main`, finalize removes the worktree + branch. If not (the common state — branch just pushed, PR pending), it leaves the folder and returns a `warning`; print that `warning` verbatim to the user (it names the path + the manual cleanup command). Unmerged work is NEVER auto-deleted. Best-effort: skip silently if the run had no worktree.
+
 ### Auto-compact prompt (after the final report; default on)
 
 The invoking command (`/architect-team`) sets `AUTO_COMPACT_PROMPT` from `$ARGUMENTS` (default `true`; opt-out via `--no-compact`). After the Phase 8 final report (and the auto-commit / push output if applicable), emit this block as the very last thing the user sees in this turn:

@@ -151,7 +151,8 @@ def test_create_run_worktree_builds_expected_layout(
     """Spec scenario: create_run_worktree builds the expected layout."""
     monkeypatch.chdir(main_repo)
 
-    expected_path = (tmp_path.resolve() / "main-repo-add-billing").resolve()
+    container = (tmp_path.resolve() / ".main-repo-worktrees").resolve()
+    expected_path = (container / "add-billing").resolve()
     expected_branch = "architect-team/add-billing"
 
     try:
@@ -160,11 +161,16 @@ def test_create_run_worktree_builds_expected_layout(
         )
         worktree_path = worktree_path.resolve()
 
-        # Path matches the convention.
+        # Path matches the new hidden-container convention (v3.6.0).
         assert worktree_path == expected_path, (
             f"expected {expected_path}, got {worktree_path}"
         )
         assert worktree_path.is_dir()
+
+        # The hidden per-project container exists and is a directory.
+        assert container.is_dir(), (
+            f"expected container dir {container} to exist and be a directory"
+        )
 
         # The new worktree is checked out on the run branch.
         current_branch = subprocess.run(
@@ -211,7 +217,9 @@ def test_create_run_worktree_handles_collision(
         capture_output=True,
     )
 
-    first_path = (tmp_path.resolve() / "main-repo-add-billing-2").resolve()
+    first_path = (
+        tmp_path.resolve() / ".main-repo-worktrees" / "add-billing-2"
+    ).resolve()
     first_branch = "architect-team/add-billing-2"
 
     try:
