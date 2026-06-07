@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.1] — 2026-06-06 — Visual-to-API dispatch symmetry (Phase 0a)
+
+**PATCH — documentation hardening, no behavior change.** Closes the contract-symmetry gap between `architect-team-pipeline/SKILL.md` and `visual-to-api-design/SKILL.md`.
+
+### The gap this closes
+
+The `visual-to-api-design` skill's `## When this skill runs` section (lines 447–456) has documented 4 trigger conditions from its own side since v2.15.0 — the explicit `intake_mode == "visual-to-api"` signal set by the `/architect-team:visual-to-api` slash command, plus 3 heuristic patterns (visual codebase + no requirements / partial requirements + explicit derive ask / canonical prose patterns). The main `architect-team-pipeline/SKILL.md` Phase 0 body, however, did NOT explicitly document the matching dispatch step on its side. The dispatch was an implicit contract — the orchestrator was expected to honor the cross-reference, but the contract was asymmetric.
+
+In practice this meant `/architect-team` and `/architect-team:visual-to-api` SHOULD produce identical results when a visual codebase + design docs are present, but the guarantee relied on the orchestrator inferring the dispatch from `visual-to-api-design`'s "When this skill runs" side rather than reading it as an explicit Phase 0 step in the main pipeline body.
+
+### What v3.3.1 ships
+
+1. **NEW `## Phase 0a — Visual-to-API dispatch check (v3.3.1)` section** in `skills/architect-team-pipeline/SKILL.md` positioned between `## Phase 0.1 — Discipline freshness check (v2.18.0)` and `## Phase 0 — Detection & Normalization`. The section documents:
+   - The 4-condition dispatch ladder in priority order (explicit signal → 3 heuristic patterns).
+   - The "no-op condition" (pure-feature pipelines with full upfront requirements + no explicit signal + no heuristic match).
+   - The `visual-to-api-design` skill invocation form (via the `Skill` tool with `skill: visual-to-api-design`).
+   - The post-dispatch Phase 0 behavior — Phase 0 short-circuits its `plain` branch authoring (Stages 4 + 7 already populated the OpenSpec change via the openspec skill), but Phase 0 STILL runs to classify the now-existing change as `openspec` and treat the 5 `*_MAP.md` docs as binding inputs alongside `INTERACTION_INTUITION_MAP.md`.
+   - Phase 1's validation loop operates on the resulting OpenSpec change at the same bar as any other input.
+
+2. **NEW `tests/test_visual_to_api_dispatch_symmetry.py`** — 15 structural tests asserting both bodies document the same contract:
+   - Phase 0a section presence + positioning before Phase 0.
+   - Phase 0a names the canonical `intake_mode == "visual-to-api"` signal + the `/architect-team:visual-to-api` slash command.
+   - Phase 0a names all 4 dispatch conditions explicitly (1 explicit signal + 3 heuristics).
+   - Phase 0a names the 3 canonical prose patterns verbatim (*"review this codebase and design the API"* / *"derive the API from the UI"* / *"build out the backend for this frontend"*).
+   - Phase 0a names the 5 `*_MAP.md` artifacts that the dispatched skill produces (`PERSONA_MAP.md` / `COMPONENT_ARCHITECTURE_MAP.md` / `API_RETURNS_MAP.md` / `API_DESIGN_MAP.md` / `DATA_ARCHITECTURE_MAP.md`).
+   - Phase 0a documents how Phase 0 short-circuits the `plain` branch when the dispatch fires.
+   - The `visual-to-api-design` skill's `## When this skill runs` section continues to document the same 4 conditions on its side.
+   - Both bodies name the same canonical signal verbatim.
+   - The bug-fix-pipeline is NOT modified (the visual-to-api dispatch is a feature-pipeline-only path).
+
+### Why patch (not minor)
+
+Zero behavior change — the dispatch was already intended to happen at Phase 0 per the `visual-to-api-design` skill's own contract. v3.3.1 just documents the matching pre-action half on the main pipeline side AND adds the symmetry test that prevents future drift. No new functionality, no new tool, no new agent.
+
+### Backwards compatibility
+
+- Schema v7 UNCHANGED.
+- No existing trigger condition changed — the 4 conditions in `visual-to-api-design` `## When this skill runs` are now mirrored verbatim in the main pipeline.
+- The 4-stage subset and the `/architect-team:visual-to-api` slash command remain valid and unchanged.
+- 3520 → 3535 passing (+15 net symmetry tests); zero regressions.
+
 ## [3.3.0] — 2026-06-06 — Test-run monitor team (passive observer)
 
 **MINOR — additive, fully backwards-compatible.** Closes the verbatim user prose: *"we need a special skill that creates an agent team that is just a monitor system, watching when we are testing."*
