@@ -1,5 +1,5 @@
 ---
-description: Run the v3.3.0 test-run monitor team — a passive observer that watches a test source (local test command / CI job / production APM / log tail) and produces a per-run report at `<workspace>/.architect-team/monitor-runs/<run-id>/report.md`. Strictly log-only — no mid-run interrupts, no auto-SR filing, no pipeline gating. Three source adapters: LocalAdapter (auto-detected from a test command), CIAdapter (`--ci-job <name>`), ProductionQAAdapter (`--apm-url <url>` or `--log-tail <path>`).
+description: "Run the v3.3.0 test-run monitor team — a passive observer that watches a test source (local test command / CI job / production APM / log tail) and produces a per-run report at `<workspace>/.architect-team/monitor-runs/<run-id>/report.md`. Strictly log-only — no mid-run interrupts, no auto-SR filing, no pipeline gating. Three source adapters: LocalAdapter (auto-detected from a test command), CIAdapter (`--ci-job <name>`), ProductionQAAdapter (`--apm-url <url>` or `--log-tail <path>`)."
 argument-hint: "<test-command> | --ci-job <name> | --apm-url <url> | --log-tail <path>"
 ---
 
