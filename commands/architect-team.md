@@ -54,6 +54,33 @@ Per `common-pipeline-conventions` `## Auto-worktree lifecycle` `### Auto-cleanup
 (v1.3.0)` for the full rule including merged-branch detection mechanism
 (`git merge-base --is-ancestor`) and the squash-merge limitation.
 
+## Startup branch reconciliation (v3.7.0) — runs after the v1.3.0 sweep
+
+After the merged-worktree sweep above, enumerate stray `architect-team/*`
+branches and offer to reconcile them. Best-effort + a domain gate (one
+question); silent no-op when there are none.
+
+1. Enumerate run branches via the polyglot Python pattern:
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import list_run_branches; print(json.dumps([b for b in list_run_branches() if not b['merged_into_main']]))" 2>&1 || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import list_run_branches; print(json.dumps([b for b in list_run_branches() if not b['merged_into_main']]))" 2>&1 || echo '[]'
+   ```
+   (The v1.3.0 sweep already removed merged-worktree branches, so filter to the
+   unmerged strays.)
+2. If the list is EMPTY → silent no-op; proceed to argument parsing.
+3. If non-empty → present ONE `AskUserQuestion` with three options:
+   - **merge-all-clean + prune** → for each branch with `cleanly_mergeable:
+     true`, call `merge_branch_to_main_and_prune(branch, worktree_path)` via the
+     polyglot Python; report any branch returning `conflict: true` (left
+     untouched).
+   - **prune-without-merge** → `cleanup_run_worktree(Path(worktree_path),
+     remove_branch=True)` per branch (discard the work).
+   - **leave** → no-op.
+4. Only `architect-team/*` branches are ever considered — never the user's own
+   branches, never this command's OWN run branch.
+
+Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`
+for the canonical rule.
+
 ## Argument parsing (do this first, before invoking the skill)
 
 **Strip the recognised flags from `$ARGUMENTS` first; everything left is the requirement.**
@@ -69,8 +96,9 @@ Flags (each independent — `--no-commit --no-compact` is valid; natural-languag
 - `--feature-only` → forces `kind: feature` at Phase −2; skips the classifier and proceeds to the existing Phase −1 → 8 flow (the full pipeline). Natural-language equivalents: *"this is a feature"* / *"build this as a feature"* / *"feature, not a bug"*. Use when you want feature-pipeline rigor on what the classifier might call a small bug.
 - `--no-refine` → skip the upstream `proposal-refiner` skill (v0.9.33). Default `false` — when `$REQ_DIR` is plain-language prose AND the input is not already a refined-prompt markdown, the pipeline invokes `proposal-refiner` FIRST to conversationally clarify the prompt with codebase-map grounding before Phase −2 (Triage). Pass `--no-refine` to bypass when the prose is already detailed enough. Domain gate per v0.9.21 — the user-confirmation step IS the deliverable, NOT a process gate that v0.9.20's "default to action" rule covers.
 - `--no-worktree` → `AUTO_WORKTREE = false`. (Default `true`.) Skip the auto-worktree creation step; run the pipeline in the current checkout (v1.1.0 behavior). Natural-language equivalents: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*.
+- `--no-auto-merge` → `AUTO_MERGE_MAIN = false`. (Default `true`.) When true (the default), a clean Phase 8 run merges its `architect-team/<change-name>` branch into `main`, pushes, deletes the branch (local + remote), and removes the worktree — only when it merges cleanly (conflicts skipped + reported, never forced; branch protection always wins). `--no-auto-merge` restores today's feature-branch + recommend-a-PR + persistence-warning behavior. Natural-language equivalents: *"keep the branch"* / *"PR only"* / *"don't merge to main"* / *"no auto-merge"*. See `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
 - `--phenotype <label>` → bind `$PHENOTYPE = <label>` and seed the run from that phenotype (a pre-made, generalized, deployable architecture under `phenotypes/` — blueprint + scaffold; see `skills/phenotypes`). Natural-language equivalents recognized at parse time: *"use the `<label>` phenotype"* / *"use phenotypes"* (when the domain is unambiguous). When set, the pipeline loads the phenotype, confirms its variation points + scaffold parameters with the user (a domain gate), emits the scaffold as the starting point, and customizes it through the normal phases. Absent → no phenotype is seeded, though the pipeline may still PROPOSE a matching one during reuse-first design (never silently).
-- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `AUTO_WORKTREE = true` (drive end-to-end). The Phase −2 triage runs and routes based on the classifier's verdict — bug-shaped requirements automatically route to the bug-fix pipeline; feature-shaped requirements continue to the existing Phase −1 → 8 flow; mixed requirements spawn both in parallel.
+- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `AUTO_WORKTREE = true`, `AUTO_MERGE_MAIN = true` (drive end-to-end). The Phase −2 triage runs and routes based on the classifier's verdict — bug-shaped requirements automatically route to the bug-fix pipeline; feature-shaped requirements continue to the existing Phase −1 → 8 flow; mixed requirements spawn both in parallel.
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
 
@@ -165,6 +193,22 @@ EOF
 If `AUTO_COMMIT = false`: skip steps 2-5 entirely; mention in the final report that changes were left uncommitted at the user's request.
 
 If `AUTO_COMMIT = true` but `AUTO_PUSH = false`: do steps 1-3 only; mention in the final report that the commit was made locally but not pushed at the user's request.
+
+### Auto-merge to main (v3.7.0)
+
+After the completion audit passes + the commit lands on `architect-team/<change-name>`, and when `AUTO_MERGE_MAIN = true` (the default):
+
+6. Probe clean-mergeability and, if clean, merge + prune via the polyglot Python (the orchestrator runs from / chdir's to the MAIN checkout first, since the merge runs `git checkout main` there):
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<change-name>', '$WORKTREE_PATH', push=<AUTO_PUSH>)))" 2>&1 || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<change-name>', '$WORKTREE_PATH', push=<AUTO_PUSH>)))" 2>&1
+   ```
+   - On `reason: "merged-and-pruned"` → report: merged into `main`, pushed, branch deleted (local + remote), worktree removed.
+   - On `conflict: true` (`reason: "conflict"` / `"conflict-on-merge"`) → the merge changed nothing; fall back to today's behavior: keep the `architect-team/<change-name>` branch pushed, recommend a PR, emit the v3.6.0 `finalize_run_worktree` persistence warning.
+   - On `reason: "push-rejected"` (branch protection / non-fast-forward) → STOP, report the rejection, leave the branch + worktree recoverable. NEVER force.
+
+When `AUTO_MERGE_MAIN = false` (`--no-auto-merge`): skip step 6 entirely; keep today's feature-branch + recommend-a-PR + persistence-warning behavior verbatim (the v3.6.0 `finalize_run_worktree` warning).
+
+Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)` for the canonical flow + safety rules.
 
 ## Auto-compact prompt (after the final report)
 

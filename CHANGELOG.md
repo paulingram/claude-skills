@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.7.0] — 2026-06-07 — Auto-merge-to-main + prune (self-tidying runs) + startup branch reconciliation
+
+**MINOR — additive, fully backwards-compatible.** Makes autonomous architect-team runs self-tidying: a clean Phase 8 / B8 / M7 run now lands on `main` and cleans up after itself instead of leaving a growing pile of feature branches + worktrees behind a manual PR step. `AUTO_MERGE_MAIN` defaults to `true`; `--no-auto-merge` restores today's feature-branch + PR behavior.
+
+### What v3.7.0 ships
+
+1. **Auto-merge-to-main is the new default (`AUTO_MERGE_MAIN = true`).** On a clean Phase 8 / B8 / M7 pass (completion audit green AND the commit landed on `architect-team/<change-name>`), the pipeline merges that branch into `main`, pushes `main`, deletes the branch (local + remote), and removes the run worktree — **but ONLY when the branch merges cleanly**. This supersedes the prior "feature-branch unless `--allow-push-to-default`" default for the merge destination (D6); `--no-auto-merge` restores the prior feature-branch + PR path (which still honors `--allow-push-to-default`).
+
+2. **Two new public helpers in `scripts/setup/worktree_lifecycle.py` (stdlib-only).**
+   - `list_run_branches(against="main", remote="origin") -> list[dict]` — one descriptor per local `architect-team/*` branch: `{branch, worktree_path, merged_into_main, cleanly_mergeable}`. Non-`architect-team/*` branches are NEVER included; best-effort → `[]`. Powers the startup reconcile prompt.
+   - `merge_branch_to_main_and_prune(branch, worktree_path=None, against="main", remote="origin", push=True) -> dict` — merge a cleanly-mergeable run branch into `main`, push, delete the branch (local + remote), remove the worktree. Always returns `{merged, pushed, branch_deleted, worktree_removed, conflict, reason, branch, worktree_path}`. Best-effort — never raises. Plus the internal `_branch_cleanly_mergeable(toplevel, branch, against="main")` probe using `git merge-tree --write-tree` (git ≥ 2.38, legacy 3-arg fallback) which NEVER mutates the working tree.
+
+3. **Never-force / branch-protection-wins safety.** A merge **conflict** changes nothing and reports `conflict: true` (the real merge aborts via `git merge --abort` if it surfaces unexpectedly); the run falls back to the feature-branch + PR + persistence-warning path. A **rejected push** (branch protection, non-fast-forward) STOPS pruning, leaves the branch + worktree recoverable, and reports `reason: "push-rejected"` — `--force` is NEVER added. Branch protection always wins.
+
+4. **`--no-auto-merge` opt-out (+ natural language).** Sets `AUTO_MERGE_MAIN = false` and restores today's feature-branch + recommend-a-PR + v3.6.0 persistence-warning behavior verbatim. Natural-language equivalents: *"keep the branch"* / *"PR only"* / *"don't merge to main"* / *"no auto-merge"*. In mini, `--no-auto-merge` is an alias of the existing `--no-merge`.
+
+5. **Startup branch reconciliation.** After the v1.3.0 merged-worktree sweep, each `/architect-team` family command enumerates stray (unmerged) `architect-team/*` branches via `list_run_branches()` and, when any exist, presents ONE `AskUserQuestion`: merge-all-clean + prune / prune-without-merge / leave. Only `architect-team/*` branches are ever considered — never the user's own branches, never the command's own run branch. Silent no-op when there are none.
+
+6. **Doc + command + skill wiring.** New canonical `## Auto-merge-to-main discipline (v3.7.0)` section in `skills/common-pipeline-conventions/SKILL.md` (cross-referenced from `## Auto-worktree lifecycle`); `--no-auto-merge` flag + `## Startup branch reconciliation (v3.7.0)` section + the auto-merge branch in the default-git-behavior of `commands/architect-team.md` / `commands/bug-fix.md` / `commands/mini.md`; the auto-merge step wired into Phase 8 / B8 / M7 of the three pipeline skill bodies. Mini's M7 already merged + pruned its own branch on green QA — it now documents that as the v3.7.0 discipline (and keeps its `mini/<slug>` fast-forward sequence, which is functionally identical).
+
+### Tests
+
+NEW `tests/test_auto_merge_main.py` (real `git init` + self-remote `origin/main` + `git worktree add`, no mocks): `list_run_branches` reports correct `merged_into_main` and excludes `feature/x`; the clean merge + prune path (merged into main, branch gone, worktree gone, pushed to self-remote); the conflict path (main unchanged, branch + worktree intact); the non-run-branch guard.
+
+### Backwards compatibility
+
+- Module stays stdlib-only; the seven existing public functions' contracts are unchanged.
+- `--no-auto-merge` fully restores the pre-v3.7.0 feature-branch + PR behavior.
+- Branch naming `architect-team/<slug>` is unchanged; conflicts and protected branches are never forced.
+
 ## [3.6.0] — 2026-06-07 — Worktree end-of-run merge check + hidden per-project container layout
 
 **MINOR — additive, fully backwards-compatible.** Two improvements to the auto-worktree lifecycle in `scripts/setup/worktree_lifecycle.py`.

@@ -345,13 +345,29 @@ M7 step is the mini equivalent.) On the rare unmerged path (the merge in step
 4 failed), M7 leaves the worktree on disk and surfaces a warning naming the
 path + the manual cleanup command, exactly as `finalize` would.
 
+**Alignment with the auto-merge-to-main discipline (v3.7.0).** Mini's M7 IS the
+auto-merge-to-main behavior the v3.7.0 discipline makes the default for the full
++ bug-fix pipelines — M7 already merges the run branch to `main`, pushes, deletes
+the branch (local + remote), and removes the worktree (the merge sequence + the
+worktree cleanup above). `AUTO_MERGE_MAIN = true` is the mini default; the
+`--no-auto-merge` flag is an alias of `--no-merge` (both set `AUTO_MERGE_MAIN =
+false` and skip the merge sequence, leaving the branch + worktree for a manual
+PR). Conflicts halt (step 4) and are never forced; a rejected `git push origin
+main` (branch protection) halts the same way — `main` is never force-pushed.
+Because mini runs on `mini/<slug>` branches (not `architect-team/<slug>`), it
+keeps its own fast-forward-based merge sequence rather than routing through
+`merge_branch_to_main_and_prune` (which acts only on `architect-team/*`
+branches); the net effect — clean-merge → push → delete-branch → remove-worktree,
+conflict/branch-protection → halt-never-force — is identical. Per
+`common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
+
 ### Compact prompt
 
 After successful merge, emit the standard `/compact` prompt (matches `architect-team-pipeline` Phase 8 behavior). Suppressed by `--no-compact`.
 
 ### Flags affecting M7
 
-- `--no-merge` — skip the merge sequence entirely. The commit and push still happen on the working branch; the user merges manually. Falls back to existing `/architect-team` semantics.
+- `--no-merge` (alias `--no-auto-merge`, `AUTO_MERGE_MAIN = false`) — skip the merge sequence entirely. The commit and push still happen on the working branch; the user merges manually. Falls back to existing `/architect-team` semantics. Natural-language equivalents: *"keep the branch"* / *"PR only"* / *"don't merge to main"* / *"no auto-merge"*.
 - `--squash-merge` — replace the fast-forward with `git merge --squash mini/<slug>` + a single `Mini-Run:`-tagged commit. The architect/dev/QA commit chain is collapsed into one commit. Trade-off: easier `main` history; the sweep loses sub-commit granularity.
 - `--no-commit` — skip the commit step (and therefore push + merge). Used when running the mini pipeline as a dry-run.
 - `--no-push` — commit but do not push or merge.
