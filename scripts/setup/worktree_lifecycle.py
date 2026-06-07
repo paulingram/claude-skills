@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Worktree-lifecycle helper for the architect-team plugin (v1.2.0 + v1.3.0).
+"""Worktree-lifecycle helper for the architect-team plugin (v1.2.0 + v1.3.0 + v3.6.0).
 
 v1.1.0 shipped `scripts/setup/worktree_paths.py` — the worktree-aware
 state-resolution sibling that answers WHERE state lives (shared vs. per-run).
@@ -53,14 +53,25 @@ Public API — six stdlib-only functions:
       cleaned (or that would-be-cleaned in dry_run mode). Idempotent on a
       worktree that disappears between list and remove.
 
+  finalize_run_worktree(worktree_path=None, against="origin/main", branch=None) -> dict
+      (v3.6.0) End-of-run merge check: remove the run's worktree + branch
+      when its `architect-team/<slug>` branch is already merged into
+      <against>; otherwise leave the worktree intact and return a persistence
+      warning naming the path + the manual cleanup command. Best-effort: any
+      subprocess failure is reflected in the returned dict rather than raised.
+
 Naming conventions
 ------------------
 
 - Branch: `architect-team/<slug>` (matches the existing Phase 8
   default-branch-guard convention).
-- Worktree directory: `<parent-of-repo>/<repo-name>-<slug>/` (e.g. repo at
-  `/Users/foo/projects/myapp` with slug `add-billing` -> worktree at
-  `/Users/foo/projects/myapp-add-billing/`).
+- Worktree directory (v3.6.0): `<parent-of-repo>/.<repo-name>-worktrees/<slug>/`
+  — a single hidden per-project container collects every run worktree (e.g.
+  repo at `/Users/foo/projects/myapp` with slug `add-billing` -> worktree at
+  `/Users/foo/projects/.myapp-worktrees/add-billing/`). The old flat layout
+  `<parent>/<repo-name>-<slug>/` is still recognized by cleanup +
+  slug-derivation for backward compatibility with pre-v3.6.0 on-disk
+  worktrees.
 - Collision handling: if EITHER the path OR the branch already exists, the
   helper appends `-2`, then `-3`, ... until both are free.
 
@@ -109,10 +120,11 @@ def create_run_worktree(
 
     Resolves `parent_dir` to the parent of `git rev-parse --show-toplevel`
     when not provided. Derives the repo name from that toplevel's basename.
-    The candidate worktree path is `<parent_dir>/<repo-name>-<slug>/`; the
-    candidate branch is `architect-team/<slug>`. If EITHER already exists
-    (path on disk OR branch in `git branch --list`), the helper appends
-    `-2`, then `-3`, ... until both are free.
+    The candidate worktree path is
+    `<parent_dir>/.<repo-name>-worktrees/<slug>/` (the hidden per-project
+    container, v3.6.0); the candidate branch is `architect-team/<slug>`. If
+    EITHER already exists (path on disk OR branch in `git branch --list`),
+    the helper appends `-2`, then `-3`, ... until both are free.
 
     Then runs `git worktree add -b <branch> <path> <base_branch>` and
     returns the absolute path.
@@ -167,6 +179,13 @@ def create_run_worktree(
         repo_name=repo_name,
         slug=safe_slug,
     )
+
+    # Ensure the hidden per-project container exists before `git worktree add`
+    # (v3.6.0). `git worktree add` creates leaf + parents on its own, but we
+    # create the container explicitly so its existence is unambiguous and so
+    # collision-resolution above can stat candidate paths inside it.
+    container = _container_dir(parent_dir, repo_name)
+    container.mkdir(parents=True, exist_ok=True)
 
     # Run `git worktree add -b <branch> <path> <base>` from the toplevel
     # so the new worktree is properly registered against the main repo.
@@ -412,7 +431,90 @@ def cleanup_merged_worktrees(
     return cleaned
 
 
+# ---- v3.6.0 end-of-run merge check ------------------------------------------
+
+
+def finalize_run_worktree(
+    worktree_path: Optional[Path] = None,
+    against: str = "origin/main",
+    branch: Optional[str] = None,
+) -> dict:
+    """End-of-run worktree disposition (v3.6.0).
+
+    If the run's architect-team/<slug> branch is already merged into <against>,
+    remove the worktree + branch and return {removed: True, ...}. Otherwise
+    leave the worktree intact and return a persistence warning. A no-op (no
+    removal) when the worktree is not on an architect-team/* branch.
+
+    Best-effort: any subprocess failure is reflected in the returned dict
+    rather than raised. Returns a dict with keys:
+      removed (bool), merged (bool), reason (str), warning (str|None),
+      branch (str|None), worktree_path (str).
+    """
+    worktree_path = Path(worktree_path) if worktree_path is not None else Path.cwd()
+    base = {
+        "removed": False,
+        "merged": False,
+        "reason": "",
+        "warning": None,
+        "branch": branch,
+        "worktree_path": str(worktree_path),
+    }
+
+    # Resolve the branch from the worktree's HEAD when not supplied.
+    if branch is None:
+        branch = _git_branch_for_worktree(worktree_path)
+    base["branch"] = branch
+
+    if branch is None or not branch.startswith(_BRANCH_PREFIX):
+        return {**base, "reason": "not-a-run-worktree"}
+
+    toplevel = _git_show_toplevel()
+    if toplevel is None:
+        return {**base, "reason": "no-git-context"}
+
+    merged = _branch_is_merged_into(toplevel, branch, against)
+    if merged:
+        try:
+            cleanup_run_worktree(worktree_path, remove_branch=True)
+        except RuntimeError:
+            deferred = (
+                f"Worktree {worktree_path} (branch {branch}) is merged into "
+                f"{against} but could not be auto-removed (likely because it "
+                f"is the current directory). The next run's sweep "
+                f"(cleanup_merged_worktrees) will remove it. To remove it "
+                f"now: git worktree remove {worktree_path} && "
+                f"git branch -d {branch}"
+            )
+            return {
+                **base,
+                "merged": True,
+                "reason": "merge-detected-removal-deferred",
+                "warning": deferred,
+            }
+        return {
+            **base,
+            "removed": True,
+            "merged": True,
+            "reason": "merged-removed",
+        }
+
+    warning = (
+        f"Worktree {worktree_path} (branch {branch}) was NOT removed: its "
+        f"branch is not yet merged into {against}. The folder will persist "
+        f"on disk until the branch is merged (then the next run's sweep "
+        f"removes it). To remove it now: git worktree remove {worktree_path} "
+        f"&& git branch -d {branch}"
+    )
+    return {**base, "reason": "unmerged-retained", "warning": warning}
+
+
 # ---- Internals ---------------------------------------------------------------
+
+
+def _container_dir(parent_dir: Path, repo_name: str) -> Path:
+    """The hidden per-project worktree container: <parent>/.<repo>-worktrees/."""
+    return parent_dir / f".{repo_name}-worktrees"
 
 
 def _sanitize_slug(slug: str) -> str:
@@ -438,10 +540,11 @@ def _resolve_collision(
     AND the candidate branch are free. Bounded at 1000 attempts to avoid an
     infinite loop on a degenerately-cluttered repo.
     """
+    container = _container_dir(parent_dir, repo_name)
     suffix = 1
     while suffix < 1000:
         candidate_slug = slug if suffix == 1 else f"{slug}-{suffix}"
-        candidate_path = parent_dir / f"{repo_name}-{candidate_slug}"
+        candidate_path = container / candidate_slug
         candidate_branch = f"{_BRANCH_PREFIX}{candidate_slug}"
         if not candidate_path.exists() and not _git_branch_exists(
             candidate_branch
@@ -451,35 +554,51 @@ def _resolve_collision(
     raise RuntimeError(
         f"_resolve_collision: could not find a free slug after 999 "
         f"suffix attempts starting from {slug!r}. Manually clean up "
-        f"stale worktrees / branches at {parent_dir}/{repo_name}-* and "
+        f"stale worktrees / branches at {container}/* and "
         f"branches matching {_BRANCH_PREFIX}{slug}-*."
     )
 
 
-def _slug_from_worktree_path(worktree_path: Path) -> Optional[str]:
-    """Derive the run slug from a worktree directory's basename.
+def _slug_from_worktree_path(worktree_path: Optional[Path]) -> Optional[str]:
+    """Derive the run slug from a worktree directory's path (dual-layout).
 
-    The worktree-naming convention is `<repo-name>-<slug>`. We split on the
-    LAST hyphen by looking up the toplevel's basename and stripping the
-    `<repo-name>-` prefix when it matches.
+    Two layouts are recognized (v3.6.0):
+      - NEW container layout: `<parent>/.<repo>-worktrees/<slug>/` — the slug
+        is the basename and the parent dir is `.<repo>-worktrees`.
+      - OLD flat layout: `<parent>/<repo>-<slug>/` — the slug is the basename
+        after the `<repo>-` prefix.
 
-    Returns None when the basename does not match the convention (the
-    caller treats this as "no derivable slug" -> branch cleanup is skipped).
+    Returns None when neither layout matches (the caller treats this as "no
+    derivable slug" -> branch cleanup is skipped). Defensive against a None /
+    pathless input.
     """
-    basename = worktree_path.name
-    toplevel = _git_show_toplevel()
-    if toplevel is None:
-        # No git context — fall back to a heuristic: everything after the
-        # first hyphen is the slug. Better than nothing for cleanup ergonomics.
-        if "-" in basename:
-            return basename.split("-", 1)[1]
+    if worktree_path is None:
         return None
-    repo_name = toplevel.name
-    prefix = f"{repo_name}-"
-    if basename.startswith(prefix):
-        slug = basename[len(prefix):]
-        return slug if slug else None
-    # No match — be conservative and return None rather than guessing.
+    worktree_path = Path(worktree_path)
+    basename = worktree_path.name
+    parent_name = worktree_path.parent.name if worktree_path.parent is not None else ""
+
+    toplevel = _git_show_toplevel()
+    if toplevel is not None:
+        repo_name = toplevel.name
+        # NEW layout: parent dir is the hidden container `.<repo>-worktrees`.
+        if parent_name == f".{repo_name}-worktrees":
+            return basename or None
+        # OLD layout: basename is `<repo>-<slug>`.
+        prefix = f"{repo_name}-"
+        if basename.startswith(prefix):
+            slug = basename[len(prefix):]
+            return slug if slug else None
+        # No match — be conservative and return None rather than guessing.
+        return None
+
+    # No git context — fall back to heuristics.
+    # NEW layout heuristic: parent dir looks like `.<something>-worktrees`.
+    if parent_name.startswith(".") and parent_name.endswith("-worktrees"):
+        return basename or None
+    # OLD layout heuristic: everything after the first hyphen is the slug.
+    if "-" in basename:
+        return basename.split("-", 1)[1]
     return None
 
 
@@ -510,6 +629,37 @@ def _git_current_branch() -> Optional[str]:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    out = (result.stdout or "").strip()
+    if not out or out == "HEAD":
+        return None
+    return out
+
+
+def _git_branch_for_worktree(worktree_path: Path) -> Optional[str]:
+    """Return the current branch of the worktree at `<worktree_path>`.
+
+    Runs `git -C <worktree_path> rev-parse --abbrev-ref HEAD`. Returns None
+    when the path is not a git worktree, on a detached HEAD (`HEAD`), or on
+    any subprocess failure.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(worktree_path),
+                "rev-parse",
+                "--abbrev-ref",
+                "HEAD",
+            ],
             capture_output=True,
             text=True,
             check=False,

@@ -1,0 +1,100 @@
+{
+  "change": "worktree-merge-cleanup-naming",
+  "version_target": "3.6.0",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "End-of-run worktree disposition",
+      "scenarios": [
+        "merged branch is removed at end of run",
+        "unmerged branch is left with a warning",
+        "non-run worktree is a no-op"
+      ],
+      "acceptance_criteria": [
+        "finalize_run_worktree removes worktree + branch when merged into origin/main",
+        "finalize_run_worktree leaves an unmerged worktree intact and returns a warning naming the path + manual cleanup command",
+        "finalize_run_worktree is a no-op on a non-architect-team branch",
+        "finalize_run_worktree is best-effort (returns dict, never raises on subprocess failure)"
+      ],
+      "layer": "infra",
+      "implementing_files": ["scripts/setup/worktree_lifecycle.py"],
+      "tests": ["tests/test_worktree_merge_finalize.py"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "Hidden per-project worktree container layout",
+      "scenarios": [
+        "worktree is created inside the hidden container",
+        "collision bumps the slug inside the container"
+      ],
+      "acceptance_criteria": [
+        "create_run_worktree creates <parent>/.<repo>-worktrees/<slug>/ on branch architect-team/<slug>",
+        "the hidden container directory is created if absent",
+        "collision appends -2/-3 to the slug inside the container"
+      ],
+      "layer": "infra",
+      "implementing_files": ["scripts/setup/worktree_lifecycle.py"],
+      "tests": ["tests/test_worktree_lifecycle.py"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "Backward-compatible dual-layout cleanup",
+      "scenarios": [
+        "sweep removes merged worktrees under both layouts",
+        "slug derivation handles both layouts"
+      ],
+      "acceptance_criteria": [
+        "cleanup_merged_worktrees removes merged worktrees under both old flat and new nested layouts",
+        "_slug_from_worktree_path returns the slug under both layouts"
+      ],
+      "layer": "infra",
+      "implementing_files": ["scripts/setup/worktree_lifecycle.py"],
+      "tests": ["tests/test_worktree_merge_finalize.py", "tests/test_worktree_auto_cleanup.py"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "Explicit end-of-run cleanup messaging",
+      "scenarios": [
+        "convention documents the new layout and end-of-run behavior",
+        "no stale flat-layout default remains documented"
+      ],
+      "acceptance_criteria": [
+        "common-pipeline-conventions documents the hidden container + end-of-run merge-check + dual-layout",
+        "the three pipeline command bodies wire finalize_run_worktree at Phase 8/B8/M7",
+        "no doc/command documents <parent>/<repo>-<slug>/ as the current default"
+      ],
+      "layer": "infra",
+      "implementing_files": [
+        "skills/common-pipeline-conventions/SKILL.md",
+        "commands/architect-team.md",
+        "commands/bug-fix.md",
+        "commands/mini.md",
+        "commands/cleanup-worktrees.md",
+        "skills/architect-team-pipeline/SKILL.md",
+        "skills/bug-fix-pipeline/SKILL.md",
+        "skills/mini-architect-team-pipeline/SKILL.md"
+      ],
+      "tests": ["tests/test_worktree_lifecycle.py"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "Release v3.6.0",
+      "scenarios": ["docs current and version bumped"],
+      "acceptance_criteria": [
+        "plugin.json + marketplace.json at 3.6.0",
+        "CHANGELOG v3.6.0 entry present",
+        "README + CLAUDE.md describe the new worktree lifecycle",
+        "full pytest suite green"
+      ],
+      "layer": "infra",
+      "implementing_files": [
+        ".claude-plugin/plugin.json",
+        ".claude-plugin/marketplace.json",
+        "CHANGELOG.md",
+        "README.md",
+        "CLAUDE.md"
+      ],
+      "tests": ["tests/test_plugin_metadata.py"]
+    }
+  ]
+}

@@ -120,13 +120,15 @@ After binding `$REQ_DIR` and completing any refinement, AND BEFORE invoking the 
      python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))" \
        || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))"
      ```
-     The helper creates the worktree at `<parent-of-repo>/<repo-name>-<slug>/` on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
+     The helper creates the worktree at `<parent-of-repo>/.<repo-name>-worktrees/<slug>/` (the hidden per-project container, v3.6.0) on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
   3. `chdir` into `$WORKTREE_PATH`. Every subsequent step — including the Skill-tool invocation of `architect-team-pipeline` — runs with `$WORKTREE_PATH` as cwd. v1.1.0's `shared_state_dir()` resolution keeps the lock layer and MemPalace pointed at the MAIN worktree; `run_state_dir()` resolves per-worktree so reviews / teammates / handoffs / per-run OpenSpec live in the run worktree.
   4. Surface a one-line note to the user: *"Auto-worktree: created `<WORKTREE_PATH>` on branch `architect-team/<slug>`. Pass `--no-worktree` next time to skip."*
 
 On creation failure (parent dir not writable, base branch missing, slug exhausted — the helper raises `RuntimeError` with an actionable message), surface the error verbatim and STOP. Do NOT silently fall back to the current checkout — the user asked for a worktree (default), and failing without notice is the v0.9.20 anti-pattern this section's explicit error path exists to prevent. The user re-runs with `--no-worktree` if they want single-tree mode.
 
-Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the cleanup recommendation emitted at Phase 8 success, and the re-entry detection logic.
+At Phase 8 success the pipeline now calls `finalize_run_worktree($WORKTREE_PATH)` (v3.6.0): it removes the worktree + branch if the branch is already merged into `origin/main`, otherwise it leaves the folder and prints the returned `warning` (which names the path + the manual cleanup command). Unmerged work is never auto-deleted.
+
+Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the end-of-run merge check emitted at Phase 8 success, and the re-entry detection logic.
 
 ## Invoke the pipeline
 

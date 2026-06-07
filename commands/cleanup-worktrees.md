@@ -11,6 +11,11 @@ the start of every `/architect-team` family invocation (v1.3.0); this command
 is the manual version for when you want to clean now without starting a new
 run.
 
+Cleanup recognizes BOTH the old flat `<repo>-<slug>` layout and the new
+`.<repo>-worktrees/<slug>` hidden-container layout (v3.6.0) — merge detection
+is keyed off the branch, not the on-disk location, so both are swept
+identically.
+
 ## Flags
 
 - `--dry-run` -> print the paths that WOULD be cleaned; no filesystem changes.

@@ -333,6 +333,18 @@ This in-run cleanup is best-effort just like the start-of-run sweep: a
 failure surfaces a one-line note and the `/compact` prompt below still
 fires.
 
+**Alignment with `finalize_run_worktree` (v3.6.0).** The end-of-run merge
+check `finalize_run_worktree` is the shared end-of-run disposition the full +
+bug-fix pipelines call at Phase 8 / B8 (remove-if-merged, warn-if-not). The
+mini pipeline's M7 already implements that same intent for its own worktree —
+it merges to main, then removes the worktree above — so it keeps this explicit
+auto-merge-then-clean behavior rather than re-deriving disposition. (Mini runs
+on `mini/<slug>` branches, not `architect-team/<slug>`, so `finalize` — which
+only acts on `architect-team/*` branches — would be a no-op here anyway; the
+M7 step is the mini equivalent.) On the rare unmerged path (the merge in step
+4 failed), M7 leaves the worktree on disk and surfaces a warning naming the
+path + the manual cleanup command, exactly as `finalize` would.
+
 ### Compact prompt
 
 After successful merge, emit the standard `/compact` prompt (matches `architect-team-pipeline` Phase 8 behavior). Suppressed by `--no-compact`.
