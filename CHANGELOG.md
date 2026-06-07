@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.2.0] — 2026-06-06 — Exploration Pipeline (extend visual-to-api-design 4→7 stages)
+
+**MINOR — additive, backwards-compatible.** Extends the `visual-to-api-design` skill IN PLACE from 4 → 7 stages into a standardized, ralph-loop-governed frontend→backend "Exploration Pipeline." The existing 4-stage flow + `/architect-team:visual-to-api` command remain valid as a subset.
+
+- **`skills/visual-to-api-design/SKILL.md`** — adds the 7-stage flow: Stage 0 scope detection (frontend-only / backend-only / both) → Stage 1 personas + application classification → Stage 2 per-persona objectives (`PERSONA_MAP.md`) → Stage 3a page/element catalog (type / HTML-attrs / dynamic-static) → Stage 3b route↔persona map → Stage 3c reusable-component architecture (`COMPONENT_ARCHITECTURE_MAP.md`; 100% element coverage, per-page placement, payload consumption) → Stage 4 conversion → OpenSpec via the openspec skill → Stage 5 per-page REST returns (`API_RETURNS_MAP.md`) → Stage 6 consolidated API design + desk-trace play-test (`API_DESIGN_MAP.md`; max endpoint reuse, CRUD, return-by-user-type) → Stage 7 backend data architecture (`DATA_ARCHITECTURE_MAP.md`; extensibility-first schema, phenotype gates for user-management / AI-management / config-management OpenTofu, DB-type selection) → OpenSpec requirements via the openspec skill.
+- **Every stage's 3-reviewer convergence runs inside `ralph-loop:ralph-loop`** (completion-promise = all reviewers agree / 100% fidelity). OpenSpec output (Stages 4 + 7) goes through the openspec skill (`openspec-propose` / `opsx:propose`), not hand-written JSON.
+- **`skills/common-pipeline-conventions/SKILL.md`** — NEW `## Exploration documentation standard (v3.2.0)` canonicalizing the 5 standardized `*_MAP.md` docs (names, `<codebase>/docs/` paths, frontmatter schemas); auto-generated for every project the pipeline runs against (created-on-ask standalone).
+- Run-time inputs (`language`, `component_libraries`, `ancillary_docs`) are read from the brief/config; absence escalates via a domain-gate.
+- **`tests/test_exploration_pipeline.py`** — 53 structural tests (the 10 stage headings, ralph-loop-per-stage, openspec-skill binding, phenotype gates, the 5 doc schemas, the scope gate, inputs, subset preservation); cp1252-clean and reads with `encoding="utf-8"`.
+
+OpenSpec change `exploration-pipeline` validates `--strict`. Full suite under `PYTHONUTF8=1`: 3426 passed, 5 skipped (+53 new). **Zero regressions** from this change. (The pre-existing Windows-portability failures are fixed by the v3.1.0 work landed together with this — see below — so the full suite is green on `main` under both cp1252 and `PYTHONUTF8=1`.)
+
 ## [3.1.0] — 2026-06-06 — Rule-source consolidation (single source of truth + drift guards) + Windows test portability
 
 **MINOR — additive, fully backwards-compatible, ZERO behavior change.** Two logical changes shipped on one branch as two commits.
