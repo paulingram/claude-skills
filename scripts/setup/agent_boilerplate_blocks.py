@@ -80,10 +80,10 @@ STANDARD_AGENTS_FORBIDDEN_GIT = [
     "diagnostic-researcher", "doc-updater", "editability-reviewer",
     "fix-sensibility-checker", "flow-executor", "flow-explorer", "frontend",
     "integration", "integration-explorer", "interaction-intuiter",
-    "interaction-reviewer", "master-synthesizer", "mini-qa", "prompt-refiner",
-    "qa-replayer", "reconciler", "route-mapper", "scaffold-agent",
+    "interaction-reviewer", "master-synthesizer", "mini-qa", "monitor-synthesizer",
+    "prompt-refiner", "qa-replayer", "reconciler", "route-mapper", "scaffold-agent",
     "system-architect", "task-reviewer", "test-completeness-verifier",
-    "visual-analyzer", "visual-capture",
+    "test-run-watcher", "visual-analyzer", "visual-capture",
 ]
 STANDARD_AGENTS_CHECKPOINT = list(STANDARD_AGENTS_FORBIDDEN_GIT)
 STANDARD_AGENTS_OPERATING_CONTEXT = list(STANDARD_AGENTS_FORBIDDEN_GIT)

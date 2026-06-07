@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.0] — 2026-06-06 — Test-run monitor team (passive observer)
+
+**MINOR — additive, fully backwards-compatible.** Closes the verbatim user prose: *"we need a special skill that creates an agent team that is just a monitor system, watching when we are testing."*
+
+A passive observer team that watches test runs across three sources (local / CI / production QA) and produces a per-run report. Strictly log-only — no mid-run interrupts, no auto-SR filing, no pipeline gating. The user reads the report; the user decides what (if anything) becomes follow-up work.
+
+### What v3.3.0 ships
+
+1. **NEW skill `skills/test-run-monitor/SKILL.md`** — orchestrates a 3-phase observation cycle (M1 source detection / M2 watch + capture / M3 synthesize). Generic across 3 adapters via the source argument shape:
+   - **LocalAdapter** — bare test command (`pytest tests/`, `playwright test`, `vitest run`, `jest`, `cargo test`, `go test`, `dotnet test`, etc.). Tails stdout/stderr; parses recognized failure formats; captures Playwright traces + screenshots when present.
+   - **CIAdapter** — `--ci-job <name>` against GitHub Actions / GitLab CI / CircleCI via provider env var detection (`GITHUB_TOKEN` / `GITLAB_TOKEN` / `CIRCLE_TOKEN`). Polls the provider's job API at 30-second intervals; captures failed-step logs.
+   - **ProductionQAAdapter** — `--apm-url <url>` (Datadog / New Relic / Sentry via `DATADOG_API_KEY` / `NEW_RELIC_LICENSE_KEY` / `SENTRY_AUTH_TOKEN`) OR `--log-tail <path>` for log-stream observation. Polls APM at 60-second intervals OR `tail -F`s the named log file scanning for ERROR / FATAL / Exception / Traceback patterns.
+
+2. **NEW 2 agents** (both `color: teal`):
+   - **`test-run-watcher`** (sonnet) — drives the source-specific adapter, captures structured per-finding JSON files to `<workspace>/.architect-team/monitor-runs/<run-id>/findings/`. Default 30-minute budget; produces a `budget-exceeded.json` marker on overrun rather than running unbounded.
+   - **`monitor-synthesizer`** (opus) — reads every finding, classifies each into 4 categories (`flake` / `regression` / `environmental` / `new`) per a documented rubric using prior `monitor-runs/*/report.json` files for history + `git diff` for change attribution. Assigns severity (`critical` / `high` / `medium` / `low`). Computes a trend block over the last 5 runs when prior history exists. Writes `report.json` (machine-readable) + `report.md` (human-readable summary).
+
+3. **NEW 19th slash command `/architect-team:monitor-tests`** — entry point for the monitor team. Auto-detects the adapter from the argument shape (bare test command → LocalAdapter; `--ci-job <name>` → CIAdapter; `--apm-url <url>` or `--log-tail <path>` → ProductionQAAdapter). Writes `source.json` intake state per run; routes to the `test-run-monitor` skill.
+
+4. **NEW canonical section `## Test-run monitor discipline (v3.3.0)`** in `skills/common-pipeline-conventions/SKILL.md` — names the 3-adapter taxonomy, the 4-category classification, the per-run report schema (run_id / monitor_version / adapter / source_spec / summary / findings / optional trends), and the strictly-passive contract (no mid-run inbox injection / no SR filing / no pipeline gating / read-only on source).
+
+5. **NEW canonical fixtures** — `tests/fixtures/monitor/sample-local-pytest-run.json` (12-test pytest run with 3 failures spanning regression + flake + environmental categories) and `tests/fixtures/monitor/sample-ci-github-actions-run.json` (GitHub Actions e2e-suite with 2 failed steps — Playwright e2e auth regression + Lighthouse performance regression).
+
+6. **42 new tests** across `tests/test_test_run_monitor_skill.py` (12), `tests/test_monitor_agents.py` (14), and `tests/test_monitor_tests_command.py` (16). Boilerplate sync extended to register both new agents as standard. **3376 → 3520 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Pure additive — no existing skill / agent / command / hook modified except registration tables + the boilerplate-sync standard-agents list.
+- Schema v7 unchanged. No new evidence field.
+- The monitor skill is a SIBLING pipeline, not a phase wired into architect-team / bug-fix / mini. Other pipelines are unaffected.
+- Strictly passive contract is enforced by the skill body + agent bodies — the monitor never gates other pipelines, never injects mid-run, never files SRs.
+
+### Why this is minor (not major)
+
+Purely additive — new skill / new agents / new command / no breaking changes. No existing API or behavior altered.
+
 ## [3.2.0] — 2026-06-06 — Exploration Pipeline (extend visual-to-api-design 4→7 stages)
 
 **MINOR — additive, backwards-compatible.** Extends the `visual-to-api-design` skill IN PLACE from 4 → 7 stages into a standardized, ralph-loop-governed frontend→backend "Exploration Pipeline." The existing 4-stage flow + `/architect-team:visual-to-api` command remain valid as a subset.

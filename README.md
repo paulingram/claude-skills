@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 2 . 0
+                        ─── C T 6 ───   v 3 . 3 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.0.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.3.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-3376%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-3520%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -168,7 +168,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 ```
 
 ```
-┌─ SKILLS (33) ───────────────────────┬─ AGENTS (30) ─────────────────────────┐
+┌─ SKILLS (34) ───────────────────────┬─ AGENTS (32) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -202,9 +202,10 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │ ◇ phenotypes (v2.3.0)               │                                       │
 │ ◇ phenotype-absorption (v2.3.0)     │                                       │
 │ ◇ visual-to-api-design (v2.13.0)   *│                                       │
-│ ◇ test-prod-safety-classifier      *│                                       │
-│   (v2.17.0)                         │                                       │
-├─ COMMANDS (18) ─────────────────────┴───────────────────────────────────────┤
+│ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (sonnet) ★         │
+│   (v2.17.0)                         │ ◆ monitor-synthesizer (opus) ★        │
+│ ◇ test-run-monitor (v3.3.0)        *│                                       │
+├─ COMMANDS (19) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -226,6 +227,8 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │   (v2.18.0 — codebase discipline registry: report + auto-apply)             │
 │ ▸ /architect-team:inject <message>                                          │
 │   (v2.19.0 — in-flight clarification injection into the running pipeline)   │
+│ ▸ /architect-team:monitor-tests <test-command-or-source-spec>               │
+│   (v3.3.0 — passive observer team: local / CI / production-QA)              │
 ├─ HOOKS (3) ─────────────────────────────────────────────────────────────────┤
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v6 + independent review  │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │

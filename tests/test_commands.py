@@ -24,6 +24,7 @@ EXPECTED_COMMANDS: set[str] = {
     "classify-test-prod-safety",
     "discipline-status",
     "inject",
+    "monitor-tests",
 }
 
 REQUIRED_KEYS = {"description"}

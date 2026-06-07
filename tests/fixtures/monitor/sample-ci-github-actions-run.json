@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "fixture_name": "sample-ci-github-actions-run",
+    "purpose": "v3.3.0 test-run-monitor canonical case for CIAdapter — a GitHub Actions e2e-suite job with 2 failing steps. Exercises the watcher's CI API polling shape and the synthesizer's classification.",
+    "adapter": "ci"
+  },
+  "source_spec": "--ci-job e2e-suite --ci-provider github",
+  "ci_provider": "github",
+  "github_api_response": {
+    "id": 9876543210,
+    "name": "e2e-suite",
+    "head_sha": "abc123def456",
+    "status": "completed",
+    "conclusion": "failure",
+    "started_at": "2026-06-06T15:00:00Z",
+    "completed_at": "2026-06-06T15:08:42Z",
+    "steps": [
+      {"name": "Checkout", "status": "completed", "conclusion": "success", "duration_ms": 12000},
+      {"name": "Setup Node", "status": "completed", "conclusion": "success", "duration_ms": 18000},
+      {"name": "Install", "status": "completed", "conclusion": "success", "duration_ms": 45000},
+      {"name": "Build", "status": "completed", "conclusion": "success", "duration_ms": 62000},
+      {"name": "Playwright e2e", "status": "completed", "conclusion": "failure", "duration_ms": 240000, "log_excerpt": "FAIL tests/login.spec.ts:24 — expected text 'Welcome' but got 'Sign In'. The login flow is broken since the auth refactor in d04ee1e."},
+      {"name": "Lighthouse audit", "status": "completed", "conclusion": "failure", "duration_ms": 60000, "log_excerpt": "FAIL: performance score 42 below threshold 90. Largest contentful paint 8.4s (was 2.1s on main). Suspect intentional regression — see PR #143."}
+    ]
+  },
+  "expected_findings": [
+    {
+      "test_id": "Playwright e2e",
+      "category_hint": "regression",
+      "log_excerpt": "FAIL tests/login.spec.ts:24 — expected text 'Welcome' but got 'Sign In'",
+      "severity_hint": "critical"
+    },
+    {
+      "test_id": "Lighthouse audit",
+      "category_hint": "regression",
+      "log_excerpt": "FAIL: performance score 42 below threshold 90",
+      "severity_hint": "high"
+    }
+  ],
+  "expected_summary": {
+    "total_tests": 6,
+    "passed": 4,
+    "failed": 2,
+    "flake_count": 0,
+    "regression_count": 2,
+    "environmental_count": 0,
+    "new_count": 0
+  }
+}

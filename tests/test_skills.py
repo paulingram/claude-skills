@@ -39,6 +39,7 @@ EXPECTED_SKILLS: set[str] = {
     "phenotype-absorption",
     "visual-to-api-design",
     "test-prod-safety-classifier",
+    "test-run-monitor",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

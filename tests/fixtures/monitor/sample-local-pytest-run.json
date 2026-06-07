@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "fixture_name": "sample-local-pytest-run",
+    "purpose": "v3.3.0 test-run-monitor canonical case for LocalAdapter — pytest invocation with 3 failures (1 regression, 1 flake, 1 environmental). Exercises the watcher's pytest format parser and the synthesizer's 4-category classification.",
+    "adapter": "local"
+  },
+  "source_spec": "pytest tests/ -v",
+  "raw_pytest_output": "==== test session starts ====\nplatform darwin -- Python 3.10.13\nrootdir: /repo\ncollected 12 items\n\ntests/test_alpha.py::test_one PASSED\ntests/test_alpha.py::test_two PASSED\ntests/test_beta.py::test_three PASSED\ntests/test_beta.py::test_four FAILED\ntests/test_beta.py::test_five PASSED\ntests/test_gamma.py::test_six FAILED\ntests/test_gamma.py::test_seven PASSED\ntests/test_gamma.py::test_eight PASSED\ntests/test_db.py::test_connect FAILED\ntests/test_db.py::test_query PASSED\ntests/test_alpha.py::test_nine PASSED\ntests/test_alpha.py::test_ten PASSED\n\n==== FAILURES ====\n____ tests/test_beta.py::test_four ____\nE       AssertionError: expected 'live' got 'mock'\nE       at tests/test_beta.py:42\n\n____ tests/test_gamma.py::test_six ____\nE       TimeoutError: test exceeded 5000ms (flaky timing)\nE       at tests/test_gamma.py:18\n\n____ tests/test_db.py::test_connect ____\nE       ConnectionRefusedError: [Errno 61] Connection refused\nE       at tests/test_db.py:7\nE       psycopg2.OperationalError: could not connect to server: Connection refused\n\n==== 3 failed, 9 passed in 12.4s ====\n",
+  "exit_code": 1,
+  "expected_findings": [
+    {
+      "test_id": "tests/test_beta.py::test_four",
+      "category_hint": "regression",
+      "stderr_excerpt": "AssertionError: expected 'live' got 'mock'",
+      "severity_hint": "high"
+    },
+    {
+      "test_id": "tests/test_gamma.py::test_six",
+      "category_hint": "flake",
+      "stderr_excerpt": "TimeoutError: test exceeded 5000ms (flaky timing)",
+      "severity_hint": "medium"
+    },
+    {
+      "test_id": "tests/test_db.py::test_connect",
+      "category_hint": "environmental",
+      "stderr_excerpt": "ConnectionRefusedError: [Errno 61] Connection refused",
+      "severity_hint": "low"
+    }
+  ],
+  "expected_summary": {
+    "total_tests": 12,
+    "passed": 9,
+    "failed": 3,
+    "flake_count": 1,
+    "regression_count": 1,
+    "environmental_count": 1,
+    "new_count": 0
+  }
+}
