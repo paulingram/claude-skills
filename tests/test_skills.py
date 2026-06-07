@@ -43,6 +43,7 @@ EXPECTED_SKILLS: set[str] = {
     "cartographer-team",
     "domain-research-team",
     "api-design-from-frontend",
+    "data-engineering-exploration",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

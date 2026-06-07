@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.0] — 2026-06-06 — Data Engineering Exploration Pipeline (Phase 0c) + Phenotype convergence rules
+
+**MINOR — additive, fully backwards-compatible.** Closes the gap surfaced in v3.4.0's honest assessment: pure data engineering / data architecture work (dbt projects / Airflow DAGs / Snowflake warehouses / Databricks lakehouses / Kafka streaming / data meshes / feature stores / data products) had no structured exploration pipeline analogous to `visual-to-api-design`. v3.5.0 ships the data-plane analog plus codifies phenotype convergence rules.
+
+### The user prose driving this build
+
+> "lets do a new skill ... determine if its a data engineering ask (Agent can review if pipeline is needed + heuristic), then it should start by evaluating any available documents, understanding the domain, and creating a conceptual data model and determining how best to service that data model with our code. Then for the code, it should consider data engineering best practices such as volume and velocity challenges, how to secure it and how to validate it. by default any data engineering pipelines should have strong data validation components and logging to ensure every records transform and modification, in aggregate and by endpoint, should be properly traced. this should converge with any other design pipelines to using our configs templates. also review where phenotypes are called as we apparently reference ai user management and configs but we also have a standard AI user management layer as well."
+
+### What v3.5.0 ships
+
+1. **NEW skill `data-engineering-exploration`** (`skills/data-engineering-exploration/SKILL.md`) — 7-stage exploration pipeline modeled on `visual-to-api-design` but for the data plane:
+   - **Stage 1 — Domain context** (delegates to `domain-research-team` with mandatory outside research on data-stack patterns + competitor stacks + regulatory context) → `DOMAIN_CONTEXT_MAP.md`.
+   - **Stage 2 — Conceptual data model** (entities + relationships + business rules + PII/PHI/PCI classification per attribute + SCD strategy) → `CONCEPTUAL_DATA_MODEL.md`.
+   - **Stage 3 — Service design** (architectural pattern + tool selection + phenotype dispatch consulting the v3.5.0 convergence rules) → `DATA_SERVICE_DESIGN_MAP.md`.
+   - **Stage 4 — Volume + velocity analysis** (3-year growth + freshness SLA + capacity sizing + cost envelope) → `VOLUME_VELOCITY_ANALYSIS_MAP.md`.
+   - **Stage 5 — Data security** (sensitivity classification + encryption + access control + regulatory + retention + RTBF) → `DATA_SECURITY_MAP.md`.
+   - **Stage 6 — MANDATORY validation + lineage + observability** — the v3.5.0 non-negotiable. Every transformation MUST carry ≥ 1 blocker-severity validation rule (Great Expectations / dbt-tests / Soda / equivalent); lineage tracking via OpenLineage / Marquez / DataHub; aggregate metrics per-source/per-table/per-DAG; per-endpoint metrics for every consumer; anomaly detection cites Stage 4 baselines → `DATA_VALIDATION_LINEAGE_MAP.md`.
+   - **Stage 7 — OpenSpec authoring** via `openspec-propose` (NEVER hand-written). Stage 6 validation rules become explicit Phase 1 acceptance criteria → `openspec/changes/<change-name>/`.
+
+   Each stage's 3-reviewer convergence wraps in `ralph-loop:ralph-loop` with total-agreement completion-promise. Reuses `system-architect` + `domain-researcher` agents; no new agents.
+
+2. **NEW `## Phase 0c — Data-engineering dispatch check (v3.5.0)`** section in `skills/architect-team-pipeline/SKILL.md` positioned after Phase 0b, before Phase 0. 4-detection-ladder (prose patterns / tool keywords / codebase markers / document markers) with high-recall + `AskUserQuestion` confirmation on ambiguity. 4-branch decision tree (data-eng + reference / data-eng + pure greenfield / mixed mode with Phase 0a or 0b / no data-eng). Symmetric architecture to Phase 0a (v3.3.1) and Phase 0b (v3.4.0).
+
+3. **NEW `## Data engineering exploration discipline (v3.5.0)`** section in `skills/common-pipeline-conventions/SKILL.md` documenting the 7-stage flow, the 6 per-run mandates (per-transformation validation + end-to-end lineage + aggregate metrics + per-endpoint metrics + anomaly detection + alerting), the detection heuristic, convergence with other dispatch paths, and the mixed-mode flow (Phase 0a + Phase 0c in sequence for mixed requests).
+
+4. **NEW `## Phenotype convergence rules (v3.5.0)`** section in `skills/common-pipeline-conventions/SKILL.md` codifying the implicit pairing relationships between the 3 production phenotypes:
+   - `ai-management` IMPLIES `user-management` as a co-seed for user-facing AI products (the "standard AI user management layer" the user flagged — `ai-management`'s auth + per-user budgets + per-user model permissions are BUILT ON TOP OF `user-management`'s identity layer, not separate from it).
+   - `ai-management` ALWAYS implies `config-management` (per the in-phenotype documentation at `phenotypes/ai-management/blueprint.md` line 98).
+   - `data-engineering-exploration` Stage 3 always proposes `config-management` for IaC; co-proposes `ai-management` + `user-management` when feeding ML/AI products.
+   - Surfaces the implicit dependencies that the dispatch points (`api-design-from-frontend` Stage A3, `visual-to-api-design` Stage 7, `data-engineering-exploration` Stage 3 + Stage 7) MUST consult.
+
+5. **50 new tests** across `tests/test_data_engineering_exploration_skill.py` (18), `tests/test_phase_0c_data_eng_dispatch.py` (12), `tests/test_phenotype_convergence_rules.py` (10), `tests/test_data_engineering_discipline.py` (8) + 2 registration updates. **3615 → 3665 passing**; zero regressions.
+
+### Backwards compatibility
+
+- Schema v7 UNCHANGED.
+- All prior fixtures continue to validate.
+- The new skill + new Phase 0c are purely additive — existing pipelines (architect-team-pipeline / visual-to-api-design / bug-fix-pipeline / mini-architect-team-pipeline) unchanged structurally.
+- Phenotype convergence rules are documentation + reviewer-checklist; no runtime enforcement — the dispatching stages' 3-reviewer convergence is responsible for checking them.
+
+### Closes the v3.4.0 honest gap
+
+v3.4.0's honest assessment named the gap: "v3.4.0 nailed REST-API-from-frontend / REST-API-from-docs. What it didn't address: pure data engineering has no analog exploration pipeline." v3.5.0 ships that analog. Coverage now spans:
+
+| Surface | Dispatch home |
+|---|---|
+| Frontend + UI-derived API | Phase 0a (v3.3.1) → `visual-to-api-design` |
+| Backend with frontend OR docs reference | Phase 0b (v3.4.0) → `cartographer-team` + `domain-research-team` + `api-design-from-frontend` |
+| Data engineering / data architecture | Phase 0c (v3.5.0) → `data-engineering-exploration` |
+| Mixed (frontend + data-eng) | Phase 0a then Phase 0c in sequence |
+| Pure greenfield, no reference | Phase 0 plain-branch authoring + phenotype seeding |
+
 ## [3.4.0] — 2026-06-06 — Backend-from-frontend modularization (Phase 0b + 3 new analysis skills)
 
 **MINOR — additive, fully backwards-compatible.** Closes the user prose: *"for the backend logic phase 0, we need to create a reusable skill that is a subset of our last front end update ... if backend only, we determine if its an existing or greenfield API task with a front end codebase we can reference or documentation ... perhaps this means we have to break out those analysis capabilities as their own skills."*
