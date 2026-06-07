@@ -1,0 +1,69 @@
+{
+  "change": "auto-merge-main-prune-branches",
+  "version_target": "3.7.0",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "Auto-merge-to-main is the default at Phase 8",
+      "scenarios": ["clean run auto-merges and prunes", "branch-protection rejection stops without forcing", "conflict is skipped, not forced"],
+      "acceptance_criteria": [
+        "clean Phase 8 merges --no-ff into main, pushes (when AUTO_PUSH), deletes branch local+remote, removes worktree",
+        "push rejection stops + reports, never force-pushes",
+        "conflict leaves branch+worktree intact and reports, never forces"
+      ],
+      "layer": "infra",
+      "implementing_files": ["scripts/setup/worktree_lifecycle.py", "skills/architect-team-pipeline/SKILL.md", "skills/bug-fix-pipeline/SKILL.md", "skills/mini-architect-team-pipeline/SKILL.md", "commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md"],
+      "tests": ["tests/test_auto_merge_main.py"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "Per-workstream opt-out via --no-auto-merge",
+      "scenarios": ["opt-out preserves feature-branch + PR behavior"],
+      "acceptance_criteria": [
+        "--no-auto-merge (+ NL: keep the branch / PR only / don't merge to main / no auto-merge) reverts to feature-branch+push+PR-recommend behavior"
+      ],
+      "layer": "infra",
+      "implementing_files": ["commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md", "skills/common-pipeline-conventions/SKILL.md"],
+      "tests": ["tests/test_auto_merge_main.py"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "Startup branch reconciliation prompt",
+      "scenarios": ["stray branches trigger the reconcile prompt", "own branches are never touched", "no stray branches is a silent no-op"],
+      "acceptance_criteria": [
+        "one prompt offers merge-all-clean+prune / prune-without-merge / leave",
+        "only cleanly-mergeable architect-team/* branches are merged; conflicts reported",
+        "non-architect-team/* branches never enumerated/merged/pruned",
+        "zero stray branches = silent no-op"
+      ],
+      "layer": "infra",
+      "implementing_files": ["commands/architect-team.md", "commands/bug-fix.md", "commands/mini.md", "scripts/setup/worktree_lifecycle.py"],
+      "tests": ["tests/test_auto_merge_main.py"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "Branch-reconciliation helpers",
+      "scenarios": ["list_run_branches reports merge status per branch", "merge helper aborts cleanly on conflict"],
+      "acceptance_criteria": [
+        "list_run_branches returns per-branch merged/cleanly-mergeable status, excludes non-architect-team branches",
+        "merge_branch_to_main_and_prune merges clean branch + pushes + deletes branch + removes worktree; aborts + changes nothing on conflict; best-effort"
+      ],
+      "layer": "infra",
+      "implementing_files": ["scripts/setup/worktree_lifecycle.py"],
+      "tests": ["tests/test_auto_merge_main.py"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "Release v3.7.0",
+      "scenarios": ["docs current and version bumped"],
+      "acceptance_criteria": [
+        "plugin.json + marketplace.json at 3.7.0",
+        "CHANGELOG v3.7.0 entry; README + CLAUDE.md current",
+        "full pytest suite green"
+      ],
+      "layer": "infra",
+      "implementing_files": [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "CHANGELOG.md", "README.md", "CLAUDE.md"],
+      "tests": ["tests/test_plugin_metadata.py"]
+    }
+  ]
+}

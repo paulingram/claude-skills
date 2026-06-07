@@ -54,6 +54,30 @@ Per `common-pipeline-conventions` `## Auto-worktree lifecycle` `### Auto-cleanup
 (v1.3.0)` for the full rule including merged-branch detection mechanism
 (`git merge-base --is-ancestor`) and the squash-merge limitation.
 
+## Startup branch reconciliation (v3.7.0) — runs after the v1.3.0 sweep
+
+After the merged-worktree sweep above, enumerate stray `architect-team/*`
+branches and offer to reconcile them. Best-effort + a domain gate (one
+question); silent no-op when there are none.
+
+1. Enumerate run branches via the polyglot Python pattern:
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import list_run_branches; print(json.dumps([b for b in list_run_branches() if not b['merged_into_main']]))" 2>&1 || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import list_run_branches; print(json.dumps([b for b in list_run_branches() if not b['merged_into_main']]))" 2>&1 || echo '[]'
+   ```
+2. If the list is EMPTY → silent no-op; proceed to argument parsing.
+3. If non-empty → present ONE `AskUserQuestion` with three options:
+   - **merge-all-clean + prune** → for each branch with `cleanly_mergeable:
+     true`, call `merge_branch_to_main_and_prune(branch, worktree_path)` via the
+     polyglot Python; report any branch returning `conflict: true`.
+   - **prune-without-merge** → `cleanup_run_worktree(Path(worktree_path),
+     remove_branch=True)` per branch (discard the work).
+   - **leave** → no-op.
+4. Only `architect-team/*` branches are ever considered — never the user's own
+   branches, never this command's OWN run branch.
+
+Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`
+for the canonical rule.
+
 ## Argument parsing (do this first, before invoking the skill)
 
 **Strip the recognised flags from `$ARGUMENTS` first; everything left is the requirement (the bug).**
@@ -70,7 +94,8 @@ Flags (each independent — `--no-commit --no-compact` is valid; natural-languag
 - `--no-deploy` → skip Phase B5's auto-deploy step; QA replay (B6) runs against whatever is already deployed. Use when the dev environment is hand-managed.
 - `--no-refine` → skip the upstream `proposal-refiner` skill (v0.9.33). Default `false` — when `$REQ_DIR` is plain-language prose AND the input is not already a refined-prompt markdown, the pipeline invokes `proposal-refiner` FIRST to conversationally clarify the bug description with codebase-map grounding (which dashboard? which row's delete button? which user role?) before Phase B−2 / B−1. Pass `--no-refine` when the bug description is already specific. Domain gate per v0.9.21 — the clarifying conversation IS the deliverable.
 - `--no-worktree` → `AUTO_WORKTREE = false`. (Default `true`.) Skip the auto-worktree creation step; run the bug-fix pipeline in the current checkout (v1.1.0 behavior). Natural-language equivalents: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*.
-- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `TARGET_ENVIRONMENT = dev`, `AUTO_WORKTREE = true` (default — live dev environment).
+- `--no-auto-merge` → `AUTO_MERGE_MAIN = false`. (Default `true`.) When true (the default), a clean Phase B8 run merges its `architect-team/<bug-slug>` branch into `main`, pushes, deletes the branch (local + remote), and removes the worktree — only when it merges cleanly (conflicts skipped + reported, never forced; branch protection always wins). `--no-auto-merge` restores today's feature-branch + recommend-a-PR + persistence-warning behavior. Natural-language equivalents: *"keep the branch"* / *"PR only"* / *"don't merge to main"* / *"no auto-merge"*. See `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
+- No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`, `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `TARGET_ENVIRONMENT = dev`, `AUTO_WORKTREE = true`, `AUTO_MERGE_MAIN = true` (default — live dev environment).
 
 ### The requirement comes in ONE of two forms — BOTH are first-class, fully-supported inputs
 
@@ -153,6 +178,22 @@ At the end of Phase B8, after the final report emits **"Bug `<bug-slug>` has bee
 If `AUTO_COMMIT = false`: skip steps 2-5; mention in the report that changes were left uncommitted.
 
 If `AUTO_COMMIT = true` but `AUTO_PUSH = false`: do steps 1-3 only; mention in the report that the commit was made locally but not pushed.
+
+### Auto-merge to main (v3.7.0)
+
+After the completion audit passes + the commit lands on `architect-team/<bug-slug>`, and when `AUTO_MERGE_MAIN = true` (the default):
+
+6. Probe clean-mergeability and, if clean, merge + prune via the polyglot Python (run from / chdir to the MAIN checkout first):
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<bug-slug>', '$WORKTREE_PATH', push=<AUTO_PUSH>)))" 2>&1 || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<bug-slug>', '$WORKTREE_PATH', push=<AUTO_PUSH>)))" 2>&1
+   ```
+   - On `reason: "merged-and-pruned"` → report: merged into `main`, pushed, branch deleted (local + remote), worktree removed.
+   - On `conflict: true` → the merge changed nothing; fall back to today's behavior: keep the branch pushed, recommend a PR, emit the v3.6.0 persistence warning.
+   - On `reason: "push-rejected"` (branch protection) → STOP, report, leave recoverable. NEVER force.
+
+When `AUTO_MERGE_MAIN = false` (`--no-auto-merge`): skip step 6 entirely; keep today's feature-branch + recommend-a-PR + persistence-warning behavior verbatim.
+
+Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
 
 ## Auto-compact prompt (after the final report)
 

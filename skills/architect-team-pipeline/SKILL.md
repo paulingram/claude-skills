@@ -657,9 +657,23 @@ If the working tree had unstaged or staged user changes BEFORE the pipeline star
 - If the repo has detached HEAD or no upstream configured for the current branch, skip the push, mention it in the report, and tell the user how to set the upstream (`git push -u origin <branch>`).
 - Do NOT push to `main` if the change has not been peer-reviewed by a human reviewer AND the repo's branch-protection policy requires reviews — the orchestrator does NOT have judgment to override branch protection. If push is rejected by branch protection, surface the rejection and stop.
 
+### Auto-merge to main (v3.7.0)
+
+When `AUTO_MERGE_MAIN = true` (the default; `--no-auto-merge` opts out) AND the completion audit passed AND the commit landed on `architect-team/<change-name>`: after the push (step 8), probe clean-mergeability and, if clean, merge + prune via `merge_branch_to_main_and_prune` (the polyglot Python pattern; run from the MAIN checkout since the helper runs `git checkout main` there):
+
+```bash
+python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<change-name>', '${WORKTREE_PATH}', push=<AUTO_PUSH>)))" || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<change-name>', '${WORKTREE_PATH}', push=<AUTO_PUSH>)))"
+```
+
+- `reason: "merged-and-pruned"` → report merged into `main`, pushed, branch deleted (local + remote), worktree removed. (Skip the End-of-run worktree finalize step below — the worktree is already gone.)
+- `conflict: true` (`reason: "conflict"` / `"conflict-on-merge"`) → the merge changed nothing; fall back to today's behavior: the branch stays pushed, recommend a PR, and run the v3.6.0 finalize step below (persistence warning).
+- `reason: "push-rejected"` (branch protection / non-fast-forward) → STOP, report the rejection, leave the branch + worktree recoverable. NEVER force.
+
+When `AUTO_MERGE_MAIN = false`: skip this step; the branch stays pushed, recommend a PR, and the v3.6.0 finalize step below runs verbatim. Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
+
 ### End-of-run worktree finalize (v3.6.0)
 
-After the auto-commit / push output and BEFORE the auto-compact prompt, finalize the run worktree (only when this run created one — `AUTO_WORKTREE` was true and `$WORKTREE_PATH` is set). Invoke `finalize_run_worktree` via the polyglot Python pattern per `common-pipeline-conventions` `## Cross-platform Python invocation`:
+After the auto-commit / push output (and the v3.7.0 auto-merge step, when it did NOT already prune the worktree) and BEFORE the auto-compact prompt, finalize the run worktree (only when this run created one — `AUTO_WORKTREE` was true and `$WORKTREE_PATH` is set). Invoke `finalize_run_worktree` via the polyglot Python pattern per `common-pipeline-conventions` `## Cross-platform Python invocation`:
 
 ```bash
 python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import finalize_run_worktree; from pathlib import Path; r = finalize_run_worktree(Path('${WORKTREE_PATH}')); print(r.get('warning') or f\"Worktree finalized: {r.get('reason')}\")" || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import finalize_run_worktree; from pathlib import Path; r = finalize_run_worktree(Path('${WORKTREE_PATH}')); print(r.get('warning') or f\"Worktree finalized: {r.get('reason')}\")"

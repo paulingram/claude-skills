@@ -54,6 +54,30 @@ Per `common-pipeline-conventions` `## Auto-worktree lifecycle` `### Auto-cleanup
 (v1.3.0)` for the full rule including merged-branch detection mechanism
 (`git merge-base --is-ancestor`) and the squash-merge limitation.
 
+## Startup branch reconciliation (v3.7.0) — runs after the v1.3.0 sweep
+
+After the merged-worktree sweep above, enumerate stray `architect-team/*`
+branches and offer to reconcile them. Best-effort + a domain gate (one
+question); silent no-op when there are none.
+
+1. Enumerate run branches via the polyglot Python pattern:
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import list_run_branches; print(json.dumps([b for b in list_run_branches() if not b['merged_into_main']]))" 2>&1 || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import list_run_branches; print(json.dumps([b for b in list_run_branches() if not b['merged_into_main']]))" 2>&1 || echo '[]'
+   ```
+2. If the list is EMPTY → silent no-op; proceed to argument parsing.
+3. If non-empty → present ONE `AskUserQuestion` with three options:
+   - **merge-all-clean + prune** → for each branch with `cleanly_mergeable:
+     true`, call `merge_branch_to_main_and_prune(branch, worktree_path)` via the
+     polyglot Python; report any branch returning `conflict: true`.
+   - **prune-without-merge** → `cleanup_run_worktree(Path(worktree_path),
+     remove_branch=True)` per branch (discard the work).
+   - **leave** → no-op.
+4. Only `architect-team/*` branches are ever considered — never the user's own
+   branches, never this command's OWN run branch.
+
+Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`
+for the canonical rule.
+
 ## Inputs (same two forms as /architect-team)
 
 `$ARGUMENTS` is either:
@@ -71,8 +95,9 @@ Never refuse plain-language prose. Never treat the first word of a sentence as a
 - `--no-push` → commit but do not push or merge.
 - `--no-compact` → suppress the trailing `/compact` prompt. Default `true`.
 - `--no-worktree` → `AUTO_WORKTREE = false`. (Default `true`.) Skip the auto-worktree creation step; run the mini pipeline in the current checkout (v1.1.0 behavior). Natural-language equivalents: *"no worktree"* / *"don't create a worktree"* / *"single tree"* / *"in place"* / *"in current tree"*.
+- `--no-auto-merge` → `AUTO_MERGE_MAIN = false`. (Default `true`.) When true (the default), Phase M7's clean green-QA merge to `main` ALSO prunes via `merge_branch_to_main_and_prune` — branch deleted (local + remote) and worktree removed after the merge + push (conflicts skipped + reported, never forced; branch protection always wins). `--no-auto-merge` (equivalent to `--no-merge` here) restores today's feature-branch + recommend-a-PR + persistence-warning behavior. Natural-language equivalents: *"keep the branch"* / *"PR only"* / *"don't merge to main"* / *"no auto-merge"*. See `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
 
-Natural-language phrasings count as the matching flag — "don't merge" / "don't push" / "leave it uncommitted" / "don't compact" / "no worktree" / "in place".
+Natural-language phrasings count as the matching flag — "don't merge" / "don't push" / "leave it uncommitted" / "don't compact" / "no worktree" / "in place" / "keep the branch" / "PR only" / "don't merge to main" / "no auto-merge".
 
 ## When to use mini vs full pipeline
 
@@ -108,7 +133,7 @@ After binding `$REQ_DIR` and parsing the flags, AND BEFORE invoking the `mini-ar
 
 On creation failure (parent dir not writable, base branch missing, slug exhausted — the helper raises `RuntimeError` with an actionable message), surface the error verbatim and STOP. Do NOT silently fall back to the current checkout. The user re-runs with `--no-worktree` if they want single-tree mode.
 
-At Phase M7 the mini pipeline auto-merges its branch to main and cleans its own worktree; it aligns this with `finalize_run_worktree($WORKTREE_PATH)` (v3.6.0) — since the branch is merged, finalize removes the worktree + branch (or, if M7 already removed it, finalize is a no-op). On the rare unmerged path it prints the returned `warning`. Unmerged work is never auto-deleted.
+At Phase M7 the mini pipeline auto-merges its branch to main and cleans its own worktree. When `AUTO_MERGE_MAIN = true` (the default; `--no-auto-merge` / `--no-merge` opts out), M7 routes the clean green-QA merge through `merge_branch_to_main_and_prune('architect-team/<slug>', $WORKTREE_PATH, push=<AUTO_PUSH>)` (v3.7.0) — which merges + pushes `main`, deletes the branch (local + remote), and removes the worktree in one helper call. A conflict (`conflict: true`) or a rejected push (`reason: "push-rejected"`, branch protection) STOPS, reports, and leaves the branch + worktree recoverable — never forced. This subsumes the v3.6.0 `finalize_run_worktree` cleanup on the clean path (finalize is then a no-op since the worktree is already gone); on the `--no-auto-merge` / unmerged path the v3.6.0 `finalize_run_worktree($WORKTREE_PATH)` behavior applies and prints the returned `warning`. Unmerged work is never auto-deleted. Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
 
 Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the end-of-run merge check emitted at Phase M7 success, and the re-entry detection logic.
 

@@ -60,6 +60,20 @@ Public API — six stdlib-only functions:
       warning naming the path + the manual cleanup command. Best-effort: any
       subprocess failure is reflected in the returned dict rather than raised.
 
+  list_run_branches(against="main", remote="origin") -> list[dict]
+      (v3.7.0 auto-merge-to-main) Enumerate every local `architect-team/*`
+      branch and, for each, report `{branch, worktree_path, merged_into_main,
+      cleanly_mergeable}`. Powers the startup branch-reconciliation prompt.
+      Non-`architect-team/*` branches are never included; best-effort `[]`.
+
+  merge_branch_to_main_and_prune(branch, worktree_path=None, against="main", remote="origin", push=True) -> dict
+      (v3.7.0 auto-merge-to-main) Merge a cleanly-mergeable
+      `architect-team/<slug>` branch into <against>, push, delete the branch
+      (local + remote), and remove its worktree — ONLY when it merges cleanly.
+      Conflicts are skipped + reported (never forced); a rejected push (branch
+      protection) stops pruning and leaves the work recoverable (never
+      --force). Best-effort: returns a dict, never raises.
+
 Naming conventions
 ------------------
 
@@ -509,6 +523,236 @@ def finalize_run_worktree(
     return {**base, "reason": "unmerged-retained", "warning": warning}
 
 
+# ---- v3.7.0 auto-merge-to-main ----------------------------------------------
+
+
+def list_run_branches(
+    against: str = "main",
+    remote: str = "origin",
+) -> list[dict]:
+    """Return one descriptor per local `architect-team/*` branch (v3.7.0).
+
+    Enumerates local branches via
+    `git branch --list 'architect-team/*' --format '%(refname:short)'`, maps
+    each to its checked-out worktree (from `git worktree list --porcelain`),
+    and computes `merged_into_main` (`_branch_is_merged_into`) and
+    `cleanly_mergeable` (`_branch_cleanly_mergeable`).
+
+    Each element is a dict:
+      {"branch": <name>,
+       "worktree_path": <str path or None>,
+       "merged_into_main": <bool>,
+       "cleanly_mergeable": <bool>}
+
+    Non-`architect-team/*` branches are NEVER included. Best-effort: any
+    subprocess failure / not-in-a-git-repo returns an empty list.
+    """
+    toplevel = _git_show_toplevel()
+    if toplevel is None:
+        return []
+
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "branch",
+                "--list",
+                f"{_BRANCH_PREFIX}*",
+                "--format",
+                "%(refname:short)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if result.returncode != 0:
+        return []
+
+    branches = [
+        line.strip()
+        for line in (result.stdout or "").splitlines()
+        if line.strip().startswith(_BRANCH_PREFIX)
+    ]
+
+    # Build branch -> worktree_path from the porcelain listing.
+    worktree_for_branch: dict[str, Path] = {}
+    for worktree_path, branch in _parse_worktree_list_porcelain(toplevel):
+        if branch and branch.startswith(_BRANCH_PREFIX):
+            worktree_for_branch[branch] = worktree_path
+
+    descriptors: list[dict] = []
+    for branch in branches:
+        wt = worktree_for_branch.get(branch)
+        descriptors.append(
+            {
+                "branch": branch,
+                "worktree_path": str(wt) if wt is not None else None,
+                "merged_into_main": _branch_is_merged_into(
+                    toplevel, branch, against
+                ),
+                "cleanly_mergeable": _branch_cleanly_mergeable(
+                    toplevel, branch, against
+                ),
+            }
+        )
+    return descriptors
+
+
+def merge_branch_to_main_and_prune(
+    branch: str,
+    worktree_path: Optional[str] = None,
+    against: str = "main",
+    remote: str = "origin",
+    push: bool = True,
+) -> dict:
+    """Merge a clean run-branch into <against>, push, and prune (v3.7.0).
+
+    Only acts on cleanly-mergeable `architect-team/*` branches. The flow:
+      1. Guard: branch must start with `architect-team/`.
+      2. Probe clean-mergeability (no working-tree mutation). Conflict ->
+         change nothing, return conflict.
+      3. `git checkout <against>` then `git merge --no-ff <branch>`. An
+         unexpected merge conflict aborts and returns conflict.
+      4. When `push`: `git push <remote> <against>`. A rejected push (branch
+         protection) STOPS pruning and leaves the work recoverable — NEVER
+         --force.
+      5. Delete the branch (local `-d`, and remote when pushed) and remove the
+         worktree (`cleanup_run_worktree`, branch already deleted).
+
+    The returned dict ALWAYS carries the keys: merged, pushed, branch_deleted,
+    worktree_removed, conflict, reason, branch, worktree_path. Best-effort —
+    never raises.
+    """
+    base = {
+        "merged": False,
+        "pushed": False,
+        "branch_deleted": False,
+        "worktree_removed": False,
+        "conflict": False,
+        "reason": "",
+        "branch": branch,
+        "worktree_path": worktree_path,
+    }
+
+    if not isinstance(branch, str) or not branch.startswith(_BRANCH_PREFIX):
+        return {**base, "reason": "not-a-run-branch"}
+
+    toplevel = _git_show_toplevel()
+    if toplevel is None:
+        return {**base, "reason": "no-git-context"}
+
+    # Capture the worktree path up front (from porcelain) so pruning still
+    # works after the merge, even though the merge runs from <against>.
+    if worktree_path is None:
+        for wt, wt_branch in _parse_worktree_list_porcelain(toplevel):
+            if wt_branch == branch:
+                worktree_path = str(wt)
+                break
+        base["worktree_path"] = worktree_path
+
+    if not _branch_cleanly_mergeable(toplevel, branch, against):
+        return {**base, "conflict": True, "reason": "conflict"}
+
+    # Check out <against> in the MAIN worktree.
+    checkout = subprocess.run(
+        ["git", "-C", str(toplevel), "checkout", against],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if checkout.returncode != 0:
+        return {**base, "reason": "checkout-failed"}
+
+    # Merge --no-ff. An unexpected conflict aborts and changes nothing.
+    merge = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(toplevel),
+            "merge",
+            "--no-ff",
+            branch,
+            "-m",
+            f"Merge {branch}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if merge.returncode != 0:
+        subprocess.run(
+            ["git", "-C", str(toplevel), "merge", "--abort"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return {**base, "conflict": True, "reason": "conflict-on-merge"}
+
+    merged = {**base, "merged": True}
+
+    pushed = False
+    if push:
+        push_result = subprocess.run(
+            ["git", "-C", str(toplevel), "push", remote, against],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if push_result.returncode != 0:
+            # Branch protection / non-fast-forward rejection: STOP pruning,
+            # leave the branch + worktree recoverable. NEVER --force.
+            return {
+                **merged,
+                "pushed": False,
+                "reason": "push-rejected",
+            }
+        pushed = True
+
+    merged = {**merged, "pushed": pushed}
+
+    # Remove the worktree FIRST — git refuses to delete a branch that is still
+    # checked out in a worktree. cleanup_run_worktree(remove_branch=False) so
+    # we control the branch deletion explicitly below.
+    worktree_removed = False
+    if worktree_path:
+        try:
+            cleanup_run_worktree(Path(worktree_path), remove_branch=False)
+            worktree_removed = True
+        except RuntimeError:
+            worktree_removed = False
+
+    # Delete the local branch (it's merged, so `-d` succeeds).
+    branch_deleted = False
+    del_local = subprocess.run(
+        ["git", "-C", str(toplevel), "branch", "-d", branch],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if del_local.returncode == 0:
+        branch_deleted = True
+
+    if pushed:
+        # Best-effort remote delete; ignore "remote ref does not exist".
+        subprocess.run(
+            ["git", "-C", str(toplevel), "push", remote, "--delete", branch],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    return {
+        **merged,
+        "branch_deleted": branch_deleted,
+        "worktree_removed": worktree_removed,
+        "reason": "merged-and-pruned",
+    }
+
+
 # ---- Internals ---------------------------------------------------------------
 
 
@@ -769,6 +1013,106 @@ def _branch_is_merged_into(toplevel: Path, branch: str, against: str) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
+
+
+def _branch_cleanly_mergeable(
+    toplevel: Path, branch: str, against: str = "main"
+) -> bool:
+    """Return True iff `<branch>` merges into `<against>` without conflict.
+
+    Probes with `git merge-tree --write-tree <against> <branch>` (git >= 2.38)
+    — a pure in-memory merge that NEVER touches the working tree. Clean iff
+    the command exits 0 AND the output contains no `CONFLICT` / `<<<<<<<`
+    markers.
+
+    Defensive fallback for old git / OSError: try the legacy 3-arg
+    `git merge-tree <merge-base> <against> <branch>` form (also read-only) and
+    treat the presence of conflict markers as not-clean. When the probe is
+    truly indeterminate, return False (safer: don't claim clean). NEVER
+    mutates the working tree.
+    """
+    # Primary: `--write-tree` form (git >= 2.38).
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "merge-tree",
+                "--write-tree",
+                against,
+                branch,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        result = None
+
+    if result is not None:
+        out = result.stdout or ""
+        # `--write-tree` is a recognized option iff stderr doesn't complain
+        # about an unknown/usage option. If it IS unknown, fall through to the
+        # legacy form rather than trusting this exit code.
+        stderr = (result.stderr or "").lower()
+        unknown_option = (
+            "unknown option" in stderr
+            or "usage:" in stderr
+            and "--write-tree" in stderr
+        )
+        if not unknown_option:
+            if result.returncode != 0:
+                return False
+            if "CONFLICT" in out or "<<<<<<<" in out:
+                return False
+            return True
+
+    # Fallback: legacy 3-arg `git merge-tree <base> <against> <branch>`.
+    merge_base = _git_merge_base(toplevel, against, branch)
+    if merge_base is None:
+        # Indeterminate -> don't claim clean.
+        return False
+    try:
+        legacy = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "merge-tree",
+                merge_base,
+                against,
+                branch,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if legacy.returncode != 0:
+        return False
+    out = legacy.stdout or ""
+    if "<<<<<<<" in out or "CONFLICT" in out:
+        return False
+    return True
+
+
+def _git_merge_base(toplevel: Path, a: str, b: str) -> Optional[str]:
+    """Return the merge-base SHA of `<a>` and `<b>`, or None on failure."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(toplevel), "merge-base", a, b],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    out = (result.stdout or "").strip()
+    return out or None
 
 
 def _git_branch_exists(branch: str) -> bool:
