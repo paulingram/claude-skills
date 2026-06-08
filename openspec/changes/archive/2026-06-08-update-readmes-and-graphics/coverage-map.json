@@ -1,0 +1,41 @@
+{
+  "change": "update-readmes-and-graphics",
+  "version_target": "3.7.0-docs-only-no-bump",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "README.md reflects the v3.7.0 inventory",
+      "scenarios": ["counts and version are correct", "new features and graphics present"],
+      "acceptance_criteria": [
+        "version 3.7.0 in banner/badges/prose; no 3.5.0/3.6.0 shown as current",
+        "counts 38 skills / 33 agents / 19 commands / 3673 tests match programmatic recount",
+        "v3.6.0 worktree merge-check + v3.7.0 auto-merge described; git-behavior logic-map redrawn with auto-merge + --no-auto-merge",
+        "house aesthetic preserved; renders on GitHub"
+      ],
+      "layer": "infra",
+      "implementing_files": ["README.md"],
+      "tests": ["tests/test_readme_styling.py", "tests/test_skills.py", "tests/test_agents.py", "tests/test_commands.py", "tests/test_plugin_metadata.py"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "phenotypes/README.md carries no stale references",
+      "scenarios": ["phenotypes README is current"],
+      "acceptance_criteria": ["no stale version/count references; phenotype inventory accurate"],
+      "layer": "infra",
+      "implementing_files": ["phenotypes/README.md"],
+      "tests": ["tests/test_phenotypes.py"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "CLAUDE.md headline and structure counts are current",
+      "scenarios": ["CLAUDE.md headline is current"],
+      "acceptance_criteria": [
+        "headline names v3.7.0 with 38/33/19 counts (not v2.19.0)",
+        "v3.3-3.7 summary sentence present; historical prose preserved"
+      ],
+      "layer": "infra",
+      "implementing_files": ["CLAUDE.md"],
+      "tests": ["tests/test_claude_md.py"]
+    }
+  ]
+}

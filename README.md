@@ -32,13 +32,13 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 18 slash commands like
+> compatibility with existing installations + the 19 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.5.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.7.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-3665%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-3673%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,7 +67,23 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.0.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.7.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+| Capability | What changed |
+|---|---|
+| **Auto-merge-to-main + prune (v3.7.0)** | Autonomous runs are now self-tidying. On a clean Phase 8 / B8 / M7 pass (completion audit green + the commit landed on `architect-team/<change-name>`), the pipeline merges that branch into `main` with `--no-ff`, pushes `main`, deletes the branch (local + remote), and removes the run worktree — but ONLY when the branch merges cleanly. `AUTO_MERGE_MAIN` defaults to `true`. Two new stdlib helpers in `scripts/setup/worktree_lifecycle.py`: `list_run_branches()` (per-branch `merged_into_main` / `cleanly_mergeable` status, excludes non-`architect-team/*` branches) and `merge_branch_to_main_and_prune()` (merge → push → delete-branch → remove-worktree). A merge **conflict** changes nothing (`conflict: true`) and falls back to the feature-branch + PR path; a **rejected push** (branch protection / non-fast-forward) STOPS pruning and leaves the branch + worktree recoverable — `--force` is NEVER added, branch protection always wins. `--no-auto-merge` (or *"keep the branch"* / *"PR only"* / *"don't merge to main"*) restores the v3.6.0 feature-branch + PR behavior. **Startup branch reconciliation:** each `/architect-team` family command enumerates stray (unmerged) `architect-team/*` branches and presents ONE `AskUserQuestion` — merge-all-clean + prune / prune-without-merge / leave. |
+| **Worktree end-of-run merge check + hidden container (v3.6.0)** | NEW `finalize_run_worktree()` called at Phase 8 / B8 / M7: when a run's `architect-team/<slug>` branch is already merged into `origin/main`, finalize removes the worktree AND deletes the branch; when NOT yet merged it LEAVES the worktree on disk and returns a persistence warning naming the path + the literal manual cleanup command. **Unmerged work is NEVER auto-deleted.** New worktrees now live in a single hidden per-project container `<parent-of-repo>/.<repo-name>-worktrees/<slug>/` instead of the flat `<parent>/<repo>-<slug>/` layout; cleanup + slug-derivation are dual-layout, so pre-v3.6.0 flat worktrees are still swept. |
+| **Data Engineering Exploration Pipeline (v3.5.0)** | NEW skill `data-engineering-exploration` — the data-plane analog of `visual-to-api-design`. A 7-stage pipeline (domain context → conceptual data model → service design → volume + velocity → data security → MANDATORY validation + lineage + observability → OpenSpec authoring) for dbt / Airflow / Snowflake / Databricks / Kafka / data-mesh / feature-store work, dispatched from the new **Phase 0c** of `architect-team-pipeline`. Every transformation MUST carry ≥ 1 blocker-severity validation rule + end-to-end lineage + aggregate + per-endpoint metrics. NEW `## Phenotype convergence rules` codify that `ai-management` implies `user-management` + `config-management`. |
+| **Backend-from-frontend modularization (v3.4.0)** | NEW **Phase 0b** backend dispatch check + 3 extracted reusable analysis skills — `cartographer-team` (multi-agent wrapper around the external cartographer call: producer + 3 `codebase-map-reviewer` agents converge to 100% coverage in a ralph-loop), `domain-research-team` (3 `domain-researcher` agents with a MANDATORY outside-research mandate that fires regardless of input completeness), and `api-design-from-frontend` (per-page REST returns → consolidated API design + desk-trace → backend data architecture + phenotype gates + OpenSpec). NEW `domain-researcher` agent (opus, `WebFetch` + `WebSearch`). Frontend-read-only enforcement routes all reference output to `.architect-team/frontend-reference/` — the reference codebase is NEVER modified. |
+| **Test-run monitor team (v3.3.0)** | NEW skill `test-run-monitor` + NEW command `/architect-team:monitor-tests` — a strictly passive observer team that watches test runs across 3 adapters (local test command / CI job via `--ci-job` / production QA via `--apm-url` or `--log-tail`) and produces a per-run report. NEW agents `test-run-watcher` (sonnet, captures structured findings) + `monitor-synthesizer` (opus, classifies each finding `flake` / `regression` / `environmental` / `new`, assigns severity, computes a 5-run trend). Log-only — no mid-run interrupts, no auto-SR filing, no pipeline gating. |
+| **Visual-to-API dispatch symmetry (v3.3.1) + 7-stage Exploration Pipeline (v3.2.0)** | `visual-to-api-design` extended in place from 4 → 7 stages into a ralph-loop-governed frontend→backend Exploration Pipeline; the 4-stage subset + `/architect-team:visual-to-api` command remain valid. NEW **Phase 0a** makes the Visual-to-API dispatch contract symmetric between `architect-team-pipeline` and `visual-to-api-design`. |
+| **Backwards-compatible** | Schema v7 UNCHANGED across v3.2.0–v3.7.0. All new skills / agents / commands are purely additive; `--no-auto-merge` fully restores the pre-v3.7.0 feature-branch + PR behavior; branch naming `architect-team/<slug>` is unchanged; conflicts and protected branches are never forced. |
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  CARRIED FROM v3.0.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
@@ -316,7 +332,7 @@ Installs the MemPalace CLI (uv-first, pip fallback) and prints the `claude mcp a
 
 The requirements folder may contain OpenSpec artifacts (`proposal.md`, `specs/`, `design.md`, `tasks.md`), a Superpowers-formatted brief, or plain markdown. The orchestrator detects and normalizes.
 
-**Default: auto-commit + push on clean pass.** At the end of a successful Phase 8, the pipeline stages its working set, commits with a structured message including the requirements implemented + tests added + archive path, and pushes to the current branch's upstream. To opt out per invocation: pass `--no-commit` (skip both), `--no-push` (commit locally only), or `--no-compact` (suppress the end-of-run `/compact` prompt). Natural-language opt-outs ("don't commit", "no push") are honored.
+**Default: auto-commit + auto-merge-to-main + push on clean pass (v3.7.0).** At the end of a successful Phase 8, the pipeline stages its working set, commits with a structured message including the requirements implemented + tests added + archive path, then — when the run's `architect-team/<slug>` branch merges cleanly — merges `--no-ff` into `main`, pushes `main`, deletes the branch (local + remote), and removes the run worktree (see Logic Map D). A conflict or protected branch falls back to the feature-branch + PR path and is reported, never forced. To opt out per invocation: pass `--no-auto-merge` (feature branch + recommend a PR, worktree persists), `--no-commit` (skip both commit + merge), `--no-push` (commit locally only), or `--no-compact` (suppress the end-of-run `/compact` prompt). Natural-language opt-outs ("don't commit", "no push", "keep the branch") are honored.
 
 ### The pipeline at a glance
 
@@ -463,6 +479,44 @@ The orchestrator runs as the main session — no hook can gate its mid-run behav
 ```
 
 The same audit runs as `pipeline-completion-audit.py --check` before the Phase 8 auto-commit — so "clean pass" is a checked fact, not the orchestrator's self-assessment.
+
+### ▌ Logic Map D — Phase 8 git behavior (auto-merge-to-main, v3.7.0)
+
+On a clean Phase 8 / B8 / M7 pass the run is **self-tidying by default** — it lands on `main` and cleans up after itself. `--no-auto-merge` restores the feature-branch + PR path; a conflict or a protected branch is always reported, never forced.
+
+```
+   Phase 8 GREEN  +  completion audit clean  +  commit on architect-team/<slug>
+            │
+            ▼
+   ◆ AUTO_MERGE_MAIN ?           (--no-auto-merge / "keep the branch" / "PR only"
+        │                │        sets it false)
+      no│                │ yes
+        ▼                ▼
+   ✓ feature branch    ▣ MERGE GATE  —  branch cleanly mergeable into main?
+   · push branch         (git merge-tree --write-tree · never touches the tree)
+   · recommend a PR              │                              │
+   · worktree persists        no │  conflict                    │ yes
+     (v3.6.0 warning)           ▼                               ▼
+            │            ✗ NOTHING CHANGES                merge --no-ff → main
+            │            conflict: true                   · push main
+            │            ◀┄┄ fall back to feature         · delete branch (local+remote)
+            │                branch + PR + persist        · remove worktree
+            │                                                    │
+            │                                          ◆ push accepted ?
+            │                                             │                │
+            │                                          no │ protected /    │ yes
+            │                                             ▼ non-ff          ▼
+            │                                  ✗ STOP pruning        ✓ pruned & tidy
+            │                                  reason: push-rejected  main updated;
+            │                                  branch + worktree      branch + worktree
+            │                                  recoverable; never     gone
+            │                                  --force
+            ▼                                             │
+   startup of the NEXT run reconciles any stray architect-team/* branches:
+   ◆ merge-all-clean + prune  /  prune-without-merge  /  leave   (one AskUserQuestion)
+```
+
+Branch protection always wins: `--force` is never added. Only `architect-team/*` branches are ever auto-merged, pruned, or reconciled — never the user's own branches.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -909,7 +963,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 26 skill frontmatters; all 27 agent frontmatters (tool + model names); all 12 commands; hooks.json wiring for all five trigger events (PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v6: 12 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **3673 tests pass (+ 5 skipped).**
+Tests validate: plugin/marketplace JSON; all 38 skill frontmatters; all 33 agent frontmatters (tool + model names); all 19 commands; hooks.json wiring for all five trigger events (PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v6: 12 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **3673 tests pass (+ 5 skipped).**
 
 ### Bumping versions
 
@@ -1000,7 +1054,26 @@ Tests validate: plugin/marketplace JSON; all 26 skill frontmatters; all 27 agent
            v2.9.0  ─ MemPalace installer self-heal + polyglot Python in commands — `_locate_pip_user_binary()` + `_bridge_to_path_dir()` symlink macOS `~/Library/Python/*/bin` binaries into `~/.local/bin`; `python -m pip install --user` fallback when no `pip` script is on PATH; `_BRIDGED_BINARIES` allowlist; single polyglot `python3 ... || python ...` block in `commands/mempalace-install.md`; structural test audits all 14 command files
            v2.10.0 ─ no end-of-run deferral discipline — agents MUST NOT end a run by cataloguing in-scope work as "Deferred" with a "Want me to continue?" follow-up offer; every item has one of 3 valid dispositions (fixed in this change / SR routed / confirmed-stub); 11th Layer-3 tool `verify_no_end_of_run_deferral` with 3 severities (`deferred-work-catalog` / `followup-decision-question` / `wrap-up-with-known-bugs`); closes the verbatim heirship 7-bugs-4-work-items A→B→C→D cluster-list case
            v2.11.0 ─ multi-persona path-coverage discipline — features serving > 1 user persona MUST have a `persona-inventory.json` artifact AND a Playwright test per persona exercising their `entry_point` URL, plus assertions for every cross_persona_dependency, every submit_interaction (double-click idempotency), every backend_call_interaction (loading-state UI within 200ms); 12th Layer-3 tool `verify_per_persona_path_coverage` with 4 severities (`persona-path-not-tested` / `cross-persona-sync-not-asserted` / `double-submit-not-tested` / `loading-state-not-asserted`); closes the verbatim heirship multi-view-sync failure
-   ◆       v2.12.0 ─ cross-discipline gate consistency hotfix — internal audit uncovered v2.10.0 wrap-up-with-known-bugs falsely firing on legitimate v2.11.0 per-persona success reports (citation list widened with 6 v2.11.0 tokens) + two duplicate test-path detectors (`_is_test_path` and `_looks_like_test_path`) diverging on 3 of 8 paths (unified into one); the verbatim heirship deferral case STILL fires (current)
+           v2.12.0 ─ cross-discipline gate consistency hotfix — internal audit uncovered v2.10.0 wrap-up-with-known-bugs falsely firing on legitimate v2.11.0 per-persona success reports (citation list widened with 6 v2.11.0 tokens) + two duplicate test-path detectors (`_is_test_path` and `_looks_like_test_path`) diverging on 3 of 8 paths (unified into one); the verbatim heirship deferral case STILL fires
+           v2.13.0 ─ dynamic affordance discovery + UX env-sequencing + visual-to-api-design skill (3 disciplines in one release)
+           v2.14.0 ─ no implementation-time scope cut discipline — "⚠️ Honest scope statement" M0-foundation virtue-framing rejected
+           v2.15.0 ─ dedicated `/architect-team:visual-to-api <codebase-path>` slash command (4-stage subset entry point)
+           v2.16.0 ─ Stop-hook duplicate-output fix + `.architect-team/in-progress.md` 4th disposition
+           v2.17.0 ─ prod-safe test classification — every Playwright/QA test carries `@prod-safe` / `@not-prod-safe`; prod URLs run reads only
+           v2.18.0 ─ codebase discipline registry + Phase 0.1 auto-update — track which CT6 disciplines are applied per codebase
+           v2.19.0 ─ in-flight clarification injection mechanism — per-run inbox JSONL + `/architect-team:inject` + phase-boundary check
+           v2.20.0 ─ deploy mandate discipline — "fully deploy / 100% of all elements active and real" is a 5-criterion hard mandate
+           v2.21.0 ─ no proxy-element verification — substituting a nearby measurable element and reporting PASS off the proxy is rejected
+           v2.22.0 ─ no pipeline-bypass discipline — Skill-called-but-zero-Agent-dispatches + confession-language detection
+           v3.0.0  ─ unified Unilateral-Override discipline (META) + PreToolUse runtime guardrail — one detector + one pre-action hook behind v2.10/v2.14/v2.20/v2.21/v2.22
+           v3.1.0  ─ rule-source consolidation (single source of truth + drift guards) + Windows test portability
+           v3.2.0  ─ Exploration Pipeline — extend visual-to-api-design 4→7 stages, ralph-loop per stage
+           v3.3.0  ─ test-run monitor team — passive observer across local / CI / production-QA; `/architect-team:monitor-tests`
+           v3.3.1  ─ visual-to-API dispatch symmetry (Phase 0a) — explicit dispatch contract on both pipeline sides
+           v3.4.0  ─ backend-from-frontend modularization (Phase 0b) — cartographer-team + domain-research-team + api-design-from-frontend + domain-researcher agent
+           v3.5.0  ─ data engineering exploration pipeline (Phase 0c) — 7-stage data-plane analog + phenotype convergence rules
+           v3.6.0  ─ worktree end-of-run merge check (`finalize_run_worktree`) + hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`
+   ◆       v3.7.0  ─ auto-merge-to-main + prune by default — clean Phase 8 lands on `main` and tidies up (`AUTO_MERGE_MAIN`; `list_run_branches` / `merge_branch_to_main_and_prune`); `--no-auto-merge` opt-out; startup branch reconciliation; never `--force`, branch protection always wins (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
