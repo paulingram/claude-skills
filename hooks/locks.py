@@ -233,7 +233,182 @@ def globs_intersect(a: str, b: str) -> bool:
     return False
 
 
+def cdlg_overlap(
+    graph: Any,
+    funcs_a: Any,
+    funcs_b: Any,
+) -> dict:
+    """Decide whether two work-items overlap by CALL-GRAPH reachability (PARA-01).
+
+    File-path locks (``acquire_lock`` / ``globs_intersect``) catch the case where
+    two work-items edit the same file. They do NOT catch the case where two items
+    edit *different* files but share a hot callee — item A's function transitively
+    calls a function in item B's set. This helper adds that second, call-graph
+    signal (it ADDS to, and never replaces, the file-path lock logic).
+
+    The rule (REQ-PARA-01): two work-items overlap iff they share a ``func://``
+    node OR one item's function set REACHES — via ``calls`` edges in ``graph`` —
+    a function in the other item's set. The reachability concept is reused from
+    ``hooks/lineage_graph.py`` (the ``REACHABILITY_EDGE_KINDS`` / ``calls``-edge
+    walk); we import that module so this helper consumes the CDLG rather than
+    re-deriving the edge vocabulary.
+
+    Args:
+        graph: a CDLG document (the ``lineage-graph.json`` shape — a dict with
+            ``nodes`` / ``edges``). Only ``calls`` edges are walked for
+            reachability. A malformed / empty graph degrades gracefully: with no
+            ``calls`` edges, overlap reduces to the shared-node check.
+        funcs_a: the ``func://`` ids in work-item A's set (any iterable of strings).
+        funcs_b: the ``func://`` ids in work-item B's set (any iterable of strings).
+
+    Returns:
+        ``{"overlap": bool, "shared_functions": [...], "shared_subtree": [...]}``:
+
+          - ``shared_functions`` — the ``func://`` ids present in BOTH sets
+            (the direct-share signal), sorted.
+          - ``shared_subtree`` — the ``func://`` ids that one set reaches via
+            ``calls`` edges AND that are in the other set (the transitive-share
+            signal), sorted. A node both directly shared and reached appears in
+            both lists.
+          - ``overlap`` — ``True`` iff either list is non-empty.
+    """
+    set_a = _as_func_set(funcs_a)
+    set_b = _as_func_set(funcs_b)
+
+    # Direct share: any func:// node present in both work-items' sets.
+    shared_functions = set_a & set_b
+
+    # Transitive share: build the calls-edge adjacency once, then see whether
+    # A's set reaches any function in B's set (or vice-versa). Reusing the CDLG's
+    # calls-edge concept from hooks/lineage_graph.py.
+    adjacency = _calls_adjacency(graph)
+    reach_a = _reachable_funcs(set_a, adjacency)
+    reach_b = _reachable_funcs(set_b, adjacency)
+
+    # A function is in the "shared subtree" if one item reaches it and the other
+    # item owns it. Symmetric: union both directions.
+    shared_subtree = (reach_a & set_b) | (reach_b & set_a)
+
+    overlap = bool(shared_functions or shared_subtree)
+    return {
+        "overlap": overlap,
+        "shared_functions": sorted(shared_functions),
+        "shared_subtree": sorted(shared_subtree),
+    }
+
+
 # ---- Internals ---------------------------------------------------------------
+
+
+def _as_func_set(funcs: Any) -> set[str]:
+    """Coerce a work-item's function list into a set of non-empty string ids.
+
+    Defensive against None / non-iterable / non-string members — those are
+    dropped rather than raising, so a malformed work-item set degrades to "no
+    functions" instead of crashing the overlap check.
+    """
+    if not funcs or isinstance(funcs, (str, bytes)):
+        # A bare string is NOT a set of ids — treat it as a single id only if
+        # it is a non-empty str (a common caller convenience), else empty.
+        if isinstance(funcs, str) and funcs:
+            return {funcs}
+        return set()
+    out: set[str] = set()
+    try:
+        iterator = iter(funcs)
+    except TypeError:
+        return set()
+    for item in iterator:
+        if isinstance(item, str) and item:
+            out.add(item)
+    return out
+
+
+def _calls_adjacency(graph: Any) -> dict[str, set[str]]:
+    """Adjacency map (src -> set of dst) over the CDLG's ``calls`` edges.
+
+    Reuses ``hooks/lineage_graph.py``'s edge vocabulary: we walk only ``calls``
+    edges (the function→callee control-flow edges). The lineage module is
+    imported lazily and best-effort — if it cannot be loaded for any reason, we
+    fall back to the literal string ``"calls"`` so the overlap check still works
+    (the kind name is stable, REQ-DOC-01).
+    """
+    if not isinstance(graph, dict):
+        return {}
+    calls_kind = _calls_edge_kind()
+    adj: dict[str, set[str]] = {}
+    for edge in graph.get("edges", []) or []:
+        if not isinstance(edge, dict):
+            continue
+        if edge.get("kind") != calls_kind:
+            continue
+        src = edge.get("src")
+        dst = edge.get("dst")
+        if isinstance(src, str) and src and isinstance(dst, str) and dst:
+            adj.setdefault(src, set()).add(dst)
+    return adj
+
+
+def _calls_edge_kind() -> str:
+    """The CDLG edge kind that denotes a function→callee call.
+
+    Sourced from ``hooks/lineage_graph.py`` so this module consumes the CDLG's
+    canonical vocabulary rather than hard-coding it. Best-effort: falls back to
+    the stable literal ``"calls"`` if the module is unreachable.
+    """
+    try:
+        lineage = _load_lineage_graph()
+        kinds = getattr(lineage, "REACHABILITY_EDGE_KINDS", None)
+        # REACHABILITY_EDGE_KINDS is {"calls", "serves"}; "calls" is the
+        # function→callee edge we want for work-item overlap (a work-item is a
+        # set of functions, not endpoints, so the serves edge is not relevant
+        # to function-set reachability).
+        if kinds and "calls" in kinds:
+            return "calls"
+    except Exception:
+        pass
+    return "calls"
+
+
+def _reachable_funcs(seeds: set[str], adjacency: dict[str, set[str]]) -> set[str]:
+    """Every node reachable FROM ``seeds`` via ``calls`` edges, excluding the seeds.
+
+    A plain DFS over the calls-edge adjacency. The seeds themselves are NOT
+    included in the result — the result is the set of *callees* the seed set
+    reaches, which is what the transitive-overlap check intersects against the
+    other work-item's set. Cycle-safe via a visited set.
+    """
+    reached: set[str] = set()
+    stack: list[str] = list(seeds)
+    seen: set[str] = set(seeds)
+    while stack:
+        cur = stack.pop()
+        for nxt in adjacency.get(cur, ()):  # callees of cur
+            if nxt not in seen:
+                seen.add(nxt)
+                reached.add(nxt)
+                stack.append(nxt)
+    return reached
+
+
+def _load_lineage_graph():
+    """Import ``hooks/lineage_graph.py`` lazily (sibling module).
+
+    Mirrors ``_load_worktree_paths`` — uses
+    ``importlib.util.spec_from_file_location`` so the lock layer does not depend
+    on a particular ``sys.path`` layout. The path is computed relative to this
+    file: ``hooks/locks.py`` -> ``hooks/lineage_graph.py`` (same directory).
+    """
+    import importlib.util
+
+    here = Path(__file__).resolve().parent
+    target = here / "lineage_graph.py"
+    spec = importlib.util.spec_from_file_location("lineage_graph", target)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load lineage_graph from {target}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _resolve_locks_dir(locks_dir: Path | None) -> Path:

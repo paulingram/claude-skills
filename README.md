@@ -184,7 +184,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 ```
 
 ```
-┌─ SKILLS (39) ───────────────────────┬─ AGENTS (34) ─────────────────────────┐
+┌─ SKILLS (40) ───────────────────────┬─ AGENTS (34) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -229,6 +229,8 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │   (v3.5.0)                          │                                       │
 │ ◇ endpoint-trace-mapping            │                                       │
 │   (lineage P1 — the CDLG)           │                                       │
+│ ◇ data-lineage-mapping              │                                       │
+│   (lineage P3 — asset lineage)      │                                       │
 ├─ COMMANDS (19) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
