@@ -192,12 +192,14 @@ def test_list_run_branches_reports_merge_state_and_excludes_others(
     assert by_branch["architect-team/merged"]["worktree_path"] is not None
     assert by_branch["architect-team/unmerged"]["worktree_path"] is not None
 
-    # Each descriptor carries all four keys.
+    # Each descriptor carries all five keys (lineage P6 / REQ-CDL-11a added the
+    # always-populated `squash_merged` field to the list_run_branches contract).
     for d in descriptors:
         assert set(d) == {
             "branch",
             "worktree_path",
             "merged_into_main",
+            "squash_merged",
             "cleanly_mergeable",
         }
 
