@@ -1,0 +1,11 @@
+{
+  "change": "update-all-documentation-v380",
+  "version_target": "3.8.0-docs-only-no-bump",
+  "notes": "Documentation-only; all infra layer; no Playwright/dev-API (no app). Authorized: plugin doc-currency, not an application.",
+  "entries": [
+    {"source_requirement_id": "REQ-001", "spec_requirement_id": "README documents the v3.8.0 capabilities", "scenarios": ["README names the v3.8.0 capabilities"], "acceptance_criteria": ["v3.8.0 capability section (unbounded solving + CDLG) naming new skills/agent/modules", "version 3.8.0 + counts 40/34/19/3870 correct", "readme-styling structural tests pass"], "layer": "infra", "implementing_files": ["README.md"], "tests": ["tests/test_readme_styling.py"]},
+    {"source_requirement_id": "REQ-002", "spec_requirement_id": "CLAUDE.md version-history covers v3.8.0", "scenarios": ["CLAUDE.md history names v3.8.0"], "acceptance_criteria": ["v3.8.0 version-history summary present; counts current"], "layer": "infra", "implementing_files": ["CLAUDE.md"], "tests": ["tests/test_readme_styling.py"]},
+    {"source_requirement_id": "REQ-003", "spec_requirement_id": "CODEBASE_MAP documents the v3.8.0 modules", "scenarios": ["CODEBASE_MAP names the new modules"], "acceptance_criteria": ["lineage_graph.py, run_metrics.py, cdlg_overlap, worktree additions, audit limit-removal, 2 new skills, new agent documented; counts + last_mapped current"], "layer": "infra", "implementing_files": ["docs/CODEBASE_MAP.md"], "tests": ["tests/test_skills.py", "tests/test_agents.py"]},
+    {"source_requirement_id": "REQ-004", "spec_requirement_id": "INTEGRATION_MAP and phenotypes README are current", "scenarios": ["secondary docs are current"], "acceptance_criteria": ["INTEGRATION_MAP lineage integration points; phenotypes/README no stale ref"], "layer": "infra", "implementing_files": ["docs/INTEGRATION_MAP.md", "phenotypes/README.md"], "tests": ["tests/test_phenotype_subsystem.py"]}
+  ]
+}
