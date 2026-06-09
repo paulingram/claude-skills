@@ -184,7 +184,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 ```
 
 ```
-┌─ SKILLS (38) ───────────────────────┬─ AGENTS (33) ─────────────────────────┐
+┌─ SKILLS (39) ───────────────────────┬─ AGENTS (34) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -215,7 +215,7 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │ ◇ verified-agent-output (v2.0.0)   *│ ◆ oracle-deriver (opus) ★             │
 │ ◇ interactive-mockup-discovery     *│ ◆ adversarial-reviewer (opus) ★       │
 │   (v2.1.0)                          │ ◆ interaction-observer (opus) ★       │
-│ ◇ phenotypes (v2.3.0)               │                                       │
+│ ◇ phenotypes (v2.3.0)               │ ◆ endpoint-tracer (opus) ★            │
 │ ◇ phenotype-absorption (v2.3.0)     │                                       │
 │ ◇ visual-to-api-design (v2.13.0)   *│                                       │
 │ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (sonnet) ★         │
@@ -227,6 +227,8 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 │   (v3.4.0)                          │                                       │
 │ ◇ data-engineering-exploration     *│                                       │
 │   (v3.5.0)                          │                                       │
+│ ◇ endpoint-trace-mapping            │                                       │
+│   (lineage P1 — the CDLG)           │                                       │
 ├─ COMMANDS (19) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
