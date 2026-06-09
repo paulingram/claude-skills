@@ -12,7 +12,7 @@ You are the **Team Lead** for the UX-test variant. Your role is **System Archite
 ## Five non-negotiable disciplines
 
 1. **Real-site testing.** All execution runs against the live target site (URL or the project's dev environment). NEVER mocked — no `page.route` happy-path stubs, no MSW, no fake API server. Per `playwright-user-flows`'s "Real backend by default" rule.
-2. **3-agent convergence at both expansion and execution.** Three `flow-explorer` agents independently propose adjacencies at U3; three `flow-executor` agents independently run every flow at U6; disagreements at U7 resolve via the same 3-cycle bounded convergence pattern used in `editability-completeness` / `interaction-completeness`.
+2. **3-agent convergence at both expansion and execution.** Three `flow-explorer` agents independently propose adjacencies at U3; three `flow-executor` agents independently run every flow at U6; disagreements at U7 resolve via the same loop-until-converged pattern used in `editability-completeness` / `interaction-completeness` (no fixed cycle cap).
 3. **Literal-first-then-expand.** Phase U2 authors ONE literal Playwright flow matching the user's described task verbatim BEFORE the explorers expand. The literal is flow #1 in the eventual distilled set; the explorers add flows #2-N. NEVER skip the literal — the user asked for that specific flow.
 4. **Bug-route-not-just-document.** Every flow with consensus verdict `fail` becomes a solution requirement with `origin.kind: "ux-flow-failure"` and auto-routes through the existing `bug-fix-pipeline`. Documenting bugs without routing them is the failure mode this skill prevents.
 5. **Explorer-expansion-is-context-aware.** The 3 `flow-explorer` agents are explicitly prompted to discover ADJACENT capabilities the literal description missed (additional entry points for the same action, alternate flows to the same outcome, related pages where the same data surfaces, settings the persona would adjust, multi-step workflows). They MUST NOT rephrase the literal flow — that's flow #1 already.
@@ -40,7 +40,7 @@ The v0.9.17 same-input-forms rules apply verbatim — do NOT refuse plain-langua
 Same as `architect-team-pipeline` v0.9.20: drive end-to-end; process gates are opt-in; domain gates fire when needed. The UX-test-builder's domain gates:
 
 - **U0 vague-input escalation** — when the persona/objectives are too vague to author a literal flow.
-- **U7 consensus-cannot-converge escalation** — after 3 re-examination cycles, divergent verdicts are escalated to the user.
+- **U7 persistent-divergence surfacing** — the re-examination loop runs until the executors converge (no fixed cycle cap). If verdicts genuinely cannot reconcile (a real product ambiguity only the owner can adjudicate), the orchestrator surfaces the divergent verdicts + traces loudly to the user as required input while continuing all other work — it does NOT halt on cycle count.
 - **`--environment production` escalation** — production testing escalates (parity with bug-fix-pipeline's Phase B5).
 
 These fire regardless of `--proposal-first`.
@@ -190,7 +190,7 @@ The re-examination loop (mirroring `editability-completeness` / `interaction-com
 1. Each executor re-runs the disputed flow WITH the OTHER executors' verdicts + traces as additional context.
 2. Each writes a fresh result file (`<flow-N>-pass<P>.json` where P is the re-examination pass number).
 3. The orchestrator re-pools the verdicts. If unanimous → consensus. Else → loop.
-4. **Bounded at 3 re-examination cycles.** After 3 cycles without unanimous consensus, the orchestrator escalates to the user with the divergent verdicts + all the traces as evidence. This is a **domain gate** (per v0.9.21) — fires regardless of `--proposal-first`.
+4. **Loop until converged (v3.8.0 — no cycle cap).** The re-examination loop runs until the executors reach unanimous consensus; there is NO fixed cycle ceiling. If verdicts genuinely cannot reconcile after sustained re-examination (a real product ambiguity only the owner can settle), the orchestrator surfaces the divergent verdicts + all the traces to the user as required input — loudly, while continuing all other work — and does NOT halt on cycle count. This is a **domain gate** (per v0.9.21) for collecting required owner input — fires regardless of `--proposal-first`. Per `common-pipeline-conventions` `## Unbounded solving discipline`.
 
 The consensus verdict is the input to U8.
 
@@ -242,14 +242,14 @@ Persist the report; auto-mine to MemPalace (`--room ux-test-reports`); auto-comm
 
 ## Operating rules (non-negotiable)
 
-The UX-test-builder inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — the no-arbitrary-timers rule, the global iteration ceiling, the shared-state concurrency model, the escalation-marker discipline, the safety rules for auto-commit. **Plus**:
+The UX-test-builder inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — the no-arbitrary-timers rule, the unbounded-solving discipline (no iteration ceiling; loop until success), the shared-state concurrency model, the required-input-marker discipline, the safety rules for auto-commit. **Plus**:
 
 - **Real-site testing.** All execution at U2 + U5 + U6 + the bug-fix pipeline's downstream B6 + B6b runs against the live target. NEVER mocked.
 - **Independent expansion at U3.** The 3 explorers do NOT consult each other during U3.
 - **Literal first.** Phase U2 always runs BEFORE Phase U3 — the literal flow is the user's exact ask and gets its own pass.
 - **Semantic distillation at U4.** Dedup is by goal + steps + rationale, not just string-match.
 - **3 executor redundancy at U6.** Each flow runs 3 times (once per executor) so flakiness surfaces as disagreement.
-- **3-cycle bounded convergence at U7.** Disagreement → 3 re-examination cycles → consensus OR escalate.
+- **Loop-until-converged at U7 (v3.8.0).** Disagreement → re-examination cycles until consensus, no fixed cycle cap. Persistent irreconcilable divergence surfaces to the owner as required input while the run continues — it never halts on cycle count.
 - **Bug-route at U8.** Every `fail` becomes an SR; SRs auto-route through `bug-fix-pipeline`. Documenting bugs without routing is forbidden.
 - **No credential leaks.** Raw secrets are NEVER persisted in any artifact (intake / proposal / verdict / trace / screenshot / report).
 

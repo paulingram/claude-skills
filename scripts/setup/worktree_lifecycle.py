@@ -41,17 +41,24 @@ Public API — six stdlib-only functions:
       The part after `architect-team/` of the current branch name when in a
       run worktree, else None.
 
-  list_merged_architect_team_worktrees(against="origin/main", exclude_current=True) -> list[Path]
+  list_merged_architect_team_worktrees(against="origin/main", exclude_current=True, include_squash_merged=False) -> list[Path]
       (v1.3.0) Return paths of architect-team/* worktrees whose branch is
       merged into <against>. Excludes the current worktree by default
       (safety: don't auto-remove the cwd even if its branch happens to be
       merged). Branches NOT starting with `architect-team/` are never
-      considered.
+      considered. (lineage P6 / REQ-CDL-11a) When `include_squash_merged=True`,
+      the squash-aware predicate `_branch_is_merged_or_squash_merged` is used so
+      squash-merged branches are also recognized; default False keeps the
+      conservative `merge-base --is-ancestor` behavior (the documented v1.3.0
+      safe false-negative for squash merges).
 
-  cleanup_merged_worktrees(against="origin/main", dry_run=False) -> list[Path]
+  cleanup_merged_worktrees(against="origin/main", dry_run=False, include_squash_merged=False) -> list[Path]
       (v1.3.0) Remove all merged architect-team/* worktrees. Returns paths
       cleaned (or that would-be-cleaned in dry_run mode). Idempotent on a
-      worktree that disappears between list and remove.
+      worktree that disappears between list and remove. (lineage P6 /
+      REQ-CDL-11a) `include_squash_merged=True` opts in to squash-merge
+      detection via `_branch_is_merged_or_squash_merged`; default False
+      preserves today's plain-ancestor-only behavior.
 
   finalize_run_worktree(worktree_path=None, against="origin/main", branch=None) -> dict
       (v3.6.0) End-of-run merge check: remove the run's worktree + branch
@@ -60,11 +67,25 @@ Public API — six stdlib-only functions:
       warning naming the path + the manual cleanup command. Best-effort: any
       subprocess failure is reflected in the returned dict rather than raised.
 
-  list_run_branches(against="main", remote="origin") -> list[dict]
+  list_run_branches(against="origin/main", remote="origin", include_squash_merged=False) -> list[dict]
       (v3.7.0 auto-merge-to-main) Enumerate every local `architect-team/*`
       branch and, for each, report `{branch, worktree_path, merged_into_main,
-      cleanly_mergeable}`. Powers the startup branch-reconciliation prompt.
-      Non-`architect-team/*` branches are never included; best-effort `[]`.
+      squash_merged, cleanly_mergeable}`. Powers the startup
+      branch-reconciliation prompt. Non-`architect-team/*` branches are never
+      included; best-effort `[]`. (lineage P6 / REQ-CDL-11a) The `squash_merged`
+      field is always populated (`_branch_is_squash_merged`); when
+      `include_squash_merged=True` a branch counts as merged-for-cleanup if it is
+      EITHER a plain ancestor OR squash-merged, default False keeps the
+      conservative plain-ancestor-only treatment.
+
+  recommend_worktree(task_scope=None) -> dict
+      (lineage P6 / REQ-CDL-11b) Advisory-only heuristic returning
+      `{"use_worktree": bool, "reason": str}` for whether the auto-worktree
+      default should fire for a task of the given scope. Tiny / trivial /
+      doc-only / single-file scopes recommend False; small..large / feature /
+      multi-file / None recommend True. ADVISORY ONLY — `--no-worktree` is
+      always honored regardless of this recommendation, and the default when
+      `task_scope` is None stays True (today's behavior).
 
   merge_branch_to_main_and_prune(branch, worktree_path=None, against="main", remote="origin", push=True) -> dict
       (v3.7.0 auto-merge-to-main) Merge a cleanly-mergeable
@@ -73,6 +94,33 @@ Public API — six stdlib-only functions:
       Conflicts are skipped + reported (never forced); a rejected push (branch
       protection) stops pruning and leaves the work recoverable (never
       --force). Best-effort: returns a dict, never raises.
+
+Squash-merge detection (lineage P6 / REQ-CDL-11a)
+-------------------------------------------------
+
+The default merged-probe `_branch_is_merged_into` uses
+`git merge-base --is-ancestor`, which MISSES squash-merges: a squash merge
+replays the branch's net diff as a SINGLE NEW commit on <against>, so the
+original branch tip is never an ancestor of <against>. The opt-in
+`include_squash_merged=True` flag (on `list_run_branches`,
+`cleanup_merged_worktrees`, and `list_merged_architect_team_worktrees`) swaps
+in the squash-aware predicate `_branch_is_merged_or_squash_merged`.
+
+`_branch_is_squash_merged` is deliberately CONSERVATIVE — it must never flag a
+branch that still has genuinely-unmerged work. A branch counts as
+squash-merged iff (a) it has >= 1 commit beyond the merge-base with <against>
+(otherwise there is nothing to judge) AND (b) it is NOT already a plain
+ancestor (that is the normal-merge path; this predicate strictly ADDS the
+squash case) AND (c) the branch's net diff is already fully present in
+<against>, probed via `git diff --quiet <against>..<branch>` exiting 0 (the
+branch tip tree contributes no net change over <against>). The probe is the
+two-dot tip-vs-tip form, not three-dot: after a squash merge the branch's
+merge-base with <against> is unchanged, so three-dot `<against>...<branch>`
+would still show the branch's own changes and false-negative every squash —
+exactly the case this exists to catch. Any subprocess error returns False — on
+ambiguity we never delete unmerged work. The default
+(`include_squash_merged=False`) keeps today's plain-ancestor-only behavior, the
+documented v1.3.0 safe false-negative.
 
 Naming conventions
 ------------------
@@ -120,6 +168,16 @@ _BRANCH_PREFIX = "architect-team/"
 # normalizes free-text into kebab-case before passing it here, so this is a
 # defensive sweep, not the primary normalizer.
 _SAFE_SLUG_RE = re.compile(r"[^A-Za-z0-9_-]+")
+
+# (lineage P6 / REQ-CDL-11b) Task scopes for which the auto-worktree default is
+# NOT recommended — a worktree's filesystem-isolation overhead isn't worth it
+# for a tiny / single-file / doc-only change. `recommend_worktree` is ADVISORY
+# only; `--no-worktree` is honored independently and None still defaults to True.
+_NO_WORKTREE_SCOPES = frozenset({"tiny", "trivial", "doc-only", "single-file"})
+# Scopes for which the auto-worktree default SHOULD fire. (None also -> True.)
+_WORKTREE_SCOPES = frozenset(
+    {"small", "medium", "large", "feature", "multi-file"}
+)
 
 
 # ---- Public API --------------------------------------------------------------
@@ -356,6 +414,7 @@ def current_run_slug() -> Optional[str]:
 def list_merged_architect_team_worktrees(
     against: str = "origin/main",
     exclude_current: bool = True,
+    include_squash_merged: bool = False,
 ) -> list[Path]:
     """Return paths of `architect-team/*` worktrees merged into `<against>`.
 
@@ -371,12 +430,24 @@ def list_merged_architect_team_worktrees(
     in, even on a re-entry case where the current run's branch happened to
     be merged earlier.
 
+    (lineage P6 / REQ-CDL-11a) When `include_squash_merged=True`, the
+    squash-aware predicate `_branch_is_merged_or_squash_merged` is used so a
+    branch whose net diff has been squash-merged into `<against>` (no longer a
+    plain ancestor) is also recognized. The default `False` keeps the
+    conservative `merge-base --is-ancestor` behavior — the documented v1.3.0
+    safe false-negative for squash merges.
+
     Non-`architect-team/*` branches are NEVER considered (the user's own
     worktrees stay untouched, regardless of merge state).
 
     Best-effort: any subprocess failure / not-in-a-git-repo / malformed
     porcelain returns an empty list rather than raising.
     """
+    predicate = (
+        _branch_is_merged_or_squash_merged
+        if include_squash_merged
+        else _branch_is_merged_into
+    )
     toplevel = _git_show_toplevel()
     if toplevel is None:
         return []
@@ -400,7 +471,7 @@ def list_merged_architect_team_worktrees(
             except (OSError, RuntimeError):
                 # Resolution failure -> err on the safe side, skip this path.
                 continue
-        if _branch_is_merged_into(toplevel, branch, against):
+        if predicate(toplevel, branch, against):
             merged.append(worktree_path)
     return merged
 
@@ -408,12 +479,18 @@ def list_merged_architect_team_worktrees(
 def cleanup_merged_worktrees(
     against: str = "origin/main",
     dry_run: bool = False,
+    include_squash_merged: bool = False,
 ) -> list[Path]:
     """Remove all merged `architect-team/*` worktrees and return their paths.
 
     Calls `list_merged_architect_team_worktrees(against=against,
     exclude_current=True)` under the hood — the current worktree is ALWAYS
     excluded; v1.3.0 does not expose an override.
+
+    (lineage P6 / REQ-CDL-11a) `include_squash_merged=True` is forwarded to
+    `list_merged_architect_team_worktrees`, opting in to squash-merge detection
+    via `_branch_is_merged_or_squash_merged`; default `False` preserves today's
+    plain-ancestor-only behavior.
 
     On `dry_run=True`, no filesystem change is made; the candidate list is
     returned verbatim (the paths that WOULD be cleaned).
@@ -425,7 +502,9 @@ def cleanup_merged_worktrees(
     that path gracefully and continues with the rest.
     """
     candidates = list_merged_architect_team_worktrees(
-        against=against, exclude_current=True
+        against=against,
+        exclude_current=True,
+        include_squash_merged=include_squash_merged,
     )
     if dry_run:
         return candidates
@@ -527,22 +606,48 @@ def finalize_run_worktree(
 
 
 def list_run_branches(
-    against: str = "main",
+    against: str = "origin/main",
     remote: str = "origin",
+    include_squash_merged: bool = False,
 ) -> list[dict]:
     """Return one descriptor per local `architect-team/*` branch (v3.7.0).
+
+    `against` defaults to `origin/main` (v3.8.0 — was `main`) so the
+    "already-merged?" judgments here AGREE with the v1.3.0 sweep
+    (`cleanup_merged_worktrees` / `list_merged_architect_team_worktrees`,
+    also `origin/main`): the startup reconciliation filters this list against
+    the SAME published ref the sweep prunes against, and a branch already
+    landed on `origin/main` via a GitHub PR merge is correctly seen as merged
+    (a stale local `main` would have missed it). This is the deliberate split
+    in the module's API: the "is it already merged / safe to prune?" checks
+    (`list_run_branches`, the sweep, `finalize_run_worktree`) judge against the
+    PUBLISHED `origin/main`, whereas `merge_branch_to_main_and_prune` /
+    `_branch_cleanly_mergeable` operate against LOCAL `main` because that is the
+    ref `git checkout main && git merge` actually integrates into. Callers run
+    `git fetch origin main` first (the startup sweep does), so the two refs are
+    in sync at decision time; pass `against="main"` explicitly to judge against
+    the local checkout instead.
 
     Enumerates local branches via
     `git branch --list 'architect-team/*' --format '%(refname:short)'`, maps
     each to its checked-out worktree (from `git worktree list --porcelain`),
-    and computes `merged_into_main` (`_branch_is_merged_into`) and
-    `cleanly_mergeable` (`_branch_cleanly_mergeable`).
+    and computes `merged_into_main`, `squash_merged`
+    (`_branch_is_squash_merged`), and `cleanly_mergeable`
+    (`_branch_cleanly_mergeable`).
 
     Each element is a dict:
       {"branch": <name>,
        "worktree_path": <str path or None>,
        "merged_into_main": <bool>,
+       "squash_merged": <bool>,
        "cleanly_mergeable": <bool>}
+
+    `squash_merged` is ALWAYS populated for transparency. (lineage P6 /
+    REQ-CDL-11a) By default `merged_into_main` reflects ONLY plain
+    `_branch_is_merged_into` (the conservative v1.3.0 behavior); when
+    `include_squash_merged=True`, `merged_into_main` is the squash-aware
+    `_branch_is_merged_or_squash_merged` so a squash-merged branch is reported
+    as merged.
 
     Non-`architect-team/*` branches are NEVER included. Best-effort: any
     subprocess failure / not-in-a-git-repo returns an empty list.
@@ -587,13 +692,19 @@ def list_run_branches(
     descriptors: list[dict] = []
     for branch in branches:
         wt = worktree_for_branch.get(branch)
+        plain_merged = _branch_is_merged_into(toplevel, branch, against)
+        squash_merged = _branch_is_squash_merged(toplevel, branch, against)
+        merged_into_main = (
+            (plain_merged or squash_merged)
+            if include_squash_merged
+            else plain_merged
+        )
         descriptors.append(
             {
                 "branch": branch,
                 "worktree_path": str(wt) if wt is not None else None,
-                "merged_into_main": _branch_is_merged_into(
-                    toplevel, branch, against
-                ),
+                "merged_into_main": merged_into_main,
+                "squash_merged": squash_merged,
                 "cleanly_mergeable": _branch_cleanly_mergeable(
                     toplevel, branch, against
                 ),
@@ -750,6 +861,75 @@ def merge_branch_to_main_and_prune(
         "branch_deleted": branch_deleted,
         "worktree_removed": worktree_removed,
         "reason": "merged-and-pruned",
+    }
+
+
+# ---- lineage P6 task-aware worktree heuristic (REQ-CDL-11b) -----------------
+
+
+def recommend_worktree(task_scope: Optional[str] = None) -> dict:
+    """Advise whether the auto-worktree default should fire for a task.
+
+    (lineage P6 / REQ-CDL-11b) ADVISORY ONLY. Returns
+    `{"use_worktree": bool, "reason": str}`.
+
+    Mapping:
+      - `task_scope` in {tiny, trivial, doc-only, single-file}
+        -> `{use_worktree: False, ...}` (filesystem isolation isn't worth the
+        overhead for a change this small).
+      - `task_scope` in {small, medium, large, feature, multi-file} OR None
+        -> `{use_worktree: True, ...}` (the safe default — keeps the user's
+        main checkout put and isolates the run).
+      - any other / unrecognized scope -> `{use_worktree: True, ...}` (lean
+        toward the isolating default rather than guessing the task is trivial).
+
+    This recommendation NEVER overrides the user: `--no-worktree` (and its
+    natural-language equivalents) is always honored regardless of what this
+    returns, and the default when `task_scope` is None stays True — today's
+    v1.2.0 behavior. The caller may use this as an additional hint (e.g. to
+    skip the worktree for an obviously doc-only ask) but the flag wins.
+    """
+    scope = task_scope.strip().lower() if isinstance(task_scope, str) else task_scope
+
+    if scope in _NO_WORKTREE_SCOPES:
+        return {
+            "use_worktree": False,
+            "reason": (
+                f"task_scope={scope!r} is small enough (tiny / trivial / "
+                f"doc-only / single-file) that a dedicated worktree's "
+                f"isolation overhead is not warranted; advisory only — "
+                f"--no-worktree is honored regardless."
+            ),
+        }
+
+    if scope is None:
+        return {
+            "use_worktree": True,
+            "reason": (
+                "task_scope unspecified -> default to a worktree (today's "
+                "v1.2.0 behavior); advisory only — --no-worktree is honored "
+                "regardless."
+            ),
+        }
+
+    if scope in _WORKTREE_SCOPES:
+        return {
+            "use_worktree": True,
+            "reason": (
+                f"task_scope={scope!r} is substantial enough (small..large / "
+                f"feature / multi-file) to warrant filesystem isolation via a "
+                f"dedicated worktree; advisory only — --no-worktree is honored "
+                f"regardless."
+            ),
+        }
+
+    return {
+        "use_worktree": True,
+        "reason": (
+            f"task_scope={scope!r} is unrecognized -> lean toward the "
+            f"isolating worktree default rather than assuming the task is "
+            f"trivial; advisory only — --no-worktree is honored regardless."
+        ),
     }
 
 
@@ -1013,6 +1193,123 @@ def _branch_is_merged_into(toplevel: Path, branch: str, against: str) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
+
+
+def _branch_is_squash_merged(
+    toplevel: Path, branch: str, against: str = "origin/main"
+) -> bool:
+    """Return True iff `<branch>` has been SQUASH-merged into `<against>`.
+
+    (lineage P6 / REQ-CDL-11a) A squash merge replays the branch's net diff as
+    a single new commit on `<against>`, so the branch tip is NOT an ancestor of
+    `<against>` and `_branch_is_merged_into` returns False even though the work
+    is fully present. This predicate fills exactly that gap, and ONLY that gap.
+
+    Conservative — must never flag a branch that still has genuinely-unmerged
+    work. A branch is squash-merged iff ALL of:
+      (a) it has >= 1 commit beyond the merge-base with `<against>` (otherwise
+          there is nothing to judge -> False);
+      (b) it is NOT already a plain ancestor of `<against>` (that is the
+          normal-merge path; this predicate strictly ADDS the squash case
+          -> False when already a plain ancestor);
+      (c) the branch's net diff is already fully present in `<against>` —
+          probed via `git diff --quiet <against>..<branch>` (a direct
+          tip-tree-vs-tip-tree comparison). Exit 0 means the branch tip tree
+          contributes NO net change over `<against>` -> nothing left to merge
+          -> effectively merged (incl. squash). Exit 1 means there IS un-merged
+          work -> False.
+
+    Implementation note on (c): the requirement framed this as "the net diff
+    the branch would contribute is already present in <against>". The two-dot
+    `<against>..<branch>` form is the probe that actually expresses this in
+    git's model. After a squash merge, the branch tip is NOT a descendant of
+    `<against>` and their merge-base is the ORIGINAL pre-squash commit, so the
+    three-dot `<against>...<branch>` form still shows the branch's own changes
+    (its merge-base hasn't moved) and would FALSE-NEGATIVE every squash — i.e.
+    it never detects the case this function exists to detect. Two-dot compares
+    the two tip trees directly, so it is empty exactly when the branch's work is
+    already reflected in `<against>` (the squash-merge signature). Guard (a)
+    keeps an all-revert / no-op branch from being mistaken for squash-merged by
+    requiring real commits beyond the merge-base; guard (b) reserves the plain-
+    ancestor case for the normal-merge predicate.
+
+    Any subprocess error / indeterminate probe returns False — on ambiguity we
+    never treat a branch as merged (so we never delete unmerged work).
+    """
+    if not isinstance(branch, str) or not branch:
+        return False
+
+    # (b) Already a plain ancestor? Then it's the normal-merge path, not the
+    # squash case this predicate is responsible for.
+    if _branch_is_merged_into(toplevel, branch, against):
+        return False
+
+    # (a) Must have >= 1 commit beyond the merge-base, else nothing to judge.
+    merge_base = _git_merge_base(toplevel, against, branch)
+    if merge_base is None:
+        return False
+    try:
+        ahead = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "rev-list",
+                "--count",
+                f"{merge_base}..{branch}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if ahead.returncode != 0:
+        return False
+    count_str = (ahead.stdout or "").strip()
+    try:
+        if int(count_str) < 1:
+            return False
+    except ValueError:
+        return False
+
+    # (c) Is the branch's net diff already in <against>? Two-dot
+    # `<against>..<branch>` compares the two tip trees directly; `--quiet` exits
+    # 0 when there is NO diff (the branch contributes nothing new -> merged,
+    # incl. squash) and 1 when there IS a diff (real un-merged work). Any other
+    # exit code (e.g. 128 on a bad ref) is treated as indeterminate -> not
+    # squash-merged. (See the docstring for why two-dot, not three-dot.)
+    try:
+        diff = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(toplevel),
+                "diff",
+                "--quiet",
+                f"{against}..{branch}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return diff.returncode == 0
+
+
+def _branch_is_merged_or_squash_merged(
+    toplevel: Path, branch: str, against: str = "origin/main"
+) -> bool:
+    """True iff `<branch>` is a plain-merged OR squash-merged into `<against>`.
+
+    (lineage P6 / REQ-CDL-11a) The squash-aware union predicate the opt-in
+    `include_squash_merged=True` paths use: `_branch_is_merged_into(...)` OR
+    `_branch_is_squash_merged(...)`.
+    """
+    return _branch_is_merged_into(
+        toplevel, branch, against
+    ) or _branch_is_squash_merged(toplevel, branch, against)
 
 
 def _branch_cleanly_mergeable(

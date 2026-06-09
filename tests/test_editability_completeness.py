@@ -100,13 +100,23 @@ def test_skill_has_argue_to_convergence_round(plugin_root: Path) -> None:
     )
 
 
-def test_skill_is_multi_pass_and_bounded(plugin_root: Path) -> None:
-    """The user wants it to 'do it again until satisfied' — a bounded multi-pass loop."""
+def test_skill_is_multi_pass_until_converged(plugin_root: Path) -> None:
+    """v3.8.0: the user wants it to 'do it again until satisfied' — a multi-pass
+    loop that runs UNTIL all three reviewers agree on zero gaps. There is no
+    fixed pass cap (per the Unbounded solving discipline)."""
     content = _read(plugin_root, SKILL)
-    assert "multi-pass" in content.lower(), "skill does not document the multi-pass loop"
+    low = content.lower()
+    assert "multi-pass" in low, "skill does not document the multi-pass loop"
     assert "satisfied" in content, "skill does not define the satisfied exit condition"
-    assert "3 passes" in content or "three passes" in content.lower(), (
-        "skill does not bound the multi-pass loop"
+    assert "no fixed pass cap" in low or "loop-until-converged" in low, (
+        "skill must state the loop runs until converged with no fixed pass cap"
+    )
+    assert "unbounded solving" in low, (
+        "skill must reference the canonical Unbounded solving discipline"
+    )
+    # The old give-up bound must be gone.
+    assert "3 passes" not in content and "three passes" not in low, (
+        "the old 3-pass bound must be removed"
     )
 
 

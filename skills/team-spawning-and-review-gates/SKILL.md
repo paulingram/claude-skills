@@ -34,6 +34,74 @@ Two teammates MUST NEVER edit the same file. Period.
 - `reuse_decisions`: the relevant entries from `design.md`'s Reuse Decisions section.
 - `plan_approval_mode`: `true` if any of the triggers below apply.
 
+## CDLG overlap — shared callees, not just shared files (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-01)
+
+File-path scoping (above) catches the case where two teammates edit the SAME
+file. It does NOT catch the more subtle case the lineage roadmap surfaced: two
+work-items edit DIFFERENT files but **share a hot callee** — item A's function
+transitively calls a function that item B's slice also touches. Dispatching those
+two in parallel is a hidden overlap: a change A makes to the shared callee's
+behavior can break B even though their `files_owned` sets are disjoint.
+
+When a Code & Data Lineage Graph (CDLG) exists for the work in scope (built by
+`endpoint-trace-mapping` into `lineage-graph.json`), the parallel-execution graph
++ the `hooks/locks.py` lock layer consult **CDLG overlap as an ADDITIONAL signal
+alongside the file-path check** — never in place of it. The two signals compose:
+a pair of work-items is safe to run in parallel only when they are disjoint on
+BOTH file scope AND call-graph reachability.
+
+The call-graph overlap verdict is the stdlib helper `cdlg_overlap(graph,
+funcs_a, funcs_b)` in `hooks/locks.py`:
+
+- Inputs: the CDLG (`lineage-graph.json` shape) and the two work-items' `func://`
+  node sets (the functions each slice owns/touches).
+- Rule (REQ-PARA-01): two items overlap iff they **share a `func://` node** OR
+  **one item's function set reaches — via `calls` edges in the graph — a function
+  in the other's set**. The reachability walk reuses the CDLG's `calls`-edge
+  vocabulary from `hooks/lineage_graph.py` (the `REACHABILITY_EDGE_KINDS`
+  concept), so the lock layer consumes the lineage graph rather than re-deriving
+  the edge model.
+- Output: `{"overlap": bool, "shared_functions": [...], "shared_subtree": [...]}`
+  — `shared_functions` names the directly-shared nodes, `shared_subtree` names the
+  transitively-reached shared nodes (the callee two items edit different files but
+  both depend on). A non-empty either list means the orchestrator serializes the
+  two items (or assigns the shared callee to ONE owner and has the other consume
+  the result, exactly as the file-overlap rule prescribes).
+
+So the headline rule becomes: **two items that edit different files but share a
+hot callee are flagged as overlapping** and are NOT dispatched in true parallel —
+closing the file-path-only blind spot.
+
+## Canonical front→back traversal (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-02)
+
+The CDLG also enables a single navigable traversal that chains the whole stack:
+
+```
+UI element → endpoint → function tree → data_asset
+```
+
+- **UI element → endpoint** is the inter-service seam — the REQ-DOC-07
+  `serves_route` edge resolved by route/contract matching (NOT call-graph
+  traversal), reusing `INTEGRATION_MAP` + the user-confirmed
+  `INTERACTION_INTUITION_MAP` as priors. This is the REQ-DOC-07 seam the
+  traversal is **built on**: each `serves_route` edge carries its `match_basis`
+  (route pattern / contract) + a `confidence`, and unresolved seams are surfaced,
+  never silently bridged.
+- **endpoint → function tree** is the intra-service call-hierarchy: the `serves`
+  edge (endpoint → handler) and the recursive `calls` edges
+  (`endpoint-trace-mapping`'s nested call-trees).
+- **function tree → data_asset** is the asset-lineage layer: the `reads` /
+  `writes` / `modifies` / `originates` edges from a `func://` node to an
+  `asset://` node (`data-lineage-mapping`).
+
+Walking that chain on the CDLG produces one validated traversal from a UI control
+(an `INTERACTION_INTUITION_MAP` element) all the way to the `data_asset` it
+ultimately reads or writes — for at least the bug subset — with the FE→BE hop
+carrying its match basis + confidence (REQ-PARA-02). This is the "canonical
+front→back map" the roadmap's C5.b calls for: the `fetch()` → handler edge is
+finally resolved to a function, so the traversal does not stop at the endpoint
+boundary.
+
 ## Plan-approval-mode triggers (any one)
 
 If a teammate's scope touches ANY of:

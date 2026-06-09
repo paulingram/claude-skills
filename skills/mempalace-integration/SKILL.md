@@ -41,6 +41,63 @@ The pipeline writes each artifact type into a stable directory location. When th
 
 Keep the pipeline's directory layout stable so these rooms stay consistent across runs. Do NOT attempt to force a room at mine time — there is no flag for it; rely on the directory layout. When a `search --room` query targets one of these rooms, use the canonical names above.
 
+## Function-level lineage records (lineage roadmap P5 — REQ-CDL-10 / REQ-MEM-01 / REQ-MEM-02)
+
+Every record type above is **whole-artifact** granularity (a CODEBASE_MAP, a
+ROUTE_MAP, a diagnostic plan, an RCA). The lineage roadmap adds a finer
+granularity: a **function-level lineage record** so a function lookup — keyed by
+its stable `func://` id — returns its **upstream callers**, **downstream
+callees**, and **data sources**. This is the MemPalace consumer of the Code & Data
+Lineage Graph (CDLG): the records are **mined from `lineage-graph.json`**, the
+machine sidecar `endpoint-trace-mapping` + `data-lineage-mapping` produce.
+
+### What a `func://` lookup returns
+
+Given a `func://<codebase>/<path>#<qualified_name>` id, the record surfaces, from
+the CDLG:
+
+- **Upstream callers** — the `func://` nodes with a `calls` edge INTO this node
+  (`called_by`, the reverse of `calls`). "Who calls this function."
+- **Downstream callees** — the `func://` nodes this node has a `calls` edge INTO.
+  "What this function calls."
+- **Data sources** — the `asset://<store>/<schema>/<table>` nodes this node
+  `reads` / `writes` / `modifies` / `originates`. "What data this function
+  touches" — joined from the `data-lineage-mapping` asset edges.
+
+A diagnostician can then ask the palace "for `func://app/src/sync.py#executeSync`,
+who calls it, what does it call, and what tables does it touch" and get the answer
+from prior runs' mined graphs — instead of re-tracing the live code.
+
+### Keyed by the stable `func://` nomenclature (REQ-MEM-02)
+
+The record's key is the **stable identity nomenclature from
+`hooks/lineage_graph.py`** — `func://…` for functions, `asset://…` for data
+assets — the SAME load-bearing join key the CDLG diffs on. This is what makes the
+records dedup-able and diffable across runs: a re-mined graph for the same
+function lands on the same record rather than accumulating duplicates. When a
+function is renamed but its body is unchanged, the `stable_func_key(...)`
+rename-stability fallback (a body-content fingerprint) keeps the record's history
+attached to the function across the rename instead of orphaning it.
+
+### Records are bounded to the mapped subset (REQ-MEM-01)
+
+Crucially, function-level records are **bounded to the subset that was actually
+mapped** — the bug's in-scope endpoint/function set, never the whole repo. This is
+the same subset-on-demand discipline `endpoint-trace-mapping` enforces for cost
+control (no whole-graph explosion): the palace accumulates function records only
+for functions the CDLG traced, so the store grows with the work done, not with the
+size of the codebase.
+
+### How they are mined
+
+The orchestrator mines `lineage-graph.json` after `endpoint-trace-mapping` /
+`data-lineage-mapping` write it (orchestrator-serialized, like every other mine).
+The graph's nodes + edges become the function-level records; the `func://` /
+`asset://` ids are the record keys. Mining is idempotent (re-mining a graph for an
+unchanged subset is a no-op), and the records layer alongside the whole-artifact
+rooms above — a `search` for a function summary can surface both the function's
+lineage record and any diagnostic plan / RCA that referenced it.
+
 ## Per-workspace palace location
 
 `<workspace>/.mempalace/palace`, gitignored. The `<workspace>` is resolved at pipeline start:

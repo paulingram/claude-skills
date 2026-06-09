@@ -197,11 +197,23 @@ def test_phase_b6_test_coverage_gap_origin_kind(plugin_root: Path) -> None:
     )
 
 
-def test_skill_documents_local_iteration_ceiling(plugin_root: Path) -> None:
+def test_skill_documents_unbounded_solving(plugin_root: Path) -> None:
+    """v3.8.0: the bug-fix loop has NO iteration ceiling — it loops until the
+    symptom is resolved end-to-end and references the canonical discipline."""
     _, body = _read(plugin_root)
-    # The bug-fix-pipeline introduces a local 10-iteration ceiling.
-    assert "10 iteration" in body.lower() or "10 bug-fix" in body.lower(), (
-        "skill must document the local 10-iteration ceiling for bug-fix loops"
+    low = body.lower()
+    assert "unbounded solving" in low, (
+        "skill must reference the canonical Unbounded solving discipline"
+    )
+    assert "no iteration ceiling" in low or "no iteration bound" in low, (
+        "skill must state there is no iteration ceiling / bound for bug-fix loops"
+    )
+    # The old give-up bounds must be gone.
+    assert "10 iteration" not in low and "10-iteration" not in low, (
+        "the old local 10-iteration ceiling must be removed"
+    )
+    assert "20-step ceiling" not in low and "ceiling is 20" not in low, (
+        "the old global 20-step ceiling reference must be removed"
     )
 
 

@@ -149,6 +149,86 @@ The replicator does NOT guess at the steps. A guessed replication that doesn't r
 
 `artifact_executed` and `failing_output_captured` are both **mandatory `true`** for a `reproduced` verdict — the replicator must have actually run the artifact (not just written it) and captured the verbatim failing output (not described it). A verdict file with `artifact_executed: false` is structurally invalid and the completion audit blocks on it. **This is the enforcement mechanism for testing**: the pipeline cannot complete without proof that the replication test was actually executed against the live dev environment.
 
+## Structured bug-isolation (v3.8.0)
+
+Closes REQ-DIAG-01 / REQ-DIAG-02 / REQ-DIAG-05 (the P0 "quick wins" of the CT6 Lineage & Logical Bug-Isolation Upgrade — `docs/LINEAGE_UPGRADE_REQUIREMENTS.md`). The historical failure: diagnosis discovered the relevant code path *while theorizing* — a deep-analysis subagent was dispatched before anyone had frozen the endpoint scope or established, with an executed call, whether the defect even lived on the API side. Cheap, decisive checks were skipped in favor of expensive reasoning. v3.8.0 inserts a **structured pre-diagnosis sequence** so the cheap checks always precede deep analysis.
+
+### The mandatory order
+
+The bug-fix pipeline's pre-diagnosis order is, explicitly:
+
+**replicate → scope-isolate → light-discriminant → call-map → diagnose**
+
+- **replicate** — Phase B1 (already executed above): the symptom is reproduced against the live dev environment and the failing output is captured.
+- **scope-isolate** — the scope-isolation gate below (REQ-DIAG-01): freeze the exact endpoint set the reproduced failure touches.
+- **light-discriminant** — the executed FE/API discriminant below (REQ-DIAG-02): one real authenticated call decides FE-bug vs API-bug BEFORE any code is read deeply.
+- **call-map** — the call-map step below (REQ-DIAG-03 placeholder; full CDLG extraction is P2): lay out the in-scope endpoint's handler chain before forming hypotheses.
+- **diagnose** — only now does deep analysis run: Phase B3's proposal authoring + (when the root cause is unclear) the `diagnostic-research-team` dispatch, **bounded to the frozen scope set**.
+
+**Out-of-order execution is a discipline failure (REQ-DIAG-05).** Running deep diagnosis — dispatching a `diagnostic-researcher`, opening the handler source to theorize — BEFORE the scope artifact and the discriminant verdict have been recorded is a gate failure, not a shortcut. The run ledger MUST show the cheap checks (scope, discriminant) completed and recorded BEFORE any deep-analysis subagent dispatch. This is the run-order analog of the v0.9.36 *"testing must be EXECUTED, not described"* discipline: the cheap checks are not optional reasoning steps, they are recorded artifacts that gate what comes next.
+
+### Scope-isolation gate (REQ-DIAG-01)
+
+Immediately after the B1 `reproduced` verdict, BEFORE B2's artifact promotion, the orchestrator (or the `bug-replicator`, whose evidence the orchestrator records) enumerates the **pages** involved in the reproduced failure and subsets to the **exact endpoints those pages call**. This is frozen as a scope artifact at:
+
+```
+<workspace>/.architect-team/bug-isolation/<bug-slug>/scope.json
+```
+
+Schema:
+
+```json
+{
+  "phase": "scope-isolation",
+  "bug_slug": "<bug-slug>",
+  "pages": ["<route or page url the failure was reproduced on>", "..."],
+  "endpoint_set": ["GET /api/...", "POST /api/...", "..."],
+  "derived_from": ["INTEGRATION_MAP", "INTERACTION_INTUITION_MAP", "ROUTE_MAP", "the captured B1 network log"],
+  "timestamp": "<ISO 8601>"
+}
+```
+
+`pages[]` is the set of routes/screens the reproduced failure exercised; `endpoint_set[]` is the EXACT set of endpoints those pages call (read from the captured B1 Playwright network log + the INTEGRATION_MAP / INTERACTION_INTUITION_MAP priors). **Every later diagnostic step is BOUNDED to `endpoint_set`** — the discriminant calls only in-scope endpoints, the call-map traces only in-scope handlers, the diagnosis cites only in-scope code. A diagnostic step that reaches for code outside the frozen endpoint set is rejected; if the failure genuinely implicates an out-of-scope endpoint, the scope artifact is re-frozen with that endpoint added (an explicit, recorded widening) rather than silently followed.
+
+### Light FE/API discriminant — EXECUTED, not reasoned (REQ-DIAG-02)
+
+Before ANY deep code analysis, make a **real authenticated call against the live dev environment** — the same live-dev discipline as B1/B2 — to the in-scope endpoint(s), **as the affected user**, and assert whether correct data is returned. This single executed call branches the diagnosis: a 4xx/5xx or a correct-shape-but-wrong-data response points at the API; a 2xx returning correct data (while the UI still shows the symptom) points at the frontend. Record the verdict at:
+
+```
+<workspace>/.architect-team/bug-isolation/<bug-slug>/discriminant.json
+```
+
+Schema:
+
+```json
+{
+  "phase": "light-discriminant",
+  "bug_slug": "<bug-slug>",
+  "endpoint": "<the in-scope endpoint the call hit>",
+  "fe_api_verdict": "frontend-bug" | "api-bug" | "inconclusive",
+  "request": {"method": "GET", "url": "<dev URL>", "auth": "<affected-user session>"},
+  "response": {"status": <int>, "body_excerpt": "<first N chars / relevant fields>"},
+  "executed": true,
+  "timestamp": "<ISO 8601>"
+}
+```
+
+`fe_api_verdict` is one of `frontend-bug` (the API returned correct data; the defect is in the client's rendering / state / wiring), `api-bug` (the API returned wrong/missing data or errored), or `inconclusive` (the call could not decide — e.g. the endpoint needs un-synthesizable state; the call-map + deep diagnosis then arbitrate). The verdict MUST be backed by the captured request/response (status + body excerpt) — `executed: true` is mandatory.
+
+**A code-read verdict does NOT satisfy this gate.** *"I read the handler and it looks like the frontend isn't sending the right param, so this is a frontend bug"* is the **"verified by reading the code"** anti-pattern — the exact failure mode v0.9.36's *"testing must be EXECUTED, not described"* discipline forbids. The discriminant is an executed call with captured evidence or it has not happened. The `fe_api_verdict` recorded here is later compared against the layer the fix actually landed in (the `wrong_layer` metric, REQ-SAFE-02 — see `common-pipeline-conventions` `## Run metrics + success measurement (v3.8.0)`); a discriminant that "said FE" but whose fix landed in the API is a measured wrong-layer event, which is only meaningful because the discriminant was a real executed call rather than a guess.
+
+### Call-map step (REQ-DIAG-03 — placeholder hook)
+
+Before hypothesis formation, lay out the in-scope endpoint's recursive call pattern (endpoint → functions → sub-functions). This is the forward-reference seam to the **Code & Data Lineage Graph (CDLG)** and its `ENDPOINT_TRACE_MAP.md` / `lineage-graph.json` extraction (REQ-CDL-06, roadmap phase **P2** — not implemented here):
+
+> **Call-map step:** consume the endpoint trace / CDLG call-map when available (REQ-CDL-06, P2); until then, trace the in-scope endpoint's handler chain manually, bounded to the scope set.
+
+This section is a placeholder hook only — it does NOT implement graph extraction. When the CDLG ships, this step reads the runtime-verified call tree for the in-scope slice; until then the diagnosis traces the handler chain by hand, strictly within `endpoint_set`. Either way the call-map precedes diagnosis, so hypotheses are reasoned against a laid-out structure rather than discovered mid-theorizing.
+
+### Wiring into the phase order
+
+The structured sequence threads the existing phases without renumbering them: **B1 replicate** produces the failing artifact; the **scope-isolation gate** and the **executed light-discriminant** run between B1 and B2 (recorded under `.architect-team/bug-isolation/<bug-slug>/`); **B2** promotes the artifacts; the **call-map step** runs before **B3**'s proposal authoring; **B3/B3b diagnose** (proposal + the `diagnostic-research-team` dispatch when the root cause is unclear) is the deep-analysis step that all of the above gate, and it is bounded to the frozen scope set throughout.
+
 ## Phase B2 — Reproduction-artifact promotion + backend diagnostic
 
 The replication artifact from B1 IS the regression test. Move it to its permanent location in the target codebase's test directory if it isn't already there. The pair the QA replayer will run at B6:
@@ -272,10 +352,10 @@ The replayer's verdict is one of:
   ```
 
   This `issue_discovered` invocation is best-effort and NEVER blocks or alters the bug-fix loop — a notifier failure does not stop the next iteration. The loop continues.
-- **`test-did-not-exercise-fix`** (v0.9.31) — the deploy applied, the artifacts technically passed, the symptom-check looked ok, BUT the code-path witness verdict is `fail` — at least one fix-touched handler with a derivable fingerprint was `not_invoked`. The fix may be correct or wrong; we don't know yet because the test didn't actually exercise it. The replayer writes a solution requirement with `origin.kind: "test-coverage-gap"` and a `gap` field listing every `not_invoked` handler + the likely cause (selector misidentification / precondition skip / sibling-handler entry — directly from the agent's `gap_if_failed` field). The orchestrator routes back to **Phase B2** (re-author the reproduction artifact with corrected selectors + explicit witness assertions; the architect's proposal at B3 is NOT necessarily wrong — the test is). After re-authoring, B3 (re-validate the proposal against the new artifacts) → B4 → B5 → B6 again. **The TEST is on trial here**, not the fix. Emits the same `issue_discovered` notification as `bug-still-present` (with `--summary` carrying the witness gap description) so subscribers see iteration churn regardless of which axis fails. Oscillation detection still applies — 3 consecutive `test-did-not-exercise-fix` verdicts on the same bug escalates to the user (the artifact may need user-provided element IDs).
+- **`test-did-not-exercise-fix`** (v0.9.31) — the deploy applied, the artifacts technically passed, the symptom-check looked ok, BUT the code-path witness verdict is `fail` — at least one fix-touched handler with a derivable fingerprint was `not_invoked`. The fix may be correct or wrong; we don't know yet because the test didn't actually exercise it. The replayer writes a solution requirement with `origin.kind: "test-coverage-gap"` and a `gap` field listing every `not_invoked` handler + the likely cause (selector misidentification / precondition skip / sibling-handler entry — directly from the agent's `gap_if_failed` field). The orchestrator routes back to **Phase B2** (re-author the reproduction artifact with corrected selectors + explicit witness assertions; the architect's proposal at B3 is NOT necessarily wrong — the test is). After re-authoring, B3 (re-validate the proposal against the new artifacts) → B4 → B5 → B6 again. **The TEST is on trial here**, not the fix. Emits the same `issue_discovered` notification as `bug-still-present` (with `--summary` carrying the witness gap description) so subscribers see iteration churn regardless of which axis fails. Recurrence detection still applies — when `test-did-not-exercise-fix` recurs on the same bug (e.g. 3 consecutive verdicts), the loop does NOT stop: it continues from a DIFFERENT angle (re-route the re-authoring through `diagnostic-research-team` for a deeper selector/witness analysis, broaden the artifact, try an alternate gesture strategy) and surfaces the recurrence loudly. If the artifact genuinely needs user-provided element IDs that only the owner can supply, that specific required input is surfaced via the required-input marker while the run keeps working everything else — never a give-up. Per `common-pipeline-conventions` `## Unbounded solving discipline`.
 - **`env-failure`** — the artifacts couldn't run (the dev environment is down, the deploy didn't apply, the browser is mis-configured). Routes to the implementing team for env diagnosis, NOT to the architect. The env issue must be resolved before re-running the replay — but the fix isn't on trial; the env is.
 
-**Loop bounds:** the bug-fix loop is bounded at **10 iterations locally** (a tighter signal than the global 20-step ceiling — most bug fixes should converge in 1-3 iterations; 10 is an early-escalation threshold). The global `dev_loop_iterations` counter in `intake-state.json` increments every B3 → B6 cycle, against the same 20-step absolute ceiling as the main pipeline. Oscillation detection applies: a fix that keeps re-breaking the same symptom (or the same proposal landing 3 times) escalates to the user.
+**Loop bounds (v3.8.0 — none):** the bug-fix loop is UNBOUNDED — it runs until the symptom is gone end-to-end, with no iteration ceiling (most bug fixes converge in 1-3 iterations, but the loop never aborts on count). The `dev_loop_iterations` counter in `intake-state.json` increments every B3 → B6 cycle purely as an observability signal, never as a stop condition. Recurrence detection still applies: a fix that keeps re-breaking the same symptom (or the same proposal landing 3 times) does NOT stop — the loop continues from a DIFFERENT angle (re-route through diagnostic-research, broaden scope, alternate strategy) and surfaces the recurrence loudly. Per `architect-team-pipeline`'s `## Run-state: unbounded solving, concurrency, required-input gates`.
 
 **Verdict file mandate (v0.9.36).** The orchestrator writes a structured verdict file at `<cwd>/.architect-team/bug-fix/<bug-slug>/b6-qa-replay-verdict.json` immediately after the `qa-replayer` returns (overwritten on each B6 iteration — only the final verdict matters for the completion audit). The `pipeline-completion-audit` hook checks for this file's existence and verdict. Schema:
 
@@ -317,7 +397,7 @@ The tool's verdict — `valid: true|false` with named severity gaps — IS the a
   - `gesture-substitution` → re-author the reproduction artifact with the correct user gesture (NOT a corner-click or backdrop selector).
   - `self-verification-loop` → re-author the test such that its creation predates the fix OR its assertion does NOT mirror any substring from the fix's git diff.
   - `prefill-masking` → re-author the setup to drive the test to the bug-exposing state (blank matter, navigate to a genuinely-blank step).
-- **`valid: false` AND qa-replayer verdict is `bug-resolved`** → CONFLICT. The qa-replayer's self-audit missed what the tool caught. Escalate per `## Run-state: iteration ceiling, oscillation, concurrency, escalation` (write `.architect-team/escalation-pending.md` with the conflict report); the human reviews the gap between the qa-replayer's self-audit and the tool's deterministic check before any further routing.
+- **`valid: false` AND qa-replayer verdict is `bug-resolved`** → CONFLICT. The qa-replayer's self-audit missed what the tool caught. Re-route to deeper diagnosis and re-replication; if the gap genuinely needs an owner decision the orchestrator can't make, surface it via the required-input marker per `## Run-state: unbounded solving, concurrency, required-input gates` (write `.architect-team/escalation-pending.md` with the conflict report) while continuing all other work; the owner reviews the gap between the qa-replayer's self-audit and the tool's deterministic check before any further routing.
 - **`valid: true` AND qa-replayer verdict is `bug-resolved-verification-suspect`** → CONFLICT in the other direction (the qa-replayer was more conservative than the tool). Surface the conflict but DEFAULT to the qa-replayer's more conservative verdict — route to Phase B2 re-replication with the suspect mode. The tool's `valid: true` may be a false negative on the tool's heuristics; the agent's self-audit may have caught something the tool's static rules don't see (a novel gesture-substitution shape, e.g.).
 
 The schema v7 evidence file's optional `live_verification_review` field MUST cite this verdict path (`live_verification_review: {verdict: "pass" | "fail", verdict_path: "<vao-verdicts/<bug-slug>-live-verification.json>"}`). If the qa-replayer's `verified_live: true` is claimed in evidence, the schema v7 hook requires the field to be present and non-`fail`.
@@ -345,9 +425,9 @@ B6's QA-replay verifies the ORIGINAL symptom is gone (clicking Sign Back In rout
    - **Any `env-failure`** → routes to the implementing team for env diagnosis (parity with B6's `env-failure` handling).
    - **Any `not-reachable`** → logged in the verdict file as an audit-trail item; no SR generated (the item being not-reachable means the fix can't have broken it from the user's view).
 
-### Bounded recursion
+### Unbounded recursion (loop until resolved)
 
-The fix-regression loop counts against the global 20-step iteration ceiling per `architect-team-pipeline`'s run-state rules. **Plus** a tighter local rule: **3 consecutive fix-regression SRs on the same bug-fix run escalates to the user** (the original bug likely has a deeper architectural issue that needs human attention; auto-fixing further is wasted effort until the human reviews the chain). Track the fix-regression-cycle counter in the SR ledger.
+The fix-regression loop runs until the bug is resolved end-to-end — there is NO iteration ceiling, per `architect-team-pipeline`'s `## Run-state: unbounded solving, concurrency, required-input gates`. Keep DETECTING recurrence: when the SAME fix-regression recurs (the original bug likely has a deeper architectural issue), do NOT stop — continue from a DIFFERENT angle: re-route through `diagnostic-research-team` for a deeper root-cause pass, broaden the fix scope, or try an alternate strategy, and surface the recurrence loudly. Track the fix-regression-cycle counter in the SR ledger purely as an observability signal. Only a genuine need for owner input (a deeper design decision only the owner can make) becomes a required-input pause via the marker — never a give-up.
 
 ### The --no-deploy skip
 
@@ -389,6 +469,10 @@ On `bug-resolved` at B6 (AND the v2.21.0 target-element gate passing):
    - Final statement: **"Bug `<bug-slug>` has been resolved."** Followed by the archive path.
 
 ## Phase B8 — Commit + push
+
+### Run-metric recording (v3.8.0)
+
+As part of Phase B8, record the run's §6 success metrics via `hooks/run_metrics.record_run_metrics(workspace, run_id, metrics)` — `dev_loop_iterations`, `first_pass_fix`, `oscillation_count`, `bug_still_present_count`, `fix_regression_count`, `fe_api_verdict` (from `discriminant.json`), `layer_fixed`, the derived `wrong_layer`, and the REQ-DOC-06 `cdlg_edge_recall` / `cdlg_hallucination_rate` (None until the CDLG ships). The metrics land at `<workspace>/.architect-team/run-metrics/<run_id>.json` and are mined to MemPalace run-history. See `common-pipeline-conventions/SKILL.md` `## Run metrics + success measurement (v3.8.0)` for the canonical home + the frozen-bug-benchmark protocol.
 
 ### Deploy mandate final gate (v2.20.0)
 
@@ -456,7 +540,7 @@ This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters t
 
 ## Operating rules (non-negotiable)
 
-The bug-fix pipeline inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — including the no-arbitrary-timers rule, the iteration ceiling, the shared-state concurrency model, the escalation-marker discipline, the safety rules for the auto-commit step, and the documentation-currency gate. **Plus**:
+The bug-fix pipeline inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — including the no-arbitrary-timers rule, the unbounded-solving discipline (no iteration ceiling; loop until resolved), the shared-state concurrency model, the required-input-marker discipline, the safety rules for the auto-commit step, and the documentation-currency gate. **Plus**:
 
 - **Replicate before propose.** Phase B1 MUST return `reproduced` before B3 can run. A proposal authored on an un-reproduced bug is the failure mode this skill exists to prevent.
 - **Reproduction is the regression test.** No "now write the test" second step. The replication artifact IS the test.
@@ -464,7 +548,7 @@ The bug-fix pipeline inherits every operating rule from `architect-team-pipeline
 - **Generalization is non-negotiable.** The Phase B4 audit's verdict gates B5. A `needs-generalization` or `needs-replacement` verdict returns the proposal to B3; the implementing team does NOT proceed until the architect's verdict is `pass`.
 - **QA replay against live dev.** Phase B6 runs against the deployed dev environment, not against local code. The pass criterion is symptom-gone-end-to-end.
 - **Production deploys escalate.** Phase B5 NEVER auto-deploys to production. The `--environment production` flag triggers an explicit user-confirmation question.
-- **Local 10-iteration bound, global 20-step ceiling.** A bug-fix loop that reaches 10 iterations escalates to the user; one that reaches 20 hard-stops.
+- **Unbounded solving (v3.8.0).** There is NO iteration bound or ceiling — the bug-fix loop runs until the symptom is gone end-to-end. Never abort on iteration count. On a recurring fix-regression, continue from a DIFFERENT angle (re-route through diagnostic-research, broaden scope, alternate strategy) and surface the recurrence loudly WITHOUT halting. The only interruptions are reaching resolution or pausing to collect required owner input (the required-input marker). Per `common-pipeline-conventions` `## Unbounded solving discipline`.
 - **Don't silently narrow the prompt's scope (v1.4.0).** If the bug-fix pipeline's reading of the user's report is materially narrower than the prompt's literal meaning — particularly when the report contains a parity-implying verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) — surface the scope decision via `AskUserQuestion` BEFORE Phase B1 replication. The user's answer becomes the contract; silent reframing is the anti-pattern. Per `common-pipeline-conventions` `## Scope discipline`. Structurally the same shape as the v0.9.36 anti-deferral rule below, fired EARLIER in the timeline (intake instead of mid-run).
 - **Teammates MUST NOT run destructive git operations (v1.6.0).** The bug-fix pipeline's `bug-replicator`, `backend`, `frontend`, `qa-replayer`, and `fix-sensibility-checker` teammates MUST NOT run `git stash` / `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>` / `git checkout .`, or `git clean -f`. These manipulate state shared across teammates within the same run and caused the heirship-app-v2 reflog clobbering (concurrent stash + pop interleaving lost three of four teammates' work). For baseline verification, the orchestrator captures `BASELINE_SHA=$(git rev-parse HEAD)` at the bug-fix Phase B−1 entry and includes it in every teammate's spawn brief; teammates run `git diff $BASELINE_SHA -- <my-files>` instead of stashing. Per `common-pipeline-conventions` `## Teammate git discipline`.
 - **Fix every bug you identify — never defer to "separate runs" (v0.9.36).** When the pipeline identifies multiple bugs (from replication, from QA replay, from sensibility checks, or from the user's description listing several symptoms), it fixes ALL of them in the current run. The orchestrator does NOT cluster bugs and then decide some clusters "merit a focused `/architect-team:bug-fix` run" or "would suffer in depth if batched here." That is the pipeline refusing to do its job. If the user listed 5 bugs, fix 5 bugs. If QA replay surfaces a regression, fix it in-loop (that is what the B6→B3 cycle exists for). If sensibility checks find 3 broken pages, those become SRs that resolve in-run. The ONLY legitimate deferral is an explicit user instruction ("skip this one for now", "don't fix cluster D") — silence is NOT deferral authorization.

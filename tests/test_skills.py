@@ -44,6 +44,8 @@ EXPECTED_SKILLS: set[str] = {
     "domain-research-team",
     "api-design-from-frontend",
     "data-engineering-exploration",
+    "endpoint-trace-mapping",
+    "data-lineage-mapping",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

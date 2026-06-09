@@ -54,10 +54,28 @@ def test_phase_header_present(plugin_root: Path, phase_header: str) -> None:
     assert phase_header in body, f"missing phase header: {phase_header}"
 
 
-def test_skill_documents_cycle_cap(plugin_root: Path) -> None:
+def test_skill_documents_unbounded_handoff(plugin_root: Path) -> None:
+    """v3.8.0: there is NO give-up cycle cap. When the same proposal keeps
+    landing red (recurrence), the mini run HANDS OFF to the full unbounded
+    /architect-team pipeline on the same branch — a continuation of solving,
+    not a stop. The skill references the canonical Unbounded solving discipline."""
     _, body = _read(plugin_root)
-    assert "cycle cap" in body.lower() or "cap = 3" in body.lower() or "cycle 4" in body.lower(), (
-        "skill must document the cycle cap of 3 with escalation on cycle 4"
+    low = body.lower()
+    assert "unbounded solving" in low, (
+        "skill must reference the canonical Unbounded solving discipline"
+    )
+    assert "no iteration ceiling" in low or "no give-up cap" in low, (
+        "skill must state there is no iteration ceiling / give-up cap"
+    )
+    assert "recurrence" in low, (
+        "skill must frame the red-cycle trigger as recurrence (a signal to hand off)"
+    )
+    assert "hand off" in low or "hands off" in low or "hand-off" in low, (
+        "skill must describe handing off to the full pipeline (a continuation, not a stop)"
+    )
+    # The old give-up framing must be gone.
+    assert "cycle cap = 3" not in low and "escalate on cycle 4" not in low, (
+        "the old 'cycle cap = 3 / escalate on cycle 4' give-up framing must be removed"
     )
 
 

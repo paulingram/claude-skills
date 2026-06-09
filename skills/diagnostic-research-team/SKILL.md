@@ -35,6 +35,28 @@ The orchestrator passes:
 
 If ANY of the above is missing or malformed, the skill returns to the originating teammate to fix the missing artifact first. Diagnostic research without the expectation + RCA is just re-running the teammate's analysis.
 
+## Consuming the verified CDLG (lineage roadmap P2 — REQ-CDL-06 / REQ-DIAG-03 / REQ-DIAG-04)
+
+When the lineage foundation (P1) has produced a Code & Data Lineage Graph for the bug's in-scope endpoint subset, the three researchers **CONSUME the pre-built nested call-hierarchy as their call-map input instead of re-tracing the code flow from scratch.** The CDLG is the artifact the `endpoint-trace-mapping` skill builds — `<codebase>/docs/ENDPOINT_TRACE_MAP.md` (the human view: per-endpoint mermaid call-trees with greppable `func://` ids) plus its machine sidecar `lineage-graph.json`. This is the whole point of laying out the call/data structure FIRST and reasoning against a known map rather than discovering the path *while theorizing* — the roadmap's C1.c "recursive call-hierarchy before diagnosing."
+
+### The witness gate is a hard precondition (REQ-DIAG-03)
+
+Consumption is **gated on runtime-witness verification** — the researchers MUST NOT consume a subgraph that has not passed the trust gate. The deterministic gate lives in **`hooks/lineage_graph.py`**:
+
+- `reconcile_with_witness(graph, witness_executed_edges)` compares the graph's claimed-executed edges against the `(src, dst)` edges the `code-path-witness.json` observed firing during replication, returning `edge_recall` + `hallucination_rate`.
+- `witness_gate(reconciliation, recall_threshold=0.9, hallucination_ceiling=0.05)` decides admissibility. **A subgraph below the recall threshold or above the hallucination ceiling is REJECTED** — the researchers do NOT trust it. Instead the orchestrator routes the gap back to `endpoint-trace-mapping` for a targeted re-trace of the missed/hallucinated edges, and diagnosis resumes only once the subset passes. This is the CT6 anti-hallucination discipline applied to the call-map itself: the map is consumed because it is *grounded against executed reality*, not because it was produced.
+
+Concretely, what each researcher does with a witness-gated CDLG instead of re-tracing:
+
+- **Section 1 (Full code flow examination)** anchors on the CDLG's call-tree: the forward/backward trace cites the graph's `func://` nodes and `calls` / `serves` edges directly (the pre-built nested call-hierarchy), rather than re-walking the source to rediscover the hops. The researcher still annotates `file:line` and data shapes, but the *structure* is given, not rederived. Boundary crossings are the graph's `serves_route` edges (the FE→BE seam, carrying their `match_basis` + confidence).
+- **Section 2 (Ranked hypotheses)** attaches each hypothesis to a graph node/edge — every hop in the call-tree with a plausible failure mode is a hypothesis candidate, and the architect's Phase B coverage check (does every hop have a hypothesis?) is checked against the graph's node set.
+
+### The data-source existence check cites the `asset://` node (REQ-DIAG-04)
+
+The data-source existence check (the backtrack of the function + its parameters into the table/store to verify whether the data lives at source) cites the specific data-layer node by its **`asset://<store>/<schema>/<table>` id** from the CDLG, together with the present/absent verdict and the query/evidence that produced it. The asset node and the `reads` / `writes` / `modifies` / `originates` edges connecting it to the implicated `func://` nodes come from `lineage-graph.json` (populated by the `data-lineage-mapping` skill); the researcher does not re-derive which functions touch the asset — the graph already records it.
+
+When **no** CDLG exists for the bug subset (the foundation has not run, or the witness gate cannot be cleared), the researchers fall back to the inline forward/backward trace described below — the CDLG is an accelerant and a trust-anchored input, not a hard dependency for the skill to function.
+
 ## Phase A — Spawn three diagnostic researchers in parallel
 
 The orchestrator dispatches three `diagnostic-researcher` subagents simultaneously. Each receives an identical brief containing all six inputs above plus its researcher index (1, 2, or 3).
@@ -120,7 +142,7 @@ Containing per-criterion `pass` / `gap` annotations and, if any criterion is `ga
 1. If ALL seven criteria pass → proceed to Phase C.
 2. If ANY criterion is `gap` → re-dispatch the named researchers with the gap directive. Each re-dispatch is a fresh, focused pass on the gap — not a full re-research. The re-dispatched researcher updates its draft (`-v2`, `-v3` ...). Loop until ALL criteria pass.
 
-This loop is bounded: maximum 3 architect-review cycles. If the third cycle still shows gaps, the architect must surface to the human user via the orchestrator that the diagnostic plan cannot converge automatically — usually this means a critical input is missing (a stale CODEBASE_MAP, an absent expectation file, a redacted log) and the loop cannot make progress until the human resolves it.
+This loop runs until the architect converges — there is NO fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each cycle that still shows gaps sends the named researchers back for a deeper pass; the loop continues until all seven criteria pass and the architect produces an approved diagnostic plan. If progress genuinely stalls because a critical input is missing that only the owner can supply (a stale CODEBASE_MAP that needs refreshing, an absent expectation file, a redacted log), the architect surfaces that specific required input to the owner via the orchestrator — loudly, while the rest of the run continues — and resumes the loop once it is provided. The loop never halts on cycle count; only a genuine missing-required-input pause (not exhaustion) interrupts it.
 
 ## Phase C — Consolidated diagnostic plan
 

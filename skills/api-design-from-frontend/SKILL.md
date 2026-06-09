@@ -37,7 +37,7 @@ The caller passes a structured `inputs` object:
 
 ## Phase A1 — Stage 5: per-page REST returns
 
-For every page (or analogous unit — modal / widget / dashboard panel) in the input artifacts, derive the REST returns the page needs. Apply the v0.9.19 3-reviewer convergence pattern wrapped in `/ralph-loop "<stage-5 review prompt>" --completion-promise "API RETURNS MAP COMPLETE" --max-iterations 8`.
+For every page (or analogous unit — modal / widget / dashboard panel) in the input artifacts, derive the REST returns the page needs. Apply the v0.9.19 3-reviewer convergence pattern wrapped in `/ralph-loop "<stage-5 review prompt>" --completion-promise "API RETURNS MAP COMPLETE"`. The loop runs until the completion-promise is satisfied (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 For each page entry:
 
@@ -93,7 +93,7 @@ For each endpoint:
 
 Output: `<output_dir>/API_DESIGN_MAP.md` with frontmatter `{generated_at, endpoints_count, user_types[]}`.
 
-3-reviewer convergence wrapped in `/ralph-loop "<stage-6 review prompt>" --completion-promise "API DESIGN MAP COMPLETE" --max-iterations 8`.
+3-reviewer convergence wrapped in `/ralph-loop "<stage-6 review prompt>" --completion-promise "API DESIGN MAP COMPLETE"`. The loop runs until the completion-promise is satisfied (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 ## Phase A3 — Stage 7: backend data architecture + OpenSpec authoring
 
@@ -135,7 +135,7 @@ Output: `<output_dir>/DATA_ARCHITECTURE_MAP.md` with frontmatter `{generated_at,
 
 Hand-written OpenSpec JSON is forbidden.
 
-3-reviewer convergence wrapped in `/ralph-loop "<stage-7 review prompt>" --completion-promise "DATA ARCHITECTURE MAP COMPLETE" --max-iterations 8`.
+3-reviewer convergence wrapped in `/ralph-loop "<stage-7 review prompt>" --completion-promise "DATA ARCHITECTURE MAP COMPLETE"`. The loop runs until the completion-promise is satisfied (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 ## Phase A4 — Return verdict
 

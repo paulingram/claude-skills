@@ -81,8 +81,10 @@ The route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `
 Wrap the review in:
 
 ```
-/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE" --max-iterations 10
+/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"
 ```
+
+The loop runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 Where the review prompt instructs the orchestrator to:
 
@@ -102,9 +104,9 @@ Where the review prompt instructs the orchestrator to:
 4. Otherwise: aggregate the deficiencies (deduplicate, sort by `map` then `section`), dispatch a targeted update request:
    - For `map: codebase` deficiencies → re-trigger cartographer in update mode, naming the deficient sections.
    - For `map: route` deficiencies → re-trigger route-mapper with the deficient routes/sections.
-5. Loop. The ralph-loop's `--max-iterations 10` cap prevents runaway.
+5. Loop until the completion-promise fires. There is no iteration cap — the loop drives on convergence (all 3 reviewers `ok`), not a count.
 
-If the loop hits the iteration cap without "CODEBASE MAP COMPLETE", surface this to the user as a blocker — do not proceed silently.
+If the map genuinely cannot converge because a required input only the owner can supply is missing (e.g. an inaccessible private dependency the reviewers cannot read), surface that specific required input to the owner — loudly, while continuing all other work — and resume once it is provided. The loop never halts on iteration count.
 
 ## Phase −1D — Interaction intuition (per-frontend-codebase production + bulk-verify gate)
 
@@ -152,8 +154,10 @@ The prior 3 `integration-explorer` agents are now invoked AS researchers by `dom
 The pre-v3.4.0 inline flow ran 3 `integration-explorer` agents directly with the synthesis prompt below. That flow now runs INSIDE `domain-research-team` Phase R2. The prompt below documents the conceptual contract; the skill body documents the canonical implementation:
 
 ```
-/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE" --max-iterations 8
+/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE"
 ```
+
+The loop runs until the completion-promise is satisfied (all 3 explorers confirm); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 Synthesis prompt (legacy reference):
 

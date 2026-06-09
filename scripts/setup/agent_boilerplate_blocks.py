@@ -79,7 +79,7 @@ STANDARD_AGENTS_FORBIDDEN_GIT = [
     "backend", "bug-classifier", "bug-replicator", "codebase-map-reviewer",
     "diagnostic-researcher", "doc-updater", "editability-reviewer",
     "fix-sensibility-checker", "flow-executor", "flow-explorer", "frontend",
-    "domain-researcher",
+    "domain-researcher", "endpoint-tracer",
     "integration", "integration-explorer", "interaction-intuiter",
     "interaction-reviewer", "master-synthesizer", "mini-qa", "monitor-synthesizer",
     "prompt-refiner", "qa-replayer", "reconciler", "route-mapper", "scaffold-agent",

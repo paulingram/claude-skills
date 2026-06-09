@@ -2322,6 +2322,75 @@ Every frontmatter block carries `generated_at` (an ISO-8601 timestamp of the gen
 - The existing `*_MAP.md` siblings whose convention these five match: `docs/CODEBASE_MAP.md`, `frontend-route-mapping` (`ROUTE_MAP.md`), `design-fidelity-mapping` (`DESIGN_MAP.md`), `docs/INTEGRATION_MAP.md`, and `interaction-intuition` (`INTERACTION_INTUITION_MAP.md`).
 - `openspec/changes/exploration-pipeline/design.md` `## Standardized documentation schema` is the design source these five docs were specified in.
 
+## Unbounded solving discipline (v3.8.0)
+
+The dev-loop runs until **SUCCESS** and never halts on iteration count or oscillation. There is **NO iteration ceiling**. The pipeline never aborts because it has looped "too many" times, and it **never stops on incomplete work**. The only two things that ever interrupt the loop are (1) reaching success — every coverage-map requirement green, every gate passed, every solution requirement resolved — or (2) a deliberate pause to collect genuinely-required owner input the run cannot synthesize itself.
+
+### What "success" means
+
+The run is done ONLY when all of the following hold: every requirement in `coverage-map.json` is green; every review gate (interaction-completeness, editability-completeness, visual-fidelity, test-completeness, master-review, documentation-currency) has passed; and every solution requirement has reached `resolved` (or a user-confirmed `confirmed-stub`). Nothing less is "done."
+
+### The completion-audit is a WORKLIST, not a halt-gate
+
+`hooks/pipeline-completion-audit.py` enumerates what is still incomplete — open SRs, test-failure SRs with no diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness debt, a failing master-review or documentation-currency verdict. **These are the worklist the loop keeps closing until empty**, not a give-up gate. Each Stop the audit re-runs; the run keeps closing items until the audit is clean (success). There is no iteration symbol in the audit — a high `dev_loop_iterations` value never produces a violation. (The `dev_loop_iterations` counter still exists purely as an observability signal for the ledger; it is never a stop condition.)
+
+### Oscillation → continue from a different angle (never stop)
+
+Recurrence DETECTION is kept: when the same fix recurs (the same file / requirement fixed a 3rd time, or fix-for-A re-breaking B), that is oscillation. The response is **never to stop** — continue from a DIFFERENT angle: re-route through `diagnostic-research-team` for a deeper root-cause pass, broaden the fix scope to address both requirements in tension together, or try an alternate strategy. Surface the recurrence loudly to the user, and keep working.
+
+### Genuinely-external blockers are surfaced loudly — the run keeps working
+
+A real external blocker — a credential the run does not have, a design decision only the owner can make, a push rejected by branch protection — is surfaced loudly (the required-input / `escalation-pending.md` marker) AND the run keeps working and retrying everything else it can in the meantime. Collecting required owner input is a pause to gather a specific input, not a give-up; it is the ONLY sanctioned interruption other than success. The marker is never written for exhaustion, iteration count, or oscillation.
+
+### What is KEPT (these make "success" real, not limits)
+
+- The **3-pass RCA rigor floor** in `root-cause-test-failures` — a MINIMUM depth of analysis, not a cap. Kept verbatim.
+- The **shared-state concurrency model** — unique artifact paths; the orchestrator is the sole writer of `coverage-map.json` / `intake-state.json` / the MemPalace store. Kept verbatim.
+- The **executed-not-described** and **evidence-file** disciplines — every claimed test is actually executed with output captured; verdict files are the structural proof. Kept verbatim.
+- The **domain-gate question content** (a genuine `ambiguous` classification, an editability attribute the requirements never settled, a Stage-N requirement only the owner can decide) — these collect required owner input; they are not exhaustion give-ups.
+
+### Pipeline bodies reference this section
+
+The four pipeline / ux bodies (`architect-team-pipeline`, `bug-fix-pipeline`, `mini-architect-team-pipeline`, `ux-test-builder`) reference this canonical section in place of any local "iteration ceiling" / "oscillation abort" / "bounded loop → escalate" prose. The sub-loop skills (`diagnostic-research-team`, `editability-completeness`, `interaction-completeness`, `expensive-verification-debugging`) and the mapping ralph-loops (`intake-and-mapping`, `cartographer-team`, `api-design-from-frontend`, `data-engineering-exploration`, `visual-to-api-design`) drive on their completion-promise / convergence with no numeric cap, referencing this section.
+
+## Run metrics + success measurement (v3.8.0)
+
+This is the canonical home of the bug-fix run-metric discipline (REQ-CDL-02 / REQ-SAFE-02 of the CT6 Lineage & Logical Bug-Isolation Upgrade — `docs/LINEAGE_UPGRADE_REQUIREMENTS.md` §6). The upgrade is a multi-phase investment that MUST be justified by **measured** outcomes, not faith. Without per-run metrics recorded to a queryable location, before/after is noise. Each bug-fix run records the §6 metrics so the structured-bug-isolation reorder (and, later, the CDLG) can be proven to help.
+
+### The metrics
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `dev_loop_iterations` | int | Phase B3 → B6 (Phase 2 → 5) loops per run — the **primary** counter. |
+| `first_pass_fix` | bool | the 1st proposed fix reached `bug-resolved` at qa-replay. |
+| `oscillation_count` | int | recurrence trips (the same fix re-applied; fix-for-A re-breaking B). |
+| `bug_still_present_count` | int | `bug-still-present` qa-replayer verdicts. |
+| `fix_regression_count` | int | `fix-regression` SRs surfaced at Phase B6b. |
+| `fe_api_verdict` | str | the REQ-DIAG-02 discriminant verdict (`frontend-bug` / `api-bug` / `inconclusive`). |
+| `layer_fixed` | str | the layer the fix actually landed in (`frontend` / `api` / `backend` / ...). |
+| `wrong_layer` | bool | derived — the discriminant said FE but the fix was API (or vice-versa). |
+| `cdlg_edge_recall` | float \| None | REQ-DOC-06 witnessed-edges-present ratio (None until the CDLG ships). |
+| `cdlg_hallucination_rate` | float \| None | REQ-DOC-06 edges asserting execution the witness did not fire (None until the CDLG ships). |
+
+### Where they are recorded
+
+Metrics are written via **`hooks/run_metrics.py`** — `record_run_metrics(workspace, run_id, metrics)` merges a (possibly partial) metrics dict into `<workspace>/.architect-team/run-metrics/<run_id>.json` (atomic-ish: write-temp-then-replace; merge semantics so successive calls across phases accumulate without losing prior keys), `read_run_metrics(workspace, run_id)` reads it back (`{}` when absent), and `compute_wrong_layer(fe_api_verdict, layer_fixed)` derives the wrong-layer flag (FE-verdict + API-fix → True; an `inconclusive` / unrecognized verdict → False). The module is stdlib-only with no import side effects, and exposes a documented `METRIC_KEYS` tuple naming the metrics above. The run-metrics JSON is the **run ledger** record; it is ALSO mined to the **MemPalace run-history** so before/after is queryable across runs. The `bug-fix-pipeline` records them at Phase B8 ("record run metrics via `hooks/run_metrics.record_run_metrics`").
+
+### The frozen-bug-benchmark protocol
+
+Before/after only means something against a fixed corpus — measured on shifting bugs it is noise. The protocol:
+
+1. **Assemble** a fixed corpus of **N reproducible bugs** replayed from CT6 run-history (already mined to MemPalace), each with a known reproduction.
+2. **Baseline** — run the current pipeline over the corpus ONCE and record each run's metrics via `record_run_metrics`. This is the pre-change baseline.
+3. **Re-run** the same corpus after each change (the structured-bug-isolation reorder; later each CDLG phase) and record metrics the same way.
+4. **Compare** — the **primary** outcome is the **median `dev_loop_iterations` per verified fix** (target: a meaningful reduction vs baseline), read with the **correctness guards** so the primary cannot be won by shipping faster wrong fixes:
+   - `first_pass_fix` rate must **hold or improve**,
+   - `oscillation_count` + `bug_still_present_count` + `fix_regression_count` must **hold or decrease**,
+   - the `wrong_layer` rate (discriminant said FE but fix was API, or vice-versa) must **decrease**,
+   - once the CDLG ships, `cdlg_edge_recall` ↑ / `cdlg_hallucination_rate` ↓ against the runtime witness.
+
+The headline number is *median Phase B3 → B6 iterations per verified bug fix, on the frozen benchmark, with the first-pass-correct rate held or improved.* The guards exist precisely so the median cannot be gamed by faster-but-wrong fixes.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.

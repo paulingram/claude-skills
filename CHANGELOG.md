@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.8.0] — 2026-06-09 — Unbounded solving (no run limits) + Code & Data Lineage Graph (CDLG) foundation
+
+**MINOR — two owner-directed deliverables on one branch.**
+
+### 1. Unbounded solving — all run/iteration limits removed (loop until success)
+
+Per the owner directive *"remove all limits … agents must figure out the problems and cannot stop until success"* (hard-literal), reconciled to **nothing can BLOCK or HALT the run; the completeness checks become the worklist that keeps the loop running until everything is green**:
+
+- **Removed** the global dev-loop iteration ceiling (`ITERATION_CEILING`/`_audit_iteration_ceiling` deleted from `hooks/pipeline-completion-audit.py`); oscillation→abort (now: continue from a different angle + surface, never stop); exhaustion→escalate-and-stop; and the bounded sub-loop caps (diagnostic-research 3-cycle, editability/interaction 3-pass, expensive-verification 2-cycle-stop, mapping ralph `--max-iterations N`) → **loop-until-converged**.
+- **Kept** (not give-up limits): the completion-audit's other 7 checks (they now define "not yet success" — the worklist), the shared-state concurrency model, the 3-pass RCA *rigor floor*, the executed-not-described disciplines, and the escalation marker for **required owner input only** (a credential / a design decision only the owner can make).
+- New canonical `## Unbounded solving discipline (v3.8.0)` in `common-pipeline-conventions`; the 4 pipeline/ux bodies reference it.
+
+### 2. Code & Data Lineage Graph (CDLG) — lineage roadmap P0–P6
+
+Executes `docs/LINEAGE_UPGRADE_REQUIREMENTS.md`:
+
+- **P0** `bug-fix-pipeline` reorder: replicate → scope-isolate → EXECUTED light FE/API discriminant → call-map → diagnose (cheap, evidence-backed checks before deep analysis).
+- **P0.5** `hooks/run_metrics.py` per-run metric instrumentation + the frozen-bug-benchmark protocol.
+- **P1** NEW `hooks/lineage_graph.py` (stdlib): graph schema+validator, `func://`/`asset://` ID nomenclature (rename-stable via content fingerprint), **runtime-witness reconciliation** (recall/hallucination + `witness_gate` — reuses the existing `code-path-witness.json` as ground truth, REQ-DOC-06), transitive freshness, cost/truncation; NEW `endpoint-trace-mapping` skill + `endpoint-tracer` agent (two-layer extraction + witness-verification contracts).
+- **P2** `diagnostic-research-team` consumes the verified CDLG (witness-gated) instead of re-tracing.
+- **P3** NEW `data-lineage-mapping` skill (Reuse Decision vs `data-engineering-exploration`).
+- **P4** `hooks/locks.py::cdlg_overlap` (call-closure-intersection — flags a shared hot callee, not just shared files) + canonical front→back traversal docs.
+- **P5** `mempalace-integration` function-level lineage records keyed by `func://`.
+- **P6** `worktree_lifecycle.py` squash-merge detection (opt-in, no false-positive) + task-aware worktree heuristic.
+
+### Post-build adversarial review (hardening)
+
+Two independent reviewers (correctness/safety + perf/design) verified findings by executing code: the cyclic-graph infinite-loop and squash-merge false-positive risks are repro-confirmed safe. Fixes applied: `transitive_stale_nodes` rewritten O(V²)→O(V+E) single reverse-BFS (equivalence-verified); two stale "iteration ceiling (20)" docs scrubbed; `func://`/`asset://` ID docstrings corrected to state the delimiter-char round-trip precondition; and **`list_run_branches` now defaults `against="origin/main"` (was `main`)** so its "already-merged?" judgment agrees with the v1.3.0 sweep and catches a branch landed on `origin/main` via a GitHub PR while local `main` is stale — the deliberate API split is documented (already-merged checks judge the published `origin/main`; the merge operation targets local `main`).
+
+**Honest boundary:** P1's live polyglot call-graph extraction against arbitrary target repos is the agent's runtime job and is NOT claimed proven (kill-gated per the doc §7.1); the deterministic pieces (schema/ID/witness-reconciliation/freshness/cost) are real + unit-tested. Skills 38→40, agents 33→34. Suite 3673→3870 passing (+5 skipped).
+
 ## [3.7.0] — 2026-06-07 — Auto-merge-to-main + prune (self-tidying runs) + startup branch reconciliation
 
 **MINOR — additive, fully backwards-compatible.** Makes autonomous architect-team runs self-tidying: a clean Phase 8 / B8 / M7 run now lands on `main` and cleans up after itself instead of leaving a growing pile of feature branches + worktrees behind a manual PR step. `AUTO_MERGE_MAIN` defaults to `true`; `--no-auto-merge` restores today's feature-branch + PR behavior.

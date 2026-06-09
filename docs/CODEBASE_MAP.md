@@ -141,7 +141,7 @@ Runtime state is written under `<workspace>/.architect-team/` (gitignored) and `
 |---|---|
 | `phenotypes` | (v2.3.0) Discover/match/emit pre-made generalized deployable architectures (blueprint + scaffold + metadata under `phenotypes/`); proposed reuse-first or via `--phenotype`, never silent. Engine: `scripts/phenotypes/phenotypes.py`. Seeded with `user-management` + `config-management` + `ai-management`. |
 | `phenotype-absorption` | (v2.3.0) The absorb playbook — ingest any arbitrary codebase into a new labeled phenotype (analyze → generalize → scaffold → validate → index). Reached via `/architect-team:absorb-phenotype <path> --label <name>`. |
-| `architect-team-pipeline` | The orchestrator playbook — Phase −1 → 8. Run-state rules: iteration ceiling (20), oscillation detection, the shared-state concurrency model, the escalation marker. |
+| `architect-team-pipeline` | The orchestrator playbook — Phase −1 → 8. Run-state rules: unbounded solving (loop until success — no iteration ceiling as of v3.8.0; oscillation continues from a different angle rather than aborting), the shared-state concurrency model, the required-input escalation marker. |
 | `intake-and-mapping` | Phase −1 codebase discovery + the per-codebase / integration ralph loops. Map-invalidation flag forces re-validation of a wrong-but-fresh map. |
 | `reuse-first-design` | The extend > compose > reuse > build-new ladder; the Reuse Decision Log. |
 | `frontend-route-mapping` | ROUTE_MAP.md schema + completeness rubric. |

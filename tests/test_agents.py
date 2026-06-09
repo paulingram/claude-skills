@@ -39,6 +39,7 @@ EXPECTED_AGENTS: set[str] = {
     "test-run-watcher",
     "monitor-synthesizer",
     "domain-researcher",
+    "endpoint-tracer",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
