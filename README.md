@@ -469,7 +469,7 @@ The orchestrator runs as the main session — no hook can gate its mid-run behav
      · a test-failure SR with no diagnostic plan
      · an unsatisfied editability loop   · a test-completeness debt
      · a master-review audit verdict that is not overall: pass
-     · the dev-loop iteration ceiling (20) exceeded
+     · a documentation-currency audit verdict that is not overall: pass
         │                                              │
       no│  (clean — or not an architect-team run)      │ yes
         ▼                                              ▼

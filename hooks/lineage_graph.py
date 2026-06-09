@@ -239,8 +239,17 @@ def make_func_id(
     disambiguator is supplied (overloads, closures, anonymous functions).
 
     The id is the join key MemPalace dedups on and the graph diffs on, so it is
-    constructed deterministically from its parts and round-trips exactly through
-    :func:`parse_func_id`.
+    constructed deterministically from its parts.
+
+    Round-trip precondition (REQ-MEM-02): ``parse_func_id(make_func_id(**parts))
+    == parts`` holds when each component is a normal identifier — i.e.
+    ``codebase`` contains no ``/``, and ``qualified_name`` contains no ``#`` or
+    ``~``. Those characters are the segment delimiters; a component that embeds
+    one is NOT round-trip-safe (the parse splits on the delimiter and silently
+    mis-attributes the boundary). In practice codebase slugs and qualified names
+    are bare identifiers, so this is sound; callers that might see exotic names
+    should slugify the component first. ``path`` may contain ``/`` (expected) but
+    must not contain ``#``.
     """
     if disambiguator:
         tail = f"{qualified_name}~{disambiguator}"
@@ -258,8 +267,10 @@ def parse_func_id(s: Any) -> Optional[dict]:
     """Parse a ``func://`` id back into its parts, or ``None`` if it does not match.
 
     Returns ``{"codebase", "path", "qualified_name", "disambiguator"}`` where
-    ``disambiguator`` is ``None`` when absent. Round-trips:
-    ``parse_func_id(make_func_id(**parts)) == parts``.
+    ``disambiguator`` is ``None`` when absent. Round-trips
+    ``parse_func_id(make_func_id(**parts)) == parts`` for normal-identifier
+    components — see :func:`make_func_id` for the delimiter-character
+    precondition (no ``/`` in codebase, no ``#``/``~`` in qualified_name).
     """
     if not isinstance(s, str):
         return None
@@ -570,12 +581,39 @@ def transitive_stale_nodes(graph: dict, changed_paths: Any) -> set:
     A node is included if it is itself on a changed path, or any node reachable
     in its ``calls`` / ``serves`` subtree is. Returns a set of node ids (empty
     when ``changed_paths`` is empty).
+
+    Single reverse-BFS — O(V+E): build the forward reachability adjacency once,
+    seed the stale set with every node whose OWN path changed, then walk the
+    INVERTED adjacency to mark every ancestor that can reach a changed node.
+    (The earlier per-node ``is_node_stale`` loop rebuilt the index + adjacency
+    once per node — O(V·(V+E)); this is equivalent but a single pass.)
     """
     index = _node_index(graph)
     changed_set = set(changed_paths or [])
     if not changed_set:
         return set()
-    return {nid for nid in index if is_node_stale(graph, nid, changed_set)}
+
+    adj = _reachability_adjacency(graph)
+    # Invert the forward adjacency: dst -> {srcs that reach it in one hop}.
+    reverse: dict = {}
+    for src, dsts in adj.items():
+        for dst in dsts:
+            reverse.setdefault(dst, set()).add(src)
+
+    # Seed: every declared node whose own path is in changed_paths.
+    stale: set = {nid for nid, node in index.items() if _changed(node, changed_set)}
+    # Walk backwards: anything that reaches a stale node is itself stale. A
+    # non-declared intermediate id still propagates staleness to its ancestors
+    # but is itself filtered out of the result (matching the per-node contract,
+    # which only ever returns declared nodes).
+    stack = list(stale)
+    while stack:
+        cur = stack.pop()
+        for prev in reverse.get(cur, ()):
+            if prev not in stale:
+                stale.add(prev)
+                stack.append(prev)
+    return {nid for nid in stale if nid in index}
 
 
 # ---------------------------------------------------------------------------
