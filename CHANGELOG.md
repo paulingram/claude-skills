@@ -31,7 +31,7 @@ Executes `docs/LINEAGE_UPGRADE_REQUIREMENTS.md`:
 
 Two independent reviewers (correctness/safety + perf/design) verified findings by executing code: the cyclic-graph infinite-loop and squash-merge false-positive risks are repro-confirmed safe. Fixes applied: `transitive_stale_nodes` rewritten O(V²)→O(V+E) single reverse-BFS (equivalence-verified); two stale "iteration ceiling (20)" docs scrubbed; `func://`/`asset://` ID docstrings corrected to state the delimiter-char round-trip precondition; and **`list_run_branches` now defaults `against="origin/main"` (was `main`)** so its "already-merged?" judgment agrees with the v1.3.0 sweep and catches a branch landed on `origin/main` via a GitHub PR while local `main` is stale — the deliberate API split is documented (already-merged checks judge the published `origin/main`; the merge operation targets local `main`).
 
-**Honest boundary:** P1's live polyglot call-graph extraction against arbitrary target repos is the agent's runtime job and is NOT claimed proven (kill-gated per the doc §7.1); the deterministic pieces (schema/ID/witness-reconciliation/freshness/cost) are real + unit-tested. Skills 38→40, agents 33→34. Suite 3673→3870 passing (+5 skipped).
+**Honest boundary:** P1's live polyglot call-graph extraction against arbitrary target repos is the agent's runtime job and is NOT claimed proven (kill-gated per the doc §7.1); the deterministic pieces (schema/ID/witness-reconciliation/freshness/cost) are real + unit-tested. Skills 38→40, agents 33→34. Suite 3673→3871 passing (+5 skipped).
 
 ## [3.7.0] — 2026-06-07 — Auto-merge-to-main + prune (self-tidying runs) + startup branch reconciliation
 
