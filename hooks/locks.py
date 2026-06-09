@@ -246,12 +246,13 @@ def cdlg_overlap(
     calls a function in item B's set. This helper adds that second, call-graph
     signal (it ADDS to, and never replaces, the file-path lock logic).
 
-    The rule (REQ-PARA-01): two work-items overlap iff they share a ``func://``
-    node OR one item's function set REACHES — via ``calls`` edges in ``graph`` —
-    a function in the other item's set. The reachability concept is reused from
-    ``hooks/lineage_graph.py`` (the ``REACHABILITY_EDGE_KINDS`` / ``calls``-edge
-    walk); we import that module so this helper consumes the CDLG rather than
-    re-deriving the edge vocabulary.
+    The rule (REQ-PARA-01): two work-items overlap iff their ``calls``-closures
+    intersect — i.e. they share a ``func://`` node, OR one item reaches a
+    function in the other's set, OR both items reach a COMMON downstream callee
+    (a "shared hot callee" in neither set). The reachability concept is reused
+    from ``hooks/lineage_graph.py`` (the ``REACHABILITY_EDGE_KINDS`` /
+    ``calls``-edge walk); we import that module so this helper consumes the CDLG
+    rather than re-deriving the edge vocabulary.
 
     Args:
         graph: a CDLG document (the ``lineage-graph.json`` shape — a dict with
@@ -266,10 +267,9 @@ def cdlg_overlap(
 
           - ``shared_functions`` — the ``func://`` ids present in BOTH sets
             (the direct-share signal), sorted.
-          - ``shared_subtree`` — the ``func://`` ids that one set reaches via
-            ``calls`` edges AND that are in the other set (the transitive-share
-            signal), sorted. A node both directly shared and reached appears in
-            both lists.
+          - ``shared_subtree`` — the ``func://`` ids reachable (via ``calls``
+            edges) from BOTH items but not directly shared as seeds (the
+            transitive shared-callee signal), sorted.
           - ``overlap`` — ``True`` iff either list is non-empty.
     """
     set_a = _as_func_set(funcs_a)
@@ -278,16 +278,21 @@ def cdlg_overlap(
     # Direct share: any func:// node present in both work-items' sets.
     shared_functions = set_a & set_b
 
-    # Transitive share: build the calls-edge adjacency once, then see whether
-    # A's set reaches any function in B's set (or vice-versa). Reusing the CDLG's
-    # calls-edge concept from hooks/lineage_graph.py.
+    # Transitive share: build the calls-edge adjacency once, then intersect the
+    # two items' calls-CLOSURES. Each closure INCLUDES its seed set, so overlap
+    # is caught in all three shapes: (a) one item reaches a function in the
+    # other's set, (b) the two sets share a func:// node directly, and crucially
+    # (c) both items reach a COMMON downstream callee that is in NEITHER set —
+    # the "share a hot callee" acceptance criterion (REQ-PARA-01). Reusing the
+    # CDLG's calls-edge concept from hooks/lineage_graph.py.
     adjacency = _calls_adjacency(graph)
-    reach_a = _reachable_funcs(set_a, adjacency)
-    reach_b = _reachable_funcs(set_b, adjacency)
+    closure_a = set_a | _reachable_funcs(set_a, adjacency)
+    closure_b = set_b | _reachable_funcs(set_b, adjacency)
 
-    # A function is in the "shared subtree" if one item reaches it and the other
-    # item owns it. Symmetric: union both directions.
-    shared_subtree = (reach_a & set_b) | (reach_b & set_a)
+    # The shared subtree is every function reachable from BOTH items (a shared
+    # callee / common descendant), excluding the directly-shared seeds which are
+    # reported separately in shared_functions.
+    shared_subtree = (closure_a & closure_b) - shared_functions
 
     overlap = bool(shared_functions or shared_subtree)
     return {

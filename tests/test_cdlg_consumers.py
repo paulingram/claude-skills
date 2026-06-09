@@ -330,6 +330,24 @@ def test_cdlg_overlap_deep_transitive_reach(locks_module: ModuleType) -> None:
     assert "deep_shared" in out["shared_subtree"], out
 
 
+def test_cdlg_overlap_shared_hot_callee_in_neither_set(locks_module: ModuleType) -> None:
+    """REQ-PARA-01 AC: two items that edit DIFFERENT files but both call a common
+    callee (in NEITHER set) overlap. This is the headline acceptance criterion —
+    "share a hot callee" — and the case a naive 'A reaches B's node' rule misses.
+
+    Graph:  A_fn --calls--> hot ; B_fn --calls--> hot   (hot is in neither set)
+    """
+    g = _graph(
+        ["A_fn", "B_fn", "hot"],
+        [_calls("A_fn", "hot"), _calls("B_fn", "hot")],
+    )
+    out = locks_module.cdlg_overlap(g, ["A_fn"], ["B_fn"])
+    assert out["overlap"] is True, out
+    assert "hot" in out["shared_subtree"], out
+    # neither set directly shares a node
+    assert out["shared_functions"] == [], out
+
+
 def test_cdlg_overlap_direct_shared_node(locks_module: ModuleType) -> None:
     """A func:// node present in BOTH sets is a direct overlap (shared_functions)."""
     g = _graph(["x", "y", "z"], [])
