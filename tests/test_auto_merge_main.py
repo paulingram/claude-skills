@@ -204,6 +204,37 @@ def test_list_run_branches_reports_merge_state_and_excludes_others(
         }
 
 
+def test_list_run_branches_default_judges_against_origin_main(
+    worktree_lifecycle_module: ModuleType,
+    main_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """v3.8.0: `list_run_branches()` defaults `against="origin/main"` so its
+    "already-merged?" judgment AGREES with the v1.3.0 sweep (also `origin/main`)
+    and catches a branch landed on `origin/main` while local `main` is stale —
+    the GitHub-PR-merge case the prior `against="main"` default silently missed.
+    """
+    wt = (tmp_path / "wt-diverge").resolve()
+    _create_worktree_on_branch(main_repo, wt, "architect-team/diverge")
+    _commit_in_worktree(wt, "diverge-work", filename="diverge.txt")
+    # Land it on main + publish to origin/main, THEN roll local main back so
+    # origin/main is strictly ahead of local main (the stale-local-main case).
+    _merge_branch_into_main(main_repo, "architect-team/diverge")  # merges + refreshes origin
+    _run(["git", "-C", str(main_repo), "reset", "--hard", "HEAD~1"])  # local main back; origin/main keeps the merge
+
+    monkeypatch.chdir(main_repo)
+    by_default = {d["branch"]: d for d in worktree_lifecycle_module.list_run_branches()}
+    by_local = {d["branch"]: d for d in worktree_lifecycle_module.list_run_branches(against="main")}
+
+    assert by_default["architect-team/diverge"]["merged_into_main"] is True, (
+        "default against=origin/main must report the origin-merged branch as merged"
+    )
+    assert by_local["architect-team/diverge"]["merged_into_main"] is False, (
+        "against=main (stale local checkout) is the old behavior that missed it"
+    )
+
+
 # ---- merge_branch_to_main_and_prune: CLEAN path ------------------------------
 
 

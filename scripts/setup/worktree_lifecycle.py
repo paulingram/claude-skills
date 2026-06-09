@@ -67,7 +67,7 @@ Public API — six stdlib-only functions:
       warning naming the path + the manual cleanup command. Best-effort: any
       subprocess failure is reflected in the returned dict rather than raised.
 
-  list_run_branches(against="main", remote="origin", include_squash_merged=False) -> list[dict]
+  list_run_branches(against="origin/main", remote="origin", include_squash_merged=False) -> list[dict]
       (v3.7.0 auto-merge-to-main) Enumerate every local `architect-team/*`
       branch and, for each, report `{branch, worktree_path, merged_into_main,
       squash_merged, cleanly_mergeable}`. Powers the startup
@@ -606,11 +606,27 @@ def finalize_run_worktree(
 
 
 def list_run_branches(
-    against: str = "main",
+    against: str = "origin/main",
     remote: str = "origin",
     include_squash_merged: bool = False,
 ) -> list[dict]:
     """Return one descriptor per local `architect-team/*` branch (v3.7.0).
+
+    `against` defaults to `origin/main` (v3.8.0 — was `main`) so the
+    "already-merged?" judgments here AGREE with the v1.3.0 sweep
+    (`cleanup_merged_worktrees` / `list_merged_architect_team_worktrees`,
+    also `origin/main`): the startup reconciliation filters this list against
+    the SAME published ref the sweep prunes against, and a branch already
+    landed on `origin/main` via a GitHub PR merge is correctly seen as merged
+    (a stale local `main` would have missed it). This is the deliberate split
+    in the module's API: the "is it already merged / safe to prune?" checks
+    (`list_run_branches`, the sweep, `finalize_run_worktree`) judge against the
+    PUBLISHED `origin/main`, whereas `merge_branch_to_main_and_prune` /
+    `_branch_cleanly_mergeable` operate against LOCAL `main` because that is the
+    ref `git checkout main && git merge` actually integrates into. Callers run
+    `git fetch origin main` first (the startup sweep does), so the two refs are
+    in sync at decision time; pass `against="main"` explicitly to judge against
+    the local checkout instead.
 
     Enumerates local branches via
     `git branch --list 'architect-team/*' --format '%(refname:short)'`, maps
