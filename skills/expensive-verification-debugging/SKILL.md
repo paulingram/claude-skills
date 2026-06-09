@@ -21,7 +21,7 @@ This skill is the cost-aware companion to `root-cause-test-failures`. RCA's 3-pa
 ## When this skill fires
 
 - You are about to verify a fix by means of a deploy, a container rebuild, a rolling rollout, a slow CI run, a long compile — anything with a multi-minute turnaround.
-- You have already run 2+ such cycles for the SAME symptom. (This is a hard STOP signal — see Escalation.)
+- You have already run 2+ such cycles for the SAME symptom. (This is a hard STRATEGY-SWITCH signal — stop the one-bug-per-cycle whack-a-mole and pivot to the pathway-audit + batch-all-fixes strategy; see "Strategy switch" below. The run keeps going — only the inefficient approach stops.)
 - You are standing up a NEW expensive pathway — a first Dockerfile, a first CI workflow, a first Vite/build config — that has never run end-to-end. Apply this skill **proactively, before the first cycle** (the proactive form below).
 - A symptom is "downstream": an env var, asset, secret, or config value is not reaching a built/deployed artifact, and the chain from source to artifact has several stages.
 
@@ -89,13 +89,13 @@ You cannot fill `pathway` honestly without checking every stage, and you cannot 
 
 The strongest application: do not wait for the first failure. When you stand up a NEW expensive pathway (a first Dockerfile, a first deploy workflow, a first build config), NO stage has ever been exercised — assume every stage is broken until statically proven otherwise. Run the Phase 2 pathway audit BEFORE the first deploy. The first expensive cycle of a greenfield pipeline should be a confirmation, not a discovery.
 
-## Escalation — after 2 expensive cycles, stop
+## Strategy switch — after 2 expensive cycles, change approach (don't stop)
 
-If you have spent **2 expensive cycles on the same symptom** without resolution, STOP. Two cycles is the signal that inline whack-a-mole has taken over. Do not start a third cycle. Instead:
+If you have spent **2 expensive cycles on the same symptom** without resolution, STOP THE WHACK-A-MOLE — but NOT the run. The dev-loop keeps solving; you change strategy from one-bug-per-expensive-cycle to pathway-audit-then-batch. There is no give-up cap here (per `common-pipeline-conventions` `## Unbounded solving discipline`) — two cycles is the signal that the inline one-at-a-time approach has taken over, so switch approaches rather than starting a third blind cycle. Instead:
 
 1. Complete the Phase 2 pathway audit fully (you almost certainly skipped stages).
-2. If the audit now shows a clear batch of defects → apply Phase 3 (cheap verify, then ONE cycle).
-3. If the pathway audit is genuinely inconclusive → escalate: write a solution requirement per `team-spawning-and-review-gates` with `origin.kind: "rca-product-bug"`, attach the pathway-audit artifact, and signal idle. The orchestrator routes it through `diagnostic-research-team` — three researchers map the full pathway independently. Three fresh perspectives on the whole pathway beats a fourth solo cycle.
+2. If the audit now shows a clear batch of defects → apply Phase 3 (cheap verify, batch ALL the fixes, then ONE cycle). Keep batching across further rounds as needed — the batch-all-fixes efficiency discipline never stops solving, it just avoids spending an expensive cycle per bug.
+3. If the pathway audit is genuinely inconclusive → re-route for deeper diagnosis: write a solution requirement per `team-spawning-and-review-gates` with `origin.kind: "rca-product-bug"`, attach the pathway-audit artifact, and signal idle. The orchestrator routes it through `diagnostic-research-team` — three researchers map the full pathway independently. Three fresh perspectives on the whole pathway beats a fourth solo cycle. This is a CONTINUATION of solving (the diagnostic loop itself is unbounded), not a halt.
 
 ## Communicating cost (do not grind silently)
 
@@ -103,7 +103,7 @@ When the loop is expensive, the user is paying for every cycle in wall-clock tim
 
 - **State the plan and the expected cycle count up front:** "This needs a deploy to verify (~4 min/cycle). I have audited the pathway and found N defects; fixing all N, then one deploy." Do not narrate one bug at a time across N surprise cycles.
 - **While an unavoidable expensive cycle runs, poll its status with a tight bounded loop** (e.g., poll the ECS service / health endpoint) — do NOT schedule a wall-clock wakeup, do NOT idle-monologue "waiting + verifying". Use the wait productively: re-audit remaining stages, prepare the cheap-verification grep, so a failed cycle has its next batch ready.
-- If you have hit the 2-cycle escalation threshold, **tell the user that** rather than silently starting cycle 3.
+- If you have hit the 2-cycle strategy-switch threshold, **tell the user you are switching to the pathway-audit + batch strategy** rather than silently starting a third one-bug-at-a-time cycle. (You are not stopping — you are changing approach.)
 
 ## Worked example — env var not reaching a deployed Vite app
 
@@ -140,13 +140,13 @@ The agent in the real incident said afterward "I should have spotted #3 first by
 | "I'll inspect the bundle / image after I deploy." | The bundle and the image are LOCAL artifacts. Build and inspect them before deploying. The remote environment almost never adds diagnostic information a local build lacks for a build-time bug. |
 | "I need the real environment to test this." | Name exactly what the real environment uniquely provides (secrets, networking, data). Then prove the bug depends on one of those. Most build / config / bundling / COPY bugs do not — the artifact is identical locally. |
 | "Deploying IS the test." | Deploying is the most expensive possible test. Find the cheapest faithful artifact that exhibits the symptom and test against that; reserve the deploy for environment-dependent confirmation. |
-| "I'm close, just one more deploy." | "Close" after 2 expensive cycles is a sunk-cost signal, not a progress signal. Stop at cycle 2: complete the pathway audit or escalate to `diagnostic-research-team`. |
+| "I'm close, just one more deploy." | "Close" after 2 expensive cycles is a sunk-cost signal, not a progress signal. Switch strategy at cycle 2: complete the pathway audit and batch the fixes, or re-route to `diagnostic-research-team`. (Keep solving — change the approach, don't stop the run.) |
 | "It's a new pipeline, of course the first deploy fails — I'll fix as I go." | A greenfield pathway has correlated failure: every stage is unproven, so multiple stages are broken. "Fix as I go" = one expensive cycle per stage. Audit the whole new pathway statically before the first cycle. |
 | "I'll just keep the user posted while I iterate." | Narrating one surprise cycle at a time is not keeping the user posted — it is grinding in public. State the cost, the defect count, and the plan up front; spend one cycle. |
 
-## Red flags — STOP
+## Red flags — switch strategy
 
-Any one of these means stop and run the pathway audit (or escalate):
+Any one of these means stop the one-bug-per-cycle whack-a-mole and run the pathway audit (or re-route to `diagnostic-research-team`). The run keeps solving — only the inefficient approach stops:
 
 - You have run 2+ deploy / rebuild / slow-CI cycles for the same symptom.
 - You are about to start an expensive cycle to "see if it worked" without a local check first.
@@ -161,4 +161,4 @@ Any one of these means stop and run the pathway audit (or escalate):
 - **Phase 5 — Cross-Layer Integration.** Deploy / rollout / dev-environment debugging is where expensive verify loops live. The `integration` agent applies this skill to every deploy- or rebuild-verified failure.
 - **Phase 2 / 3 — Teammates doing build / infra / Docker / CI work.** The `frontend` agent (Vite / build config), the `backend` agent (Dockerfile / migrations / deploy config) apply this skill whenever verifying a fix needs a rebuild or deploy.
 - **`root-cause-test-failures`.** When an RCA's verify loop is expensive, apply this skill's strategy on top of the 3-pass analysis: audit the whole pathway, batch the fixes.
-- **`diagnostic-research-team`.** The 2-expensive-cycle escalation routes here — three researchers map the full pathway independently rather than a fourth solo cycle.
+- **`diagnostic-research-team`.** The 2-expensive-cycle strategy switch routes here — three researchers map the full pathway independently rather than a fourth solo cycle. This is a continuation of solving (that loop is unbounded), not a halt.

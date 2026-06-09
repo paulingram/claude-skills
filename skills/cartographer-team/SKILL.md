@@ -59,7 +59,7 @@ When the `classification` is `frontend` or `fullstack` AND `produce_route_map: t
 
 ## Phase C3 — 3-reviewer convergence (wrapped in a ralph-loop)
 
-Wrap the entire convergence in `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE" --max-iterations 10`:
+Wrap the entire convergence in `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"` — the loop runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`):
 
 1. The orchestrator dispatches 3 `codebase-map-reviewer` agents in parallel via a single Agent-tool batch (subagents mode) OR creates 3 reviewer tasks in the shared list (teams mode). Each reviewer receives:
    - The current `CODEBASE_MAP.md` (and `ROUTE_MAP.md` when applicable) from `output_path`

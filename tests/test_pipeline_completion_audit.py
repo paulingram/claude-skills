@@ -365,15 +365,44 @@ def test_latest_documentation_currency_audit_wins(script: Path, workspace: Path)
     assert _run_check(script, workspace).returncode == 0
 
 
-# --- iteration ceiling => block --------------------------------------------
+# --- v3.8.0 unbounded solving: NO iteration ceiling ------------------------
 
-def test_iteration_ceiling_exceeded_blocks(script: Path, workspace: Path) -> None:
+def test_high_iteration_count_does_not_block(script: Path, workspace: Path) -> None:
+    """v3.8.0: the global iteration ceiling was removed — the dev-loop runs
+    until success and NEVER aborts on iteration count. A workspace with a very
+    high dev_loop_iterations and no real incomplete work must NOT block."""
     (_at(workspace) / "intake-state.json").write_text(
-        json.dumps({"dev_loop_iterations": 21}), encoding="utf-8"
+        json.dumps({"dev_loop_iterations": 999}), encoding="utf-8"
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "ceiling" in r.stderr.lower()
+    assert r.returncode == 0, (
+        f"a high dev_loop_iterations must NOT block (no ceiling); stderr={r.stderr!r}"
+    )
+    assert _run_stop(script, workspace, {}).returncode == 0
+
+
+def test_iteration_ceiling_symbols_removed(script: Path) -> None:
+    """v3.8.0: ITERATION_CEILING and _audit_iteration_ceiling no longer exist."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pipeline_completion_audit_sym", script)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert not hasattr(mod, "ITERATION_CEILING")
+    assert getattr(mod, "_audit_iteration_ceiling", None) is None
+
+
+def test_high_iteration_count_with_open_sr_still_blocks(script: Path, workspace: Path) -> None:
+    """The worklist still works: a high iteration count does NOT excuse real
+    incomplete work — an open SR still blocks regardless of iteration count."""
+    (_at(workspace) / "intake-state.json").write_text(
+        json.dumps({"dev_loop_iterations": 999}), encoding="utf-8"
+    )
+    _write_sr(workspace, "SR-1", "open")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"an open SR must still block; stderr={r.stderr!r}"
+    assert "SR-1" in r.stderr
 
 
 # --- escalation marker => allow even with violations -----------------------

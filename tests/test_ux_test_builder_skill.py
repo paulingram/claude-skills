@@ -130,13 +130,27 @@ def test_u6_documents_3_executors_redundant(plugin_root: Path) -> None:
     assert "redundancy" in section.lower() or "3 executors" in section, "U6 must state the 3-executor redundancy"
 
 
-def test_u7_3_cycle_bounded_convergence(plugin_root: Path) -> None:
+def test_u7_loop_until_converged_no_cap(plugin_root: Path) -> None:
+    """v3.8.0: U7's re-examination loop runs until the executors converge — there
+    is NO fixed cycle cap. Persistent irreconcilable divergence surfaces to the
+    owner as required input (a domain gate) while the run continues; it never
+    halts on cycle count."""
     body = _read_body(plugin_root)
     start = body.find("## Phase U7")
     next_h2 = body.find("\n## ", start + 1)
     section = body[start:next_h2] if next_h2 > 0 else body[start:]
-    assert "3 re-examination cycles" in section or "3-cycle" in section.lower() or "bounded at 3" in section.lower()
-    assert "domain gate" in section.lower(), "U7 escalation must be named as a domain gate"
+    low = section.lower()
+    assert "no cycle cap" in low or "no fixed cycle" in low, (
+        "U7 must state the re-examination loop has no fixed cycle cap"
+    )
+    assert "until" in low and "converge" in low, (
+        "U7 must describe looping until the executors converge"
+    )
+    assert "domain gate" in low, "U7's required-input surfacing must be named as a domain gate"
+    # The old bounded framing must be gone.
+    assert "3 re-examination cycles" not in section and "bounded at 3" not in low, (
+        "the old '3 re-examination cycles / bounded at 3' framing must be removed"
+    )
 
 
 def test_u8_ux_flow_failure_routing(plugin_root: Path) -> None:

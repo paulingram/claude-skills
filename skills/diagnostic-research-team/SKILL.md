@@ -120,7 +120,7 @@ Containing per-criterion `pass` / `gap` annotations and, if any criterion is `ga
 1. If ALL seven criteria pass → proceed to Phase C.
 2. If ANY criterion is `gap` → re-dispatch the named researchers with the gap directive. Each re-dispatch is a fresh, focused pass on the gap — not a full re-research. The re-dispatched researcher updates its draft (`-v2`, `-v3` ...). Loop until ALL criteria pass.
 
-This loop is bounded: maximum 3 architect-review cycles. If the third cycle still shows gaps, the architect must surface to the human user via the orchestrator that the diagnostic plan cannot converge automatically — usually this means a critical input is missing (a stale CODEBASE_MAP, an absent expectation file, a redacted log) and the loop cannot make progress until the human resolves it.
+This loop runs until the architect converges — there is NO fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each cycle that still shows gaps sends the named researchers back for a deeper pass; the loop continues until all seven criteria pass and the architect produces an approved diagnostic plan. If progress genuinely stalls because a critical input is missing that only the owner can supply (a stale CODEBASE_MAP that needs refreshing, an absent expectation file, a redacted log), the architect surfaces that specific required input to the owner via the orchestrator — loudly, while the rest of the run continues — and resumes the loop once it is provided. The loop never halts on cycle count; only a genuine missing-required-input pause (not exhaustion) interrupts it.
 
 ## Phase C — Consolidated diagnostic plan
 

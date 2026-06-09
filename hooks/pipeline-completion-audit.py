@@ -5,8 +5,11 @@ The architect-team orchestrator runs as the main agent session. No hook can
 gate its mid-run behaviour, but a `Stop` hook CAN gate its TERMINAL state:
 this hook blocks the orchestrator from ending a turn while a pipeline run is
 demonstrably incomplete — open solution requirements, test-failure SRs with no
-diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness
-debt, or a blown global-iteration ceiling.
+diagnostic plan, an unsatisfied editability loop, or an unresolved
+test-completeness debt. These checks are the WORKLIST the dev-loop keeps
+closing until empty (success); they are NOT an iteration/give-up gate. There is
+no iteration ceiling — the run loops until every requirement is green (see the
+Unbounded solving discipline in skills/common-pipeline-conventions).
 
 The `Stop` trigger is UNCHANGED across the v1.0.0 agent-teams refactor — both
 subagents mode (the v0.9.x dispatch shape) and teams mode (the v1.0.0
@@ -51,11 +54,6 @@ try:  # pragma: no cover - exercised by both import paths
     from hooks.shared_rule_constants import TEST_FAILURE_ORIGINS
 except ImportError:  # pragma: no cover - bare-module fallback
     from shared_rule_constants import TEST_FAILURE_ORIGINS
-
-# Global dev-loop iteration ceiling. Past this the orchestrator must have
-# escalated rather than ground on. Generous — a large multi-group spec with
-# several SR fix cycles stays well under it.
-ITERATION_CEILING = 20
 
 ESCALATION_MARKER = "escalation-pending.md"
 
@@ -399,19 +397,6 @@ def _audit_bug_fix_testing(at: Path) -> list[str]:
     return violations
 
 
-def _audit_iteration_ceiling(at: Path) -> list[str]:
-    state = _load_json(at / "intake-state.json")
-    if not isinstance(state, dict):
-        return []
-    n = state.get("dev_loop_iterations")
-    if isinstance(n, int) and n > ITERATION_CEILING:
-        return [
-            f"dev_loop_iterations={n} exceeds the global ceiling of {ITERATION_CEILING} "
-            f"— the run should have escalated to the human, not continued looping"
-        ]
-    return []
-
-
 def audit(root: Path) -> tuple[bool, list[str]]:
     """Audit a workspace. Returns (is_real_run, violations)."""
     at = root / ".architect-team"
@@ -425,18 +410,21 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_master_review(at)
     violations += _audit_documentation_currency(at)
     violations += _audit_bug_fix_testing(at)
-    violations += _audit_iteration_ceiling(at)
     return True, violations
 
 
 def _emit_block(violations: list[str]) -> int:
     lines = "\n  - ".join(violations)
     print(
-        "pipeline-completion-audit: BLOCKED — the architect-team run is incomplete:\n  - "
+        "pipeline-completion-audit: BLOCKED — the architect-team run is incomplete. "
+        "The items below are the WORKLIST the run keeps closing until empty "
+        "(success) — they are not an iteration/give-up gate; there is no iteration "
+        "ceiling. Keep the dev-loop running until every one is green:\n  - "
         + lines
         + "\n\nFour valid resolutions:\n"
         "  1. Complete the work (write the missing verdict/state files; the audit "
-        "re-runs on the next Stop and unblocks).\n"
+        "re-runs on the next Stop and unblocks). This is the default — the loop "
+        "keeps closing the worklist until empty.\n"
         "  2. If this run is intentionally paused for a human decision — create "
         ".architect-team/escalation-pending.md describing what the human must decide, "
         "then stop again.\n"

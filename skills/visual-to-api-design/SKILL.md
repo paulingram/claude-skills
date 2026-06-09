@@ -15,13 +15,13 @@ The Exploration Pipeline runs 7 stages. Frontend stages (1–6) run only when fr
 
 ### Governance — every stage's convergence runs inside a ralph-loop
 
-Every stage's 3-reviewer doc-passing convergence is wrapped in the `ralph-loop:ralph-loop` skill (the `/ralph-loop` command). The loop body is the 3-reviewer convergence; the loop's `--completion-promise` is **total agreement across all reviewers that the stage document meets every required step (100% fidelity)**. The loop exits ONLY when all three reviewers AND the Round-3 architect agree the stage doc satisfies every checklist item; the `--max-iterations` cap prevents runaway. Each stage below names its own promise string. The canonical invocation shape (matching `intake-and-mapping`):
+Every stage's 3-reviewer doc-passing convergence is wrapped in the `ralph-loop:ralph-loop` skill (the `/ralph-loop` command). The loop body is the 3-reviewer convergence; the loop's `--completion-promise` is **total agreement across all reviewers that the stage document meets every required step (100% fidelity)**. The loop exits ONLY when all three reviewers AND the Round-3 architect agree the stage doc satisfies every checklist item; the loop runs until that completion-promise is satisfied — there is **no iteration cap** (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each stage below names its own promise string. The canonical invocation shape (matching `intake-and-mapping`):
 
 ```bash
-/ralph-loop "<stage convergence prompt>" --completion-promise "<STAGE-N PROMISE>" --max-iterations <N>
+/ralph-loop "<stage convergence prompt>" --completion-promise "<STAGE-N PROMISE>"
 ```
 
-When the convergence reaches total agreement, the loop body emits the stage's exact promise line, which trips the completion-promise and exits the loop. A stage whose reviewers cannot converge within `--max-iterations` escalates via the `api-design-stage-incomplete` SR rather than freezing a half-agreed artifact.
+When the convergence reaches total agreement, the loop body emits the stage's exact promise line, which trips the completion-promise and exits the loop. The loop never halts on iteration count and never freezes a half-agreed artifact — it keeps converging. If a stage genuinely cannot converge because the requirement is unsettleable from the available inputs (a product decision only the owner can make), it routes an `api-design-stage-incomplete` SR surfacing that specific required owner input — loudly, while the run continues working everything else — rather than stopping.
 
 ### Run-time inputs — `language`, `component_libraries`, `ancillary_docs`
 
@@ -55,7 +55,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Required output** (`stage-0-scope.json`): `{stage: 0, name: "scope-detection", scope: "frontend-only" | "backend-only" | "both", frontend_in_scope: bool, backend_in_scope: bool, classification_source: "intake-and-mapping", frozen_at, _human_review_required}`.
 
-**ralph-loop:** the 3-reviewer scope-classification convergence is wrapped in `/ralph-loop "classify run scope (frontend-only | backend-only | both) from the intake-and-mapping output; all reviewers agree on the branch" --completion-promise "STAGE-0 SCOPE COMPLETE — all reviewers agree on scope + branch" --max-iterations 5`.
+**ralph-loop:** the 3-reviewer scope-classification convergence is wrapped in `/ralph-loop "classify run scope (frontend-only | backend-only | both) from the intake-and-mapping output; all reviewers agree on the branch" --completion-promise "STAGE-0 SCOPE COMPLETE — all reviewers agree on scope + branch"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 1 — Personas + application classification
 
@@ -67,7 +67,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Required output:** the existing `stage-1-context.json` (see subset section) with `ancillary_docs_read: [...]` added — the list of ancillary docs consumed.
 
-**ralph-loop:** wrapped in `/ralph-loop "discover personas + application classification from the frontend + ancillary_docs; all reviewers agree the persona list + classification are complete" --completion-promise "STAGE-1 CONTEXT COMPLETE — all reviewers agree personas + classification are complete" --max-iterations 8`.
+**ralph-loop:** wrapped in `/ralph-loop "discover personas + application classification from the frontend + ancillary_docs; all reviewers agree the persona list + classification are complete" --completion-promise "STAGE-1 CONTEXT COMPLETE — all reviewers agree personas + classification are complete"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 2 — Per-persona objectives → `PERSONA_MAP.md`
 
@@ -77,7 +77,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-2 CHECKLIST against Stage 1:** every persona in Stage 1's persona list MUST appear as a `PERSONA_MAP.md` section; the count MUST match.
 
-**ralph-loop:** wrapped in `/ralph-loop "write one PERSONA_MAP.md objective section per persona (role + industry context + product objectives); all reviewers agree every persona is covered" --completion-promise "STAGE-2 PERSONA_MAP COMPLETE — all reviewers agree every persona has an objective section" --max-iterations 8`.
+**ralph-loop:** wrapped in `/ralph-loop "write one PERSONA_MAP.md objective section per persona (role + industry context + product objectives); all reviewers agree every persona is covered" --completion-promise "STAGE-2 PERSONA_MAP COMPLETE — all reviewers agree every persona has an objective section"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 3a — Page/element catalog
 
@@ -91,7 +91,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Required output** (`stage-3a-page-element-catalog.json`): per page, every element with `{type, html_attributes, value_class}` plus the existing subset fields (`element_id`, `classification`, `blurb`, `is_dynamic`, `needs_backend`, `backend_endpoint_hint`).
 
-**ralph-loop:** wrapped in `/ralph-loop "catalog every page → every element with {type, html_attributes captured unconditionally, value_class dynamic|static via dynamic-value-discovery}; all reviewers agree every element on every page is catalogued" --completion-promise "STAGE-3A CATALOG COMPLETE — all reviewers agree every element is captured with attributes + value_class" --max-iterations 10`.
+**ralph-loop:** wrapped in `/ralph-loop "catalog every page → every element with {type, html_attributes captured unconditionally, value_class dynamic|static via dynamic-value-discovery}; all reviewers agree every element on every page is catalogued" --completion-promise "STAGE-3A CATALOG COMPLETE — all reviewers agree every element is captured with attributes + value_class"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 3b — Route<->persona map
 
@@ -103,7 +103,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-3b CHECKLIST:** every route in the ROUTE_MAP has at least one impacted persona OR an explicit `impacted_personas: []` with a justification (e.g., a public/unauthenticated route); every persona in `PERSONA_MAP.md` is referenced by at least one route.
 
-**ralph-loop:** wrapped in `/ralph-loop "build the ROUTE_MAP and annotate every route with impacted personas from PERSONA_MAP; all reviewers agree every route maps to its personas" --completion-promise "STAGE-3B ROUTE-PERSONA COMPLETE — all reviewers agree every route is annotated with impacted personas" --max-iterations 8`.
+**ralph-loop:** wrapped in `/ralph-loop "build the ROUTE_MAP and annotate every route with impacted personas from PERSONA_MAP; all reviewers agree every route maps to its personas" --completion-promise "STAGE-3B ROUTE-PERSONA COMPLETE — all reviewers agree every route is annotated with impacted personas"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 3c — Reusable-component architecture → `COMPONENT_ARCHITECTURE_MAP.md` (NET-NEW)
 
@@ -120,7 +120,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-3c CHECKLIST against Stage 3a:** the UNION of every component's `covers_element_ids` MUST equal the full set of element_ids in the Stage 3a catalog (100% coverage). Every component declares a `placement` (pixel-perfect or structural) and an `expected_payload`.
 
-**ralph-loop:** the >=3-agent doc-passing convergence is wrapped in `/ralph-loop "propose reusable components in the configured language + component_libraries; map every element 1:1 (100% coverage, verify-every-element-style); record exact per-page placement (pixel-perfect when DESIGN_MAP exists, structural otherwise); declare each component's expected payload; all reviewers agree on 100% coverage + placement + payload" --completion-promise "STAGE-3C COMPONENT-ARCHITECTURE COMPLETE — all reviewers agree 100% element coverage + placement + payload" --max-iterations 10`.
+**ralph-loop:** the >=3-agent doc-passing convergence is wrapped in `/ralph-loop "propose reusable components in the configured language + component_libraries; map every element 1:1 (100% coverage, verify-every-element-style); record exact per-page placement (pixel-perfect when DESIGN_MAP exists, structural otherwise); declare each component's expected payload; all reviewers agree on 100% coverage + placement + payload" --completion-promise "STAGE-3C COMPONENT-ARCHITECTURE COMPLETE — all reviewers agree 100% element coverage + placement + payload"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 4 — Conversion → OpenSpec via the openspec skill
 
@@ -136,7 +136,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-4 CHECKLIST:** 100% of the conversion plan is represented in the OpenSpec; the OpenSpec was authored via the openspec skill (not hand-written).
 
-**ralph-loop:** wrapped in `/ralph-loop "convert the component-architecture plan to OpenSpec via the openspec skill (openspec-propose / opsx:propose), >=3 agents; validate 100% of the plan is converted; all reviewers agree conversion is complete" --completion-promise "STAGE-4 OPENSPEC-CONVERSION COMPLETE — all reviewers agree 100% of the plan is converted via the openspec skill" --max-iterations 8`.
+**ralph-loop:** wrapped in `/ralph-loop "convert the component-architecture plan to OpenSpec via the openspec skill (openspec-propose / opsx:propose), >=3 agents; validate 100% of the plan is converted; all reviewers agree conversion is complete" --completion-promise "STAGE-4 OPENSPEC-CONVERSION COMPLETE — all reviewers agree 100% of the plan is converted via the openspec skill"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 5 — Per-page REST returns → `API_RETURNS_MAP.md`
 
@@ -172,7 +172,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-5 CHECKLIST against Stage 3a + Stage 3c:** every `value_class: dynamic` element maps to a return field; the over-fetch check returns 0 unconsumed top-level fields per page; shared-data pages reuse one shape.
 
-**ralph-loop:** wrapped in `/ralph-loop "specify per-page REST returns; map every dynamic element to a return field; enforce over-fetch budget = 0 unconsumed top-level fields and shared-page shape reuse; all reviewers agree every data-bearing element has an efficient return source" --completion-promise "STAGE-5 API_RETURNS COMPLETE — all reviewers agree 100% of dynamic elements have an efficient return source (0 over-fetch)" --max-iterations 10`.
+**ralph-loop:** wrapped in `/ralph-loop "specify per-page REST returns; map every dynamic element to a return field; enforce over-fetch budget = 0 unconsumed top-level fields and shared-page shape reuse; all reviewers agree every data-bearing element has an efficient return source" --completion-promise "STAGE-5 API_RETURNS COMPLETE — all reviewers agree 100% of dynamic elements have an efficient return source (0 over-fetch)"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 6 — Consolidated API design + play-test → `API_DESIGN_MAP.md`
 
@@ -191,7 +191,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-6 CHECKLIST against Stage 5 + Stage 3c:** every page satisfiable from the consolidated set; no two endpoints serve identical element sets; 100% of pages carry a play-test desk-trace; CRUD present where the data model needs it; returns shaped by user-type.
 
-**ralph-loop:** wrapped in `/ralph-loop "consolidate the API for max reusability (every page satisfiable, no two endpoints serve identical element sets), CRUD where the data model needs it, return-by-user-type; desk-trace play-test every page (100%) showing each component calls an endpoint or consumes a consolidated return; all reviewers agree" --completion-promise "STAGE-6 API_DESIGN COMPLETE — all reviewers agree the consolidated API satisfies 100% of pages (desk-traced) with max reuse" --max-iterations 10`.
+**ralph-loop:** wrapped in `/ralph-loop "consolidate the API for max reusability (every page satisfiable, no two endpoints serve identical element sets), CRUD where the data model needs it, return-by-user-type; desk-trace play-test every page (100%) showing each component calls an endpoint or consumes a consolidated return; all reviewers agree" --completion-promise "STAGE-6 API_DESIGN COMPLETE — all reviewers agree the consolidated API satisfies 100% of pages (desk-traced) with max reuse"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Stage 7 — Backend data architecture + phenotype gates → `DATA_ARCHITECTURE_MAP.md`
 
@@ -212,7 +212,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-7 CHECKLIST against Stage 6 + Stage 1:** the schema covers every data point implied by the consolidated API (Stage 6) and every persona need (Stage 1/2); the three phenotype domain gates fired; the final requirements are OpenSpec authored via the openspec skill.
 
-**ralph-loop:** wrapped in `/ralph-loop "derive an extensibility-first data architecture (anticipated + potential use cases), select DB types, fire the user-management / ai-management / config-management phenotype domain gates, then emit execution-ready OpenSpec via the openspec skill; all reviewers agree the architecture is extensible + complete" --completion-promise "STAGE-7 DATA_ARCHITECTURE COMPLETE — all reviewers agree the schema is extensible, DB types selected, phenotype gates fired, OpenSpec emitted via the openspec skill" --max-iterations 10`.
+**ralph-loop:** wrapped in `/ralph-loop "derive an extensibility-first data architecture (anticipated + potential use cases), select DB types, fire the user-management / ai-management / config-management phenotype domain gates, then emit execution-ready OpenSpec via the openspec skill; all reviewers agree the architecture is extensible + complete" --completion-promise "STAGE-7 DATA_ARCHITECTURE COMPLETE — all reviewers agree the schema is extensible, DB types selected, phenotype gates fired, OpenSpec emitted via the openspec skill"`. The loop runs until the completion-promise is satisfied (no iteration cap).
 
 ### Exploration Pipeline — stage→doc→ralph-loop→checklist summary
 
@@ -512,7 +512,7 @@ The explicit signal is the canonical way for users to FORCE this pipeline when t
 5. **Cross-stage references by SHA.** Each stage's artifact carries `based_on_stage_<N-1>: "<sha-of-prior-artifact>"` so downstream verification can prove the chain.
 6. **No deferral.** Per v2.10.0 — every stage that finds a gap routes an SR (`api-design-stage-incomplete`); it does not catalogue the gaps as "deferred" at the end of the run.
 7. **Stage 4's API layer MUST cover every Stage 3 element marked `needs_backend: true`.** No partial API designs; the v2.7.0 pattern-propagation discipline applies (no follow-up offers).
-8. **Every stage runs inside a ralph-loop.** Each of the 7 Exploration Pipeline stages wraps its 3-reviewer convergence in `ralph-loop:ralph-loop` with an explicit `--completion-promise` = total reviewer agreement (100% fidelity). A stage cannot freeze on partial agreement; non-convergence within `--max-iterations` routes an `api-design-stage-incomplete` SR.
+8. **Every stage runs inside a ralph-loop.** Each of the 7 Exploration Pipeline stages wraps its 3-reviewer convergence in `ralph-loop:ralph-loop` with an explicit `--completion-promise` = total reviewer agreement (100% fidelity). There is no iteration cap — the loop runs until convergence. A stage cannot freeze on partial agreement; a genuinely unsettleable requirement (needing an owner decision) routes an `api-design-stage-incomplete` SR for required owner input while the run continues.
 9. **OpenSpec is authored via the openspec skill.** Stages 4 and 7 produce OpenSpec via `openspec-propose` / `opsx:propose` — NEVER hand-written OpenSpec JSON or spec files.
 10. **Scope gates the frontend/backend stages.** Stage 0 classifies `frontend-only | backend-only | both`; the frontend stages (1–6) run iff frontend is in scope and the backend stage (7) runs iff backend is in scope.
 11. **Run-time inputs are read, never guessed.** `language`, `component_libraries`, and `ancillary_docs` come from the brief frontmatter or project config; absence (when FE/component work is in scope) escalates via a domain gate.

@@ -19,7 +19,7 @@ This is a judgment-heavy task — "intuit what a real user would expect to contr
 
 ## The team: three reviewers, argue to convergence, act, repeat
 
-The orchestrator (or the `/architect-team:editability-audit` command) runs this skill as a bounded outer loop. One **pass** is: independent analysis → argue to convergence → gaps become solution requirements → the normal fix loop acts → re-spawn for the next pass.
+The orchestrator (or the `/architect-team:editability-audit` command) runs this skill as a loop-until-converged outer loop (no fixed pass cap — per `common-pipeline-conventions` `## Unbounded solving discipline`). One **pass** is: independent analysis → argue to convergence → gaps become solution requirements → the normal fix loop acts → re-spawn for the next pass.
 
 ### Pass P, Round 1 — independent analysis (parallel)
 
@@ -81,7 +81,7 @@ The fix teams act on the SRs through the normal Phase 2 → Phase 5 dev loop wit
 - If Pass P+1's converged map has an **empty `gaps[]` AND all three reviewers agree** → **satisfied**. Exit the loop.
 - Else → another act + re-review cycle.
 
-The outer loop is bounded at **3 passes**. If Pass 3 still shows gaps, the orchestrator surfaces the residual converged map to the human rather than looping forever — persistent gaps after three passes usually mean an unresolved ambiguity (an attribute whose editability the requirements never settled) that needs a human decision.
+The outer loop runs until all three reviewers agree on an empty `gaps[]` — there is NO fixed pass cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each pass that still shows gaps spawns the next act + re-review cycle; the loop continues until satisfied. If a specific attribute's editability is genuinely unsettled in the requirements (an `ambiguous` classification only the owner can resolve), the orchestrator surfaces that specific attribute to the owner as required input — loudly, while continuing to close every other gap — and resumes once it is decided. The loop never halts on pass count; only a genuine required-owner-decision (not exhaustion) pauses it.
 
 ## The editability classification rubric (the "intuit what must be editable" core)
 
@@ -208,5 +208,5 @@ They are complementary. A feature can pass all of the above and still fail this 
 - Every trace stage carries `file:line` evidence. "Looks fine" is not a verdict.
 - Enumerate from all four sources (DB schema, API schemas, design, components) — the union. A field in the data model but in no design screen is still in scope (it may be an `orphan-field` gap or correctly `system-managed`).
 - Ambiguous attributes escalate to the human. Never default-guess a classification under time pressure.
-- The loop is multi-pass and bounded (3 passes). After a fix, re-review from scratch — do not assume the fix was complete.
+- The loop is multi-pass and runs until all three reviewers agree on zero gaps (no fixed pass cap, v3.8.0). After a fix, re-review from scratch — do not assume the fix was complete.
 - An editability-gap SR spawns a fix team directly; it does not route through `diagnostic-research-team` (the gap is already fully diagnosed).

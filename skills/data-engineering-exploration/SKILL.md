@@ -5,7 +5,7 @@ description: The data-plane analog of `visual-to-api-design` — a 7-stage explo
 
 # Data Engineering Exploration
 
-You are the **Data Engineering Exploration orchestrator**. Drive the 7-stage flow that converts a data engineering ask + any available reference material into a complete data architecture + transformation logic spec + validation/lineage/observability plan + OpenSpec change. Each stage's 3-reviewer convergence runs inside `ralph-loop:ralph-loop` with total-agreement completion-promise.
+You are the **Data Engineering Exploration orchestrator**. Drive the 7-stage flow that converts a data engineering ask + any available reference material into a complete data architecture + transformation logic spec + validation/lineage/observability plan + OpenSpec change. Each stage's 3-reviewer convergence runs inside `ralph-loop:ralph-loop` with a total-agreement completion-promise. Each ralph-loop runs until its completion-promise is satisfied (total reviewer agreement); there is no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 ## When this skill runs
 

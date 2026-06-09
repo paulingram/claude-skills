@@ -71,14 +71,27 @@ def test_skill_documents_multiple_simultaneous_causes(plugin_root: Path) -> None
     )
 
 
-def test_skill_has_two_cycle_escalation_threshold(plugin_root: Path) -> None:
-    """After 2 expensive cycles the skill must mandate STOP + escalate."""
+def test_skill_has_two_cycle_strategy_switch_threshold(plugin_root: Path) -> None:
+    """v3.8.0: after 2 expensive cycles the skill switches STRATEGY (pathway-audit
+    + batch / re-route to diagnostic-research-team) — it does NOT stop the run.
+    The batch-all-fixes efficiency discipline is kept; the give-up framing is gone."""
     content = _read(plugin_root, SKILL)
-    assert "2 expensive cycles" in content or "two expensive cycles" in content.lower(), (
-        "skill does not define the 2-expensive-cycle escalation threshold"
+    low = content.lower()
+    assert "2 expensive cycles" in content or "two expensive cycles" in low, (
+        "skill does not define the 2-expensive-cycle strategy-switch threshold"
     )
     assert "diagnostic-research-team" in content, (
-        "skill does not route the escalation to diagnostic-research-team"
+        "skill does not route the strategy switch to diagnostic-research-team"
+    )
+    # The batch-all-fixes efficiency discipline must remain.
+    assert "batch" in low, "skill must keep the batch-all-fixes efficiency discipline"
+    # The unbounded-solving discipline must be referenced — no give-up cap.
+    assert "unbounded solving" in low, (
+        "skill must reference the canonical Unbounded solving discipline (no give-up cap)"
+    )
+    # The old run-halting framing must be gone.
+    assert "do not start a third cycle. instead" not in low, (
+        "the old 'do not start a third cycle' give-up framing must be removed"
     )
 
 

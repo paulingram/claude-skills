@@ -22,7 +22,7 @@ This is a judgment-heavy task — "intuit the actual steps a user would take, co
 
 ## The team: three reviewers, argue to convergence, act, repeat
 
-The orchestrator runs this skill as a bounded outer loop. One **pass** is: independent analysis → argue to convergence → `system-architect` Round-3 robustness review → gaps become solution requirements → the normal fix loop acts → re-spawn for the next pass.
+The orchestrator runs this skill as a loop-until-converged outer loop (no fixed pass cap — per `common-pipeline-conventions` `## Unbounded solving discipline`). One **pass** is: independent analysis → argue to convergence → `system-architect` Round-3 robustness review → gaps become solution requirements → the normal fix loop acts → re-spawn for the next pass.
 
 ### Pass P, Round 1 — independent analysis (parallel)
 
@@ -85,7 +85,7 @@ The fix teams act on the SRs through the normal Phase 2 → Phase 5 dev loop wit
 - If Pass P+1's converged map has an **empty `gaps[]` AND all three reviewers agree** → **satisfied**. Exit the loop.
 - Else → another act + re-review cycle.
 
-The outer loop is bounded at **3 passes**. If Pass 3 still shows gaps, the orchestrator surfaces the residual converged map to the human rather than looping forever — persistent gaps after three passes usually mean an unresolved ambiguity (an element or page whose intended behavior the requirements never settled) that needs a human decision.
+The outer loop runs until all three reviewers agree on an empty `gaps[]` — there is NO fixed pass cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each pass that still shows gaps spawns the next act + re-review cycle; the loop continues until satisfied. If an element's or page's intended behavior is genuinely unsettled in the requirements (an `ambiguous` classification only the owner can resolve), the orchestrator surfaces that specific element/page to the owner as required input — loudly, while continuing to close every other gap — and resumes once it is decided. The loop never halts on pass count; only a genuine required-owner-decision (not exhaustion) pauses it.
 
 ## The element wiring-classification rubric (the "is this control genuinely wired" core)
 
@@ -332,5 +332,5 @@ A converged `live_data_wiring_findings` entry becomes a `live-data-wiring-gap` s
 - A `confirmed-stub` requires explicit user confirmation and is recorded in BOTH the converged map and `coverage-map.json` `confirmed_stubs[]`. An unconfirmed inert control or unconfirmed placeholder page is a gap, never a silent pass.
 - Ambiguous elements and pages escalate to the human with a structured question. Never default-guess a classification under time pressure.
 - Apply `dynamic-value-discovery` to every displayed value; a value hardcoded where the context shows it should be dynamic is a `hardcoded-dynamic-value` gap.
-- The loop is multi-pass and bounded (3 passes). After a fix, re-review from scratch — do not assume the fix was complete.
+- The loop is multi-pass and runs until all three reviewers agree on zero gaps (no fixed pass cap, v3.8.0). After a fix, re-review from scratch — do not assume the fix was complete.
 - An interaction-gap SR spawns a fix team directly; it does not route through `diagnostic-research-team` (the gap is already fully diagnosed).
