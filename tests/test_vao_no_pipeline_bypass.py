@@ -172,6 +172,23 @@ def test_scan_ledger_counts_review_evidence_files() -> None:
     assert counts["review_evidence_files"] == 2
 
 
+def test_scan_ledger_review_evidence_requires_json_extension() -> None:
+    """Operator-precedence regression: a non-.json write under a reviews/ dir
+    must NOT count as review evidence. The detection is `(A or B) and .json`,
+    not the buggy `A or (B and .json)` that counted any .architect-team/reviews/
+    write regardless of extension."""
+    ledger = [
+        # non-.json under the canonical reviews dir — must NOT count
+        {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/notes.md"}},
+        # non-.json under a loose reviews/ dir — must NOT count
+        {"tool": "Write", "tool_input": {"file_path": "/repo/reviews/summary.txt"}},
+        # a real .json review-evidence file — DOES count
+        {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/task-9.json"}},
+    ]
+    counts = _scan_ledger_for_pipeline_elements(ledger)
+    assert counts["review_evidence_files"] == 1
+
+
 # ---- severity 1: pipeline-bypassed-after-slash-command ----
 
 
