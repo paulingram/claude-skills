@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 8 . 0
+                        ─── C T 6 ───   v 3 . 9 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -38,7 +38,7 @@
 
 ![version](https://img.shields.io/badge/version-3.8.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-3871%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-3920%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -70,6 +70,15 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 █▓▒░  ◆  NEW IN v3.8.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.9.0 — Uniform plugin usage (predictable regardless of mini or call)
+
+CT6 now invokes its plugin dependencies (superpowers, ralph-loop, cartographer, openspec) **uniformly across every pipeline** — so a run behaves the same regardless of which command launched it — and **superpowers is a hard dependency that is actually exercised at runtime**, not decorative framing.
+
+| Capability | What changed |
+|---|---|
+| **Superpowers — HARD dependency, actually invoked (v3.9.0)** | `scripts/setup/setup.py` treats a missing required plugin as an **exit-1 hard block** (superpowers called out as a hard dependency); NEW `ensure_openspec_propose_skill()` verifies the vendored `openspec-propose` authoring skill resolves. Every pipeline body (`architect-team` / `bug-fix` / `mini` / `ux-test`) gains a `## Plugin prerequisites (v3.9.0)` **superpowers pre-flight abort gate** plus concrete `superpowers:brainstorming` / `test-driven-development` / `systematic-debugging` / `verification-before-completion` invocations woven into its phases — replacing the prior decorative *"Superpowers-driven"* framing. Precedence preserved: hard-blocking governs plugin **presence** only; user `CLAUDE.md` / `AGENTS.md` instructions still win. |
+| **OpenSpec + ralph-loop — uniform gates (v3.9.0)** | Identical openspec gates across implementing pipelines: `mini` gains `openspec validate --all --strict` + `openspec archive` (it previously skipped both); `bug-fix` aligned `--strict` → `--all --strict`. `hooks/vao_tools.py::verify_no_pipeline_bypass` now accepts three openspec-evidence forms (a Bash `openspec ` call / an `openspec-propose` skill invocation / an `openspec/changes/<name>/` artifact) so legitimate `mini` + exploration runs no longer false-trip `openspec-bypassed`. All stale `--max-iterations` scrubbed from live `/ralph-loop` examples; `data-engineering-exploration` + `domain-research-team` converted to the explicit `--completion-promise` form. NEW canonical `## Uniform plugin usage (v3.9.0)` in `common-pipeline-conventions` — the single source of truth all four bodies reference. |
 
 Two owner-directed deliverables on one branch: **the dev loop now runs unbounded** (nothing halts a run — it loops until everything is green), and **a Code & Data Lineage Graph (CDLG) foundation** lands the deterministic, unit-tested core for per-endpoint call-trace + asset-lineage mapping.
 
@@ -546,20 +555,20 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 ### ▌ Loop 1 — Per-codebase mapping (Phase −1B)
 
-- **Wrapper:** `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE" --max-iterations 10`. One ralph loop per discovered codebase.
+- **Wrapper:** `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"`. One ralph loop per discovered codebase (loops until the promise; no iteration cap per v3.8.0 unbounded solving).
 - **Mechanism:** Cartographer (and `route-mapper` for frontends) produces `<codebase>/docs/CODEBASE_MAP.md` (and `ROUTE_MAP.md` + `DESIGN_MAP.md` if design inputs exist). Then 3 `codebase-map-reviewer` agents are spawned **in parallel**. Each returns `{ "status": "ok" | "deficient", "deficiencies": [...] }`.
 - **Iteration body** (if any reviewer returns `deficient`): aggregate + dedupe deficiencies; re-trigger cartographer / route-mapper in update mode; loop.
 - **Exit criteria — all of:** all 3 reviewers return `status: "ok"` in the same iteration; the orchestrator emits `CODEBASE MAP COMPLETE`.
 - **Freshness short-circuit:** `last_mapped` frontmatter ≥ `git log -1 --format=%cI` ⇒ codebase marked `CURRENT`, loop skipped.
-- **Iteration cap:** 10.
+- **Iteration cap:** none — loops until all 3 reviewers agree (v3.8.0 unbounded solving).
 - **References:** [`skills/intake-and-mapping/SKILL.md`](skills/intake-and-mapping/SKILL.md), [`agents/codebase-map-reviewer.md`](agents/codebase-map-reviewer.md), [`agents/route-mapper.md`](agents/route-mapper.md).
 
 ### ▌ Loop 2 — Integration mapping (Phase −1C)
 
-- **Wrapper:** `/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE" --max-iterations 8`. One ralph loop for all codebases.
+- **Wrapper:** `/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE"`. One ralph loop for all codebases (loops until the promise; no iteration cap per v3.8.0 unbounded solving).
 - **Mechanism — sequential sub-loops:** (2a) 3 `integration-explorer` agents in parallel, round-robin convergence; (2b) `master-synthesizer` writes `<workspace>/docs/INTEGRATION_MAP.md`; (2c) confirmation pass — each explorer confirms the master doc.
 - **Exit criteria — all of:** all 3 explorers confirm; INTEGRATION_MAP.md exists with frontmatter + 6 sections; master-synthesizer emits `INTEGRATION MAP COMPLETE`.
-- **Iteration cap:** 8.
+- **Iteration cap:** none — loops until all 3 explorers confirm (v3.8.0 unbounded solving).
 - **References:** [`skills/intake-and-mapping/SKILL.md`](skills/intake-and-mapping/SKILL.md), [`agents/integration-explorer.md`](agents/integration-explorer.md), [`agents/master-synthesizer.md`](agents/master-synthesizer.md).
 
 ### ▌ Loop 3 — Planning validation (Phase 1, hard gate)
@@ -981,7 +990,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent frontmatters (tool + model names); all 19 commands; hooks.json wiring for all five trigger events (PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v6: 12 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **3871 tests pass (+ 5 skipped).**
+Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent frontmatters (tool + model names); all 19 commands; hooks.json wiring for all five trigger events (PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v6: 12 self-review fields + the independent `task-reviewer` verdict; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **3920 tests pass (+ 5 skipped).**
 
 ### Bumping versions
 

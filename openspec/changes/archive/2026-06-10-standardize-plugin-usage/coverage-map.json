@@ -1,0 +1,76 @@
+{
+  "change": "standardize-plugin-usage",
+  "version": "3.9.0",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "Ralph-loop invocation is uniform with no iteration cap",
+      "scenarios": [
+        "no stale --max-iterations remains in invocation examples",
+        "exploration skills use the explicit completion-promise flag"
+      ],
+      "acceptance_criteria": [
+        "repo-wide grep for --max-iterations shows only CHANGELOG history + removal-description prose",
+        "data-engineering-exploration + domain-research-team express loops with --completion-promise flag"
+      ],
+      "layer": "infra",
+      "verifying_tests": ["tests/test_readme_styling.py", "tests/test_uniform_plugin_usage.py"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "Superpowers is a hard-blocking, concretely-invoked dependency",
+      "scenarios": [
+        "setup hard-blocks on a missing required plugin",
+        "every pipeline body declares a superpowers pre-flight gate",
+        "precedence of user instructions is preserved"
+      ],
+      "acceptance_criteria": [
+        "setup.py exits non-zero when a required plugin is missing",
+        "all 4 pipeline bodies declare a superpowers pre-flight abort gate naming the 4 superpowers skills",
+        "precedence note (CLAUDE.md/AGENTS.md wins) present in the canonical section"
+      ],
+      "layer": "infra",
+      "verifying_tests": ["tests/test_setup.py", "tests/test_uniform_plugin_usage.py", "tests/test_uniform_plugin_usage_conventions.py"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "OpenSpec gates are identical across implementing pipelines",
+      "scenarios": [
+        "mini runs validate and archive",
+        "bug-fix validates with --all --strict"
+      ],
+      "acceptance_criteria": [
+        "mini body contains openspec validate --all --strict AND openspec archive",
+        "bug-fix body uses --all --strict on every openspec validate"
+      ],
+      "layer": "infra",
+      "verifying_tests": ["tests/test_uniform_plugin_usage.py"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "All four plugins are verified at setup",
+      "scenarios": [
+        "openspec-propose is in the verified set"
+      ],
+      "acceptance_criteria": [
+        "setup.py verifies openspec-propose (plugin id or resolvable skill); absence contributes to non-zero exit"
+      ],
+      "layer": "infra",
+      "verifying_tests": ["tests/test_setup.py"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "A canonical uniform-plugin-usage contract governs all pipelines",
+      "scenarios": [
+        "the canonical section exists and is referenced",
+        "no-bypass tool does not false-trip on legitimate openspec usage"
+      ],
+      "acceptance_criteria": [
+        "## Uniform plugin usage (v3.9.0) exists in common-pipeline-conventions and is referenced by all 4 bodies",
+        "verify_no_pipeline_bypass does not emit openspec-bypassed for openspec-propose / openspec-change-folder runs; still emits for genuine bypass"
+      ],
+      "layer": "infra",
+      "verifying_tests": ["tests/test_uniform_plugin_usage_conventions.py", "tests/test_uniform_plugin_usage.py", "tests/test_vao_tools.py"]
+    }
+  ]
+}

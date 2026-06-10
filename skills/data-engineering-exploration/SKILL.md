@@ -67,7 +67,7 @@ The `domain-research-team` skill's mandatory outside-research mandate fires — 
 
 **Stage-1 checklist:** every persona / data consumer identified + every regulatory constraint cataloged + industry data-stack patterns documented + competitor stack approach summarized.
 
-**Convergence promise:** `"DOMAIN CONTEXT COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"DOMAIN CONTEXT COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-1 convergence prompt>" --completion-promise "DOMAIN CONTEXT COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 2 — Conceptual data model
 
@@ -111,7 +111,7 @@ Schema:
 
 **Stage-2 checklist:** every entity from Stage 1's domain context represented; every business rule cited to evidence; PII / PHI / PCI classification per attribute; SCD strategy per dimension.
 
-**Convergence promise:** `"DATA MODEL COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"DATA MODEL COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-2 convergence prompt>" --completion-promise "DATA MODEL COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 3 — Service design
 
@@ -159,7 +159,7 @@ Stage 3 emits a `phenotype_proposals` block in the output map:
 
 **Stage-3 checklist:** every subsystem assigned a pattern + tool; every tool choice has a rationale citing Stage 1 + Stage 4 evidence; phenotype proposals consult the convergence rules.
 
-**Convergence promise:** `"SERVICE DESIGN COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"SERVICE DESIGN COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-3 convergence prompt>" --completion-promise "SERVICE DESIGN COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 4 — Volume + velocity analysis
 
@@ -195,7 +195,7 @@ For each entity from Stage 2:
 
 **Stage-4 checklist:** every entity has volume + velocity assigned; 3-year growth projection per entity; capacity sizing per entity; cost envelope reasonable for Stage 3's tool choices.
 
-**Convergence promise:** `"VOLUME VELOCITY COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"VOLUME VELOCITY COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-4 convergence prompt>" --completion-promise "VOLUME VELOCITY COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 5 — Data security
 
@@ -225,7 +225,7 @@ Output: `<exploration-dir>/stage-5/DATA_SECURITY_MAP.md`.
 
 **Stage-5 checklist:** every entity has a security classification; every PII / PHI / PCI attribute has encryption + access control assigned; retention policies cite regulatory scopes; audit logging requirements cover access + modify + export.
 
-**Convergence promise:** `"DATA SECURITY COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"DATA SECURITY COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-5 convergence prompt>" --completion-promise "DATA SECURITY COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 6 — MANDATORY validation + lineage + observability (the v3.5.0 non-negotiable)
 
@@ -326,7 +326,7 @@ Every transformation MUST have ≥ 1 `blocker`-severity rule. A transformation w
 
 **Failures iterate** until every checklist item passes — Stage 6 is the gate the v3.5.0 mandate enforces.
 
-**Convergence promise:** `"VALIDATION LINEAGE COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"VALIDATION LINEAGE COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-6 convergence prompt>" --completion-promise "VALIDATION LINEAGE COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 7 — OpenSpec authoring
 
@@ -343,7 +343,7 @@ Each spec REQ MUST cite at least one Stage 1-6 source for traceability.
 
 **Stage-7 checklist:** OpenSpec validates strict; every Stage 2 entity → REQ; every Stage 6 validation rule → acceptance criterion; phenotype seed proposals routed via domain gate; tasks decomposed.
 
-**Convergence promise:** `"OPENSPEC AUTHORING COMPLETE"`. Wrapped in `/ralph-loop`.
+**Convergence promise:** `"OPENSPEC AUTHORING COMPLETE"`. Wrapped in the canonical flag form `/ralph-loop "<stage-7 convergence prompt>" --completion-promise "OPENSPEC AUTHORING COMPLETE"` — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Phase D8 — Return verdict
 

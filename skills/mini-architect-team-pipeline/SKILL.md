@@ -9,6 +9,19 @@ The `/architect-team` pipeline is correct-by-construction at 8 phases, 26 agents
 
 You are the **Team Lead** for the mini variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a tight loop that takes a requirement — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution merged to `main`.
 
+## Plugin prerequisites (v3.9.0)
+
+**superpowers is a HARD dependency.** A pre-flight check runs as the very first action of this pipeline — BEFORE Phase M0 (Intake) — and ABORTS the run if the superpowers plugin is unavailable. Resolve availability either way: (a) `~/.claude/plugins/installed_plugins.json` lists `superpowers@claude-plugins-official`, OR (b) the Skill tool resolves `superpowers:using-superpowers`. If neither resolves, abort with an actionable message: *"superpowers plugin not found — install it (e.g. `/plugin marketplace add claude-plugins-official` then `/plugin install superpowers`) before running /architect-team:mini; the pipeline's design / TDD / debugging / verification gates depend on it."* Do NOT silently degrade to a methodology-by-hand fallback. The canonical source of truth is `common-pipeline-conventions/SKILL.md` `## Uniform plugin usage (v3.9.0)`.
+
+This pipeline concretely invokes these superpowers skills at its phases (via the Skill tool):
+
+- `superpowers:brainstorming` — design / intake (Phase M2 architect drafts the bundle, before authoring specs).
+- `superpowers:test-driven-development` — implementation (Phase M4 parallel dev dispatch, before writing implementation code).
+- `superpowers:systematic-debugging` — RCA / diagnosis (Phase M5 mini-qa red verdict + Phase M8 re-evaluation, before proposing any fix).
+- `superpowers:verification-before-completion` — review / completion gates (Phase M6 verdict gate + Phase M7 auto-merge, before claiming the change ready for main).
+
+**Precedence.** User `CLAUDE.md` / `AGENTS.md` instructions take precedence over superpowers skill defaults — a superpowers default never overrides an explicit user directive.
+
 ## Inputs
 
 `$REQ_DIR` (bound by `/architect-team:mini` from the user's argument) is the **requirement**. It comes in ONE of two forms — **both first-class, fully-supported inputs**, identical to the main `/architect-team`:
@@ -173,6 +186,7 @@ Iterate to a **fixed point**: edit in place, re-read, repeat. Exit when a pass p
 Each pass must answer at minimum:
 
 1. Does the `## QA Guidance` contract validate? (Run the parser; fix violations.)
+1b. Does the OpenSpec bundle validate? Run `openspec validate --all --strict --json` and require `valid: true` with no errors — uniform parity with the architect-team + bug-fix planning gates (per `common-pipeline-conventions/SKILL.md` `## Uniform plugin usage (v3.9.0)`). Fix any validation error before exiting the self-confirm loop. The architect's M2 draft applied `superpowers:brainstorming`; this gate is its `superpowers:verification-before-completion` checkpoint for the spec bundle.
 2. Does every AC have a covering Playwright flow? (And every flow bind to an AC?)
 3. Does the file scope in `tasks.md` not overlap between backend and frontend?
 4. Does the proposal's WHY still match the user's prose / folder?
@@ -182,7 +196,7 @@ The self-confirm pass is **structural + semantic**, not free-form refinement. If
 
 ## Phase M4 — Parallel dev dispatch (backend + frontend, cross-review)
 
-The Lead creates `backend` + `frontend` tasks **in parallel** in the shared list (teams mode) OR dispatches the `backend` and `frontend` subagents **in parallel** via a single Agent-tool call carrying multiple invocations (subagents mode) — mirrors `architect-team-pipeline` Phase 2. Each receives:
+The Lead creates `backend` + `frontend` tasks **in parallel** in the shared list (teams mode) OR dispatches the `backend` and `frontend` subagents **in parallel** via a single Agent-tool call carrying multiple invocations (subagents mode) — mirrors `architect-team-pipeline` Phase 2. Each dev applies `superpowers:test-driven-development` — write the failing test before the implementation code, per `## Plugin prerequisites (v3.9.0)`. Each receives:
 
 - `tasks.md` from M2/M3 — with the file-scope partition.
 - `coverage-map.json` — including the `qa_guidance` block.
@@ -263,9 +277,13 @@ On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. 
 
 Per `documentation-currency`, run a single-pass doc update (no producer/checker split) covering: `README.md`, `CHANGELOG.md`, `CODEBASE_MAP.md`, `INTEGRATION_MAP.md`, `CLAUDE.md`, per-codebase `ROUTE_MAP.md` / `DESIGN_MAP.md` if they exist and are touched. The mini variant runs this in-line rather than spawning a separate `doc-updater` agent — the architect handles it.
 
+### OpenSpec archive (uniform parity)
+
+Before staging, run `openspec archive <slug>` to merge the change's spec deltas into the canonical `openspec/specs/` — uniform parity with the architect-team Phase 7 + bug-fix Phase B7 archive steps (per `common-pipeline-conventions/SKILL.md` `## Uniform plugin usage (v3.9.0)`). The archive runs only after the M6 `verdict: green` gate and the v2.20.0 / v3.0.0 meta-gates above pass — it is part of `superpowers:verification-before-completion`, not a shortcut around it. The resulting archive changes are staged into the same commit below; the `git merge --ff-only` auto-merge sequence is UNCHANGED.
+
 ### Commit sequence
 
-1. Stage all M4 + M5 + doc-currency changes.
+1. Stage all M4 + M5 + doc-currency + openspec-archive changes.
 2. Commit with trailers:
    ```
    Mini-Run: <slug>
@@ -393,7 +411,7 @@ The architect reads:
 - The original `proposal.md` + `tasks.md` + `coverage-map.json`.
 - The cached maps from M1.
 
-The architect edits the OpenSpec bundle in place (proposal, tasks, coverage-map) to address the failure. The architect MUST NOT just retry the same plan — the verdict's `responsible_role_on_red` field tells the architect which team's instructions were wrong. The re-eval modifies those instructions, then loops back to **Phase M4** (parallel dev re-dispatch) with the new tasks.md.
+The architect applies `superpowers:systematic-debugging` to root-cause the red verdict before editing — find why the test failed, don't guess (per `## Plugin prerequisites (v3.9.0)`). The architect then edits the OpenSpec bundle in place (proposal, tasks, coverage-map) to address the failure. The architect MUST NOT just retry the same plan — the verdict's `responsible_role_on_red` field tells the architect which team's instructions were wrong. The re-eval modifies those instructions, then loops back to **Phase M4** (parallel dev re-dispatch) with the new tasks.md.
 
 ### Recurrence → hand off to the full (unbounded) pipeline
 

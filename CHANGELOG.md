@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.9.0] — 2026-06-09 — Uniform plugin usage: superpowers as a hard dependency + openspec gate parity (predictable regardless of mini or call)
+
+**MINOR — owner-directed standardization.** Closes a codebase-review finding that CT6's external-plugin usage (superpowers, ralph-loop, cartographer, openspec) was NOT uniform across pipelines, so a run's behavior depended on which command launched it. Per the owner directive *"issue the fixes, ensure its superpowers dependent. ensure we use all plugins, we must standardize usage for predictable results regardless of mini or call."*
+
+### 1. Superpowers — HARD dependency, concretely invoked
+
+- `scripts/setup/setup.py`: a missing REQUIRED plugin is now an explicit HARD failure (exit 1), with superpowers called out as a hard dependency (docstring + report wording updated). NEW `ensure_openspec_propose_skill()` verifies the openspec-propose authoring skill is resolvable (an `opsx`/`openspec` plugin id in `installed_plugins.json` OR the vendored `.claude/skills/openspec-propose/SKILL.md`); a "missing" status contributes to exit 1. (`REQUIRED_PLUGINS` itself unchanged — openspec-propose ships vendored, so no external plugin id exists to add.)
+- Every pipeline body (`architect-team-pipeline`, `bug-fix-pipeline`, `mini-architect-team-pipeline`, `ux-test-builder`) gains a `## Plugin prerequisites (v3.9.0)` section: a hard superpowers **pre-flight abort gate** (run aborts with an actionable message if superpowers is unavailable) plus concrete `superpowers:*` Skill invocations woven into the phases — `superpowers:brainstorming` (design/intake), `superpowers:test-driven-development` (implementation), `superpowers:systematic-debugging` (RCA/diagnosis), `superpowers:verification-before-completion` (review/completion gates). Replaces the prior decorative "Superpowers-driven" framing with real invocations.
+- **Precedence preserved:** "hard-blocking" governs plugin PRESENCE only — user CLAUDE.md / AGENTS.md instructions still take precedence over a superpowers skill's defaults.
+
+### 2. OpenSpec — identical gates across implementing pipelines
+
+- `mini-architect-team-pipeline` gains `openspec validate --all --strict --json` (planning/review) AND `openspec archive <change>` at M7 — it previously skipped both (it only `git merge --ff-only`-ed). The merge step is retained.
+- `bug-fix-pipeline` validate aligned `--strict` → `--all --strict`, matching the full pipeline.
+- `hooks/vao_tools.py::verify_no_pipeline_bypass` no longer false-trips `openspec-bypassed`: openspec usage is now evidenced by ANY of a literal `openspec ` Bash call, an `openspec-propose`/`opsx:propose` Skill invocation, OR an `openspec/changes/<name>/` artifact set (so legitimate mini + exploration-skill runs pass; a genuine bypass still trips).
+
+### 3. Ralph-loop — uniform invocation, no stale caps
+
+- Removed every stale `--max-iterations N` from actual `/ralph-loop` invocation examples (`README.md`, `docs/INTEGRATION_MAP.md`, `openspec/changes/exploration-pipeline/design.md`) — they contradicted the v3.8.0 unbounded-solving change. Removal-description prose left intact. Repo-wide grep confirms no live invocation still passes the flag (only CHANGELOG history + removal prose remain).
+- `data-engineering-exploration` + `domain-research-team` converted from prose completion-promises to the explicit `/ralph-loop "<prompt>" --completion-promise "<EXIT>"` flag form.
+
+### 4. Canonical contract
+
+- NEW `## Uniform plugin usage (v3.9.0)` section in `common-pipeline-conventions` — the single source of truth (ralph-loop form, the superpowers per-phase invocation map + pre-flight, the identical openspec validate+archive gates, the authoring-path split) — referenced by all four pipeline bodies.
+
+OpenSpec change `standardize-plugin-usage` (REQ-001…REQ-005). Self-dogfooded: this run made superpowers a hard dependency *and exercised it*. Suite green (Windows cp1252 + `PYTHONUTF8=1`).
+
 ## [3.8.0] — 2026-06-09 — Unbounded solving (no run limits) + Code & Data Lineage Graph (CDLG) foundation
 
 **MINOR — two owner-directed deliverables on one branch.**

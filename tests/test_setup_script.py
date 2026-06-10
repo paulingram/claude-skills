@@ -167,3 +167,119 @@ def test_python3_on_path_returns_remediation_when_missing_windows(setup_module: 
     assert ok is False
     assert isinstance(msg, str)
     assert ("py launcher" in msg or "python.org" in msg)
+
+
+# ---- openspec-propose skill prerequisite (HARD block) ----------------------
+
+
+def test_required_plugins_unchanged_hard_set(setup_module: ModuleType) -> None:
+    """superpowers / cartographer / ralph-loop remain the REQUIRED_PLUGINS hard set."""
+    assert setup_module.REQUIRED_PLUGINS == {
+        "superpowers@claude-plugins-official",
+        "cartographer@cartographer-marketplace",
+        "ralph-loop@claude-plugins-official",
+    }
+
+
+def test_ensure_openspec_propose_present_via_vendored_skill(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """Present when the vendored .claude/skills/openspec-propose/SKILL.md resolves,
+    even with an empty installed_plugins.json."""
+    installed = tmp_path / "installed.json"
+    installed.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+    skill = tmp_path / "SKILL.md"
+    skill.write_text("# openspec-propose", encoding="utf-8")
+    name, status, detail = setup_module.ensure_openspec_propose_skill(
+        installed_path=installed, vendored_skill_path=skill
+    )
+    assert status == "present"
+    assert "vendored" in (detail or "")
+
+
+def test_ensure_openspec_propose_present_via_external_plugin(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """Present when an opsx/openspec plugin id appears in installed_plugins.json,
+    even when the vendored skill is absent."""
+    installed = tmp_path / "installed.json"
+    installed.write_text(
+        json.dumps({"version": 2, "plugins": {"opsx@some-marketplace": [{}]}}),
+        encoding="utf-8",
+    )
+    name, status, detail = setup_module.ensure_openspec_propose_skill(
+        installed_path=installed,
+        vendored_skill_path=tmp_path / "does-not-exist.md",
+    )
+    assert status == "present"
+    assert "opsx@some-marketplace" in (detail or "")
+
+
+def test_ensure_openspec_propose_missing_when_neither(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """Missing when neither an opsx/openspec plugin nor the vendored skill exists."""
+    installed = tmp_path / "installed.json"
+    installed.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+    name, status, detail = setup_module.ensure_openspec_propose_skill(
+        installed_path=installed,
+        vendored_skill_path=tmp_path / "does-not-exist.md",
+    )
+    assert status == "missing"
+
+
+def test_main_returns_one_when_openspec_propose_missing(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """A missing openspec-propose skill is a HARD block — main() returns 1 even
+    when every REQUIRED plugin is present."""
+    installed = {
+        "version": 2,
+        "plugins": {
+            "superpowers@claude-plugins-official": [{}],
+            "cartographer@cartographer-marketplace": [{}],
+            "ralph-loop@claude-plugins-official": [{}],
+        },
+    }
+    installed_path = tmp_path / "installed.json"
+    installed_path.write_text(json.dumps(installed), encoding="utf-8")
+    with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed_path), \
+         patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
+         patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest+httpx+...", "present", None)), \
+         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
+         patch.object(setup_module, "check_teams_mode", return_value=("teams-mode", "present", None)), \
+         patch.object(
+             setup_module,
+             "ensure_openspec_propose_skill",
+             return_value=("openspec-propose", "missing", "not found"),
+         ):
+        rc = setup_module.main(["--check-only"])
+    assert rc == 1
+
+
+def test_main_returns_zero_with_openspec_propose_present(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """When every prerequisite including openspec-propose is present, main() returns 0."""
+    installed = {
+        "version": 2,
+        "plugins": {
+            "superpowers@claude-plugins-official": [{}],
+            "cartographer@cartographer-marketplace": [{}],
+            "ralph-loop@claude-plugins-official": [{}],
+        },
+    }
+    installed_path = tmp_path / "installed.json"
+    installed_path.write_text(json.dumps(installed), encoding="utf-8")
+    with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed_path), \
+         patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
+         patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest+httpx+...", "present", None)), \
+         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
+         patch.object(setup_module, "check_teams_mode", return_value=("teams-mode", "present", None)), \
+         patch.object(
+             setup_module,
+             "ensure_openspec_propose_skill",
+             return_value=("openspec-propose", "present", "vendored"),
+         ):
+        rc = setup_module.main(["--check-only"])
+    assert rc == 0

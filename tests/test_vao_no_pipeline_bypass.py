@@ -257,6 +257,96 @@ def test_severity_openspec_bypassed_does_not_fire_when_no_openspec_optout() -> N
     assert all(g["severity"] != "openspec-bypassed" for g in v["gaps"])
 
 
+# ---- severity 4 (broadened): openspec usage via skill / change-folder -------
+
+
+def test_openspec_bypassed_does_not_fire_with_openspec_propose_skill() -> None:
+    """A mini/exploration run that authored the change via the openspec-propose
+    Skill (not a Bash call) must NOT trip openspec-bypassed."""
+    v = verify_no_pipeline_bypass(
+        user_prompt="/architect-team:mini add a tooltip",
+        toolcall_ledger=[
+            {"tool": "Skill", "tool_input": {"skill": "mini-architect-team-pipeline"}},
+            {"tool": "Agent", "tool_input": {"subagent_type": "x"}},
+            {"tool": "Skill", "tool_input": {"skill": "openspec-propose"}},
+            {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/r.json"}},
+        ],
+    )
+    assert all(g["severity"] != "openspec-bypassed" for g in v["gaps"])
+
+
+def test_openspec_bypassed_does_not_fire_with_opsx_propose_skill() -> None:
+    """The opsx:propose alias is also recognized as legitimate openspec usage."""
+    v = verify_no_pipeline_bypass(
+        user_prompt="/architect-team build it",
+        toolcall_ledger=[
+            {"tool": "Skill", "tool_input": {"skill": "architect-team-pipeline"}},
+            {"tool": "Agent", "tool_input": {"subagent_type": "x"}},
+            {"tool": "Skill", "tool_input": {"skill": "opsx:propose"}},
+            {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/r.json"}},
+        ],
+    )
+    assert all(g["severity"] != "openspec-bypassed" for g in v["gaps"])
+
+
+def test_openspec_bypassed_does_not_fire_with_openspec_change_artifact() -> None:
+    """An openspec/changes/<name>/ artifact write is evidence openspec was used."""
+    v = verify_no_pipeline_bypass(
+        user_prompt="/architect-team build it",
+        toolcall_ledger=[
+            {"tool": "Skill", "tool_input": {"skill": "architect-team-pipeline"}},
+            {"tool": "Agent", "tool_input": {"subagent_type": "x"}},
+            {"tool": "Write", "tool_input": {"file_path": "/repo/openspec/changes/my-change/proposal.md"}},
+            {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/r.json"}},
+        ],
+    )
+    assert all(g["severity"] != "openspec-bypassed" for g in v["gaps"])
+
+
+def test_openspec_bypassed_change_artifact_detected_on_windows_path() -> None:
+    """Backslash (Windows) paths into openspec\\changes\\ also count."""
+    v = verify_no_pipeline_bypass(
+        user_prompt="/architect-team build it",
+        toolcall_ledger=[
+            {"tool": "Skill", "tool_input": {"skill": "architect-team-pipeline"}},
+            {"tool": "Agent", "tool_input": {"subagent_type": "x"}},
+            {"tool": "Edit", "tool_input": {"file_path": "C:\\repo\\openspec\\changes\\my-change\\tasks.md"}},
+            {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/r.json"}},
+        ],
+    )
+    assert all(g["severity"] != "openspec-bypassed" for g in v["gaps"])
+
+
+def test_openspec_bypassed_still_fires_when_truly_never_used() -> None:
+    """TRUE-positive preserved: no Bash openspec, no propose Skill, no change
+    artifact → openspec-bypassed STILL fires."""
+    v = verify_no_pipeline_bypass(
+        user_prompt="/architect-team build it",
+        toolcall_ledger=[
+            {"tool": "Skill", "tool_input": {"skill": "architect-team-pipeline"}},
+            {"tool": "Agent", "tool_input": {"subagent_type": "x"}},
+            {"tool": "Write", "tool_input": {"file_path": "/repo/.architect-team/reviews/r.json"}},
+        ],
+    )
+    assert any(g["severity"] == "openspec-bypassed" for g in v["gaps"])
+
+
+def test_scan_ledger_counts_openspec_propose_skill_invocations() -> None:
+    counts = _scan_ledger_for_pipeline_elements([
+        {"tool": "Skill", "tool_input": {"skill": "openspec-propose"}},
+        {"tool": "Skill", "tool_input": {"skill": "opsx:propose"}},
+    ])
+    assert counts["openspec_propose_skill_invocations"] == 2
+
+
+def test_scan_ledger_counts_openspec_change_artifacts() -> None:
+    counts = _scan_ledger_for_pipeline_elements([
+        {"tool": "Write", "tool_input": {"file_path": "/repo/openspec/changes/c/proposal.md"}},
+        {"tool": "Edit", "tool_input": {"file_path": "C:\\repo\\openspec\\changes\\c\\tasks.md"}},
+    ])
+    assert counts["openspec_change_artifacts"] == 2
+
+
 # ---- severity 5: pipeline-confession-language-detected ----
 
 

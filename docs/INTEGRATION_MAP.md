@@ -36,7 +36,7 @@ The architect-team plugin does not integrate with any peer codebase. It DOES dep
 
 ### architect-team ↔ ralph-loop plugin
 
-- **Protocol:** slash-command invocation (`architect-team:intake-and-mapping` describes Phase −1B/−1C wrapping in `/ralph-loop "<prompt>" --completion-promise "<exit string>" --max-iterations N`).
+- **Protocol:** slash-command invocation (`architect-team:intake-and-mapping` describes Phase −1B/−1C wrapping in `/ralph-loop "<prompt>" --completion-promise "<exit string>"` — loops until the promise; no iteration cap per v3.8.0 unbounded solving).
 - **Endpoint:** `/plugin install ralph-loop@claude-plugins-official`.
 - **Required because:** the canonical Phase −1B/−1C iterate-until-converged loop is implemented via ralph-loop.
 - **Failure mode:** if ralph-loop absent, the orchestrator must implement the iteration logic natively (current behavior in this dogfood run since `/ralph-loop` is a slash command not directly invokable from inside an orchestrator context — no functional break, just less ceremony).
