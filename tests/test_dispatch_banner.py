@@ -426,6 +426,6 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.9.1"
+    assert plugin_json["version"] == "3.9.2"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.9.1"
+    assert marketplace_json["plugins"][0]["version"] == "3.9.2"
