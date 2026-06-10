@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 10 . 0
+                        ─── C T 6 ───   v 3 . 11 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -32,13 +32,13 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 19 slash commands like
+> compatibility with existing installations + the 20 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.10.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.11.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4268%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4356%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,18 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.10.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.11.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.11.0 — Structure Optimization Pipeline
+
+| Capability | What changed |
+|---|---|
+| **NEW skill — `structure-optimization`** | Stages S0–S8: maps current via `cartographer-team` (freshness-checked; produced if missing) → ×3 independent `structure-analyst` drafts → ralph-loop convergence gated by a deterministic every-file **partition check** (`git ls-files` = movement table ∪ stays list; zero orphans, zero duplicates) → sharded `reference-tracer` closure (every import / config / CI / docs / string-path / test reference per movement, `file:line` evidence) → ×3 `structure-adversary` refutation rounds until **two consecutive all-clean rounds** → `system-architect` Restructure Plan Audit → `RESTRUCTURE_PLAN.md` (per `superpowers:writing-plans`) + `movements.json` (schema v1.0) → `openspec-propose` authoring + `openspec validate --all --strict --json`. Plan-only: execution belongs to `/architect-team` driving the produced change. |
+| **NEW command — `/architect-team:optimize-structure`** | `[codebase-path \| --all] [--objective "<prose>"] [--execute] [--no-commit] [--no-push] [--no-compact]` — dispatch banner first; `--execute` (default off) hands the validated change straight to the implementing pipeline. |
+| **3 NEW agents + 1 extended** | `structure-analyst` (opus ×3, full-partition drafts), `reference-tracer` (sonnet ×N shards, mechanical closure + mandatory `search_log`), `structure-adversary` (opus ×3, refutation via modalities the tracers did not run); `system-architect` gains the ninth mode — **Restructure Plan Audit** (re-runs the partition check, spot-checks closure with fresh modalities, walks batch order). |
+| **Producer/checker at pipeline scale** | Analysts design, tracers close, adversaries refute, the architect audits, the orchestrator runs the deterministic checks itself — no role verifies its own output (v0.9.13 discipline). |
 
 ### v3.10.0 — Second-tier review improvements (R1–R7)
 
@@ -242,7 +251,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (40) ───────────────────────┬─ AGENTS (34) ─────────────────────────┐
+┌─ SKILLS (41) ───────────────────────┬─ AGENTS (37) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -279,9 +288,9 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (sonnet) ★         │
 │   (v2.17.0)                         │ ◆ monitor-synthesizer (opus) ★        │
 │ ◇ test-run-monitor (v3.3.0)        *│ ◆ domain-researcher (opus) ★          │
-│ ◇ cartographer-team (v3.4.0)       *│                                       │
-│ ◇ domain-research-team (v3.4.0)    *│                                       │
-│ ◇ api-design-from-frontend         *│                                       │
+│ ◇ cartographer-team (v3.4.0)       *│ ◆ structure-analyst (opus) ★          │
+│ ◇ domain-research-team (v3.4.0)    *│ ◆ reference-tracer (sonnet) ★         │
+│ ◇ api-design-from-frontend         *│ ◆ structure-adversary (opus) ★        │
 │   (v3.4.0)                          │                                       │
 │ ◇ data-engineering-exploration     *│                                       │
 │   (v3.5.0)                          │                                       │
@@ -289,7 +298,9 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (lineage P1 — the CDLG)           │                                       │
 │ ◇ data-lineage-mapping              │                                       │
 │   (lineage P3 — asset lineage)      │                                       │
-├─ COMMANDS (19) ─────────────────────┴───────────────────────────────────────┤
+│ ◇ structure-optimization           *│                                       │
+│   (v3.11.0 — restructure planning)  │                                       │
+├─ COMMANDS (20) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -313,6 +324,8 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v2.19.0 — in-flight clarification injection into the running pipeline)   │
 │ ▸ /architect-team:monitor-tests <test-command-or-source-spec>               │
 │   (v3.3.0 — passive observer team: local / CI / production-QA)              │
+│ ▸ /architect-team:optimize-structure [<codebase-path> | --all]              │
+│   (v3.11.0 — adversarially-verified restructure plan + OpenSpec change)     │
 ├─ HOOKS (4 scripts / 6 events) ───────────────────────────────────────────────┤
 │ ▸ PreToolUse(Edit/Write/    unilateral-override guard                       │
 │     NotebookEdit)                                                           │
@@ -1047,7 +1060,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent frontmatters (tool + model names); all 19 commands; hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **4268 tests pass (+ 5 skipped).**
+Tests validate: plugin/marketplace JSON; all 41 skill frontmatters; all 37 agent frontmatters (tool + model names); all 20 commands; hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **4356 tests pass (+ 5 skipped).**
 
 ### Bumping versions
 
@@ -1163,7 +1176,8 @@ Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent
            v3.9.1  ─ VAO review-evidence precedence fix (`(A or B) and ".json"`) + 5 orphaned openspec change folders archived into `openspec/changes/archive/`
            v3.9.2  ─ deterministic openspec gate at the master-review Stop hook (`_audit_openspec_validation` re-runs `openspec validate --all --strict`, blocks the commit on any invalid change); suite green under both cp1252 and `PYTHONUTF8=1`
            v3.9.3  ─ review-remediation — 30 verified-defect fixes across the enforcement glue (detect-once `hooks.json`, bare-module VAO CLI fallbacks, atomic in-flight inbox, UTF-8 stdin + OSError-fails-closed, `teams_mode` / `worktree_lifecycle` CLIs), the command surface, the skill docs (schema taught as v7, unbounded-solving residue swept), and the docs; a NEW "execute the glue" test family
-   ◆       v3.10.0 ─ second-tier review improvements (R1–R7) — `hooks/vao_tools.py` split into the `hooks/vao/` package behind a 125-name identity-checked facade + NEW `hooks/shared_util.py`; NEW `security-hunter` adversarial shape (+ `security-finding` SR) / interaction-completeness accessibility axis (`a11y-gap`) / unbounded-run `heartbeat` notify event; scope-fidelity discipline family + helper/localhost consolidation; agent hygiene sweep; `locks.py` `O_CREAT|O_EXCL` + `globs_intersect` prefix/suffix; registry applicability guards; narrative diet (current)
+           v3.10.0 ─ second-tier review improvements (R1–R7) — `hooks/vao_tools.py` split into the `hooks/vao/` package behind a 125-name identity-checked facade + NEW `hooks/shared_util.py`; NEW `security-hunter` adversarial shape (+ `security-finding` SR) / interaction-completeness accessibility axis (`a11y-gap`) / unbounded-run `heartbeat` notify event; scope-fidelity discipline family + helper/localhost consolidation; agent hygiene sweep; `locks.py` `O_CREAT|O_EXCL` + `globs_intersect` prefix/suffix; registry applicability guards; narrative diet
+   ◆       v3.11.0 ─ structure-optimization pipeline — adversarially-verified codebase-restructure planning: `structure-optimization` skill (S0–S8) + `/architect-team:optimize-structure` + `structure-analyst` / `reference-tracer` / `structure-adversary` agents + the system-architect Restructure Plan Audit mode; deterministic partition check; two-consecutive-clean adversarial exit; plan ships as RESTRUCTURE_PLAN.md + movements.json + a strict-validated OpenSpec change (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

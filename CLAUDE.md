@@ -1,12 +1,12 @@
 # CLAUDE TEAM SIX (CT6)
 
-> Internal plugin slug: `architect-team` (preserved for backward compatibility with existing installations + the 19 slash commands). CLAUDE TEAM SIX is the user-facing display name introduced in v2.2.0.
+> Internal plugin slug: `architect-team` (preserved for backward compatibility with existing installations + the 20 slash commands). CLAUDE TEAM SIX is the user-facing display name introduced in v2.2.0.
 
 ## What this repo is
 
 This repo IS the source of the **CLAUDE TEAM SIX** Claude Code plugin (internal slug `architect-team`) — a spec-to-production multi-agent coding pipeline. It orchestrates **MemPalace wake-up → Phase −2 (Triage) → Phase −1 → 8** against a requirements folder, with sibling pipelines for **bug-fix** (`/architect-team:bug-fix`), **UX testing** (`/architect-team:ux-test`), and **mini** (`/architect-team:mini`).
 
-As of **v3.10.0** it ships **40 skills + the v2.3.0 phenotype subsystem, 34 named agents, 19 slash commands, and 4268 pytest self-tests + 5 skipped** (across 172 test files; green under both Windows cp1252 and `PYTHONUTF8=1`). The default dispatch mode is Claude Code's experimental **Agent Teams** primitive (long-lived named teammates with their own 1M context windows, a shared task list, direct `SendMessage`, and a Lead that owns coordination); it requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and Claude Code ≥ 2.1.32, and silently falls back to subagents mode otherwise. `--no-teams` forces subagents mode.
+As of **v3.11.0** it ships **41 skills + the v2.3.0 phenotype subsystem, 37 named agents, 20 slash commands, and 4356 pytest self-tests + 5 skipped** (across 175 test files; green under both Windows cp1252 and `PYTHONUTF8=1`). The default dispatch mode is Claude Code's experimental **Agent Teams** primitive (long-lived named teammates with their own 1M context windows, a shared task list, direct `SendMessage`, and a Lead that owns coordination); it requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and Claude Code ≥ 2.1.32, and silently falls back to subagents mode otherwise. `--no-teams` forces subagents mode.
 
 ## Stack
 
@@ -22,9 +22,9 @@ The 20 Layer-3 verification CLI subcommands (all dispatched through the `hooks/v
 ## Structure
 
 - `.claude-plugin/` — identity (`plugin.json` + `marketplace.json`).
-- `skills/` — 40 dirs (the pipeline bodies + the discipline skills + `verified-agent-output` + `interactive-mockup-discovery` + the phenotype skills + the exploration/lineage skills).
-- `agents/` — 34 files (the implementer/reviewer/researcher agents; `oracle-deriver` / `adversarial-reviewer` / `interaction-observer` / `domain-researcher` / `test-run-watcher` / `monitor-synthesizer` / `endpoint-tracer` are the more recent joiners; `scaffold-agent` is an on-demand authoring utility).
-- `commands/` — 19 files (the 19 slash commands).
+- `skills/` — 41 dirs (the pipeline bodies + the discipline skills + `verified-agent-output` + `interactive-mockup-discovery` + the phenotype skills + the exploration/lineage skills + `structure-optimization`).
+- `agents/` — 37 files (the implementer/reviewer/researcher agents; `domain-researcher` / `endpoint-tracer` / `structure-analyst` / `reference-tracer` / `structure-adversary` are the more recent joiners; `scaffold-agent` is an on-demand authoring utility).
+- `commands/` — 20 files (the 20 slash commands).
 - `hooks/` — JSON wiring + the 4 enforcement scripts + the `hooks/vao/` package + the shared modules (see Stack).
 - `tests/` — pytest self-tests across the test-file set (structural + cross-consistency coverage; the VAO behavior tests + fixtures live under `tests/` and `tests/fixtures/vao/`).
 - `docs/` — `CODEBASE_MAP.md`, `INTEGRATION_MAP.md`, `superpowers/` historical design + plan.
@@ -35,10 +35,9 @@ For full architecture, file purposes, conventions, gotchas, and a navigation gui
 
 The full per-version narrative lives in [`CHANGELOG.md`](CHANGELOG.md). The three most recent:
 
+- **v3.11.0 — Structure Optimization Pipeline.** A new planning pipeline (`structure-optimization` skill, S0–S8 + `/architect-team:optimize-structure`) that produces an adversarially-verified codebase-restructure plan: maps current via `cartographer-team` (produced if missing), ×3 `structure-analyst` independent drafts converge under a deterministic every-file partition check (`git ls-files` = movement table ∪ stays list; zero orphans/duplicates), sharded `reference-tracer` agents close every movement's reference-impact set (imports / configs / CI / docs / string paths, `file:line` evidence + mandatory search logs), ×3 `structure-adversary` rounds refute via modalities the tracers did not run until two consecutive all-clean rounds, the `system-architect` Restructure Plan Audit (ninth mode) gates assembly, and the plan ships as `RESTRUCTURE_PLAN.md` + `movements.json` (schema v1.0) + an `openspec-propose`-authored strict-validated change. Plan-only: execution belongs to `/architect-team` driving the produced change (`--execute` hands off immediately). 3 new agents; backbone = ralph-loop + openspec + superpowers per `## Uniform plugin usage (v3.9.0)`.
 - **v3.10.0 — Second-tier review improvements (R1–R7).** Implements the six design-level streams the v3.9.3 review-remediation run deferred plus the discipline-detector-applicability fix: the scope-discipline markers + shared helpers (`_utc_now_iso` / `load_json` / the JSONL reader) consolidated into `hooks/shared_util.py`, the two localhost lists unified, and a canonical `## Scope-fidelity discipline family (v3.10.0)` CPC section; `hooks/vao_tools.py` split into the `hooks/vao/` package behind a behavior-identical facade; the narrative diet (CLAUDE.md operative-first, CPC ≥30% narrative cut, pipeline bodies collapsed to CPC references); the agent-hygiene sweep (stale `LS`/`NotebookRead` removed, write-without-Write fixed, boilerplate re-synced, colors mapped, `scaffold-agent` documented); `locks.py` concurrency fixes (`O_CREAT|O_EXCL` + intersecting-scope re-scan + `globs_intersect` prefix/suffix); and three NEW capabilities — the `security-hunter` adversarial shape (+ `security-finding` SR origin kind), the interaction-completeness accessibility axis (`a11y-gap`), and the unbounded-run `heartbeat` notify event.
 - **v3.9.3 — Review-remediation (30 verified-defect fixes).** A 2026-06-09 codebase review of v3.9.2 found 30 verified defects across the enforcement glue, the command surface, the skill docs, and the docs themselves — each a place the machinery silently failed or silently mis-taught. The glue fixes make the enforcement layer actually execute (`hooks/hooks.json` detect-once polyglot, bare-module import fallbacks for the crashing VAO CLIs, atomic in-flight inbox, UTF-8 stdin + OSError-fails-closed, minimal CLIs for the command banners + worktree cleanup); the doc fixes bring the docs true to shipped code (review-evidence schema taught as v7 everywhere); a new "execute the glue" test family (`tests/test_vao_glue_execution.py`) resolves and exercises every fenced command invocation.
-- **v3.9.2 — `openspec validate --all --strict` wired into the master-review gate.** The `pipeline-completion-audit` hook now independently re-runs strict validation at the Phase 7 master-review gate (`_audit_openspec_validation`) and hard-blocks the Phase 8 commit on any invalid active change, instead of trusting the `system-architect`'s self-reported `openspec_validate` field. Best-effort: a no-op when `openspec/` or the CLI is absent, or on any subprocess error.
-
 ## Conventions at a glance
 
 - Author commits with explicit override (repo's local git config has a "Paul Ingrram" typo):
