@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.9.1] — 2026-06-10 — Maintenance: VAO precedence fix + OpenSpec change-folder hygiene
+
+**PATCH — two follow-ups surfaced by the v3.9.0 review.**
+
+- **VAO operator-precedence fix** — `hooks/vao_tools.py::_scan_ledger_for_pipeline_elements` review-evidence detection was `A or (B and C)` — it counted a non-`.json` write under `.architect-team/reviews/` as review evidence. Parenthesized to `(A or B) and ".json"` so a review-evidence file must be a `.json` under a `reviews/` dir. Latent-only (real review evidence is always `.json`), but now correct. Regression test added (`test_scan_ledger_review_evidence_requires_json_extension`).
+- **OpenSpec change-folder hygiene** — five orphaned change folders whose work shipped in prior releases but were never archived (and were malformed — no `specs/` or no delta headers, so `openspec archive` could not process them) caused `openspec validate --all --strict` to report 5 failures. Moved into `openspec/changes/archive/` with their first-commit dates (`2026-05-18-test-completeness-enforcement`, `2026-05-21-mempalace-mine-syntax-fix`, `2026-05-21-producer-checker-enforcement`, `2026-05-26-mini-architect-team-pipeline`, `2026-05-30-add-phenotype-subsystem`) — history preserved; `openspec validate --all --strict` now passes 32/0. Active changes are now just `consolidate-duplicated-rules` + `exploration-pipeline`.
+
+Suite 3920 → 3921 passing (+5 skipped).
+
 ## [3.9.0] — 2026-06-09 — Uniform plugin usage: superpowers as a hard dependency + openspec gate parity (predictable regardless of mini or call)
 
 **MINOR — owner-directed standardization.** Closes a codebase-review finding that CT6's external-plugin usage (superpowers, ralph-loop, cartographer, openspec) was NOT uniform across pipelines, so a run's behavior depended on which command launched it. Per the owner directive *"issue the fixes, ensure its superpowers dependent. ensure we use all plugins, we must standardize usage for predictable results regardless of mini or call."*

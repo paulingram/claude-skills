@@ -4591,7 +4591,11 @@ def _scan_ledger_for_pipeline_elements(
         # Review evidence file writes
         if tool in ("Write", "Edit", "NotebookEdit"):
             path = (inp.get("file_path") or inp.get("path") or "")
-            if "/.architect-team/reviews/" in path or "/reviews/" in path and ".json" in path:
+            # A review-evidence file is a .json under a reviews/ dir. The parens
+            # make the intent explicit: (canonical path OR loose /reviews/) AND .json.
+            # Without them this parsed as `A or (B and C)`, which counted a
+            # non-.json write under .architect-team/reviews/ as evidence.
+            if ("/.architect-team/reviews/" in path or "/reviews/" in path) and ".json" in path:
                 counts["review_evidence_files"] += 1
             # An openspec/changes/<name>/ artifact write is evidence openspec
             # was used (the change-proposal flow authors proposal.md / tasks.md
