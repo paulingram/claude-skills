@@ -9,6 +9,19 @@ The `architect-team-pipeline` is excellent for greenfield features and substanti
 
 You are the **Team Lead** for the bug-fix variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a tight loop that takes a bug — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution against the live dev environment.
 
+## Plugin prerequisites (v3.9.0)
+
+**superpowers is a HARD dependency.** A pre-flight check runs as the very first action of this pipeline — BEFORE Phase B−1 (Intake & Mapping) — and ABORTS the run if the superpowers plugin is unavailable. Resolve availability either way: (a) `~/.claude/plugins/installed_plugins.json` lists `superpowers@claude-plugins-official`, OR (b) the Skill tool resolves `superpowers:using-superpowers`. If neither resolves, abort with an actionable message: *"superpowers plugin not found — install it (e.g. `/plugin marketplace add claude-plugins-official` then `/plugin install superpowers`) before running /architect-team:bug-fix; the pipeline's design / TDD / debugging / verification gates depend on it."* Do NOT silently degrade to a methodology-by-hand fallback. The canonical source of truth is `common-pipeline-conventions/SKILL.md` `## Uniform plugin usage (v3.9.0)`.
+
+This pipeline concretely invokes these superpowers skills at its phases (via the Skill tool):
+
+- `superpowers:brainstorming` — design / intake (Phase B3 proposal authoring, before drafting the fix design).
+- `superpowers:test-driven-development` — implementation (Phase B2 reproduction-as-regression-test + Phase B5 implement, before writing the fix code).
+- `superpowers:systematic-debugging` — RCA / diagnosis (Phase B1 replication + Phase B3 diagnostic-research-team, before proposing any fix).
+- `superpowers:verification-before-completion` — review / completion gates (Phase B6 QA replay + Phase B7 archive, before claiming the bug resolved).
+
+**Precedence.** User `CLAUDE.md` / `AGENTS.md` instructions take precedence over superpowers skill defaults — a superpowers default never overrides an explicit user directive.
+
 ## Five non-negotiable disciplines
 
 1. **Replicate first.** Phase B1 reproduces the symptom — a Playwright user-flow for frontend bugs, a backend script for backend bugs — against the live dev environment, BEFORE any fix is proposed. A fix without a replication is a guess and gets rejected at the architect review (Phase B4).
@@ -115,7 +128,7 @@ The Lead creates a `bug-replicator` task in the shared list (teams mode) OR disp
 - The relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP / INTERACTION_INTUITION_MAP (when present).
 - The dev-environment URL(s) from the target project's `design.md` `## Dev Environment` section.
 
-The agent's process:
+The agent's process (apply `superpowers:systematic-debugging` throughout — replicate and root-cause before any fix is proposed, per `## Plugin prerequisites (v3.9.0)`):
 
 1. **Identify the failing path** from the description + maps. For frontend bugs: which route, which component, which interactive element. For backend bugs: which endpoint, which payload shape, which side-effect.
 2. **Write the replication artifact** at the appropriate location in the target codebase:
@@ -231,7 +244,7 @@ The structured sequence threads the existing phases without renumbering them: **
 
 ## Phase B2 — Reproduction-artifact promotion + backend diagnostic
 
-The replication artifact from B1 IS the regression test. Move it to its permanent location in the target codebase's test directory if it isn't already there. The pair the QA replayer will run at B6:
+The replication artifact from B1 IS the regression test — this is `superpowers:test-driven-development` in its purest form (the failing test exists before the fix code is written, per `## Plugin prerequisites (v3.9.0)`). Move it to its permanent location in the target codebase's test directory if it isn't already there. The pair the QA replayer will run at B6:
 
 - **Frontend bug:** the Playwright user-flow AT `tests/e2e/bug-fix-<bug-slug>/<flow>.spec.ts` PLUS a **backend diagnostic test** the same agent (still `bug-replicator`) authors next. The backend diagnostic exercises the SAME flow from the backend's view — it calls the endpoint(s) the Playwright flow drove and asserts the data-layer outcome (the row was actually deleted from the DB, the user's permission grant actually persisted, etc.). The backend diagnostic catches a regression that the Playwright flow alone might miss (a UI that appears to succeed but doesn't actually update the data).
 - **Backend-only bug:** the backend script alone suffices.
@@ -246,20 +259,20 @@ Persist the artifacts under `<target-codebase>/tests/bug-fix-<bug-slug>/` (or th
 
 ## Phase B3 — OpenSpec proposal authoring
 
-Author a slim OpenSpec change at `openspec/changes/<bug-slug>/`. The artifact chain is the same as a feature change: `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`, `coverage-map.json`. The proposal:
+Author a slim OpenSpec change at `openspec/changes/<bug-slug>/`. Apply `superpowers:brainstorming` to settle the fix's design intent before drafting (per `## Plugin prerequisites (v3.9.0)`); when the root cause is unclear, the `diagnostic-research-team` dispatch carries `superpowers:systematic-debugging`. The artifact chain is the same as a feature change: `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`, `coverage-map.json`. The proposal:
 
 - **Cites the replication evidence verbatim.** Quote the artifact's failing output as the source of the failure-mode statement.
 - **Names the root cause** if known from the replication (a missing await, a broken contract assumption, a stale cached value). If the root cause is genuinely unclear after the replication, the Lead routes through `diagnostic-research-team` per the main pipeline's Phase 3b discipline — same flow, same plan, same architect-review gate (the Lead creates 3 `diagnostic-researcher` tasks in the shared list in teams mode, or dispatches 3 `diagnostic-researcher` subagents in parallel via a single Agent-tool batch in subagents mode; no researcher spawns the architect — only the Lead does).
 - **Proposes the fix.** The fix targets the root cause, not the symptom. State the class of bug being addressed (not just the failing input).
 - **Includes Reuse Decisions** per `reuse-first-design` for any new file the fix introduces. A bug fix that extends an existing function gets a one-line Reuse Decision; a bug fix that needs a new module gets a full one.
 
-Run `openspec validate --strict`. **Do NOT delegate to `architect-team-pipeline` Phase 1's validation gate** — its conditions are shaped for feature work (authoring NEW Playwright user-flows, NEW dev-API integration criteria, NEW Reuse Decisions for new files) and trip on bug-fix-shaped work (the replication artifact from B2 IS the Playwright flow; the fix typically extends existing handlers, not new ones). v0.9.25 gave the bug-fix pipeline its OWN slim planning-validation gate, named below.
+Run `openspec validate --all --strict`. **Do NOT delegate to `architect-team-pipeline` Phase 1's validation gate** — its conditions are shaped for feature work (authoring NEW Playwright user-flows, NEW dev-API integration criteria, NEW Reuse Decisions for new files) and trip on bug-fix-shaped work (the replication artifact from B2 IS the Playwright flow; the fix typically extends existing handlers, not new ones). v0.9.25 gave the bug-fix pipeline its OWN slim planning-validation gate, named below.
 
 ### Bug-fix planning-validation gate (Phase B3 exit criterion)
 
 The gate loops until ALL seven conditions below are true. Each iteration refines `proposal.md` / `design.md` / `coverage-map.json` and re-runs the gate; the gate exits when all seven pass, and Phase B4 (Bug-Fix Generalization Audit) runs next.
 
-1. **OpenSpec validates.** `openspec validate --strict --json` reports `valid: true` with no errors.
+1. **OpenSpec validates.** `openspec validate --all --strict --json` reports `valid: true` with no errors.
 2. **Every artifact is done.** `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md` all report `status: done` per `openspec status --change <bug-slug> --json`.
 3. **The coverage map has at least one source requirement** — the bug description itself (as `REQ-001` typically).
 4. **The coverage map records the replication artifact paths from Phase B2 as the verification target:**
@@ -322,6 +335,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name>
 This `deploy` invocation is best-effort and NEVER blocks, fails, or delays the dev deploy — a notifier failure does not affect the deploy or the QA replay.
 
 ## Phase B6 — QA replay against live dev
+
+The QA replay is this pipeline's `superpowers:verification-before-completion` gate — evidence (the originating symptom is gone end-to-end against the live dev environment) before any claim that the bug is resolved, per `## Plugin prerequisites (v3.9.0)`.
 
 The Lead creates a `qa-replayer` task in the shared list (teams mode) OR dispatches the `qa-replayer` subagent (subagents mode). Inputs:
 

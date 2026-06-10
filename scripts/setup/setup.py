@@ -11,6 +11,15 @@ Behavior (in order):
        - superpowers@claude-plugins-official
        - cartographer@cartographer-marketplace
        - ralph-loop@claude-plugins-official
+     These are HARD prerequisites. A MISSING required plugin is a HARD failure
+     (exit 1) — superpowers especially is a hard dependency of the pipeline,
+     NOT a soft warning. The script cannot self-install Claude plugins.
+  6b. openspec-propose availability check: the pipeline depends on the
+      openspec-propose / opsx:propose change-proposal skill. This ships as a
+      VENDORED local skill at .claude/skills/openspec-propose/SKILL.md (there
+      is NO external opsx/openspec plugin in installed_plugins.json — see
+      ensure_openspec_propose_skill() for the determination). A MISSING
+      openspec-propose skill is also a HARD failure (exit 1).
   7. Agent-teams mode check (v1.0.0):
        - Claude Code ≥ 2.1.32 (parsed from `claude --version`).
        - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in env OR in ~/.claude/settings.json.
@@ -25,7 +34,10 @@ Flags:
 
 Exit:
   0  Everything we control is present and ok.
-  1  At least one required Claude plugin is missing (cannot self-install).
+  1  At least one required prerequisite is missing and cannot be self-installed.
+     This is a HARD block: a missing REQUIRED Claude plugin (superpowers /
+     cartographer / ralph-loop) OR a missing openspec-propose skill yields
+     exit 1. superpowers is a hard dependency, not a soft warning.
   2  An installation failed.
   Non-zero on --check-only if agent-teams mode is unsatisfied (REQ-7.1).
 """
@@ -294,6 +306,93 @@ def check_plugin_presence(
     return present, missing
 
 
+# ---- openspec-propose skill prerequisite -------------------------------------
+#
+# DETERMINATION (investigated against ~/.claude/plugins/installed_plugins.json
+# at authoring time): the openspec-propose / opsx:propose change-proposal skill
+# is NOT shipped as an external Claude plugin. installed_plugins.json's
+# top-level "plugins" keys contained ONLY architect-team@..., cartographer@...,
+# ralph-loop@..., and superpowers@... — no opsx/openspec plugin id exists to
+# add to REQUIRED_PLUGINS. The skill is instead a VENDORED local skill living at
+# .claude/skills/openspec-propose/SKILL.md (referenced in the pipeline as both
+# `openspec-propose` and `opsx:propose`).
+#
+# Therefore we do NOT add it to REQUIRED_PLUGINS. Instead ensure_openspec_propose_skill()
+# treats it as "present" when EITHER an opsx/openspec plugin id later appears in
+# installed_plugins.json OR the vendored local skill resolves on disk — and
+# "missing" otherwise. A "missing" status contributes to a non-zero exit (HARD
+# block) the same way a missing REQUIRED_PLUGINS entry does.
+
+# Substrings that identify an opsx/openspec change-proposal plugin id in the
+# installed_plugins.json "plugins" keys, should one ever ship externally.
+_OPENSPEC_PROPOSE_PLUGIN_ID_MARKERS = ("opsx", "openspec-propose", "openspec@")
+
+# Vendored local skill path, relative to the repo root (3 parents up from this
+# file: scripts/setup/setup.py -> scripts -> setup -> <repo root>).
+_VENDORED_OPENSPEC_PROPOSE_SKILL = (
+    Path(__file__).resolve().parents[2] / ".claude" / "skills" / "openspec-propose" / "SKILL.md"
+)
+
+
+def _installed_plugin_keys(installed_path: Path) -> set[str]:
+    """Best-effort read of the installed_plugins.json 'plugins' keys."""
+    if not installed_path.exists():
+        return set()
+    try:
+        data = json.loads(installed_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return set((data.get("plugins") or {}).keys())
+
+
+def ensure_openspec_propose_skill(
+    installed_path: Path | None = None,
+    vendored_skill_path: Path | None = None,
+) -> tuple[str, str, str | None]:
+    """Verify the openspec-propose change-proposal skill is available.
+
+    Returns the standard (name, status, detail) row used by `_print_report`.
+    Statuses:
+      * ``"present"`` — EITHER an opsx/openspec plugin id is in
+        installed_plugins.json OR the vendored local SKILL.md resolves on disk.
+      * ``"missing"`` — neither is found. A HARD prerequisite; a "missing"
+        status contributes to a non-zero exit in main().
+
+    See the module-level DETERMINATION comment above: openspec-propose is a
+    vendored local skill, not an external plugin, so it gets a dedicated check
+    rather than a REQUIRED_PLUGINS entry.
+    """
+    name = "openspec-propose (opsx:propose change-proposal skill)"
+    if installed_path is None:
+        installed_path = INSTALLED_PLUGINS_PATH
+    if vendored_skill_path is None:
+        vendored_skill_path = _VENDORED_OPENSPEC_PROPOSE_SKILL
+
+    plugin_keys = _installed_plugin_keys(installed_path)
+    plugin_hit = next(
+        (k for k in sorted(plugin_keys)
+         if any(m in k.lower() for m in _OPENSPEC_PROPOSE_PLUGIN_ID_MARKERS)),
+        None,
+    )
+    if plugin_hit:
+        return name, "present", f"external plugin: {plugin_hit}"
+
+    if vendored_skill_path.is_file():
+        return name, "present", f"vendored skill: {vendored_skill_path}"
+
+    return (
+        name,
+        "missing",
+        (
+            "no opsx/openspec plugin in installed_plugins.json AND vendored "
+            f"skill not found at {vendored_skill_path}. openspec-propose is a "
+            "HARD prerequisite for the change-proposal flow."
+        ),
+    )
+
+
 # ---- Agent-teams mode (v1.0.0) ----------------------------------------------
 
 
@@ -540,6 +639,10 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
 
+    # openspec-propose skill prerequisite (HARD block when missing).
+    openspec_propose_row = ensure_openspec_propose_skill()
+    rows.append(openspec_propose_row)
+
     present, missing = check_plugin_presence(INSTALLED_PLUGINS_PATH, REQUIRED_PLUGINS)
     _print_report(rows, sorted(present), sorted(missing))
 
@@ -547,7 +650,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if any(r[1] == "failed" for r in rows):
         return 2
+    # HARD block: a missing REQUIRED plugin OR a missing openspec-propose skill
+    # is a non-recoverable prerequisite gap. superpowers is a hard dependency.
     if missing:
+        return 1
+    if openspec_propose_row[1] == "missing":
         return 1
     # REQ-7.1: --check-only must exit non-zero if agent-teams mode is unsatisfied.
     if args.check_only and any(
@@ -573,7 +680,10 @@ def _print_report(
         for p in plugins_present:
             print(f"  [present  ] {p}")
     if plugins_missing:
-        print("\nPlugins MISSING (install manually):")
+        print(
+            "\nREQUIRED plugins MISSING — these are HARD prerequisites whose "
+            "absence BLOCKS the pipeline (exit 1). Install each manually:"
+        )
         for p in plugins_missing:
             name, _, market = p.partition("@")
             print(f"  [missing  ] {p}")

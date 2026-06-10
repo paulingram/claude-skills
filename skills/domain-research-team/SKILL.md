@@ -100,7 +100,7 @@ Convergence check before exiting:
 - Every researcher's `outside_research` block is non-empty (the mandate is satisfied).
 - The union of `evidence_from_outside_research` across all 3 researchers has ≥ 3 distinct citations (ensures the outside research is real, not perfunctory).
 
-Failures iterate via `ralph-loop:ralph-loop` with completion-promise `"DOMAIN RESEARCH COMPLETE"` (or the caller-configured equivalent).
+Failures iterate via `ralph-loop:ralph-loop` in the canonical flag form `/ralph-loop "<round-robin convergence prompt>" --completion-promise "DOMAIN RESEARCH COMPLETE"` (or the caller-configured exit string). Loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Phase R4 — Master synthesis
 

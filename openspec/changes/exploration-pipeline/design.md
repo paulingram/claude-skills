@@ -13,7 +13,7 @@ Reconciliation found 6 of the 7 stages' sub-steps already exist, 4 partial, 2 ne
 
 ## Key architecture — one skill, 7 stages, ralph-loop + openspec bound
 
-`visual-to-api-design/SKILL.md` grows a Stage 0 + Stages 5/6 + a stronger Stage 3c + 7d, keeping its existing Stage 1/2/3/4 bodies as the reused early stages. Every stage = the existing 3-reviewer convergence (Round 1 independent → Round 2 round-robin → Round 3 architect) wrapped in `/ralph-loop "<stage prompt>" --completion-promise "<STAGE> COMPLETE — all reviewers agree" --max-iterations N`. The OpenSpec-producing stages (4, 7d) call the openspec skill rather than writing JSON.
+`visual-to-api-design/SKILL.md` grows a Stage 0 + Stages 5/6 + a stronger Stage 3c + 7d, keeping its existing Stage 1/2/3/4 bodies as the reused early stages. Every stage = the existing 3-reviewer convergence (Round 1 independent → Round 2 round-robin → Round 3 architect) wrapped in `/ralph-loop "<stage prompt>" --completion-promise "<STAGE> COMPLETE — all reviewers agree"` (loops until the promise; no iteration cap per v3.8.0 unbounded solving). The OpenSpec-producing stages (4, 7d) call the openspec skill rather than writing JSON.
 
 ## Reuse Decision Log
 

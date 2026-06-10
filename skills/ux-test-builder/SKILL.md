@@ -9,6 +9,19 @@ The plugin's existing Playwright disciplines (`playwright-user-flows`, `interact
 
 You are the **Team Lead** for the UX-test variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a 10-phase loop (U0 → U9) that takes a UX concern, expands it via independent agents to discover adjacent capability, runs the whole flow set against a live target, and feeds bugs into the bug-fix-pipeline.
 
+## Plugin prerequisites (v3.9.0)
+
+**superpowers is a HARD dependency.** A pre-flight check runs as the very first action of this pipeline — BEFORE Phase U0 (Intake) — and ABORTS the run if the superpowers plugin is unavailable. Resolve availability either way: (a) `~/.claude/plugins/installed_plugins.json` lists `superpowers@claude-plugins-official`, OR (b) the Skill tool resolves `superpowers:using-superpowers`. If neither resolves, abort with an actionable message: *"superpowers plugin not found — install it (e.g. `/plugin marketplace add claude-plugins-official` then `/plugin install superpowers`) before running /architect-team:ux-test; the pipeline's design / TDD / debugging / verification gates depend on it."* Do NOT silently degrade to a methodology-by-hand fallback. The canonical source of truth is `common-pipeline-conventions/SKILL.md` `## Uniform plugin usage (v3.9.0)`.
+
+This pipeline concretely invokes these superpowers skills at its phases (via the Skill tool):
+
+- `superpowers:brainstorming` — design / intake (Phase U2 literal flow draft + Phase U3 flow expansion, before authoring tests).
+- `superpowers:test-driven-development` — implementation (Phase U5 Playwright authoring, before each `.spec.ts` exercises the live target).
+- `superpowers:systematic-debugging` — RCA / diagnosis (Phase U7 consensus + Phase U8 bug routing — the downstream `bug-fix-pipeline` carries this discipline through to the fix).
+- `superpowers:verification-before-completion` — review / completion gates (Phase U6 parallel execution verdicts + Phase U9 final report, before claiming a flow passed).
+
+**Precedence.** User `CLAUDE.md` / `AGENTS.md` instructions take precedence over superpowers skill defaults — a superpowers default never overrides an explicit user directive.
+
 ## Five non-negotiable disciplines
 
 1. **Real-site testing.** All execution runs against the live target site (URL or the project's dev environment). NEVER mocked — no `page.route` happy-path stubs, no MSW, no fake API server. Per `playwright-user-flows`'s "Real backend by default" rule.
@@ -89,7 +102,7 @@ The Phase −1D bulk-verify gate still fires when low-confidence interaction-int
 
 ## Phase U2 — Literal flow draft
 
-The orchestrator authors ONE Playwright `.spec.ts` matching the user's described task VERBATIM. Per `playwright-user-flows`:
+The orchestrator applies `superpowers:brainstorming` to nail down the persona's intent + the exact literal task before authoring (per `## Plugin prerequisites (v3.9.0)`), then authors ONE Playwright `.spec.ts` matching the user's described task VERBATIM. Per `playwright-user-flows`:
 
 - Real `page.click` / `page.fill` / `page.waitFor` / `page.selectOption` / `page.press` / `page.setInputFiles`.
 - Real login via the credentials env-vars (the spec reads `process.env[<env_var>]` at run time).
@@ -122,7 +135,7 @@ Persisted at `<cwd>/.architect-team/ux-tests/<persona-slug>/distilled-flows.json
 
 ## Phase U5 — Playwright authoring per distilled flow
 
-One `.spec.ts` per distilled flow at `<cwd>/.architect-team/ux-tests/<persona-slug>/playwright/<flow-N>-<slug>.spec.ts`. Per `playwright-user-flows`:
+One `.spec.ts` per distilled flow at `<cwd>/.architect-team/ux-tests/<persona-slug>/playwright/<flow-N>-<slug>.spec.ts` — test authoring applies `superpowers:test-driven-development` (the flow's assertions + `expected_user_effect` are written as the verification contract before the executors run them, per `## Plugin prerequisites (v3.9.0)`). Per `playwright-user-flows`:
 - Real interaction calls.
 - Real login.
 - Per-step expectation files at `<cwd>/.architect-team/ux-tests/<persona-slug>/playwright/expectations/<flow-N>-<step-N>.json`, per `root-cause-test-failures`.
@@ -144,6 +157,8 @@ The literal flow at U2 is already authored; this phase authors flows #2-N from t
 **Email-aware flow authoring (v0.9.34).** When a distilled flow involves an email-triggered action (e.g., *"invitee signs up via the email link"*, *"user resets password via the reset email"*), the U5 orchestrator applies Phase E1 of the `email-testing` skill discipline. If `email_surface_detected: true`, the `.spec.ts` for that flow MUST include Mailpit provisioning (E2 in `beforeAll`/`afterAll`), `waitForEmail()` polling (E3), link extraction + classification (E3), and Playwright navigation to every extracted link with purpose-specific flow completion (E4). The email capture + link-follow steps are PART of the flow's `.spec.ts`, not a separate test — the flow executor at U6 runs them as written. The `expected_user_effect` block for an email-involving flow should include `{ kind: "network_request", value: "email captured by Mailpit" }` plus the effect of the link follow (e.g., `{ kind: "url_change", value: "post-signup URL matches /dashboard" }`).
 
 ## Phase U6 — Parallel execution (3 `flow-executor` agents)
+
+This phase is the pipeline's `superpowers:verification-before-completion` gate — each flow's pass/fail verdict rests on captured evidence (trace + screenshots + per-step expectation deltas + the flow-effect witness), never an unverified assertion, per `## Plugin prerequisites (v3.9.0)`.
 
 The orchestrator dispatches 3 `flow-executor` agents in PARALLEL. Each receives:
 
@@ -195,6 +210,8 @@ The re-examination loop (mirroring `editability-completeness` / `interaction-com
 The consensus verdict is the input to U8.
 
 ## Phase U8 — Bug routing to bug-fix-pipeline
+
+Each routed bug carries its diagnosis downstream: the `bug-fix-pipeline` applies `superpowers:systematic-debugging` to replicate + root-cause every `ux-flow-failure` SR before any fix is proposed (per `## Plugin prerequisites (v3.9.0)`).
 
 For every flow with consensus verdict `fail`:
 

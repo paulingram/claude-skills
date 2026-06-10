@@ -4505,6 +4505,16 @@ _PIPELINE_DRIVING_SKILLS = (
 )
 
 
+# Skill names that constitute legitimate openspec usage via the change-proposal
+# skill (NOT a literal `openspec ` Bash call). The mini pipeline + the
+# exploration flows author the openspec change through this skill rather than
+# the CLI, so an invocation here is valid evidence openspec was used.
+_OPENSPEC_PROPOSE_SKILLS = (
+    "openspec-propose",
+    "opsx:propose",
+)
+
+
 _PIPELINE_SLASH_COMMAND_PREFIXES = (
     "/architect-team",
     "/architect-team:bug-fix",
@@ -4522,6 +4532,8 @@ def _scan_ledger_for_pipeline_elements(
         "skill_invocations": int,           # Skill tool calls naming a pipeline skill
         "agent_dispatches": int,            # Agent tool calls
         "openspec_calls": int,              # Bash with openspec subcommands
+        "openspec_propose_skill_invocations": int,  # Skill calls to openspec-propose / opsx:propose
+        "openspec_change_artifacts": int,   # Write/Edit into openspec/changes/<name>/
         "worktree_creations": int,          # Bash with git worktree add
         "review_evidence_files": int,       # Write/Edit calls into .architect-team/reviews/
         "first_source_edit_before_skill": bool,  # source modification preceded ANY Skill call
@@ -4531,6 +4543,8 @@ def _scan_ledger_for_pipeline_elements(
         "skill_invocations": 0,
         "agent_dispatches": 0,
         "openspec_calls": 0,
+        "openspec_propose_skill_invocations": 0,
+        "openspec_change_artifacts": 0,
         "worktree_creations": 0,
         "review_evidence_files": 0,
         "first_source_edit_before_skill": False,
@@ -4550,9 +4564,16 @@ def _scan_ledger_for_pipeline_elements(
         # Skill invocations
         if tool == "Skill":
             skill_name = (inp.get("skill") or inp.get("skill_name") or "").strip()
+            skill_name_lower = skill_name.lower()
             if any(name in skill_name for name in _PIPELINE_DRIVING_SKILLS):
                 counts["skill_invocations"] += 1
                 skill_seen = True
+            # openspec-propose / opsx:propose Skill invocation is legitimate
+            # openspec usage (the mini + exploration flows author the change
+            # via the skill, not the CLI). Count it independently so a pipeline
+            # that proposed via the skill does NOT false-trip openspec-bypassed.
+            if any(name in skill_name_lower for name in _OPENSPEC_PROPOSE_SKILLS):
+                counts["openspec_propose_skill_invocations"] += 1
             continue
 
         # Agent dispatches
@@ -4568,10 +4589,16 @@ def _scan_ledger_for_pipeline_elements(
                 counts["first_source_edit_before_skill"] = True
 
         # Review evidence file writes
-        if tool in ("Write", "Edit"):
+        if tool in ("Write", "Edit", "NotebookEdit"):
             path = (inp.get("file_path") or inp.get("path") or "")
             if "/.architect-team/reviews/" in path or "/reviews/" in path and ".json" in path:
                 counts["review_evidence_files"] += 1
+            # An openspec/changes/<name>/ artifact write is evidence openspec
+            # was used (the change-proposal flow authors proposal.md / tasks.md
+            # / specs/ under this dir). Normalize backslashes for Windows paths.
+            norm = path.replace("\\", "/").lower()
+            if "openspec/changes/" in norm:
+                counts["openspec_change_artifacts"] += 1
 
         # Bash for openspec / worktree
         if tool == "Bash":
@@ -4636,8 +4663,11 @@ def verify_no_pipeline_bypass(
         zero Agent dispatches in the ledger
       - independent-review-bypassed — pipeline invoked, zero review evidence
         files written
-      - openspec-bypassed — pipeline invoked, zero openspec Bash calls
-        (unless --no-openspec opt-in)
+      - openspec-bypassed — pipeline invoked but openspec was NOT used in ANY
+        of the three recognized ways: (a) a literal `openspec ` Bash call,
+        (b) an openspec-propose / opsx:propose Skill invocation, or
+        (c) an openspec/changes/<name>/ artifact write. (unless --no-openspec
+        opt-in)
       - pipeline-confession-language-detected — final_report contains the
         canonical bypass-confession markers
     """
@@ -4732,17 +4762,34 @@ def verify_no_pipeline_bypass(
             ),
         })
 
-    if counts["openspec_calls"] == 0 and not _detect_no_openspec_optout(user_prompt or ""):
+    # openspec usage is evidenced by ANY of three channels: a literal
+    # `openspec ` Bash call, an openspec-propose / opsx:propose Skill
+    # invocation (mini + exploration flows), or an openspec/changes/<name>/
+    # artifact write. The severity fires ONLY when openspec was touched in
+    # NONE of these ways. Preserves the true-positive: a pipeline that genuinely
+    # never used openspec in any form still trips.
+    openspec_used = (
+        counts["openspec_calls"] > 0
+        or counts["openspec_propose_skill_invocations"] > 0
+        or counts["openspec_change_artifacts"] > 0
+    )
+    if not openspec_used and not _detect_no_openspec_optout(user_prompt or ""):
         gaps.append({
             "severity": "openspec-bypassed",
             "openspec_calls": 0,
+            "openspec_propose_skill_invocations": counts["openspec_propose_skill_invocations"],
+            "openspec_change_artifacts": counts["openspec_change_artifacts"],
             "evidence": (
                 "user prompt invokes a pipeline slash command and did not "
-                "opt out of OpenSpec; ledger has zero openspec Bash calls."
+                "opt out of OpenSpec; the ledger shows NO openspec usage in "
+                "any recognized form — zero `openspec ` Bash calls, zero "
+                "openspec-propose/opsx:propose Skill invocations, and zero "
+                "openspec/changes/<name>/ artifact writes."
             ),
             "remediation": (
-                "v2.22.0 no pipeline-bypass discipline. Run `openspec init` "
-                "/ `openspec validate` / `openspec archive` per the "
+                "v2.22.0 no pipeline-bypass discipline. Author the change via "
+                "`openspec init` / `openspec validate` / `openspec archive`, "
+                "OR via the openspec-propose / opsx:propose skill, per the "
                 "pipeline's Phase 0 / Phase 8 contract. Skipping OpenSpec "
                 "means the change is undocumented in the spec layer."
             ),
