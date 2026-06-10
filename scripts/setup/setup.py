@@ -109,7 +109,8 @@ def check_node_version(min_major: int = 20, min_minor: int = 19) -> tuple[bool, 
     if not node:
         return False, "node not on PATH"
     try:
-        res = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=10)
+        res = subprocess.run([node, "--version"], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", timeout=10)
     except (subprocess.SubprocessError, OSError) as e:
         return False, f"node --version failed: {e}"
     if res.returncode != 0:
@@ -160,7 +161,7 @@ def _install_openspec() -> tuple[bool, str | None]:
         return False, "npm not on PATH"
     res = subprocess.run(
         [npm, "install", "-g", "@fission-ai/openspec@latest"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if res.returncode != 0:
         return False, res.stderr.strip() or "npm install failed"
@@ -185,7 +186,7 @@ def _pkg_importable(pkg: str) -> bool:
     """We treat each package as 'present' if `python -m pip show` returns 0."""
     res = subprocess.run(
         [sys.executable, "-m", "pip", "show", pkg],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     return res.returncode == 0
 
@@ -201,11 +202,12 @@ def _install_packages(pkgs: Iterable[str]) -> tuple[bool, str | None]:
         if not in_venv:
             cmd.append("--system")
         cmd.extend(pkgs)
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, text=True,
+                             encoding="utf-8", errors="replace")
     else:
         res = subprocess.run(
             [sys.executable, "-m", "pip", "install", *pkgs],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     if res.returncode != 0:
         return False, res.stderr.strip() or "pip install failed"
@@ -240,7 +242,7 @@ def _playwright_browser_installed() -> bool:
     try:
         res = subprocess.run(
             [sys.executable, "-c", "import importlib.metadata, playwright; print(importlib.metadata.version('playwright'))"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         if res.returncode != 0:
             return False
@@ -270,7 +272,7 @@ def _install_playwright() -> tuple[bool, str | None]:
         return False, err
     res = subprocess.run(
         [sys.executable, "-m", "playwright", "install", "chromium"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if res.returncode != 0:
         return False, res.stderr.strip() or "playwright install chromium failed"
@@ -426,7 +428,7 @@ def _claude_version_or_none(claude_cmd: str = "claude") -> tuple[int, int, int] 
     try:
         res = subprocess.run(
             [claude_cmd, "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
         return None

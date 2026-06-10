@@ -11,8 +11,11 @@ This is the user-facing entry point to the v3.3.0 monitor team. Strictly passive
 
 ## Dispatch mode banner — runs first
 
+The interpreter is selected ONCE via `$(command -v python3 || command -v python)`
+(the v2.16.0 detect-once form), so the banner script runs exactly once. Best-effort.
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:monitor-tests" || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:monitor-tests"
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:monitor-tests"
 ```
 
 ## Argument parsing

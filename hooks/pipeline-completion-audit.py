@@ -57,6 +57,23 @@ try:  # pragma: no cover - exercised by both import paths
 except ImportError:  # pragma: no cover - bare-module fallback
     from shared_rule_constants import TEST_FAILURE_ORIGINS
 
+
+def _read_stdin_utf8() -> str:
+    """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
+
+    A hook payload is JSON that can carry UTF-8 (e.g. an emoji in a task
+    title). Reading through the locale text codec (`sys.stdin.read()`) raises
+    `UnicodeDecodeError` on cp1252 for such a payload, degrading the gate to a
+    silent no-op. Reading the raw bytes and decoding `utf-8` with
+    `errors="replace"` guarantees the decode never raises, so the gate always
+    runs. Falls back to the text stream when `sys.stdin.buffer` is unavailable
+    (e.g. a test that replaced `sys.stdin` with a StringIO)."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return buffer.read().decode("utf-8", "replace")
+    return sys.stdin.read()
+
+
 ESCALATION_MARKER = "escalation-pending.md"
 
 # v2.16.0 — `.architect-team/in-progress.md` is the 4th valid disposition.
@@ -325,7 +342,8 @@ def _audit_openspec_validation(root: Path, at: Path) -> list[str]:
     try:
         res = subprocess.run(
             [openspec, "validate", "--all", "--strict", "--json"],
-            cwd=str(root), capture_output=True, text=True, timeout=120,
+            cwd=str(root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
         )
     except (OSError, subprocess.SubprocessError):
         return violations  # never wedge a session on a subprocess failure
@@ -521,8 +539,13 @@ def main(argv: list[str]) -> int:
             return _emit_block(violations)
 
         # Stop-hook mode — read the payload from stdin.
+        # (A8 review-remediation) Decode the raw bytes as UTF-8 with
+        # errors="replace" rather than the locale codec: a hook payload is JSON
+        # that can carry UTF-8 (an emoji in a task title); on cp1252 the locale
+        # decode would raise and degrade this gate to a silent no-op.
         try:
-            payload = json.loads(sys.stdin.read() or "{}")
+            raw = _read_stdin_utf8()
+            payload = json.loads(raw) if raw.strip() else {}
         except json.JSONDecodeError as e:
             print(f"pipeline-completion-audit: malformed hook payload: {e}", file=sys.stderr)
             return 0  # fail open on a hook-side decode error

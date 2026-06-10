@@ -106,11 +106,23 @@ def test_pretool_hook_uses_guardrail_script() -> None:
 
 
 def test_pretool_hook_uses_polyglot_python_pattern() -> None:
+    # A1 (review-remediation): hooks.json was converted from the old
+    # `python3 X || python X` double-invocation form to the v2.16.0 detect-once
+    # form `$(command -v python3 || command -v python) X`, which selects the
+    # interpreter ONCE and invokes the script exactly once (the `||` re-ran the
+    # script on a meaningful exit-2 BLOCK). This assertion was flipped to the
+    # detect-once contract to match (mirrors the same flip in
+    # tests/test_hooks_structure.py).
     hooks = json.loads((REPO_ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))
     for entry in hooks["hooks"]["PreToolUse"]:
         for hook in entry["hooks"]:
-            assert "python3 " in hook["command"]
-            assert "|| python " in hook["command"]
+            assert hook["command"].startswith(
+                "$(command -v python3 || command -v python) "
+            ), f"PreToolUse hook is not detect-once: {hook['command']!r}"
+            assert " || python " not in hook["command"], (
+                f"PreToolUse hook still has the ' || python ' double-invocation: "
+                f"{hook['command']!r}"
+            )
 
 
 # ---- module / file existence ----

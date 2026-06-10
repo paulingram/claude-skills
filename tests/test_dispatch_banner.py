@@ -416,16 +416,16 @@ def test_mini_pipeline_m7_documents_dispatch_mode_trailer(plugin_root: Path) -> 
 def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     """Spec REQ-6 scenario 'plugin metadata at 1.5.0' — but the
     version-bump consistency check tracks WHICHEVER version is the current
-    release. v1.8.0 bumps to 1.8.0, so the assertion follows. The test
-    name preserves its v1.5.0 origin (it was added in v1.5.0) but its
-    semantic intent is 'plugin metadata is at the current release version',
-    which the current release makes 3.8.0."""
+    release. The test name preserves its v1.5.0 origin (it was added in v1.5.0)
+    but its semantic intent is 'plugin metadata is at the current release
+    version', which the current release (v3.9.3 — review-remediation) makes
+    3.9.3."""
     plugin_json = json.loads(
         (plugin_root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.9.2"
+    assert plugin_json["version"] == "3.9.3"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.9.2"
+    assert marketplace_json["plugins"][0]["version"] == "3.9.3"

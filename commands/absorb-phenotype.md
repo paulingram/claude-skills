@@ -32,5 +32,5 @@ auto-suggest (`skills/phenotypes`).
 
 - NEVER modify or execute the target codebase — analysis only.
 - NEVER embed secrets / account-ids / domains in the produced record — parameters/placeholders only.
-- The new record MUST pass `python scripts/phenotypes/phenotypes.py validate <label>` before completion.
+- The new record MUST pass `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/phenotypes/phenotypes.py" validate <label>` before completion. The `$(command -v python3 || command -v python)` substitution selects the interpreter once (the v2.16.0 detect-once form), and `${CLAUDE_PLUGIN_ROOT}` anchors the script path so it resolves regardless of the cwd.
 - The produced record is reviewed by the same gates as any shipped artifact.

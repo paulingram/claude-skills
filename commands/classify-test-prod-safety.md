@@ -10,13 +10,13 @@ You are running the test-prod-safety-classifier skill in Mode 1 (mass-classify).
 ## Dispatch mode banner — runs first
 
 ```!
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:classify-test-prod-safety" || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:classify-test-prod-safety"
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:classify-test-prod-safety"
 ```
 
 ## Auto-cleanup merged worktrees — runs before argument parsing
 
 ```!
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/worktree_lifecycle.py" cleanup-merged --against origin/main || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/worktree_lifecycle.py" cleanup-merged --against origin/main
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/worktree_lifecycle.py" cleanup-merged --against origin/main
 ```
 
 ## Argument parsing

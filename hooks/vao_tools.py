@@ -3592,12 +3592,21 @@ def verify_discipline_registry_current(
         no longer applied (surface advanced past applied_at)
     """
     # Lazy import — keeps vao_tools' stdlib-only contract clean when the
-    # discipline_registry module is unused.
-    from hooks.discipline_registry import (
-        DISCIPLINE_CATALOG,
-        REGISTRY_RELATIVE_PATH,
-        freshness_check,
-    )
+    # discipline_registry module is unused. Dual-form (mirrors lines 61-68) so
+    # `python hooks/vao_tools.py verify-discipline-registry-current` works when
+    # the hook-runner puts hooks/ — not the repo root — on sys.path.
+    try:  # package shape: repo root on sys.path
+        from hooks.discipline_registry import (
+            DISCIPLINE_CATALOG,
+            REGISTRY_RELATIVE_PATH,
+            freshness_check,
+        )
+    except ImportError:  # bare-module shape: hooks/ dir on sys.path
+        from discipline_registry import (
+            DISCIPLINE_CATALOG,
+            REGISTRY_RELATIVE_PATH,
+            freshness_check,
+        )
 
     workspace_path = Path(workspace)
     # Check registry presence BEFORE calling freshness_check (which writes
@@ -3673,7 +3682,13 @@ def verify_inflight_clarifications_processed(
         the JSONL — when no phase log is present, this severity does not
         fire (orchestrator-discipline self-audit is the future runtime layer).
     """
-    from hooks.inflight_inbox import read_inbox, unprocessed_messages
+    # Dual-form import (mirrors lines 61-68) so
+    # `python hooks/vao_tools.py verify-inflight-clarifications-processed`
+    # works under the bare-module sys.path the hook-runner uses.
+    try:  # package shape: repo root on sys.path
+        from hooks.inflight_inbox import read_inbox, unprocessed_messages
+    except ImportError:  # bare-module shape: hooks/ dir on sys.path
+        from inflight_inbox import read_inbox, unprocessed_messages
 
     workspace_path = Path(workspace)
     messages = read_inbox(workspace_path, run_id)
@@ -4591,16 +4606,22 @@ def _scan_ledger_for_pipeline_elements(
         # Review evidence file writes
         if tool in ("Write", "Edit", "NotebookEdit"):
             path = (inp.get("file_path") or inp.get("path") or "")
+            # Normalize backslashes -> forward slashes + lowercase BEFORE any
+            # membership test (A3 review-remediation). A Windows ledger path like
+            # `C:\\ws\\.architect-team\\reviews\\T-1.json` would never match the
+            # forward-slash `/reviews/` substring on the raw value, producing a
+            # false `independent-review-bypassed`. The openspec check below
+            # already normalized; the reviews check must too.
+            norm = path.replace("\\", "/").lower()
             # A review-evidence file is a .json under a reviews/ dir. The parens
             # make the intent explicit: (canonical path OR loose /reviews/) AND .json.
             # Without them this parsed as `A or (B and C)`, which counted a
             # non-.json write under .architect-team/reviews/ as evidence.
-            if ("/.architect-team/reviews/" in path or "/reviews/" in path) and ".json" in path:
+            if ("/.architect-team/reviews/" in norm or "/reviews/" in norm) and ".json" in norm:
                 counts["review_evidence_files"] += 1
             # An openspec/changes/<name>/ artifact write is evidence openspec
             # was used (the change-proposal flow authors proposal.md / tasks.md
-            # / specs/ under this dir). Normalize backslashes for Windows paths.
-            norm = path.replace("\\", "/").lower()
+            # / specs/ under this dir).
             if "openspec/changes/" in norm:
                 counts["openspec_change_artifacts"] += 1
 
@@ -4843,7 +4864,13 @@ def verify_no_unilateral_override(
         source. Per-gap fields include source name + matched openers +
         matched admissions + high_confidence boolean.
     """
-    from hooks.override_markers import detect_virtue_framed_override
+    # Dual-form import (mirrors lines 61-68) so
+    # `python hooks/vao_tools.py verify-no-unilateral-override` works under the
+    # bare-module sys.path the hook-runner uses.
+    try:  # package shape: repo root on sys.path
+        from hooks.override_markers import detect_virtue_framed_override
+    except ImportError:  # bare-module shape: hooks/ dir on sys.path
+        from override_markers import detect_virtue_framed_override
 
     sources: dict[str, str] = {}
     if text:

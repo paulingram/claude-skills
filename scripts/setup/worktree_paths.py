@@ -162,6 +162,8 @@ def _run_git_rev_parse(flag: str) -> Path | None:
             ["git", "rev-parse", flag],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
     except (OSError, subprocess.SubprocessError):

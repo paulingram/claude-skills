@@ -467,10 +467,17 @@ def test_hooks_json_registers_teammate_idle(plugin_root: Path) -> None:
 
 
 def test_hooks_json_teams_mode_entries_use_polyglot_fallback(plugin_root: Path) -> None:
-    """The new TaskCompleted + TeammateIdle entries must carry the same
-    `|| python ...` polyglot fallback as the existing entries — the
-    v0.9.30 cross-platform-hook contract from test_hooks_structure.py
-    applies to ALL hook commands, including the new teams-mode entries.
+    """The TaskCompleted + TeammateIdle entries must carry the same detect-once
+    interpreter selection as every other hook command.
+
+    A1 (review-remediation): hooks.json was converted from the old
+    `python3 X || python X` double-invocation form to the v2.16.0 detect-once
+    form `$(command -v python3 || command -v python) X` (which selects the
+    interpreter ONCE and invokes the script exactly once). This assertion was
+    flipped to the detect-once contract to match the same flip in
+    test_hooks_structure.py; the cross-platform contract is preserved — the
+    substitution still resolves `python3` on Unix and `python` on default
+    Windows python.org installs.
     """
     path = plugin_root / "hooks" / "hooks.json"
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -480,6 +487,10 @@ def test_hooks_json_teams_mode_entries_use_polyglot_fallback(plugin_root: Path) 
         for entry in entries:
             for h in entry.get("hooks", []):
                 cmd = h.get("command", "")
-                assert " || python " in cmd, (
-                    f"{event} hook command missing polyglot fallback: {cmd!r}"
+                assert cmd.startswith(
+                    "$(command -v python3 || command -v python) "
+                ), f"{event} hook command is not detect-once: {cmd!r}"
+                assert " || python " not in cmd, (
+                    f"{event} hook command still has the ' || python ' "
+                    f"double-invocation: {cmd!r}"
                 )

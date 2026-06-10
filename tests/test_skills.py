@@ -64,6 +64,15 @@ def test_all_expected_skills_present(plugin_root: Path) -> None:
     assert not missing, f"missing skill dirs (with SKILL.md): {sorted(missing)}"
 
 
+# The Agent Skills platform caps a skill `description` at 1024 characters; a
+# longer description is silently truncated (or rejected) by the loader, so the
+# trigger-first guidance at the end of an over-long description never reaches the
+# model. Every shipped SKILL.md must keep its description within this hard limit
+# (C6 — review-remediation). The target is <=600 (trigger-first, operative detail
+# in the body); 1024 is the hard structural ceiling this test enforces.
+SKILL_DESCRIPTION_MAX_CHARS = 1024
+
+
 @pytest.mark.parametrize("skill_name", sorted(EXPECTED_SKILLS))
 def test_skill_frontmatter_valid(plugin_root: Path, skill_name: str) -> None:
     path = plugin_root / "skills" / skill_name / "SKILL.md"
@@ -77,3 +86,19 @@ def test_skill_frontmatter_valid(plugin_root: Path, skill_name: str) -> None:
         f"{skill_name}: description must be a substantive string"
     )
     assert body.strip(), f"{skill_name}: SKILL.md body is empty"
+
+
+@pytest.mark.parametrize("skill_name", sorted(EXPECTED_SKILLS))
+def test_skill_description_within_1024_char_cap(plugin_root: Path, skill_name: str) -> None:
+    """Every skill description must be <= 1024 chars (the Agent Skills limit)."""
+    path = plugin_root / "skills" / skill_name / "SKILL.md"
+    if not path.exists():
+        pytest.skip(f"{skill_name} not present yet")
+    fm, _ = frontmatter.parse(path)
+    description = fm.get("description", "")
+    assert isinstance(description, str), f"{skill_name}: description is not a string"
+    assert len(description) <= SKILL_DESCRIPTION_MAX_CHARS, (
+        f"{skill_name}: description is {len(description)} chars, exceeds the "
+        f"{SKILL_DESCRIPTION_MAX_CHARS}-char Agent Skills cap — rewrite trigger-first "
+        f"and move operative detail into the body (C6)"
+    )

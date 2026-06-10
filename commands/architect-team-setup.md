@@ -1,7 +1,7 @@
 ---
 description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), verifies prerequisite plugins (superpowers, cartographer, ralph-loop) are installed, and verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32).
 argument-hint: "[--check-only] [--no-prompt] [--force-reinstall]"
-allowed-tools: ["Bash(python3:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py:*)"]
+allowed-tools: ["Bash(python:*)", "Bash(python3:*)"]
 ---
 
 # Architect-Team Setup
@@ -58,4 +58,4 @@ If the flag is unset and you don't consent — or if Claude Code is below 2.1.32
 
 > Running in subagents mode. Enable `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` for the team-mode upgrade.
 
-The v0.9.36 behavior is preserved exactly — same OpenSpec bundle output, same review-evidence schema v6, same Mini-Run trailer, same git commits. The trade-off is re-onboarding overhead on every dispatch (subagents) vs. accumulated 1M context across phases (teams). You can also force subagents mode at any time by passing `--no-teams` to `/architect-team`, `/architect-team:mini`, or `/architect-team:bug-fix`.
+The v0.9.36 behavior is preserved exactly — same OpenSpec bundle output, same review-evidence schema (v7), same Mini-Run trailer, same git commits. The trade-off is re-onboarding overhead on every dispatch (subagents) vs. accumulated 1M context across phases (teams). You can also force subagents mode at any time by passing `--no-teams` to `/architect-team`, `/architect-team:mini`, or `/architect-team:bug-fix`.

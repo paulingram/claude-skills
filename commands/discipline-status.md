@@ -17,8 +17,12 @@ a full pipeline run.
 
 ## Dispatch mode banner — runs first
 
+The interpreter is selected ONCE via `$(command -v python3 || command -v python)`
+(the v2.16.0 detect-once form), so the banner script runs exactly once. Best-effort
+— a subprocess failure surfaces a one-line note and the command continues.
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:discipline-status" || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:discipline-status"
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:discipline-status"
 ```
 
 ## Argument parsing
@@ -38,11 +42,17 @@ WORKSPACE="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 Invoke the 16th Layer 3 tool:
 
+The interpreter is selected ONCE via `$(command -v python3 || command -v python)`
+(the v2.16.0 detect-once form): `verify-discipline-registry-current` can exit
+non-zero (a gap was found), and the old `python3 X || python X` form would re-run
+the whole tool on that meaningful non-zero exit. Detect-once invokes it exactly
+once regardless of exit code.
+
 ```bash
 mkdir -p "${WORKSPACE}/.architect-team/vao-verdicts"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 VERDICT="${WORKSPACE}/.architect-team/vao-verdicts/${RUN_ID}-discipline-registry.json"
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "${WORKSPACE}" --out "${VERDICT}" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "${WORKSPACE}" --out "${VERDICT}"
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "${WORKSPACE}" --out "${VERDICT}"
 ```
 
 ## Phase 3 — Display the report

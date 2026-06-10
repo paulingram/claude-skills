@@ -1,6 +1,6 @@
 ---
 name: mini-architect-team-pipeline
-description: "Use when a small-to-medium feature change needs to be driven end-to-end faster than the full /architect-team can deliver, but with auto-merge to main on green QA. A sibling orchestrator playbook to architect-team-pipeline and bug-fix-pipeline. Speed comes from dropping phases and parallel-review fan-out — not from a weaker model; all roles run on Opus 4.7. Single architect (system-architect) drafts the full 5-artifact OpenSpec bundle with a mandatory ## QA Guidance section in proposal.md, self-confirms to a fixed point (capped at 3 passes), dispatches backend + frontend devs in parallel with non-overlapping file scope (the devs cross-review each other; no separate task-reviewer agent), and a single mini-qa agent runs unit + integration + 1–3 narrow Playwright flows tied to acceptance criteria against the live dev URL. On green the orchestrator commits with a Mini-Run: <slug> trailer and auto-merges to main; on red the architect re-evaluates (cycle cap = 3); on cycle 4 the work escalates to /architect-team with an escalation folder. Accepts the same two input forms as the main /architect-team — a requirements folder OR a plain-language requirement typed directly as prose."
+description: "Use when a small-to-medium feature change (≤5 acceptance criteria) needs to be driven end-to-end faster than the full /architect-team can deliver, but with auto-merge to main on green QA. A sibling orchestrator playbook to architect-team-pipeline and bug-fix-pipeline; speed comes from dropping phases and parallel-review fan-out, not a weaker model. The body documents the M0-M8 phases: a single system-architect drafts the 5-artifact OpenSpec bundle with a mandatory ## QA Guidance section, two devs implement in parallel and cross-review each other, and one mini-qa agent runs unit + integration + 1-3 narrow Playwright flows against the live dev URL. On green it auto-merges to main with a Mini-Run: <slug> trailer; on persistent red it hands the work off to the unbounded full /architect-team pipeline as a continuation (no give-up cap). Accepts the same two input forms as /architect-team — a requirements folder OR plain-language prose."
 ---
 
 # mini-architect-team-pipeline
@@ -69,7 +69,7 @@ After EVERY background Agent dispatch in this pipeline (Phase M2 system-architec
 - **No proposal-refiner Q&A loop** — the architect grounds prose directly. If ambiguous, the architect surfaces ONE clarification batch before drafting; no iterative grading loop.
 - **No Phase −2 bug-classifier triage** — feature work is assumed. (Bug fixes use `/architect-team:bug-fix`.)
 - **No ×3 reviewer convergence anywhere** — single architect, two devs (cross-reviewing each other), one QA.
-- **No `task-reviewer` agent at the review gate** — the devs cross-review each other's diffs; the v6 review-evidence schema's reviewer-is-the-other-dev pattern still satisfies the existing reviewer-≠-teammate hook check.
+- **No `task-reviewer` agent at the review gate** — the devs cross-review each other's diffs; the v7 review-evidence schema's reviewer-is-the-other-dev pattern still satisfies the existing reviewer-≠-teammate hook check.
 - **No `test-completeness-verifier` at gate time** — `mini-qa` does its own coverage check against `## QA Guidance`.
 - **No visual / editability / interaction reviewers at runtime** — deferred to `/architect-team:mini-review-sweep`.
 - **No `reconciler`** — non-overlapping file scope eliminates parallel-branch merges.
@@ -208,8 +208,8 @@ Per `team-spawning-and-review-gates`, the file scopes MUST NOT overlap. If the a
 
 Instead of dispatching a separate `task-reviewer` agent, the **two devs cross-review each other's diffs**:
 
-- After `backend` writes its `self_review` block in the review-evidence file v6, the orchestrator dispatches `frontend` with the additional task of writing the `independent_review` block for `backend`'s evidence file (and vice versa).
-- The v6 schema's existing `reviewer != teammate` invariant is satisfied: `frontend` reviewing `backend`'s task has `teammate: backend, reviewer: frontend`, which is not the self-review forbidden pattern.
+- After `backend` writes its `self_review` block in the review-evidence file (v7), the orchestrator dispatches `frontend` with the additional task of writing the `independent_review` block for `backend`'s evidence file (and vice versa).
+- The v7 schema's existing `reviewer != teammate` invariant is satisfied: `frontend` reviewing `backend`'s task has `teammate: backend, reviewer: frontend`, which is not the self-review forbidden pattern.
 - The cross-review is **lightweight** — verify the diff matches the task's acceptance criteria, run the linters/type-checkers the diff touches, grep the diff for `TODO`, `NotImplementedError`, mock-return placeholders, and the new-file Reuse Decision.
 
 The trade-off: weaker independence than a dedicated reviewer. Mitigation: `mini-qa`'s coverage check at M5 catches missing test coverage; the `/architect-team:mini-review-sweep` command catches the rest in batch.

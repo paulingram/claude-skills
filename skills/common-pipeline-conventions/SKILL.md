@@ -2258,7 +2258,7 @@ When `pipeline_invoked == true` (the user typed `/architect-team` / `/architect-
 |---|---|---|
 | **Skill invocation** | ≥ 1 | A `Skill` tool call with `skill_name` matching `architect-team-pipeline` / `bug-fix-pipeline` / `mini-architect-team-pipeline` / `ux-test-builder` |
 | **Subagent dispatches** | ≥ 2 | `Agent` tool calls dispatching CT6 subagents (architect-team:backend / frontend / system-architect / etc.). Solo implementation means 0 Agent dispatches — the bypass case |
-| **Independent review evidence** | ≥ 1 per task group | Files written under `.architect-team/reviews/<task-id>.json` with `independent_review.reviewer != teammate` per v6 schema |
+| **Independent review evidence** | ≥ 1 per task group | Files written under `.architect-team/reviews/<task-id>.json` with `independent_review.reviewer != teammate` per v7 schema |
 | **OpenSpec ceremony** | ≥ 1 `openspec` Bash call | `openspec init` / `openspec validate` / `openspec archive` Bash calls. Skipping = openspec-bypassed |
 | **Worktree isolation** | ≥ 1 `git worktree add` call OR `--no-worktree` flag in user prompt | The v1.2.0 auto-worktree creation should fire as the first action |
 

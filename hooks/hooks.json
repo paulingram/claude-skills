@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\"",
             "async": false
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\"",
             "async": false
           }
         ]
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_unilateral_override_guard.py\"",
             "async": false
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\"",
             "async": false
           }
         ]
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\"",
             "async": false
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\"",
             "async": false
           }
         ]
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\"",
             "async": false
           }
         ]
@@ -86,7 +86,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py\"",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py\"",
             "async": false
           }
         ]

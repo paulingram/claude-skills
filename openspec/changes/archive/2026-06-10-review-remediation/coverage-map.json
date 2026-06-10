@@ -1,0 +1,881 @@
+{
+  "schema_version": 1,
+  "change": "review-remediation",
+  "generated_at": "2026-06-09T00:00:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "A1",
+      "source_excerpt": "hooks/hooks.json \u2014 all hook wirings use python3 X || python X; replace with the v2.16.0 detect-once pattern (commands/architect-team.md:175).",
+      "spec_requirement_id": "review-remediation.glue.hooks-detect-once",
+      "scenarios": [
+        "hook wiring detect-once, no double invocation (A1)"
+      ],
+      "acceptance_criteria": [
+        "Every command in hooks/hooks.json uses $(command -v python3 || command -v python) and invokes its script exactly once",
+        "No hooks.json command contains the ' || python ' double-invocation form",
+        "tests/test_hooks_structure.py test_hooks_use_python3 + test_hooks_use_polyglot_python_fallback are rewritten to assert the detect-once contract and pass"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_hooks_structure.py (detect-once assertions)",
+      "status": "pending",
+      "tasks": [
+        "BD-1"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A2",
+      "source_excerpt": "hooks/vao_tools.py \u2014 three CLI tools crash with ModuleNotFoundError; wrap each lazy import in the dual-form try/except pattern (lines 61-68).",
+      "spec_requirement_id": "review-remediation.glue.vao-cli-runnable",
+      "scenarios": [
+        "the three VAO CLI tools run as a bare-module script (A2)"
+      ],
+      "acceptance_criteria": [
+        "python hooks/vao_tools.py verify-discipline-registry-current runs without ModuleNotFoundError",
+        "verify-inflight-clarifications-processed and verify-no-unilateral-override likewise run as bare-module scripts",
+        "each of the three lazy imports uses try: from hooks.X / except ImportError: from X"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_vao_glue_execution.py (subprocess run of the 3 subcommands)",
+      "status": "pending",
+      "tasks": [
+        "BD-2"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A3",
+      "source_excerpt": "hooks/vao_tools.py:~4598 verify_no_pipeline_bypass checks /reviews/ against the RAW path; normalize backslashes + lowercase before the check.",
+      "spec_requirement_id": "review-remediation.glue.windows-review-path",
+      "scenarios": [
+        "Windows backslash review paths are counted (A3)"
+      ],
+      "acceptance_criteria": [
+        "A ledger entry with a backslash review-evidence path is counted as a review",
+        "verify_no_pipeline_bypass does not emit a false independent-review-bypassed for that ledger",
+        "the path is normalized (backslash to slash + lowercase) before the /reviews/ check, matching the openspec check below it"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_vao_windows_path.py",
+      "status": "pending",
+      "tasks": [
+        "BD-3"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A4",
+      "source_excerpt": "hooks/inflight_inbox.py::mark_processed non-atomic rewrite can destroy a concurrent inject append; rewrite to temp + os.replace (run_metrics.py:184-186). Also safe_id the run_id.",
+      "spec_requirement_id": "review-remediation.glue.inbox-atomic-safe",
+      "scenarios": [
+        "the in-flight inbox is atomic and path-safe (A4)"
+      ],
+      "acceptance_criteria": [
+        "mark_processed writes via temp file + os.replace (atomic on POSIX and Windows)",
+        "a concurrently-appended inbox line survives a mark_processed rewrite",
+        "a run_id containing /, backslash, leading ., or .. is rejected via safe_id before reaching the inbox filename"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_inflight_inbox_atomic.py",
+      "status": "pending",
+      "tasks": [
+        "BD-4"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A5",
+      "source_excerpt": "scripts/setup/teams_mode.py has no __main__/argparse but five commands invoke --banner --command; add a minimal argparse __main__ printing format_dispatch_banner().",
+      "spec_requirement_id": "review-remediation.glue.teams-mode-cli",
+      "scenarios": [
+        "teams_mode and worktree_lifecycle expose the invoked CLIs (A5, A6)"
+      ],
+      "acceptance_criteria": [
+        "teams_mode.py --banner --command '/architect-team:inject' prints the dispatch banner",
+        "the CLI exits 0 even when the banner helper would otherwise raise (best-effort)",
+        "each of the five command invocations (inject, monitor-tests, visual-to-api, classify-test-prod-safety, discipline-status) produces banner output"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_teams_mode_cli.py",
+      "status": "pending",
+      "tasks": [
+        "BD-5"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A6",
+      "source_excerpt": "scripts/setup/worktree_lifecycle.py has no CLI but two commands invoke cleanup-merged --against origin/main; add a minimal argparse __main__ with a cleanup-merged subcommand.",
+      "spec_requirement_id": "review-remediation.glue.worktree-lifecycle-cli",
+      "scenarios": [
+        "teams_mode and worktree_lifecycle expose the invoked CLIs (A5, A6)"
+      ],
+      "acceptance_criteria": [
+        "worktree_lifecycle.py cleanup-merged --against origin/main --dry-run prints a one-line summary",
+        "the CLI exits 0 even on a cleanup error (v1.3.0 never-block rule)",
+        "the subcommand delegates to cleanup_merged_worktrees(against=, dry_run=)"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_worktree_lifecycle_cli.py",
+      "status": "pending",
+      "tasks": [
+        "BD-6"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A7",
+      "source_excerpt": "scripts/setup/worktree_lifecycle.py 23 subprocess calls have text=True but no encoding= and no timeout=; add encoding + bounded timeouts. Same encoding treatment for worktree_paths.py, setup.py, pipeline-completion-audit.py.",
+      "spec_requirement_id": "review-remediation.glue.subprocess-encoding-timeout",
+      "scenarios": [
+        "subprocess calls are encoding-safe and time-bounded (A7)"
+      ],
+      "acceptance_criteria": [
+        "every text-mode subprocess call in worktree_lifecycle.py / worktree_paths.py / setup.py / pipeline-completion-audit.py carries encoding='utf-8', errors='replace'",
+        "the network git ops (push ~810, push --delete ~852) carry a bounded timeout=",
+        "TimeoutExpired routes to the existing best-effort failure path (does not raise to the top)"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_subprocess_encoding.py",
+      "status": "pending",
+      "tasks": [
+        "BD-7"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A8",
+      "source_excerpt": "Hook stdin decoding in four hooks uses the locale codec; a UTF-8 payload degrades the gate to a no-op on cp1252. Switch to sys.stdin.buffer.read().decode('utf-8','replace').",
+      "spec_requirement_id": "review-remediation.glue.utf8-stdin",
+      "scenarios": [
+        "hook stdin is decoded as UTF-8 (A8)"
+      ],
+      "acceptance_criteria": [
+        "pipeline-completion-audit.py, review-gate-task.py, teammate-idle-check.py, pretool_unilateral_override_guard.py decode stdin via sys.stdin.buffer.read().decode('utf-8','replace')",
+        "a UTF-8 payload (emoji in a task title) does not degrade the gate to a silent no-op under cp1252"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_hooks_stdin_encoding.py",
+      "status": "pending",
+      "tasks": [
+        "BD-8"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A9",
+      "source_excerpt": "review-gate-task.py:~151 and teammate-idle-check.py:~98 catch JSONDecodeError but not OSError on evidence read_text; a sharing-violation tracebacks the gate. Add OSError and treat as a blocking gap.",
+      "spec_requirement_id": "review-remediation.glue.oserror-fails-closed",
+      "scenarios": [
+        "an OSError on evidence read fails the gate closed (A9)"
+      ],
+      "acceptance_criteria": [
+        "review-gate-task.py and teammate-idle-check.py catch OSError alongside JSONDecodeError on the evidence read",
+        "an OSError is treated as a blocking gap identical to the missing-file branch",
+        "the gate does not traceback to exit 1 and silently skip"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_hooks_oserror_handling.py",
+      "status": "pending",
+      "tasks": [
+        "BD-9"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "A10",
+      "source_excerpt": "skill_invocation_audit.py:44-58 CANONICAL_COMMANDS lists 13 vs 19 real commands + 3 phantoms; regenerate to the 19 basenames + add a drift test. Fix slash-form false positive + prose-form 'architect team' false negative without broadening.",
+      "spec_requirement_id": "review-remediation.glue.canonical-commands-matcher",
+      "scenarios": [
+        "CANONICAL_COMMANDS matches the real command set and the matcher is precise (A10)"
+      ],
+      "acceptance_criteria": [
+        "CANONICAL_COMMANDS equals exactly the 19 commands/*.md basenames; no mempalace-search/mempalace-status/code-review phantoms",
+        "a structural test asserts CANONICAL_COMMANDS == the live commands/ directory basenames",
+        "the slash matcher does not fire on /status inside a URL/path; the prose matcher fires on 'use my architect team'; exit semantics unchanged"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_skill_invocation_audit_canonical.py",
+      "status": "pending",
+      "tasks": [
+        "BD-10"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-1"
+      ]
+    },
+    {
+      "source_requirement_id": "B1",
+      "source_excerpt": "commands/inject.md both python snippets import hooks.inflight_inbox with NO sys.path.insert; add it to every snippet + make ${MESSAGE} interpolation quote-robust.",
+      "spec_requirement_id": "review-remediation.commands.inject-syspath-message",
+      "scenarios": [
+        "inject snippets resolve the plugin root and pass the message safely (B1)"
+      ],
+      "acceptance_criteria": [
+        "every python snippet in inject.md that imports hooks.inflight_inbox first inserts ${CLAUDE_PLUGIN_ROOT} onto sys.path",
+        "the message is passed via environment variable or stdin, not '''${MESSAGE}''' interpolation",
+        "tests/test_inject_command.py asserts the sys.path insert is present"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_inject_command.py",
+      "status": "pending",
+      "tasks": [
+        "FD-1"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-2"
+      ]
+    },
+    {
+      "source_requirement_id": "B2",
+      "source_excerpt": "commands/ux-test.md missing every pipeline-command discipline block its 3 siblings carry; port them in architect-team.md order, adapted for the ux-test slug.",
+      "spec_requirement_id": "review-remediation.commands.ux-test-preamble",
+      "scenarios": [
+        "ux-test carries the full pipeline-discipline preamble (B2)"
+      ],
+      "acceptance_criteria": [
+        "ux-test.md carries the v1.5.0 dispatch banner FIRST, then v1.3.0 cleanup, v3.7.0 reconciliation, v1.2.0 auto-worktree, v2.5.0 in-flight clarification",
+        "the blocks appear in the same order as architect-team.md and are adapted for the ux-test slug"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "structural diff of commands/ux-test.md vs commands/architect-team.md preamble order",
+      "status": "pending",
+      "tasks": [
+        "FD-2"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-2"
+      ]
+    },
+    {
+      "source_requirement_id": "B3",
+      "source_excerpt": "commands/discipline-status.md:45 double-runs on exit-2; switch to detect-once. Sweep create_run_worktree in architect-team/bug-fix/mini + the teams_mode/worktree_lifecycle invocations from A5/A6. Update the structural polyglot test.",
+      "spec_requirement_id": "review-remediation.commands.detect-once-sweep",
+      "scenarios": [
+        "exit-2-capable command invocations are detect-once (B3)"
+      ],
+      "acceptance_criteria": [
+        "discipline-status verify-discipline-registry-current, create_run_worktree in architect-team/bug-fix/mini, and the A5/A6 teams_mode/worktree_lifecycle invocations use detect-once",
+        "tests/test_visual_to_api_command.py (and monitor-tests/inject as applicable) enforce detect-once for the converted invocations and pass"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_visual_to_api_command.py (detect-once enforcement)",
+      "status": "pending",
+      "tasks": [
+        "FD-3"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-2"
+      ]
+    },
+    {
+      "source_requirement_id": "B4",
+      "source_excerpt": "commands/architect-team-setup.md:4 allowed-tools omits Bash(python:*) and has a dead Bash(${CLAUDE_PLUGIN_ROOT}/...) rule; add the former, drop the latter (match mempalace-install.md:4).",
+      "spec_requirement_id": "review-remediation.commands.setup-allowed-tools",
+      "scenarios": [
+        "setup command allowed-tools is correct (B4)"
+      ],
+      "acceptance_criteria": [
+        "architect-team-setup.md allowed-tools includes Bash(python:*)",
+        "the dead Bash(${CLAUDE_PLUGIN_ROOT}/...) rule is removed",
+        "tests/test_commands.py::test_setup_command_uses_python3 still passes"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "commands/architect-team-setup.md frontmatter diff",
+      "status": "pending",
+      "tasks": [
+        "FD-4"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-2"
+      ]
+    },
+    {
+      "source_requirement_id": "B5",
+      "source_excerpt": "commands/absorb-phenotype.md:35 bare python scripts/phenotypes/phenotypes.py is plugin-root-relative and non-polyglot; anchor with ${CLAUDE_PLUGIN_ROOT} + detect-once.",
+      "spec_requirement_id": "review-remediation.commands.absorb-phenotype-anchor",
+      "scenarios": [
+        "absorb-phenotype invocation is anchored and detect-once (B5)"
+      ],
+      "acceptance_criteria": [
+        "the phenotypes.py validate invocation in absorb-phenotype.md is anchored with ${CLAUDE_PLUGIN_ROOT}",
+        "it uses the detect-once interpreter selection"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "commands/absorb-phenotype.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-5"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-2"
+      ]
+    },
+    {
+      "source_requirement_id": "C1",
+      "source_excerpt": "Evidence schema v6 -> v7 everywhere taught: team-spawning frontmatter + JSON example, architect-team-pipeline ~449, bug-fix ~319, mini ~212, common-pipeline-conventions ~2261, README 294/623/966-968/1014. Ground truth SCHEMA_VERSION=7, 17 required fields.",
+      "spec_requirement_id": "review-remediation.skills.schema-v7",
+      "scenarios": [
+        "the evidence schema is taught as v7 everywhere (C1)"
+      ],
+      "acceptance_criteria": [
+        "all six taught locations state schema v7 (not v6)",
+        "the full JSON example carries the 17 required fields incl. the 5 VAO fields in string-or-dict shape, consistent with hooks/review_evidence_schema.py",
+        "no 'schema (v6' / schema_version 6 mention remains in the taught locations"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "grep shows zero v6 schema mentions in the six taught locations",
+      "status": "pending",
+      "tasks": [
+        "FD-6"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-3"
+      ]
+    },
+    {
+      "source_requirement_id": "C2",
+      "source_excerpt": "bug-fix-pipeline:401-405 hardcoded /Users/paulingram/.../0.9.35/hooks/vao_tools.py with literal '...' fallback; replace with ${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py detect-once.",
+      "spec_requirement_id": "review-remediation.skills.bugfix-plugin-root-path",
+      "scenarios": [
+        "bug-fix-pipeline uses the plugin-root path, not a hardcoded cache path (C2)"
+      ],
+      "acceptance_criteria": [
+        "bug-fix-pipeline invokes ${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py via detect-once",
+        "no hardcoded cache path or literal '...' fallback remains"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "skills/bug-fix-pipeline/SKILL.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-7"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-3"
+      ]
+    },
+    {
+      "source_requirement_id": "C3",
+      "source_excerpt": "v3.8.0 unbounded-solving residue sweep: architect-team-pipeline 473/512-513, editability-completeness 59, interaction-completeness 62, mini desc + mini.md, ux-test-builder desc + ux-test.md + flaky ~241, verified-agent-output ~50. Align to loop-until-converged.",
+      "spec_requirement_id": "review-remediation.skills.unbounded-residue",
+      "scenarios": [
+        "unbounded-solving residue is reconciled (C3)"
+      ],
+      "acceptance_criteria": [
+        "no 'bounded at 3 cycles' / 'cycle cap = 3' convergence cap remains in the listed locations",
+        "each expresses loop-until-converged with a pause only for required owner input (diagnostic-research-team:145 wording)",
+        "the ux-test-builder flaky verdict is redefined as consensus-on-intermittence"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "grep shows zero 'bounded at 3' convergence claims in the listed skill/command bodies",
+      "status": "pending",
+      "tasks": [
+        "FD-8"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-3"
+      ]
+    },
+    {
+      "source_requirement_id": "C4",
+      "source_excerpt": "MemPalace not-on-PATH canonical note referenced from 4 pipeline bodies but DOES NOT EXIST; author it in mempalace-integration ## Phase A (one line, suggest /architect-team:mempalace-install, continue as no-ops, never hard-fail).",
+      "spec_requirement_id": "review-remediation.skills.mempalace-note",
+      "scenarios": [
+        "the MemPalace not-on-PATH note exists and is reachable (C4)"
+      ],
+      "acceptance_criteria": [
+        "mempalace-integration ## Phase A contains the not-on-PATH note: one user line, suggest /architect-team:mempalace-install, continue with MemPalace steps as no-ops, never hard-fail",
+        "the four deferring bodies (architect-team-pipeline:88, bug-fix-pipeline:77, mini:63, common-pipeline-conventions:86) reference a note that now exists"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "skills/mempalace-integration/SKILL.md Phase A note",
+      "status": "pending",
+      "tasks": [
+        "FD-9"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-3"
+      ]
+    },
+    {
+      "source_requirement_id": "C5",
+      "source_excerpt": "bug-fix-pipeline:~453 references 'Phase B3b' which is never defined; reword to 'the SR-intake behavior inherited from the main pipeline's Phase 3b' or define B3b explicitly, consistently.",
+      "spec_requirement_id": "review-remediation.skills.phase-b3b",
+      "scenarios": [
+        "the undefined Phase B3b reference is resolved (C5)"
+      ],
+      "acceptance_criteria": [
+        "the 'Phase B3b' reference is resolved consistently (reworded or defined)",
+        "no dangling undefined-phase reference remains in bug-fix-pipeline"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "skills/bug-fix-pipeline/SKILL.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-10"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-3"
+      ]
+    },
+    {
+      "source_requirement_id": "C6",
+      "source_excerpt": "7 SKILL.md descriptions exceed the 1024-char limit (visual-to-api-design 1432, interaction-completeness 1327, visual-fidelity-reconciliation 1232, bug-fix-pipeline 1212, mini 1191, email-testing 1148, proposal-refiner 1119); rewrite trigger-first under 1024 + add a structural cap test.",
+      "spec_requirement_id": "review-remediation.skills.description-cap",
+      "scenarios": [
+        "every skill description is within the 1024-char limit (C6)"
+      ],
+      "acceptance_criteria": [
+        "all seven over-length descriptions are <= 1024 chars (target <=600), trigger-first, with displaced detail moved to the body (no information lost)",
+        "tests/test_skills.py caps every skills/*/SKILL.md description at 1024 chars and passes"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_skills.py (1024-char cap assertion)",
+      "status": "pending",
+      "tasks": [
+        "FD-11"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-3"
+      ]
+    },
+    {
+      "source_requirement_id": "D1",
+      "source_excerpt": "CLAUDE.md reconcile internal contradictions: test counts 3871 vs 3928; VAO tool counts 7 vs 14 (real 20); '3 enforcement scripts' -> 4; commands parenthetical; annotate 'all 27 agents' as (then 27, now 34).",
+      "spec_requirement_id": "review-remediation.docs.claude-md",
+      "scenarios": [
+        "CLAUDE.md self-contradictions are reconciled (D1)"
+      ],
+      "acceptance_criteria": [
+        "Every OPERATIVE current-state test-count claim in CLAUDE.md states the pinned post-run actuals: 4097 passed + 5 skipped, and 163 test files",
+        "the VAO-tool count is stated once as the true count (20+) in Stack and Structure is corrected; enforcement scripts -> 4 (incl. pretool_unilateral_override_guard.py); commands parenthetical names the actual most-recent joiner; all 27 agents annotated (then 27, now 34)",
+        "HISTORICAL-delta narratives (the v3.9.0 suite 3871->3920 clause) are KEPT as era-accurate version history; no operative claim states 3928/3871; all COUNT-RECOUNT-AT-M7 sentinels deleted"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "CLAUDE.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-12",
+        "X-3"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-4"
+      ]
+    },
+    {
+      "source_requirement_id": "D2",
+      "source_excerpt": "docs/CODEBASE_MAP.md stale: says (v1.0.0), 2635 tests, 12 commands/26 skills/27 agents; update to v-current / 40 skills / 34 agents / 19 commands / actual test count; add override_markers.py + pretool_unilateral_override_guard.py to section 4.",
+      "spec_requirement_id": "review-remediation.docs.codebase-map",
+      "scenarios": [
+        "CODEBASE_MAP reflects the current inventory (D2)"
+      ],
+      "acceptance_criteria": [
+        "CODEBASE_MAP section 1 + mermaid state v-current with 40 skills / 34 agents / 19 commands / the pinned test count 4097 passed + 5 skipped and 163 test files",
+        "section 4 lists hooks/override_markers.py and hooks/pretool_unilateral_override_guard.py; both COUNT-RECOUNT-AT-M7 sentinels deleted"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "docs/CODEBASE_MAP.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-13",
+        "X-3"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-4"
+      ]
+    },
+    {
+      "source_requirement_id": "D3",
+      "source_excerpt": "README.md schema v6->v7 (per C1), HOOKS box (3) -> 4 scripts/6 events including the PreToolUse row; refresh any count the run changes.",
+      "spec_requirement_id": "review-remediation.docs.readme",
+      "scenarios": [
+        "README schema and HOOKS box are corrected (D3)"
+      ],
+      "acceptance_criteria": [
+        "README teaches schema v7; the HOOKS box states 4 scripts across 6 events including the PreToolUse row",
+        "the README tests badge reads tests-4097 passing (was tests-3928); any operative count sentence states 4097 passed + 5 skipped"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "README.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-14",
+        "X-3"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-4"
+      ]
+    },
+    {
+      "source_requirement_id": "D4",
+      "source_excerpt": "Version bump plugin.json + marketplace.json; CHANGELOG entry enumerating this run's fixes; bring docs/INTEGRATION_MAP.md current; CLAUDE.md concise new-version paragraph.",
+      "spec_requirement_id": "review-remediation.docs.version-bump-changelog",
+      "scenarios": [
+        "the version is bumped and the CHANGELOG enumerates the fixes (D4)"
+      ],
+      "acceptance_criteria": [
+        "plugin.json and marketplace.json carry version 3.9.3",
+        "CHANGELOG.md has an entry enumerating this run's A-E fixes",
+        "docs/INTEGRATION_MAP.md is current for any cross-file contract this change touched; CLAUDE.md has the new-version paragraph"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": ".claude-plugin/plugin.json + marketplace.json + CHANGELOG.md diff",
+      "status": "pending",
+      "tasks": [
+        "FD-15"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-4"
+      ]
+    },
+    {
+      "source_requirement_id": "E1",
+      "source_excerpt": "Execute the glue test family: for every fenced python/python3 invocation in commands/*.md and every command string in hooks.json, assert the target exists and (for flag/subcommand scripts) execute with safe args asserting no-traceback + not a silent no-op. Would have caught A1/A2/A5/A6/B1/C2.",
+      "spec_requirement_id": "review-remediation.tests.glue-execution",
+      "scenarios": [
+        "the execute-the-glue family resolves and exercises every invocation (E1)"
+      ],
+      "acceptance_criteria": [
+        "for every fenced python/python3 invocation in commands/*.md and every hooks.json command string, the target script is resolved and asserted to exist",
+        "scripts taking a subcommand/flag are executed with safe args and asserted to neither traceback nor silently no-op on an unknown argument",
+        "the family is part of the suite and green"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "tests/test_vao_glue_execution.py",
+      "status": "pending",
+      "tasks": [
+        "BD-11",
+        "FD-16"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-5"
+      ]
+    },
+    {
+      "source_requirement_id": "E2",
+      "source_excerpt": "The A1-A10/B/C item-specific tests named above.",
+      "spec_requirement_id": "review-remediation.tests.item-specific",
+      "scenarios": [
+        "the item-specific regression tests pass (E2)"
+      ],
+      "acceptance_criteria": [
+        "each A1-A10/B/C fix has a focused regression test that pins it",
+        "all item-specific tests pass in the suite"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "the per-item NEW test files enumerated in tasks.md",
+      "status": "pending",
+      "tasks": [
+        "BD-12",
+        "FD-17"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-5"
+      ]
+    },
+    {
+      "source_requirement_id": "E3",
+      "source_excerpt": "Keep the whole suite green under cp1252 AND PYTHONUTF8=1.",
+      "spec_requirement_id": "review-remediation.tests.dual-encoding-green",
+      "scenarios": [
+        "the suite is green under both encodings (E3)"
+      ],
+      "acceptance_criteria": [
+        "python -m pytest is fully green under default Windows cp1252",
+        "python -m pytest is fully green under PYTHONUTF8=1",
+        "all new tests are additive; no pre-existing test is regressed (baseline 3928 passed + 5 skipped preserved + new tests)"
+      ],
+      "layer": "infra",
+      "implementing_commits": [],
+      "tests": {
+        "unit": [],
+        "integration": [],
+        "e2e": []
+      },
+      "demo_artifact": "two pytest runs (cp1252 + PYTHONUTF8=1) both green",
+      "status": "pending",
+      "tasks": [
+        "X-1"
+      ],
+      "acceptance_criteria_ids": [
+        "AC-5"
+      ]
+    }
+  ],
+  "qa_guidance": {
+    "acceptance_criteria": [
+      {
+        "id": "AC-1",
+        "statement": "The enforcement glue executes correctly (REQ-A): A1 hooks.json detect-once, A2 the 3 VAO CLIs run as scripts, A3 Windows paths match, A4 atomic + safe_id inbox, A5 teams_mode banner CLI, A6 worktree_lifecycle cleanup CLI, A7 subprocess encoding+timeout, A8 UTF-8 stdin, A9 OSError fails closed, A10 CANONICAL_COMMANDS == 19 + matcher fixes."
+      },
+      {
+        "id": "AC-2",
+        "statement": "The command surface honors its own conventions (REQ-B): B1 inject sys.path + safe message, B2 ux-test preamble blocks, B3 detect-once sweep + tests, B4 setup allowed-tools, B5 absorb-phenotype anchored."
+      },
+      {
+        "id": "AC-3",
+        "statement": "The skill bodies teach the code as it actually is (REQ-C): C1 schema v7 in all six locations + correct example, C2 plugin-root path, C3 unbounded residue reconciled, C4 MemPalace note authored, C5 Phase B3b resolved, C6 seven descriptions <1024 + cap test."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The documentation is reconciled and the version is bumped (REQ-D): D1 CLAUDE.md operative counts state pinned 4097 passed + 5 skipped / 163 test files (historical 3871->3920 narrative kept), D2 CODEBASE_MAP current + pinned counts, D3 README schema+HOOKS + tests badge tests-4097, D4 version 3.9.3 + CHANGELOG (3928->4097 delta) + INTEGRATION_MAP; all 7 COUNT-RECOUNT-AT-M7 sentinels deleted this cycle."
+      },
+      {
+        "id": "AC-5",
+        "statement": "The suite is green incl. new regression tests under both encodings (REQ-E): E1 execute-the-glue family, E2 item-specific tests, E3 pytest green under cp1252 AND PYTHONUTF8=1 with all new tests additive."
+      }
+    ],
+    "unit_test_targets": [
+      {
+        "path": "hooks/hooks.json via tests/test_hooks_structure.py",
+        "assertion": "every command is detect-once; no ' || python ' double-invocation; same script both sides"
+      },
+      {
+        "path": "hooks/vao_tools.py:verify_discipline_registry_current / verify_inflight_clarifications_processed / verify_no_unilateral_override",
+        "assertion": "run as a bare-module script without ModuleNotFoundError"
+      },
+      {
+        "path": "hooks/vao_tools.py:verify_no_pipeline_bypass",
+        "assertion": "a backslash review path is counted; no false independent-review-bypassed"
+      },
+      {
+        "path": "hooks/inflight_inbox.py:mark_processed",
+        "assertion": "atomic temp+os.replace; concurrent append survives; run_id with / or .. rejected via safe_id"
+      },
+      {
+        "path": "scripts/setup/teams_mode.py:main",
+        "assertion": "--banner --command X prints the banner and exits 0 best-effort"
+      },
+      {
+        "path": "scripts/setup/worktree_lifecycle.py:main",
+        "assertion": "cleanup-merged --against origin/main --dry-run prints a one-line summary, exit 0 on error"
+      },
+      {
+        "path": "scripts/setup/{worktree_lifecycle,worktree_paths,setup}.py + hooks/pipeline-completion-audit.py",
+        "assertion": "every text-mode subprocess call carries encoding='utf-8'; network git ops carry timeout="
+      },
+      {
+        "path": "hooks/{pipeline-completion-audit,review-gate-task,teammate-idle-check,pretool_unilateral_override_guard}.py",
+        "assertion": "stdin decoded via sys.stdin.buffer.read().decode('utf-8','replace')"
+      },
+      {
+        "path": "hooks/{review-gate-task,teammate-idle-check}.py",
+        "assertion": "OSError on evidence read is a blocking gap, not a traceback"
+      },
+      {
+        "path": "hooks/skill_invocation_audit.py:CANONICAL_COMMANDS",
+        "assertion": "== the 19 commands/*.md basenames; slash matcher ignores /status in a URL; prose matcher fires on 'use my architect team'"
+      },
+      {
+        "path": "tests/test_skills.py",
+        "assertion": "every skills/*/SKILL.md description is <= 1024 chars"
+      }
+    ],
+    "integration_test_targets": [
+      {
+        "target": "tests/test_vao_glue_execution.py (the execute-the-glue family)",
+        "assertion": "resolve every commands/*.md + hooks.json invocation; target exists; flag/subcommand scripts run with safe args without traceback and without a silent unknown-arg no-op"
+      },
+      {
+        "target": "openspec validate --all --strict --json",
+        "assertion": "valid:true for review-remediation; the two pre-existing active changes stay green"
+      },
+      {
+        "target": "python -m pytest (full suite)",
+        "assertion": "green once under default Windows cp1252 and once under PYTHONUTF8=1"
+      },
+      {
+        "target": "Documentation count-currency check (AC-4)",
+        "assertion": "no stale OPERATIVE count: (1) zero COUNT-RECOUNT-AT-M7 sentinels in tree; (2) every operative total-tests claim states 4097 passed + 5 skipped; (3) every operative test-file-count claim states 163; (4) README badge reads tests-4097 passing; (5) any surviving 3871/3928 literal sits inside a version-history clause, never an operative current-state claim"
+      }
+    ],
+    "playwright_flows": [],
+    "out_of_scope": [
+      "No live web testing, browser automation, or dev-server interaction \u2014 this plugin has no web surface.",
+      "No production system, deployed URL, or external service \u2014 none exist for this plugin.",
+      "No destructive git operations (stash / reset --hard / rebase / commit --amend / checkout other branch / clean -f).",
+      "No file outside the enumerated A-E scope; no broadening of a gate beyond its documented contract (A10 forbids broadening the matcher).",
+      "No new or changed runtime third-party dependency \u2014 Python stays stdlib-only."
+    ]
+  }
+}

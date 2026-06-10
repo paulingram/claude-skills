@@ -1,6 +1,6 @@
 ---
 name: interaction-completeness
-description: Use when a feature with UI/UX surface has been implemented and you must independently verify the shipped UI is genuine — every interactive element is real-user-flow-tested (real page.click / page.fill, not a direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamic data-binding rather than hardcoded sample data. Triggers — a frontend slice has interactive controls (buttons, forms, links, toggles, menus) and you are not certain each one genuinely works and is genuinely tested; a route may be wired to a placeholder / "coming soon" / skeleton / mock page instead of the live page; a screen shows a name / date / amount and you cannot tell whether it is a fixed label or sample data standing in for a per-user dynamic value; Phase 3 review-gate verification; Phase 5 cross-layer verification. Spawns three interaction-reviewer agents that independently enumerate every interactive element AND every page, classify element wiring and page genuineness, trace each element to its endpoint, audit Playwright test authenticity, argue to a converged interaction map, route gaps as solution requirements, and re-review after fixes until all three agree the interactive surface is genuine.
+description: Use when a feature with UI/UX surface has been implemented and you must independently verify the shipped UI is genuine — every interactive element is real-user-flow-tested (real page.click / page.fill, not a direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamic data-binding rather than hardcoded sample data. Fires at Phase 3 review-gate or Phase 5 cross-layer verification, or whenever you are not certain each control genuinely works, a route may be a placeholder, or a value may be hardcoded where it should be dynamic. The body documents the full triggers and the three-reviewer team that enumerates, classifies, traces, audits test authenticity, converges, routes gaps as solution requirements, and re-reviews after fixes.
 ---
 
 # Interaction Completeness — Is Every Control Genuinely Wired, Every Page Live, and Every Control Genuinely User-Flow-Tested
@@ -10,6 +10,13 @@ A frontend feature is not done when its screens render and its Playwright suite 
 The existing gates do not catch this. `playwright-user-flows` is the exhaustive test-AUTHORING discipline — but it is trust-based Markdown; nothing structurally checks an agent followed it. `integration_testing_review` gates *real-backend-vs-mock* — a test can hit the real backend through `page.request.post(...)` and fully satisfy that gate while issuing zero `page.click`. The `test-completeness-verifier`'s Playwright check is a `grep` — a grep finds *present* forbidden patterns; it cannot find a button that was never tested at all, a "flow" test that only navigates and asserts, a route wired to a placeholder, or a value hardcoded where it should be dynamic. `visual-fidelity-reconciliation` verifies the UI *looks* right — a placeholder page can be pixel-perfect. `editability-completeness` verifies entity *attributes* are editable end-to-end — a different granularity (attributes, not controls/pages).
 
 This skill closes the gap at the level it actually occurs: **the individual interactive element and the individual page.** It is the independent VERIFICATION gate that the `playwright-user-flows` authoring discipline was followed — the exact relationship `editability-completeness` has to `playwright-user-flows`, applied to controls and pages instead of attributes.
+
+## When this skill runs (triggers)
+
+- A frontend slice has interactive controls (buttons, forms, links, toggles, menus) and you are not certain each one genuinely works and is genuinely tested.
+- A route may be wired to a placeholder / "coming soon" / skeleton / mock page instead of the live page.
+- A screen shows a name / date / amount and you cannot tell whether it is a fixed label or sample data standing in for a per-user dynamic value.
+- Phase 3 review-gate verification, OR Phase 5 cross-layer verification.
 
 Four disciplines:
 
@@ -59,7 +66,7 @@ The architect does NOT re-do the enumeration. It asks: is the converged result r
 - **Placeholder honesty.** Did a `placeholder` page get classified `live` because its component compiles, even though it makes no API call where the design requires data, or its content is "coming soon" / lorem ipsum?
 - **Escalation honesty.** Did a genuinely ambiguous element or page get force-classified to avoid an escalation?
 
-The architect writes a verdict to `<cwd>/.architect-team/interaction/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with specific items routed back to named reviewers. On `gaps_found`, the orchestrator re-dispatches those reviewers to address the architect's findings, then convergence (Round 2) and this review (Round 3) repeat. Bounded at 3 architect-review cycles per pass; an unresolved item after that escalates to the human. Only an architect `pass` unlocks the converged map.
+The architect writes a verdict to `<cwd>/.architect-team/interaction/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with specific items routed back to named reviewers. On `gaps_found`, the orchestrator re-dispatches those reviewers to address the architect's findings, then convergence (Round 2) and this review (Round 3) repeat. The loop runs until the architect converges — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses only for a required owner input that cannot be auto-supplied (surfaced loudly while the rest of the run continues), never on cycle count. Only an architect `pass` unlocks the converged map.
 
 ### Pass P — converged map + gaps become solution requirements
 

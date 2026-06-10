@@ -65,12 +65,15 @@ def test_command_body_documents_all_4_stages(plugin_root: Path):
     assert "Stage 4" in body
 
 
-def test_command_body_uses_polyglot_python_pattern(plugin_root: Path):
-    """The v2.9.0 audit mandates `python3 ... || python ...` for any
-    python invocation. Verify the dispatch-mode banner + intake-mode
-    signal use the polyglot form."""
+def test_command_body_uses_cross_platform_python_pattern(plugin_root: Path):
+    """Every ```! python block must select the interpreter cross-platform —
+    EITHER the v2.16.0 detect-once form `$(command -v python3 || command -v python)`
+    OR the v2.9.0 polyglot fallback `python3 ... || python ...`. After B3
+    (review-remediation) the dispatch-mode banner + the worktree-cleanup
+    invocation convert to detect-once (they are exit-2-capable / mutating); the
+    intake-mode signal writer stays polyglot. A bare `python3 ...` with neither
+    form is the offender this test catches."""
     body = _read(plugin_root)
-    # Each ```! code block that invokes python must include the polyglot fallback.
     lines = body.splitlines()
     in_block = False
     block_buf: list[str] = []
@@ -84,15 +87,34 @@ def test_command_body_uses_polyglot_python_pattern(plugin_root: Path):
         if in_block and s == "```":
             text = "\n".join(block_buf)
             if "python3 " in text or "python " in text:
+                has_detect_once = "$(command -v python3 || command -v python)" in text
                 has_polyglot = ("python3 " in text) and ("|| python " in text)
-                if not has_polyglot:
+                if not (has_detect_once or has_polyglot):
                     offenders.append(text)
             in_block = False
             block_buf = []
             continue
         if in_block:
             block_buf.append(line)
-    assert not offenders, f"non-polyglot python invocation(s) in command file:\n" + "\n---\n".join(offenders)
+    assert not offenders, "python invocation(s) using neither detect-once nor polyglot:\n" + "\n---\n".join(offenders)
+
+
+def test_banner_and_cleanup_use_detect_once(plugin_root: Path):
+    """B3 (review-remediation): the teams_mode --banner and worktree_lifecycle
+    cleanup-merged invocations are exit-2-capable / mutating, so they MUST use the
+    v2.16.0 detect-once form (no `python3 X || python X` double-invocation)."""
+    body = _read(plugin_root)
+    banner_lines = [ln for ln in body.splitlines() if "teams_mode.py" in ln and "--banner" in ln]
+    cleanup_lines = [ln for ln in body.splitlines() if "worktree_lifecycle.py" in ln and "cleanup-merged" in ln]
+    assert banner_lines, "expected a teams_mode --banner invocation"
+    assert cleanup_lines, "expected a worktree_lifecycle cleanup-merged invocation"
+    for ln in banner_lines + cleanup_lines:
+        assert "$(command -v python3 || command -v python)" in ln, (
+            f"converted invocation must use detect-once, got: {ln!r}"
+        )
+        assert "|| python " not in ln, (
+            f"detect-once invocation must not contain the `|| python ` double-invocation, got: {ln!r}"
+        )
 
 
 def test_command_documents_4_flags_supported(plugin_root: Path):

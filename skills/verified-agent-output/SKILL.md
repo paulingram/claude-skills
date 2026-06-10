@@ -47,7 +47,7 @@ Mechanism: a dedicated `oracle-deriver` agent (opus, read-only) walks the named 
 }
 ```
 
-The orchestrator surfaces the spec to the user with ONE confirmation gate. On accept, `_human_review_required` flips false; the spec is frozen and becomes the binding contract every downstream layer measures against. On reject, the user's correction text re-feeds the deriver (bounded at 3 cycles).
+The orchestrator surfaces the spec to the user with ONE confirmation gate. On accept, `_human_review_required` flips false; the spec is frozen and becomes the binding contract every downstream layer measures against. On reject, the user's correction text re-feeds the deriver, which re-derives and re-surfaces; this repeats until the user accepts — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`), and the only pause is waiting on the user's own confirmation, which IS the deliverable.
 
 **Why this catches the failures.** Scope-narrowing: the agent's interpretation IS the structural enumeration; reframing prose is impossible. Oracle structure mismatch: the structural diff is the FIRST artifact; subsequent work measures against it deterministically.
 

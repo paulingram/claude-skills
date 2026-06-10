@@ -160,12 +160,18 @@ def test_team_spawn_documents_integration_testing_review_field(plugin_root: Path
         "team-spawning skill does not document the integration_testing_review evidence field"
     )
     # v0.9.5 introduced integration_testing_review at schema v4; v0.9.13 bumped
-    # the schema to v5 (the independent_review block). The field must still be
-    # documented at v4-or-later — accept any schema_version >= 4. The exact
-    # current version is asserted by test_independent_review::test_team_spawning_schema_is_v5.
-    assert any(f'schema_version": {n}' in content for n in (4, 5, 6, 7, 8, 9)) or "v4" in content, (
-        "team-spawning skill evidence schema not at v4 or later"
-    )
+    # the schema to v5 (the independent_review block); v2.0.0 bumped it to v7 (the
+    # 5 VAO fields). The field must still be documented at v4-or-later. The C1
+    # (review-remediation) update replaced the v6 example with the design-provided
+    # v7 example, which deliberately OMITS a `schema_version` literal (it is not a
+    # `REQUIRED_EVIDENCE_FIELDS` member), so v4+-ness is accepted via a
+    # `schema_version` literal OR a textual `vN` schema reference (the body now
+    # documents `Schema (v7 — …`). The exact current version (v7) is asserted by
+    # test_independent_review::test_team_spawning_schema_is_v5_or_later.
+    assert (
+        any(f'schema_version": {n}' in content for n in (4, 5, 6, 7, 8, 9))
+        or any(f"v{n}" in content for n in (4, 5, 6, 7, 8, 9))
+    ), "team-spawning skill evidence schema not at v4 or later"
 
 
 def test_team_spawn_lists_integration_testing_failure_origin(plugin_root: Path) -> None:

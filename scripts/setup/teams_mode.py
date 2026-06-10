@@ -27,10 +27,12 @@ References:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Mapping
 
@@ -325,3 +327,60 @@ def _probe_claude_version(claude_cmd: str) -> tuple[int, int, int] | None:
         return None
 
     return _parse_version(result.stdout or "")
+
+
+# ---- A5: minimal argparse CLI (review-remediation) ---------------------------
+
+
+def _safe_print(text: str) -> None:
+    """Print `text` without ever raising UnicodeEncodeError.
+
+    The dispatch banner uses box-drawing + symbol glyphs (╔ ║ ◆ ✓ ─). On a
+    Windows cp1252 console these are not encodable and a plain `print` would
+    raise UnicodeEncodeError, which (for a best-effort informational banner)
+    must never happen. Encode through the stdout codec with errors='replace'
+    so unrepresentable glyphs degrade to '?' rather than crashing.
+    """
+    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        sys.stdout.write(text + "\n")
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write((text + "\n").encode(enc, errors="replace"))
+        try:
+            sys.stdout.flush()
+        except OSError:
+            pass
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Minimal CLI entry point for the v1.5.0 dispatch banner.
+
+    The five `teams_mode.py --banner --command "/architect-team:<name>"`
+    command invocations (inject / monitor-tests / visual-to-api /
+    classify-test-prod-safety / discipline-status) reach here. `--command` is
+    accepted for forward-compatibility but the current banner is not
+    command-specific (`format_dispatch_banner()` takes no `command=` kwarg), so
+    it is informational. Banner output is best-effort: any exception is
+    swallowed and the CLI still returns 0, honoring the v1.5.0 never-gating
+    rule that a banner failure must never block a command.
+    """
+    p = argparse.ArgumentParser(
+        prog="teams_mode.py",
+        description="Print the v1.5.0 dispatch-mode banner (best-effort).",
+    )
+    p.add_argument("--banner", action="store_true",
+                   help="Print the dispatch-mode banner for the current environment.")
+    p.add_argument("--command", default=None,
+                   help="The /architect-team:<name> command being invoked (informational).")
+    args = p.parse_args(argv)
+
+    if args.banner:
+        try:
+            _safe_print(format_dispatch_banner())
+        except Exception:  # noqa: BLE001 - banner is informational; never fail the command
+            pass
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

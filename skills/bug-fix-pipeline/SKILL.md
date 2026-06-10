@@ -1,6 +1,6 @@
 ---
 name: bug-fix-pipeline
-description: "Use when a bug needs to be fixed end-to-end faster than the full architect-team-pipeline can deliver, but with the same rigor where it matters. A sibling orchestrator playbook with five non-negotiable disciplines: replicate first (Playwright for frontend, backend script for backend, ambiguity-escalation when unclear); reproduction IS the regression test (frontend bugs also author a backend diagnostic; the artifact that demonstrated the bug is the artifact the QA replay verifies); generalized fix (the system-architect Bug-Fix Generalization Audit rejects symptom patches unless explicitly authorized); QA replay against the live dev environment (real deploys, real URLs; the pass criterion is the originating symptom is gone end-to-end); live-dev-environment-by-default (fixes deployed to the dev URLs before testing; production is an explicit opt-in exception). Phases B−1 through B8 mirror the main pipeline's structural points and replace Phase 2-5's parallel-team-spawn / 6-team-review with a tight replicate → reproduce-test → propose → fix → QA-replay loop. Accepts the same two input forms as the main /architect-team — a requirements folder OR a plain-language requirement typed directly as prose."
+description: "Use when a bug needs to be fixed end-to-end faster than the full architect-team-pipeline can deliver, but with the same rigor where it matters. A sibling orchestrator playbook whose Phases B−1 through B8 mirror the main pipeline's structural points but replace the Phase 2-5 parallel-team-spawn / 6-team-review with a tight replicate → reproduce-test → propose → fix → QA-replay loop. The body documents the five non-negotiable disciplines (replicate first, reproduction IS the regression test, generalized fix not symptom patch, QA replay against the live dev environment, live-dev-by-default with production opt-in). Accepts the same two input forms as the main /architect-team — a requirements folder OR a plain-language requirement typed directly as prose."
 ---
 
 # bug-fix-pipeline
@@ -316,7 +316,7 @@ The Lead creates ONE focused fix-team task in the shared list (teams mode) OR di
 - The replication artifacts (the failing flow / script) as the verification target.
 - The acceptance criterion: the replication artifacts pass when re-run against the deployed fix.
 
-The team writes Phase 3 review-gate evidence per the existing schema (v6) — `code_real_not_stubbed`, `tests_passing`, `integration_wired`, `coverage_satisfied`, `demonstrable`, `reuse_compliance`, `expectations_and_rca`, `visual_fidelity_review` (for frontend touches), `ui_interaction_review`. The `task-reviewer` independently re-reviews and writes the `independent_review` block; only its `verdict: pass` opens the Phase 3 gate. (Same gate as the main pipeline — bug fixes don't skip review-gate evidence.)
+The team writes Phase 3 review-gate evidence per the existing schema (v7) — the 17 required fields including `real_not_stubbed`, `tests`, `integration_testing_review`, `test_completeness_review`, `demo_artifact`, `reuse_compliance`, `visual_fidelity_review` (for frontend touches), `ui_interaction_review`, and the 5 Verified Agent Output fields (`oracle_match_review` / `baseline_clean_review` / `no_fake_data_review` / `adversarial_review` / `skill_invocation_audit`). The `task-reviewer` independently re-reviews and writes the `independent_review` block; only its `verdict: pass` opens the Phase 3 gate. (Same gate as the main pipeline — bug fixes don't skip review-gate evidence.)
 
 **After local tests pass, deploy to the dev environment.** Read the target project's `design.md` `## Dev Environment` section for the deploy command (`npm run deploy:dev`, `make dev-deploy`, `gh workflow run ...`, etc.) and the dev URL. Run the deploy, then poll the dev environment's health endpoint or build-status URL with a tight bounded in-turn loop until builds are green. A failed build is a Phase B5 escalation that routes back to the implementing team for diagnosis (probably a build-config issue, a missing env var, a dependency drift) — it is NOT a QA-replay failure. The bug-fix loop must never confuse a deploy failure with a fix failure.
 
@@ -397,12 +397,13 @@ After the qa-replayer returns its verdict and BEFORE Phase B6b runs, the orchest
 
 Invocation:
 
+The interpreter is selected ONCE via `$(command -v python3 || command -v python)` (the v2.16.0 detect-once form) and the script is anchored with `${CLAUDE_PLUGIN_ROOT}` so it resolves regardless of the install location — never a hardcoded plugin-cache path:
+
 ```bash
-python3 "/Users/paulingram/.claude/plugins/cache/architect-team-marketplace/architect-team/0.9.35/hooks/vao_tools.py" verify-live-verification-claim \
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-live-verification-claim \
   --artifact "<cwd>/.architect-team/qa-replays/<bug-slug>/verification-artifact.json" \
   --bug "<cwd>/.architect-team/qa-replays/<bug-slug>/bug-description.json" \
-  --out "<cwd>/.architect-team/vao-verdicts/<bug-slug>-live-verification.json" \
-  || python "..."
+  --out "<cwd>/.architect-team/vao-verdicts/<bug-slug>-live-verification.json"
 ```
 
 The tool's verdict — `valid: true|false` with named severity gaps — IS the authoritative gate:
@@ -450,7 +451,7 @@ If the user invoked the bug-fix run with `--no-deploy` (the dev environment is h
 
 ### SR origin kinds the bug-fix-pipeline now recognizes
 
-Phase B3b's SR intake (when a bug-fix run is itself spawned by an SR, vs. directly via `/architect-team:bug-fix`) recognizes these SR origin kinds:
+The SR-intake behavior inherited from the main pipeline's Phase 3b (when a bug-fix run is itself spawned by an SR, vs. directly via `/architect-team:bug-fix`) recognizes these SR origin kinds:
 
 | `origin.kind` | Source phase | Routing |
 |---|---|---|

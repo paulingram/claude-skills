@@ -38,62 +38,108 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-# The 13 user-invocable command names the architect-team plugin ships in v2.0.0.
-# `architect-team:architect-team` is the recursive/full-pipeline alias; the rest
-# are sibling commands.
-CANONICAL_COMMANDS: tuple[str, ...] = (
-    "architect-team",
-    "bug-fix",
-    "ux-test",
-    "mini",
-    "refine-prompt",
-    "cleanup-worktrees",
-    "mempalace-install",
-    "mempalace-search",
-    "mempalace-status",
-    "status",
-    "code-review",
-    "editability-audit",
-    "architect-team:architect-team",
+# (A10 review-remediation) The user-invocable command names are derived from
+# the actual `commands/*.md` basenames so the constant can NEVER drift from the
+# shipped command set again (the prior hand-maintained list had 13 entries with
+# 3 phantoms — `mempalace-search`, `mempalace-status`, `code-review` — that no
+# longer exist, against 19 real commands). A structural test asserts
+# `CANONICAL_COMMANDS == the live commands/ directory basenames`.
+_COMMANDS_DIR = Path(__file__).resolve().parent.parent / "commands"
+
+
+def _discover_canonical_commands() -> tuple[str, ...]:
+    """Return the sorted `commands/*.md` basenames. Falls back to a frozen
+    snapshot if the directory is unreadable (e.g. the hook running detached from
+    the repo), so the matcher still functions."""
+    try:
+        names = sorted(p.stem for p in _COMMANDS_DIR.glob("*.md"))
+    except OSError:
+        names = []
+    if names:
+        return tuple(names)
+    # Frozen fallback — the 19 commands shipped at review-remediation time.
+    return (
+        "absorb-phenotype", "architect-team", "architect-team-setup", "bug-fix",
+        "classify-test-prod-safety", "cleanup-worktrees", "discipline-status",
+        "editability-audit", "inject", "memory", "mempalace-install", "mini",
+        "mini-review-sweep", "monitor-tests", "refine-prompt", "status",
+        "ux-test", "visual-qa", "visual-to-api",
+    )
+
+
+CANONICAL_COMMANDS: tuple[str, ...] = _discover_canonical_commands()
+
+# (A10) Generic single-token command words that COLLIDE with common URL / file
+# path segments (`GET /status`, `/memory`, `/mini`). These match ONLY in the
+# explicit `/architect-team:<word>` prefixed form, never as a bare `/<word>`, so
+# a `/status` inside a URL is not mistaken for a command invocation. Hyphenated
+# command names (`bug-fix`, `ux-test`, ...) are specific enough to match bare
+# (still whitespace/line-anchored). This is the false-positive guard from
+# requirement A10(a); it deliberately trades auditing a bare `/status` (a
+# read-only command) for not false-firing on URLs/paths.
+_GENERIC_SLASH_WORDS: frozenset[str] = frozenset({"status", "mini", "memory", "inject"})
+
+# The non-generic (specific) commands that MAY match in the bare `/<cmd>` form.
+_SPECIFIC_SLASH_COMMANDS: tuple[str, ...] = tuple(
+    c for c in CANONICAL_COMMANDS if c not in _GENERIC_SLASH_WORDS
 )
 
-# Map command-name → canonical Skill name(s) the harness reports. The audit
-# considers a request matched when ANY of the names appears in a ledger entry's
-# `args.skill` field. This indirection covers the architect-team commands that
-# dispatch into pipeline skills (e.g. /architect-team → architect-team-pipeline).
-COMMAND_TO_SKILLS: dict[str, tuple[str, ...]] = {
+# Pipeline-driving commands route to their underlying Skill name(s); everything
+# else maps to itself. Built programmatically off CANONICAL_COMMANDS so it can't
+# drift. `architect-team:architect-team` is kept as the recursive/full-pipeline
+# composite alias the audit's fail-case fixture references.
+_PIPELINE_COMMAND_SKILLS: dict[str, tuple[str, ...]] = {
     "architect-team": ("architect-team", "architect-team-pipeline"),
-    "architect-team:architect-team": ("architect-team", "architect-team-pipeline"),
     "bug-fix": ("bug-fix", "bug-fix-pipeline"),
     "ux-test": ("ux-test", "ux-test-builder"),
     "mini": ("mini", "mini-architect-team-pipeline"),
     "refine-prompt": ("refine-prompt", "proposal-refiner"),
-    "cleanup-worktrees": ("cleanup-worktrees",),
-    "mempalace-install": ("mempalace-install",),
-    "mempalace-search": ("mempalace-search",),
-    "mempalace-status": ("mempalace-status",),
-    "status": ("status",),
-    "code-review": ("code-review",),
-    "editability-audit": ("editability-audit",),
 }
 
-# Slash-command regex — matches `/architect-team`, `/architect-team:X`,
-# `/bug-fix`, etc. The optional `:subcommand` form captures sibling commands
-# like `/architect-team:architect-team`, `/architect-team:bug-fix`.
+
+def _build_command_to_skills() -> dict[str, tuple[str, ...]]:
+    mapping: dict[str, tuple[str, ...]] = {}
+    for cmd in CANONICAL_COMMANDS:
+        mapping[cmd] = _PIPELINE_COMMAND_SKILLS.get(cmd, (cmd,))
+    # The recursive composite alias used by /architect-team:architect-team.
+    mapping["architect-team:architect-team"] = ("architect-team", "architect-team-pipeline")
+    return mapping
+
+
+COMMAND_TO_SKILLS: dict[str, tuple[str, ...]] = _build_command_to_skills()
+
+# (A10) Slash-command regex. TWO alternations, both anchored to start-of-string
+# or a preceding-whitespace boundary (so a mid-path `/bug-fix` in
+# `tests/bug-fix/x.spec.ts` does NOT match):
+#   1. The `/architect-team:<sub>` prefixed form — always allowed (covers the
+#      generic words via `/architect-team:status` etc.).
+#   2. A bare `/<specific-command>` — allowed only for non-generic commands.
+# The leading `(?:(?<=\s)|^)` is a whitespace/line-start boundary that replaces
+# the old unanchored match (which fired on `GET /status` and mid-path segments).
+_SLASH_BOUNDARY = r"(?:(?<=\s)|^)"
 _SLASH_PATTERN = re.compile(
-    r"/(?P<cmd>"
-    + "|".join(re.escape(c.split(":")[0]) for c in CANONICAL_COMMANDS)
-    + r")(?::(?P<sub>[\w-]+))?\b",
+    _SLASH_BOUNDARY
+    + r"/(?:"
+    + r"architect-team(?::(?P<sub>[\w-]+))?"
+    + r"|(?P<cmd>" + "|".join(re.escape(c) for c in _SPECIFIC_SLASH_COMMANDS) + r")"
+    + r")\b",
     re.IGNORECASE,
 )
 
-# Prose-form regex — verb + (optional slash) + command-name. Verbs cover the
-# variants the heirship-app-v2 transcripts demonstrated: "use", "using",
-# "invoke", "run", "fire", "with".
+# (A10) Prose-form regex — verb + optional possessive/article + command-name.
+#   - Verbs: "use", "using", "invoke", "run", "fire", "with".
+#   - Optional `my` / `your` / `the` between the verb and the name (the
+#     documented user trigger phrase "use my architect team" lives in the
+#     user's global CLAUDE.md).
+#   - The name is EITHER a hyphenated/explicit command (`architect-team`,
+#     `bug-fix`, ...) OR the space form `architect team` (A10(b)) — the latter
+#     canonicalizes to `architect-team`.
 _PROSE_VERBS = r"(?:use|using|invoke|run|fire|with)"
+_PROSE_POSSESSIVE = r"(?:(?:my|your|the)\s+)?"
 _PROSE_PATTERN = re.compile(
-    rf"\b{_PROSE_VERBS}\s+(?:the\s+)?/?(?P<cmd>"
-    + "|".join(re.escape(c.split(":")[0]) for c in CANONICAL_COMMANDS)
+    rf"\b{_PROSE_VERBS}\s+{_PROSE_POSSESSIVE}/?(?P<cmd>"
+    + "|".join(re.escape(c) for c in CANONICAL_COMMANDS)
+    + r"|architect[ -]team"  # space-or-hyphen form (A10(b))
     + r")(?::(?P<sub>[\w-]+))?\b",
     re.IGNORECASE,
 )
@@ -104,8 +150,13 @@ def _canonical_request(raw_cmd: str, raw_sub: str | None) -> str:
     key in COMMAND_TO_SKILLS. A `/architect-team:architect-team` request
     canonicalizes to `architect-team:architect-team`; a `/architect-team` (no
     subcommand) canonicalizes to `architect-team`.
+
+    (A10) The space form `architect team` / `Architect Team` canonicalizes to
+    the hyphenated `architect-team`.
     """
-    cmd = raw_cmd.lower()
+    cmd = (raw_cmd or "").lower()
+    # Collapse the space form to the canonical hyphenated command.
+    cmd = re.sub(r"architect[ -]team", "architect-team", cmd)
     sub = (raw_sub or "").lower()
     if not sub:
         return cmd
@@ -140,9 +191,14 @@ def find_skill_requests(message_text: str) -> list[dict[str, Any]]:
     for match in _SLASH_PATTERN.finditer(message_text):
         span = match.span()
         seen_spans.add(span)
-        command = _canonical_request(match.group("cmd"), match.group("sub"))
+        # The slash pattern has two branches: the `/architect-team[:sub]` form
+        # (group `cmd` is None, `sub` may be set) and the bare
+        # `/<specific-command>` form (group `cmd` set, `sub` None). When `cmd`
+        # is absent the matched command IS architect-team.
+        raw_cmd = match.group("cmd") or "architect-team"
+        command = _canonical_request(raw_cmd, match.group("sub"))
         found.append({
-            "raw_match": match.group(0),
+            "raw_match": match.group(0).lstrip(),
             "command": command,
             "match_form": "slash",
             "expected_skills": COMMAND_TO_SKILLS.get(command, (command,)),

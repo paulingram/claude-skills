@@ -12,7 +12,7 @@ You are running the visual-to-API design pipeline against a visual codebase. The
 As the very first user-visible action, print the dispatch-mode banner (Agent Teams vs subagents fallback) so the user knows which dispatch primitive will drive the 3-reviewer convergence per stage. Best-effort — subprocess failure surfaces a one-line note and the run continues.
 
 ```!
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:visual-to-api" || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:visual-to-api"
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:visual-to-api"
 ```
 
 ## Auto-cleanup merged worktrees — runs before argument parsing
@@ -20,7 +20,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "
 Per v1.3.0 — auto-cleanup any merged `architect-team/*` worktrees from prior runs before this run creates a new one. `exclude_current=True` keeps the cwd safe. Best-effort — cleanup failures never block this new run.
 
 ```!
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/worktree_lifecycle.py" cleanup-merged --against origin/main || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/worktree_lifecycle.py" cleanup-merged --against origin/main
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/worktree_lifecycle.py" cleanup-merged --against origin/main
 ```
 
 ## Argument parsing

@@ -1,6 +1,6 @@
 ---
 name: team-spawning-and-review-gates
-description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v6 — the teammate's self-review plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
+description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v7 — the teammate's 17-field self-review including the 5 Verified Agent Output fields, plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
 ---
 
 # Team Spawning & Review Gates
@@ -130,55 +130,47 @@ Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
 
 The teammate writes this BEFORE its `TaskUpdate` flips the task to `completed`. The `PostToolUse(TaskUpdate)` hook reads it and exits 2 (blocks completion) if it's missing or any field is invalid.
 
-The 12 top-level review fields are the teammate's OWN **self-review** — a cheap first pass that catches the obvious. They do NOT gate on their own: the `independent_review` block (added in v5) is the verdict of an independent `task-reviewer` agent, and the hook requires it present with `reviewer != teammate` and `verdict == "pass"`. See "## Independent review — the task-reviewer" below.
+The 17 top-level review fields are the teammate's OWN **self-review** — a cheap first pass that catches the obvious. They do NOT gate on their own: the `independent_review` block (added in v5) is the verdict of an independent `task-reviewer` agent, and the hook requires it present with `reviewer != teammate` and `verdict == "pass"`. See "## Independent review — the task-reviewer" below.
 
-Schema (v6 — v0.9.19 added the required `ui_interaction_review` field + optional `ui_interaction_review_note`; v0.9.13 added the required `independent_review` block — an independent task-reviewer's verdict, so the gate cannot pass on self-attestation; v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`):
+Schema (v7 — v2.0.0 added the 5 required Verified Agent Output fields `oracle_match_review` / `baseline_clean_review` / `no_fake_data_review` / `adversarial_review` / `skill_invocation_audit`, each accepting either the `pass`/`n/a`/`fail` string OR a `{verdict, verdict_path}` dict citing the on-disk Layer-3 / Layer-6 tool verdict; v0.9.19 added the required `ui_interaction_review` field + optional `ui_interaction_review_note`; v0.9.13 added the required `independent_review` block — an independent task-reviewer's verdict, so the gate cannot pass on self-attestation; v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`). Ground truth is `hooks/review_evidence_schema.py` (`SCHEMA_VERSION = 7`, 17 members in `REQUIRED_EVIDENCE_FIELDS`, 2 `OPTIONAL_VAO_FIELDS`):
 
 ```json
 {
-  "schema_version": 6,
-  "task_id": "T-12",
+  "task_id": "T-3",
   "teammate": "backend-auth",
-  "completed_at": "<ISO 8601 UTC>",
   "spec_review": "pass",
   "quality_review": "pass",
   "real_not_stubbed": true,
-  "tests": {
-    "added": 8,
-    "passing": 8,
-    "unit": ["tests/auth/test_login.py::test_happy", "..."],
-    "integration": ["tests/integration/test_login_dev_api.py::test_login_against_dev"],
-    "e2e": []
-  },
-  "demo_artifact": "curl -X POST http://dev.local/api/auth/login -d '{\"email\":\"t@t.com\",\"password\":\"...\"}'",
-  "files_changed": ["src/auth/login.py", "src/auth/__init__.py", "tests/auth/test_login.py"],
+  "tests": { "added": 4, "passing": 4 },
+  "demo_artifact": "curl -s localhost:8000/auth/login -d '{...}' | jq",
+  "files_changed": ["backend/auth.py", "tests/test_auth.py"],
   "reuse_compliance": "ok",
   "visual_fidelity_review": "n/a",
-  "visual_fidelity_review_note": "backend-only slice; no frontend files touched",
-  "test_completeness_review": "n/a",
-  "test_completeness_review_note": "backend-only slice; integration tests count as the qualifying kind for this slice",
-  "integration_testing_review": "n/a",
-  "integration_testing_review_note": "backend-only slice with no frontend; no cross-layer surface to integration-test front-to-back",
+  "visual_fidelity_review_note": "backend-only slice; no DESIGN_MAP",
+  "test_completeness_review": "pass",
+  "integration_testing_review": "pass",
   "ui_interaction_review": "n/a",
-  "ui_interaction_review_note": "backend-only slice; no UI/frontend interactive surface — no interactive elements, no pages",
+  "ui_interaction_review_note": "no frontend interactive surface in this slice",
+  "oracle_match_review": "n/a",
+  "baseline_clean_review": { "verdict": "pass", "verdict_path": ".architect-team/vao-verdicts/<run>-baseline-clean.json" },
+  "no_fake_data_review": "n/a",
+  "adversarial_review": { "verdict": "pass", "verdict_path": ".architect-team/vao-verdicts/<run>-adversarial.json" },
+  "skill_invocation_audit": { "verdict": "pass", "verdict_path": ".architect-team/vao-verdicts/<run>-skill-invocation-audit.json" },
   "independent_review": {
-    "reviewer": "task-reviewer",
+    "reviewer": "task-reviewer-1",
     "verdict": "pass",
     "spec_review": "pass",
     "quality_review": "pass",
     "real_not_stubbed": true,
     "reuse_compliance": "ok",
-    "reviewed_at": "<ISO 8601 UTC>",
-    "criteria_findings": [
-      { "criterion": "<verbatim acceptance criterion>", "met": true, "evidence": "src/auth/login.py:42-57" }
-    ],
-    "checks_run": ["python -m pytest -q tests/auth/", "ruff check src/auth/"],
-    "notes": "independently reviewed the diff; every acceptance criterion is met by the code"
+    "reviewed_at": "2026-06-09T00:00:00Z"
   }
 }
 ```
 
-The 12 top-level fields are the teammate's self-review. The `independent_review` block is written by the `task-reviewer` agent, NOT the teammate.
+The 5 VAO fields accept BOTH forms shown above: the legacy `pass`/`n/a`/`fail` string (`oracle_match_review`, `no_fake_data_review` above) AND the canonical `{verdict, verdict_path}` dict citing the on-disk tool verdict (`baseline_clean_review`, `adversarial_review`, `skill_invocation_audit` above). The 2 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`) are present-only-when-applicable — `interactions_honored_review` only when the run's oracle spec carries a non-empty `interactions[]`, `live_verification_review` only when the evidence claims "verified live" — so they are omitted from this minimal example.
+
+The 17 top-level fields are the teammate's self-review. The `independent_review` block is written by the `task-reviewer` agent, NOT the teammate.
 
 Required field validity:
 
@@ -195,7 +187,7 @@ Required field validity:
 - `test_completeness_review_note` is required (non-empty string) WHEN `test_completeness_review == "n/a"`. It must explain which kind(s) are inapplicable and why (e.g., backend-only slice so Playwright is n/a, OR no testable pure-logic surface for unit tests). Not required when value is `"pass"` (the verifier verdict JSON carries the evidence).
 - `integration_testing_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (`page.route` happy-path stubs, MSW, an in-memory fake API server, hardcoded fixtures) instead of the real running backend MUST be re-authored against the real backend, or escalated via the SR auto-spawn (`origin.kind: "integration-testing-failure"`), not marked complete. Front-to-back integration testing is the DEFAULT for every `both`-layer feature per `playwright-user-flows`'s "Real backend by default" discipline — it is overridden only by an explicit authorization in the requirements folder.
 - `integration_testing_review_note` is required (non-empty string) WHEN `integration_testing_review == "n/a"`. It must give ONE of three legitimate reasons: (1) the slice has no cross-layer surface (pure static frontend with no backend, OR backend-only slice with no frontend); (2) Phase 3 per-team gate where the counterpart layer is not yet integrated — the note says the integration test is DEFERRED TO PHASE 5 (a debt Phase 5 must settle against the real backend; `n/a` is never valid for a `both`-layer slice at Phase 5); (3) the requirements folder explicitly authorizes isolated / mock-backed testing for this requirement — the note quotes the authorization. Not required when value is `"pass"` (the verifier verdict JSON + the demo artifact's real-backend reference carry the evidence).
-- `ui_interaction_review` must be one of `"pass"` / `"n/a"` / `"fail"` (evidence schema v6, added in v0.9.19). It is the gate that every interactive element the slice ships is genuinely user-flow-tested (a real `page.click` / `page.fill` path, not a `page.request.*` direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value — or a user-confirmed stub. It gates a genuinely orthogonal axis to `integration_testing_review` (real-interaction-vs-fake-interaction, not real-backend-vs-mock — a test can be real-backend + fake-interaction, or mock-backed + real-interaction). The hook BLOCKS `"fail"` — an unwired control, an unconfirmed placeholder page, or a hardcoded value the context shows should be dynamically bound, detected by the `interaction-completeness` team, MUST be escalated via a solution requirement (`origin.kind: "unwired-control"` / `"placeholder-page"` / `"hardcoded-dynamic-value"`), not marked complete. Re-run the interaction-completeness team after the routed fix lands and only mark complete when the verdict is `"pass"`.
+- `ui_interaction_review` must be one of `"pass"` / `"n/a"` / `"fail"` (added in v0.9.19 at schema v6; the current schema is v7). It is the gate that every interactive element the slice ships is genuinely user-flow-tested (a real `page.click` / `page.fill` path, not a `page.request.*` direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value — or a user-confirmed stub. It gates a genuinely orthogonal axis to `integration_testing_review` (real-interaction-vs-fake-interaction, not real-backend-vs-mock — a test can be real-backend + fake-interaction, or mock-backed + real-interaction). The hook BLOCKS `"fail"` — an unwired control, an unconfirmed placeholder page, or a hardcoded value the context shows should be dynamically bound, detected by the `interaction-completeness` team, MUST be escalated via a solution requirement (`origin.kind: "unwired-control"` / `"placeholder-page"` / `"hardcoded-dynamic-value"`), not marked complete. Re-run the interaction-completeness team after the routed fix lands and only mark complete when the verdict is `"pass"`.
 - `ui_interaction_review_note` is required (non-empty string) WHEN `ui_interaction_review == "n/a"`. It must explain why — the slice has no UI/frontend interactive surface (no interactive elements, no pages / screens / routes — e.g., a backend-only or pure-infra slice). Not required when value is `"pass"` (the interaction-completeness team's converged map carries the evidence).
 - `independent_review` is a REQUIRED object — the verdict of the independent `task-reviewer` agent (not the teammate). The hook blocks evidence with no `independent_review` block. Its required sub-fields:
   - `reviewer` — a non-empty string naming the reviewing agent. It **MUST NOT equal the top-level `teammate` field** — the producer cannot be its own checker. The hook blocks `reviewer == teammate`.
@@ -437,7 +429,7 @@ The file MUST contain:
 
 ## Independent review — the task-reviewer
 
-The 12 top-level evidence fields are the teammate's **self-review**. A self-review is a producer checking its own work — the last producer-is-own-checker gap in the pipeline. The `PostToolUse(TaskUpdate)` hook does shape validation: it can confirm the evidence file is well-formed JSON with `"pass"` values; it cannot confirm those values are *true*. A teammate could write a perfectly-conformant evidence file that lies, and on shape validation alone the gate would open.
+The 17 top-level evidence fields are the teammate's **self-review**. A self-review is a producer checking its own work — the last producer-is-own-checker gap in the pipeline. The `PostToolUse(TaskUpdate)` hook does shape validation: it can confirm the evidence file is well-formed JSON with `"pass"` values; it cannot confirm those values are *true*. A teammate could write a perfectly-conformant evidence file that lies, and on shape validation alone the gate would open.
 
 So the gate does not open on the self-review. After the teammate writes its self-review and signals its task complete, the orchestrator dispatches an independent **`task-reviewer`** agent (Phase 3 of `architect-team-pipeline`). The dispatch:
 
@@ -461,7 +453,7 @@ On `verdict: fail`, the `task-reviewer` writes detailed per-gap notes; the teamm
 - `reuse_compliance: "ok"` — every new file in `files_changed` corresponds to a Reuse Decision in `design.md`.
 - `independent_review` — the verdict of the independent `task-reviewer` agent (NOT the teammate); see "## Independent review — the task-reviewer" above. Its `reviewer` must differ from `teammate`.
 
-If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The 12 top-level fields are the teammate's self-review; the teammate writes them honestly, then an independent `task-reviewer` agent reviews the same task's diff and writes the `independent_review` block. The hook enforces `independent_review.reviewer != teammate` and `verdict == "pass"` — the gate cannot open on self-attestation; an independent agent's verdict is required.
+If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The 17 top-level fields are the teammate's self-review; the teammate writes them honestly, then an independent `task-reviewer` agent reviews the same task's diff and writes the `independent_review` block. The hook enforces `independent_review.reviewer != teammate` and `verdict == "pass"` — the gate cannot open on self-attestation; an independent agent's verdict is required.
 
 ## Anti-patterns to reject
 

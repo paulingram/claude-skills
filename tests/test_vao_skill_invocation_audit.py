@@ -41,23 +41,28 @@ def audit_module(plugin_root: Path):
 # ---------------------------------------------------------------------------
 
 
+# A10 (review-remediation): the slash-form matcher was tightened so generic
+# single-token command words (`status`, `mini`, `memory`, `inject`) match ONLY
+# in the explicit `/architect-team:<word>` prefixed form — never as a bare
+# `/<word>` — so a `/status` inside a URL is not a false positive. The 3
+# phantom commands (mempalace-search / mempalace-status / code-review) were
+# also dropped from CANONICAL_COMMANDS. This parametrize list therefore holds
+# only the SPECIFIC (hyphenated / non-generic) commands that still match bare;
+# the generic-word + phantom cases were removed (the generic-word no-match is
+# pinned in test_skill_invocation_audit_canonical.py).
 @pytest.mark.parametrize("command,expected_canonical,expected_skills", [
     ("/architect-team", "architect-team", ("architect-team", "architect-team-pipeline")),
     ("/architect-team:architect-team", "architect-team:architect-team", ("architect-team", "architect-team-pipeline")),
     ("/bug-fix", "bug-fix", ("bug-fix", "bug-fix-pipeline")),
     ("/ux-test", "ux-test", ("ux-test", "ux-test-builder")),
-    ("/mini", "mini", ("mini", "mini-architect-team-pipeline")),
     ("/refine-prompt", "refine-prompt", ("refine-prompt", "proposal-refiner")),
     ("/cleanup-worktrees", "cleanup-worktrees", ("cleanup-worktrees",)),
     ("/mempalace-install", "mempalace-install", ("mempalace-install",)),
-    ("/mempalace-search", "mempalace-search", ("mempalace-search",)),
-    ("/mempalace-status", "mempalace-status", ("mempalace-status",)),
-    ("/status", "status", ("status",)),
-    ("/code-review", "code-review", ("code-review",)),
     ("/editability-audit", "editability-audit", ("editability-audit",)),
 ])
 def test_slash_command_detected(audit_module, command, expected_canonical, expected_skills):
-    """Each of the 13 user-invocable command names matches the slash-command regex."""
+    """Each SPECIFIC (non-generic) user-invocable command name matches the
+    slash-command regex in the bare `/<cmd>` form."""
     msg = f"please run {command} on this codebase"
     found = audit_module.find_skill_requests(msg)
     assert len(found) == 1, f"expected exactly one request, got {found}"
@@ -156,11 +161,16 @@ def test_non_string_input_returns_empty(audit_module):
 
 
 def test_multiple_slash_requests_in_one_message(audit_module):
-    """A message containing two slash-command requests yields two records."""
-    found = audit_module.find_skill_requests("Run /architect-team first then /mini for cleanup")
+    """A message containing two slash-command requests yields two records.
+
+    A10 (review-remediation): `/mini` is now a generic-word that only matches in
+    the prefixed form, so this uses two SPECIFIC commands (`/architect-team` +
+    `/bug-fix`) to exercise the multi-request path.
+    """
+    found = audit_module.find_skill_requests("Run /architect-team first then /bug-fix for cleanup")
     assert len(found) == 2
     cmds = sorted(r["command"] for r in found)
-    assert cmds == ["architect-team", "mini"]
+    assert cmds == ["architect-team", "bug-fix"]
 
 
 def test_slash_and_prose_both_in_same_message(audit_module):

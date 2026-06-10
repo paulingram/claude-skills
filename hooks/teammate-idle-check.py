@@ -38,9 +38,23 @@ from typing import Any
 from review_evidence_schema import _detect_trigger_mode, safe_id, validate_evidence
 
 
+def _read_stdin_utf8() -> str:
+    """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
+
+    Decodes the raw stdin bytes as `utf-8` with `errors="replace"` instead of
+    the locale codec so a UTF-8 payload (e.g. an emoji in a task title) cannot
+    raise `UnicodeDecodeError` under cp1252 and silently no-op the gate. Falls
+    back to the text stream when `sys.stdin.buffer` is unavailable."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return buffer.read().decode("utf-8", "replace")
+    return sys.stdin.read()
+
+
 def main() -> int:
     try:
-        payload = json.loads(sys.stdin.read() or "{}")
+        raw = _read_stdin_utf8()
+        payload = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as e:
         print(f"teammate-idle-check: malformed hook payload: {e}", file=sys.stderr)
         return 0  # do not block on hook-side decode errors
@@ -98,6 +112,14 @@ def main() -> int:
             evidence = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             gaps.append(f"{task_id}: evidence at {path} is not valid JSON")
+            continue
+        except OSError as e:
+            # (A9 review-remediation) A Windows sharing-violation (evidence file
+            # open in another process) raises OSError on read_text. Previously
+            # this propagated -> exit 1 -> the gate was silently skipped. Treat
+            # it as a blocking gap identical to the missing-file branch — a gate
+            # that cannot read its evidence FAILS CLOSED, never skips.
+            gaps.append(f"{task_id}: evidence at {path} could not be read ({e})")
             continue
         item_gaps = validate_evidence(evidence)
         if item_gaps:

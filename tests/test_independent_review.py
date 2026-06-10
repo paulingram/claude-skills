@@ -350,14 +350,33 @@ def test_team_spawning_no_longer_says_honesty_by_teammate_discipline(plugin_root
 
 def test_team_spawning_schema_is_v5_or_later(plugin_root: Path) -> None:
     """The team-spawning skill's evidence example must carry the
-    `independent_review` block, which was introduced at schema v5. Later schema
-    bumps (v6 added `ui_interaction_review` in v0.9.19) keep the block, so the
-    example is accepted at v5-or-later — the same cross-version tolerance
-    `test_integration_testing_discipline.py` already applies to its
-    schema-version content check."""
+    `independent_review` block (introduced at schema v5) AND the v7 VAO fields
+    (added in v2.0.0). The C1 (review-remediation) update replaced the v6 example
+    with the design-provided v7 example, which deliberately OMITS the
+    `schema_version` field — `schema_version` is NOT a `REQUIRED_EVIDENCE_FIELDS`
+    member (ground truth `hooks/review_evidence_schema.py`: `SCHEMA_VERSION = 7` is
+    a module constant). So v7-ness is verified by the presence of the v7 fields, not
+    a `schema_version` literal. (A `schema_version` literal, if present, is also
+    accepted for backward tolerance.)"""
     content = _read(plugin_root, "skills", "team-spawning-and-review-gates", "SKILL.md")
-    assert any(f'"schema_version": {n}' in content for n in (5, 6, 7, 8, 9)), (
-        "team-spawning-and-review-gates evidence example must be schema v5 or later"
+    has_schema_literal = any(f'"schema_version": {n}' in content for n in (5, 6, 7, 8, 9))
+    has_independent_review = '"independent_review"' in content
+    # The five v2.0.0 VAO fields prove the example is the current (v7) shape.
+    v7_vao_fields = (
+        '"oracle_match_review"',
+        '"baseline_clean_review"',
+        '"no_fake_data_review"',
+        '"adversarial_review"',
+        '"skill_invocation_audit"',
+    )
+    has_v7_vao = all(f in content for f in v7_vao_fields)
+    assert has_independent_review, (
+        "team-spawning-and-review-gates evidence example must carry the "
+        "independent_review block (schema v5+)"
+    )
+    assert has_v7_vao or has_schema_literal, (
+        "team-spawning-and-review-gates evidence example must be the current v7 "
+        "shape (the 5 VAO fields present) or carry a schema_version literal"
     )
 
 

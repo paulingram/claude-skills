@@ -143,10 +143,9 @@ After binding `$REQ_DIR` and completing any refinement, AND BEFORE invoking the 
 
 - **Run the step** otherwise:
   1. Derive a `<slug>` from the refined-prompt slug (if present in the refined-prompt markdown's frontmatter), the OpenSpec change name (if `$REQ_DIR` resolves to a `openspec/changes/<change-name>/` folder), or a kebab-case derivation of the prompt's first 4-6 meaningful words.
-  2. Invoke the helper via Bash — polyglot Python invocation per `common-pipeline-conventions` `## Cross-platform Python invocation`:
+  2. Invoke the helper via Bash — detect-once Python invocation (the v2.16.0 form): the interpreter is selected ONCE via `$(command -v python3 || command -v python)` and the snippet runs exactly once. `create_run_worktree` raises (a non-zero exit) on collision exhaustion, and the old `python3 X || python X` form would silently re-run the whole creation on that meaningful failure; detect-once invokes it exactly once. Per `common-pipeline-conventions` `## Cross-platform Python invocation`:
      ```bash
-     python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))" \
-       || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))"
+     $(command -v python3 || command -v python) -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import create_run_worktree; print(create_run_worktree('<slug>'))"
      ```
      The helper creates the worktree at `<parent-of-repo>/.<repo-name>-worktrees/<slug>/` (the hidden per-project container, v3.6.0) on branch `architect-team/<slug>` (collision handling appends `-2`, `-3`, ... when either path or branch is taken). Capture the printed absolute path as `$WORKTREE_PATH`.
   3. `chdir` into `$WORKTREE_PATH`. Every subsequent step — including the Skill-tool invocation of `architect-team-pipeline` — runs with `$WORKTREE_PATH` as cwd. v1.1.0's `shared_state_dir()` resolution keeps the lock layer and MemPalace pointed at the MAIN worktree; `run_state_dir()` resolves per-worktree so reviews / teammates / handoffs / per-run OpenSpec live in the run worktree.

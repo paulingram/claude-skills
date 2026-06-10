@@ -151,8 +151,10 @@ References:
 """
 from __future__ import annotations
 
+import argparse
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -162,6 +164,14 @@ from typing import Optional
 # The branch-name prefix that identifies an architect-team-created run
 # worktree. Matches the existing Phase 8 default-branch-guard convention.
 _BRANCH_PREFIX = "architect-team/"
+
+# (A7 review-remediation) Bounded timeouts for git subprocess calls. Local git
+# ops are fast; the network push ops can hang forever on a credential prompt —
+# the headline fix. A TimeoutExpired is routed into the SAME best-effort failure
+# path each call already takes on a non-zero return code (never raised to the
+# top). Template: scripts/setup/install_mempalace.py:71-78.
+_LOCAL_GIT_TIMEOUT = 60  # seconds — status / rev-parse / branch / worktree / merge
+_NETWORK_GIT_TIMEOUT = 300  # seconds — git push / git push --delete
 
 # Slug sanitization — slash-command-derived slugs are kept conservative; only
 # letters, digits, dashes, and underscores survive. The pipeline upstream
@@ -178,6 +188,60 @@ _NO_WORKTREE_SCOPES = frozenset({"tiny", "trivial", "doc-only", "single-file"})
 _WORKTREE_SCOPES = frozenset(
     {"small", "medium", "large", "feature", "multi-file"}
 )
+
+
+# ---- Subprocess helper (A7 review-remediation) -------------------------------
+
+
+def _git_run(
+    cmd: list[str],
+    *,
+    timeout: int = _LOCAL_GIT_TIMEOUT,
+) -> subprocess.CompletedProcess:
+    """Run a git subprocess with explicit UTF-8 decoding + a bounded timeout.
+
+    (A7 review-remediation) Every text-mode subprocess call in this module goes
+    through here so that:
+
+      - `encoding="utf-8", errors="replace"` replaces the implicit locale codec
+        (`text=True` alone), which mojibakes / `UnicodeDecodeError`s on a
+        non-ASCII branch or worktree path under cp1252. Template:
+        scripts/setup/install_mempalace.py:71-78.
+      - a bounded `timeout=` guarantees forward progress; the network push ops
+        (which can hang forever on a credential prompt) pass
+        `_NETWORK_GIT_TIMEOUT`, local ops the default `_LOCAL_GIT_TIMEOUT`.
+      - `subprocess.TimeoutExpired` is routed into the SAME best-effort failure
+        path every caller already takes on a non-zero return code: a synthetic
+        `CompletedProcess` with returncode 124 (the conventional timeout code)
+        is returned instead of letting the exception escape to the top. Callers
+        wrapped in `except (OSError, subprocess.SubprocessError)` would catch a
+        timeout too (TimeoutExpired ⊂ SubprocessError), but returning the
+        synthetic result makes the routing uniform for the unwrapped public-API
+        callers (create / cleanup / merge) as well.
+
+    `OSError` (e.g. git binary missing) is NOT swallowed here — callers that
+    already wrap their call in `except (OSError, ...)` rely on it propagating to
+    their own handler; the unwrapped public-API callers historically let an
+    OSError surface (a missing git is a genuinely fatal environment error), and
+    A7 does not change that contract.
+    """
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=124,
+            stdout="",
+            stderr=f"timed out after {timeout}s",
+        )
 
 
 # ---- Public API --------------------------------------------------------------
@@ -261,7 +325,7 @@ def create_run_worktree(
 
     # Run `git worktree add -b <branch> <path> <base>` from the toplevel
     # so the new worktree is properly registered against the main repo.
-    result = subprocess.run(
+    result = _git_run(
         [
             "git",
             "-C",
@@ -273,9 +337,6 @@ def create_run_worktree(
             str(worktree_path),
             base_branch,
         ],
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -314,7 +375,7 @@ def cleanup_run_worktree(
         cmd.extend(["-C", cwd])
     cmd.extend(["worktree", "remove", str(worktree_path)])
 
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = _git_run(cmd)
     if result.returncode != 0:
         stderr = (result.stderr or "").lower()
         # "is not a working tree" / "is not a registered" -> already gone;
@@ -330,9 +391,7 @@ def cleanup_run_worktree(
             # which handles the "locked / dirty worktree" cases users hit
             # after a crash.
             force_cmd = list(cmd) + ["--force"]
-            force_result = subprocess.run(
-                force_cmd, capture_output=True, text=True, check=False
-            )
+            force_result = _git_run(force_cmd)
             if force_result.returncode != 0:
                 raise RuntimeError(
                     f"cleanup_run_worktree: `git worktree remove` failed for "
@@ -354,9 +413,7 @@ def cleanup_run_worktree(
     if cwd is not None:
         branch_cmd.extend(["-C", cwd])
     branch_cmd.extend(["branch", "-d", branch_name])
-    branch_result = subprocess.run(
-        branch_cmd, capture_output=True, text=True, check=False
-    )
+    branch_result = _git_run(branch_cmd)
     if branch_result.returncode != 0:
         stderr = (branch_result.stderr or "").lower()
         # "not found" / "no such branch" -> already gone; idempotent.
@@ -657,7 +714,7 @@ def list_run_branches(
         return []
 
     try:
-        result = subprocess.run(
+        result = _git_run(
             [
                 "git",
                 "-C",
@@ -668,9 +725,6 @@ def list_run_branches(
                 "--format",
                 "%(refname:short)",
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return []
@@ -769,17 +823,14 @@ def merge_branch_to_main_and_prune(
         return {**base, "conflict": True, "reason": "conflict"}
 
     # Check out <against> in the MAIN worktree.
-    checkout = subprocess.run(
+    checkout = _git_run(
         ["git", "-C", str(toplevel), "checkout", against],
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if checkout.returncode != 0:
         return {**base, "reason": "checkout-failed"}
 
     # Merge --no-ff. An unexpected conflict aborts and changes nothing.
-    merge = subprocess.run(
+    merge = _git_run(
         [
             "git",
             "-C",
@@ -790,16 +841,10 @@ def merge_branch_to_main_and_prune(
             "-m",
             f"Merge {branch}",
         ],
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if merge.returncode != 0:
-        subprocess.run(
+        _git_run(
             ["git", "-C", str(toplevel), "merge", "--abort"],
-            capture_output=True,
-            text=True,
-            check=False,
         )
         return {**base, "conflict": True, "reason": "conflict-on-merge"}
 
@@ -807,11 +852,12 @@ def merge_branch_to_main_and_prune(
 
     pushed = False
     if push:
-        push_result = subprocess.run(
+        # Network op — the headline A7 fix: bounded timeout so a hung
+        # credential prompt cannot hang the run forever; TimeoutExpired routes
+        # to the push-rejected best-effort branch via _git_run's returncode 124.
+        push_result = _git_run(
             ["git", "-C", str(toplevel), "push", remote, against],
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=_NETWORK_GIT_TIMEOUT,
         )
         if push_result.returncode != 0:
             # Branch protection / non-fast-forward rejection: STOP pruning,
@@ -838,22 +884,18 @@ def merge_branch_to_main_and_prune(
 
     # Delete the local branch (it's merged, so `-d` succeeds).
     branch_deleted = False
-    del_local = subprocess.run(
+    del_local = _git_run(
         ["git", "-C", str(toplevel), "branch", "-d", branch],
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if del_local.returncode == 0:
         branch_deleted = True
 
     if pushed:
         # Best-effort remote delete; ignore "remote ref does not exist".
-        subprocess.run(
+        # Network op — bounded timeout (A7).
+        _git_run(
             ["git", "-C", str(toplevel), "push", remote, "--delete", branch],
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=_NETWORK_GIT_TIMEOUT,
         )
 
     return {
@@ -1029,11 +1071,8 @@ def _slug_from_worktree_path(worktree_path: Optional[Path]) -> Optional[str]:
 def _git_show_toplevel() -> Optional[Path]:
     """Return the repo's toplevel path, or None if not in a git repo."""
     try:
-        result = subprocess.run(
+        result = _git_run(
             ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -1051,11 +1090,8 @@ def _git_current_branch() -> Optional[str]:
     Returns None when not in a git repo or on a detached HEAD (`HEAD`).
     """
     try:
-        result = subprocess.run(
+        result = _git_run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -1075,7 +1111,7 @@ def _git_branch_for_worktree(worktree_path: Path) -> Optional[str]:
     any subprocess failure.
     """
     try:
-        result = subprocess.run(
+        result = _git_run(
             [
                 "git",
                 "-C",
@@ -1084,9 +1120,6 @@ def _git_branch_for_worktree(worktree_path: Path) -> Optional[str]:
                 "--abbrev-ref",
                 "HEAD",
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -1115,7 +1148,7 @@ def _parse_worktree_list_porcelain(
     subprocess / parse errors return an empty list.
     """
     try:
-        result = subprocess.run(
+        result = _git_run(
             [
                 "git",
                 "-C",
@@ -1124,9 +1157,6 @@ def _parse_worktree_list_porcelain(
                 "list",
                 "--porcelain",
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return []
@@ -1176,7 +1206,7 @@ def _branch_is_merged_into(toplevel: Path, branch: str, against: str) -> bool:
         auto-clean on an ambiguous probe)
     """
     try:
-        result = subprocess.run(
+        result = _git_run(
             [
                 "git",
                 "-C",
@@ -1186,9 +1216,6 @@ def _branch_is_merged_into(toplevel: Path, branch: str, against: str) -> bool:
                 branch,
                 against,
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1249,7 +1276,7 @@ def _branch_is_squash_merged(
     if merge_base is None:
         return False
     try:
-        ahead = subprocess.run(
+        ahead = _git_run(
             [
                 "git",
                 "-C",
@@ -1258,9 +1285,6 @@ def _branch_is_squash_merged(
                 "--count",
                 f"{merge_base}..{branch}",
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1280,7 +1304,7 @@ def _branch_is_squash_merged(
     # exit code (e.g. 128 on a bad ref) is treated as indeterminate -> not
     # squash-merged. (See the docstring for why two-dot, not three-dot.)
     try:
-        diff = subprocess.run(
+        diff = _git_run(
             [
                 "git",
                 "-C",
@@ -1289,9 +1313,6 @@ def _branch_is_squash_merged(
                 "--quiet",
                 f"{against}..{branch}",
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1330,7 +1351,7 @@ def _branch_cleanly_mergeable(
     """
     # Primary: `--write-tree` form (git >= 2.38).
     try:
-        result = subprocess.run(
+        result = _git_run(
             [
                 "git",
                 "-C",
@@ -1340,9 +1361,6 @@ def _branch_cleanly_mergeable(
                 against,
                 branch,
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         result = None
@@ -1371,7 +1389,7 @@ def _branch_cleanly_mergeable(
         # Indeterminate -> don't claim clean.
         return False
     try:
-        legacy = subprocess.run(
+        legacy = _git_run(
             [
                 "git",
                 "-C",
@@ -1381,9 +1399,6 @@ def _branch_cleanly_mergeable(
                 against,
                 branch,
             ],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1398,11 +1413,8 @@ def _branch_cleanly_mergeable(
 def _git_merge_base(toplevel: Path, a: str, b: str) -> Optional[str]:
     """Return the merge-base SHA of `<a>` and `<b>`, or None on failure."""
     try:
-        result = subprocess.run(
+        result = _git_run(
             ["git", "-C", str(toplevel), "merge-base", a, b],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -1422,11 +1434,8 @@ def _git_branch_exists(branch: str) -> bool:
     """
     # First try as a local branch.
     try:
-        result = subprocess.run(
+        result = _git_run(
             ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1435,12 +1444,59 @@ def _git_branch_exists(branch: str) -> bool:
     # Fall back to the general ref form (covers tags, remote-tracking
     # branches, abbreviated SHA, etc.).
     try:
-        result = subprocess.run(
+        result = _git_run(
             ["git", "rev-parse", "--verify", "--quiet", branch],
-            capture_output=True,
-            text=True,
-            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
+
+
+# ---- A6: minimal argparse CLI (review-remediation) ---------------------------
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Minimal CLI entry point for the v1.3.0 merged-worktree cleanup.
+
+    The two `worktree_lifecycle.py cleanup-merged --against origin/main`
+    command invocations (visual-to-api / classify-test-prod-safety) reach here.
+    Per the v1.3.0 never-block rule, a cleanup error prints a one-line note and
+    returns 0 — cleanup must never block the run. An UNKNOWN subcommand, by
+    contrast, is rejected by argparse with a nonzero exit (the E1 "not a silent
+    no-op" contract): a typo in a command file should surface, not vanish.
+    """
+    p = argparse.ArgumentParser(
+        prog="worktree_lifecycle.py",
+        description="Architect-team worktree lifecycle helper (v1.3.0 cleanup).",
+    )
+    sub = p.add_subparsers(dest="cmd")
+    cm = sub.add_parser(
+        "cleanup-merged",
+        help="Remove architect-team/* worktrees whose branch is merged.",
+    )
+    cm.add_argument("--against", default="origin/main",
+                    help="The ref to test merged-ness against (default origin/main).")
+    cm.add_argument("--dry-run", action="store_true",
+                    help="Report what WOULD be cleaned without removing anything.")
+    args = p.parse_args(argv)
+
+    if args.cmd == "cleanup-merged":
+        try:
+            removed = cleanup_merged_worktrees(
+                against=args.against, dry_run=args.dry_run
+            )
+            print(
+                f"cleanup-merged: {len(removed)} worktree(s) "
+                f"{'would be ' if args.dry_run else ''}removed"
+            )
+        except Exception as e:  # noqa: BLE001 - v1.3.0: cleanup never blocks the run
+            print(f"cleanup-merged: skipped ({e})")
+        return 0
+
+    # No subcommand at all -> clean exit 0 (nothing to do). Unknown subcommands
+    # never reach here — argparse rejects an invalid choice with exit 2.
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

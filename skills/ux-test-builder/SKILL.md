@@ -1,6 +1,6 @@
 ---
 name: ux-test-builder
-description: "A persona-driven UX-test orchestrator. Takes a persona description + objectives + target site (URL or `--dev` for the project's dev environment) + credentials (env-var reference, never the secret). Maps the site (fresh or freshness-checked via `intake-and-mapping`), drafts a literal Playwright flow matching the user's request, dispatches 3 `flow-explorer` agents to propose 10-15 additional adjacent flows each, distills to a unique set, authors one `.spec.ts` per flow, dispatches 3 `flow-executor` agents to run every flow in parallel against the live target, resolves verdict disagreements via 3-cycle bounded convergence, documents bugs, and auto-routes them through the existing `bug-fix-pipeline` (v0.9.22). The capability is the structural bridge between 'human describes a persona's UX concern' and 'the bug-fix-pipeline has the work queued.' Reached via `/architect-team:ux-test`."
+description: "A persona-driven UX-test orchestrator. Takes a persona description + objectives + target site (URL or `--dev` for the project's dev environment) + credentials (env-var reference, never the secret). Maps the site (fresh or freshness-checked via `intake-and-mapping`), drafts a literal Playwright flow matching the user's request, dispatches 3 `flow-explorer` agents to propose 10-15 additional adjacent flows each, distills to a unique set, authors one `.spec.ts` per flow, dispatches 3 `flow-executor` agents to run every flow in parallel against the live target, resolves verdict disagreements via loop-until-converged convergence (no fixed cycle cap), documents bugs, and auto-routes them through the existing `bug-fix-pipeline` (v0.9.22). The capability is the structural bridge between 'human describes a persona's UX concern' and 'the bug-fix-pipeline has the work queued.' Reached via `/architect-team:ux-test`."
 ---
 
 # ux-test-builder
@@ -238,7 +238,7 @@ For every flow with consensus verdict `fail`:
 
 The UX test builder does NOT block on bug fixes. The bugs are queued; the final report at U9 includes the bug-fix dispatch references (SR paths + bug-fix branch names if Phase B8 commits landed during the session).
 
-For flows with verdict `flaky` (the consensus verdict after 3 re-examination cycles when the flow consistently fails some times and passes others), the SR is still written but carries `flakiness: true` — the bug-fix-pipeline's replicate step surfaces the flakiness rather than treating it as a deterministic bug.
+For flows with verdict `flaky` (the consensus-on-intermittence verdict — reached when the executors converge on the observation that the flow consistently fails some runs and passes others, NOT a cap reached by exhausting a cycle count), the SR is still written but carries `flakiness: true` — the bug-fix-pipeline's replicate step surfaces the flakiness rather than treating it as a deterministic bug.
 
 ## Phase U9 — Final report
 

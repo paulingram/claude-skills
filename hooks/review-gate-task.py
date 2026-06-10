@@ -39,6 +39,19 @@ from typing import Any
 from review_evidence_schema import _detect_trigger_mode, safe_id, validate_evidence
 
 
+def _read_stdin_utf8() -> str:
+    """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
+
+    Decodes the raw stdin bytes as `utf-8` with `errors="replace"` instead of
+    the locale codec so a UTF-8 payload (e.g. an emoji in a task title) cannot
+    raise `UnicodeDecodeError` under cp1252 and silently no-op the gate. Falls
+    back to the text stream when `sys.stdin.buffer` is unavailable."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return buffer.read().decode("utf-8", "replace")
+    return sys.stdin.read()
+
+
 def _is_teammate_task(task_id: str, cwd: Path) -> bool:
     """Return True if task_id appears in any teammate manifest's expected_review_evidence.
 
@@ -104,7 +117,8 @@ def _extract_task_id_and_status(
 
 def main() -> int:
     try:
-        payload = json.loads(sys.stdin.read() or "{}")
+        raw = _read_stdin_utf8()
+        payload = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as e:
         print(f"review-gate-task: malformed hook payload: {e}", file=sys.stderr)
         return 0  # don't block on hook-side decode errors
@@ -152,6 +166,18 @@ def main() -> int:
     except json.JSONDecodeError as e:
         print(
             f"review-gate-task: blocking task {task_id}: evidence at {evidence_path} is not valid JSON: {e}",
+            file=sys.stderr,
+        )
+        return 2
+    except OSError as e:
+        # (A9 review-remediation) A Windows sharing-violation (the evidence file
+        # open in another process) raises OSError on read_text. Previously this
+        # propagated -> exit 1 -> the gate was silently skipped. A gate that
+        # cannot READ its evidence must FAIL CLOSED — treat it identically to
+        # the missing-file branch (blocking gap, exit 2), never skip.
+        print(
+            f"review-gate-task: blocking task {task_id}: evidence at {evidence_path} "
+            f"could not be read ({e}). A gate that cannot read its evidence fails closed.",
             file=sys.stderr,
         )
         return 2

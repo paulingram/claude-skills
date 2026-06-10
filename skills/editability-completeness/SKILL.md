@@ -56,7 +56,7 @@ The architect does NOT re-do the enumeration. It asks: is the converged result r
 - **Trace depth.** For every `user-editable` attribute marked `complete`, does the trace actually carry `file:line` evidence at all seven stages, or did the reviewers wave a stage through?
 - **Escalation honesty.** Did a genuinely ambiguous attribute get force-classified to avoid an escalation?
 
-The architect writes a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with specific items routed back to named reviewers. On `gaps_found`, the orchestrator re-dispatches those reviewers to address the architect's findings, then convergence (Round 2) and this review (Round 3) repeat. Bounded at 3 architect-review cycles per pass; an unresolved item after that escalates to the human. Only an architect `pass` unlocks the converged map.
+The architect writes a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with specific items routed back to named reviewers. On `gaps_found`, the orchestrator re-dispatches those reviewers to address the architect's findings, then convergence (Round 2) and this review (Round 3) repeat. The loop runs until the architect converges — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses only for a required owner input that cannot be auto-supplied (surfaced loudly while the rest of the run continues), never on cycle count. Only an architect `pass` unlocks the converged map.
 
 ### Pass P — converged map + gaps become solution requirements
 

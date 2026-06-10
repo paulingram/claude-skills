@@ -45,61 +45,72 @@ def test_hooks_json_wires_stop(plugin_root: Path) -> None:
     )
 
 
-def test_hooks_use_python3(plugin_root: Path) -> None:
-    """Every hook command must start with 'python3 ' (trailing space disambiguates from python3-foo)."""
+def _all_hook_commands(plugin_root: Path) -> list[str]:
     path = plugin_root / "hooks" / "hooks.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    all_cmds: list[str] = []
+    cmds: list[str] = []
     for event_hooks in data["hooks"].values():
         for entry in event_hooks:
             for h in entry.get("hooks", []):
                 if "command" in h:
-                    all_cmds.append(h["command"])
+                    cmds.append(h["command"])
+    return cmds
+
+
+def test_hooks_use_python3(plugin_root: Path) -> None:
+    """Every hook command must use the v2.16.0 detect-once interpreter selection.
+
+    A1 (review-remediation): the prior `python3 X || python X` form re-runs the script
+    whenever the left side returns ANY non-zero, including the meaningful exit-2 BLOCK
+    (double execution + double BLOCKED message), and on a python3-only host exits 127 so
+    the block is silently dropped. The detect-once form selects the interpreter ONCE via
+    `$(command -v python3 || command -v python)` and invokes the script exactly once,
+    mirroring `commands/architect-team.md:175`.
+    """
+    all_cmds = _all_hook_commands(plugin_root)
     assert all_cmds, "no hook commands found — hooks.json may be empty"
     for cmd in all_cmds:
-        assert cmd.startswith("python3 "), (
-            f"hook command does not start with 'python3 ': {cmd!r}"
+        assert cmd.startswith("$(command -v python3 || command -v python) "), (
+            f"hook command is not the detect-once form "
+            f"('$(command -v python3 || command -v python) ...'): {cmd!r}"
         )
 
 
 def test_hooks_use_polyglot_python_fallback(plugin_root: Path) -> None:
-    """Every hook command must include a `|| python ...` fallback after the `python3 ...` form.
+    """Detect-once contract: interpreter selected once, script invoked exactly once.
 
-    Default Windows python.org installs put only `python` on PATH (not `python3`); the
-    `python3` form there triggers the Microsoft Store shim, which prints a confusing
-    error and exits non-zero. The fallback runs the same script with `python`, which
-    succeeds. On Unix where `python3` works, the first form returns 0 and the shell
-    short-circuits the fallback. This contract is the v0.9.30 cross-platform-hook fix.
+    A1 (review-remediation) rewrote this from the old `|| python` double-invocation
+    assertion to the detect-once contract. Each command:
+      - starts with `$(command -v python3 || command -v python) `;
+      - contains exactly one `.py` invocation (the script appears once);
+      - names the same script throughout;
+      - contains NO ` || python ` double-invocation form (it contains the harmless
+        ` || command -v python` substring inside the substitution instead).
     """
-    path = plugin_root / "hooks" / "hooks.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    for event, entries in data["hooks"].items():
-        for entry in entries:
-            for h in entry.get("hooks", []):
-                cmd = h.get("command", "")
-                assert " || python " in cmd, (
-                    f"{event} hook command missing the `|| python ...` polyglot fallback: {cmd!r}"
-                )
-                # The target script path must appear on BOTH sides of the `||` — if the
-                # fallback script path differs from the primary, the fallback is wrong.
-                left, _, right = cmd.partition(" || ")
-                # Extract the .py path (between first `"` and last `"`) on each side.
-                def _py_path(side: str) -> str:
-                    start = side.find('"')
-                    end = side.rfind('"')
-                    assert start >= 0 and end > start, f"no quoted path in: {side!r}"
-                    return side[start + 1 : end]
-                # The right side often has args after the path; rough check: the .py
-                # path is the first quoted span.
-                def _first_py_quoted(side: str) -> str:
-                    idx = side.find(".py")
-                    assert idx >= 0, f"no .py in: {side!r}"
-                    # Walk backwards from .py to find the opening quote.
-                    q = side.rfind('"', 0, idx)
-                    assert q >= 0, f"no opening quote before .py: {side!r}"
-                    return side[q + 1 : idx + 3]
-                lp, rp = _first_py_quoted(left), _first_py_quoted(right)
-                assert lp == rp, (
-                    f"{event} hook fallback targets a different script "
-                    f"({lp!r} vs {rp!r}) — both halves must invoke the same .py: {cmd!r}"
-                )
+    all_cmds = _all_hook_commands(plugin_root)
+    assert all_cmds, "no hook commands found — hooks.json may be empty"
+    for cmd in all_cmds:
+        # 1. Detect-once prefix.
+        assert cmd.startswith("$(command -v python3 || command -v python) "), (
+            f"hook command missing the detect-once prefix: {cmd!r}"
+        )
+        # 2. No double-invocation: ' || python ' (with surrounding spaces) must be absent.
+        #    The detect-once form contains ' || command -v python)' which does NOT match
+        #    the ' || python ' double-invocation pattern.
+        assert " || python " not in cmd, (
+            f"hook command still contains the ' || python ' double-invocation form: {cmd!r}"
+        )
+        # 3. The script .py is invoked exactly once.
+        assert cmd.count(".py") == 1, (
+            f"hook command must invoke its script exactly once "
+            f"(found {cmd.count('.py')} '.py' occurrences): {cmd!r}"
+        )
+        # 4. The single .py path is quoted and well-formed.
+        idx = cmd.find(".py")
+        q = cmd.rfind('"', 0, idx)
+        assert q >= 0, f"no opening quote before .py: {cmd!r}"
+        script_path = cmd[q + 1 : idx + 3]
+        assert script_path.endswith(".py"), f"malformed script path in: {cmd!r}"
+        assert "${CLAUDE_PLUGIN_ROOT}" in script_path, (
+            f"hook script path is not plugin-root-anchored: {cmd!r}"
+        )

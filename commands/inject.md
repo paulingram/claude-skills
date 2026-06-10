@@ -12,8 +12,14 @@ silently ignored.
 
 ## Dispatch mode banner — runs first
 
+The interpreter is selected ONCE via `$(command -v python3 || command -v python)`
+(Unix: `python3`; default Windows python.org: `python`) and the script runs
+**exactly once** — the v2.16.0 detect-once form, never the `python3 X || python X`
+double-invocation. The banner is best-effort (always exits 0); a subprocess
+failure surfaces a one-line note and the command continues.
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:inject" || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:inject"
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:inject"
 ```
 
 ## Argument parsing
@@ -37,10 +43,14 @@ WORKSPACE="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 ```
 
 Read the active run-id from `<workspace>/.architect-team/intake-state.json` via the
-v2.19.0 helper:
+v2.19.0 helper. Each snippet inserts `${CLAUDE_PLUGIN_ROOT}` onto `sys.path` FIRST
+so `from hooks.inflight_inbox import ...` resolves regardless of the cwd (the
+helper module lives under the plugin root, not necessarily the workspace). These
+helper snippets stay in the polyglot `python3 -c "..." || python -c "..."` form
+(they are read-only and never exit 2):
 
 ```bash
-RUN_ID="$(python3 -c "from hooks.inflight_inbox import current_run_id; from pathlib import Path; rid = current_run_id(Path('${WORKSPACE}')); print(rid or '')" 2>/dev/null || python -c "from hooks.inflight_inbox import current_run_id; from pathlib import Path; rid = current_run_id(Path('${WORKSPACE}')); print(rid or '')" 2>/dev/null)"
+RUN_ID="$(python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}'); from hooks.inflight_inbox import current_run_id; from pathlib import Path; rid = current_run_id(Path('${WORKSPACE}')); print(rid or '')" 2>/dev/null || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}'); from hooks.inflight_inbox import current_run_id; from pathlib import Path; rid = current_run_id(Path('${WORKSPACE}')); print(rid or '')" 2>/dev/null)"
 ```
 
 If `$RUN_ID` is empty, report cleanly and exit:
@@ -53,22 +63,35 @@ If `$RUN_ID` is empty, report cleanly and exit:
 
 ## Phase 2 — Append to the inbox
 
+The message is passed via the `AT_INJECT_MESSAGE` **environment variable** and read
+with `os.environ` inside the snippet — NOT interpolated into the Python source as
+`'''${MESSAGE}'''`. Direct interpolation breaks the moment the message contains a
+`'''`, a `"`, a `$`, or a backtick (it terminates the string literal or triggers
+shell expansion); routing through the environment makes the message fully
+quote-safe and `$`-safe. The snippet also inserts `${CLAUDE_PLUGIN_ROOT}` onto
+`sys.path` so `from hooks.inflight_inbox import ...` resolves. These helper snippets
+stay polyglot (read-only; never exit 2):
+
 ```bash
-python3 -c "
+AT_INJECT_MESSAGE="$MESSAGE" python3 -c "
+import sys, os
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
 from hooks.inflight_inbox import append_clarification
 from pathlib import Path
-import json, sys
+import json
 ws = Path('${WORKSPACE}')
 rid = '${RUN_ID}'
-msg = append_clarification(ws, rid, '''${MESSAGE}''', injected_via='slash-command')
+msg = append_clarification(ws, rid, os.environ['AT_INJECT_MESSAGE'], injected_via='slash-command')
 print(json.dumps(msg, indent=2))
-" || python -c "
+" || AT_INJECT_MESSAGE="$MESSAGE" python -c "
+import sys, os
+sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}')
 from hooks.inflight_inbox import append_clarification
 from pathlib import Path
-import json, sys
+import json
 ws = Path('${WORKSPACE}')
 rid = '${RUN_ID}'
-msg = append_clarification(ws, rid, '''${MESSAGE}''', injected_via='slash-command')
+msg = append_clarification(ws, rid, os.environ['AT_INJECT_MESSAGE'], injected_via='slash-command')
 print(json.dumps(msg, indent=2))
 "
 ```
@@ -101,6 +124,7 @@ Print a one-block confirmation showing:
 - Read-only on intake-state.json. The command never modifies pipeline state directly — the orchestrator owns processing.
 - Append-only on the inbox JSONL. Never rewrites, deletes, or reorders existing lines.
 - Empty / whitespace-only messages are rejected at the helper layer (`ValueError`).
+- The message is passed to Python via the `AT_INJECT_MESSAGE` environment variable, never interpolated into the snippet source. A message containing `'''`, `"`, `$`, or a backtick is handled verbatim — no string-literal breakage, no shell expansion.
 - The command works from a separate terminal — no Claude Code session required. Use this when you're outside the running pipeline's REPL.
 
 ## Cross-references

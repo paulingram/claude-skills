@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.9.3] — 2026-06-09 — Review-remediation: 30 verified-defect fixes across glue, commands, skill docs, and the docs themselves
+
+**PATCH — remediation that restores already-documented behavior and corrects docs to match shipped code.** A 2026-06-09 codebase review of v3.9.2 found 30 verified defects, each confirmed against the working tree at `f2510a7` with `file:line` evidence. The defects share one class: the plugin's machinery silently fails or silently mis-teaches, so the failure never surfaces until a downstream run is already broken. Every item A1–E3 was implemented in full — no scope cuts, no deferrals.
+
+### A — Glue-layer correctness
+
+- **A1** `hooks/hooks.json` — all 8 hook command strings converted to the v2.16.0 detect-once form `$(command -v python3 || command -v python) "…"`, killing the double-execution (on a meaningful exit-2 BLOCK) and the silent exit-127 drop (on a `python3`-only host).
+- **A2** `hooks/vao_tools.py` — the three lazy imports behind `verify-discipline-registry-current` / `verify-inflight-clarifications-processed` / `verify-no-unilateral-override` wrapped in the dual-form `try: from hooks.X / except ImportError: from X` pattern so they run as bare-module scripts.
+- **A3** `verify_no_pipeline_bypass` — Windows backslash ledger paths normalized (`\`→`/` + lowercase) before the `/reviews/` membership check, fixing a false `independent-review-bypassed`.
+- **A4** `inflight_inbox.py::mark_processed` — rewritten to temp-file + `os.replace` (atomic on POSIX and Windows) so a concurrent `/architect-team:inject` append cannot be destroyed; `run_id` is `safe_id`-validated at the inbox-path boundary.
+- **A5 / A6** minimal argparse `__main__` added to `scripts/setup/teams_mode.py` (`--banner --command`) and `worktree_lifecycle.py` (`cleanup-merged`), so the five command banners and two cleanup calls that invoke them actually run.
+- **A7** `encoding="utf-8", errors="replace"` added to every text-mode subprocess call in `worktree_lifecycle.py` / `worktree_paths.py` / `setup.py` / `pipeline-completion-audit.py`; bounded `timeout=` on the network git ops (push 300s, local 60s) routed to the existing best-effort failure paths.
+- **A8** the four hooks (`pipeline-completion-audit` / `review-gate-task` / `teammate-idle-check` / `pretool_unilateral_override_guard`) decode stdin via `sys.stdin.buffer.read().decode("utf-8","replace")` so a UTF-8 task title no longer degrades the gate to a no-op under cp1252.
+- **A9** `OSError` added to the evidence-`read_text` except in `review-gate-task` + `teammate-idle-check` — a Windows sharing-violation now fails the gate closed (parity with missing-file), never tracebacks-and-skips.
+- **A10** `skill_invocation_audit.py::CANONICAL_COMMANDS` regenerated to exactly the 19 `commands/*.md` basenames (3 phantoms dropped); the slash matcher no longer fires on `/status` inside a URL and the prose matcher now fires on "use my architect team".
+
+### B — Command-surface correctness
+
+- **B1** `commands/inject.md` — every python snippet importing `hooks.inflight_inbox` inserts `${CLAUDE_PLUGIN_ROOT}` onto `sys.path`; the message is passed via the `AT_INJECT_MESSAGE` env var (read with `os.environ`), never the quote-unsafe `'''${MESSAGE}'''` interpolation; the banner converts to detect-once.
+- **B2** `commands/ux-test.md` — the five missing pipeline-discipline blocks ported in `architect-team.md` order: dispatch banner FIRST, v1.3.0 auto-cleanup, v3.7.0 branch reconciliation, v1.2.0 auto-worktree, v2.5.0 in-flight clarification.
+- **B3** exit-2-capable / mutating command invocations converted to detect-once: `discipline-status` vao-tool line, `create_run_worktree` in architect-team/bug-fix/mini, the five `teams_mode --banner` lines, and the two `worktree_lifecycle cleanup-merged` lines.
+- **B4** `commands/architect-team-setup.md` allowed-tools — added `Bash(python:*)`, dropped the dead `Bash(${CLAUDE_PLUGIN_ROOT}/…)` rule.
+- **B5** `commands/absorb-phenotype.md` — the `phenotypes.py validate` invocation anchored with `${CLAUDE_PLUGIN_ROOT}` + detect-once.
+
+### C — Skill-doc truth-to-code
+
+- **C1** the review-evidence schema is taught as **v7** (17 required fields) everywhere it appears — `team-spawning-and-review-gates` (frontmatter + body + the v6 JSON example replaced with the v7 17-field example), `architect-team-pipeline`, `bug-fix-pipeline`, `mini-architect-team-pipeline`, `common-pipeline-conventions`, and `README.md` — cross-checked against `hooks/review_evidence_schema.py`.
+- **C2** `bug-fix-pipeline` — the hardcoded `/Users/paulingram/.../0.9.35/hooks/vao_tools.py` cache path replaced with `${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py` via detect-once.
+- **C3** the v3.8.0 unbounded-solving residue swept (`architect-team-pipeline`, `editability-completeness`, `interaction-completeness`, `mini` + `mini.md`, `ux-test-builder` + `ux-test.md`, `verified-agent-output`) — every "bounded at 3 cycles" reconciled to loop-until-converged / pause-only-for-required-owner-input; the ux-test-builder `flaky` verdict redefined as consensus-on-intermittence.
+- **C4** the MemPalace not-on-PATH note authored in `mempalace-integration` `## Phase A` (one user line + suggest `/architect-team:mempalace-install` + continue with MemPalace steps as no-ops, never hard-fail) — the four pipeline bodies that referenced it now point at a real note.
+- **C5** the undefined "Phase B3b" reference in `bug-fix-pipeline` resolved to "the SR-intake behavior inherited from the main pipeline's Phase 3b".
+- **C6** the seven over-length skill descriptions (visual-to-api-design, interaction-completeness, visual-fidelity-reconciliation, bug-fix-pipeline, mini-architect-team-pipeline, email-testing, proposal-refiner) rewritten trigger-first under the 1024-char Agent Skills limit (684–943 chars, all displaced detail moved into the body); a 1024-char cap test added to `tests/test_skills.py`.
+
+### D — Documentation reconciliation
+
+- **D1** `CLAUDE.md` reconciled — test counts, VAO-tool count (20), enforcement-script count (4), commands parenthetical, agent-count annotations — plus a concise v3.9.3 paragraph.
+- **D2** `docs/CODEBASE_MAP.md` refreshed to the current inventory (40 skills / 34 agents / 19 commands / current test count) + the two missing hook files (`override_markers.py`, `pretool_unilateral_override_guard.py`).
+- **D3** `README.md` — schema v7, HOOKS box → 4 scripts / 6 events including the PreToolUse row.
+- **D4** version bumped to 3.9.3 (`plugin.json` + `marketplace.json`); this CHANGELOG entry; `docs/INTEGRATION_MAP.md` brought current for the `hooks.json` command-shape change.
+
+### E — Regression coverage
+
+- **E1** a NEW "execute the glue" test family (`tests/test_vao_glue_execution.py`) resolves and exercises every fenced `python`/`python3` invocation in `commands/*.md` + every `hooks.json` command string — it would have caught A1/A2/A5/A6/B1/C2 before they shipped.
+- **E2** per-item regression tests for every A/B/C fix.
+- **E3** the whole suite stays green under both Windows cp1252 AND `PYTHONUTF8=1`; all new tests are additive. Suite 3928 → 4097 passing (+5 skipped) across 163 test files.
+
 ## [3.9.2] — 2026-06-10 — `openspec validate --all --strict` wired into the master-review gate
 
 **PATCH — deterministic enforcement.** The `system-architect` Master Review Audit mode was already *instructed* to run `openspec validate --all --strict` (step 3), but the `pipeline-completion-audit` hook — the gate that actually blocks the Phase 8 commit — only read the agent's self-reported verdict; it never ran the validation itself. v3.9.2 closes that producer/checker gap.

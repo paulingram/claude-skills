@@ -205,14 +205,28 @@ def test_team_spawning_documents_ui_interaction_review(plugin_root: Path) -> Non
     )
 
 
-def test_team_spawning_documents_v6_schema(plugin_root: Path) -> None:
-    """The schema must be documented as v6 — the version references are updated."""
+def test_team_spawning_documents_v7_schema(plugin_root: Path) -> None:
+    """The schema must be documented as v7 (C1 — review-remediation). The
+    design-provided v7 example deliberately omits a `schema_version` literal
+    (`schema_version` is not a `REQUIRED_EVIDENCE_FIELDS` member per
+    `hooks/review_evidence_schema.py`; `SCHEMA_VERSION = 7` is a module constant), so
+    v7-ness is verified by the 5 VAO fields + the textual `v7` schema reference."""
     content = _read(plugin_root, TEAM_SPAWNING)
-    assert '"schema_version": 6' in content, (
-        "team-spawning-and-review-gates SKILL.md evidence example is not schema_version 6"
+    v7_vao_fields = (
+        '"oracle_match_review"',
+        '"baseline_clean_review"',
+        '"no_fake_data_review"',
+        '"adversarial_review"',
+        '"skill_invocation_audit"',
     )
-    assert "v6" in content, (
-        "team-spawning-and-review-gates SKILL.md does not reference the v6 schema"
+    assert all(f in content for f in v7_vao_fields), (
+        "team-spawning-and-review-gates SKILL.md evidence example is missing the v7 VAO fields"
+    )
+    assert "v7" in content, (
+        "team-spawning-and-review-gates SKILL.md does not reference the v7 schema"
+    )
+    assert '"schema_version": 6' not in content, (
+        "team-spawning-and-review-gates SKILL.md still carries a stale schema_version 6 literal"
     )
 
 
@@ -279,15 +293,21 @@ def test_team_spawning_evidence_example_carries_ui_interaction_review(plugin_roo
     )
 
 
-def test_team_spawning_evidence_field_count_is_twelve(plugin_root: Path) -> None:
-    """The self-review field count must read 12, not 11, after adding the v6 field."""
+def test_team_spawning_evidence_field_count_is_seventeen(plugin_root: Path) -> None:
+    """The self-review field count must read 17 (C1 — review-remediation): v7's
+    REQUIRED_EVIDENCE_FIELDS has 17 members (the prior 12 v6 fields + the 5 v2.0.0
+    VAO fields). The stale '12 top-level' / '11 top-level' references must be gone."""
     content = _read(plugin_root, TEAM_SPAWNING)
-    assert "12 top-level" in content, (
-        "team-spawning-and-review-gates SKILL.md still says 11 top-level fields — "
-        "the v6 ui_interaction_review field makes it 12"
+    assert "17 top-level" in content, (
+        "team-spawning-and-review-gates SKILL.md must say 17 top-level fields — "
+        "v7's REQUIRED_EVIDENCE_FIELDS has 17 members"
     )
     assert "11 top-level" not in content, (
         "team-spawning-and-review-gates SKILL.md still has a stale '11 top-level' "
+        "field-count reference"
+    )
+    assert "12 top-level" not in content, (
+        "team-spawning-and-review-gates SKILL.md still has a stale '12 top-level' "
         "field-count reference"
     )
 

@@ -29,6 +29,20 @@ from pathlib import Path
 from typing import Any
 
 
+def _read_stdin_utf8() -> str:
+    """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
+
+    Decodes the raw stdin bytes as `utf-8` with `errors="replace"` instead of
+    the locale codec so a UTF-8 payload (e.g. an emoji in a tool-input field)
+    cannot raise `UnicodeDecodeError` under cp1252 and degrade this guard to a
+    silent no-op. Falls back to the text stream when `sys.stdin.buffer` is
+    unavailable (e.g. a test that replaced `sys.stdin` with a StringIO)."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return buffer.read().decode("utf-8", "replace")
+    return sys.stdin.read()
+
+
 _PIPELINE_SKILL_NAMES = (
     "architect-team-pipeline",
     "bug-fix-pipeline",
@@ -207,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     return the exit code."""
     try:
         if not sys.stdin.isatty():
-            stdin_text = sys.stdin.read()
+            stdin_text = _read_stdin_utf8()
         else:
             stdin_text = ""
     except (OSError, ValueError):
