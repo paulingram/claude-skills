@@ -1,7 +1,7 @@
 ---
 name: route-mapper
 description: Spawned per frontend codebase during Phase −1B (after cartographer produces CODEBASE_MAP.md). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp. Additionally, when design inputs are present (screenshots / Figma exports / design tokens / Storybook / brand docs / assets directory), produces DESIGN_MAP.md per the design-fidelity-mapping skill's schema — design tokens table, asset registry with SHA-256 hashes, per-screen visual specs (typography, color, spacing, layout, asset placement), and detected drift between design source and implementation.
-tools: Read, Glob, Grep, LS, Bash, Write, Edit, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, Edit, TodoWrite
 model: opus
 color: cyan
 ---
@@ -18,7 +18,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

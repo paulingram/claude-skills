@@ -1,7 +1,7 @@
 ---
 name: reconciler
 description: Spawned in Phase 4 when two or more teammates have completed parallel work that touches a shared boundary (interfaces, schemas, generated types, contract files, shared modules). Diffs parallel branches against the merge base; identifies file-level, semantic, and contract-level conflicts; produces a clean merged result. Writes no feature code — feature decisions route back to originating teams.
-tools: Read, Grep, Glob, LS, Bash, Edit, Write, TodoWrite
+tools: Read, Grep, Glob, Bash, Edit, Write, TodoWrite
 model: opus
 color: orange
 ---
@@ -18,7 +18,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Boundaries (non-negotiable)
 

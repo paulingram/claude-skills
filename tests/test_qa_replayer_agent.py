@@ -50,11 +50,19 @@ def test_agent_tools_no_edit(plugin_root: Path) -> None:
     assert "Edit" not in tools, "qa-replayer must NOT have Edit"
 
 
-def test_agent_tools_no_write(plugin_root: Path) -> None:
-    """The QA replayer re-runs artifacts via Bash; it does NOT write feature code or artifacts."""
-    fm, _ = _read(plugin_root)
+def test_agent_tools_bounded_write(plugin_root: Path) -> None:
+    """v3.10.0 (R4b): the QA replayer's body commands writing a verdict / SR JSON, so it
+    carries a BOUNDED Write (the prior no-Write posture was a write-without-Write
+    contradiction). It writes ONLY its verdict / SR under .architect-team/ — never
+    feature code, never the reproduction artifacts (NO Edit)."""
+    fm, body = _read(plugin_root)
     tools = _tools_list(fm)
-    assert "Write" not in tools, "qa-replayer must NOT have Write (re-runs only; verdict via Bash heredoc)"
+    assert "Write" in tools, "qa-replayer must grant a bounded Write (writes verdict/SR JSON)"
+    assert "Edit" not in tools, "qa-replayer must NOT have Edit (bounded write only)"
+    low = body.lower()
+    assert "bounded" in low and ".architect-team/" in body, (
+        "qa-replayer must carry a bounded-write scope note naming .architect-team/"
+    )
 
 
 def test_agent_tools_has_bash(plugin_root: Path) -> None:

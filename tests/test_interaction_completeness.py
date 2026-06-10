@@ -61,12 +61,13 @@ USER_INTERACTION_CALLS = (
 # Placeholder-signal naming tokens the rubric must enumerate (task 9.2).
 PLACEHOLDER_NAMING_SIGNALS = ("Placeholder", "ComingSoon", "Stub", "Mock", "Demo", "WIP")
 
+# v3.10.0 (R4a): retired LS / NotebookRead / Task dropped; NotebookEdit kept.
 VALID_TOOLS = {
-    "Read", "Edit", "Write", "Glob", "Grep", "LS", "Bash",
-    "TodoWrite", "NotebookRead", "NotebookEdit",
-    "WebFetch", "WebSearch", "Task",
+    "Read", "Edit", "Write", "Glob", "Grep", "Bash",
+    "TodoWrite", "NotebookEdit",
+    "WebFetch", "WebSearch",
 }
-VALID_MODELS = {"opus", "sonnet", "haiku"}
+VALID_MODELS = {"opus", "sonnet", "haiku", "inherit"}
 REQUIRED_AGENT_KEYS = {"name", "description", "tools", "model", "color"}
 REQUIRED_SKILL_KEYS = {"name", "description"}
 
@@ -450,3 +451,28 @@ def test_agent_body_covers_convergence_and_map(plugin_root: Path) -> None:
     assert "converged" in content and "map" in content, (
         "interaction-reviewer body does not cover writing the converged interaction map"
     )
+
+
+# --- v3.10.0 (R6b): accessibility axis presence -----------------------------
+
+
+def test_skill_has_accessibility_axis(plugin_root: Path) -> None:
+    """v3.10.0 (R6b): the skill carries the ## Accessibility axis (v3.10.0)
+    section with the a11y-gap vocabulary + the no-UI n/a rule."""
+    content = _read(plugin_root, SKILL)
+    assert "## Accessibility axis (v3.10.0)" in content
+    for sub_kind in ("keyboard-unreachable", "missing-accessible-name", "axe-violation"):
+        assert sub_kind in content, f"skill missing a11y sub-kind {sub_kind!r}"
+    assert "a11y-gap" in content, "skill must name the a11y-gap origin kind"
+    low = content.lower()
+    assert "n/a" in low and "no ui" in low, "skill must state the no-UI n/a rule"
+
+
+def test_agent_has_accessibility_audit(plugin_root: Path) -> None:
+    """v3.10.0 (R6b): the reviewer carries the matching ## Accessibility audit
+    (v3.10.0) section."""
+    content = _read(plugin_root, AGENT)
+    assert "## Accessibility audit (v3.10.0)" in content
+    for sub_kind in ("keyboard-unreachable", "missing-accessible-name", "axe-violation"):
+        assert sub_kind in content, f"reviewer missing a11y sub-kind {sub_kind!r}"
+    assert "a11y_findings" in content and "a11y-gap" in content

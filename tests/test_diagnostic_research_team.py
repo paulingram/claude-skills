@@ -23,11 +23,14 @@ PIPELINE_SKILL_PATH = ("skills", "architect-team-pipeline", "SKILL.md")
 RCA_SKILL_PATH = ("skills", "root-cause-test-failures", "SKILL.md")
 
 TEST_FAILURE_ORIGINS = (
+    # SR-sr-catalog-spelling-reconcile (v3.10.0): canonical enum spellings
+    # (integration-test-failure / visual-fidelity-drift) — the diagnostic-
+    # research-team skill now names these, matching hooks/shared_rule_constants.
     "rca-product-bug",
     "playwright-failure",
-    "integration-failure",
+    "integration-test-failure",
     "test-completeness-failure",
-    "visual-fidelity-cascade",
+    "visual-fidelity-drift",
 )
 
 

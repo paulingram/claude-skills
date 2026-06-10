@@ -21,13 +21,14 @@ def test_watcher_carries_frontmatter() -> None:
     front, _, _ = body[3:].partition("---")
     assert "name: test-run-watcher" in front
     assert "model: sonnet" in front
-    assert "color: teal" in front
+    assert "color: cyan" in front  # v3.10.0 R4d: teal -> cyan (documented palette)
 
 
 def test_watcher_lists_required_tools() -> None:
     body = WATCHER.read_text(encoding="utf-8")
     front, _, _ = body[3:].partition("---")
-    for tool in ("Read", "Glob", "Grep", "LS", "Bash", "Write"):
+    # v3.10.0 R4a: LS retired (covered by Glob/Read/Bash).
+    for tool in ("Read", "Glob", "Grep", "Bash", "Write"):
         assert tool in front
 
 
@@ -73,7 +74,7 @@ def test_synthesizer_carries_frontmatter() -> None:
     front, _, _ = body[3:].partition("---")
     assert "name: monitor-synthesizer" in front
     assert "model: opus" in front
-    assert "color: teal" in front
+    assert "color: cyan" in front  # v3.10.0 R4d: teal -> cyan (documented palette)
 
 
 def test_synthesizer_documents_4_categories() -> None:

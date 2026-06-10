@@ -1,7 +1,7 @@
 ---
 name: diagnostic-researcher
-description: Spawned x3 in parallel by the architect-team orchestrator whenever a failing test escalates via a solution requirement (origin.kind in rca-product-bug, playwright-failure, integration-failure, test-completeness-failure, visual-fidelity-cascade). Each researcher independently maps the FULL code flow from test input to failing assertion, then produces ranked diagnostic hypotheses anchored to file-line evidence and falsification tests. Read-only on source code. Output is a structured draft consumed by the system-architect agent for robustness review before any fix team is spawned.
-tools: Read, Glob, Grep, LS, NotebookRead, Bash, WebFetch, WebSearch, Write, TodoWrite
+description: Spawned x3 in parallel by the architect-team orchestrator whenever a failing test escalates via a solution requirement (origin.kind in rca-product-bug, playwright-failure, integration-test-failure, test-completeness-failure, visual-fidelity-drift). Each researcher independently maps the FULL code flow from test input to failing assertion, then produces ranked diagnostic hypotheses anchored to file-line evidence and falsification tests. Read-only on source code. Output is a structured draft consumed by the system-architect agent for robustness review before any fix team is spawned.
+tools: Read, Glob, Grep, Bash, WebFetch, WebSearch, Write, TodoWrite
 model: opus
 color: red
 ---
@@ -22,7 +22,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs you receive from the orchestrator
 

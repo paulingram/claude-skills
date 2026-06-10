@@ -58,7 +58,7 @@ from typing import Optional
 
 FORBIDDEN_GIT_OPERATIONS = "## Forbidden git operations\n\nYou MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>` / `git checkout .`, `git clean -f`. These manipulate shared state across teammates within the same run and have caused real-world clobbering — the v1.6.0 worked example in `common-pipeline-conventions` `## Teammate git discipline` documents four teammates running concurrent `git stash` against one working tree, the reflog showing 10+ consecutive `reset: moving to HEAD` entries, and three of four teammates' work lost. For baseline verification, use the orchestrator-provided `$BASELINE_SHA` (carried in your spawn brief's `baseline_sha` field per `team-spawning-and-review-gates` `## Baseline SHA capture`) with `git diff $BASELINE_SHA -- <your-files>` instead of stashing."
 
-CHECKPOINT_DISCIPLINE = '## Checkpoint discipline\n\nWhen your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.'
+CHECKPOINT_DISCIPLINE = '## Checkpoint discipline\n\nWhen your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.'
 
 OPERATING_CONTEXT = '## Operating context (v1.0.0)\n\nPer `skills/team-spawning-and-review-gates/SKILL.md` `## Operating context (v1.0.0) — for teammate agents`, you are a long-lived teammate in an architect-team run — not a one-shot subagent; you stay in your role across multiple tasks within this run, you receive tasks from the Lead and write a solution requirement for any follow-up that needs a different agent type, and you do NOT spawn other agents or teams yourself.'
 
@@ -68,14 +68,29 @@ FORBIDDEN_GIT_OPERATIONS_HEADING = "## Forbidden git operations"
 CHECKPOINT_DISCIPLINE_HEADING = "## Checkpoint discipline"
 OPERATING_CONTEXT_HEADING = "## Operating context (v1.0.0)"
 
-# --- the three VAO agents that carry deliberately role-specific variant forms -
-# (allowlisted: NOT required to match the canonical text for any block).
-VARIANT_AGENTS = ["adversarial-reviewer", "interaction-observer", "oracle-deriver"]
+# --- the three VAO agents (R4c, v3.10.0) -------------------------------------
+# These three (adversarial-reviewer, interaction-observer, oracle-deriver) now
+# carry the CANONICAL git + checkpoint blocks like every other agent — the
+# v3.10.0 R4c re-sync eliminated their drifted paraphrases (oracle-deriver's
+# variant had DROPPED the $BASELINE_SHA instruction). They remain variants for
+# ONLY the operating-context block, whose `## Operating context (v1.0.0)`
+# heading they deliberately OMIT (they are not Phase-2/3 teammates with the
+# shared long-lived-teammate contract).
+OPERATING_CONTEXT_VARIANT_AGENTS = [
+    "adversarial-reviewer", "interaction-observer", "oracle-deriver",
+]
+# Backwards-compatible alias (older tests import VARIANT_AGENTS): the three
+# operating-context variants are still the canonical "deliberately different"
+# set, now scoped to operating-context only.
+VARIANT_AGENTS = list(OPERATING_CONTEXT_VARIANT_AGENTS)
 
 # Standard agents per block, baked from the current tree. classify_agents()
 # re-derives these at runtime; these baked lists document the expected partition
 # and let the drift-guard tests assert membership without globbing.
+# R4c: the 3 VAO agents join the git + checkpoint standard sets (they get the
+# canonical blocks); they stay OUT of the operating-context standard set.
 STANDARD_AGENTS_FORBIDDEN_GIT = [
+    "adversarial-reviewer", "interaction-observer", "oracle-deriver",
     "backend", "bug-classifier", "bug-replicator", "codebase-map-reviewer",
     "diagnostic-researcher", "doc-updater", "editability-reviewer",
     "fix-sensibility-checker", "flow-executor", "flow-explorer", "frontend",
@@ -87,7 +102,12 @@ STANDARD_AGENTS_FORBIDDEN_GIT = [
     "test-run-watcher", "visual-analyzer", "visual-capture",
 ]
 STANDARD_AGENTS_CHECKPOINT = list(STANDARD_AGENTS_FORBIDDEN_GIT)
-STANDARD_AGENTS_OPERATING_CONTEXT = list(STANDARD_AGENTS_FORBIDDEN_GIT)
+# Operating-context: every standard-git agent EXCEPT the 3 VAO agents (they omit
+# the heading entirely).
+STANDARD_AGENTS_OPERATING_CONTEXT = [
+    a for a in STANDARD_AGENTS_FORBIDDEN_GIT
+    if a not in OPERATING_CONTEXT_VARIANT_AGENTS
+]
 
 # Match modes: "equals" -> full block must equal canonical; "prefix" -> block
 # must START with canonical (extra role-specific text after it is allowed).
@@ -100,21 +120,21 @@ BLOCKS = {
         "canonical": FORBIDDEN_GIT_OPERATIONS,
         "match": MATCH_EQUALS,
         "standard_agents": list(STANDARD_AGENTS_FORBIDDEN_GIT),
-        "variant_agents": list(VARIANT_AGENTS),
+        "variant_agents": [],
     },
     "checkpoint-discipline": {
         "heading": CHECKPOINT_DISCIPLINE_HEADING,
         "canonical": CHECKPOINT_DISCIPLINE,
         "match": MATCH_EQUALS,
         "standard_agents": list(STANDARD_AGENTS_CHECKPOINT),
-        "variant_agents": list(VARIANT_AGENTS),
+        "variant_agents": [],
     },
     "operating-context": {
         "heading": OPERATING_CONTEXT_HEADING,
         "canonical": OPERATING_CONTEXT,
         "match": MATCH_PREFIX,
         "standard_agents": list(STANDARD_AGENTS_OPERATING_CONTEXT),
-        "variant_agents": list(VARIANT_AGENTS),
+        "variant_agents": list(OPERATING_CONTEXT_VARIANT_AGENTS),
     },
 }
 

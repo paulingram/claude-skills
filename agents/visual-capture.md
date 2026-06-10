@@ -1,7 +1,7 @@
 ---
 name: visual-capture
 description: Spawned in parallel (one per screen-group) by the visual-verification-team skill. Starts the LIVE running application and captures, for every assigned DESIGN_MAP screen, a capture set — per-state / per-viewport screenshots PLUS a computed-style and bounding-box data dump from the real DOM — and assembles the design-side reference (a design image, a design-prototype screenshot, or spec-only). Purely mechanical — it renders and records, it never judges. Its output is a countable artifact set that the visual-analyzer agents consume. Read-only on source code.
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: sonnet
 color: cyan
 ---
@@ -20,7 +20,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## The one rule
 

@@ -3,9 +3,16 @@
 Establishes a single source of truth for three byte-identical boilerplate
 blocks duplicated across the ``agents/*.md`` files:
 
-* ``## Forbidden git operations``   (27 standard agents, 3 variants)
-* ``## Checkpoint discipline``      (27 standard agents, 3 variants)
-* ``## Operating context (v1.0.0)`` (27 prefix-sharing standard agents, 3 variants)
+* ``## Forbidden git operations``   (ALL 34 standard agents — v3.10.0 R4c)
+* ``## Checkpoint discipline``      (ALL 34 standard agents — v3.10.0 R4c)
+* ``## Operating context (v1.0.0)`` (31 prefix-sharing standard agents, 3 variants)
+
+v3.10.0 (R4c) re-synced the 3 VAO agents (adversarial-reviewer,
+interaction-observer, oracle-deriver) to the CANONICAL git + checkpoint blocks
+(oracle-deriver's drifted variant had DROPPED the ``$BASELINE_SHA`` instruction).
+They remain variants for ONLY the ``operating-context`` block, whose heading they
+deliberately OMIT. The per-block variant allowlist therefore differs by block:
+git + checkpoint carry an EMPTY variant list; operating-context keeps the 3.
 
 These tests assert:
 
@@ -13,9 +20,9 @@ These tests assert:
    text in ``scripts/setup/agent_boilerplate_blocks.py`` (the source of truth).
    For the prefix-mode ``operating-context`` block, "matches" means the block
    STARTS with the canonical paragraph (agents may append role-specific text).
-2. The three allowlisted *variant* agents (adversarial-reviewer,
-   interaction-observer, oracle-deriver) are present on disk and recognised as
-   variants -- they are NOT required to match the canonical text.
+2. The allowlisted *variant* agents for a block (per ``spec["variant_agents"]``)
+   are present on disk and recognised as variants -- they are NOT required to
+   match the canonical text. (Only ``operating-context`` has variants now.)
 3. Each block has at least 25 standard agents.
 4. The ``sync_agent_boilerplate.py`` ``--check`` reports IN SYNC against the
    current tree (the agents already match the canonical blocks), and a plain
@@ -123,32 +130,44 @@ def test_standard_agents_match_canonical(
 def test_variant_agents_present_and_allowlisted(
     blocks_module: ModuleType, agents_dir: Path, block_id: str
 ) -> None:
-    """The 3 variant agents exist on disk and are classified as variants, not drift."""
+    """Each block's allowlisted variants are classified as variants, not drift.
+
+    v3.10.0 (R4c): the per-block variant list differs — git + checkpoint carry an
+    EMPTY variant list (the 3 VAO agents now match canonical); operating-context
+    keeps the 3 VAO agents as variants.
+    """
     B = blocks_module
     spec = B.BLOCKS[block_id]
-    assert set(spec["variant_agents"]) == set(VARIANT_AGENTS), (
-        f"{block_id}: variant_agents allowlist changed unexpectedly: "
-        f"{spec['variant_agents']}"
-    )
-    for stem in VARIANT_AGENTS:
+    block_variants = set(spec["variant_agents"])
+    if block_id == "operating-context":
+        assert block_variants == set(VARIANT_AGENTS), (
+            f"{block_id}: operating-context must keep the 3 VAO variants: "
+            f"{spec['variant_agents']}"
+        )
+    else:
+        assert block_variants == set(), (
+            f"{block_id}: git/checkpoint must have an EMPTY variant list after R4c: "
+            f"{spec['variant_agents']}"
+        )
+    for stem in block_variants:
         assert (agents_dir / f"{stem}.md").exists(), f"variant agent missing: {stem}.md"
     classified = B.classify_agents(block_id, agents_dir)
-    assert set(classified["variant"]) == set(VARIANT_AGENTS), (
-        f"{block_id}: classify did not recognise all variants: {classified['variant']}"
+    assert set(classified["variant"]) == block_variants, (
+        f"{block_id}: classify did not recognise the expected variants: {classified['variant']}"
     )
     # variant agents must NOT appear in the standard bucket
-    assert not (set(VARIANT_AGENTS) & set(classified["standard"])), (
+    assert not (block_variants & set(classified["standard"])), (
         f"{block_id}: a variant agent leaked into the standard bucket"
     )
 
 
-def test_variant_git_and_checkpoint_blocks_differ_from_canonical(
+def test_vao_agents_git_and_checkpoint_blocks_match_canonical(
     blocks_module: ModuleType, agents_dir: Path
 ) -> None:
-    """Variants genuinely differ -- they're allowlisted because their text differs.
-
-    Guards against an allowlist that hides agents which actually DO match (which
-    would silently exempt them from drift detection for no reason).
+    """v3.10.0 (R4c): the 3 VAO agents now carry the CANONICAL git + checkpoint
+    blocks (the re-sync eliminated their drifted paraphrases; oracle-deriver's had
+    DROPPED the ``$BASELINE_SHA`` instruction). They are NO LONGER variants for
+    these two blocks.
     """
     B = blocks_module
     for block_id in ("forbidden-git-operations", "checkpoint-discipline"):
@@ -157,11 +176,13 @@ def test_variant_git_and_checkpoint_blocks_differ_from_canonical(
             block = B.extract_block(
                 B.read_agent_text(agents_dir / f"{stem}.md"), spec["heading"]
             )
-            # Each variant carries the heading but with non-canonical text.
             assert block is not None, f"{stem} unexpectedly missing {spec['heading']}"
-            assert block != spec["canonical"], (
-                f"{stem} {block_id} equals canonical -- it should not be allowlisted"
+            assert block == spec["canonical"], (
+                f"{stem} {block_id} must equal canonical after the R4c re-sync"
             )
+    # oracle-deriver specifically must carry the restored $BASELINE_SHA instruction.
+    od = B.read_agent_text(agents_dir / "oracle-deriver.md")
+    assert "$BASELINE_SHA" in od, "oracle-deriver must carry the restored $BASELINE_SHA"
 
 
 def test_variant_agents_omit_operating_context_heading(

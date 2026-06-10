@@ -17,7 +17,7 @@ def test_agent_carries_frontmatter() -> None:
     front, _, _ = body[3:].partition("---")
     assert "name: domain-researcher" in front
     assert "model: opus" in front
-    assert "color: amber" in front
+    assert "color: yellow" in front  # v3.10.0 R4d: amber -> yellow (documented palette)
 
 
 def test_agent_has_webfetch_and_websearch_tools() -> None:
@@ -30,7 +30,8 @@ def test_agent_has_webfetch_and_websearch_tools() -> None:
 def test_agent_has_standard_tools() -> None:
     body = AGENT.read_text(encoding="utf-8")
     front, _, _ = body[3:].partition("---")
-    for tool in ("Read", "Glob", "Grep", "LS", "Bash", "Write"):
+    # v3.10.0 R4a: LS retired (covered by Glob/Read/Bash).
+    for tool in ("Read", "Glob", "Grep", "Bash", "Write"):
         assert tool in front
 
 

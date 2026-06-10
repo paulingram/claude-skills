@@ -22,6 +22,29 @@ A lock is stale when (acquired_at + ttl_seconds) is in the past, OR the file is
 malformed (corrupt JSON, missing required fields, unparseable timestamp).
 `acquire_lock` auto-cleans every stale lock it encounters before deciding.
 
+Concurrency model (advisory, best-effort — REQ-R5):
+  - The IDENTICAL-scope race (two acquirers, same scope-hash filename) is closed
+    hard: the lock file is created with ``os.open(path, O_CREAT|O_EXCL|O_WRONLY)``
+    so the OS guarantees exactly one creator wins; a second concurrent creator
+    gets ``FileExistsError`` and is reported ``blocked``. A *stale* lock at that
+    path is reclaimed by staging a fresh lock in an EXCL-created temp and
+    swapping it in with an atomic ``os.replace`` (no destructive unlink→write
+    window).
+  - The INTERSECTING-scope race (two acquirers, DIFFERENT scopes whose path
+    spaces overlap — different filenames, so EXCL cannot see the collision) is
+    closed advisorily: after its EXCL write succeeds, an acquirer RE-SCANS the
+    lock dir; if a live lock with an intersecting scope holds an earlier
+    ``(acquired_at, session-id)`` position, the later acquirer releases its own
+    lock and reports ``blocked`` naming the winner.
+  - Residual boundary (honest): the intersecting-scope resolution is advisory,
+    not kernel-atomic — it relies on every participant running the same re-scan
+    + tiebreak. A writer that bypasses ``acquire_lock`` is not constrained, and
+    the ``acquired_at`` second-resolution timestamp makes the order deterministic
+    only down to the lexicographic ``(acquired_at, session-id)`` pair (two
+    acquirers inside the same clock-second tie-break on session id). This layer
+    is a coordination aid for cooperating ``/architect-team`` Leads, not a
+    mutex.
+
 Reuse Decision: RD-3 (build-new — no existing equivalent). Stdlib only per
 NF-2.
 
@@ -35,7 +58,9 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -58,6 +83,22 @@ _REQUIRED_LOCK_FIELDS = ("holder", "scope_glob", "acquired_at", "ttl_seconds", "
 # Wildcard characters that mark the end of a glob's literal-prefix portion.
 _WILDCARD_CHARS = set("*?[")
 
+# Suffix for the transient file used to stage a fresh lock when reclaiming a
+# stale lock at an already-existing path (EXCL-create the temp, then os.replace
+# it atomically over the stale lock — no destructive unlink→write window).
+_LOCK_TMP_SUFFIX = ".reclaim.tmp"
+
+# Stabilization parameters for the intersecting-scope race resolution (REQ-R5b).
+# After its EXCL write, an acquirer that observes itself as the EARLIEST
+# intersecting lock must confirm that observation across `_RESCAN_CONFIRMATIONS`
+# consecutive scans separated by `_RESCAN_INTERVAL_SECONDS`, so a competitor
+# whose file is not yet visible at the first scan is caught before the acquirer
+# commits to keeping its lock. Any scan that reveals an earlier competitor short-
+# circuits to "yield" immediately. The window is intentionally small — this is an
+# advisory coordination aid for cooperating Leads, not a hot path.
+_RESCAN_CONFIRMATIONS = 3
+_RESCAN_INTERVAL_SECONDS = 0.02
+
 
 # ---- Public API --------------------------------------------------------------
 
@@ -73,10 +114,17 @@ def acquire_lock(
     Behavior:
       1. Sweep `locks_dir` for stale or malformed locks; remove them.
       2. Iterate the surviving locks. If any holds a glob that intersects
-         `scope_glob`, return `{"status": "blocked", "held_by": <run_id>,
+         `scope_glob`, return `{"status": "blocked", "held_by": <holder>,
          "lock_id": <existing-lock-id>}`.
-      3. Otherwise write a fresh lock file and return
-         `{"status": "acquired", "lock_id": <new-lock-id>}`.
+      3. Otherwise create the lock file atomically with
+         ``os.open(path, O_CREAT|O_EXCL|O_WRONLY)`` (REQ-R5a). If the path
+         already exists at this point — a same-scope acquirer that raced past the
+         sweep+scan — acquisition is ``blocked`` (no silent overwrite); a *stale*
+         survivor at that path is reclaimed via an atomic ``os.replace`` of a
+         freshly-EXCL-created temp.
+      4. RE-SCAN the lock dir (REQ-R5b). If another live lock with an
+         INTERSECTING scope holds an earlier ``(acquired_at, session-id)``
+         position, release own lock and return ``blocked`` naming that winner.
 
     Args:
         scope_glob: a fnmatch-style path glob (e.g. ``"src/auth/**"``). Two
@@ -110,7 +158,9 @@ def acquire_lock(
                 "lock_id": lock.get("lock_id"),
             }
 
-    # Step 3: write a fresh lock.
+    # Step 3: create the lock atomically (O_CREAT|O_EXCL). The OS guarantees a
+    # single creator wins the IDENTICAL-scope race — a concurrent same-scope
+    # acquirer that raced past Step 1+2 hits FileExistsError here.
     lock_id = _hash_scope(scope_glob)
     payload = {
         "holder": run_id,
@@ -120,7 +170,42 @@ def acquire_lock(
         "lock_id": lock_id,
     }
     lock_path = locks_dir / f"{lock_id}.json"
-    lock_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    if not _write_lock_excl(lock_path, payload):
+        # The path already exists. Re-read it: a live holder => blocked; a stale
+        # survivor (the sweep missed a just-landed expiry, or a race) => reclaim.
+        existing = _read_lock(lock_path)
+        if existing is not None and not _lock_is_expired(
+            existing, datetime.now(timezone.utc)
+        ):
+            return {
+                "status": "blocked",
+                "held_by": existing.get("holder"),
+                "lock_id": existing.get("lock_id") or lock_id,
+            }
+        # Stale (or unreadable) lock at this path: reclaim it atomically.
+        if not _reclaim_stale_lock(lock_path, payload):
+            # Lost the reclaim race to another acquirer — re-read the winner.
+            winner = _read_lock(lock_path)
+            return {
+                "status": "blocked",
+                "held_by": (winner or {}).get("holder"),
+                "lock_id": (winner or {}).get("lock_id") or lock_id,
+            }
+
+    # Step 4: post-write re-scan for the INTERSECTING-scope race. Our EXCL write
+    # could not see a DIFFERENT-scope acquirer (different filename); resolve by
+    # the deterministic (acquired_at, session-id) tiebreak — STABILIZED so a
+    # later writer cannot keep its lock merely because it re-scanned before an
+    # earlier competitor's file became visible (see _resolve_intersecting_race).
+    winner = _resolve_intersecting_race(locks_dir, scope_glob, payload)
+    if winner is not None:
+        release_lock(lock_id, locks_dir=locks_dir)
+        return {
+            "status": "blocked",
+            "held_by": winner.get("holder"),
+            "lock_id": winner.get("lock_id"),
+        }
+
     return {"status": "acquired", "lock_id": lock_id}
 
 
@@ -207,13 +292,22 @@ def globs_intersect(a: str, b: str) -> bool:
     other glob's fnmatch-translated regex; if any candidate matches, the
     globs intersect.
 
+    A SECOND candidate class (REQ-R5c) covers the leading-wildcard-vs-prefix
+    miss: when one glob is anchored by a literal PREFIX and the other by a
+    literal SUFFIX, the shared path is the prefix joined to the suffix. We
+    synthesize ``prefix_of_one + "/" + suffix_of_other`` (both directions) and
+    test it against both regexes — so ``("src/**", "**/auth.py")`` finds the
+    common path ``src/auth.py`` and returns True.
+
     This is heuristic — it correctly identifies the headline cases the spec
-    requires (REQ-3 scenarios 3.2 and 3.3) while staying stdlib-only:
+    requires (REQ-3 scenarios 3.2 and 3.3, plus REQ-R5c) while staying
+    stdlib-only:
 
       - ``("src/auth/**", "src/auth/login/**")`` -> True (login is under auth)
       - ``("src/auth/**", "src/billing/**")``    -> False (disjoint roots)
       - ``("src/*.py",   "src/foo.py")``         -> True
       - ``("src/*.py",   "src/foo.ts")``         -> False
+      - ``("src/**",     "**/auth.py")``         -> True (shared src/auth.py)
       - identical globs always intersect
     """
     if a == b:
@@ -228,6 +322,13 @@ def globs_intersect(a: str, b: str) -> bool:
 
     for candidate in _candidate_paths(b):
         if regex_a.match(candidate):
+            return True
+
+    # Cross prefix/suffix candidate class: a prefix-anchored glob intersects a
+    # suffix-anchored glob at (prefix-of-one)/(suffix-of-other). Test both
+    # synthesized paths against BOTH globs so the shared path must satisfy each.
+    for candidate in _cross_prefix_suffix_candidates(a, b):
+        if regex_a.match(candidate) and regex_b.match(candidate):
             return True
 
     return False
@@ -502,6 +603,55 @@ def _literal_prefix(glob: str) -> str:
     return "/".join(prefix_parts)
 
 
+def _literal_suffix(glob: str) -> str:
+    """Return the trailing path-segment portion of `glob` that contains no wildcard.
+
+    The mirror of `_literal_prefix`, walking segments from the END. Used by the
+    REQ-R5c cross prefix/suffix candidate class.
+
+    Examples:
+      "**/auth.py"           -> "auth.py"
+      "src/auth/**"          -> ""           (trailing "**" is a wildcard segment)
+      "**/login/*.py"        -> ""
+      "README.md"            -> "README.md"
+      "**"                   -> ""
+      "src/auth/**/x.py"     -> "x.py"
+    """
+    segments = glob.split("/")
+    suffix_parts: list[str] = []
+    for seg in reversed(segments):
+        if any(c in seg for c in _WILDCARD_CHARS):
+            break
+        suffix_parts.append(seg)
+    suffix_parts.reverse()
+    return "/".join(suffix_parts)
+
+
+def _cross_prefix_suffix_candidates(a: str, b: str) -> list[str]:
+    """Synthesize the prefix-of-one + suffix-of-other shared-path candidates.
+
+    For a prefix-anchored glob (literal leading segments, then a wildcard) and a
+    suffix-anchored glob (a wildcard, then literal trailing segments), the shared
+    path is ``<prefix>/<suffix>``. We build both directions:
+
+      - ``_literal_prefix(a)`` + ``_literal_suffix(b)``
+      - ``_literal_prefix(b)`` + ``_literal_suffix(a)``
+
+    Skipping any direction whose prefix or suffix is empty (an empty side gives
+    no anchor — that direction cannot manufacture a meaningful shared path). The
+    candidate is returned for the CALLER to verify against BOTH globs' regexes,
+    so a non-shared synthesized path (e.g. ``src/billing/charge.py/auth.py``)
+    is rejected by the prefix glob and never produces a false positive.
+    """
+    out: list[str] = []
+    for prefix_glob, suffix_glob in ((a, b), (b, a)):
+        prefix = _literal_prefix(prefix_glob)
+        suffix = _literal_suffix(suffix_glob)
+        if prefix and suffix:
+            out.append(f"{prefix}/{suffix}")
+    return out
+
+
 def _candidate_paths(glob: str) -> list[str]:
     """Return sample candidate paths to probe against another glob's regex.
 
@@ -520,6 +670,176 @@ def _candidate_paths(glob: str) -> list[str]:
         f"{prefix}/__intersect_probe__.txt",
         f"{prefix}/__a__/__b__/__c__.txt",
     ]
+
+
+def _serialize_lock(payload: dict[str, Any]) -> bytes:
+    """Encode a lock payload as the canonical on-disk UTF-8 bytes.
+
+    Matches the original ``json.dumps(payload, indent=2)`` + utf-8 shape so the
+    EXCL write path is byte-compatible with the prior ``write_text`` form (the
+    REQ-3 scenario tests parse this exact shape).
+    """
+    return json.dumps(payload, indent=2).encode("utf-8")
+
+
+def _write_lock_excl(lock_path: Path, payload: dict[str, Any]) -> bool:
+    """Create `lock_path` atomically via ``os.open(O_CREAT|O_EXCL|O_WRONLY)``.
+
+    Returns True iff THIS call created the file (won the create race). Returns
+    False if the file already existed (``FileExistsError`` — a concurrent
+    same-scope acquirer beat us, or a stale survivor sits at the path). Any other
+    OSError propagates (a genuine filesystem failure should not be masked as a
+    benign "already exists").
+
+    ``O_EXCL`` is the cross-platform no-overwrite primitive — it works on Windows
+    (no ``fcntl`` needed), satisfying REQ-R5a's Windows constraint.
+    """
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    try:
+        fd = os.open(str(lock_path), flags, 0o644)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, _serialize_lock(payload))
+    finally:
+        os.close(fd)
+    return True
+
+
+def _reclaim_stale_lock(lock_path: Path, payload: dict[str, Any]) -> bool:
+    """Atomically replace a STALE lock at `lock_path` with a fresh `payload`.
+
+    The fresh lock is first staged in an EXCL-created temp (so two acquirers
+    racing to reclaim the same stale lock cannot both stage), then swapped over
+    the stale lock with ``os.replace`` (atomic on POSIX and Windows — same
+    primitive hooks/inflight_inbox.py uses). Returns True iff this call performed
+    the swap; False if it lost the temp-create race to another reclaimer (its
+    temp already existed) or the swap failed.
+    """
+    tmp_path = lock_path.with_name(lock_path.name + _LOCK_TMP_SUFFIX)
+    # Stage the fresh lock in our own EXCL temp; losing this race => someone else
+    # is reclaiming, so we back off and report failure (the caller re-reads the
+    # winner).
+    if not _write_lock_excl(tmp_path, payload):
+        return False
+    try:
+        os.replace(str(tmp_path), str(lock_path))
+    except OSError:
+        _safe_unlink(tmp_path)
+        return False
+    return True
+
+
+def _read_lock(lock_path: Path) -> dict[str, Any] | None:
+    """Read+parse a single lock file. Returns None on any read/parse failure."""
+    try:
+        data = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if any(f not in data for f in _REQUIRED_LOCK_FIELDS):
+        return None
+    return data
+
+
+def _lock_position(lock: dict[str, Any]) -> tuple[str, str]:
+    """The deterministic ordering key for a lock: ``(acquired_at, holder)``.
+
+    The earlier ``acquired_at`` wins; ties (same clock-second) break on the
+    holder/session-id string. ISO-8601 UTC timestamps sort correctly
+    lexicographically, so a plain tuple compare gives the wall-clock order. A
+    missing/non-string field sorts LAST (an ill-formed competitor never wins the
+    tiebreak against a well-formed one).
+    """
+    acquired = lock.get("acquired_at")
+    holder = lock.get("holder")
+    acquired_key = acquired if isinstance(acquired, str) else "~"  # '~' > digits/'T'
+    holder_key = holder if isinstance(holder, str) else "~"
+    return (acquired_key, holder_key)
+
+
+def _earlier_intersecting_winner(
+    locks_dir: Path,
+    scope_glob: str,
+    own: dict[str, Any],
+) -> dict[str, Any] | None:
+    """SINGLE-SCAN primitive: the live intersecting lock out-ranking `own`, else None.
+
+    After our EXCL write landed, a DIFFERENT-scope acquirer (different filename —
+    invisible to our EXCL) may hold an intersecting scope. We scan every OTHER
+    live lock; among those whose scope intersects ours, the one with the smallest
+    ``(acquired_at, holder)`` position wins. If that winner ranks strictly EARLIER
+    than `own`, we must yield to it; otherwise this scan sees no blocker.
+
+    This is ONE observation — used by `_resolve_intersecting_race`, which repeats
+    it across a confirmation window to close the race where a competitor's file
+    is not yet visible at the first scan. Our own lock is excluded by lock_id; the
+    strict ``<`` comparison means an exact position tie keeps our lock (no
+    double-release).
+    """
+    own_id = own.get("lock_id")
+    own_pos = _lock_position(own)
+    best: dict[str, Any] | None = None
+    best_pos: tuple[str, str] | None = None
+    for path, lock in _iter_valid_locks(locks_dir):
+        if lock.get("lock_id") == own_id:
+            continue
+        held_scope = lock.get("scope_glob")
+        if not isinstance(held_scope, str):
+            continue
+        if not globs_intersect(scope_glob, held_scope):
+            continue
+        pos = _lock_position(lock)
+        if best_pos is None or pos < best_pos:
+            best, best_pos = lock, pos
+    if best is not None and best_pos is not None and best_pos < own_pos:
+        return best
+    return None
+
+
+def _resolve_intersecting_race(
+    locks_dir: Path,
+    scope_glob: str,
+    own: dict[str, Any],
+) -> dict[str, Any] | None:
+    """STABILIZED resolver: the intersecting winner `own` must yield to, or None.
+
+    The single-scan `_earlier_intersecting_winner` has a race: a LATER acquirer
+    that scans BEFORE an EARLIER competitor's file is visible sees no blocker and
+    keeps its lock — then the earlier competitor, scanning later, also keeps
+    (it is earliest), so BOTH hold and the intersecting race is unresolved.
+
+    The fix is to stabilize the "I see no earlier competitor" observation:
+
+      - ANY scan that reveals an earlier competitor short-circuits to "yield"
+        immediately (return that competitor). The earlier writer is never wrong
+        to be yielded to.
+      - Concluding "keep" (return None) requires `_RESCAN_CONFIRMATIONS`
+        CONSECUTIVE clean scans separated by `_RESCAN_INTERVAL_SECONDS`. A
+        competitor whose file lands during the window is caught on a later scan
+        and forces the yield.
+
+    Termination is guaranteed: the loop runs a fixed number of bounded-sleep
+    iterations. Correctness across cooperating acquirers: the globally EARLIEST
+    intersecting acquirer can never see an earlier competitor, so it always keeps;
+    every LATER acquirer eventually observes the earliest (its file is durable
+    once written) within the confirmation window and yields. The residual
+    advisory boundary (a non-cooperating writer, or a competitor delayed beyond
+    the whole window) is documented in the module docstring.
+    """
+    clean_streak = 0
+    last_winner: dict[str, Any] | None = None
+    for attempt in range(_RESCAN_CONFIRMATIONS):
+        winner = _earlier_intersecting_winner(locks_dir, scope_glob, own)
+        if winner is not None:
+            return winner  # an earlier competitor exists — yield now.
+        clean_streak += 1
+        last_winner = None
+        if clean_streak >= _RESCAN_CONFIRMATIONS:
+            break
+        time.sleep(_RESCAN_INTERVAL_SECONDS)
+    return last_winner
 
 
 def _iter_valid_locks(locks_dir: Path):

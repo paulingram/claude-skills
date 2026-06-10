@@ -71,20 +71,24 @@ def test_mini_pipeline_has_meta_gate() -> None:
     assert "verify-no-unilateral-override" in body
 
 
-def test_pipelines_use_polyglot_python_pattern() -> None:
+def test_override_gate_polyglot_lives_in_cpc_table() -> None:
+    """v3.10.0 (R3c): the per-body v3.0.0 polyglot bash was collapsed into the
+    canonical `## Layer 3 gate invocation table (v3.10.0)` (the detect-once polyglot
+    form). Each pipeline body names the tool + references that table."""
+    cpc = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Layer 3 gate invocation table (v3.10.0)" in cpc
+    assert "verify-no-unilateral-override" in cpc, "the gate table must name the override tool"
+    assert "command -v python3 || command -v python" in cpc, "the table uses the detect-once polyglot form"
     for path in (
         REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md",
     ):
         body = path.read_text(encoding="utf-8")
-        invocations = [
-            ln for ln in body.splitlines()
-            if "verify-no-unilateral-override" in ln
-            and "python3" in ln
-            and "|| python" in ln
-        ]
-        assert invocations, f"{path.name}: missing polyglot v3.0.0 invocation"
+        assert "verify-no-unilateral-override" in body, f"{path.name}: must still name the override tool"
+        assert "Layer 3 gate invocation table (v3.10.0)" in body, (
+            f"{path.name}: must reference the canonical gate invocation table"
+        )
 
 
 # ---- hook registration ----

@@ -327,6 +327,28 @@ Verdict ingest: the `verify_live_data_wiring` Layer 3 tool (`hooks/vao_tools.py`
 
 A converged `live_data_wiring_findings` entry becomes a `live-data-wiring-gap` solution requirement that the existing fix loop acts on (same mechanism as `interaction-gap`). Do NOT route through `diagnostic-research-team` — the gap is fully diagnosed.
 
+## Accessibility axis (v3.10.0)
+
+For every UI-bearing slice the 3 `interaction-reviewer` agents ALSO audit accessibility — the same 3-reviewer Round-1 extension as the live-data axis (NO new agent role; the swarm IS the existing 3 reviewers; the v0.9.19 convergence protocol is unchanged in shape). Each reviewer writes findings into an `a11y_findings` block in their Round-1 draft; Round-2 convergence merges all three the same way it merges element classifications.
+
+The three things each reviewer audits, for every interactive element in the slice:
+
+1. **Keyboard reachability** — every interactive element is focusable and operable from the keyboard alone (reachable in the tab order, activatable with Enter / Space, no keyboard trap). A control reachable only by mouse is a gap.
+2. **Accessible names** — every control exposes an accessible name to assistive technology (a visible `<label>`, `aria-label`, `aria-labelledby`, or accessible text content). An icon-only button with no accessible name is a gap.
+3. **Automated-scan integration (axe-core via Playwright)** — when the slice's Playwright user-flows run, the reviewer runs an automated accessibility scan with `axe-core` against each flow's rendered page (`@axe-core/playwright`'s `AxeBuilder({ page }).analyze()`); every reported violation becomes a finding.
+
+The `a11y-gap` severity vocabulary (sub-kinds):
+
+| Sub-kind | Trigger |
+|---|---|
+| `keyboard-unreachable` | An interactive element is not focusable / operable from the keyboard alone (not in tab order, or no Enter/Space activation, or a keyboard trap) |
+| `missing-accessible-name` | A control exposes no accessible name to assistive technology (no label / aria-label / aria-labelledby / accessible text) |
+| `axe-violation` | An `axe-core` scan against a flow's rendered page reported a violation (the rule id + node selector are cited) |
+
+A converged `a11y_findings` entry becomes a solution requirement with `origin.kind: "a11y-gap"` that the existing fix loop acts on (same mechanism as `interaction-gap`); the owning frontend team is spawned DIRECTLY (the gap is fully diagnosed — element + sub-kind + selector are named) — do NOT route through `diagnostic-research-team`. These gaps surface through the `ui_interaction_review` review-gate evidence field alongside the wiring/interaction gaps.
+
+**n/a rule (no-UI slices skip the axis).** A slice with no UI surface — no interactive elements, no pages / routes (a pure-logic, infra, config, or backend-only slice) — skips the accessibility axis entirely; the reviewers record the axis `n/a` with a one-line reason. (This plugin's own codebase is exactly such a no-UI surface: every coverage-map entry is `layer: infra`, so the accessibility axis is n/a for it.)
+
 ## Hard rules (non-negotiable)
 
 - Three reviewers, always — independent in Round 1, arguing in Round 2. Two cannot triangulate a judgment call; the third is the tie-break and the falsifier.

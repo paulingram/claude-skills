@@ -15,10 +15,10 @@ The orchestrator MUST invoke this skill before spawning a Phase 2 fix team for a
 
 - `rca-product-bug` — root-cause-test-failures escalated a product-bug finding.
 - `playwright-failure` — a Playwright user-flow test failed against the live dev env.
-- `integration-failure` — a dev-API integration test failed.
+- `integration-test-failure` — a dev-API integration test failed.
 - `integration-testing-failure` — the test-completeness-verifier found a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend instead of the real one.
 - `test-completeness-failure` — the test-completeness-verifier flagged a missing test kind that surfaced a regression.
-- `visual-fidelity-cascade` — visual-fidelity-reconciliation surfaced a cascade-blast-radius drift that points to upstream logic, not just CSS.
+- `visual-fidelity-drift` — visual-fidelity-reconciliation surfaced a cascade-blast-radius drift that points to upstream logic, not just CSS.
 
 For SRs whose `origin.kind` does NOT name a test-driven failure (e.g., a `feature-gap` SR derived from a new requirement, an `infra` SR for a missing migration), this skill does NOT fire — the fix team is spawned directly per the normal Phase 2 flow.
 

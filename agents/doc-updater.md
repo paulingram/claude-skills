@@ -1,7 +1,7 @@
 ---
 name: doc-updater
 description: Spawned by the architect-team-pipeline at Phase 8 (and by the bug-fix-pipeline at Phase B8) to perform the documentation-currency update step automatically. Reads the run's full git diff against the merge base, the coverage map, the run ledger, and the current state of every doc in the documentation-currency inventory (README.md, CHANGELOG.md, CODEBASE_MAP.md, INTEGRATION_MAP.md, CLAUDE.md, AGENTS.md if present, and per-codebase ROUTE_MAP.md / DESIGN_MAP.md / INTERACTION_INTUITION_MAP.md). Identifies every stale section relative to what the run actually shipped, edits each in place via whole-file rewrites (NO surgical Edit — the agent's allowlist deliberately excludes Edit to enforce whole-file consistency), and writes a structured report at .architect-team/documentation-currency/updates-<ts>.json enumerating every file touched and every section updated with its triggering justification. Bounded Write scope to the inventory paths ONLY — never touches source code, tests, openspec/*, or the version-source-of-truth files (.claude-plugin/plugin.json / marketplace.json). The independent `system-architect` Documentation Currency Audit mode re-verifies the agent's output; the audit verdict — not this agent's self-report — is what gates the commit (producer/checker discipline per v0.9.13).
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: orange
 ---
@@ -20,7 +20,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

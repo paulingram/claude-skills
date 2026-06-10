@@ -17,8 +17,12 @@ Design guarantees (per openspec change `project-email-notifications`):
     holding the provider secret; the value is read at send time and never
     written into the config file or any logged/printed line.
 
-Events (exactly five): phase_start, phase_complete, issue_discovered,
-git_commit, deploy.
+Events (exactly six): phase_start, phase_complete, issue_discovered,
+git_commit, deploy, heartbeat. The v3.10.0 `heartbeat` event (R6c) carries an
+unbounded-run liveness signal — the run id, current phase, elapsed time, and
+the QA-cycle / agents-dispatched counts — emitted during long phases and at
+post-first-hour phase boundaries. It honors the identical opt-in/best-effort
+contract as the other five; it never gates, blocks, or caps a run.
 
 Exit:
   Always 0. main() catches every exception (including argparse SystemExit).
@@ -42,7 +46,14 @@ from typing import Iterable
 
 CONFIG_FILENAME = ".architect-team-notify.json"
 
-EVENT_TYPES = ("phase_start", "phase_complete", "issue_discovered", "git_commit", "deploy")
+EVENT_TYPES = (
+    "phase_start",
+    "phase_complete",
+    "issue_discovered",
+    "git_commit",
+    "deploy",
+    "heartbeat",  # v3.10.0 (R6c) — unbounded-run liveness signal.
+)
 ALL_EVENTS = "all"
 
 VALID_PROVIDERS = ("gmail", "sendgrid")
@@ -372,10 +383,11 @@ def render_email(event: str, context: dict) -> tuple[str, str]:
 
     Each event's subject and body embed the relevant context: the phase name
     for phase events, the commit SHA for git_commit, the issue summary for
-    issue_discovered, and the deploy layer for deploy.
+    issue_discovered, the deploy layer for deploy, and the run-id / phase /
+    elapsed / QA-cycle / agents-dispatched liveness fields for heartbeat.
 
     Raises:
-        NotifyError: the event is not one of the five recognized types.
+        NotifyError: the event is not one of the six recognized types.
     """
     if event not in EVENT_TYPES:
         raise NotifyError(
@@ -411,11 +423,27 @@ def render_email(event: str, context: dict) -> tuple[str, str]:
             f"The architect-team pipeline for {project} created a git commit.\n\n"
             f"Commit: {commit}\n"
         )
-    else:  # deploy
+    elif event == "deploy":
         subject = f"[{project}] Deploy ({layer})"
         body = (
             f"A deploy occurred during the architect-team run for {project}.\n\n"
             f"Layer: {layer}\n"
+        )
+    else:  # heartbeat
+        run_id = context.get("run_id") or "(unknown run)"
+        elapsed = context.get("elapsed") or "(unknown elapsed)"
+        qa_cycles = context.get("qa_cycles")
+        agents = context.get("agents_dispatched")
+        qa_cycles_text = qa_cycles if qa_cycles is not None else "(unknown)"
+        agents_text = agents if agents is not None else "(unknown)"
+        subject = f"[{project}] Heartbeat — {phase}"
+        body = (
+            f"The architect-team run for {project} is alive and working.\n\n"
+            f"Run: {run_id}\n"
+            f"Phase: {phase}\n"
+            f"Elapsed: {elapsed}\n"
+            f"QA / dev-loop cycles: {qa_cycles_text}\n"
+            f"Agents dispatched: {agents_text}\n"
         )
 
     return subject, body
@@ -479,6 +507,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary", help="an issue summary (for issue_discovered)")
     parser.add_argument("--commit", help="a git commit SHA (for git_commit)")
     parser.add_argument("--layer", help="a deploy layer, e.g. backend (for deploy)")
+    # Heartbeat context (v3.10.0, R6c). Optional everywhere; only the heartbeat
+    # event renders them, and each gracefully degrades when omitted.
+    parser.add_argument("--run-id", help="the run id (for heartbeat)")
+    parser.add_argument(
+        "--elapsed", help="elapsed time since run start (for heartbeat)"
+    )
+    parser.add_argument(
+        "--qa-cycles", help="QA / dev-loop cycle count (for heartbeat)"
+    )
+    parser.add_argument(
+        "--agents-dispatched", help="agents-dispatched count (for heartbeat)"
+    )
     parser.add_argument(
         "--config",
         help=f"path to the notifier config (default: ./{CONFIG_FILENAME})",
@@ -493,6 +533,10 @@ def _context_from_args(args: argparse.Namespace) -> dict:
         "summary": args.summary,
         "commit": args.commit,
         "layer": args.layer,
+        "run_id": getattr(args, "run_id", None),
+        "elapsed": getattr(args, "elapsed", None),
+        "qa_cycles": getattr(args, "qa_cycles", None),
+        "agents_dispatched": getattr(args, "agents_dispatched", None),
     }
 
 

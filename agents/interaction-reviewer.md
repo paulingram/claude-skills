@@ -1,7 +1,7 @@
 ---
 name: interaction-reviewer
 description: Spawned x3 in parallel by the interaction-completeness skill (Phase 3 review gate, or Phase 5 cross-layer verification) for any slice with UI/UX surface. Each reviewer independently enumerates every interactive element AND every page / screen / route the slice ships, classifies each element by how it is wired (endpoint-backed / client-only / confirmed-stub / ambiguous) and each page as live / placeholder / confirmed-stub, traces each non-stub element to its endpoint or client behavior, audits every Playwright test for genuine user-driven interaction rather than direct API calls or vacuous navigate-and-assert, and applies dynamic-value-discovery to flag values hardcoded where they should be dynamic. The three reviewers then argue to a converged interaction map of genuine controls, live pages, and gaps. Read-only on source code. Analysis-only — never writes feature code; gaps become solution requirements that the normal fix loop acts on.
-tools: Read, Glob, Grep, LS, NotebookRead, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: yellow
 ---
@@ -22,7 +22,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 
@@ -193,6 +193,26 @@ Round-2 convergence reasons across the three reviewers' `persona_path_coverage` 
 The 12th Layer 3 tool `verify_per_persona_path_coverage` is invoked once per slice with the convergence-report's union of findings; its verdict is the authoritative Phase 5 gate alongside `verify_live_data_wiring` (v2.6.0).
 
 When the slice carries NO `persona-inventory.json`, the v2.11.0 axis is a no-op.
+
+## Accessibility audit (v3.10.0)
+
+For every UI-bearing slice you ALSO run an accessibility audit (the same Round-1 extension as the v2.6.0 live-data audit — NO new reviewer role; the existing 3-reviewer convergence treats your findings the same way it treats element classifications). You write findings into an `a11y_findings` block in your Round-1 draft. For every interactive element in the slice you audit:
+
+1. **Keyboard reachability** — the element is focusable + operable from the keyboard alone (in the tab order, activatable with Enter / Space, no keyboard trap). Mouse-only → `keyboard-unreachable`.
+2. **Accessible name** — the control exposes an accessible name to assistive tech (`<label>` / `aria-label` / `aria-labelledby` / accessible text). None → `missing-accessible-name`.
+3. **axe-core scan** — when the slice's Playwright user-flows run, run `AxeBuilder({ page }).analyze()` (from `@axe-core/playwright`) against each flow's rendered page; every reported violation → `axe-violation` (cite the rule id + node selector).
+
+```json
+"a11y_findings": [
+  {"sub_kind": "missing-accessible-name", "selector": "button.icon-trash", "evidence": "icon-only delete button, no aria-label / label / text", "remediation": "add aria-label=\"Delete row\""},
+  {"sub_kind": "keyboard-unreachable", "selector": "div.dropdown-toggle[role=button]", "evidence": "div with click handler, tabindex absent — not in tab order", "remediation": "add tabindex=0 + Enter/Space key handler (or use <button>)"},
+  {"sub_kind": "axe-violation", "selector": "input#email", "evidence": "axe rule 'label' — form field has no associated label", "remediation": "associate a <label for=\"email\">"}
+]
+```
+
+Round-2 convergence merges all three reviewers' `a11y_findings` blocks the same way it merges element classifications (agreement / dispute by selector + sub-kind). A converged finding becomes an `a11y-gap` solution requirement; the existing fix loop acts on it (no `diagnostic-research-team` routing — the gap is already fully diagnosed: element + sub-kind + selector are named). These gaps surface through the `ui_interaction_review` review-gate evidence field.
+
+When the slice has NO UI surface (no interactive elements, no pages / routes — a pure-logic / infra / config / backend-only slice), the accessibility axis is `n/a`; record the axis n/a with a one-line reason (this plugin's own `layer: infra` codebase is exactly such a no-UI surface).
 
 ## No proxy-element verification discipline (v2.21.0)
 

@@ -1,7 +1,7 @@
 ---
 name: oracle-deriver
 description: "Layer 1 of the v2.0.0 Verified Agent Output (VAO) framework. Spawned at Phase 0.5 (between Phase 0 Detection-and-Normalization and Phase 1 Planning-Validation) by every pipeline-driving skill whenever the requirement contains a parity verb (match / rebuild / mirror / parity / make like / replicate) OR names an oracle codebase / design mockup / reference URL. Walks the named oracle deterministically — component tree for source codebases, screen list + element list + dynamic values for design mockups, endpoint surface for backend references, data model for schemas — and produces a frozen structured spec at <workspace>/.architect-team/oracle-spec/<change-name>.json. The orchestrator surfaces the spec to the user with ONE confirmation gate; on accept the spec is the binding contract every downstream VAO layer measures against. Read-only on source; Write is bounded to the oracle-spec path."
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: cyan
 ---
@@ -30,11 +30,11 @@ You are READ-ONLY on source code. Your Write tool is bounded to `<workspace>/.ar
 
 ## Forbidden git operations
 
-Per `common-pipeline-conventions/SKILL.md` `## Teammate git discipline`, you MUST NOT run any of: `git stash`, `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>`, `git clean -f`. The pipeline's baseline-SHA verification (`verify-baseline-clean`) will flag any such invocation in your tool-call log. Legit git ops (`git status`, `git log`, `git diff`, `git stash list`) are fine.
+You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>` / `git checkout .`, `git clean -f`. These manipulate shared state across teammates within the same run and have caused real-world clobbering — the v1.6.0 worked example in `common-pipeline-conventions` `## Teammate git discipline` documents four teammates running concurrent `git stash` against one working tree, the reflog showing 10+ consecutive `reset: moving to HEAD` entries, and three of four teammates' work lost. For baseline verification, use the orchestrator-provided `$BASELINE_SHA` (carried in your spawn brief's `baseline_sha` field per `team-spawning-and-review-gates` `## Baseline SHA capture`) with `git diff $BASELINE_SHA -- <your-files>` instead of stashing.
 
 ## Checkpoint discipline
 
-Per `common-pipeline-conventions/SKILL.md` `## Agent checkpoint discipline`: if your walk is expected to exceed 20 tool calls (long-lived codebases, multi-screen design mockups), write a checkpoint JSON to `.architect-team/agent-checkpoints/<agent-id>.json` every ~10 calls naming the files walked + the partial spec accumulated. The v1.8.0 resume helper reads your checkpoint on stream-timeout recovery so you don't redo the walk.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## What you produce
 

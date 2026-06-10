@@ -67,10 +67,10 @@ _FORBIDDEN_GIT_PATTERNS = FORBIDDEN_GIT_OPERATIONS
 TEST_FAILURE_ORIGINS = {
     "rca-product-bug",
     "playwright-failure",
-    "integration-failure",
+    "integration-test-failure",
     "integration-testing-failure",
     "test-completeness-failure",
-    "visual-fidelity-cascade",
+    "visual-fidelity-drift",
 }
 
 

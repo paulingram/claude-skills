@@ -157,12 +157,7 @@ When `mandate.active == false`, no deploy-mandate state is set; the v2.20.0 tool
 Runs AFTER the Phase −2 triage (so the bug-fix-pipeline branch inherits the same check) and BEFORE Phase −1 — Intake & Mapping. Per `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`:
 
 1. Resolve `<workspace>` (the repo root the run targets — same as Phase −1A).
-2. Invoke the freshness check:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json"
-   ```
-
+2. Invoke the freshness check `verify-discipline-registry-current` per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Discipline-freshness row; best-effort, never blocks).
 3. Read the verdict JSON. For each `gap` in the verdict:
    - If `gap.auto_apply_safe` is `true` AND `gap.auto_update_command` is non-null: print the banner `▸ CT6 v2.18.0: applying <discipline> (auto-update — discipline-registry was missing or stale)`, invoke the named command/skill once against the workspace, then record the application via `hooks.discipline_registry.record_application(workspace, discipline, ct6_version=..., applied_by_run_id=..., artifact_path=..., summary={...})`.
    - If `gap.auto_apply_safe` is `false`: emit a solution requirement with `origin.kind = gap.sr_origin_kind or "discipline-not-applied"`. The existing fix loop handles it via the bug-fix-pipeline OR the feature-pipeline's Phase 2 (depending on the discipline's nature).
@@ -189,13 +184,7 @@ for msg in messages:
                    classification="...", action_taken="...")
 ```
 
-Phase 8 invokes the 17th Layer 3 tool to gate against silently-ignored messages:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json"
-```
-
-A `clarification-silently-ignored` gap is a Phase 8 gate failure — process the message, mark it processed, re-run Phase 8.
+Phase 8 invokes the 17th Layer 3 tool `verify-inflight-clarifications-processed` to gate against silently-ignored messages, per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the In-flight inbox row). A `clarification-silently-ignored` gap is a Phase 8 gate failure — process the message, mark it processed, re-run Phase 8.
 
 See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home + the slash-command channel (`/architect-team:inject <message>`).
 
@@ -470,7 +459,7 @@ After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression 
      This invocation is best-effort and NEVER blocks or alters the SR intake — a notifier failure does not stop the SR from being processed.
    - **Auto-mine the SR to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<SR-path>" --wing <wing>`. Mine BEFORE invoking diagnostic-research-team so the SR is discoverable even if the diagnostic loop is in progress.
    - If `affected_requirements` is populated → append/update entries in the active change's `coverage-map.json` referencing the SR ID. If empty → derive a new coverage-map entry from `acceptance_criteria` + `affected_screens` + `scope`.
-   - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, or `visual-fidelity-cascade`): the Lead invokes the `diagnostic-research-team` skill before dispatching the fix team.** This is non-optional. Each diagnostic-researcher applies `superpowers:systematic-debugging` — find the root cause before any fix is proposed, per `## Plugin prerequisites (v3.9.0)`. Per the skill, the Lead creates 3 `diagnostic-researcher` tasks in the shared list (teams mode) OR dispatches 3 `diagnostic-researcher` subagents in parallel via a single Agent-tool batch (subagents mode), then the Lead creates a `system-architect` task (teams mode) OR dispatches the `system-architect` subagent (subagents mode) to review robustness, producing a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. No researcher spawns the architect; only the Lead does. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. **Auto-mine the entire diagnostic-research dir** when the plan is approved: `mempalace --palace <palace> mine "<cwd>/.architect-team/diagnostic-research/<test-id>/" --wing <wing>`. The fix team CANNOT be dispatched until `diagnostic_plan_path` is populated and the plan file exists on disk. The diagnostic-research-team skill loops until the architect converges — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses ONLY if a required input that only the owner can supply is missing (surfaced loudly while the rest of the run continues), never on cycle count. While that loop is in progress or paused for required input, the Lead does NOT skip ahead to fix-team dispatch.
+   - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, or `visual-fidelity-drift`): the Lead invokes the `diagnostic-research-team` skill before dispatching the fix team.** This is non-optional. Each diagnostic-researcher applies `superpowers:systematic-debugging` — find the root cause before any fix is proposed, per `## Plugin prerequisites (v3.9.0)`. Per the skill, the Lead creates 3 `diagnostic-researcher` tasks in the shared list (teams mode) OR dispatches 3 `diagnostic-researcher` subagents in parallel via a single Agent-tool batch (subagents mode), then the Lead creates a `system-architect` task (teams mode) OR dispatches the `system-architect` subagent (subagents mode) to review robustness, producing a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. No researcher spawns the architect; only the Lead does. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. **Auto-mine the entire diagnostic-research dir** when the plan is approved: `mempalace --palace <palace> mine "<cwd>/.architect-team/diagnostic-research/<test-id>/" --wing <wing>`. The fix team CANNOT be dispatched until `diagnostic_plan_path` is populated and the plan file exists on disk. The diagnostic-research-team skill loops until the architect converges — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses ONLY if a required input that only the owner can supply is missing (surfaced loudly while the rest of the run continues), never on cycle count. While that loop is in progress or paused for required input, the Lead does NOT skip ahead to fix-team dispatch.
    - The Lead dispatches a Phase 2 fix team per `team-spawning-and-review-gates` rules — creating fix tasks in the shared list (teams mode) OR dispatching fix subagents via a single Agent-tool batch (subagents mode), using `suggested_team` as the hint and `scope.files_to_change` as `files_owned`. The teammate manifest's `expected_review_evidence` includes the task ID generated for the fix. The fix team's brief includes: the SR file path, verbatim `acceptance_criteria` (the originating failing test MUST be among them), a pointer to the original failing test as the verification check, AND (when the SR is a test-failure origin) the `diagnostic_plan_path` with the directive **"READ THIS PLAN FIRST. Your first work item is the pre-fix verification checklist in the plan. Do NOT propose a fix until you have captured every observation in that checklist."**
    - Update the SR: `status: "in_progress"`, add `spawned_teammate: "<name>"` and `spawned_at: "<ISO 8601 UTC>"`.
 3. **The fix flows through Phase 2 → Phase 3 → Phase 4 → Phase 5** as a normal dev-loop iteration. When the originating test reaches verdict `pass` at Phase 5, the orchestrator marks the SR `status: "resolved"` with `resolved_at` and `resolved_by` (commit SHA), then unblocks the ORIGINATING teammate's task (the one whose failure surfaced the SR). The originating teammate re-runs whatever they were waiting on; their loop converges.
@@ -554,11 +543,7 @@ Once all task groups report complete:
 
 ### Deploy mandate final gate (v2.20.0)
 
-If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool BEFORE emitting the final report:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json"
-```
+If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool `verify-deploy-mandate-satisfied` BEFORE emitting the final report — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Deploy-mandate row; it BLOCKS).
 
 A non-zero exit (any of the 4 severities — `deploy-mandate-not-satisfied` / `plan-only-deliverable-on-deploy-mandate` / `adjacent-dependencies-claimed-as-deployment` / `partial-deploy-passed-off-as-deploy`) is a hard-fail. The orchestrator MUST NOT commit or push the run. The fix loop kicks in: route SRs with `origin.kind: "deploy-mandate-not-satisfied"`; the existing team-dispatch surface (backend if missing `deploy_target_url`; frontend if missing `frontend_url` or `unwired_elements_count > 0`) handles each gap.
 
@@ -566,13 +551,7 @@ See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.
 
 ### Unilateral-override meta-gate (v3.0.0)
 
-After all per-discipline Phase 8 gates pass, run the 21st Layer 3 tool as a META-confession check across every text artifact the run produced (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json"
-```
-
-Where `<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json` is a JSON dict mapping source-name → text content (e.g., `{"final_report": "...", "verification_text": "...", "qa_replayer_notes": "..."}`).
+After all per-discipline Phase 8 gates pass, run the 21st Layer 3 tool `verify-no-unilateral-override` as a META-confession check across every text artifact the run produced (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). The `--sources` input is a JSON dict at `<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json` mapping source-name → text content (e.g., `{"final_report": "...", "verification_text": "...", "qa_replayer_notes": "..."}`).
 
 A single severity (`unilateral-override-with-virtue-framed-confession`) fires when ANY source contains a virtue-framed opener + element-of-bypass admission. The orchestrator MUST NOT commit on a fail — re-invoke the pipeline against the same user prompt and produce text without the confession ritual.
 

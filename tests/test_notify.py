@@ -418,15 +418,23 @@ def test_provider_base_has_no_abstract_send(notify: ModuleType) -> None:
 # =============================================================================
 
 
-def test_exactly_five_event_types(notify: ModuleType) -> None:
-    """Scenario foundation: exactly the five recognized event types."""
+def test_exactly_six_event_types(notify: ModuleType) -> None:
+    """Scenario foundation: exactly the six recognized event types.
+
+    v3.10.0 (R6c) adds the sixth event, `heartbeat` — the unbounded-run
+    liveness signal. The other five fire at fixed pipeline phases; heartbeat is
+    emitted during long phases / post-first-hour phase boundaries (CPC
+    `### Heartbeat discipline`).
+    """
     assert set(notify.EVENT_TYPES) == {
         "phase_start",
         "phase_complete",
         "issue_discovered",
         "git_commit",
         "deploy",
+        "heartbeat",
     }
+    assert len(notify.EVENT_TYPES) == 6
 
 
 def test_event_reaches_only_subscribed_recipients(notify: ModuleType) -> None:

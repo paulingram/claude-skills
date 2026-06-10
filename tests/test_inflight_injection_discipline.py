@@ -78,20 +78,24 @@ def test_mini_pipeline_has_phase_boundary_inbox_check() -> None:
     assert "verify-inflight-clarifications-processed" in body
 
 
-def test_each_pipeline_uses_polyglot_pattern_for_layer3_tool() -> None:
+def test_inflight_gate_polyglot_lives_in_cpc_table() -> None:
+    """v3.10.0 (R3c): the per-body v2.19.0 polyglot bash was collapsed into the
+    canonical `## Layer 3 gate invocation table (v3.10.0)` (the detect-once polyglot
+    form). Each pipeline body names the tool + references that table."""
+    cpc = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Layer 3 gate invocation table (v3.10.0)" in cpc
+    assert "verify-inflight-clarifications-processed" in cpc, "the gate table must name the inflight tool"
+    assert "command -v python3 || command -v python" in cpc, "the table uses the detect-once polyglot form"
     for path in (
         REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md",
     ):
         body = path.read_text(encoding="utf-8")
-        invocation_lines = [
-            ln for ln in body.splitlines()
-            if "verify-inflight-clarifications-processed" in ln
-            and "python3" in ln
-            and "|| python" in ln
-        ]
-        assert invocation_lines, f"{path.name}: missing polyglot v2.19.0 invocation"
+        assert "verify-inflight-clarifications-processed" in body, f"{path.name}: must still name the inflight tool"
+        assert "Layer 3 gate invocation table (v3.10.0)" in body, (
+            f"{path.name}: must reference the canonical gate invocation table"
+        )
 
 
 def test_canonical_fixture_exists() -> None:

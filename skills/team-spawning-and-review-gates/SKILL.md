@@ -33,6 +33,27 @@ Two teammates MUST NEVER edit the same file. Period.
 - `relevant_codebase_map_sections`: paths into CODEBASE_MAP.md.
 - `reuse_decisions`: the relevant entries from `design.md`'s Reuse Decisions section.
 - `plan_approval_mode`: `true` if any of the triggers below apply.
+- `vao_adversarial_role`: the adversarial-reviewer shape paired with this teammate (see the selection rules below).
+
+### Adversarial-reviewer shape selection (v2.0.0 + v3.10.0 `security-hunter`)
+
+Every Phase 3 teammate is paired with an `adversarial-reviewer` whose `vao_adversarial_role` is chosen by the task shape (the agent body `agents/adversarial-reviewer.md` documents the six shapes). The pairing rules:
+
+| Task shape | `vao_adversarial_role`(s) to spawn |
+|---|---|
+| `parity-verb` (match / rebuild / mirror / parity / replicate) | `oracle-divergence-hunter` |
+| `backend-dep` (the slice depends on a backend endpoint / data) | **BOTH `fake-data-hunter` AND `security-hunter`** |
+| `dynamic-value` (renders per-user / per-record values) | `hardcoded-literal-hunter` |
+| `shared-tree` (always-on, every teammate) | `git-discipline-hunter` |
+| any other | `general-anti-pattern-hunter` |
+
+**`security-hunter` trigger rules (v3.10.0) — mandatory when ANY holds:**
+
+1. The task is a **`backend-dep`** shape → spawn BOTH `fake-data-hunter` AND `security-hunter` (a backend-touching slice is exactly where authz / injection / secret defects land).
+2. The teammate's diff **touches `auth/` or any security-sensitive path** (auth, session, crypto, permission, RBAC, token, password, secret) → `security-hunter` is mandatory regardless of task shape.
+3. The change **adds a third-party dependency** (a new entry in any package manifest) → `security-hunter` is mandatory; it checks the dependency-addition justification (a Reuse Decision + a stated reason).
+
+A confirmed `security-hunter` finding is routed as a solution requirement with `origin.kind: "security-finding"` (see `## Solution Requirements`); it is NOT a Layer 3 `verify_*` verdict severity.
 
 ## CDLG overlap — shared callees, not just shared files (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-01)
 
@@ -312,7 +333,7 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
   "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
   "created_at": "<ISO 8601 UTC>",
   "origin": {
-    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap" | "unwired-control" | "placeholder-page" | "hardcoded-dynamic-value" | "missing-api-for-frontend-element",
+    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap" | "unwired-control" | "placeholder-page" | "hardcoded-dynamic-value" | "missing-api-for-frontend-element" | "security-finding" | "a11y-gap" | "cross-layer-backend-required" | "cross-layer-frontend-required" | "incomplete-implementation-scope-required" | "live-data-wiring-gap" | "affordance-coverage-gap",
     "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
     "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
     "test_id": "<failing test ID, if applicable>",
@@ -349,8 +370,13 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
 ### Required field validity
 
 - `solution_id` must be unique and `_safe_id()`-compatible.
-- `origin.kind` must be one of the enumerated values (`playwright-failure`, `integration-test-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`, `integration-testing-failure`, `editability-gap`, `unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`, `missing-api-for-frontend-element`); agents MUST NOT invent new kinds.
-- `editability-gap` SRs — and the three interaction-gap kinds (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) — spawn a fix team DIRECTLY; they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged editable-surface map, and the `interaction-completeness` team's converged interaction map, each already name the exact attribute / control / page / value, the exact trace stage or gap kind, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-cascade` — DO route through `diagnostic-research-team` first; the converged-map-origin kinds do not.)
+- `origin.kind` must be one of the **canonical catalog** values. This is the OPEN canonical catalog (an `origin.kind` is added here when a new discipline introduces one — agents do NOT invent ad-hoc kinds, but the catalog itself grows with the framework):
+  - **Test-failure origins** (route through `diagnostic-research-team` first): `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`.
+  - **Converged-map / known-shape origins** (spawn a fix team DIRECTLY): `editability-gap`, `unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`, `missing-api-for-frontend-element`, `live-data-wiring-gap`, `affordance-coverage-gap`, `a11y-gap`, `security-finding`.
+  - **Cross-layer / scope origins** (dispatched to the named layer/team): `cross-layer-backend-required`, `cross-layer-frontend-required`, `incomplete-implementation-scope-required`.
+  - **`security-finding` (v3.10.0)** is produced by the `security-hunter` adversarial shape (NOT a Layer 3 `verify_*` severity — it is a code-review finding routed as an SR). It spawns the owning team (backend for an authz / injection / deserialization / secret finding; the dependency-adding team for an unjustified dependency) DIRECTLY; the diagnosis is already complete in the finding's `{class, file, line, evidence, remediation}`.
+  - **`a11y-gap` (v3.10.0)** is produced by the `interaction-completeness` accessibility axis (sub-kinds `keyboard-unreachable` / `missing-accessible-name` / `axe-violation`); it spawns the owning frontend team DIRECTLY.
+- `editability-gap` SRs — and the three interaction-gap kinds (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) — spawn a fix team DIRECTLY; they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged editable-surface map, and the `interaction-completeness` team's converged interaction map, each already name the exact attribute / control / page / value, the exact trace stage or gap kind, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-drift` — DO route through `diagnostic-research-team` first; the converged-map-origin kinds do not. These spellings are canonical across the catalog, the runtime constant `hooks/shared_rule_constants.py::TEST_FAILURE_ORIGINS`, and the pipeline routing lists.)
 - **`missing-api-for-frontend-element` SRs (v1.7.0)** also spawn a fix team DIRECTLY — they do NOT route through `diagnostic-research-team` because this is not a test failure; it is a known-shape backend requirement. The frontend agent that authored the SR has already named the endpoint contract (method, path, request shape, response shape, error responses) in the `acceptance_criteria`. Routing: **the orchestrator dispatches the BACKEND agent FIRST** with the SR as input — the backend implements the endpoint per the SR's `acceptance_criteria`, surfaces the actual endpoint shape in its dispatch report, and marks the SR `resolved`. On backend completion, the orchestrator **re-dispatches the FRONTEND agent** with the SR marked `resolved` so the frontend can read the backend's dispatch report, confirm the shape matches its SR (or reconcile against a documented schema diff), and wire up the originally-paused UI element. The element's `interaction-completeness` classification flips from `pending-backend` to `endpoint-backed` once the wire-up lands. The pause-and-return cycle is the v1.7.0 alternative to faking / mocking / hardcoding / silently stubbing — see `common-pipeline-conventions` `## Frontend missing-API discipline` for the canonical rule.
 - `problem_summary` and `expected_behavior` are non-empty strings.
 - `evidence` is a non-empty array; an SR without evidence is an alert dressed as a requirement.
