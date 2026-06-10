@@ -561,3 +561,133 @@ def test_bug_fix_could_not_reproduce_b1_does_not_block_on_execution(script: Path
     _write_bug_fix_b6(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
     assert r.returncode == 0
+
+
+# ---- openspec validate --all --strict wired into the master-review gate ----
+
+
+def _load_audit_module(script: Path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("pca_openspec_gate", script)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _write_master_review_verdict(workspace: Path, overall: str = "pass") -> None:
+    mr = workspace / ".architect-team" / "master-review"
+    mr.mkdir(parents=True, exist_ok=True)
+    # Colon-free filename — Windows rejects ':' in paths; the hook globs
+    # audit-*.json so the exact stamp format does not matter for the match.
+    (mr / "audit-2026-06-10T000000Z.json").write_text(
+        json.dumps({"overall": overall, "verified_at": "2026-06-10T00:00:00Z"}),
+        encoding="utf-8",
+    )
+
+
+def _fake_run(stdout: str, returncode: int = 0):
+    def _run(cmd, **kwargs):  # noqa: ANN001 - mirrors subprocess.run loosely
+        return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
+    return _run
+
+
+def _patch_openspec(monkeypatch, mod, *, which, run=None) -> None:
+    """Patch the module's shutil.which / subprocess.run via monkeypatch so they
+    are RESTORED after the test. NOTE: mod.shutil / mod.subprocess are the global
+    module singletons — a bare assignment would leak the fake across the whole
+    test process (breaking every later test that shells out); monkeypatch.setattr
+    undoes it on teardown."""
+    monkeypatch.setattr(mod.shutil, "which", which)
+    if run is not None:
+        monkeypatch.setattr(mod.subprocess, "run", run)
+
+
+def test_openspec_gate_noop_without_master_review_verdict(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The deterministic openspec check is scoped to the master-review gate: with
+    no Phase 7 verdict it is a no-op even if an openspec/ workspace + CLI exist."""
+    mod = _load_audit_module(script)
+    (workspace / "openspec").mkdir()
+    invalid = json.dumps({"items": [{"id": "x", "valid": False}]})
+    _patch_openspec(monkeypatch, mod, which=lambda name: "/usr/bin/openspec", run=_fake_run(invalid))
+    assert mod._audit_openspec_validation(workspace, workspace / ".architect-team") == []
+
+
+def test_openspec_gate_noop_without_openspec_dir(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mod = _load_audit_module(script)
+    _write_master_review_verdict(workspace)
+    invalid = json.dumps({"items": [{"id": "x", "valid": False}]})
+    _patch_openspec(monkeypatch, mod, which=lambda name: "/usr/bin/openspec", run=_fake_run(invalid))
+    assert mod._audit_openspec_validation(workspace, workspace / ".architect-team") == []
+
+
+def test_openspec_gate_noop_when_cli_absent(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Best-effort: a missing openspec CLI never wedges the session."""
+    mod = _load_audit_module(script)
+    _write_master_review_verdict(workspace)
+    (workspace / "openspec").mkdir()
+    _patch_openspec(monkeypatch, mod, which=lambda name: None)
+    assert mod._audit_openspec_validation(workspace, workspace / ".architect-team") == []
+
+
+def test_openspec_gate_passes_when_all_valid(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mod = _load_audit_module(script)
+    _write_master_review_verdict(workspace)
+    (workspace / "openspec").mkdir()
+    valid = json.dumps({"items": [{"id": "a", "valid": True}, {"id": "b", "valid": True}]})
+    _patch_openspec(monkeypatch, mod, which=lambda name: "/usr/bin/openspec", run=_fake_run(valid))
+    assert mod._audit_openspec_validation(workspace, workspace / ".architect-team") == []
+
+
+def test_openspec_gate_blocks_on_invalid_change(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mod = _load_audit_module(script)
+    _write_master_review_verdict(workspace)
+    (workspace / "openspec").mkdir()
+    out = json.dumps({"items": [
+        {"id": "good-change", "valid": True},
+        {"id": "orphan-one", "valid": False},
+        {"id": "orphan-two", "valid": False},
+    ]})
+    _patch_openspec(monkeypatch, mod, which=lambda name: "/usr/bin/openspec", run=_fake_run(out, returncode=1))
+    violations = mod._audit_openspec_validation(workspace, workspace / ".architect-team")
+    assert len(violations) == 1
+    assert "2 invalid change(s)" in violations[0]
+    assert "orphan-one" in violations[0] and "orphan-two" in violations[0]
+    assert "good-change" not in violations[0]
+
+
+def test_openspec_gate_noop_on_subprocess_error(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mod = _load_audit_module(script)
+    _write_master_review_verdict(workspace)
+    (workspace / "openspec").mkdir()
+
+    def _boom(cmd, **kwargs):  # noqa: ANN001
+        raise OSError("openspec exploded")
+
+    _patch_openspec(monkeypatch, mod, which=lambda name: "/usr/bin/openspec", run=_boom)
+    assert mod._audit_openspec_validation(workspace, workspace / ".architect-team") == []
+
+
+def test_openspec_gate_blocks_on_nonzero_unparseable_output(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mod = _load_audit_module(script)
+    _write_master_review_verdict(workspace)
+    (workspace / "openspec").mkdir()
+    _patch_openspec(monkeypatch, mod, which=lambda name: "/usr/bin/openspec", run=_fake_run("not json at all", returncode=1))
+    violations = mod._audit_openspec_validation(workspace, workspace / ".architect-team")
+    assert len(violations) == 1
+    assert "failed at the Phase 7" in violations[0]

@@ -37,6 +37,8 @@ Exit codes: 0 = allow / not-an-architect-team-run / clean. 2 = block.
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -295,6 +297,63 @@ def _audit_master_review(at: Path) -> list[str]:
     return violations
 
 
+def _audit_openspec_validation(root: Path, at: Path) -> list[str]:
+    """Deterministic half of the Phase 7 master-review gate: the hook
+    INDEPENDENTLY runs ``openspec validate --all --strict`` from the repo root
+    rather than trusting the ``system-architect`` agent's self-reported verdict
+    (producer/checker — the agent's Master Review Audit mode is instructed to run
+    it, but a hook that re-runs it cannot be skipped or mis-reported). Any change
+    that fails strict validation blocks the run.
+
+    Scoped to the master-review gate: this only runs once a Phase 7 master-review
+    audit verdict exists (mirrors ``_audit_master_review``'s conservatism — a run
+    that has not reached Phase 7 is covered by the other ``_audit_*`` checks, and
+    we do not want to shell out to ``openspec`` on every Stop of an early-phase
+    run). Best-effort on the toolchain: if there is no ``openspec/`` workspace or
+    the ``openspec`` CLI is not on PATH, this is a no-op (the validation cannot
+    run — never wedge a session on a missing CLI; setup.py already hard-blocks a
+    missing openspec prerequisite)."""
+    violations: list[str] = []
+    mr_dir = at / "master-review"
+    if not (mr_dir.is_dir() and any(mr_dir.glob("audit-*.json"))):
+        return violations
+    if not (root / "openspec").is_dir():
+        return violations
+    openspec = shutil.which("openspec")
+    if not openspec:
+        return violations
+    try:
+        res = subprocess.run(
+            [openspec, "validate", "--all", "--strict", "--json"],
+            cwd=str(root), capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return violations  # never wedge a session on a subprocess failure
+    try:
+        data = json.loads(res.stdout or "")
+    except json.JSONDecodeError:
+        if res.returncode != 0:
+            violations.append(
+                "openspec validate --all --strict failed at the Phase 7 "
+                "master-review gate (non-zero exit; unparseable output) — fix the "
+                "invalid change(s) before the run completes"
+            )
+        return violations
+    items = (data or {}).get("items") or []
+    invalid = sorted(
+        str(it.get("id"))
+        for it in items
+        if isinstance(it, dict) and not it.get("valid", True)
+    )
+    if invalid:
+        violations.append(
+            "openspec validate --all --strict reports "
+            f"{len(invalid)} invalid change(s) at the Phase 7 master-review gate: "
+            f"{', '.join(invalid)} — fix or archive them before the run completes"
+        )
+    return violations
+
+
 def _audit_documentation_currency(at: Path) -> list[str]:
     """If a run produced a Phase 8 documentation-currency audit verdict, the
     latest one must be `overall: pass`. The `system-architect` (Documentation
@@ -408,6 +467,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_test_completeness(at)
     violations += _audit_visual_fidelity(at)
     violations += _audit_master_review(at)
+    violations += _audit_openspec_validation(root, at)
     violations += _audit_documentation_currency(at)
     violations += _audit_bug_fix_testing(at)
     return True, violations

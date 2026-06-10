@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.9.2] — 2026-06-10 — `openspec validate --all --strict` wired into the master-review gate
+
+**PATCH — deterministic enforcement.** The `system-architect` Master Review Audit mode was already *instructed* to run `openspec validate --all --strict` (step 3), but the `pipeline-completion-audit` hook — the gate that actually blocks the Phase 8 commit — only read the agent's self-reported verdict; it never ran the validation itself. v3.9.2 closes that producer/checker gap.
+
+- **NEW `hooks/pipeline-completion-audit.py::_audit_openspec_validation(root, at)`** — independently runs `openspec validate --all --strict --json` from the repo root and blocks the run on any invalid active change. Scoped to the master-review gate: it fires only once a Phase 7 master-review audit verdict exists (mirrors `_audit_master_review`'s conservatism — early-phase runs are covered by the other `_audit_*` checks). Best-effort on the toolchain: a no-op when there is no `openspec/` workspace or the `openspec` CLI is off PATH (setup.py already hard-blocks a missing openspec prerequisite) and on any subprocess error — never wedges a session. Wired into `audit()` between `_audit_master_review` and `_audit_documentation_currency`.
+- **`agents/system-architect.md`** Master Review Audit step 3 — documents the dual (producer/checker) enforcement: a skipped or mis-reported `openspec_validate` cannot pass the gate because the hook re-runs the validation.
+- **`skills/architect-team-pipeline/SKILL.md`** Phase 7 step 5 — notes the deterministic re-run at the master-review gate.
+- 7 new tests in `tests/test_pipeline_completion_audit.py` (no-op without a master-review verdict / without `openspec/` / without the CLI; passes when all valid; blocks on invalid changes; no-op on subprocess error; blocks on non-zero unparseable output) — monkeypatched, CLI-independent.
+
+Net effect: a future run that leaves a stale / orphaned / malformed openspec change in `openspec/changes/` now hard-blocks at the master-review gate instead of shipping silently. Suite 3921 → 3928 passing (+5 skipped).
+
 ## [3.9.1] — 2026-06-10 — Maintenance: VAO precedence fix + OpenSpec change-folder hygiene
 
 **PATCH — two follow-ups surfaced by the v3.9.0 review.**
