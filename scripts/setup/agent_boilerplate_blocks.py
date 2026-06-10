@@ -97,7 +97,8 @@ STANDARD_AGENTS_FORBIDDEN_GIT = [
     "domain-researcher", "endpoint-tracer",
     "integration", "integration-explorer", "interaction-intuiter",
     "interaction-reviewer", "master-synthesizer", "mini-qa", "monitor-synthesizer",
-    "prompt-refiner", "qa-replayer", "reconciler", "route-mapper", "scaffold-agent",
+    "prompt-refiner", "qa-replayer", "reconciler", "reference-tracer",
+    "route-mapper", "scaffold-agent", "structure-adversary", "structure-analyst",
     "system-architect", "task-reviewer", "test-completeness-verifier",
     "test-run-watcher", "visual-analyzer", "visual-capture",
 ]

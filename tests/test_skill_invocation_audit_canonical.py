@@ -50,11 +50,11 @@ def test_canonical_commands_equals_commands_directory(audit_module) -> None:
     )
 
 
-def test_canonical_commands_has_19_entries(audit_module) -> None:
+def test_canonical_commands_has_20_entries(audit_module) -> None:
     on_disk = {p.stem for p in (REPO_ROOT / "commands").glob("*.md")}
     assert len(audit_module.CANONICAL_COMMANDS) == len(on_disk)
-    # The exact count at review-remediation time is 19.
-    assert len(audit_module.CANONICAL_COMMANDS) == 19
+    # 19 at review-remediation time; +1 (optimize-structure) in v3.11.0.
+    assert len(audit_module.CANONICAL_COMMANDS) == 20
 
 
 @pytest.mark.parametrize("phantom", ["mempalace-search", "mempalace-status", "code-review"])

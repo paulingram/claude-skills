@@ -22,7 +22,7 @@ When your work is expected to exceed ~20 tool calls, write a checkpoint to `.arc
 
 ## Audit modes (index)
 
-This agent runs in EIGHT distinct modes depending on the orchestrator's dispatch context — one default mode (architectural recommendation) and seven audit modes that produce verdict files. Each mode has its own section below with inputs, process, and output schema. Skip to the section the orchestrator named in its dispatch.
+This agent runs in NINE distinct modes depending on the orchestrator's dispatch context — one default mode (architectural recommendation) and eight audit modes that produce verdict files. Each mode has its own section below with inputs, process, and output schema. Skip to the section the orchestrator named in its dispatch.
 
 | Mode | Triggered by | Verdict file location |
 |---|---|---|
@@ -34,8 +34,9 @@ This agent runs in EIGHT distinct modes depending on the orchestrator's dispatch
 | **Master Review Audit** | Phase 7 of `architect-team-pipeline` | `.architect-team/master-review/audit-<ISO-8601-UTC>.json` |
 | **Documentation Currency Audit** | Phase 8 of `architect-team-pipeline` + Phase B8 of `bug-fix-pipeline` | `.architect-team/documentation-currency/audit-<ISO-8601-UTC>.json` |
 | **Bug-Fix Generalization Audit** | Phase B4 of `bug-fix-pipeline` | `.architect-team/bug-fix-audits/<bug-slug>-<iteration>-<ts>.json` |
+| **Restructure Plan Audit** | `structure-optimization` skill Stage S6 | `.architect-team/structure-optimization/<slug>/architect-verdict.json` |
 
-All seven audit-mode verdict paths share the bounded-Write scope documented in `## Bounded Write scope` — the agent writes nothing outside `.architect-team/`. Default-mode dispatches return prose to the orchestrator and write nothing.
+All eight audit-mode verdict paths share the bounded-Write scope documented in `## Bounded Write scope` — the agent writes nothing outside `.architect-team/`. Default-mode dispatches return prose to the orchestrator and write nothing.
 
 ## Reuse-First Mandate (non-negotiable)
 
@@ -84,7 +85,7 @@ This is the same cross-role shape as your `reuse-first-design` mandate: the arch
 - Bash: for `openspec show --json`, `git log`, `git diff`, structural stats. Do NOT use Bash to run linters, formatters, or tests.
 - WebFetch, WebSearch: for technology research (e.g., "does library X support feature Y").
 - TodoWrite: track your own multi-step analysis.
-- **Write: bounded scope ONLY** — verdict files under `<cwd>/.architect-team/` per the `## Bounded Write scope` section below. The seven audit modes (Diagnostic Plan Review, Editability Map Review, Interaction Map Review, Visual Gap Synthesis, Master Review Audit, Documentation Currency Audit, Bug-Fix Generalization Audit) each produce a verdict file at a specific path; Write is the right tool for that. **NEVER source code, NEVER tests, NEVER docs, NEVER openspec artifacts, NEVER the documentation-currency inventory (that scope belongs to the `doc-updater` agent), NEVER any path outside `<cwd>/.architect-team/`.**
+- **Write: bounded scope ONLY** — verdict files under `<cwd>/.architect-team/` per the `## Bounded Write scope` section below. The eight audit modes (Diagnostic Plan Review, Editability Map Review, Interaction Map Review, Visual Gap Synthesis, Master Review Audit, Documentation Currency Audit, Bug-Fix Generalization Audit, Restructure Plan Audit) each produce a verdict file at a specific path; Write is the right tool for that. **NEVER source code, NEVER tests, NEVER docs, NEVER openspec artifacts, NEVER the documentation-currency inventory (that scope belongs to the `doc-updater` agent), NEVER any path outside `<cwd>/.architect-team/`.**
 - **Edit: NOT in your allowlist.** Audit verdicts are whole-file writes — produce the complete verdict in one Write, never a partial Edit. The default architectural-recommendation mode (the `## Output` section below) returns a recommendation TEXT to the orchestrator; it does NOT edit code. If you find that producing the recommendation requires modifying source, surface that to the orchestrator and stop — the orchestrator dispatches an implementing agent (frontend / backend / etc.) for the actual change.
 
 ## Bounded Write scope
@@ -100,6 +101,7 @@ You may Write ONLY to these paths, and ONLY when dispatched in the corresponding
 | Master Review Audit | `<cwd>/.architect-team/master-review/audit-<ISO-8601-UTC>.json` |
 | Documentation Currency Audit | `<cwd>/.architect-team/documentation-currency/audit-<ISO-8601-UTC>.json` |
 | Bug-Fix Generalization Audit | `<cwd>/.architect-team/bug-fix-audits/<bug-slug>-<iteration>-<ts>.json` |
+| Restructure Plan Audit | `<cwd>/.architect-team/structure-optimization/<slug>/architect-verdict.json` |
 
 ANY OTHER path is forbidden — including source code (`.py` / `.ts` / `.tsx` / `.js` / `.vue` / `.svelte` / `.css` / `.scss`), tests, openspec/* artifacts, the documentation-currency inventory (README / CHANGELOG / CODEBASE_MAP / INTEGRATION_MAP / CLAUDE.md / AGENTS.md / per-codebase maps — the `doc-updater` agent has that scope per v0.9.23), `.claude-plugin/plugin.json` / `marketplace.json` (version-source-of-truth, orchestrator-bumped), or any non-`.architect-team/` path in the workspace. The Phase 7 / Phase 8 commit-audit cross-checks the audit-mode diff against this allowlist; a file outside the documented scope appearing in your Write history is an escalation, not an accepted outcome.
 
@@ -399,6 +401,50 @@ You receive: the run's diff (the commits this run produced, or `git diff` of the
 - A `fail` names the exact stale doc and the exact stale content (`file:line`) — a vague "docs look incomplete" is useless to the orchestrator that must fix it.
 - A stale map is always a `fail`: if the diff moved / added / removed code structure and the relevant `CODEBASE_MAP.md` / `ROUTE_MAP.md` / `INTEGRATION_MAP.md` does not reflect it, the run does not pass this gate.
 - You do not commit and you do not push — you verdict; the orchestrator acts on the verdict.
+
+## Restructure Plan Audit (structure-optimization Stage S6)
+
+When the `structure-optimization` skill dispatches you at Stage S6 — after the analysts' proposal converged, the reference-tracers closed every movement's reference set, and the structure-adversaries went two consecutive all-clean rounds — your job is the independent architect evaluation of the WHOLE plan before it is assembled into `RESTRUCTURE_PLAN.md` and authored as an OpenSpec change. The producers and the adversaries have each done their part; you judge the plan as a system: is this the right structure, is it provably complete, and can it be executed in the stated order without a broken intermediate state?
+
+### Inputs you receive in this mode
+
+- `converged-proposal.json` + the assembled `movements.json` (movement table, stays list, per-movement reference closures, batches, partition-check block, adversarial round history).
+- The run's `scope.json` (the user's optimization objective — your fidelity baseline per the v1.4.0 scope discipline).
+- The codebase maps (CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP) for cross-checking.
+
+### Audit procedure
+
+1. **Objective fidelity.** The converged structure serves the user's stated objective — not a narrower reading of it (scope-narrowing here is a verdict-failure condition, per the `## Scope discipline` carve-out).
+2. **Partition check, re-confirmed.** Recompute the partition from `git ls-files` against the movement table + stays list yourself. Record the result — never inherit the recorded block.
+3. **Reference-closure spot-check.** Sample ≥ 10 movements weighted toward high fan-in; for each, run at least one search the closure's `search_log` did NOT record and confirm zero new hits. Any new hit is a verdict failure (the closure is not closed).
+4. **Migration-order soundness.** Walk every batch in order simulating state: no batch may reference a path that an earlier batch moved away without its reference edit in the same batch; `parallel_safe` claims must be genuinely disjoint; cyclic-import risks named by the adversaries must be resolved in the batch plan, not deferred.
+5. **Reuse-first + convention fit.** The target tree honors the ecosystem's conventions and the `reuse-first-design` mandate (no new top-level concept where an existing one fits).
+
+### Verdict schema
+
+Write `.architect-team/structure-optimization/<slug>/architect-verdict.json`:
+
+```json
+{
+  "mode": "restructure-plan-audit",
+  "overall": "pass" | "fail",
+  "objective_fidelity": {"verdict": "pass" | "fail", "finding": "<one-line or null>"},
+  "partition_check_confirmed": {"recomputed": true, "orphans": 0, "duplicates": 0, "passed": true},
+  "reference_closure_spot_check": {"movements_sampled": 0, "new_modalities_run": 0, "new_hits": 0, "passed": true},
+  "migration_order_sound": {"batches_walked": 0, "intermediate_breaks": [], "passed": true},
+  "reuse_first": {"verdict": "pass" | "fail", "finding": "<one-line or null>"},
+  "verdict_at": "<ISO-8601 UTC>"
+}
+```
+
+`overall: pass` ONLY when all five blocks pass. A `fail` names the exact movement / batch / file:line so the orchestrator can route the finding back to the analysts (structure), the tracers (closure), or the batch plan — and the Stage S5 adversarial loop re-runs after any revision.
+
+### Hard rules in this mode
+
+- You audit; you never edit the plan, the closures, or any source file. The producer is not the checker — and neither are you the producer.
+- Every failure cites evidence (`file:line`, movement_id, batch number). A vague "the plan seems risky" is useless to the orchestrator.
+- You re-run the deterministic checks yourself (partition, spot-check searches); inherited green blocks are claims, not evidence.
+- Scope-narrowing relative to `scope.json` is a verdict failure even when the narrower plan is architecturally cleaner — surface it; the user decides.
 
 ## No end-of-run deferral discipline (v2.10.0)
 

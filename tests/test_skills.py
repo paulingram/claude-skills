@@ -46,6 +46,7 @@ EXPECTED_SKILLS: set[str] = {
     "data-engineering-exploration",
     "endpoint-trace-mapping",
     "data-lineage-mapping",
+    "structure-optimization",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
