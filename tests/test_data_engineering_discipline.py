@@ -9,12 +9,12 @@ COMMON = REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md"
 
 
 def test_canonical_section_present() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     assert "## Data engineering exploration discipline (v3.5.0)" in body
 
 
 def test_canonical_section_documents_7_stages() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     section = body.split("## Data engineering exploration discipline (v3.5.0)", 1)[1].split("\n## ", 1)[0]
     for stage in (
         "Stage 1 — Domain context",
@@ -29,7 +29,7 @@ def test_canonical_section_documents_7_stages() -> None:
 
 
 def test_canonical_section_documents_mandatory_validation_lineage_defaults() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     section = body.split("## Data engineering exploration discipline (v3.5.0)", 1)[1].split("\n## ", 1)[0]
     # User prose: "by default any data engineering pipelines should have strong data validation
     # components and logging to ensure every records transform and modification, in aggregate
@@ -42,7 +42,7 @@ def test_canonical_section_documents_mandatory_validation_lineage_defaults() -> 
 
 
 def test_canonical_section_documents_6_per_run_mandates() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     section = body.split("## Data engineering exploration discipline (v3.5.0)", 1)[1].split("\n## ", 1)[0]
     for mandate in (
         "Per-transformation validation rules",
@@ -56,7 +56,7 @@ def test_canonical_section_documents_6_per_run_mandates() -> None:
 
 
 def test_canonical_section_documents_phase_0c_detection_ladder() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     section = body.split("## Data engineering exploration discipline (v3.5.0)", 1)[1].split("\n## ", 1)[0]
     assert "Phase 0c" in section
     assert "Prose patterns" in section
@@ -66,7 +66,7 @@ def test_canonical_section_documents_phase_0c_detection_ladder() -> None:
 
 
 def test_canonical_section_documents_convergence_with_other_dispatch_paths() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     section = body.split("## Data engineering exploration discipline (v3.5.0)", 1)[1].split("\n## ", 1)[0]
     assert "Phase 0a" in section
     assert "Phase 0b" in section
@@ -74,7 +74,7 @@ def test_canonical_section_documents_convergence_with_other_dispatch_paths() -> 
 
 
 def test_canonical_section_documents_mixed_mode() -> None:
-    body = COMMON.read_text()
+    body = COMMON.read_text(encoding="utf-8")
     section = body.split("## Data engineering exploration discipline (v3.5.0)", 1)[1].split("\n## ", 1)[0]
     # Mixed requests trigger Phase 0a + Phase 0c in sequence
     assert "mixed" in section.lower()
@@ -84,5 +84,5 @@ def test_canonical_section_documents_mixed_mode() -> None:
 
 
 def test_test_skills_includes_data_engineering_exploration() -> None:
-    body = (REPO_ROOT / "tests" / "test_skills.py").read_text()
+    body = (REPO_ROOT / "tests" / "test_skills.py").read_text(encoding="utf-8")
     assert '"data-engineering-exploration"' in body

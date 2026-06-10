@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.8.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.9.2-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-3928%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -67,9 +67,21 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.8.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.9.2  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.9.2 — Deterministic openspec gate at the master-review Stop hook
+
+| Capability | What changed |
+|---|---|
+| **`_audit_openspec_validation` — independent openspec gate (v3.9.2)** | NEW `hooks/pipeline-completion-audit.py::_audit_openspec_validation(root, at)` — the `Stop` hook **independently re-runs** `openspec validate --all --strict --json` from the repo root once a Phase-7 `master-review/audit-*.json` verdict exists; **any invalid change BLOCKS the commit** (the audit is no longer the orchestrator's self-report). Best-effort no-op when there is no `openspec/` workspace, no `openspec` CLI on `PATH`, or on subprocess error. Wired into `audit()`. Suite green under BOTH cp1252 and `PYTHONUTF8=1` (156 bare `read_text()` calls in tests made encoding-explicit). |
+
+### v3.9.1 — VAO precedence fix + openspec change-folder hygiene
+
+| Capability | What changed |
+|---|---|
+| **VAO review-evidence precedence fix + 5 orphaned change folders archived (v3.9.1)** | Fixes a latent operator-precedence bug in `hooks/vao_tools.py::_scan_ledger_for_pipeline_elements` — `(A or B) and ".json"` (was `A or (B and C)`). Archives 5 orphaned-but-shipped openspec change folders into `openspec/changes/archive/` so `openspec validate --all --strict` is green; active changes are now just `consolidate-duplicated-rules` + `exploration-pipeline`. |
 
 ### v3.9.0 — Uniform plugin usage (predictable regardless of mini or call)
 
@@ -282,8 +294,11 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v6 + independent review  │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │
 │ ▸ Stop                      pipeline-completion audit (terminal gate)       │
+│                             + v3.9.2 openspec validate --all --strict gate  │
 ├─ SETUP ─────────────────────────────────────────────────────────────────────┤
 │ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright │
+│                                      + HARD-gates required plugins +        │
+│                                      openspec-propose skill (exit 1)        │
 │ ▸ scripts/setup/install_mempalace.py MemPalace CLI + MCP server (uv-first)  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -322,6 +337,8 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 /plugin install cartographer@cartographer-marketplace
 /plugin install ralph-loop@claude-plugins-official
 ```
+
+These three are **HARD (exit-1) prerequisites** (v3.9.0) — `scripts/setup/setup.py` aborts with exit 1 if any is missing; superpowers in particular is a hard dependency, not a warning. The vendored `openspec-propose` authoring skill is a **4th hard-gated prerequisite** (verified by `ensure_openspec_propose_skill()`; a missing skill is also exit 1).
 
 ### ▸ Install CLI / Python / browser deps
 
@@ -362,6 +379,8 @@ The requirements folder may contain OpenSpec artifacts (`proposal.md`, `specs/`,
 **Default: auto-commit + auto-merge-to-main + push on clean pass (v3.7.0).** At the end of a successful Phase 8, the pipeline stages its working set, commits with a structured message including the requirements implemented + tests added + archive path, then — when the run's `architect-team/<slug>` branch merges cleanly — merges `--no-ff` into `main`, pushes `main`, deletes the branch (local + remote), and removes the run worktree (see Logic Map D). A conflict or protected branch falls back to the feature-branch + PR path and is reported, never forced. To opt out per invocation: pass `--no-auto-merge` (feature branch + recommend a PR, worktree persists), `--no-commit` (skip both commit + merge), `--no-push` (commit locally only), or `--no-compact` (suppress the end-of-run `/compact` prompt). Natural-language opt-outs ("don't commit", "no push", "keep the branch") are honored.
 
 ### The pipeline at a glance
+
+**Uniform plugin usage (v3.9.0).** Every pipeline body (`architect-team` / `bug-fix` / `mini` / `ux-test`) opens with a **superpowers pre-flight abort gate** and weaves named `superpowers:*` invocations (`brainstorming` / `test-driven-development` / `systematic-debugging` / `verification-before-completion`) through its phases — canonical home `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)`. The implementing pipelines (`mini` + `bug-fix` + full) share **identical** `openspec validate --all --strict` + `openspec archive` gates.
 
 ```
        ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -492,6 +511,8 @@ The orchestrator runs as the main session — no hook can gate its mid-run behav
      · a test-failure SR with no diagnostic plan
      · an unsatisfied editability loop   · a test-completeness debt
      · a master-review audit verdict that is not overall: pass
+     · an openspec change that fails `openspec validate --all --strict`
+       (v3.9.2, once a master-review verdict exists)
      · a documentation-currency audit verdict that is not overall: pass
         │                                              │
       no│  (clean — or not an architect-team run)      │ yes
@@ -691,7 +712,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 7 — Master review meta-loop (Phase 7)
 
 - **Mechanism per iteration:** walk every commit; attribute to ≥ 1 requirement via the coverage map; re-run `openspec validate`; walk every coverage-map entry. Then dispatch the `system-architect` in **Master Review Audit mode** — an independent re-verification of every entry + every SR (the orchestrator's own walk is a producer-is-own-checker step; the audit is the independent checker).
-- **Exit criteria — every entry must have:** ≥ 1 commit SHA; passing unit/integration tests; passing Playwright flow(s) where applicable; non-empty `demo_artifact`; the editability team `satisfied` for entity-bearing features. Plus `openspec validate` reports `valid: true`, AND the independent master-review audit verdict is `overall: pass` (it gates the Phase 8 commit; the `Stop` hook checks it).
+- **Exit criteria — every entry must have:** ≥ 1 commit SHA; passing unit/integration tests; passing Playwright flow(s) where applicable; non-empty `demo_artifact`; the editability team `satisfied` for entity-bearing features. Plus `openspec validate` reports `valid: true`, AND the independent master-review audit verdict is `overall: pass` (it gates the Phase 8 commit; the `Stop` hook checks it). Per v3.9.2, once a master-review verdict exists the `Stop` hook ALSO independently re-runs `openspec validate --all --strict` — an openspec change that fails this gate BLOCKS the commit.
 - **On any gap:** re-spawn the appropriate team(s); meta-loop continues until the coverage map is fully green.
 - **Terminal action:** `openspec archive <change-name>`. Phase 8 then runs the **documentation-currency gate** — every doc the change touched (the maps, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) is updated and then independently audited by the `system-architect` (Documentation Currency Audit mode) — emits the final report (persisted + mined to MemPalace), and auto-commits + pushes.
 
@@ -707,7 +728,7 @@ Run the full Phase −1 → 8 pipeline against a requirements folder. See "Usage
 
 ### `/architect-team-setup [--check-only] [--force-reinstall]`
 
-Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent.
+Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent. Also **HARD-checks (exit 1)** that the required plugins (superpowers, cartographer, ralph-loop) are installed and verifies the vendored `openspec-propose` skill resolves via `ensure_openspec_propose_skill()`.
 
 ### `/architect-team:visual-qa [<codebase-path>]`
 
@@ -1100,7 +1121,11 @@ Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent
            v3.4.0  ─ backend-from-frontend modularization (Phase 0b) — cartographer-team + domain-research-team + api-design-from-frontend + domain-researcher agent
            v3.5.0  ─ data engineering exploration pipeline (Phase 0c) — 7-stage data-plane analog + phenotype convergence rules
            v3.6.0  ─ worktree end-of-run merge check (`finalize_run_worktree`) + hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`
-   ◆       v3.7.0  ─ auto-merge-to-main + prune by default — clean Phase 8 lands on `main` and tidies up (`AUTO_MERGE_MAIN`; `list_run_branches` / `merge_branch_to_main_and_prune`); `--no-auto-merge` opt-out; startup branch reconciliation; never `--force`, branch protection always wins (current)
+           v3.7.0  ─ auto-merge-to-main + prune by default — clean Phase 8 lands on `main` and tidies up (`AUTO_MERGE_MAIN`; `list_run_branches` / `merge_branch_to_main_and_prune`); `--no-auto-merge` opt-out; startup branch reconciliation; never `--force`, branch protection always wins
+           v3.8.0  ─ unbounded solving (all run/iteration limits removed; completion-audit becomes a non-halting worklist) + Code & Data Lineage Graph (CDLG) foundation (`lineage_graph.py` / `run_metrics.py` + `endpoint-trace-mapping` / `data-lineage-mapping` skills + `endpoint-tracer` agent)
+           v3.9.0  ─ uniform plugin usage — superpowers a HARD (exit-1) dependency, actually invoked; `ensure_openspec_propose_skill()`; per-pipeline superpowers pre-flight abort gate + named `superpowers:*` invocations; identical openspec gates across mini/bug-fix/full
+           v3.9.1  ─ VAO review-evidence precedence fix (`(A or B) and ".json"`) + 5 orphaned openspec change folders archived into `openspec/changes/archive/`
+   ◆       v3.9.2  ─ deterministic openspec gate at the master-review Stop hook (`_audit_openspec_validation` re-runs `openspec validate --all --strict`, blocks the commit on any invalid change); suite green under both cp1252 and `PYTHONUTF8=1` (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
@@ -1117,6 +1142,6 @@ MIT — see [`LICENSE`](LICENSE).
 
 ```
                   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-                  █  Built with Claude Code · Opus 4.7  █
+                  █  Built with Claude Code · Opus 4.8  █
                   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 ```
