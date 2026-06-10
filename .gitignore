@@ -29,6 +29,9 @@ scripts/setup/.last-run.json
 # Runtime state (created when /architect-team is run, not part of the plugin)
 .architect-team/
 
+# Per-project email-notification config (references a secret env var; not part of the plugin)
+.architect-team-notify.json
+
 # Playwright artifacts
 test-results/
 playwright-report/
