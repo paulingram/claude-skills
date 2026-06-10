@@ -38,6 +38,14 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+# R1a (v3.10.0) — _utc_now_iso + the JSONL reader have single definitions in
+# hooks/shared_util.py. Dual-form import: package shape (repo root on sys.path)
+# then bare-module (the hook-runner puts hooks/ on sys.path).
+try:  # package shape
+    from hooks.shared_util import _utc_now_iso, read_jsonl as _shared_read_jsonl
+except ImportError:  # bare-module shape
+    from shared_util import _utc_now_iso, read_jsonl as _shared_read_jsonl
+
 # (A10 review-remediation) The user-invocable command names are derived from
 # the actual `commands/*.md` basenames so the constant can NEVER drift from the
 # shipped command set again (the prior hand-maintained list had 13 entries with
@@ -227,21 +235,12 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     blank lines + UTF-8. Returns ``[]`` if the file does not exist; the
     audit treats a missing ledger as "no Skill invocations recorded" and
     correctly reports any explicit request as unmatched.
+
+    R1a (v3.10.0): delegates to the shared hooks/shared_util.read_jsonl helper
+    (single definition of the JSONL-read loop); the local name is preserved for
+    the existing call sites.
     """
-    if not path.exists():
-        return []
-    entries: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(obj, dict):
-            entries.append(obj)
-    return entries
+    return _shared_read_jsonl(path)
 
 
 def _read_transcript_messages(path: Path) -> list[dict[str, Any]]:
@@ -447,11 +446,8 @@ def audit_session(
     exit_code = 0 if verdict_value == "pass" else 2
 
     if audited_at is None:
-        # Defer import to keep stdlib-only at module load; isoformat() is
-        # safe even when the system clock is suspect — the audit's purpose
-        # is the verdict, not a high-precision timestamp.
-        from datetime import datetime, timezone
-        audited_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # R1a — the single _utc_now_iso definition (hooks/shared_util.py).
+        audited_at = _utc_now_iso()
 
     verdict = {
         "schema_version": 1,

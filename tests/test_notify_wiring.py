@@ -18,9 +18,22 @@ v1.0.0 (per SR-audit-cons-3B-002) extends the parametrization to the
 mini-architect-team-pipeline. The mini variant auto-merges to `main` — exactly
 the kind of event a stakeholder wants notified on — so it now emits the same
 5 events as the main and bug-fix pipelines.
+
+v3.10.0 (R6c) adds a SIXTH notifier event, `heartbeat`. It is distinct in
+KIND from the other five: phase_start / phase_complete / git_commit / deploy /
+issue_discovered fire at FIXED pipeline phases (and so are asserted as per-phase
+wiring in the three pipeline bodies below). `heartbeat` is an unbounded-run
+liveness signal emitted by the orchestrator DURING any >30-minute phase and at
+post-first-hour phase boundaries — governed by the CPC `### Heartbeat
+discipline` subsection, NOT by per-phase wiring. So the per-phase-wiring
+parametrized tests below continue to assert exactly the five PHASE events
+(`PHASE_EVENT_TYPES`), while `EVENT_TYPES` now records the full six-event
+notifier vocabulary and a dedicated test pins `notify.EVENT_TYPES` to it.
 """
+import importlib.util
 import re
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -38,14 +51,21 @@ PIPELINE_SKILLS = (
 PIPELINE = ("skills", "architect-team-pipeline", "SKILL.md")
 COMMAND = ("commands", "architect-team.md")
 
-# The exactly-five recognized notification event types.
-EVENT_TYPES = (
+# The five PHASE-WIRED notification event types — each fires at a fixed
+# pipeline phase and is asserted as per-phase wiring in the three pipeline
+# bodies below.
+PHASE_EVENT_TYPES = (
     "phase_start",
     "phase_complete",
     "issue_discovered",
     "git_commit",
     "deploy",
 )
+
+# The full notifier vocabulary (v3.10.0, R6c): the five phase events plus the
+# unbounded-run `heartbeat` liveness event (CPC-governed, not per-phase). This
+# is the authoritative list `notify.EVENT_TYPES` must equal.
+EVENT_TYPES = PHASE_EVENT_TYPES + ("heartbeat",)
 
 
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
@@ -56,6 +76,35 @@ def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
 
 def _pipeline_skill_content(plugin_root: Path, skill_name: str) -> str:
     return _read(plugin_root, ("skills", skill_name, "SKILL.md"))
+
+
+def _load_notify_module(plugin_root: Path) -> ModuleType:
+    """Load scripts/notify/notify.py by path (mirrors test_run_metrics.py)."""
+    spec = importlib.util.spec_from_file_location(
+        "ct6_notify_wiring_under_test",
+        plugin_root / "scripts" / "notify" / "notify.py",
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# --- the notifier module's event vocabulary is the canonical six (v3.10.0) ----
+
+
+def test_notify_module_event_types_is_the_six_event_vocabulary(
+    plugin_root: Path,
+) -> None:
+    """R6c: `notify.EVENT_TYPES` is the full six-event vocabulary — the five
+    phase events plus `heartbeat`. This is the authoritative 5->6 pin; the
+    per-phase-wiring tests above assert the five PHASE events in the bodies."""
+    notify = _load_notify_module(plugin_root)
+    assert tuple(notify.EVENT_TYPES) == EVENT_TYPES, (
+        f"notify.EVENT_TYPES must equal {EVENT_TYPES}; got {notify.EVENT_TYPES}"
+    )
+    assert "heartbeat" in notify.EVENT_TYPES
+    assert len(notify.EVENT_TYPES) == 6
 
 
 # --- the notifier invocations are wired into every pipeline skill -------------
@@ -84,14 +133,17 @@ def test_pipeline_skill_has_a_notifications_section(
 
 
 @pytest.mark.parametrize("skill_name", PIPELINE_SKILLS)
-@pytest.mark.parametrize("event", EVENT_TYPES)
+@pytest.mark.parametrize("event", PHASE_EVENT_TYPES)
 def test_pipeline_skill_wires_each_event(
     plugin_root: Path, skill_name: str, event: str
 ) -> None:
-    """Every pipeline skill must contain a notifier invocation for EACH of the five events.
+    """Every pipeline skill must contain a notifier invocation for EACH of the
+    five PHASE events.
 
     A wired invocation is a `notify.py <event>` form — the CLI's positional
-    `event` argument follows the script path.
+    `event` argument follows the script path. `heartbeat` is excluded here: it
+    is CPC-governed (emitted during long phases / phase boundaries), not wired
+    at a fixed pipeline phase.
     """
     content = _pipeline_skill_content(plugin_root, skill_name)
     pattern = rf"notify\.py[^\n]*\b{re.escape(event)}\b"
@@ -105,22 +157,26 @@ def test_pipeline_skill_wires_each_event(
 def test_pipeline_skill_wires_all_five_distinct_events(
     plugin_root: Path, skill_name: str
 ) -> None:
-    """Belt-and-braces: all five event types are wired, and exactly those five.
+    """Belt-and-braces: all five PHASE event types are wired, and no token
+    OUTSIDE the recognized six-event vocabulary slips into the wiring.
 
-    Extract every event token that immediately follows a `notify.py` invocation
-    and confirm the set equals the five recognized types — guards against a
-    typo'd event name or a sixth, unrecognized event slipping into the wiring.
+    Extract every event token that immediately follows a `notify.py` invocation.
+    All five phase events must be present. The optional `heartbeat` token is
+    permitted (a body MAY reference the CPC-governed heartbeat event) but is not
+    required here; any token outside the recognized vocabulary is a typo and
+    fails.
     """
     content = _pipeline_skill_content(plugin_root, skill_name)
     # The script path is quoted in the invocation form
     # (`notify.py" <event>`), so allow an optional closing quote and
     # whitespace between the path and the positional event token.
     invoked = set(re.findall(r'notify\.py"?\s+([a-z_]+)', content))
-    missing = set(EVENT_TYPES) - invoked
+    missing = set(PHASE_EVENT_TYPES) - invoked
     assert not missing, (
         f"{skill_name} SKILL.md is missing notifier wiring for: "
         f"{sorted(missing)}"
     )
+    # The full six-event vocabulary is the allowed set; heartbeat is optional.
     unexpected = invoked - set(EVENT_TYPES)
     assert not unexpected, (
         f"{skill_name} SKILL.md wires unrecognized notifier event(s): "

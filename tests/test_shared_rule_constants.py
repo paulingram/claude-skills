@@ -168,14 +168,54 @@ def test_forbidden_git_alias_is_canonical(shared) -> None:
 # --- 6. TEST_FAILURE_ORIGINS — exact set -----------------------------------
 
 def test_test_failure_origins_exact(shared) -> None:
+    # SR-sr-catalog-spelling-reconcile (v3.10.0): the constant carries the
+    # CANONICAL enum spellings (integration-test-failure / visual-fidelity-drift),
+    # not the legacy integration-failure / visual-fidelity-cascade forks. This
+    # is the regression pin that keeps the fork from reopening — it must equal
+    # the canonical test-failure-origin subset of the team-spawning SR enum.
     assert shared.TEST_FAILURE_ORIGINS == {
         "rca-product-bug",
         "playwright-failure",
-        "integration-failure",
+        "integration-test-failure",
         "integration-testing-failure",
         "test-completeness-failure",
-        "visual-fidelity-cascade",
+        "visual-fidelity-drift",
     }
+
+
+def test_test_failure_origins_have_no_legacy_spelling_fork(shared) -> None:
+    """SR-sr-catalog-spelling-reconcile regression pin: the legacy spelling
+    forks `integration-failure` / `visual-fidelity-cascade` must NEVER reappear
+    in the runtime constant — they were reconciled to the canonical enum
+    spellings and the fork must stay closed."""
+    assert "integration-failure" not in shared.TEST_FAILURE_ORIGINS
+    assert "visual-fidelity-cascade" not in shared.TEST_FAILURE_ORIGINS
+
+
+def test_test_failure_origins_is_canonical_enum_subset(plugin_root: Path, shared) -> None:
+    """SR-sr-catalog-spelling-reconcile regression pin: TEST_FAILURE_ORIGINS is
+    exactly the test-failure-origin subset of the canonical SR origin-kind enum
+    in team-spawning-and-review-gates (the source of truth). Deriving the
+    expected set FROM the enum means a future drift in EITHER place — a renamed
+    enum member OR a re-forked constant — fails this test, so the fork cannot
+    silently reopen."""
+    body = (plugin_root / "skills" / "team-spawning-and-review-gates" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    # The schema enum line lists every canonical origin kind as quoted strings.
+    enum_line = next(ln for ln in body.splitlines() if '"kind": "playwright-failure"' in ln)
+    import re
+    enum_kinds = set(re.findall(r'"([a-z0-9-]+)"', enum_line))
+    # The canonical enum MUST contain each member of the runtime constant
+    # (no constant member may be a phantom the catalog doesn't define).
+    missing = shared.TEST_FAILURE_ORIGINS - enum_kinds
+    assert not missing, (
+        f"TEST_FAILURE_ORIGINS members not present in the canonical SR enum "
+        f"(phantom/forked spellings): {sorted(missing)}"
+    )
+    # And the legacy forks are absent from the canonical enum too (belt-and-braces).
+    assert "integration-failure" not in enum_kinds
+    assert "visual-fidelity-cascade" not in enum_kinds
 
 
 # --- 7. the two hooks SOURCE their constants from this module --------------

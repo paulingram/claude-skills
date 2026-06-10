@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 9 . 3
+                        ─── C T 6 ───   v 3 . 10 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.9.3-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.10.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4097%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4268%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,22 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.9.3  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.10.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.10.0 — Second-tier review improvements (R1–R7)
+
+| Capability | What changed |
+|---|---|
+| **`hooks/vao_tools.py` → the `hooks/vao/` package (R2)** | The 5,209-line / 20-tool monolith split into per-discipline-family modules (each ≤900 lines); `vao_tools.py` is now a ≤400-line **facade** re-exporting the full 125-name public+test-referenced surface (20 `verify_*` functions + 42 UPPER constants + 62 underscore helpers + 1 alias — each identity-checked) + a byte-identical CLI. ZERO behavior change — every fixture + the real-subprocess glue-execution test stay green. NEW `hooks/shared_util.py` unifies `load_json(path, *, missing_ok)` / `_utc_now_iso` / the JSONL reader (eliminating the prior 3–4 duplicate definitions). |
+| **NEW capability — `security-hunter` (R6a)** | The 6th `adversarial-reviewer` shape hunts missing/weakened authz, injection-prone construction, secrets in the diff, unsafe deserialization, and unjustified dependency additions. Spawn-brief trigger rules: a backend-dep task spawns BOTH `fake-data-hunter` AND `security-hunter`; an auth/security-path or dependency-add diff makes `security-hunter` mandatory. NEW SR origin kind `security-finding`; the SR origin-kind catalog reconciled to an OPEN canonical catalog. |
+| **NEW capability — accessibility axis (R6b)** | `## Accessibility axis (v3.10.0)` for interaction-completeness + the matching audit section for `interaction-reviewer`: keyboard reachability, accessible names, and axe-core-via-Playwright. NEW `a11y-gap` sub-kinds (`keyboard-unreachable` / `missing-accessible-name` / `axe-violation`) + NEW SR origin kind `a11y-gap`; a no-UI n/a rule. |
+| **NEW capability — unbounded-run heartbeat (R6c)** | `scripts/notify/notify.py` gains a 6th event type `heartbeat`; `hooks/run_metrics.py` gains `heartbeat_snapshot(...)`; a `### Heartbeat discipline (v3.10.0)` CPC subsection refreshes `.architect-team/in-progress.md` + emits the event during any >30-min phase and at every post-first-hour boundary — never gates, never caps. |
+| **Scope-discipline + helper consolidation (R1)** | A canonical `## Scope-fidelity discipline family (v3.10.0)` CPC section names the five scope disciplines (v0.9.36 / v1.4.0 / v2.8.0 / v2.10.0 / v2.14.0) as one family with the shared 3-disposition model + a firing-moment table; the two in-`vao` localhost lists unified; two named override/scope-cut false positives fixed. |
+| **Agent hygiene (R4)** | Retired `LS` / `NotebookRead` / `Task` removed from all agent frontmatter (NotebookEdit kept); bounded `Write` granted to `qa-replayer` + `test-completeness-verifier`; git+checkpoint boilerplate re-synced across all 34 (oracle-deriver's `$BASELINE_SHA` restored; the analysis-only checkpoint exemption folded in); colors mapped to the documented palette; `scaffold-agent` documented as an on-demand utility. |
+| **`locks.py` concurrency (R5) + registry applicability (R7)** | `acquire_lock` uses `O_CREAT|O_EXCL` + an intersecting-scope re-scan; `globs_intersect` gains the prefix/suffix candidate (`src/**` vs `**/auth.py`). The `discipline_registry` prod-safe + multi-persona detectors gain applicability guards + `{applied, not_applicable, reason}` (this no-UI repo records both `not_applicable`). |
+| **Narrative diet (R3)** | `CLAUDE.md` restructured operative-first; CPC narrative compressed with zero rule loss; the four pipeline bodies collapse their duplicated v2.18/v2.19/v2.20/v3.0 bash gate blocks to one-line references + the inline abort stub, with the invocations parameterized in the NEW CPC `## Layer 3 gate invocation table (v3.10.0)`. |
 
 ### v3.9.3 — Review-remediation: 30 verified-defect fixes across glue, commands, skill docs, and the docs
 
@@ -487,10 +500,10 @@ Every surfaced issue becomes an SR; test-failure origins route through diagnosti
    ◆ route by  SR.origin.kind
         │
         ├─ test-failure origin ───────────────────▶ ▣ DIAGNOSTIC RESEARCH
-        │  rca-product-bug · playwright-failure ·    3 diagnostic-researcher
-        │  integration-failure · integration-        agents argue in parallel
-        │  testing-failure · test-completeness-      → system-architect reviews
-        │  failure · visual-fidelity-cascade         robustness → consolidated
+        │  rca-product-bug · playwright-failure ·             3 diagnostic-researcher
+        │  integration-test-failure ·                         agents argue in parallel
+        │  integration-testing-failure ·                      → system-architect reviews
+        │  test-completeness-failure · visual-fidelity-drift  robustness → consolidated
         │                                            diagnostic plan
         │                                                     │
         └─ editability-gap / unwired-control / ───┐            │
@@ -627,7 +640,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 ### ▌ Loop 3b — Solution-Requirement intake (continuous; runs after every subagent idle)
 
-- **Mechanism:** orchestrator walks `<cwd>/.architect-team/solution-requirements/*.json`. For each `open` SR: validates schema; auto-mines it to MemPalace; updates the coverage-map. **Test-failure-origin SRs** (`rca-product-bug`, `playwright-failure`, `integration-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-cascade`) route through `diagnostic-research-team` (Logic Map B) **before** the fix team spawns. `editability-gap` SRs spawn a fix team directly. The fix team's brief carries `acceptance_criteria` verbatim + (for test-failure SRs) the consolidated diagnostic plan.
+- **Mechanism:** orchestrator walks `<cwd>/.architect-team/solution-requirements/*.json`. For each `open` SR: validates schema; auto-mines it to MemPalace; updates the coverage-map. **Test-failure-origin SRs** (`rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-drift`) route through `diagnostic-research-team` (Logic Map B) **before** the fix team spawns. `editability-gap` SRs spawn a fix team directly. The fix team's brief carries `acceptance_criteria` verbatim + (for test-failure SRs) the consolidated diagnostic plan.
 - **Exit criteria** (per SR): originating failing test passes; acceptance criteria reflected in passing tests; SR → `resolved`; originating teammate unblocks.
 - **References:** [`skills/team-spawning-and-review-gates/SKILL.md`](skills/team-spawning-and-review-gates/SKILL.md) §`Solution Requirements`, [`skills/diagnostic-research-team/SKILL.md`](skills/diagnostic-research-team/SKILL.md).
 
@@ -1034,7 +1047,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent frontmatters (tool + model names); all 19 commands; hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **4097 tests pass (+ 5 skipped).**
+Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent frontmatters (tool + model names); all 19 commands; hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **4268 tests pass (+ 5 skipped).**
 
 ### Bumping versions
 
@@ -1148,7 +1161,9 @@ Tests validate: plugin/marketplace JSON; all 40 skill frontmatters; all 34 agent
            v3.8.0  ─ unbounded solving (all run/iteration limits removed; completion-audit becomes a non-halting worklist) + Code & Data Lineage Graph (CDLG) foundation (`lineage_graph.py` / `run_metrics.py` + `endpoint-trace-mapping` / `data-lineage-mapping` skills + `endpoint-tracer` agent)
            v3.9.0  ─ uniform plugin usage — superpowers a HARD (exit-1) dependency, actually invoked; `ensure_openspec_propose_skill()`; per-pipeline superpowers pre-flight abort gate + named `superpowers:*` invocations; identical openspec gates across mini/bug-fix/full
            v3.9.1  ─ VAO review-evidence precedence fix (`(A or B) and ".json"`) + 5 orphaned openspec change folders archived into `openspec/changes/archive/`
-   ◆       v3.9.2  ─ deterministic openspec gate at the master-review Stop hook (`_audit_openspec_validation` re-runs `openspec validate --all --strict`, blocks the commit on any invalid change); suite green under both cp1252 and `PYTHONUTF8=1` (current)
+           v3.9.2  ─ deterministic openspec gate at the master-review Stop hook (`_audit_openspec_validation` re-runs `openspec validate --all --strict`, blocks the commit on any invalid change); suite green under both cp1252 and `PYTHONUTF8=1`
+           v3.9.3  ─ review-remediation — 30 verified-defect fixes across the enforcement glue (detect-once `hooks.json`, bare-module VAO CLI fallbacks, atomic in-flight inbox, UTF-8 stdin + OSError-fails-closed, `teams_mode` / `worktree_lifecycle` CLIs), the command surface, the skill docs (schema taught as v7, unbounded-solving residue swept), and the docs; a NEW "execute the glue" test family
+   ◆       v3.10.0 ─ second-tier review improvements (R1–R7) — `hooks/vao_tools.py` split into the `hooks/vao/` package behind a 125-name identity-checked facade + NEW `hooks/shared_util.py`; NEW `security-hunter` adversarial shape (+ `security-finding` SR) / interaction-completeness accessibility axis (`a11y-gap`) / unbounded-run `heartbeat` notify event; scope-fidelity discipline family + helper/localhost consolidation; agent hygiene sweep; `locks.py` `O_CREAT|O_EXCL` + `globs_intersect` prefix/suffix; registry applicability guards; narrative diet (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

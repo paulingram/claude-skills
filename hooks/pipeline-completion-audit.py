@@ -57,6 +57,15 @@ try:  # pragma: no cover - exercised by both import paths
 except ImportError:  # pragma: no cover - bare-module fallback
     from shared_rule_constants import TEST_FAILURE_ORIGINS
 
+# R1a (v3.10.0) — the JSON reader has a single definition in
+# hooks/shared_util.py. This hook's contract is fail-OPEN (a missing/malformed
+# optional run-state file must no-op, not crash the Stop hook), so it calls
+# load_json(..., missing_ok=True). Dual-form import (same shapes as above).
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.shared_util import load_json as _shared_load_json
+except ImportError:  # pragma: no cover - bare-module fallback
+    from shared_util import load_json as _shared_load_json
+
 
 def _read_stdin_utf8() -> str:
     """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
@@ -107,10 +116,10 @@ def _in_progress_is_fresh(at: Path) -> bool:
 
 
 def _load_json(path: Path) -> Any | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    # R1a — fail-OPEN read (None on missing/malformed). The single JSON-reader
+    # definition lives in hooks/shared_util.py; missing_ok=True selects this
+    # hook's fail-open posture (vs the vao_tools fail-closed default).
+    return _shared_load_json(path, missing_ok=True)
 
 
 def _is_real_run(at: Path) -> bool:

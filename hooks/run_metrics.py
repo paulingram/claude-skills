@@ -28,6 +28,7 @@ Use:
         record_run_metrics,
         read_run_metrics,
         compute_wrong_layer,
+        heartbeat_snapshot,   # v3.10.0 (R6c) — unbounded-run heartbeat payload
     )
 
 Recorded to the run ledger here AND mirrored to MemPalace run-history per
@@ -39,10 +40,26 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 RUN_METRICS_RELATIVE_DIR = ".architect-team/run-metrics"
+
+# The intake-state ledger the orchestrator maintains for the active run. The
+# heartbeat snapshot reads `phase` and the run-start timestamp from it. Mirrors
+# `hooks/inflight_inbox.py` (which reads `run_id` from the same file).
+INTAKE_STATE_RELATIVE_PATH = ".architect-team/intake-state.json"
+
+# Candidate keys (in priority order) under which intake-state.json may carry the
+# run-start timestamp. The orchestrator's canonical key is `started_at`; the
+# aliases keep the snapshot robust against minor schema drift.
+_RUN_START_KEYS: tuple[str, ...] = (
+    "started_at",
+    "run_started_at",
+    "start_ts",
+    "started",
+)
 
 # The §6 metric keys, in documentation order. Recording a partial subset is
 # allowed (merge semantics fill the rest across calls); this tuple is the
@@ -190,3 +207,126 @@ def record_run_metrics(workspace: Path, run_id: str, metrics: dict[str, Any]) ->
 def run_metrics_path_for(workspace: Path, run_id: str) -> Path:
     """Public accessor for the metrics path — useful for tests + the ledger."""
     return _metrics_path(workspace, run_id)
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat snapshot — v3.10.0 (R6c)
+# ---------------------------------------------------------------------------
+
+
+def _read_intake_state(workspace: Path) -> dict[str, Any]:
+    """Read `<workspace>/.architect-team/intake-state.json` as a dict.
+
+    Returns ``{}`` when the file is missing, unreadable, not valid JSON, or not
+    a JSON object. Never raises — mirrors ``read_run_metrics`` resilience so the
+    heartbeat degrades gracefully on partial / absent run state.
+    """
+    path = Path(workspace) / INTAKE_STATE_RELATIVE_PATH
+    try:
+        if not path.exists():
+            return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _coerce_int(value: Any) -> int | None:
+    """Best-effort int coercion. Returns None for values that are not a clean
+    integer count (None, non-numeric strings, bools-as-counts are rejected)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if s.lstrip("-").isdigit():
+            return int(s)
+    return None
+
+
+def _elapsed_seconds_since(started_raw: Any) -> float | None:
+    """Seconds elapsed from an ISO-8601 run-start timestamp until now (UTC).
+
+    Returns None when the timestamp is missing, not a string, or not parseable.
+    A naive timestamp (no tzinfo) is interpreted as UTC. Never raises; a
+    negative delta (clock skew / future timestamp) is clamped to 0.0.
+    """
+    if not isinstance(started_raw, str) or not started_raw.strip():
+        return None
+    text = started_raw.strip()
+    # Accept a trailing 'Z' (datetime.fromisoformat rejects it before 3.11).
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        started = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    delta = (now - started).total_seconds()
+    return delta if delta >= 0 else 0.0
+
+
+def heartbeat_snapshot(workspace: Path, run_id: str) -> dict[str, Any]:
+    """Build the unbounded-run heartbeat payload (R6c).
+
+    Returns a dict with EXACTLY these keys, derived from the existing run
+    metrics ledger + intake-state.json:
+
+        run_id          str   the run id (the passed argument, authoritative).
+        phase           Any   intake-state `phase` (None when absent/malformed).
+        elapsed_seconds float the seconds since the run-start timestamp in
+                              intake-state (None when no parseable start exists).
+        qa_cycle_count  int   the QA / dev-loop cycle count — an explicit
+                              `qa_cycle_count` metric when recorded, else the
+                              canonical `dev_loop_iterations` metric, else 0.
+        agents_dispatched int the agents-dispatched count — from the metrics
+                              ledger `agents_dispatched`, else intake-state
+                              `agents_dispatched`, else 0.
+
+    The payload is emitted by the orchestrator's `heartbeat` notify event during
+    long phases / post-first-hour phase boundaries (CPC `### Heartbeat
+    discipline`). It NEVER raises: on missing / malformed intake-state or
+    metrics it returns a degraded payload — the five keys are always present,
+    with None for the timestamp-derived fields and 0 for the counters. This
+    matches the best-effort, never-block contract of the v3.8.0 unbounded-run
+    instrumentation it extends.
+    """
+    metrics = read_run_metrics(workspace, run_id)
+    intake = _read_intake_state(workspace)
+
+    phase = intake.get("phase")
+
+    elapsed: float | None = None
+    for key in _RUN_START_KEYS:
+        if key in intake:
+            elapsed = _elapsed_seconds_since(intake.get(key))
+            if elapsed is not None:
+                break
+
+    # QA / dev-loop cycle count: an explicit metric wins, else the canonical
+    # dev_loop_iterations, else 0 (a valid concrete count for a degraded run).
+    qa_cycle_count = _coerce_int(metrics.get("qa_cycle_count"))
+    if qa_cycle_count is None:
+        qa_cycle_count = _coerce_int(metrics.get("dev_loop_iterations"))
+    if qa_cycle_count is None:
+        qa_cycle_count = 0
+
+    # Agents-dispatched: the metrics ledger first, then intake-state, else 0.
+    agents_dispatched = _coerce_int(metrics.get("agents_dispatched"))
+    if agents_dispatched is None:
+        agents_dispatched = _coerce_int(intake.get("agents_dispatched"))
+    if agents_dispatched is None:
+        agents_dispatched = 0
+
+    return {
+        "run_id": run_id,
+        "phase": phase,
+        "elapsed_seconds": elapsed,
+        "qa_cycle_count": qa_cycle_count,
+        "agents_dispatched": agents_dispatched,
+    }

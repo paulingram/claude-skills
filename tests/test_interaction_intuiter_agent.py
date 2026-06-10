@@ -18,7 +18,7 @@ REQUIRED_BODY_SECTIONS = (
     "## What this agent does NOT do",
 )
 
-EXPECTED_TOOLS_IN_ALLOWLIST = ("Read", "Glob", "Grep", "LS", "Bash", "Write", "TodoWrite")
+EXPECTED_TOOLS_IN_ALLOWLIST = ("Read", "Glob", "Grep", "Bash", "Write", "TodoWrite")
 
 
 def _agent_path(plugin_root: Path) -> Path:

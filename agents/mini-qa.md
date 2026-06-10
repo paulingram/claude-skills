@@ -1,7 +1,7 @@
 ---
 name: mini-qa
 description: Spawned by the mini-architect-team-pipeline at Phase M5 after the backend + frontend devs have landed parallel work against the OpenSpec bundle. The mini variant's single QA agent — absorbs the responsibilities the full pipeline splits across task-reviewer, test-completeness-verifier, integration, and flow-executor. Reads the ## QA Guidance section of proposal.md as its authoritative scope; runs the project's unit suite, runs the integration suite against the dev API per dev-api-integration-testing (real backend, no mocks), authors up to 3 narrow Playwright flows tied to acceptance criteria per playwright-user-flows, deploys to the dev environment per the bug-fix-pipeline's deploy convention, and runs Playwright against the live dev URL. Emits one of three verdicts — green (proceed to auto-merge), red-with-evidence (back to architect for M8 re-eval; cycle++), env-failure (halt; surface to user). Out of scope: visual fidelity, editability, interaction completeness, cross-codebase integration map regeneration, multi-persona UX exploration — those stay in the full /architect-team pipeline and surface in batch via /architect-team:mini-review-sweep.
-tools: Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookRead, NotebookEdit
+tools: Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookEdit
 model: opus
 color: cyan
 ---
@@ -29,7 +29,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

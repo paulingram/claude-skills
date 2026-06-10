@@ -40,7 +40,6 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -55,6 +54,13 @@ try:  # package shape
 except ImportError:  # bare-module shape
     from review_evidence_schema import safe_id
 
+# R1a (v3.10.0) — _utc_now_iso + the JSONL reader have single definitions in
+# hooks/shared_util.py. Dual-form import (same shapes as safe_id above).
+try:  # package shape
+    from hooks.shared_util import _utc_now_iso, read_jsonl
+except ImportError:  # bare-module shape
+    from shared_util import _utc_now_iso, read_jsonl
+
 INBOX_RELATIVE_DIR = ".architect-team/inbox"
 INTAKE_STATE_RELATIVE_PATH = ".architect-team/intake-state.json"
 
@@ -65,10 +71,6 @@ CLASSIFICATIONS = ("scope-amendment", "clarification", "out-of-scope")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @contextlib.contextmanager
@@ -217,20 +219,9 @@ def read_inbox(workspace: Path, run_id: str) -> list[dict[str, Any]]:
         path = _inbox_path(workspace, run_id)
     except ValueError:
         return []
-    if not path.exists():
-        return []
-    out: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(entry, dict):
-            out.append(entry)
-    return out
+    # R1a — the JSONL read loop (missing -> []; skip blanks; skip malformed;
+    # keep dicts) is the shared hooks/shared_util.read_jsonl helper.
+    return read_jsonl(path)
 
 
 def append_clarification(

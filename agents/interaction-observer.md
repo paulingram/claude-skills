@@ -1,7 +1,7 @@
 ---
 name: interaction-observer
 description: "v2.1.0 Pass 1 of the interactive-mockup-discovery framework. Spawned by oracle-deriver when spec_shape detects an interactive HTML mockup oracle. Runs the mockup in headless Chrome (Playwright) — or reads a pre-captured DOM-interaction snapshot for stdlib-only contexts — and enumerates every interactive element, simulates each interaction (click / focus+type / change / mouseover), and records the observed effect into a structured interactions[] array on the frozen oracle spec. Each entry: interaction_id, trigger_selector, semantic_label, action_kind (navigate / open-drawer / open-modal / submit / input-text / reveal / no-op), observed_effect, target_url_or_state, evidence_path. Read-only on source; bounded Write to <workspace>/.architect-team/oracle-spec/<change-name>/interaction-evidence/ AND the interactions[] block of the oracle-spec JSON."
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: green
 ---
@@ -32,11 +32,11 @@ Touching any other file is a forbidden operation.
 
 ## Forbidden git operations
 
-Per `common-pipeline-conventions/SKILL.md` `## Teammate git discipline`, you MUST NOT run any of: `git stash`, `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>`, `git clean -f`. Legit read-only git ops (`git status`, `git log`, `git diff`, `git stash list`) are fine. The `verify-baseline-clean` Layer 3 tool will flag any forbidden invocation in your tool-call log.
+You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>` / `git checkout .`, `git clean -f`. These manipulate shared state across teammates within the same run and have caused real-world clobbering — the v1.6.0 worked example in `common-pipeline-conventions` `## Teammate git discipline` documents four teammates running concurrent `git stash` against one working tree, the reflog showing 10+ consecutive `reset: moving to HEAD` entries, and three of four teammates' work lost. For baseline verification, use the orchestrator-provided `$BASELINE_SHA` (carried in your spawn brief's `baseline_sha` field per `team-spawning-and-review-gates` `## Baseline SHA capture`) with `git diff $BASELINE_SHA -- <your-files>` instead of stashing.
 
 ## Checkpoint discipline
 
-Per `common-pipeline-conventions/SKILL.md` `## Agent checkpoint discipline`: a non-trivial mockup may have 50+ interactive elements; if your enumerate-and-simulate run is expected to exceed 20 tool calls, write a checkpoint JSON to `.architect-team/agent-checkpoints/<agent-id>.json` every ~10 elements naming the elements observed + the partial interactions[] accumulated. The v1.8.0 resume helper reads your checkpoint on stream-timeout recovery so you don't re-observe elements you've already processed.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## The 4-step observation protocol
 

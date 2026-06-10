@@ -1,7 +1,7 @@
 ---
 name: fix-sensibility-checker
 description: "Spawned by the bug-fix-pipeline at the new Phase B6b (v0.9.29 — between B6 QA-replay and B7 Archive), AFTER the QA-replay returns 'bug-resolved'. Closes a real-world gap — B6's QA-replay confirms the ORIGINAL symptom is gone end-to-end, but the fix may have touched (directly or transitively) UI components / routes / API endpoints / dependent pages the original symptom check doesn't exercise. Example case: a fix correctly routed 'Sign Back In' to /login, but /login was itself broken in the deployed bundle (hermetic build, no VITE_* env vars baked — 'auth-unavailable' rendered). This agent computes the IMPACT SET from the fix's git diff (changed files + their importers + their navigation destinations + their endpoints), authors minimal Playwright sensibility flows per impact-set item, runs them against the deployed dev environment, and documents each item's verdict (sensible / nonsensical / env-failure / not-reachable). Any nonsensical item becomes a fresh SR with origin.kind fix-regression that routes back through the bug-fix-pipeline (recursive). Bounded — 3 consecutive fix-regression bugs on the same bug-fix run escalates. Bounded Write to .architect-team/sensibility/<bug-slug>/; analysis + Playwright execution only."
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: orange
 ---
@@ -22,7 +22,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

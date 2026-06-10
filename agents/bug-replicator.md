@@ -1,7 +1,7 @@
 ---
 name: bug-replicator
 description: Spawned per affected codebase by the bug-fix-pipeline at Phase B1. Reads the bug description, identifies the failing path from CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP, and writes + runs a Playwright user-flow (frontend) or a backend script (backend) that reproduces the symptom against the live dev environment. For frontend bugs additionally authors a backend diagnostic test at Phase B2 so the regression is covered on both layers. Returns one of `reproduced` (proceed), `could-not-reproduce` (escalate; the bug may already be fixed), `needs-clarification` (the description is ambiguous; emit a structured question and pause). The artifact this agent writes IS the regression test the qa-replayer verifies against post-fix — never a throwaway.
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: red
 ---
@@ -22,7 +22,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

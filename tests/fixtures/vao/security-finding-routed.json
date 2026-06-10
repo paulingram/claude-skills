@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "fixture_name": "security-finding-routed",
+    "capability": "v3.10.0 R6a — the `security-hunter` adversarial-reviewer shape (6th shape). It is NOT a Layer 3 `verify_*` severity; it is a code-review finding routed as a solution requirement with `origin.kind: \"security-finding\"`. This fixture is the canonical well-formed routed-SR example the doc catalog references.",
+    "produced_by": "adversarial-reviewer with vao_adversarial_role = security-hunter",
+    "trigger": "backend-dep task shape AND the diff touches auth/ AND adds a dependency — all three security-hunter triggers fire on this slice",
+    "origin_kind_in_catalog": "security-finding",
+    "routes_directly": true,
+    "diagnostic_research_team": false,
+    "note": "security-finding spawns the owning team DIRECTLY (the finding already names {class, file, line, evidence, remediation}); it does NOT route through diagnostic-research-team (that is for test-failure origins)."
+  },
+  "adversarial_review": {
+    "vao_adversarial_role": "security-hunter",
+    "verdict": "fail",
+    "security_findings": [
+      {
+        "class": "missing-authorization",
+        "file": "src/api/admin/users.py",
+        "line": 34,
+        "evidence": "GET /api/admin/users added without the require_admin permission dependency its sibling admin routes carry (compare src/api/admin/audit.py:18).",
+        "remediation": "Add the require_admin dependency to the new route so an unprivileged session cannot enumerate users."
+      },
+      {
+        "class": "injection-prone-construction",
+        "file": "src/api/admin/users.py",
+        "line": 41,
+        "evidence": "SQL built by f-string interpolation of the request query param: f\"SELECT * FROM users WHERE name LIKE '%{q}%'\" — unparameterized, SQL-injectable.",
+        "remediation": "Use a parameterized query / the ORM's bound parameters; never interpolate request input into SQL."
+      },
+      {
+        "class": "dependency-addition-unjustified",
+        "file": "requirements.txt",
+        "line": 12,
+        "evidence": "New dependency `fast-sql-helper==0.3.1` added with no Reuse Decision citation and no stated reason in the change.",
+        "remediation": "Either justify the dependency with a Reuse Decision + reason, or remove it in favour of the stdlib / an already-vendored helper."
+      }
+    ]
+  },
+  "routed_solution_requirement": {
+    "schema_version": 1,
+    "solution_id": "SR-security-admin-users-2026-06-10T12:00:00Z",
+    "created_at": "2026-06-10T12:00:00Z",
+    "origin": {
+      "kind": "security-finding",
+      "discovered_in": "Phase 3",
+      "discovered_by": "adversarial-reviewer (security-hunter)",
+      "handoff_artifact": ".architect-team/vao-verdicts/T-031-adversarial.json"
+    },
+    "problem_summary": "The new admin user-list endpoint can be called without admin privileges and builds its search query by interpolating the raw request param into SQL, and the slice adds an unjustified third-party dependency.",
+    "expected_behavior": "GET /api/admin/users requires an admin session, the search query is parameterized, and any added dependency carries a Reuse Decision + justification.",
+    "evidence": [
+      "src/api/admin/users.py:34",
+      "src/api/admin/users.py:41",
+      "requirements.txt:12",
+      ".architect-team/vao-verdicts/T-031-adversarial.json"
+    ],
+    "affected_requirements": ["REQ-ADMIN-04"],
+    "scope": {
+      "files_to_change": ["src/api/admin/users.py", "requirements.txt"],
+      "files_to_test": ["tests/integration/test_admin_users_authz.py"]
+    },
+    "acceptance_criteria": [
+      "GET /api/admin/users with a non-admin session returns 403 (the require_admin dependency is present)",
+      "the user-search query is parameterized (no request input interpolated into SQL); an injection probe returns no rows / errors safely",
+      "the added dependency is removed OR justified with a Reuse Decision and a stated reason",
+      "an integration test covers the 403-without-admin path and the parameterized-query path"
+    ],
+    "suggested_team": "backend-admin",
+    "blast_radius": "single endpoint + one manifest line; no schema changes",
+    "priority": "high",
+    "status": "open"
+  }
+}

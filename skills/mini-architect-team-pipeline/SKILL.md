@@ -83,21 +83,11 @@ If the user injects a message mid-run (after this skill has begun executing any 
 
 ## Phase M0.1 — Discipline freshness check (v2.18.0)
 
-Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-registry-current`, auto-apply safe disciplines, route the rest as SRs. See `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`. Runs AFTER the MemPalace wake-up and BEFORE Phase M0 intake.
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json"
-```
-
-Best-effort — a failure of the verify-tool never blocks the mini loop; surface a one-line note and proceed.
+Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-registry-current` (per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)`, the Discipline-freshness row), auto-apply safe disciplines, route the rest as SRs. See `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`. Runs AFTER the MemPalace wake-up and BEFORE Phase M0 intake. Best-effort — a failure of the verify-tool never blocks the mini loop; surface a one-line note and proceed.
 
 ## Phase-boundary inbox check (v2.19.0)
 
-Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every mini phase (M0 / M1 / M2 / M3 / M4 / M5 / M6 / M7) AND after every subagent dispatch returns, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0, mark_processed. Phase M7 invokes the 17th Layer 3 tool to gate against silently-ignored messages.
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json"
-```
+Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every mini phase (M0 / M1 / M2 / M3 / M4 / M5 / M6 / M7) AND after every subagent dispatch returns, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0, mark_processed. Phase M7 invokes the 17th Layer 3 tool `verify-inflight-clarifications-processed` to gate against silently-ignored messages (per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)`, the In-flight inbox row).
 
 See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home.
 
@@ -253,23 +243,13 @@ Read `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`:
 
 ### Deploy mandate final gate (v2.20.0)
 
-If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool BEFORE the auto-merge sequence:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json"
-```
+If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool `verify-deploy-mandate-satisfied` BEFORE the auto-merge sequence — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Deploy-mandate row; it BLOCKS).
 
 Any of the 4 severities blocks the auto-merge. The mini loop routes the failure back to Phase M8 cycle as `verdict: red` with the deploy-mandate gap as the explicit failure reason; the architect re-spawns to satisfy the missing binding criterion. See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
 ### Unilateral-override meta-gate (v3.0.0)
 
-After the deploy-mandate gate, run the 21st Layer 3 tool as a meta-confession check across all text artifacts the mini run produced (architect's M3 self-confirm verdict, mini-qa M5 verdict notes, M6 final summary):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json"
-```
-
-Single severity `unilateral-override-with-virtue-framed-confession` blocks the auto-merge; routes to Phase M8 cycle as red. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
+After the deploy-mandate gate, run the 21st Layer 3 tool `verify-no-unilateral-override` as a meta-confession check across all text artifacts the mini run produced (architect's M3 self-confirm verdict, mini-qa M5 verdict notes, M6 final summary) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). Single severity `unilateral-override-with-virtue-framed-confession` blocks the auto-merge; routes to Phase M8 cycle as red. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
 
 On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. **This is the only point in any architect-team pipeline that pushes to `main` directly.**
 

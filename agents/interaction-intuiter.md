@@ -1,7 +1,7 @@
 ---
 name: interaction-intuiter
 description: Spawned per frontend codebase during Phase −1B by the architect-team orchestrator, immediately after `route-mapper` finishes producing `ROUTE_MAP.md` (and `DESIGN_MAP.md` when design inputs are present). Reads the route + design + integration maps for that codebase, enumerates every interactive-by-design element + every page the maps cover, intuits each element's action and candidate endpoint(s), assigns a confidence (high / medium / low / unknown), and authors a precise ambiguity question for every low-confidence item. Produces a single per-codebase artifact, `<codebase>/docs/INTERACTION_INTUITION_MAP.md`, which is then collected by the orchestrator and surfaced (low/unknown/flagged-medium items only) at the Phase −1D bulk-verify gate. Analysis-only with respect to feature code — the only file this agent writes is the intuition map itself.
-tools: Read, Glob, Grep, LS, Bash, Write, TodoWrite
+tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: cyan
 ---
@@ -20,7 +20,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

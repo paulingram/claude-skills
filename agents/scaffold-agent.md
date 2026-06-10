@@ -18,7 +18,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 
@@ -32,7 +32,7 @@ If any of these are missing, ASK before generating. Specifically:
 
 1. Confirm the agent name and a one-line role description.
 2. What model? (`opus` for judgment-heavy / synthesis; `sonnet` for most implementer/reviewer work; `haiku` for very narrow mechanical tasks.)
-3. What tools? (Implementer agents usually need Read/Edit/Write/Glob/Grep/LS/Bash/TodoWrite. Reviewers usually skip Edit/Write. Researchers might add WebFetch/WebSearch.)
+3. What tools? (Implementer agents usually need Read/Edit/Write/Glob/Grep/Bash/TodoWrite. Reviewers usually skip Edit/Write — a reviewer that writes only its own verdict/SR JSON gets a bounded `Write` with a one-line scope note, per the `task-reviewer` pattern. Researchers might add WebFetch/WebSearch.)
 4. What color? (Avoid duplicating existing agents' colors unless deliberate.)
 5. Any specific patterns from existing agents to inherit? (Reuse-First Mandate, review-gate discipline, scope boundaries.)
 
@@ -43,9 +43,9 @@ If any of these are missing, ASK before generating. Specifically:
 3. **Validate the frontmatter:**
    - `name` matches the file name (without `.md`).
    - `description` is a substantive one-line description (≥ 20 chars).
-   - `tools` is a comma-separated list of valid Claude Code tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `LS`, `Bash`, `TodoWrite`, `NotebookRead`, `NotebookEdit`, `WebFetch`, `WebSearch`, `Task`).
-   - `model` is one of `opus`, `sonnet`, `haiku`.
-   - `color` is one of `blue`, `cyan`, `green`, `orange`, `magenta`, `purple`, `red`.
+   - `tools` is a comma-separated list of valid Claude Code tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`, `TodoWrite`, `NotebookEdit`, `WebFetch`, `WebSearch`). Do NOT use the retired `LS` (covered by `Glob`/`Read`/`Bash`), `NotebookRead` (merged into `Read`), or `Task` (teammates do not spawn other agents) tokens.
+   - `model` is one of `opus`, `sonnet`, `haiku` (or `inherit`).
+   - `color` is one of `blue`, `cyan`, `green`, `orange`, `pink`, `purple`, `red`, `yellow`.
 4. **Write the file** at `agents/<name>.md`.
 5. **Verify by running the plugin's agents test:** `python -m pytest tests/test_agents.py -v`. If the new agent isn't in `EXPECTED_AGENTS`, the test won't fail on its presence — but the frontmatter validity test runs for it via parametrization. If frontmatter is bad, fix and retry.
 6. **Inform the user**: include the file path, what's in the frontmatter, and a reminder to add the new agent name to `EXPECTED_AGENTS` in `tests/test_agents.py` if they want presence-checking.

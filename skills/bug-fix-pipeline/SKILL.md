@@ -86,21 +86,11 @@ If the user injects a message mid-run (after this skill has begun executing any 
 
 ## Phase B0.1 — Discipline freshness check (v2.18.0)
 
-Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-registry-current`, auto-apply safe disciplines, route the rest as SRs. See `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`. Runs AFTER the MemPalace wake-up + entry-condition checks above and BEFORE Phase B−1.
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-discipline-registry-current --workspace "<workspace>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-discipline-registry.json"
-```
-
-Best-effort — a failure of the verify-tool never blocks the bug-fix loop; surface a one-line note and proceed.
+Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-registry-current` (per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)`, the Discipline-freshness row), auto-apply safe disciplines, route the rest as SRs. See `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`. Runs AFTER the MemPalace wake-up + entry-condition checks above and BEFORE Phase B−1. Best-effort — a failure of the verify-tool never blocks the bug-fix loop; surface a one-line note and proceed.
 
 ## Phase-boundary inbox check (v2.19.0)
 
-Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every numbered bug-fix phase (B−1 / B0 / B1 / B2 / B3 / B4 / B5 / B6 / B6b / B7 / B8) AND after every subagent dispatch returns, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0, mark_processed. Phase B8 invokes the 17th Layer 3 tool to gate against silently-ignored messages.
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-inflight-clarifications-processed --workspace "<workspace>" --run-id "<run-id>" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-inflight-clarifications.json"
-```
+Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every numbered bug-fix phase (B−1 / B0 / B1 / B2 / B3 / B4 / B5 / B6 / B6b / B7 / B8) AND after every subagent dispatch returns, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0, mark_processed. Phase B8 invokes the 17th Layer 3 tool `verify-inflight-clarifications-processed` to gate against silently-ignored messages (per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)`, the In-flight inbox row).
 
 See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home.
 
@@ -492,23 +482,11 @@ As part of Phase B8, record the run's §6 success metrics via `hooks/run_metrics
 
 ### Deploy mandate final gate (v2.20.0)
 
-If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool BEFORE proceeding with commit + push:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-deploy-mandate-satisfied --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --mandate "<workspace>/.architect-team/intake-state.json" --final-report "<workspace>/.architect-team/final-reports/<run-id>.md" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-deploy-mandate.json"
-```
-
-Any of the 4 severities blocks the commit. The bug-fix loop routes SRs with `origin.kind: "deploy-mandate-not-satisfied"`. See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
+If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool `verify-deploy-mandate-satisfied` BEFORE proceeding with commit + push — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Deploy-mandate row; it BLOCKS). Any of the 4 severities blocks the commit. The bug-fix loop routes SRs with `origin.kind: "deploy-mandate-not-satisfied"`. See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
 
 ### Unilateral-override meta-gate (v3.0.0)
 
-After the deploy-mandate gate, run the 21st Layer 3 tool as a meta-confession check across all text artifacts the bug-fix run produced (final_report, qa-replayer verdict notes, bug-replicator reproduction-text, remediation_log):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-no-unilateral-override --sources "<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-unilateral-override.json"
-```
-
-Single severity `unilateral-override-with-virtue-framed-confession` blocks the commit. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
+After the deploy-mandate gate, run the 21st Layer 3 tool `verify-no-unilateral-override` as a meta-confession check across all text artifacts the bug-fix run produced (final_report, qa-replayer verdict notes, bug-replicator reproduction-text, remediation_log) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). Single severity `unilateral-override-with-virtue-framed-confession` blocks the commit. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
 
 Same flow as `architect-team-pipeline` Phase 8 — **documentation-currency gate first** (the `doc-updater` agent dispatch + the `system-architect` Documentation Currency Audit + the commit-blocking gate, per v0.9.23 — same dispatch, same audit, same enforcement as the main pipeline), then completion audit gate, default-branch guard (the work lands on `architect-team/<bug-slug>` feature branch unless `--allow-push-to-default`), commit with the standard message template, push to the feature branch, recommend a PR. **Auto-merge to main (v3.7.0):** when `AUTO_MERGE_MAIN = true` (the default; `--no-auto-merge` opts out) AND the completion audit passed AND the commit landed on `architect-team/<bug-slug>`, after the push call `merge_branch_to_main_and_prune('architect-team/<bug-slug>', '${WORKTREE_PATH}', push=<AUTO_PUSH>)` via the polyglot Python (same invocation as `architect-team-pipeline` Phase 8's `### Auto-merge to main` section; run from the MAIN checkout). On `reason: "merged-and-pruned"` report merged + pruned (branch deleted local + remote, worktree removed) and SKIP the finalize step below. On `conflict: true` fall back to the feature-branch + PR-recommend path + the finalize step below. On `reason: "push-rejected"` (branch protection) STOP + report, never force. When `--no-auto-merge`, skip this and run the finalize step below verbatim. Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`. **End-of-run worktree finalize (v3.6.0):** after the push (and the v3.7.0 auto-merge step when it did NOT already prune the worktree) and before the auto-compact prompt — when this run created a worktree — call `finalize_run_worktree(Path('${WORKTREE_PATH}'))` via the polyglot Python pattern (same invocation as `architect-team-pipeline` Phase 8's `### End-of-run worktree finalize` section): it removes the worktree + branch if the branch is merged into `origin/main`, otherwise leaves the folder and returns a `warning` the orchestrator prints verbatim. Unmerged work is never auto-deleted. Auto-compact prompt at the very end (unless `--no-compact`).
 

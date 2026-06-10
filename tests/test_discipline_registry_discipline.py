@@ -103,23 +103,24 @@ def test_each_pipeline_invokes_layer3_tool() -> None:
         assert "verify-discipline-registry-current" in body, f"{path.name} missing tool invocation"
 
 
-def test_each_pipeline_uses_polyglot_python_pattern() -> None:
-    """Every Phase 0.1 code-block invocation must use the polyglot python3 / || python pattern."""
+def test_registry_gate_polyglot_lives_in_cpc_table() -> None:
+    """v3.10.0 (R3c): the per-body Phase 0.1 polyglot bash was collapsed into the
+    canonical `## Layer 3 gate invocation table (v3.10.0)` (the detect-once polyglot
+    form). Each pipeline body names the tool + references that table."""
+    cpc = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Layer 3 gate invocation table (v3.10.0)" in cpc
+    assert "verify-discipline-registry-current" in cpc, "the gate table must name the registry tool"
+    assert "command -v python3 || command -v python" in cpc, "the table uses the detect-once polyglot form"
     for path in (
         REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md",
     ):
         body = path.read_text(encoding="utf-8")
-        # Find every line that invokes the verify tool and confirm at least
-        # one is shaped `python3 ... verify-discipline-registry-current ... || python ... verify-discipline-registry-current ...`
-        invocation_lines = [
-            ln for ln in body.splitlines()
-            if "verify-discipline-registry-current" in ln
-            and "python3" in ln
-            and "|| python" in ln
-        ]
-        assert invocation_lines, f"{path.name}: missing polyglot Phase 0.1 invocation line"
+        assert "verify-discipline-registry-current" in body, f"{path.name}: must still name the registry tool"
+        assert "Layer 3 gate invocation table (v3.10.0)" in body, (
+            f"{path.name}: must reference the canonical gate invocation table"
+        )
 
 
 # ---- canonical fixture ----

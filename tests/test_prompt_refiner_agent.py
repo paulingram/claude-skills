@@ -70,10 +70,10 @@ def test_agent_has_write_bounded(plugin_root: Path) -> None:
 
 
 def test_agent_has_read_and_grep(plugin_root: Path) -> None:
-    """Read + Glob + Grep + LS for map-reading."""
+    """Read + Glob + Grep for map-reading (LS retired in v3.10.0 R4a)."""
     fm, _ = _read(plugin_root)
     tools = _tools_list(fm)
-    for required in ("Read", "Glob", "Grep", "LS"):
+    for required in ("Read", "Glob", "Grep"):
         assert required in tools, f"prompt-refiner must have {required}"
 
 

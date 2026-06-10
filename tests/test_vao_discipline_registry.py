@@ -158,7 +158,23 @@ def test_partial_annotation_still_triggers_not_applied(tmp_path: Path) -> None:
 # ---- detector: multi-persona-path-coverage ----
 
 
-def test_no_persona_inventory_triggers_not_applied(tmp_path: Path) -> None:
+def test_no_frontend_surface_records_multi_persona_not_applicable(tmp_path: Path) -> None:
+    """R7 (v3.10.0): a no-UI workspace (no frontend markers) records
+    multi-persona-path-coverage as not_applicable instead of emitting a
+    persona-inventory-required gap.
+
+    EDIT REASON (enumerated): R7 deliberately changes this behavior — the
+    former `test_no_persona_inventory_triggers_not_applied` asserted a gap on
+    an empty workspace; under R7 an empty/no-UI workspace is n/a, not a gap."""
+    findings = freshness_check(tmp_path)
+    persona_findings = [f for f in findings if f["discipline"] == "multi-persona-path-coverage"]
+    assert persona_findings == []  # n/a -> no gap
+
+
+def test_frontend_present_but_no_persona_inventory_still_fires_gap(tmp_path: Path) -> None:
+    """R7: when the codebase DOES have a UI surface (a .tsx file) but no
+    persona-inventory.json, the discipline is applicable and the gap fires."""
+    _materialize(tmp_path, {"src/App.tsx": "export const App = () => <div/>;"})
     findings = freshness_check(tmp_path)
     persona_findings = [f for f in findings if f["discipline"] == "multi-persona-path-coverage"]
     assert len(persona_findings) == 1
@@ -199,7 +215,15 @@ def test_tool_returns_standard_verdict_shape(tmp_path: Path) -> None:
 
 
 def test_tool_fires_registry_missing_when_no_registry_AND_gaps(tmp_path: Path) -> None:
-    # multi-persona-path-coverage finding fires by default
+    # EDIT REASON (enumerated): R7 makes an empty workspace produce ZERO gaps
+    # (prod-safe + multi-persona are n/a; live-data + affordance applied), so a
+    # real gap now requires an applicable-discipline violation. Materialize a
+    # UI surface with an UNANNOTATED Playwright spec -> a genuine
+    # prod-safe-test-classification gap -> the registry-missing severity fires.
+    _materialize(tmp_path, {
+        "src/App.tsx": "export const App = () => <div/>;",
+        "e2e/login.spec.ts": "test('login', async ({page}) => { await page.goto('/'); });",
+    })
     v = verify_discipline_registry_current(tmp_path)
     sevs = {g["severity"] for g in v["gaps"]}
     assert "discipline-registry-missing" in sevs

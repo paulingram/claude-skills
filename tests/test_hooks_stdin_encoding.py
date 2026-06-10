@@ -21,8 +21,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -51,20 +53,39 @@ _UTF8_PAYLOAD = json.dumps(
 ).encode("utf-8")
 
 
-def _run_hook(script: str, payload_bytes: bytes, cp1252: bool = True):
+def _run_hook(script: str, payload_bytes: bytes, cp1252: bool = True, cwd: str | None = None):
     env = dict(os.environ)
     if cp1252:
         # Force the child's stdio codec to cp1252 — the Windows-console
         # condition the bug manifests under. The hook must STILL decode the
         # UTF-8 stdin bytes correctly because it reads sys.stdin.buffer.
         env["PYTHONIOENCODING"] = "cp1252"
-    return subprocess.run(
-        [sys.executable, str(HOOKS_DIR / script)],
-        input=payload_bytes,
-        capture_output=True,
-        cwd=str(REPO_ROOT),  # a dir with no live .architect-team run -> hooks no-op
-        env=env,
-    )
+    # Hermeticity: the Stop hooks (pipeline-completion-audit.py) walk UP from cwd
+    # to find an active `.architect-team/` run and exit 2 when its worklist is
+    # non-empty (e.g. an open SR). Running from REPO_ROOT leaks THIS run's live
+    # `.architect-team/` state into the subprocess, so a benign-payload test that
+    # asserts a fail-open exit 0 spuriously fails (returncode 2) whenever the
+    # suite runs from inside the live run worktree (py-locks RCA / SR-test_hooks_
+    # stdin_encoding-completion-audit). Default to an OS-temp cwd (outside any
+    # repo) so no `.architect-team/` is reachable and the hooks genuinely no-op.
+    if cwd is None:
+        # An ephemeral temp dir under %TEMP% / /tmp — never inside the worktree,
+        # so the hook's walk-up finds no live run-state.
+        cwd = tempfile.mkdtemp(prefix="ct6-hookenc-")
+        _cleanup = cwd
+    else:
+        _cleanup = None
+    try:
+        return subprocess.run(
+            [sys.executable, str(HOOKS_DIR / script)],
+            input=payload_bytes,
+            capture_output=True,
+            cwd=cwd,
+            env=env,
+        )
+    finally:
+        if _cleanup is not None:
+            shutil.rmtree(_cleanup, ignore_errors=True)
 
 
 @pytest.mark.parametrize("script", A8_HOOKS)

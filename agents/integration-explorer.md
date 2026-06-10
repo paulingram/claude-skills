@@ -1,7 +1,7 @@
 ---
 name: integration-explorer
 description: Spawned ×3 in parallel during Phase −1C. Each independently produces an integration synthesis from all CODEBASE_MAP.md / ROUTE_MAP.md files plus read access to boundary code (HTTP clients, queues, shared schemas, deployment configs). In the round-robin convergence step, each reviews the other two's drafts and revises its own until all three agree.
-tools: Read, Glob, Grep, LS, Bash, Write, Edit, TodoWrite, WebFetch
+tools: Read, Glob, Grep, Bash, Write, Edit, TodoWrite, WebFetch
 model: opus
 color: blue
 ---
@@ -18,7 +18,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 

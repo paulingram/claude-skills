@@ -118,20 +118,25 @@ def test_mini_pipeline_has_phase_m7_gate() -> None:
     assert "verify-deploy-mandate-satisfied" in body
 
 
-def test_each_pipeline_uses_polyglot_python_pattern() -> None:
+def test_deploy_gate_polyglot_lives_in_cpc_table() -> None:
+    """v3.10.0 (R3c): the per-body polyglot bash for the deploy-mandate gate was
+    collapsed into the canonical `## Layer 3 gate invocation table (v3.10.0)` in
+    common-pipeline-conventions (the detect-once polyglot form). Each pipeline body
+    now names the tool + references that table instead of re-spelling the bash."""
+    cpc = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Layer 3 gate invocation table (v3.10.0)" in cpc
+    assert "verify-deploy-mandate-satisfied" in cpc, "the gate table must name the deploy tool"
+    assert "command -v python3 || command -v python" in cpc, "the table uses the detect-once polyglot form"
     for path in (
         REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md",
     ):
         body = path.read_text(encoding="utf-8")
-        invocations = [
-            ln for ln in body.splitlines()
-            if "verify-deploy-mandate-satisfied" in ln
-            and "python3" in ln
-            and "|| python" in ln
-        ]
-        assert invocations, f"{path.name}: missing polyglot deploy-mandate gate invocation"
+        assert "verify-deploy-mandate-satisfied" in body, f"{path.name}: must still name the deploy tool"
+        assert "Layer 3 gate invocation table (v3.10.0)" in body, (
+            f"{path.name}: must reference the canonical gate invocation table"
+        )
 
 
 # ---- fixture ----

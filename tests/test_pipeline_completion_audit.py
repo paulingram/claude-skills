@@ -49,7 +49,16 @@ def _at(workspace: Path) -> Path:
     return d
 
 
-def _write_sr(workspace: Path, sr_id: str, status: str, *, origin_kind: str = "visual-fidelity-drift",
+# Default origin kind for the "a clean resolved SR" background fixtures: a
+# NON-test-failure origin (`editability-gap` routes a fix team directly and does
+# NOT require a diagnostic_plan_path). SR-sr-catalog-spelling-reconcile flipped
+# the runtime constant to the canonical `visual-fidelity-drift`, which (correctly)
+# IS a test-failure origin demanding a plan — so the prior default
+# (`visual-fidelity-drift`) made every "clean resolved SR" background fixture
+# require a plan it was never meant to carry. Tests whose intent IS a
+# test-failure SR pass `origin_kind=` explicitly (rca-product-bug /
+# integration-testing-failure below), so they are unaffected.
+def _write_sr(workspace: Path, sr_id: str, status: str, *, origin_kind: str = "editability-gap",
               diagnostic_plan_path: str | None = None) -> None:
     sr_dir = _at(workspace) / "solution-requirements"
     sr_dir.mkdir(exist_ok=True)

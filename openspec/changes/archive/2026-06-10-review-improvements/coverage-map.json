@@ -1,0 +1,493 @@
+{
+  "schema_version": 1,
+  "change": "review-improvements",
+  "generated_at": "2026-06-10T00:00:00Z",
+  "coverage_note": "Every entry is layer:infra. This repo is a Claude Code plugin with no UI/HTTP surface; Playwright user-flow and dev-API integration criteria are N/A per the recorded authorization below. Phase 1's loop conditions accept this in lieu of those criteria.",
+  "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+  "entries": [
+    {
+      "source_requirement_id": "R1a",
+      "source_excerpt": "Move duplicated constants/helpers (_utc_now_iso x4, _load_json x3, JSONL readers x3) to a shared home; dual-form imports; unify _load_json semantics deliberately (load_json(path,*,missing_ok)); preserve per-call-site fail-open/fail-closed.",
+      "spec_requirement_id": "review-improvements.r1.shared-helpers",
+      "scenarios": ["duplicated helpers have one definition each (R1a)"],
+      "acceptance_criteria": [
+        "exactly one definition each of _utc_now_iso / the JSONL reader / load_json(path,*,missing_ok) in hooks/shared_util.py, imported dual-form everywhere",
+        "each call site's fail-open vs fail-closed semantics preserved and tested (no silent hook-gating change)",
+        "scripts/phenotypes/phenotypes.py documented out-of-scope (keeps own helper)"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_shared_util.py + grep shows one definition each",
+      "status": "pending",
+      "team": "py-core",
+      "tasks": ["PC-4"],
+      "acceptance_criteria_ids": ["AC-1"]
+    },
+    {
+      "source_requirement_id": "R1b",
+      "source_excerpt": "Unify the two localhost lists inside vao_tools (v2.2.0 ~849 vs _LOCAL_ENV_HOST_PATTERNS ~2345) into one union, referenced by both consumers; prove fixture verdicts unchanged.",
+      "spec_requirement_id": "review-improvements.r1.localhost-union",
+      "scenarios": ["the two localhost lists are unified (R1b)"],
+      "acceptance_criteria": [
+        "a single union constant referenced by both consumers, re-exported by the facade as _LOCAL_ENV_HOST_PATTERNS",
+        "both tools' verdicts on every existing fixture unchanged"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "existing VAO fixture round-trips green; facade exposes _LOCAL_ENV_HOST_PATTERNS",
+      "status": "pending",
+      "team": "py-core",
+      "tasks": ["PC-5"],
+      "acceptance_criteria_ids": ["AC-1"]
+    },
+    {
+      "source_requirement_id": "R1c",
+      "source_excerpt": "Author ## Scope-fidelity discipline family (v3.10.0) in CPC naming the five disciplines as one family with the 3-disposition model + a firing-moment table; fold the five scattered neighbor-comparison tables; tools' code contracts stay.",
+      "spec_requirement_id": "review-improvements.r1.discipline-family-doc",
+      "scenarios": ["the five disciplines are documented as one family (R1c)"],
+      "acceptance_criteria": [
+        "CPC has ## Scope-fidelity discipline family (v3.10.0) naming the 5 disciplines, the 3-disposition model, and a WHEN-each-fires comparison table",
+        "the firing-moment distinctions from the five scattered tables are preserved",
+        "the five tools' CLI subcommands / severities / verdict shapes unchanged"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_scope_fidelity_family.py",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-1"],
+      "acceptance_criteria_ids": ["AC-1"]
+    },
+    {
+      "source_requirement_id": "R1d",
+      "source_excerpt": "detect_virtue_framed_override fires on any opener + any admission document-wide; require proximity (<=500-char window) for a single pair; document-wide only with >=2 admissions. Benign sentence must NOT fire; v3.0.0 fixture MUST fire.",
+      "spec_requirement_id": "review-improvements.r1.override-proximity",
+      "scenarios": ["the virtue-framed-override false positive is fixed (R1d)"],
+      "acceptance_criteria": [
+        "the benign 'You're right, and the roadmap doc is updated -- let me know if you want more detail' does NOT fire",
+        "the canonical v3.0.0 fixture STILL fires",
+        "a single opener+admission pair requires <=500-char proximity; document-wide pairing only with >=2 distinct admissions"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_override_markers_proximity.py",
+      "status": "pending",
+      "team": "py-core",
+      "tasks": ["PC-6"],
+      "acceptance_criteria_ids": ["AC-1"]
+    },
+    {
+      "source_requirement_id": "R1e",
+      "source_excerpt": "Prune _HONEST_SCOPE_STATEMENT_MARKERS/admission lists of standalone common phrases (blueprint/roadmap/quick win/let me know if) so they count only adjacent to a scope-cut phrase. Fixtures still fire; benign non-firing tests.",
+      "spec_requirement_id": "review-improvements.r1.admission-pruning",
+      "scenarios": ["standalone admission phrases no longer false-fire (R1e)"],
+      "acceptance_criteria": [
+        "standalone blueprint/roadmap/quick win/let me know if count as admissions only adjacent (same sentence/window) to a scope-cut phrase",
+        "canonical scope-cut fixtures still fire; benign-text non-firing tests pass"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_override_markers_proximity.py",
+      "status": "pending",
+      "team": "py-core",
+      "tasks": ["PC-7"],
+      "acceptance_criteria_ids": ["AC-1"]
+    },
+    {
+      "source_requirement_id": "R2",
+      "source_excerpt": "Split hooks/vao_tools.py (5209 lines/20 tools) into hooks/vao/ package (<=900 lines each); vao_tools.py remains <=400-line facade re-exporting EVERY test-referenced function+constant+helper; CLI byte-identical; ZERO behavior change.",
+      "spec_requirement_id": "review-improvements.r2.package-split-facade",
+      "scenarios": ["the facade re-exports every test-referenced name (R2)", "the package split changes no behavior (R2)", "each package module respects the line ceiling (R2)"],
+      "acceptance_criteria": [
+        "all 20 verify_ functions + 18 underscore constants + 3 helpers (design.md Decision 1b) importable as vao_tools.<name> and from hooks.vao_tools import <name>; each is the same object as hooks/vao/<module>.<name>",
+        "python -m pytest green with ZERO test edits attributable to R2; tests/test_vao_glue_execution.py green; every Layer 3 CLI subcommand identical argparse/exit-codes/verdict-files",
+        "each hooks/vao/*.py <=900 lines; the facade <=400 lines; both package and bare-module sys.path import shapes work"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_vao_facade_reexports.py + tests/test_vao_glue_execution.py green; wc -l hooks/vao/*",
+      "status": "pending",
+      "team": "py-core",
+      "tasks": ["PC-1", "PC-2", "PC-3"],
+      "acceptance_criteria_ids": ["AC-2"]
+    },
+    {
+      "source_requirement_id": "R3a",
+      "source_excerpt": "Restructure CLAUDE.md operative-first: overview facts + ## Recent releases (<=3 versions) + CHANGELOG pointer; verify every removed fact exists in CHANGELOG/CODEBASE_MAP first; <=350 lines; counts still exactly true.",
+      "spec_requirement_id": "review-improvements.r3.claude-md-diet",
+      "scenarios": ["CLAUDE.md is operative-first and nothing is lost (R3a)"],
+      "acceptance_criteria": [
+        "CLAUDE.md <=350 lines, operative-first, with ## Recent releases (<=3 versions, <=3 sentences) + CHANGELOG pointer",
+        "every removed fact verified present in CHANGELOG/CODEBASE_MAP first (CLAUDE.md-only facts appended to CHANGELOG before deletion)",
+        "the count/version facts in CLAUDE.md still exactly true"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "wc -l CLAUDE.md (<=350); diff shows facts relocated to CHANGELOG",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-2"],
+      "acceptance_criteria_ids": ["AC-3"]
+    },
+    {
+      "source_requirement_id": "R3b",
+      "source_excerpt": "CPC: keep RULE, compress NARRATIVE to <=2 lines + CHANGELOG pointer; run suite after each section; narrative-pinning test assertions updated+enumerated, rule-pinning text stays; >=30% line reduction, zero rule loss.",
+      "spec_requirement_id": "review-improvements.r3.cpc-diet",
+      "scenarios": ["CPC narrative is compressed with zero rule loss (R3b)"],
+      "acceptance_criteria": [
+        "CPC shows >=30% line reduction",
+        "every kept section retains its RULE (definitions/marker tables/severities/protocols/paths/schema examples)",
+        "every edited structural test justified as narrative-pinning and enumerated"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "before/after wc -l CPC (>=30% down); enumerated test-edit list",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-3"],
+      "acceptance_criteria_ids": ["AC-3"]
+    },
+    {
+      "source_requirement_id": "R3c",
+      "source_excerpt": "Pipeline bodies: collapse duplicated Plugin-prerequisites + dispatch re-spelling + v2.18/v2.19/v2.20/v3.0 bash blocks to one-line CPC references + minimal inline abort stub; move bash invocations to a single parameterized CPC table; update per-body structural tests enumerated.",
+      "spec_requirement_id": "review-improvements.r3.pipeline-bodies",
+      "scenarios": ["pipeline bodies reference CPC instead of re-spelling it (R3c)"],
+      "acceptance_criteria": [
+        "the duplicated blocks in the 4 bodies collapsed to one-line CPC references + the inline abort stub (one sentence/body)",
+        "the v2.18/v2.19/v2.20/v3.0 invocations live in one parameterized CPC table each body references",
+        "the structural tests asserting the inline per-body blocks updated and enumerated"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "diff of the 4 bodies + the new CPC invocation table + enumerated test edits",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-4"],
+      "acceptance_criteria_ids": ["AC-3"]
+    },
+    {
+      "source_requirement_id": "R3d",
+      "source_excerpt": "Re-measure post-diet: before/after line + word counts for CLAUDE.md, CPC, the 4 pipeline bodies.",
+      "spec_requirement_id": "review-improvements.r3.remeasure",
+      "scenarios": ["the diet is measured (R3d)"],
+      "acceptance_criteria": [
+        "before/after line and word counts reported for CLAUDE.md, CPC, and the four pipeline bodies"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "the before/after count table in the md-docs report",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-5"],
+      "acceptance_criteria_ids": ["AC-3"]
+    },
+    {
+      "source_requirement_id": "R4a",
+      "source_excerpt": "Remove stale tool names LS (30 files) + NotebookRead (8 files) from agent frontmatter; keep NotebookEdit; update VALID_TOOLS allowlists (test_agents.py, test_interaction_completeness.py, test_doc_updater_agent.py); add inherit to VALID_MODELS.",
+      "spec_requirement_id": "review-improvements.r4.tool-vocabulary",
+      "scenarios": ["stale tool tokens are gone and allowlists updated (R4a)"],
+      "acceptance_criteria": [
+        "zero LS and zero NotebookRead tokens in agents/*.md frontmatter (NotebookEdit kept)",
+        "tests/test_agents.py VALID_TOOLS + tests/test_interaction_completeness.py + tests/test_doc_updater_agent.py EXPECTED_TOOLS_IN_ALLOWLIST updated",
+        "inherit added to VALID_MODELS (no agent's current model re-pinned)"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "grep shows zero LS/NotebookRead in agent frontmatter; test_agents.py green",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-6"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R4b",
+      "source_excerpt": "Grant bounded Write to test-completeness-verifier.md + qa-replayer.md (bodies command writing verdict/SR JSON) with bounded-write note; add analysis-only exemption sentence to bug-classifier.md + codebase-map-reviewer.md checkpoint blocks.",
+      "spec_requirement_id": "review-improvements.r4.write-contradictions",
+      "scenarios": ["write-without-Write contradictions are fixed (R4b)"],
+      "acceptance_criteria": [
+        "test-completeness-verifier.md + qa-replayer.md grant bounded Write with a task-reviewer-pattern bounded-write note",
+        "bug-classifier.md + codebase-map-reviewer.md carry the checkpoint analysis-only exemption sentence"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "test_agents.py asserts Write present + exemption sentence",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-7"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R4c",
+      "source_excerpt": "Re-sync git-discipline + checkpoint boilerplate across all 34 agents via sync_agent_boilerplate.py (extend it); restore oracle-deriver's dropped $BASELINE_SHA; move blessed additions outside the canonical block; R4b exemption becomes conditional canonical phrasing.",
+      "spec_requirement_id": "review-improvements.r4.boilerplate-resync",
+      "scenarios": ["boilerplate is re-synced across all agents (R4c)"],
+      "acceptance_criteria": [
+        "git-discipline + checkpoint blocks canonical (hash-identical) across all 34, or canonical + enumerated blessed additions moved outside",
+        "the drifted variants (adversarial-reviewer/oracle-deriver/interaction-observer) carry the full canonical blocks incl. oracle-deriver's restored $BASELINE_SHA",
+        "scripts/setup/sync_agent_boilerplate.py produces this (extended if needed)"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "sync_agent_boilerplate.py run + boilerplate-hash test green",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-8"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R4d",
+      "source_excerpt": "Map invalid frontmatter colors (domain-researcher amber->yellow, integration magenta->pink, test-run-watcher + monitor-synthesizer teal->cyan); add VALID_COLORS assertion to test_agents.py.",
+      "spec_requirement_id": "review-improvements.r4.colors",
+      "scenarios": ["colors are valid and scaffold-agent is documented (R4d, R4e)"],
+      "acceptance_criteria": [
+        "the four invalid colors mapped to the documented palette",
+        "tests/test_agents.py carries a VALID_COLORS assertion"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "test_agents.py VALID_COLORS green",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-9"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R4e",
+      "source_excerpt": "scaffold-agent: keep it, fix stale LS/NotebookRead/Task tool-vocabulary guidance to R4a vocabulary, document it (README agents inventory + docs/CODEBASE_MAP.md). Do not delete.",
+      "spec_requirement_id": "review-improvements.r4.scaffold-agent",
+      "scenarios": ["colors are valid and scaffold-agent is documented (R4d, R4e)"],
+      "acceptance_criteria": [
+        "scaffold-agent kept; its LS/NotebookRead/Task vocabulary guidance aligned to R4a vocabulary",
+        "scaffold-agent documented (a row/paragraph in README agents inventory + docs/CODEBASE_MAP.md)"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "README + CODEBASE_MAP scaffold-agent entry; vocabulary diff",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-10"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R5a",
+      "source_excerpt": "acquire_lock sweep->scan->write_text race: create the lock file with os.open(O_CREAT|O_EXCL|O_WRONLY) so an existing file fails acquisition surfacing the holder; stale reclaim via atomic os.replace of an EXCL temp.",
+      "spec_requirement_id": "review-improvements.r5.excl-lock",
+      "scenarios": ["identical-scope acquisition cannot silently overwrite (R5a)"],
+      "acceptance_criteria": [
+        "the lock file is created with os.open(O_CREAT|O_EXCL|O_WRONLY); a second identical-scope acquire fails surfacing the holder (no silent overwrite)",
+        "a stale lock is reclaimed via atomic os.replace of a freshly-EXCL temp"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_locks_concurrency.py threaded same-scope -> one winner",
+      "status": "pending",
+      "team": "py-locks",
+      "tasks": ["LK-1"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R5b",
+      "source_excerpt": "Intersecting-scope race: after a successful EXCL write, re-scan; if another live lock with an intersecting scope and earlier (acquired_at, session-id) exists, release own + return acquisition-failed naming the winner; document advisory boundary.",
+      "spec_requirement_id": "review-improvements.r5.intersecting-rescan",
+      "scenarios": ["intersecting-scope acquisition resolves to one winner (R5b)"],
+      "acceptance_criteria": [
+        "after EXCL write, a re-scan finds an intersecting earlier lock -> release own + return acquisition-failed naming the winner",
+        "the advisory-semantics boundary documented in the module docstring"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_locks_concurrency.py intersecting-scope sequencing",
+      "status": "pending",
+      "team": "py-locks",
+      "tasks": ["LK-2"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R5c",
+      "source_excerpt": "globs_intersect misses leading-wildcard vs prefix: add the candidate combining the OTHER glob's literal prefix with this glob's literal suffix (src/ + auth.py -> src/auth.py); (src/**, **/auth.py) must return True both directions; keep heuristic framing.",
+      "spec_requirement_id": "review-improvements.r5.globs-intersect",
+      "scenarios": ["globs_intersect finds prefix/suffix intersections (R5c)"],
+      "acceptance_criteria": [
+        "globs_intersect('src/**','**/auth.py') returns True both argument orders (the prefix+suffix candidate added)",
+        "the documented-heuristic framing kept; cdlg_overlap behavior unchanged"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_locks_concurrency.py glob cases; cdlg tests untouched+green",
+      "status": "pending",
+      "team": "py-locks",
+      "tasks": ["LK-3"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R5d",
+      "source_excerpt": "Tests: threaded stress (N threads same scope -> one winner), intersecting-scope sequencing, glob cases, stale-reclaim still works. Mirror tests/test_inflight_inbox_atomic.py. Green on Windows (no fcntl); existing locks tests green.",
+      "spec_requirement_id": "review-improvements.r5.tests",
+      "scenarios": ["concurrency is covered by tests (R5d)"],
+      "acceptance_criteria": [
+        "tests/test_locks_concurrency.py: N-thread same-scope exactly one winner; intersecting-scope sequencing; glob cases; stale-reclaim",
+        "green on Windows (no fcntl); existing tests/test_locks.py green"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_locks_concurrency.py green under cp1252 + PYTHONUTF8=1",
+      "status": "pending",
+      "team": "py-locks",
+      "tasks": ["LK-4"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R6a",
+      "source_excerpt": "Add security-hunter as the 6th adversarial-reviewer shape + trigger rules (backend-dep -> fake-data + security; auth/dep diff -> mandatory); security-finding SR origin kind; reconcile closed-enum -> open catalog fixing integration-failure->integration-test-failure + visual-fidelity-cascade->visual-fidelity-drift forks. Fixture + structural tests.",
+      "spec_requirement_id": "review-improvements.r6.security-hunter",
+      "scenarios": ["the security-hunter shape and its triggers exist (R6a)"],
+      "acceptance_criteria": [
+        "security-hunter documented as the 6th adversarial shape; spawn-brief trigger rules present (backend-dep -> both hunters; auth/security/dep diff -> mandatory)",
+        "security-finding in the SR origin-kind catalog; closed-enum reconciled to the open catalog fixing both spelling forks across the two routing lists",
+        "tests/fixtures/vao/security-finding-routed.json round-trips; structural tests confirm shape/triggers/origin-kind/zero-fork"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_security_hunter_shape.py + grep both routing lists vs catalog = zero forks",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-11"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R6b",
+      "source_excerpt": "Add ## Accessibility axis (v3.10.0) to interaction-completeness (keyboard reachability, accessible names, axe-core via Playwright) + matching audit section to interaction-reviewer.md; a11y-gap vocabulary (keyboard-unreachable/missing-accessible-name/axe-violation) + origin kind a11y-gap; n/a rule for no-UI slices; structural tests.",
+      "spec_requirement_id": "review-improvements.r6.a11y-axis",
+      "scenarios": ["the accessibility axis exists (R6b)"],
+      "acceptance_criteria": [
+        "interaction-completeness has ## Accessibility axis (v3.10.0) and interaction-reviewer.md has the matching ## Accessibility audit (v3.10.0)",
+        "a11y-gap vocabulary with sub-kinds documented; converged findings become SRs with origin kind a11y-gap; the no-UI n/a rule stated",
+        "structural tests confirm section presence + vocabulary"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_a11y_axis.py + tests/test_interaction_completeness.py",
+      "status": "pending",
+      "team": "md-docs",
+      "tasks": ["MD-12"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R6c",
+      "source_excerpt": "Unbounded-run heartbeat: notify.py 6th event type heartbeat; run_metrics.py heartbeat_snapshot(workspace, run_id); CPC ### Heartbeat discipline (v3.10.0) (refresh in-progress.md + emit on >30-min phase + post-first-hour boundary; never gates/caps). Tests: notify accepts event offline=no-op, heartbeat_snapshot units, section presence.",
+      "spec_requirement_id": "review-improvements.r6.heartbeat",
+      "scenarios": ["the unbounded-run heartbeat exists (R6c)"],
+      "acceptance_criteria": [
+        "notify.py accepts heartbeat in EVENT_TYPES (offline/no-config = silent no-op exit 0)",
+        "run_metrics.py heartbeat_snapshot returns {run-id, phase, elapsed, qa-cycle-count, agents-dispatched} from metrics+intake-state",
+        "CPC ## Unbounded solving discipline carries ### Heartbeat discipline (v3.10.0); never gates/caps; section-presence + heartbeat_snapshot unit + notify-event tests green"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_heartbeat.py + CPC heartbeat subsection (cross-team: NT-1/NT-2 code, MD-13 doc)",
+      "status": "pending",
+      "team": "py-notify",
+      "tasks": ["NT-1", "NT-2", "NT-3", "MD-13"],
+      "acceptance_criteria_ids": ["AC-4"]
+    },
+    {
+      "source_requirement_id": "R7",
+      "source_excerpt": "discipline_registry.py detectors lack applicability guards: prod-safe counted 163 pytest files as unclassified QA tests; multi-persona demanded a persona-inventory on a no-UI repo. Guard both; add {applied, not_applicable, reason} schema; this repo records both not_applicable; verify-discipline-registry-current -> valid:true; existing tests green + new applicability tests.",
+      "spec_requirement_id": "review-improvements.r7.applicability-guards",
+      "scenarios": ["prod-safe detector only counts Playwright/QA-shaped tests (R7)", "multi-persona detector records n/a on a no-UI repo (R7)", "the registry schema records applicability auditably (R7)"],
+      "acceptance_criteria": [
+        "prod-safe detector counts only Playwright/QA-shaped files; pytest suites yield zero unclassified and record applicable=false",
+        "multi-persona records applicable=false with no frontend markers (no persona-inventory-required gap)",
+        "the registry schema gains {applied, not_applicable, reason}; verify-discipline-registry-current against this repo -> valid:true with both disciplines not_applicable; existing tests green + new positive(webapp fixture flags)/negative(this repo n/a) tests"
+      ],
+      "layer": "infra",
+      "mock_testing_authorized": "no UI/HTTP surface; verification = pytest both encodings + real-subprocess CLI execution + openspec strict validation",
+      "implementing_commits": [],
+      "tests": { "unit": [], "integration": [], "e2e": [] },
+      "demo_artifact": "tests/test_discipline_applicability.py + verify-discipline-registry-current valid:true on this repo",
+      "status": "pending",
+      "team": "py-core",
+      "tasks": ["PC-8"],
+      "acceptance_criteria_ids": ["AC-1"]
+    }
+  ],
+  "qa_guidance": {
+    "acceptance_criteria": [
+      {"id": "AC-1", "statement": "Marker/helper consolidation + false-positive fixes (REQ-R1, REQ-R7): R1a one definition each via shared_util dual-form with preserved fail-open/closed; R1b localhost union; R1c CPC discipline-family section; R1d override proximity (benign no-fire, v3.0.0 fixture fires); R1e admission pruning; R7 discipline-detector applicability guards + {applied,not_applicable,reason} + this repo records both n/a."},
+      {"id": "AC-2", "statement": "The hooks/vao/ package split is behavior-preserving (REQ-R2): 11 modules <=900 lines, vao_tools.py <=400-line facade re-exporting all 41 test-referenced names (identity round-trip), ZERO test edits attributable to R2, glue-execution + every Layer 3 CLI byte-identical."},
+      {"id": "AC-3", "statement": "The narrative diet loses no operative rule (REQ-R3): CLAUDE.md <=350 operative-first with facts relocated to CHANGELOG first; CPC >=30% line reduction zero rule loss; pipeline bodies collapsed to CPC references + inline abort stub; every edited test narrative-pinning + enumerated; counts still true; before/after measured."},
+      {"id": "AC-4", "statement": "Agent hygiene + locks fixes + new capabilities (REQ-R4/R5/R6): zero LS/NotebookRead + allowlists updated + Write granted + boilerplate re-synced + colors mapped + scaffold-agent documented; O_CREAT|O_EXCL lock + intersecting re-scan + globs_intersect prefix/suffix (src/** vs **/auth.py True) + threaded one-winner; security-hunter shape + security-finding + fork reconciliation; a11y axis + a11y-gap; heartbeat event + snapshot + CPC discipline."},
+      {"id": "AC-5", "statement": "Full suite green under both encodings + docs current + version bumped (run-level): python -m pytest green under cp1252 AND PYTHONUTF8=1 (final counts reported, additive); openspec validate --all --strict green (2 pre-existing changes stay green); 3.10.0 in plugin.json+marketplace.json; CHANGELOG + CLAUDE.md(post-R3a) + README + CODEBASE_MAP + INTEGRATION_MAP reflect hooks/vao/ + new vocabulary + new capabilities + new counts; every edited test enumerated."}
+    ],
+    "unit_test_targets": [
+      {"path": "hooks/shared_util.py:load_json", "assertion": "missing_ok=True returns default; missing_ok=False raises; per-call-site fail-open/closed preserved"},
+      {"path": "hooks/vao_tools.py (facade)", "assertion": "all 41 names (20 verify_ + 18 _CONST + 3 _helper) importable as vao_tools.<name>; each is hooks/vao/<module>.<name>"},
+      {"path": "hooks/override_markers.py:detect_virtue_framed_override", "assertion": "benign roadmap sentence no-fire; v3.0.0 fixture fires; <=500-char proximity for single pair; >=2 admissions for doc-wide"},
+      {"path": "hooks/discipline_registry.py", "assertion": "prod-safe counts only Playwright/QA-shaped; multi-persona n/a with no frontend markers; schema has {applied,not_applicable,reason}"},
+      {"path": "hooks/locks.py:acquire_lock", "assertion": "N threads same scope -> exactly one winner; identical-scope second acquire fails surfacing holder; intersecting earlier wins; stale-reclaim works"},
+      {"path": "hooks/locks.py:globs_intersect", "assertion": "('src/**','**/auth.py') -> True both orders; cdlg_overlap unchanged"},
+      {"path": "scripts/notify/notify.py", "assertion": "heartbeat in EVENT_TYPES; offline/no-config silent no-op exit 0"},
+      {"path": "hooks/run_metrics.py:heartbeat_snapshot", "assertion": "returns {run-id, phase, elapsed, qa_cycle_count, agents_dispatched} from metrics+intake-state"},
+      {"path": "tests/fixtures/vao/security-finding-routed.json", "assertion": "round-trips; security-finding in the SR catalog"}
+    ],
+    "integration_test_targets": [
+      {"target": "tests/test_vao_glue_execution.py (real-subprocess CLI family)", "assertion": "every commands/*.md + hooks.json invocation resolves/exists/runs without traceback or silent no-op AFTER the R2 split (proves facade CLI byte-identical)"},
+      {"target": "python hooks/vao_tools.py <subcommand> (every Layer 3 tool)", "assertion": "same argparse, exit codes, verdict files as pre-split (frozen external contract)"},
+      {"target": "openspec validate --all --strict --json", "assertion": "valid:true for review-improvements; consolidate-duplicated-rules + exploration-pipeline stay green"},
+      {"target": "python -m pytest (full suite)", "assertion": "green once under default Windows cp1252 and once under PYTHONUTF8=1; final counts reported (grow from 4097)"}
+    ],
+    "playwright_flows": [],
+    "out_of_scope": [
+      "No live web testing, browser automation, or dev-server interaction -- this plugin has no web surface (the R6b a11y axis + R7 prod-safe guard are themselves n/a for this repo's no-UI shape).",
+      "No production system, deployed URL, or external service -- none exist.",
+      "No destructive git operations (stash / reset --hard / rebase / commit --amend / checkout other branch / clean -f).",
+      "No structural-test edit except where it pins text this run deliberately changes (narrative / stale tool vocabulary / boilerplate) -- each enumerated with reason; R2 must produce ZERO test edits.",
+      "Do not touch the consolidate-duplicated-rules or exploration-pipeline active OpenSpec changes.",
+      "No new/changed runtime third-party dependency -- Python stays stdlib-only."
+    ]
+  }
+}

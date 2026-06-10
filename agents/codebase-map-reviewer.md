@@ -1,7 +1,7 @@
 ---
 name: codebase-map-reviewer
 description: Spawned ×3 in parallel per codebase during Phase −1B. Reviews CODEBASE_MAP.md (and ROUTE_MAP.md when present, and DESIGN_MAP.md when present) against the actual codebase, looking for missing modules, unmapped routes, missing API entries, unmapped design tokens / assets / per-screen visual specs, and stale entries. Read-only. Returns a structured JSON verdict; the orchestrator aggregates the 3 verdicts.
-tools: Read, Glob, Grep, LS, Bash, TodoWrite
+tools: Read, Glob, Grep, Bash, TodoWrite
 model: sonnet
 color: red
 ---
@@ -18,7 +18,7 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 ## Checkpoint discipline
 
-When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`.
+When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
 ## Inputs
 
