@@ -24,12 +24,12 @@ BUG_FIX_PIPELINE = REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md"
 
 
 def test_main_pipeline_has_phase_0a_dispatch_section() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     assert "## Phase 0a — Visual-to-API dispatch check (v3.3.1)" in body
 
 
 def test_phase_0a_names_canonical_intake_mode_signal() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     assert "intake_mode" in section
     assert '"visual-to-api"' in section
@@ -37,7 +37,7 @@ def test_phase_0a_names_canonical_intake_mode_signal() -> None:
 
 
 def test_phase_0a_names_4_dispatch_conditions() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     # Condition 1 — explicit signal
     assert "Explicit signal" in section
@@ -48,7 +48,7 @@ def test_phase_0a_names_4_dispatch_conditions() -> None:
 
 
 def test_phase_0a_names_3_canonical_prose_patterns() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     for prose in (
         "review this codebase and design the API",
@@ -59,20 +59,20 @@ def test_phase_0a_names_3_canonical_prose_patterns() -> None:
 
 
 def test_phase_0a_documents_no_op_condition() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     assert "No-op condition" in section
     assert "pure-feature pipelines" in section
 
 
 def test_phase_0a_documents_skill_invocation_via_skill_tool() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     assert "skill: visual-to-api-design" in section or "visual-to-api-design`" in section
 
 
 def test_phase_0a_names_5_map_artifacts() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     for doc in (
         "PERSONA_MAP.md",
@@ -85,7 +85,7 @@ def test_phase_0a_names_5_map_artifacts() -> None:
 
 
 def test_phase_0a_documents_how_phase_0_reacts() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     section = body.split("## Phase 0a — Visual-to-API dispatch check (v3.3.1)", 1)[1].split("\n## ", 1)[0]
     assert "How Phase 0 reacts" in section
     # When the dispatch fires, Phase 0 short-circuits the plain-branch authoring
@@ -95,7 +95,7 @@ def test_phase_0a_documents_how_phase_0_reacts() -> None:
 
 
 def test_phase_0a_positioned_before_phase_0() -> None:
-    body = MAIN_PIPELINE.read_text()
+    body = MAIN_PIPELINE.read_text(encoding="utf-8")
     phase_0a_idx = body.find("## Phase 0a — Visual-to-API dispatch check (v3.3.1)")
     phase_0_idx = body.find("## Phase 0 — Detection & Normalization")
     assert phase_0a_idx > 0
@@ -106,12 +106,12 @@ def test_phase_0a_positioned_before_phase_0() -> None:
 
 
 def test_visual_skill_still_documents_when_this_skill_runs() -> None:
-    body = VISUAL_SKILL.read_text()
+    body = VISUAL_SKILL.read_text(encoding="utf-8")
     assert "## When this skill runs" in body
 
 
 def test_visual_skill_documents_4_dispatch_conditions() -> None:
-    body = VISUAL_SKILL.read_text()
+    body = VISUAL_SKILL.read_text(encoding="utf-8")
     section = body.split("## When this skill runs", 1)[1].split("\n## ", 1)[0]
     assert "Explicit signal" in section
     assert "codebase + no requirements" in section
@@ -121,7 +121,7 @@ def test_visual_skill_documents_4_dispatch_conditions() -> None:
 
 
 def test_visual_skill_documents_canonical_intake_mode_signal() -> None:
-    body = VISUAL_SKILL.read_text()
+    body = VISUAL_SKILL.read_text(encoding="utf-8")
     section = body.split("## When this skill runs", 1)[1].split("\n## ", 1)[0]
     assert "intake_mode" in section
     assert '"visual-to-api"' in section
@@ -131,8 +131,8 @@ def test_visual_skill_documents_canonical_intake_mode_signal() -> None:
 
 
 def test_both_bodies_name_the_same_canonical_signal() -> None:
-    main_body = MAIN_PIPELINE.read_text()
-    vis_body = VISUAL_SKILL.read_text()
+    main_body = MAIN_PIPELINE.read_text(encoding="utf-8")
+    vis_body = VISUAL_SKILL.read_text(encoding="utf-8")
     # The canonical signal — the intake-state.json::intake_mode field
     canonical = 'intake_mode == "visual-to-api"'
     assert canonical in main_body
@@ -140,8 +140,8 @@ def test_both_bodies_name_the_same_canonical_signal() -> None:
 
 
 def test_both_bodies_name_the_same_slash_command() -> None:
-    main_body = MAIN_PIPELINE.read_text()
-    vis_body = VISUAL_SKILL.read_text()
+    main_body = MAIN_PIPELINE.read_text(encoding="utf-8")
+    vis_body = VISUAL_SKILL.read_text(encoding="utf-8")
     assert "/architect-team:visual-to-api" in main_body
     assert "/architect-team:visual-to-api" in vis_body
 
@@ -152,5 +152,5 @@ def test_both_bodies_name_the_same_slash_command() -> None:
 def test_bug_fix_pipeline_unchanged_by_v3_3_1() -> None:
     """The visual-to-api dispatch is a FEATURE-pipeline-only path. Bug-fix
     pipeline should not document Phase 0a (it has its own Phase B0)."""
-    body = BUG_FIX_PIPELINE.read_text()
+    body = BUG_FIX_PIPELINE.read_text(encoding="utf-8")
     assert "Phase 0a — Visual-to-API dispatch check (v3.3.1)" not in body
