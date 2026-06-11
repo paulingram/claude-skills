@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "label": "code-wiki",
+  "name": "Code Wiki (self-hosted Next.js documentation site for codebase maps)",
+  "version": "1.0.0",
+  "kind": "singleton",
+  "summary": "A generalized, self-hosted documentation wiki: a Next.js (App Router, standalone) app that ingests a codebases.json registry of {name, maps_dir} entries, transforms each codebase's docs/*_MAP.md into a browsable wiki (sidebar nav tree + markdown content pane + client-rendered Mermaid + dark/light theming), with no LLM, database, or second backend process. Deploys via the config-management phenotype.",
+  "components": {
+    "frontend": {
+      "language": "typescript",
+      "framework": "nextjs",
+      "ui": "wiki (sidebar tree + markdown + mermaid)"
+    },
+    "deploy": {
+      "via": "config-management phenotype",
+      "local": "docker-compose",
+      "targets": ["local", "aws", "gcp"]
+    }
+  },
+  "match": {
+    "keywords": [
+      "code wiki", "codebase wiki", "documentation site", "documentation wiki", "docs site",
+      "wiki", "deepwiki", "code documentation portal", "codebase maps viewer", "maps viewer",
+      "code documentation", "knowledge base", "architecture docs", "mermaid", "documentation portal"
+    ],
+    "trigger_phrases": [
+      "launch a code wiki for my codebases",
+      "host the codebase maps in a visually appealing way",
+      "spin up a documentation wiki from the maps",
+      "i want a browsable wiki for our code documentation",
+      "render our codebase maps as a website"
+    ]
+  },
+  "variation_points": [
+    {"id": "hosting", "options": ["local", "aws", "gcp"], "default": "local"},
+    {"id": "theme_default_mode", "options": ["system", "light", "dark"], "default": "system"}
+  ],
+  "when_to_use": [
+    "You have pre-generated codebase documentation (CT6 *_MAP.md or any markdown maps) and want a visually appealing, navigable, self-hosted wiki for one or many codebases.",
+    "You want Mermaid diagrams, a navigation tree, and dark/light theming without an LLM, a database, or a second backend process."
+  ],
+  "when_not": [
+    "You need live LLM generation / Q&A over the code (that is the stripped capability; use deepwiki-open itself or the ai-management phenotype).",
+    "The content is not markdown maps (a different content shape needs a different loader).",
+    "A single static README suffices."
+  ],
+  "contract_surface": {
+    "registry": "codebases.json — a JSON array of { name, maps_dir }; maps_dir holds docs/*_MAP.md",
+    "content_dir": "WIKI_CONTENT_DIR (default ./content) — the directory holding codebases.json",
+    "content_shape": "WikiStructure { id, title, description, pages[], sections[], rootSections[] } + WikiPage { id, title, content(markdown w/ inline ```mermaid), filePaths[], importance, relatedPages[] }",
+    "routes": ["/", "/wiki/[codebase]", "/wiki/[codebase]/[pageId]", "/health"]
+  },
+  "provenance": {
+    "absorbed_from": ["https://github.com/AsyncFuncAI/deepwiki-open.git"],
+    "absorbed_by": "absorb-tool",
+    "absorbed_at": "2026-06-11",
+    "generalized": true
+  },
+  "scaffold": {
+    "manifest": "scaffold/scaffold.manifest.json",
+    "parameters": [
+      {"name": "wiki_name", "required": true, "description": "display name of the wiki, e.g. 'Acme Engineering Docs'"},
+      {"name": "port", "default": "3000", "description": "HTTP port the wiki serves on"},
+      {"name": "wiki_content_dir", "default": "./content", "description": "directory holding codebases.json + the maps"},
+      {"name": "project_name", "default": "acme", "description": "project/org prefix for cloud resource naming (iac)"},
+      {"name": "aws_region", "default": "us-east-1", "description": "AWS region for iac/aws"},
+      {"name": "gcp_project", "default": "acme-project", "description": "GCP project id for iac/gcp"},
+      {"name": "gcp_region", "default": "us-central1", "description": "GCP region for iac/gcp"}
+    ]
+  },
+  "blueprint": "blueprint.md"
+}

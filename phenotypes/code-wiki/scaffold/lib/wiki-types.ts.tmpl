@@ -1,0 +1,36 @@
+// The wiki content contract. Absorbed verbatim from deepwiki-open's WikiCacheData shape
+// (api/api.py:40-99 == src/types/wiki/*): the viewer is unchanged; only the SOURCE changes
+// (filesystem maps instead of an LLM). Diagrams ride INSIDE `content` as fenced ```mermaid blocks.
+
+export type Importance = "high" | "medium" | "low";
+
+export interface WikiPage {
+  id: string;
+  title: string;
+  content: string; // ONE markdown string per page, with ```mermaid blocks inline
+  filePaths: string[]; // source files the page documents (here: the map file's own path)
+  importance: Importance;
+  relatedPages: string[]; // page ids -> chip links
+}
+
+export interface WikiSection {
+  id: string;
+  title: string;
+  pages: string[];
+  subsections?: string[];
+}
+
+export interface WikiStructure {
+  id: string;
+  title: string;
+  description: string;
+  pages: WikiPage[];
+  sections: WikiSection[];
+  rootSections: string[];
+}
+
+// The codebases.json registry entry (the post-emit fill).
+export interface CodebaseEntry {
+  name: string;
+  maps_dir: string;
+}

@@ -1,0 +1,64 @@
+# {{wiki_name}} GCP service-layer variables. Mirrors config-management's module_inputs contract so the
+# wiki onboards as just another service.
+
+variable "project" {
+  type        = string
+  default     = "{{project_name}}"
+  description = "project/org prefix for resource naming"
+}
+variable "service" {
+  type        = string
+  default     = "code-wiki"
+  description = "service id (kebab-case)"
+}
+variable "env" {
+  type    = string
+  default = "dev"
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.env)
+    error_message = "env must be one of: dev, staging, prod."
+  }
+}
+variable "gcp_project" {
+  type        = string
+  default     = "{{gcp_project}}"
+  description = "GCP project id"
+}
+variable "gcp_region" {
+  type    = string
+  default = "{{gcp_region}}"
+}
+variable "platform_state_bucket" {
+  type        = string
+  default     = "REPLACE-{{project_name}}-tofu-state"
+  description = "the config-management GCP platform state bucket (gcs)"
+}
+variable "image" {
+  type        = string
+  description = "the wiki container image (e.g. <region>-docker.pkg.dev/<project>/<repo>/code-wiki:latest)"
+  default     = "REPLACE-REGISTRY/{{project_name}}-code-wiki:latest"
+}
+variable "container_port" {
+  type    = number
+  default = {{port}}
+}
+variable "wiki_content_dir" {
+  type    = string
+  default = "/app/content"
+}
+variable "cpu_limit" {
+  type    = string
+  default = "1"
+}
+variable "memory_limit" {
+  type    = string
+  default = "512Mi"
+}
+variable "min_instances" {
+  type    = number
+  default = 0
+}
+variable "max_instances" {
+  type    = number
+  default = 2
+}

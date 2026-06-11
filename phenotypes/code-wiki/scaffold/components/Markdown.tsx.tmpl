@@ -1,0 +1,98 @@
+"use client";
+
+// Markdown -> styled-HTML pipeline. Absorbed from deepwiki-open's src/components/Markdown.tsx,
+// generalized: the ReAct h2 special-case (Thought/Action/Observation/Answer — chat-only) is stripped;
+// remark-math / rehype-katex / rehype-raw / react-syntax-highlighter are dropped to keep the
+// dependency set minimal (next + react + react-markdown + remark-gfm + mermaid). The code-block
+// dispatcher is preserved: ```mermaid fences -> <Mermaid/>; other fences -> styled <pre> with a
+// copy button; inline -> a mono chip. Styling consumes the CSS-var palette via .md-* classes.
+
+import React, { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import Mermaid from "./Mermaid";
+
+interface MarkdownProps {
+  content: string;
+}
+
+const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, code }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+  return (
+    <div className="md-codeblock">
+      <div className="md-codeblock-header">
+        <span className="md-codeblock-lang">{language || "text"}</span>
+        <button className="md-copy-btn" onClick={copy} title="Copy code" type="button">
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="md-codeblock-pre">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+};
+
+const Markdown: React.FC<MarkdownProps> = ({ content }) => {
+  const components: React.ComponentProps<typeof ReactMarkdown>["components"] = {
+    a({ children, href, ...props }) {
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="md-link" {...props}>
+          {children}
+        </a>
+      );
+    },
+    table({ children, ...props }) {
+      return (
+        <div className="md-table-wrap">
+          <table className="md-table" {...props}>
+            {children}
+          </table>
+        </div>
+      );
+    },
+    code(props) {
+      const { inline, className, children, ...rest } = props as {
+        inline?: boolean;
+        className?: string;
+        children?: React.ReactNode;
+        [key: string]: unknown;
+      };
+      const match = /language-(\w+)/.exec(className || "");
+      const codeText = children ? String(children).replace(/\n$/, "") : "";
+
+      if (!inline && match && match[1] === "mermaid") {
+        return (
+          <div className="md-mermaid-wrap">
+            <Mermaid chart={codeText} />
+          </div>
+        );
+      }
+      if (!inline && match) {
+        return <CodeBlock language={match[1]} code={codeText} />;
+      }
+      return (
+        <code className="md-inline-code" {...rest}>
+          {children}
+        </code>
+      );
+    },
+  };
+
+  return (
+    <div className="md-root">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
+
+export default Markdown;

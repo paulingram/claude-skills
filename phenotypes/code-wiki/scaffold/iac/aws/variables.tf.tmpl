@@ -1,0 +1,60 @@
+# {{wiki_name}} AWS service-layer variables. Mirrors config-management's module_inputs contract so the
+# wiki onboards as just another service (project / service / env / image / enable_* style).
+
+variable "project" {
+  type        = string
+  default     = "{{project_name}}"
+  description = "project/org prefix for resource naming"
+}
+variable "service" {
+  type        = string
+  default     = "code-wiki"
+  description = "service id (kebab-case)"
+}
+variable "env" {
+  type    = string
+  default = "dev"
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.env)
+    error_message = "env must be one of: dev, staging, prod."
+  }
+}
+variable "aws_region" {
+  type    = string
+  default = "{{aws_region}}"
+}
+variable "state_region" {
+  type        = string
+  default     = "{{aws_region}}"
+  description = "region of the config-management platform state bucket"
+}
+variable "platform_state_bucket" {
+  type        = string
+  default     = "REPLACE-{{project_name}}-tofu-state"
+  description = "the config-management platform state bucket (set, do not commit a real account-bound name)"
+}
+variable "image" {
+  type        = string
+  description = "the wiki container image (e.g. <registry>/{{project_name}}-code-wiki:latest)"
+  default     = "REPLACE-REGISTRY/{{project_name}}-code-wiki:latest"
+}
+variable "container_port" {
+  type    = number
+  default = {{port}}
+}
+variable "wiki_content_dir" {
+  type    = string
+  default = "/app/content"
+}
+variable "task_cpu" {
+  type    = number
+  default = 256
+}
+variable "task_memory" {
+  type    = number
+  default = 512
+}
+variable "desired_count" {
+  type    = number
+  default = 1
+}

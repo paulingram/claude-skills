@@ -1,0 +1,26 @@
+// /wiki/[codebase]/[pageId] — the wiki viewer. Server component: builds the WikiStructure for the
+// codebase via lib/maps-loader (filesystem read; deepwiki's /api/wiki_cache round-trip collapses into
+// this server-side call), selects the requested page, and hands { structure, page } to the WikiViewer
+// client shell. URL-backed navigation (deep links + back button) is the noted improvement over
+// deepwiki-open, which kept the current page in client useState only.
+
+import React from "react";
+import { notFound } from "next/navigation";
+import { loadCodebase } from "../../../../lib/maps-loader";
+import WikiViewer from "../../WikiViewer";
+
+export const dynamic = "force-dynamic";
+
+export default async function WikiPage({
+  params,
+}: {
+  params: Promise<{ codebase: string; pageId: string }>;
+}) {
+  const { codebase, pageId } = await params;
+  const structure = await loadCodebase(codebase);
+  if (!structure) notFound();
+
+  const page = structure.pages.find((p) => p.id === pageId) || structure.pages[0] || null;
+
+  return <WikiViewer structure={structure} page={page} codebase={codebase} />;
+}

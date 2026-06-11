@@ -1,0 +1,21 @@
+# Generalized from deepwiki-open's docker-compose.yml: one service, one port, a content volume, a
+# healthcheck. DROPPED the ~/.adalflow volume (clones/embeddings), the api/logs volume, the LLM
+# env_file keys, and the 6g mem reservation. The content volume maps the host maps dir into
+# WIKI_CONTENT_DIR; the healthcheck hits the Next /health route handler.
+services:
+  wiki:
+    build: .
+    ports:
+      - "{{port}}:{{port}}"
+    environment:
+      - PORT={{port}}
+      - WIKI_CONTENT_DIR=/app/content
+    volumes:
+      # Map your host content dir (codebases.json + the maps) read-only into the container.
+      - {{wiki_content_dir}}:/app/content:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:{{port}}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

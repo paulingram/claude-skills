@@ -1,0 +1,64 @@
+# {{wiki_name}}
+
+A self-hosted documentation wiki that renders codebase maps (`*_MAP.md`) as a browsable site with a
+navigation tree, markdown content, and client-rendered Mermaid diagrams. Generated from the CT6
+`code-wiki` phenotype (absorbed from [deepwiki-open](https://github.com/AsyncFuncAI/deepwiki-open.git),
+MIT) with the LLM machinery stripped — content comes from your maps, not a model.
+
+## 1. Register your codebases
+
+Create `{{wiki_content_dir}}/codebases.json` — a JSON array of `{ name, maps_dir }` entries. Each
+`maps_dir` is a directory containing (or whose `docs/` contains) `*_MAP.md` files:
+
+```json
+[
+  { "name": "My Service", "maps_dir": "./codebases/my-service" }
+]
+```
+
+`*_MAP.md` files are rendered verbatim; Mermaid in fenced ` ```mermaid ` blocks renders client-side.
+Importance dots in the nav: `CODEBASE_MAP` / `ARCHITECTURE` = high, `INTEGRATION` / `API` / `DATA` /
+`DESIGN` = medium, others = low.
+
+## 2. Run locally (dev)
+
+```bash
+npm install
+# point WIKI_CONTENT_DIR at the dir holding codebases.json (see .env.example)
+npm run dev      # http://localhost:{{port}}
+```
+
+## 3. Build + start (production)
+
+```bash
+npm install
+npm run build
+npm run start    # http://localhost:{{port}}
+```
+
+## 4. Host with Docker (the `local` hosting option)
+
+```bash
+docker compose up --build
+```
+
+The compose file maps `{{wiki_content_dir}}` into the container's `/app/content` (read-only) and
+exposes port `{{port}}`; the `/health` route backs the healthcheck.
+
+## 5. Host on a cloud (`aws` / `gcp` hosting options)
+
+Cloud hosting composes with the **config-management** phenotype (it owns the platform / load-balancer /
+registry layers). The `iac/aws` and `iac/gcp` directories here are the **service layer** only:
+
+1. Emit the `config-management` phenotype and apply its platform (and load-balancer) layers.
+2. Build + push the wiki image to your registry.
+3. `cd iac/<cloud>`, copy `env.tfvars.example` to `<env>.tfvars`, fill the `platform_state_bucket` +
+   `image` (no real account ids are baked — they are `REPLACE-` placeholders), then
+   `tofu init && tofu apply -var-file=<env>.tfvars`.
+
+## Routes
+
+- `/` — codebase selector (card grid + search).
+- `/wiki/<codebase>` — first page of a codebase.
+- `/wiki/<codebase>/<pageId>` — a specific map page (deep-linkable).
+- `/health` — `{ "status": "ok" }` for the compose healthcheck.

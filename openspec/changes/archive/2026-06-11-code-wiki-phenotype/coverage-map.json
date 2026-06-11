@@ -1,0 +1,25 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "code-wiki-phenotype",
+  "generated_at": "2026-06-11T06:40:00Z",
+  "source": "refined-prompt phenotype-deepwiki-code-wiki-20260611T060537Z.md (grade A 94/100)",
+  "entries": [
+    {"source_requirement_id": "USER-absorb-deepwiki", "spec_requirement_id": "REQ-001", "scenarios": ["analyses exist and end with generalization notes"], "acceptance_criteria": [">=2 aspect analyses at .architect-team/phenotype-analysis/code-wiki-*.md", "each ends with GENERALIZATION NOTES"], "layer": "backend"},
+    {"source_requirement_id": "USER-blueprint (acceptance 2)", "spec_requirement_id": "REQ-002", "scenarios": ["blueprint complete"], "acceptance_criteria": ["all 10 SCHEMA sections present", "stripped-LLM delta documented", "maps-ingestion contract documented", "3 hosting values documented", "config-management cross-seed documented"], "layer": "backend"},
+    {"source_requirement_id": "USER-phenotype-valid (acceptance 1)", "spec_requirement_id": "REQ-003", "scenarios": ["manifest validates with required fields"], "acceptance_criteria": ["validate prints code-wiki: OK", "hosting variation point {local,aws,gcp} default local", "components.deploy.via = config-management phenotype", "provenance absorbed_from deepwiki URL, absorbed_by absorb-tool"], "layer": "backend"},
+    {"source_requirement_id": "USER-scaffold (acceptance 3)", "spec_requirement_id": "REQ-004", "scenarios": ["scaffold integrity"], "acceptance_criteria": ["scaffold.manifest.json with parameters + files[] + post_emit_notes (codebases.json fill, npm install, emit config-management for cloud)", "Next.js starter templates (nav/markdown/Mermaid/theming)", "ingestion loader + codebases.json registry + selector", "Dockerfile + docker-compose.yml", "iac/aws + iac/gcp service-layer plug-ins", "{{param}} placeholders; zero secrets/ids/domains"], "layer": "backend"},
+    {"source_requirement_id": "USER-engine-gates (acceptance 1, 3)", "spec_requirement_id": "REQ-005", "scenarios": ["gates green"], "acceptance_criteria": ["validate exit 0 + OK", "match score > 0 for representative request", "emit --dry-run lists scaffold files"], "layer": "backend"},
+    {"source_requirement_id": "USER-local-demo (acceptance 4)", "spec_requirement_id": "REQ-006", "scenarios": ["demo executed, not described"], "acceptance_criteria": ["HTTP 200 on wiki index", "HTTP 200 on >=1 map page containing CODEBASE_MAP-derived content", "Playwright screenshot with Mermaid + navigation visible", "artifacts (transcript, screenshot, launch log) under .architect-team/code-wiki-demo/"], "layer": "both", "front_to_back_note": "the 'backend' here is the emitted wiki server itself, launched for real locally; the Playwright screenshot run drives the real running instance (no mocks) — this IS the real-backend criterion for the demo"},
+    {"source_requirement_id": "USER-cloud-static (acceptance 5)", "spec_requirement_id": "REQ-007", "scenarios": ["static validation recorded"], "acceptance_criteria": ["method named (tofu/terraform validate or documented static HCL check)", "aws templates pass", "gcp templates pass", "no live deploy"], "layer": "infra"},
+    {"source_requirement_id": "USER-suite-green (acceptance 6)", "spec_requirement_id": "REQ-008", "scenarios": ["suite green with new coverage"], "acceptance_criteria": ["tests/test_code_wiki_phenotype.py present + passing", "live-store pins updated if any", "suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"},
+    {"source_requirement_id": "USER-docs-version (acceptance 6)", "spec_requirement_id": "REQ-009", "scenarios": ["docs current"], "acceptance_criteria": ["plugin.json + marketplace.json = 3.13.0", "CHANGELOG v3.13.0 absorption record", "CLAUDE.md / CODEBASE_MAP ledger / README / INTEGRATION_MAP current"], "layer": "backend"},
+    {"source_requirement_id": "USER-deploy", "spec_requirement_id": "REQ-010", "scenarios": ["deployed and verified"], "acceptance_criteria": ["origin/main contains the release merge", "installed plugin reports 3.13.0", "gh account restored to pingramLimetree after pushes"], "layer": "infra"}
+  ],
+  "testing_authorizations": {
+    "playwright": "USED for REQ-006's demo screenshot against the genuinely-launched local wiki (real instance, no page.route stubs). No persistent UI tests land in this repo — the scaffold is template text; its structural coverage is REQ-008's pytest file.",
+    "dev_api_integration": "N/A — no API surface in this repo; the emitted demo instance is exercised live via HTTP in REQ-006; the pytest suite is the repo's integration surface.",
+    "both_layer_front_to_back": "REQ-006 is the single both-layer entry and its criterion explicitly drives the real running emitted instance (real server process, real filesystem content, no mocks)."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}

@@ -1,0 +1,103 @@
+"use client";
+
+// Recursive collapsible navigation tree. Absorbed from deepwiki-open's src/components/WikiTreeView.tsx,
+// generalized: Tailwind arbitrary-value classes -> plain .tree-* classes consuming the CSS-var palette;
+// the three importance-dot hexes -> palette vars. Keeps the recursive section renderer, the importance
+// dot, the selected-state styling, and the flat-list fallback (when a codebase has no sections).
+
+import React, { useState } from "react";
+import type { WikiStructure } from "../lib/wiki-types";
+
+interface WikiTreeViewProps {
+  wikiStructure: WikiStructure;
+  currentPageId: string | undefined;
+  onPageSelect: (pageId: string) => void;
+}
+
+function importanceClass(importance: string): string {
+  if (importance === "high") return "tree-dot tree-dot-high";
+  if (importance === "medium") return "tree-dot tree-dot-medium";
+  return "tree-dot tree-dot-low";
+}
+
+const WikiTreeView: React.FC<WikiTreeViewProps> = ({
+  wikiStructure,
+  currentPageId,
+  onPageSelect,
+}) => {
+  const [expanded, setExpanded] = useState<Set<string>>(
+    new Set(wikiStructure.rootSections)
+  );
+
+  const toggle = (sectionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
+
+  const pageButton = (pageId: string) => {
+    const page = wikiStructure.pages.find((p) => p.id === pageId);
+    if (!page) return null;
+    const selected = currentPageId === pageId;
+    return (
+      <button
+        key={pageId}
+        type="button"
+        className={`tree-page ${selected ? "tree-page-selected" : ""}`}
+        onClick={() => onPageSelect(pageId)}
+      >
+        <span className={importanceClass(page.importance)} />
+        <span className="tree-truncate">{page.title}</span>
+      </button>
+    );
+  };
+
+  const renderSection = (sectionId: string, level = 0): React.ReactNode => {
+    const section = wikiStructure.sections.find((s) => s.id === sectionId);
+    if (!section) return null;
+    const isOpen = expanded.has(sectionId);
+    return (
+      <div key={sectionId} className="tree-section">
+        <button
+          type="button"
+          className={`tree-section-btn ${level === 0 ? "tree-section-root" : ""}`}
+          onClick={(e) => toggle(sectionId, e)}
+        >
+          <span className="tree-chevron">{isOpen ? "v" : ">"}</span>
+          <span className="tree-truncate">{section.title}</span>
+        </button>
+        {isOpen && (
+          <div className={`tree-children ${level > 0 ? "tree-children-nested" : ""}`}>
+            {section.pages.map((pid) => pageButton(pid))}
+            {section.subsections?.map((sid) => renderSection(sid, level + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Flat-list fallback: a codebase with no sections renders its pages directly.
+  const noSections =
+    !wikiStructure.sections ||
+    wikiStructure.sections.length === 0 ||
+    !wikiStructure.rootSections ||
+    wikiStructure.rootSections.length === 0;
+
+  if (noSections) {
+    return (
+      <ul className="tree-flat">
+        {wikiStructure.pages.map((p) => (
+          <li key={p.id}>{pageButton(p.id)}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  return <div className="tree-root">{wikiStructure.rootSections.map((sid) => renderSection(sid))}</div>;
+};
+
+export default WikiTreeView;

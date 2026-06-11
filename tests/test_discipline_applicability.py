@@ -22,6 +22,8 @@ from pathlib import Path
 import pytest
 
 from hooks.discipline_registry import (
+    _detect_affordance_coverage_applied,
+    _detect_live_data_wiring_applied,
     _detect_multi_persona_path_coverage_applied,
     _detect_prod_safe_test_classification_applied,
     _has_frontend_markers,
@@ -215,3 +217,104 @@ def test_webapp_shaped_tree_still_flags_both(tmp_path: Path):
     assert "prod-safe-test-classification" in by_discipline  # unannotated QA spec
     assert "multi-persona-path-coverage" in by_discipline    # UI but no persona-inventory
     assert by_discipline["prod-safe-test-classification"]["severity"] == "discipline-not-applied"
+
+
+# ---------------------------------------------------------------------------
+# regression — a frontend/QA reference clone vendored under .architect-team/
+# (an absorption run's READ-ONLY reference repo) is runtime scratch, NOT the
+# plugin repo's own product surface. The discipline-registry scans MUST skip
+# .architect-team/ so the guarded disciplines stay not_applicable.
+# (SR-discipline-registry-reference-clone; diagnostic-plan Section 4.)
+# ---------------------------------------------------------------------------
+
+
+def test_reference_clone_under_architect_team_does_not_flip_multi_persona(tmp_path: Path):
+    """A frontend reference repo cloned under .architect-team/reference/<clone>/
+    (markers #1 .tsx AND #3 react package.json) must NOT count as this repo's
+    own UI surface — multi-persona stays not_applicable, no finding emitted.
+
+    Mechanism: tmp_path is OUTSIDE the repo so .gitignore does not apply here;
+    the guard is the path-PART skip of '.architect-team' (parts-list mechanism),
+    which is exactly why a non-git tmp tree cleanly exercises it."""
+    _materialize(tmp_path, {
+        # marker #1 — a .tsx under the absorption clone
+        ".architect-team/reference/clone/src/App.tsx": "export const App = () => <div/>;",
+        # marker #3 — the clone's package.json with a frontend-framework dep
+        ".architect-team/reference/clone/package.json": json.dumps(
+            {"name": "clone", "dependencies": {"react": "^18.0.0", "react-dom": "^18.0.0"}}
+        ),
+    })
+    # Neither frontend marker may fire — the clone is excluded as runtime scratch.
+    has_fe, fe_ev = _has_frontend_markers(tmp_path)
+    assert has_fe is False, f"clone leaked as frontend surface: {fe_ev}"
+    applied, ev = _detect_multi_persona_path_coverage_applied(tmp_path)
+    assert ev["applicable"] is False
+    assert ev["reason"] == "no-frontend-or-persona-surface"
+    # freshness_check emits no multi-persona finding for this workspace.
+    findings = freshness_check(tmp_path)
+    assert not [f for f in findings if f["discipline"] == "multi-persona-path-coverage"]
+
+
+def test_reference_clone_under_architect_team_does_not_flip_prod_safe(tmp_path: Path):
+    """The OTHER half of the BOTH assertion (PFV-4): a *.spec.ts under
+    .architect-team/reference/<clone>/ must NOT count as a classifiable QA test
+    — prod-safe stays not_applicable. Pins the _SKIP_DIR_PARTS-constant fix that
+    _iter_qa_test_files shares (the per-clone-payload generality of SR #4)."""
+    _materialize(tmp_path, {
+        ".architect-team/reference/clone/e2e/x.spec.ts": (
+            "test('x', async ({page}) => { await page.goto('/'); });"
+        ),
+    })
+    # The clone's QA spec is excluded -> no classifiable QA tests -> n/a.
+    assert _iter_qa_test_files(tmp_path) == []
+    applied, ev = _detect_prod_safe_test_classification_applied(tmp_path)
+    assert ev["applicable"] is False
+    assert ev["reason"] == "no-playwright-or-qa-shaped-tests"
+
+
+def test_reference_clone_under_architect_team_both_disciplines_stay_na(tmp_path: Path):
+    """The combined BOTH assertion in one workspace: a clone carrying frontend
+    source + react package.json + a Playwright spec ALL under
+    .architect-team/reference/<clone>/ keeps BOTH guarded disciplines n/a and
+    emits zero findings for either."""
+    _materialize(tmp_path, {
+        ".architect-team/reference/clone/src/App.tsx": "export const App = () => <div/>;",
+        ".architect-team/reference/clone/package.json": json.dumps(
+            {"name": "clone", "dependencies": {"react": "^18.0.0"}}
+        ),
+        ".architect-team/reference/clone/e2e/flow.spec.ts": (
+            "test('f', async ({page}) => { await page.goto('/'); });"
+        ),
+    })
+    freshness_check(tmp_path)
+    reg = read_registry(tmp_path)
+    appl = {a["discipline"]: a for a in reg["disciplines_applicability"]}
+    assert appl["prod-safe-test-classification"]["not_applicable"] is True
+    assert appl["multi-persona-path-coverage"]["not_applicable"] is True
+    findings = freshness_check(tmp_path)
+    guarded = {"prod-safe-test-classification", "multi-persona-path-coverage"}
+    assert not [f for f in findings if f["discipline"] in guarded]
+
+
+def test_reference_clone_inline_tuple_disciplines_emit_no_gap(tmp_path: Path):
+    """Rank-2 coverage (diagnostic-plan Section 4 item 3): a .tsx with a faker
+    import and a .tsx with a file-upload affordance, BOTH under
+    .architect-team/reference/<clone>/, must NOT re-break test B via the
+    live-data-wiring (L339) / affordance-coverage (L368) inline-tuple skips.
+    Pins the two inline-tuple edits directly."""
+    _materialize(tmp_path, {
+        ".architect-team/reference/clone/src/MockUser.tsx": (
+            "import { faker } from '@faker-js/faker';\nexport const u = faker.person.firstName();\n"
+        ),
+        ".architect-team/reference/clone/src/Upload.tsx": (
+            'export const Up = () => <input type="file" />;'
+        ),
+    })
+    applied_ld, ev_ld = _detect_live_data_wiring_applied(tmp_path)
+    assert applied_ld is True, f"clone faker import leaked as a live-data gap: {ev_ld}"
+    applied_af, ev_af = _detect_affordance_coverage_applied(tmp_path)
+    assert applied_af is True, f"clone file-upload affordance leaked as a gap: {ev_af}"
+    # And the combined freshness_check shows no gap for either inline discipline.
+    findings = freshness_check(tmp_path)
+    inline = {"live-data-wiring", "affordance-coverage"}
+    assert not [f for f in findings if f["discipline"] in inline]

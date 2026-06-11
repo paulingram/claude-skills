@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "parameters": [
+    {"name": "wiki_name", "required": true, "description": "display name of the wiki, e.g. 'Acme Engineering Docs'"},
+    {"name": "port", "default": "3000", "description": "HTTP port the wiki serves on"},
+    {"name": "wiki_content_dir", "default": "./content", "description": "directory holding codebases.json + the maps"},
+    {"name": "theme_default_mode", "default": "system", "description": "initial theme: system | light | dark"},
+    {"name": "project_name", "default": "acme", "description": "project/org prefix for cloud resource naming (iac)"},
+    {"name": "aws_region", "default": "us-east-1", "description": "AWS region for iac/aws"},
+    {"name": "gcp_project", "default": "acme-project", "description": "GCP project id for iac/gcp"},
+    {"name": "gcp_region", "default": "us-central1", "description": "GCP region for iac/gcp"}
+  ],
+  "files": [
+    {"src": "package.json.tmpl", "dest": "package.json"},
+    {"src": "next.config.js.tmpl", "dest": "next.config.js"},
+    {"src": "tsconfig.json.tmpl", "dest": "tsconfig.json"},
+    {"src": "next-env.d.ts.tmpl", "dest": "next-env.d.ts"},
+    {"src": ".env.example.tmpl", "dest": ".env.example"},
+    {"src": ".dockerignore.tmpl", "dest": ".dockerignore"},
+    {"src": "app/layout.tsx.tmpl", "dest": "app/layout.tsx"},
+    {"src": "app/globals.css.tmpl", "dest": "app/globals.css"},
+    {"src": "app/page.tsx.tmpl", "dest": "app/page.tsx"},
+    {"src": "app/CodebaseSearch.tsx.tmpl", "dest": "app/CodebaseSearch.tsx"},
+    {"src": "app/health/route.ts.tmpl", "dest": "app/health/route.ts"},
+    {"src": "app/wiki/[codebase]/page.tsx.tmpl", "dest": "app/wiki/[codebase]/page.tsx"},
+    {"src": "app/wiki/[codebase]/[pageId]/page.tsx.tmpl", "dest": "app/wiki/[codebase]/[pageId]/page.tsx"},
+    {"src": "app/wiki/WikiViewer.tsx.tmpl", "dest": "app/wiki/WikiViewer.tsx"},
+    {"src": "components/Markdown.tsx.tmpl", "dest": "components/Markdown.tsx"},
+    {"src": "components/Mermaid.tsx.tmpl", "dest": "components/Mermaid.tsx"},
+    {"src": "components/WikiTreeView.tsx.tmpl", "dest": "components/WikiTreeView.tsx"},
+    {"src": "components/ThemeToggle.tsx.tmpl", "dest": "components/ThemeToggle.tsx"},
+    {"src": "lib/wiki-types.ts.tmpl", "dest": "lib/wiki-types.ts"},
+    {"src": "lib/maps-loader.ts.tmpl", "dest": "lib/maps-loader.ts"},
+    {"src": "content/codebases.json.example.tmpl", "dest": "content/codebases.json.example"},
+    {"src": "Dockerfile.tmpl", "dest": "Dockerfile"},
+    {"src": "docker-compose.yml.tmpl", "dest": "docker-compose.yml"},
+    {"src": "iac/aws/main.tf.tmpl", "dest": "iac/aws/main.tf"},
+    {"src": "iac/aws/variables.tf.tmpl", "dest": "iac/aws/variables.tf"},
+    {"src": "iac/aws/env.tfvars.example.tmpl", "dest": "iac/aws/dev.tfvars.example"},
+    {"src": "iac/gcp/main.tf.tmpl", "dest": "iac/gcp/main.tf"},
+    {"src": "iac/gcp/variables.tf.tmpl", "dest": "iac/gcp/variables.tf"},
+    {"src": "iac/gcp/env.tfvars.example.tmpl", "dest": "iac/gcp/dev.tfvars.example"},
+    {"src": "README.md.tmpl", "dest": "README.md"}
+  ],
+  "post_emit_notes": [
+    "Fill codebases.json: copy content/codebases.json.example to <WIKI_CONTENT_DIR>/codebases.json and list your codebases as [{ name, maps_dir }]; maps_dir must contain (or have a docs/ containing) *_MAP.md files.",
+    "Run npm install, then npm run dev (dev) or npm run build && npm run start (production). Set WIKI_CONTENT_DIR (see .env.example).",
+    "Local Docker hosting: docker compose up --build (maps your content dir into /app/content read-only; /health backs the healthcheck).",
+    "Cloud hosting (aws/gcp): emit the config-management phenotype and apply its platform (+ load-balancer) layers FIRST; then build + push the wiki image; then in iac/<cloud> copy dev.tfvars.example to dev.tfvars, fill platform_state_bucket + image (REPLACE- placeholders), and tofu init && tofu apply.",
+    "No secrets, account ids, or domains are baked: every account-bound value is a REPLACE- placeholder or a {{param}} default. Validate iac/<cloud> with tofu init -backend=false && tofu validate after rendering."
+  ]
+}

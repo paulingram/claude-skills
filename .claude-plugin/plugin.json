@@ -1,7 +1,7 @@
 {
   "name": "architect-team",
   "description": "Spec-to-production multi-agent coding pipeline. Takes a requirements folder (OpenSpec / Superpowers / plain markdown), drives it through a 100%-coverage planning loop, spawns parallel agent teams for backend/frontend, enforces review gates, reconciles parallel work, and verifies with live dev-API + Playwright user-flow tests.",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "author": { "name": "Paul Ingram", "email": "paul.ingram0322@gmail.com" },
   "homepage": "https://github.com/paulingram/claude-skills",
   "repository": "https://github.com/paulingram/claude-skills.git",

@@ -1,0 +1,13 @@
+/** @type {import('next').NextConfig} */
+// Generalized from deepwiki-open's next.config.ts: kept `output: 'standalone'` (single-binary Docker)
+// and the package-import optimization for mermaid; DROPPED the rewrites() block that proxied
+// /api/wiki_cache, /export/wiki, /ws/chat etc. to the Python backend (the whole backend is stripped,
+// so there is no second server to proxy to — content is read server-side from WIKI_CONTENT_DIR).
+const nextConfig = {
+  output: "standalone",
+  experimental: {
+    optimizePackageImports: ["mermaid"],
+  },
+};
+
+module.exports = nextConfig;

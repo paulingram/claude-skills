@@ -1,0 +1,68 @@
+"use client";
+
+// The two-pane wiki shell. Absorbed from deepwiki-open's wiki page JSX (src/app/[owner]/[repo]/page.tsx
+// lines 1941-2205), generalized + decoupled from the ~1900 lines of generation logic above it:
+// an elevated two-pane card -> sidebar (identity + WikiTreeView) / content pane (constrained-width
+// Markdown). The tree's onPageSelect navigates the URL (router.push) instead of mutating useState,
+// giving deep links + back-button support (deepwiki's known gap).
+
+import React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { WikiPage, WikiStructure } from "../../lib/wiki-types";
+import WikiTreeView from "../../components/WikiTreeView";
+import Markdown from "../../components/Markdown";
+import ThemeToggle from "../../components/ThemeToggle";
+
+interface Props {
+  structure: WikiStructure;
+  page: WikiPage | null;
+  codebase: string;
+}
+
+const WikiViewer: React.FC<Props> = ({ structure, page, codebase }) => {
+  const router = useRouter();
+
+  const onPageSelect = (pageId: string) => {
+    router.push(`/wiki/${codebase}/${pageId}`);
+  };
+
+  return (
+    <div className="wiki-shell surface-texture">
+      <div className="wiki-topbar">
+        <Link href="/" className="wiki-home-link">
+          &larr; All codebases
+        </Link>
+        <ThemeToggle />
+      </div>
+
+      <div className="wiki-main wiki-card shadow-custom">
+        <aside className="wiki-sidebar">
+          <h2 className="wiki-sidebar-title">{structure.title}</h2>
+          <p className="wiki-sidebar-desc">{structure.description}</p>
+          <div className="wiki-sidebar-heading">Pages</div>
+          <WikiTreeView
+            wikiStructure={structure}
+            currentPageId={page?.id}
+            onPageSelect={onPageSelect}
+          />
+        </aside>
+
+        <section className="wiki-content">
+          <div className="wiki-content-inner">
+            {page ? (
+              <>
+                <h1 className="wiki-page-title">{page.title}</h1>
+                <Markdown content={page.content} />
+              </>
+            ) : (
+              <div className="wiki-empty">Select a page from the navigation.</div>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+export default WikiViewer;
