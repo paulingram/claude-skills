@@ -124,7 +124,17 @@ def _scan_first_n_lines(path: Path, needles: tuple[str, ...], n_lines: int = 20)
     return any(n.lower() in lower for n in needles)
 
 
-_SKIP_DIR_PARTS = ("node_modules", ".venv", "venv", "__pycache__", ".git")
+# `.architect-team` holds CT6 runtime scratch — including absorption reference
+# clones vendored read-only under `.architect-team/reference/` (and the Phase 0b
+# `.architect-team/frontend-reference/`). It is runtime-state, NOT the target
+# repo's own product surface (`.gitignore:30`; common-pipeline-conventions
+# `.architect-team = runtime-state-not-source`). Skip it in every walker so a
+# vendored frontend reference clone is not mistaken for the repo's UI/QA surface
+# (SR-discipline-registry-reference-clone). The legitimate reads under
+# `.architect-team/` (the registry, marker #2's persona-inventory.json) use an
+# EXPLICIT path, not this filtered glob, so excluding the dir-part cannot
+# over-suppress them.
+_SKIP_DIR_PARTS = ("node_modules", ".venv", "venv", "__pycache__", ".git", ".architect-team")
 
 
 def _iter_test_files(workspace: Path) -> list[Path]:
@@ -336,7 +346,7 @@ def _detect_live_data_wiring_applied(workspace: Path) -> tuple[bool, dict[str, A
             if not p.is_file():
                 continue
             parts = set(p.parts)
-            if any(skip in parts for skip in ("node_modules", ".venv", "venv", ".git", "tests", "__tests__")):
+            if any(skip in parts for skip in ("node_modules", ".venv", "venv", ".git", ".architect-team", "tests", "__tests__")):
                 continue
             try:
                 text = p.read_text(encoding="utf-8", errors="ignore")
@@ -365,7 +375,7 @@ def _detect_affordance_coverage_applied(workspace: Path) -> tuple[bool, dict[str
             if not p.is_file():
                 continue
             parts = set(p.parts)
-            if any(skip in parts for skip in ("node_modules", ".venv", "venv", ".git")):
+            if any(skip in parts for skip in ("node_modules", ".venv", "venv", ".git", ".architect-team")):
                 continue
             try:
                 text = p.read_text(encoding="utf-8", errors="ignore")

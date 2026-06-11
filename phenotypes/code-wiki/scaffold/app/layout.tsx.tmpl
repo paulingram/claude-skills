@@ -1,0 +1,44 @@
+// Root layout. Absorbed from deepwiki-open's src/app/layout.tsx, generalized: the next-themes
+// ThemeProvider + Google Font <link>s + DeepWiki branding are replaced by a tiny inline pre-hydration
+// script that sets the initial `data-theme` (the zero-flash trick, default {{theme_default_mode}})
+// and persists the user's choice via localStorage. No external font/theme dependencies.
+
+import React from "react";
+import "./globals.css";
+
+export const metadata = {
+  title: "{{wiki_name}}",
+  description: "{{wiki_name}} - a self-hosted documentation wiki",
+};
+
+const THEME_INIT = `
+(function () {
+  try {
+    var stored = window.localStorage.getItem('wiki-theme');
+    var mode = stored;
+    if (!mode) {
+      var def = '{{theme_default_mode}}';
+      if (def === 'system') {
+        mode = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          ? 'dark' : 'light';
+      } else {
+        mode = def;
+      }
+    }
+    document.documentElement.setAttribute('data-theme', mode);
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+`;
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}

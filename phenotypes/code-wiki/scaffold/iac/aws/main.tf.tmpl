@@ -1,0 +1,111 @@
+# {{wiki_name}} -- AWS service-layer plug-in for the config-management phenotype.
+#
+# This is the SERVICE layer only (the ai-management precedent: components.deploy.via =
+# "config-management phenotype"). It plugs the containerized wiki into a platform that the
+# config-management phenotype provisions (VPC + ECS cluster + subnets), read here via
+# terraform_remote_state -- exactly config-management's documented seam (service/main.tf.tmpl reads
+# data.terraform_remote_state.platform.outputs.cluster_arn / private_subnet_ids).
+#
+# Contract surface (matches config-management's module_inputs): project / service / env / image /
+# enable_* ; naming ${project}-${service}-${env}. The service resource is defined inline (rather than
+# a relative `module "this"` source) so this layer is self-contained and `tofu validate`-able on its
+# own; to apply, point the remote_state backend at the config-management platform state.
+#
+# APPLY ORDER: emit + apply config-management (platform -> load-balancer) FIRST, then apply this.
+
+terraform {
+  required_version = ">= 1.7"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+locals {
+  name = "${var.project}-${var.service}-${var.env}"
+  tags = {
+    Project = var.project
+    Service = var.service
+    Env     = var.env
+  }
+}
+
+# Read the platform layer provisioned by the config-management phenotype.
+data "terraform_remote_state" "platform" {
+  backend = "s3"
+  config = {
+    bucket = var.platform_state_bucket
+    key    = "${var.project}/platform/${var.env}/terraform.tfstate"
+    region = var.state_region
+  }
+}
+
+resource "aws_cloudwatch_log_group" "this" {
+  name              = "/ecs/${local.name}"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
+resource "aws_ecs_task_definition" "this" {
+  family                   = local.name
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+
+  container_definitions = jsonencode([
+    {
+      name      = var.service
+      image     = var.image
+      essential = true
+      portMappings = [
+        {
+          containerPort = var.container_port
+          protocol      = "tcp"
+        }
+      ]
+      environment = [
+        { name = "PORT", value = tostring(var.container_port) },
+        { name = "WIKI_CONTENT_DIR", value = var.wiki_content_dir }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.this.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "wiki"
+        }
+      }
+    }
+  ])
+
+  tags = local.tags
+}
+
+resource "aws_ecs_service" "this" {
+  name            = local.name
+  cluster         = data.terraform_remote_state.platform.outputs.cluster_arn
+  task_definition = aws_ecs_task_definition.this.arn
+  desired_count   = var.desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets         = data.terraform_remote_state.platform.outputs.private_subnet_ids
+    assign_public_ip = false
+  }
+
+  tags = local.tags
+}
+
+output "service_name" {
+  value = aws_ecs_service.this.name
+}
+output "task_definition_arn" {
+  value = aws_ecs_task_definition.this.arn
+}

@@ -1,0 +1,144 @@
+// Maps-ingestion layer. Replaces deepwiki-open's two surviving non-LLM backend reads
+// (api/api.py:403-457 wiki-cache + :577-634 projects list) with direct filesystem reads from a
+// React Server Component. Reads WIKI_CONTENT_DIR/codebases.json ([{name, maps_dir}]); for each
+// codebase enumerates <maps_dir>/*_MAP.md (the five CT6 map kinds plus any future *_MAP.md) and
+// builds the WikiStructure: one section per codebase, one page per map, content = the map markdown
+// VERBATIM. Mermaid rides inside that markdown as fenced ```mermaid blocks.
+
+import { promises as fs } from "fs";
+import path from "path";
+import type {
+  CodebaseEntry,
+  Importance,
+  WikiPage,
+  WikiStructure,
+} from "./wiki-types";
+
+export function contentDir(): string {
+  return process.env.WIKI_CONTENT_DIR || "{{wiki_content_dir}}";
+}
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// docs/*_MAP.md -> a human title + an importance for the nav importance dot.
+function mapKind(fileBase: string): { title: string; importance: Importance } {
+  const upper = fileBase.toUpperCase();
+  const stem = upper.replace(/_MAP$/, "").replace(/_/g, " ");
+  const title = stem
+    .toLowerCase()
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ")
+    .trim();
+  let importance: Importance = "low";
+  if (upper.includes("CODEBASE") || upper.includes("ARCHITECTURE")) importance = "high";
+  else if (
+    upper.includes("INTEGRATION") ||
+    upper.includes("API") ||
+    upper.includes("DATA") ||
+    upper.includes("DESIGN")
+  )
+    importance = "medium";
+  return { title: title ? `${title} Map` : fileBase, importance };
+}
+
+async function readRegistry(): Promise<CodebaseEntry[]> {
+  const registryPath = path.join(contentDir(), "codebases.json");
+  let raw: string;
+  try {
+    raw = await fs.readFile(registryPath, "utf-8");
+  } catch {
+    return [];
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (e): e is CodebaseEntry =>
+      !!e && typeof e === "object" && typeof (e as CodebaseEntry).name === "string" &&
+      typeof (e as CodebaseEntry).maps_dir === "string"
+  );
+}
+
+async function findMapFiles(mapsDir: string): Promise<string[]> {
+  // Look in <maps_dir> and <maps_dir>/docs for *_MAP.md (any *_MAP.md).
+  const candidates = [mapsDir, path.join(mapsDir, "docs")];
+  const found: string[] = [];
+  for (const dir of candidates) {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      if (/_MAP\.md$/i.test(name)) found.push(path.join(dir, name));
+    }
+  }
+  // Stable order: by filename.
+  return found.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+}
+
+export interface CodebaseSummary {
+  slug: string;
+  name: string;
+  pageCount: number;
+}
+
+export async function listCodebases(): Promise<CodebaseSummary[]> {
+  const registry = await readRegistry();
+  const out: CodebaseSummary[] = [];
+  for (const entry of registry) {
+    const files = await findMapFiles(entry.maps_dir);
+    out.push({ slug: slugify(entry.name), name: entry.name, pageCount: files.length });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function loadCodebase(slug: string): Promise<WikiStructure | null> {
+  const registry = await readRegistry();
+  const entry = registry.find((e) => slugify(e.name) === slug);
+  if (!entry) return null;
+
+  const files = await findMapFiles(entry.maps_dir);
+  const pages: WikiPage[] = [];
+  for (const file of files) {
+    const base = path.basename(file).replace(/\.md$/i, "");
+    const { title, importance } = mapKind(base);
+    let content = "";
+    try {
+      content = await fs.readFile(file, "utf-8");
+    } catch {
+      content = `_(could not read ${path.basename(file)})_`;
+    }
+    pages.push({
+      id: `${slug}__${slugify(base)}`,
+      title,
+      content,
+      filePaths: [path.basename(file)],
+      importance,
+      relatedPages: [],
+    });
+  }
+
+  const sectionId = slug;
+  return {
+    id: slug,
+    title: entry.name,
+    description: `Documentation maps for ${entry.name}`,
+    pages,
+    sections: [
+      { id: sectionId, title: entry.name, pages: pages.map((p) => p.id), subsections: [] },
+    ],
+    rootSections: [sectionId],
+  };
+}

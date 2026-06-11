@@ -1,0 +1,27 @@
+// /wiki/[codebase] — redirects to the first page of the codebase's wiki (the deep-linkable
+// /wiki/[codebase]/[pageId] route is the real viewer). Server component: loads the structure via
+// the maps-loader and 404s an unknown codebase.
+
+import React from "react";
+import { redirect, notFound } from "next/navigation";
+import { loadCodebase } from "../../../lib/maps-loader";
+
+export const dynamic = "force-dynamic";
+
+export default async function CodebaseIndex({
+  params,
+}: {
+  params: Promise<{ codebase: string }>;
+}) {
+  const { codebase } = await params;
+  const structure = await loadCodebase(codebase);
+  if (!structure) notFound();
+  if (structure.pages.length === 0) {
+    return (
+      <main className="wiki-shell surface-texture">
+        <div className="wiki-empty">No maps found for this codebase.</div>
+      </main>
+    );
+  }
+  redirect(`/wiki/${codebase}/${structure.pages[0].id}`);
+}

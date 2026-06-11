@@ -1,0 +1,47 @@
+"use client";
+
+// Dark/light toggle. Absorbed from deepwiki-open's src/components/theme-toggle.tsx + the next-themes
+// data-theme wiring in src/app/layout.tsx, generalized to a dependency-free implementation: it flips
+// the `data-theme` attribute on <html> directly (no next-themes dependency, keeping the dep set
+// minimal) and persists the choice to localStorage. The default mode is set by {{theme_default_mode}}.
+
+import React, { useEffect, useState } from "react";
+
+type Mode = "light" | "dark";
+
+function resolveInitial(): Mode {
+  if (typeof document !== "undefined") {
+    const attr = document.documentElement.getAttribute("data-theme");
+    if (attr === "dark" || attr === "light") return attr;
+  }
+  return "light";
+}
+
+const ThemeToggle: React.FC = () => {
+  const [mode, setMode] = useState<Mode>("light");
+
+  useEffect(() => {
+    setMode(resolveInitial());
+  }, []);
+
+  const flip = () => {
+    const next: Mode = mode === "dark" ? "light" : "dark";
+    setMode(next);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", next);
+      try {
+        window.localStorage.setItem("wiki-theme", next);
+      } catch {
+        /* ignore storage errors */
+      }
+    }
+  };
+
+  return (
+    <button type="button" className="theme-toggle" onClick={flip} aria-label="Toggle theme">
+      {mode === "dark" ? "Light" : "Dark"} mode
+    </button>
+  );
+};
+
+export default ThemeToggle;

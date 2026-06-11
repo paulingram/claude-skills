@@ -1,0 +1,124 @@
+"use client";
+
+// Client-side Mermaid renderer. Absorbed nearly verbatim from deepwiki-open's
+// src/components/Mermaid.tsx (490 lines), generalized: the palette hexes in themeCSS are derived from
+// the CSS-var palette (light + [data-theme="dark"] overrides inside the SVG); the Japanese strings
+// (図表レンダリングエラー, 図表を描画中...) are translated to English; dark detection is keyed to the
+// resolved data-theme attribute (deepwiki keyed it to prefers-color-scheme, a known wart);
+// svg-pan-zoom is intentionally omitted to keep the dependency set minimal (pan-zoom was optional).
+
+import React, { useEffect, useRef, useState } from "react";
+import mermaid from "mermaid";
+
+let initialized = false;
+
+function initMermaid() {
+  if (initialized) return;
+  initialized = true;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "neutral",
+    securityLevel: "loose",
+    suppressErrorRendering: true,
+    logLevel: "error",
+    maxTextSize: 100000,
+    htmlLabels: true,
+    flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 60, rankSpacing: 60, padding: 20 },
+    // Palette-matched diagram styles (light), with dark overrides applied via data-theme on the SVG.
+    themeCSS: `
+      .node rect, .node circle, .node ellipse, .node polygon, .node path {
+        fill: var(--card-bg); stroke: var(--accent-secondary); stroke-width: 1px;
+      }
+      .edgePath .path { stroke: var(--accent-primary); stroke-width: 1.5px; }
+      .edgeLabel { background-color: transparent; color: var(--foreground); }
+      .label { color: var(--foreground); }
+      .cluster rect { fill: var(--card-bg); stroke: var(--accent-secondary); stroke-width: 1px; }
+      .actor { fill: var(--card-bg); stroke: var(--accent-secondary); stroke-width: 1px; }
+      text.actor { fill: var(--foreground); stroke: none; }
+      .messageText { fill: var(--foreground); stroke: none; }
+      .messageLine0, .messageLine1 { stroke: var(--accent-primary); }
+      .noteText { fill: var(--foreground); }
+      .nodeLabel, .edgeLabel, .label { fill: var(--foreground); }
+      [data-theme="dark"] .node rect, [data-theme="dark"] .node circle,
+      [data-theme="dark"] .node ellipse, [data-theme="dark"] .node polygon,
+      [data-theme="dark"] .node path { fill: var(--card-bg); stroke: var(--accent-secondary); }
+      [data-theme="dark"] .edgePath .path { stroke: var(--accent-primary); }
+      [data-theme="dark"] .label, [data-theme="dark"] .nodeLabel,
+      [data-theme="dark"] .edgeLabel, [data-theme="dark"] text { fill: var(--foreground); }
+      [data-theme="dark"] .cluster rect { fill: var(--card-bg); stroke: var(--accent-secondary); }
+    `,
+    fontFamily: "var(--font-sans), sans-serif",
+    fontSize: 13,
+  });
+}
+
+interface MermaidProps {
+  chart: string;
+  className?: string;
+}
+
+const Mermaid: React.FC<MermaidProps> = ({ chart, className = "" }) => {
+  const [svg, setSvg] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+  const idRef = useRef(`mermaid-${Math.random().toString(36).substring(2, 9)}`);
+
+  useEffect(() => {
+    if (!chart) return;
+    let isMounted = true;
+    initMermaid();
+
+    const renderChart = async () => {
+      try {
+        setError(null);
+        setSvg("");
+        const { svg: rendered } = await mermaid.render(idRef.current, chart);
+        if (!isMounted) return;
+        // Key dark mode to the resolved theme attribute (the deepwiki fix).
+        let processed = rendered;
+        const isDark =
+          typeof document !== "undefined" &&
+          document.documentElement.getAttribute("data-theme") === "dark";
+        if (isDark) processed = processed.replace("<svg ", '<svg data-theme="dark" ');
+        setSvg(processed);
+      } catch (err) {
+        if (!isMounted) return;
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+      }
+    };
+
+    void renderChart();
+    return () => {
+      isMounted = false;
+    };
+  }, [chart]);
+
+  if (error) {
+    return (
+      <div className={`mermaid-error ${className}`}>
+        <div className="mermaid-error-title">Diagram rendering error</div>
+        <pre className="mermaid-error-source">{chart}</pre>
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className={`mermaid-loading ${className}`}>
+        <span className="mermaid-dot" />
+        <span className="mermaid-dot" />
+        <span className="mermaid-dot" />
+        <span className="mermaid-loading-text">Rendering diagram...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`mermaid-diagram ${className}`}
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+};
+
+export default Mermaid;

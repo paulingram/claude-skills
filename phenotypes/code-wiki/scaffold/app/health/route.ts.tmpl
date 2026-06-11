@@ -1,0 +1,11 @@
+// Health route handler — the Docker / docker-compose healthcheck target. Generalized from
+// deepwiki-open's FastAPI /health (api/api.py:540); here it is a tiny Next route handler (the whole
+// Python backend is stripped). Returns 200 + a small JSON body.
+
+import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+export function GET() {
+  return NextResponse.json({ status: "ok", service: "{{wiki_name}}" });
+}

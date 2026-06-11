@@ -1,0 +1,51 @@
+"use client";
+
+// The codebase selector's client-side search filter + card grid. Absorbed from deepwiki-open's
+// ProcessedProjects search filter; generalized to the codebases.json registry summaries.
+
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
+import type { CodebaseSummary } from "../lib/maps-loader";
+
+interface Props {
+  codebases: CodebaseSummary[];
+}
+
+const CodebaseSearch: React.FC<Props> = ({ codebases }) => {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return codebases;
+    return codebases.filter((c) => c.name.toLowerCase().includes(q));
+  }, [codebases, query]);
+
+  return (
+    <>
+      <div className="card-grid" style={{ marginBottom: "1rem" }}>
+        <input
+          className="input-accent"
+          placeholder="Filter codebases..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Filter codebases"
+        />
+      </div>
+      <div className="card-grid">
+        {filtered.map((c) => (
+          <Link key={c.slug} href={`/wiki/${c.slug}`} className="codebase-card wiki-card shadow-custom">
+            <h3>{c.name}</h3>
+            <div className="meta">
+              {c.pageCount === 1 ? "1 page" : `${c.pageCount} pages`}
+            </div>
+          </Link>
+        ))}
+        {filtered.length === 0 && (
+          <div className="empty-state">No codebases match &quot;{query}&quot;.</div>
+        )}
+      </div>
+    </>
+  );
+};
+
+export default CodebaseSearch;
