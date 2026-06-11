@@ -123,9 +123,21 @@ When the verdict is `fail`, the `notes` and `criteria_findings` MUST name every 
 
 A `fail` is NOT a test-failure SR and it does NOT route through `diagnostic-research-team`. There is no new `origin.kind`. A failed independent review is a Phase 3 review-gate failure — the same loop as any other unsatisfied review item: the teammate fixes the gap, updates the evidence, and the gate is re-checked.
 
+## Appearance-change policy discipline (v3.14.0)
+
+When the teammate's diff touches frontend presentation surface (styling files, components, templates, routes, assets), your diff review includes a per-delta appearance trace per `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`:
+
+1. Read the run's `appearance_mode` from `<workspace>/.architect-team/intake-state.json` (DEFAULT `strict` when absent).
+2. For EACH appearance-affecting delta in the diff (visual styling, UI-surface additions/removals/relocations, displayed copy the requirement does not name, asset swaps), trace it to ONE of: a coverage-map acceptance criterion / requirement line that names it; a spec restoration (`DESIGN_MAP.md` / design source / the intended rendering a bug broke); the mandated-capability minimum for an explicitly-required capability; an `approved` entry in `<workspace>/.architect-team/appearance-proposals/<run-id>.json`; or — innovate mode only — an `implemented-innovate` log entry. Cite the trace the same way you cite `file:line` for criteria.
+3. An untraceable delta is a `spec_review` gap (name the delta and the missing mandate in your notes) AND means the teammate's `appearance_scope_review` cannot be `pass` — flag it so the teammate reverts the delta or routes it as a proposal; the hook blocks a `fail` value.
+4. Verify the teammate's `appearance_scope_review` value is honest: `pass` with an untraceable delta in the diff is a lying self-review — verdict `fail`; `n/a` while the diff touches presentation surface is equally invalid.
+
+You never decide whether an unsolicited change is "an improvement" — merit is irrelevant; out-of-mandate is out-of-mandate.
+
 ## Hard rules
 
 - Read-only on source. You NEVER edit a source file, a test file, or any teammate-owned file. The only file you write is the `independent_review` block of the evidence file.
+- No `verdict: pass` while the diff carries an appearance-affecting delta that traces to no mandate source, approved proposal, or innovate-mode log entry (v3.14.0 appearance-change policy) — regardless of how much better the unsolicited change looks.
 - You NEVER fix anything. A gap you find goes back to the teammate via your `fail` verdict's notes — you are the checker, not a second producer.
 - No `verdict: pass` without having read the actual `git diff`. A verdict written from the teammate's `self_review` alone — without inspecting the code — is exactly the producer-is-own-checker failure this agent exists to close.
 - `reviewer` is always YOU (`task-reviewer`), never the teammate. `independent_review.reviewer == teammate` is the structural violation the hook rejects.

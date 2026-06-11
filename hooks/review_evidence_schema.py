@@ -89,7 +89,24 @@ VALID_INTERACTIONS_HONORED_VALUES = {"pass", "n/a", "fail"}
 # evidence files (which lack the field entirely) remain valid — the optional-ness
 # is the v2.2.0 backwards-compat guarantee.
 VALID_LIVE_VERIFICATION_VALUES = {"pass", "n/a", "fail"}
-OPTIONAL_VAO_FIELDS = ("interactions_honored_review", "live_verification_review")
+
+# v3.14.0 — appearance_scope_review is OPTIONAL (NOT in REQUIRED_EVIDENCE_FIELDS).
+# Required only when the slice's diff touches frontend presentation surface
+# (styling files, components, templates, routes, assets); n/a otherwise. 'pass'
+# means every appearance-affecting delta in the diff traces to one of the three
+# sanctioned mandate sources (requirement text / spec restoration /
+# mandated-capability minimum), an approved appearance proposal, or — in
+# innovate mode — a logged `implemented-innovate` proposals entry, per
+# `common-pipeline-conventions` `## Appearance-change policy discipline
+# (v3.14.0)`. Pre-v3.14.0 evidence files (which lack the field entirely)
+# remain valid — the same optional-ness backwards-compat guarantee as v2.1.0
+# and v2.2.0.
+VALID_APPEARANCE_SCOPE_VALUES = {"pass", "n/a", "fail"}
+OPTIONAL_VAO_FIELDS = (
+    "interactions_honored_review",
+    "live_verification_review",
+    "appearance_scope_review",
+)
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
 # `task-reviewer` agent — NOT the teammate. Its sub-fields below are all
@@ -492,6 +509,30 @@ def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
             "case) is not wired in the built code. Re-engage on the gaps "
             "named in the verdict; do not mark complete.",
             note_field="interactions_honored_review_note",
+        )
+
+    # v3.14.0 — appearance_scope_review is OPTIONAL. Validate only when the
+    # field is present in the evidence dict. An absent field is NOT a gap
+    # (pre-v3.14.0 evidence files lack it; they remain valid). When present,
+    # it follows the same string/dict-shape contract as the other v7 fields.
+    if "appearance_scope_review" in evidence:
+        gaps += _validate_vao_field(
+            evidence,
+            "appearance_scope_review",
+            VALID_APPEARANCE_SCOPE_VALUES,
+            "v3.14.0 appearance-change policy violated — the diff contains an "
+            "appearance-affecting delta (visual styling, a UI-surface "
+            "addition/removal/relocation, displayed copy, or an asset swap) "
+            "that traces to NO sanctioned mandate: not named in the "
+            "requirement text, not a spec restoration (DESIGN_MAP / design "
+            "source / intended rendering), not the minimal UI a mandated "
+            "capability requires, not an approved appearance proposal, and "
+            "not an innovate-mode `implemented-innovate` log entry. Under "
+            "`strict` (the default) and `propose`, unsolicited appearance "
+            "changes are forbidden — revert the delta or route it as a "
+            "proposal per `common-pipeline-conventions` `## Appearance-change "
+            "policy discipline (v3.14.0)`; do not mark complete.",
+            note_field="appearance_scope_review_note",
         )
 
     # v2.2.0 — live_verification_review is OPTIONAL. Validate only when the

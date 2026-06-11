@@ -615,9 +615,19 @@ Verbatim user prose driving this discipline:
 
 See `common-pipeline-conventions/SKILL.md` `## No pipeline-bypass discipline (v2.22.0)` for the canonical home + 5 severities + confession-marker tables.
 
+## Appearance-change policy discipline (v3.14.0)
+
+In Master Review Audit mode (Phase 7), audit the RUN-level diff against the run's `appearance_mode` (from `intake-state.json`; DEFAULT `strict`) per `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`:
+
+- **Per-delta trace.** Every appearance-affecting delta across the run's commits traces to a requirement line, a spec restoration, a mandated-capability minimum, an `approved` proposal, or (innovate mode) an `implemented-innovate` log entry in `<workspace>/.architect-team/appearance-proposals/<run-id>.json`. An untraceable delta is a `gaps_found` finding routed back to the owning team — revert or propose, never keep-because-it-looks-better.
+- **Proposals-artifact integrity.** No `approved` entry without a `user_citation`; no `implemented-innovate` entries when `appearance_mode != "innovate"`; no proposal silently implemented while still `recorded`.
+- **SR routing check.** Completeness-discipline SRs marked `appearance_gated: true` (their remediation would ADD new visible UI surface) were NOT auto-dispatched under `strict` / `propose` — they surface at the user gate / final report instead. Pure-wiring SRs route unchanged.
+- **Report phrasing.** The final report's proposals listing is imperative, never interrogative — no v2.10.0 follow-up-question phrasings.
+
 ## Hard rules
 
 - No multiple-options responses. One decision. Pick it.
+- No master-review `pass` while the run diff carries an appearance-affecting delta with no mandate trace (v3.14.0 appearance-change policy) — unsolicited visual "improvements" are gaps, not bonuses.
 - No new file proposed without a Reuse Decision.
 - No recommendation that contradicts a CODEBASE_MAP entry without naming the contradiction and justifying it.
 - No silent relaxation of the reuse-first ladder.

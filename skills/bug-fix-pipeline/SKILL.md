@@ -55,6 +55,10 @@ Same as `architect-team-pipeline` v0.9.20: **drive end-to-end, gates are opt-in 
 
 Process gates (proposal-first pause, "do you want me to proceed?", obvious-answer clarifying questions) follow the same opt-in rule as the main pipeline.
 
+## Appearance-change policy (v3.14.0)
+
+A bug-fix run is `strict` by nature: the mandate is the named symptom, and restoring the intended behavior/appearance the bug broke (spec restoration) is in scope — restyling beyond it is not. The fix MUST NOT bundle visual "polish", layout tweaks, or new UI surface the bug report never named; improvement ideas surfaced during the fix are recorded to `<workspace>/.architect-team/appearance-proposals/<run-id>.json` (status `recorded`) and listed read-only in the Phase B7 report — imperative, never interrogative. The `--appearance` flag can widen a run explicitly (`propose` / `innovate`); `appearance_mode` is bound at the top of Phase B−1 into `intake-state.json` alongside the dispatch-mode selection and carried in every spawn brief. Canonical home: `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`.
+
 ## Notifications (per-project email events — opt-in, best-effort)
 
 Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the five recognized events (`phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.

@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 13 . 2
+                        ─── C T 6 ───   v 3 . 14 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.13.2-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.14.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-4415%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -455,6 +455,18 @@ cd my-wiki && npm install && npm run build && npm run start     # or: docker com
 
 Hosting is a variation point — `local` (docker-compose, the default), `aws`, or `gcp`; the cloud paths deploy via the `config-management` phenotype (apply its platform layers first, then the emitted `iac/<cloud>/` service layer — both sets `tofu validate`-clean as shipped). Full quick-start: [`phenotypes/README.md`](phenotypes/README.md).
 
+### ▸ Constrain appearance changes (v3.14.0)
+
+By default every run is **`strict`** on frontend appearance: the agents change what a user SEES only when the requirement names it, the documented design spec demands it (drift-to-spec restoration), or an explicitly-required capability needs a minimal entry point. Improvement ideas are recorded to `.architect-team/appearance-proposals/<run-id>.json` — never implemented. Backend changes stay unrestricted ("do what you need to on the backend").
+
+```bash
+/architect-team improve the export flow                       # strict (default) — no unsolicited visual changes
+/architect-team improve the export flow --appearance propose  # ideas batched at a user approval gate; only approved ones land
+/architect-team redesign the dashboard --appearance innovate  # free rein — every visual delta logged + DESIGN_MAP-reconciled
+```
+
+The review gates enforce it: schema v7's OPTIONAL `appearance_scope_review` evidence field blocks completion when an appearance-affecting delta traces to no mandate, the independent `task-reviewer` traces every visual delta, and the Phase 7 Master Review Audit walks the run diff + the proposals artifact. Canonical rules: `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`.
+
 ### The pipeline at a glance
 
 **Uniform plugin usage (v3.9.0).** Every pipeline body (`architect-team` / `bug-fix` / `mini` / `ux-test`) opens with a **superpowers pre-flight abort gate** and weaves named `superpowers:*` invocations (`brainstorming` / `test-driven-development` / `systematic-debugging` / `verification-before-completion`) through its phases — canonical home `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)`. The implementing pipelines (`mini` + `bug-fix` + full) share **identical** `openspec validate --all --strict` + `openspec archive` gates.
@@ -721,7 +733,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
   | `skill_invocation_audit` | `"pass"` / `"n/a"` / `"fail"` OR `{verdict, verdict_path}` (v2.0.0 VAO, Layer 6) — `"fail"` blocks |
   | `independent_review` | object — `reviewer` (≠ `teammate`), `verdict` = `"pass"`, `spec_review` / `quality_review` = `"pass"`, `real_not_stubbed` = `true`, `reuse_compliance` = `"ok"`, `reviewed_at` non-empty. Written by the `task-reviewer` agent — the gate cannot open on the teammate's self-review alone. |
 
-  Plus 2 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`) — present only when applicable (a non-empty oracle `interactions[]`, or a "verified live" claim, respectively).
+  Plus 3 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`) — present only when applicable (a non-empty oracle `interactions[]`, a "verified live" claim, or a diff touching frontend presentation surface, respectively).
 
 - **Escalation policy:** after 3 consecutive hook rejections on the same `task_id` → teammate stops retrying and writes a `<teammate>-to-orchestrator-stuck-<task_id>` handoff.
 - **References:** [`skills/team-spawning-and-review-gates/SKILL.md`](skills/team-spawning-and-review-gates/SKILL.md), [`hooks/review-gate-task.py`](hooks/review-gate-task.py).
@@ -1216,7 +1228,8 @@ Tests validate: plugin/marketplace JSON; all 41 skill frontmatters; all 37 agent
            v3.10.0 ─ second-tier review improvements (R1–R7) — `hooks/vao_tools.py` split into the `hooks/vao/` package behind a 125-name identity-checked facade + NEW `hooks/shared_util.py`; NEW `security-hunter` adversarial shape (+ `security-finding` SR) / interaction-completeness accessibility axis (`a11y-gap`) / unbounded-run `heartbeat` notify event; scope-fidelity discipline family + helper/localhost consolidation; agent hygiene sweep; `locks.py` `O_CREAT|O_EXCL` + `globs_intersect` prefix/suffix; registry applicability guards; narrative diet
            v3.11.0 ─ structure-optimization pipeline — adversarially-verified codebase-restructure planning: `structure-optimization` skill (S0–S8) + `/architect-team:optimize-structure` + `structure-analyst` / `reference-tracer` / `structure-adversary` agents + the system-architect Restructure Plan Audit mode; deterministic partition check; two-consecutive-clean adversarial exit; plan ships as RESTRUCTURE_PLAN.md + movements.json + a strict-validated OpenSpec change
            v3.12.0 ─ structure-optimization performance + review remediation — 3-lens panel: 10 in-place correctness fixes (partition `.splitlines()` + `normcase`; `phase_complete`; `"to": []`; shard assembly; S6 routing table; arg precedence) + S5/S3 cost optimizations (adversary-round warm-start, per-round partition-recompute dedup → published `partition-check.json`, structured agree/dispute convergence, front-loading, precomputed file universe, shard policy, mechanical S7 transcription, thinnest-coverage sampling) + a permanent `## Optimization guardrails` section — every accuracy invariant preserved
-   ◆       v3.13.0 ─ code-wiki phenotype — a fourth seeded phenotype absorbed (READ-ONLY) from deepwiki-open (MIT) via `phenotype-absorption`: the sidebar-nav + markdown + client-Mermaid + theming presentation pattern re-expressed as a lean Next.js scaffold (`kind: singleton`, plain CSS, `lib/maps-loader` ingesting `codebases.json` → `docs/*_MAP.md`), the entire LLM stack stripped; `deploy.via = config-management phenotype` (`iac/aws` + `iac/gcp` service-layer plug-ins, both `tofu validate`-clean); proven by an executed local demo (HTTP 200 + a Playwright screenshot of 2 rendered Mermaid diagrams + the nav tree) (current)
+           v3.13.0 ─ code-wiki phenotype — a fourth seeded phenotype absorbed (READ-ONLY) from deepwiki-open (MIT) via `phenotype-absorption`: the sidebar-nav + markdown + client-Mermaid + theming presentation pattern re-expressed as a lean Next.js scaffold (`kind: singleton`, plain CSS, `lib/maps-loader` ingesting `codebases.json` → `docs/*_MAP.md`), the entire LLM stack stripped; `deploy.via = config-management phenotype` (`iac/aws` + `iac/gcp` service-layer plug-ins, both `tofu validate`-clean); proven by an executed local demo (HTTP 200 + a Playwright screenshot of 2 rendered Mermaid diagrams + the nav tree)
+   ◆       v3.14.0 ─ appearance-change policy — three modes governing unsolicited frontend-appearance changes (`strict` DEFAULT: no appearance-affecting change beyond the explicit mandate, improvement ideas recorded as proposals and never implemented; `propose`: proposals batched at a user approval gate; `innovate`: authorized + every delta logged + DESIGN_MAP-reconciled); `--appearance` flag on `/architect-team` + `:bug-fix` + `:mini`; `appearance_mode` bound at intake + carried in every spawn brief; `.architect-team/appearance-proposals/<run-id>.json` artifact; schema v7 gains the OPTIONAL `appearance_scope_review` field (hook-blocked on fail); task-reviewer per-delta trace + Master Review Audit run-diff walk (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

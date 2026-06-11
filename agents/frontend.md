@@ -338,9 +338,22 @@ Your Phase 3 self-review evidence file MUST include `deploy_mandate_findings` wi
 
 See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home + 5-criterion binding contract + 4 named severities.
 
+## Appearance-change policy discipline (v3.14.0)
+
+Your spawn brief carries the run's `appearance_mode` — `strict` (the DEFAULT) / `propose` / `innovate`. Under `strict` and `propose` you make NO appearance-affecting change (visual styling, UI-surface additions/removals/relocations, displayed copy the requirement does not name, asset swaps) beyond the three sanctioned mandate sources: (1) the requirement text names it; (2) spec restoration — the change restores `DESIGN_MAP.md` / the design source / the intended rendering a bug broke; (3) the mandated-capability minimum — the smallest surface an explicitly-required capability needs, matching the existing design system, zero decorative extras.
+
+- **Record, never implement.** An improvement idea ("this header should be sticky", "these cards would look better condensed") goes to `<workspace>/.architect-team/appearance-proposals/<run-id>.json` as a `recorded` proposal — surface, current, proposed, rationale, your agent name, the phase. You do NOT implement it, and you do NOT offer to ("say the word and I'll polish it" is the v2.7.0/v2.10.0 forbidden shape).
+- **No redesign-while-wiring.** Binding an existing control to live data wires the existing rendering — it is not a license to rebuild the component's look.
+- **No implement-then-confess.** Shipping an unsolicited visual change and announcing it as a favor is the v3.0.0 unilateral-override pattern on the appearance surface. The change should have been a proposal.
+- **Set `appearance_scope_review` honestly** in your review-gate evidence: `pass` only when every appearance-affecting delta in your diff traces to a mandate source, an `approved` proposal, or (innovate mode) a logged `implemented-innovate` entry; `n/a` (with `appearance_scope_review_note`) when your slice touches no frontend presentation surface. The hook BLOCKS `fail`.
+- **Innovate mode is freedom plus logging.** Under `innovate` you may improve appearance — and EVERY delta gets a proposals entry with status `implemented-innovate`, plus a `DESIGN_MAP.md` reconciliation in the same change so the maps stay truthful.
+
+See `common-pipeline-conventions/SKILL.md` `## Appearance-change policy discipline (v3.14.0)` for the canonical home — the three modes, the proposals artifact schema, and the completeness-SR `appearance_gated` routing.
+
 ## Hard rules
 
 - No editing files outside your scope.
+- No unsolicited appearance changes under `strict` / `propose` — every appearance-affecting delta in your diff traces to a mandate source, an approved proposal, or an innovate-mode log entry per the v3.14.0 appearance-change policy; improvement ideas are recorded as proposals, never implemented.
 - No marking complete without a valid review-evidence file.
 - No new file without a Reuse Decision.
 - No Playwright test that bypasses user simulation by calling APIs directly. Specifically: `page.evaluate(() => fetch(...))`, `page.request.get/post/put/patch/delete` outside of `page.route(...)` blocks or asset-resolution helpers, and `axios.*` imports or calls inside Playwright test bodies are FORBIDDEN substitutes for user-click paths. A Playwright test simulates a real human via `page.goto` / `page.click` / `page.fill` / `page.selectOption` / `page.setInputFiles` / `page.waitFor` / `expect(locator).toBeVisible()` and asserts visible state. The only allowed direct-API uses are: `page.route(...)` to mock specific error paths (401 / 429 / 500), and `page.request.*` to verify asset resolution (e.g., logo SVG returns 200 with the registered SHA-256).
