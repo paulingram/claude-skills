@@ -32,16 +32,30 @@ def test_skill_exists_and_non_empty(plugin_root: Path) -> None:
 @pytest.mark.parametrize(
     "doc",
     ["CODEBASE_MAP.md", "ROUTE_MAP.md", "DESIGN_MAP.md", "INTERACTION_INTUITION_MAP.md",
-     "INTEGRATION_MAP.md", "README.md", "CHANGELOG.md", "CLAUDE.md"],
+     "INTEGRATION_MAP.md", "README.md", "CHANGELOG.md", "CLAUDE.md",
+     "phenotypes/README.md", "phenotypes/SCHEMA.md"],
 )
 def test_skill_names_the_whole_documentation_inventory(plugin_root: Path, doc: str) -> None:
     """The whole inventory is in scope — the maps drift precisely because only
     the README gets attention. INTERACTION_INTUITION_MAP.md (v0.9.21 per-frontend
     intuition map) was added to the inventory in v1.0.x after audit finding
     F-CONS-3A-002 caught the skill-vs-agent drift: `agents/doc-updater.md`
-    already wrote to it, but this skill's inventory table did not list it."""
+    already wrote to it, but this skill's inventory table did not list it.
+    phenotypes/README.md + phenotypes/SCHEMA.md (v3.13.2) were added after the
+    v3.13.0 release shipped a fourth phenotype while phenotypes/README.md still
+    said 'All three production seeds' — the doc ships inside the plugin but was
+    invisible to the Phase 8 gate."""
     content = _read(plugin_root, SKILL)
     assert doc in content, f"documentation-currency skill does not list {doc} in its inventory"
+
+
+@pytest.mark.parametrize("doc", ["phenotypes/README.md", "phenotypes/SCHEMA.md"])
+def test_doc_updater_covers_the_phenotype_store_docs(plugin_root: Path, doc: str) -> None:
+    """v3.13.2 — the doc-updater's read list + bounded-Write allowlist must name
+    the phenotype-store docs, or the skill-vs-agent drift F-CONS-3A-002 caught
+    for INTERACTION_INTUITION_MAP.md recurs for the phenotype store."""
+    content = _read(plugin_root, ("agents", "doc-updater.md"))
+    assert doc in content, f"agents/doc-updater.md does not cover {doc}"
 
 
 def test_skill_documents_the_producer_checker_split(plugin_root: Path) -> None:

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.13.2] — 2026-06-11 — phenotype-store docs join the documentation-currency inventory
+
+**PATCH — discipline-inventory extension; closes the gap class behind v3.13.1.** The v3.13.0 release shipped a fourth phenotype while `phenotypes/README.md` still said "All three production seeds" — and every Phase 8 doc-currency audit passed, because the phenotype-store docs (which ship inside the plugin) were not in the gate's inventory. This patch makes that class structurally impossible to miss again.
+
+- **`skills/documentation-currency/SKILL.md`** — two new inventory rows: `phenotypes/README.md` (update when a phenotype is added/removed/renamed or a seed's variation points / scaffold parameters / quick-start workflow change; "current" = the seed table matches the `phenotypes/<label>/` dirs on disk, quick-starts match the scaffolds' `post_emit_notes`, the authoring-paths section reflects the shipped absorb capability) and `phenotypes/SCHEMA.md` (update when the `phenotype.json` / manifest contract or the engine validator changes; "current" = the documented schema matches what `validate_phenotype` enforces). The bounded-Write sentence gains both paths and explicitly fences OUT the per-phenotype records (`phenotypes/<label>/**` are feature artifacts, not currency docs).
+- **`agents/doc-updater.md`** — the Step-1 inventory walk gains both docs (with their invariants); the Write allowlist gains both paths + the per-phenotype-records exclusion; the frontmatter description updated.
+- **`agents/system-architect.md`** (Documentation Currency Audit mode) — the inventory walk-list gains both docs plus an explicit fail rule: a diff that adds/removes a `phenotypes/<label>/` dir while the seed table's count/rows don't match disk is a `fail`. The bounded-scope parenthetical updated to match.
+- **Tests** — 4 new pins in `tests/test_documentation_currency.py`: the 2 docs in the skill's inventory (parametrize extension) + a new `test_doc_updater_covers_the_phenotype_store_docs` guarding the skill-vs-agent drift (the same F-CONS-3A-002 class that once hit `INTERACTION_INTUITION_MAP.md`). Suite 4411 → **4415 passing** + 5 skipped (176 test files; both encodings).
+
 ## [3.13.1] — 2026-06-11 — code-wiki usage documentation
 
 **PATCH — docs only; zero code/test-behavior change.** Closes the documentation gap the v3.13.0 release left: the phenotype existed and was demo-proven, but nothing told a user HOW to launch a wiki.

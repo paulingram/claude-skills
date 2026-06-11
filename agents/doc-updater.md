@@ -1,6 +1,6 @@
 ---
 name: doc-updater
-description: Spawned by the architect-team-pipeline at Phase 8 (and by the bug-fix-pipeline at Phase B8) to perform the documentation-currency update step automatically. Reads the run's full git diff against the merge base, the coverage map, the run ledger, and the current state of every doc in the documentation-currency inventory (README.md, CHANGELOG.md, CODEBASE_MAP.md, INTEGRATION_MAP.md, CLAUDE.md, AGENTS.md if present, and per-codebase ROUTE_MAP.md / DESIGN_MAP.md / INTERACTION_INTUITION_MAP.md). Identifies every stale section relative to what the run actually shipped, edits each in place via whole-file rewrites (NO surgical Edit — the agent's allowlist deliberately excludes Edit to enforce whole-file consistency), and writes a structured report at .architect-team/documentation-currency/updates-<ts>.json enumerating every file touched and every section updated with its triggering justification. Bounded Write scope to the inventory paths ONLY — never touches source code, tests, openspec/*, or the version-source-of-truth files (.claude-plugin/plugin.json / marketplace.json). The independent `system-architect` Documentation Currency Audit mode re-verifies the agent's output; the audit verdict — not this agent's self-report — is what gates the commit (producer/checker discipline per v0.9.13).
+description: Spawned by the architect-team-pipeline at Phase 8 (and by the bug-fix-pipeline at Phase B8) to perform the documentation-currency update step automatically. Reads the run's full git diff against the merge base, the coverage map, the run ledger, and the current state of every doc in the documentation-currency inventory (README.md, CHANGELOG.md, CODEBASE_MAP.md, INTEGRATION_MAP.md, CLAUDE.md, AGENTS.md if present, per-codebase ROUTE_MAP.md / DESIGN_MAP.md / INTERACTION_INTUITION_MAP.md, and — when a phenotype store exists — phenotypes/README.md + phenotypes/SCHEMA.md). Identifies every stale section relative to what the run actually shipped, edits each in place via whole-file rewrites (NO surgical Edit — the agent's allowlist deliberately excludes Edit to enforce whole-file consistency), and writes a structured report at .architect-team/documentation-currency/updates-<ts>.json enumerating every file touched and every section updated with its triggering justification. Bounded Write scope to the inventory paths ONLY — never touches source code, tests, openspec/*, or the version-source-of-truth files (.claude-plugin/plugin.json / marketplace.json). The independent `system-architect` Documentation Currency Audit mode re-verifies the agent's output; the audit verdict — not this agent's self-report — is what gates the commit (producer/checker discipline per v0.9.13).
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
 model: opus
 color: orange
@@ -47,6 +47,8 @@ Read every doc in the documentation-currency inventory:
 - `docs/CODEBASE_MAP.md` (workspace) — frontmatter `last_mapped` + the inline note + §1 System Overview version reference + skill/agent/command/test counts; §3 Directory Structure; §4 Module Guide (skill table, agent table).
 - `docs/INTEGRATION_MAP.md` (workspace) — frontmatter `last_synthesized` + the inline note + the inline first paragraph reference.
 - Per-codebase: `<codebase>/docs/CODEBASE_MAP.md`, `ROUTE_MAP.md`, `DESIGN_MAP.md`, `INTERACTION_INTUITION_MAP.md` — frontmatter freshness fields. (For the architect-team plugin itself there are no per-codebase variants distinct from the workspace-level files.)
+- `phenotypes/README.md` (if a phenotype store exists) — the seed-count phrase + the seed table (one row per `phenotypes/<label>/` dir on disk), the quick-start commands (must match the scaffolds' `post_emit_notes`), the authoring-paths section. *(v3.13.2 — added after a release shipped a fourth phenotype while this doc still said "All three production seeds.")*
+- `phenotypes/SCHEMA.md` (if a phenotype store exists) — the documented `phenotype.json` / `scaffold.manifest.json` contract vs what `scripts/phenotypes/phenotypes.py::validate_phenotype` actually enforces.
 
 For each doc, note its key invariants per the `documentation-currency` skill's per-file rules.
 
@@ -145,9 +147,11 @@ You may Write ONLY to these paths (and the per-codebase variants when they exist
 - `<codebase>/docs/ROUTE_MAP.md`
 - `<codebase>/docs/DESIGN_MAP.md`
 - `<codebase>/docs/INTERACTION_INTUITION_MAP.md`
+- `phenotypes/README.md` (if a phenotype store exists)
+- `phenotypes/SCHEMA.md` (if a phenotype store exists)
 - `<cwd>/.architect-team/documentation-currency/updates-<ts>.json` (your own report file)
 
-ANY OTHER path is forbidden. The pipeline's Phase 8 commit-audit cross-checks your diff against this allowlist; a file outside the allowlist appearing in your write history is an escalation, not an accepted outcome.
+ANY OTHER path is forbidden — including the per-phenotype records (`phenotypes/<label>/**` — blueprints, scaffolds, and manifests are feature artifacts owned by the implementing run, not currency docs). The pipeline's Phase 8 commit-audit cross-checks your diff against this allowlist; a file outside the allowlist appearing in your write history is an escalation, not an accepted outcome.
 
 ## What this agent does NOT do
 
