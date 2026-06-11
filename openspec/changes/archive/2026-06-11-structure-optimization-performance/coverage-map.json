@@ -1,0 +1,31 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "structure-optimization-performance",
+  "generated_at": "2026-06-11T05:10:00Z",
+  "source": "refined-prompt review-code-mapping-skill-20260611-034857.md (grade A) + 3-lens review panel verdicts",
+  "entries": [
+    {"source_requirement_id": "PANEL-A-001+A-002+A-013+A-003+A-012", "spec_requirement_id": "REQ-001", "scenarios": ["snippet parses and compares correctly", "multi-codebase + recovery + dir creation documented"], "acceptance_criteria": ["snippet uses splitlines() not bare split()", "os.path.normcase applied to both sides", "S3 documents per-codebase invocation", "duplicates documented recoverable via analyst revision", "S0 documents mkdir -p"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-C-001", "spec_requirement_id": "REQ-002", "scenarios": ["dead event removed"], "acceptance_criteria": ["pipeline_complete absent from the skill", "S8 names phase_complete"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-C-003", "spec_requirement_id": "REQ-003", "scenarios": ["representation specified"], "acceptance_criteria": ["kind-semantics line states delete-dead carries \"to\": []"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-A-004+A-005", "spec_requirement_id": "REQ-004", "scenarios": ["policy and assembly are explicit"], "acceptance_criteria": ["balance-by-reference-surface policy with fan-in pre-estimate", "orchestrator merges shards + validates every movement_id in exactly one shard"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-A-006", "spec_requirement_id": "REQ-005", "scenarios": ["routing table present"], "acceptance_criteria": ["per-failure-kind re-execution boundaries named", "every boundary re-runs S5 to two consecutive all-clean"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-A-007", "spec_requirement_id": "REQ-006", "scenarios": ["precedence documented"], "acceptance_criteria": ["explicit path wins", "path + --all is a surfaced error"], "layer": "backend"},
+    {"source_requirement_id": "USER-perf-all-axes + PANEL-P-001", "spec_requirement_id": "REQ-007", "scenarios": ["warm-start defined with invariants restated"], "acceptance_criteria": ["delta computation + carried modalities_run + re-confirm rule specified", "streak-reset + two-consecutive-clean restated unchanged"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-P-002", "spec_requirement_id": "REQ-008", "scenarios": ["front-loading specified"], "acceptance_criteria": ["per-draft + per-revision partition runs specified", "convergence-gate run still required"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-P-003", "spec_requirement_id": "REQ-009", "scenarios": ["dedup specified with invariant preserved"], "acceptance_criteria": ["per-round orchestrator recompute published as adversarial/round-<R>/partition-check.json", "adversaries consume it; from-scratch-every-round preserved"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-P-004", "spec_requirement_id": "REQ-010", "scenarios": ["brief contents specified"], "acceptance_criteria": ["S4 tracer brief contents named", "S5 adversary brief contents named", "agent Inputs sections consistent"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-P-006+A-008", "spec_requirement_id": "REQ-011", "scenarios": ["protocol and criterion explicit"], "acceptance_criteria": ["agree/dispute output contract + orchestrator freezing", "completion = all-3-sign identical FULL table + orchestrator partition green"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-P-007+P-010", "spec_requirement_id": "REQ-012", "scenarios": ["pipelining and universe specified"], "acceptance_criteria": ["per-codebase freshness release", "orchestrator-precomputed file universe handed to all 3 analysts"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-P-008+P-009+P-012+anti-candidates", "spec_requirement_id": "REQ-013", "scenarios": ["each piece present"], "acceptance_criteria": ["S7 mechanical mapping", "S6 thinnest-coverage sampling", "3-adversary floor note", "## Optimization guardrails with 4 anti-candidates + rationale"], "layer": "backend"},
+    {"source_requirement_id": "PANEL-C-002 + USER-acceptance-3", "spec_requirement_id": "REQ-014", "scenarios": ["guards exist and suite is green"], "acceptance_criteria": ["search_log mandatory guard", "modalities_run mandatory + clean-with-empty rejected guard", "architect all-five-blocks guard", "pins for every REQ-001..013 contract", "suite green under cp1252 AND PYTHONUTF8=1"], "layer": "backend"},
+    {"source_requirement_id": "USER-acceptance-2 + repo-convention", "spec_requirement_id": "REQ-015", "scenarios": ["docs current"], "acceptance_criteria": ["plugin.json + marketplace.json = 3.12.0", "CHANGELOG documents each optimization {mechanism, axis, invariant} + fixes + rejected dispositions", "CLAUDE.md / CODEBASE_MAP ledger / README current"], "layer": "backend"},
+    {"source_requirement_id": "USER-acceptance-4+5 (deploy)", "spec_requirement_id": "REQ-016", "scenarios": ["deployed and verified"], "acceptance_criteria": ["origin/main contains the release merge (git ls-remote)", "installed plugin reports the new version", "/architect-team:optimize-structure resolvable"], "layer": "infra"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — this repo has no UI surface (markdown + stdlib Python + pytest); authorization per the refined prompt's scope (no production-service deployment exists; verification surface is the pytest suite). Recorded explicitly per the Phase 1 gate rule.",
+    "dev_api_integration": "N/A — no API surface exists; the structural pytest suite under both encodings IS the integration surface. Recorded explicitly per the Phase 1 gate rule.",
+    "both_layer_front_to_back": "N/A — no both-layer requirements exist in this change (all entries backend-docs/tests or infra-deploy)."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}

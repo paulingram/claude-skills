@@ -22,8 +22,11 @@ When your work is expected to exceed ~20 tool calls, write a checkpoint to `.arc
 
 ## Inputs
 
-- The converged proposal (`converged-proposal.json`) + YOUR shard: an explicit, non-overlapping subset of `movement_id`s assigned by the Lead.
-- The codebase root path(s) + maps for navigation.
+Your brief is trimmed to exactly what a mechanical closure needs — nothing else (the convergence rationale, the other analysts' drafts, and sibling shards are noise to you and cost tokens without changing a single reference you find):
+
+- **Your shard's movement slice** — the `from` / `to` / kind / rationale for YOUR assigned, non-overlapping subset of `movement_id`s (assigned by the Lead). You do NOT receive the other shards or the full convergence rationale.
+- **The relevant map sections** for navigation — the parts of `CODEBASE_MAP.md` / `ROUTE_MAP.md` / `INTEGRATION_MAP.md` that touch your shard's files, not the whole map library.
+- The codebase root path(s) — the live tree is the ground truth you trace against.
 - Your output path: `<workspace>/.architect-team/structure-optimization/<slug>/reference-closure/shard-<N>.json` — your ONLY Write scope.
 
 ## The search surfaces (all of them, per moved file)
