@@ -23,13 +23,14 @@ When your work is expected to exceed ~20 tool calls, write a checkpoint to `.arc
 ## Inputs
 
 - The codebase root path(s) in scope + each codebase's `docs/CODEBASE_MAP.md` (and `ROUTE_MAP.md` / `INTEGRATION_MAP.md` when present) — freshness-verified at Stage S1 before you were dispatched.
+- **The orchestrator-precomputed file universe** — `git ls-files` + a per-directory file-count histogram, computed ONCE by the orchestrator and handed to all three analysts as the canonical file set. This is your authoritative inventory; you partition against it rather than re-deriving it (the universe is identical for all three analysts, so re-running it three times is pure waste).
 - The user's optimization objective prose from `scope.json` (may be empty — then the objective is general structural health).
 - The run's drafts directory: `<workspace>/.architect-team/structure-optimization/<slug>/drafts/` — your draft lands at `analyst-<N>.json` there. That is your ONLY Write scope.
 
 ## Process
 
 1. **Consult `superpowers:brainstorming` discipline before committing to an approach** — enumerate at least two candidate target structures (e.g., feature-folder vs layer-first; package-split vs consolidated) and record in your draft why you chose one, citing the maps.
-2. **Inventory.** `git -C <codebase> ls-files` is your file universe. Read the maps for module purposes; spot-read code where the maps are thin.
+2. **Inventory.** Use the orchestrator-precomputed file universe (its source is `git -C <codebase> ls-files` + the per-directory histogram) as your file set — do not re-run `ls-files` yourself; it is identical for all three analysts. Read the maps for module purposes; spot-read code where the maps are thin.
 3. **Diagnose.** Identify structural problems with `file:line`/path evidence: misplaced modules, mixed concerns in one directory, tangled or cyclic dependency directions, god-directories, layout that contradicts the documented architecture, dead files.
 4. **Design the target tree.** Propose the new structure. Honor the codebase's language/ecosystem conventions (a Python package layout is not a JS feature-folder layout).
 5. **Partition — the non-negotiable.** Produce the movement table (`from` → `to`, kind: move / rename / split / merge / delete-dead, one-line rationale each) AND the explicit `stays` list (paths or directory prefixes that do not move). Every tracked file from `git ls-files` MUST appear in exactly one of the two — run the check yourself before submitting; a draft with orphans or duplicates is not submittable.
@@ -54,7 +55,13 @@ Write `analyst-<N>.json` to the drafts directory:
 
 ## Convergence round (Stage S3)
 
-When the Lead re-dispatches you with the other two drafts: argue with evidence, adopt the better idea regardless of whose it was, and revise toward ONE shared proposal. Total agreement (all three analysts sign the same movement table + stays list, partition check green) is the convergence promise's condition.
+When the Lead re-dispatches you with the other two drafts: argue with evidence, adopt the better idea regardless of whose it was, and revise toward ONE shared proposal.
+
+**Structured agree/dispute output contract.** Each round-robin pass, emit three things: (1) your **agreed-set** — the movements you now accept as-is; (2) your **disputed movements** — each with a ONE-LINE decisive argument; (3) **one proposed resolution per dispute**. The Lead FREEZES the rows all three of you agree on and re-dispatches only the dispute set to the next pass — so you stop re-litigating settled rows and spend each pass on the shrinking disagreement. Frozen rows are still part of the final table (agreed, not dropped).
+
+**Per-revision partition feedback.** After every revision, the orchestrator re-runs the deterministic partition check and attaches the orphan/duplicate delta to your next brief — fix any partition hole it names before re-signing.
+
+Total agreement (all three analysts sign the IDENTICAL FULL table — frozen agreed rows + resolved former-disputes — AND the orchestrator-run partition check green on that full table) is the convergence promise's condition.
 
 ## Hard rules
 

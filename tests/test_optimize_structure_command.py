@@ -110,3 +110,29 @@ def test_cross_references_section(plugin_root: Path) -> None:
     body = _read_cmd(plugin_root)
     assert "## Cross-references" in body
     assert "skills/structure-optimization/SKILL.md" in body
+
+
+# --------------------------------------------------------------------------- #
+# v3.12.0 — argument precedence (REQ-006)
+# --------------------------------------------------------------------------- #
+
+
+def test_argument_precedence_path_wins_and_path_plus_all_is_surfaced_error(plugin_root: Path) -> None:
+    """REQ-006: an explicit codebase path takes precedence; a path combined
+    with --all is a surfaced error (ask which was meant), never a silent pick."""
+    body = _read_cmd(plugin_root)
+    parsing = body[body.index("## Argument parsing"):]
+    # Cut at the next H2 so the precedence rule is inside the parsing section.
+    next_h2 = parsing.index("\n## ", 5)
+    parsing = parsing[:next_h2]
+    assert "precedence" in parsing or "takes precedence" in parsing or "wins" in parsing, (
+        "the parsing section must state the explicit path takes precedence"
+    )
+    # path + --all together is a SURFACED ERROR, not a silent pick.
+    assert "--all" in parsing
+    assert "surfaced" in parsing or "error" in parsing, (
+        "a path combined with --all must be a surfaced error (ask which was meant)"
+    )
+    assert "silent" in parsing, (
+        "the rule must state it is never a silent pick"
+    )

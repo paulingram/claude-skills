@@ -23,6 +23,8 @@ Parse `$ARGUMENTS` into tokens:
 - **`--all`** → every codebase recorded in `<workspace>/.architect-team/intake-state.json`; if none recorded, fall back to the current repo root.
 - **If `$ARGUMENTS` is empty** → default to the current repo root (`git rev-parse --show-toplevel`).
 
+**Precedence (non-negotiable):** an explicit codebase path takes precedence — when a path is given, it is the scope. A path combined with `--all` is contradictory (one codebase vs every codebase), so it is a **surfaced error**: ask the user which they meant (the named path, or all intake codebases) and stop — NEVER silently pick one and proceed. Guessing here would scope the whole expensive pipeline against the wrong codebase set.
+
 Flags (natural-language phrasings count — "don't commit", "no push", "skip the compact prompt", "and then implement it" / "execute the plan" → `--execute`):
 
 - `--objective "<prose>"` → the optimization objective, passed VERBATIM into `scope.json` and every analyst/adversary brief. Omitted → general structural health. Per `common-pipeline-conventions` `## Scope discipline`, the pipeline never narrows this prose silently — a scope-fidelity doubt surfaces as a question.

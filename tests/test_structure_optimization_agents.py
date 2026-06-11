@@ -175,3 +175,114 @@ def test_restructure_plan_audit_verdict_keys(plugin_root: Path) -> None:
         "migration_order_sound",
     ):
         assert key in body, f"system-architect: Restructure Plan Audit missing verdict key {key!r}"
+
+
+# --------------------------------------------------------------------------- #
+# 5. v3.12.0 — strengthened invariant guards (REQ-014)
+# --------------------------------------------------------------------------- #
+
+
+def test_reference_tracer_search_log_is_mandatory(plugin_root: Path) -> None:
+    """REQ-014: the tracer's per-shard search_log is mandatory — it is how the
+    adversary knows what was NOT run."""
+    body = _read(plugin_root, "agents", "reference-tracer.md")
+    assert "search_log" in body
+    assert "mandatory" in body, (
+        "the reference-tracer must state the search_log is mandatory"
+    )
+
+
+def test_structure_adversary_modalities_run_mandatory_and_rejected_when_empty(plugin_root: Path) -> None:
+    """REQ-014: a clean verdict with an empty modalities_run log is rejected as
+    not-having-looked; modalities_run is mandatory even on a clean verdict."""
+    body = _read(plugin_root, "agents", "structure-adversary.md")
+    assert "modalities_run" in body
+    assert "mandatory" in body, (
+        "the structure-adversary must state modalities_run is mandatory"
+    )
+    # The empty-log-rejected rule.
+    assert "empty" in body and "reject" in body.lower(), (
+        "a clean verdict with an empty modality log must be stated as rejected"
+    )
+
+
+def test_restructure_plan_audit_all_five_blocks_rule(plugin_root: Path) -> None:
+    """REQ-014: overall: pass ONLY when all five verdict blocks pass."""
+    body = _read(plugin_root, "agents", "system-architect.md")
+    audit = body[body.index("## Restructure Plan Audit"):]
+    # Cut at the next H2 so the rule is inside the audit-mode section.
+    next_h2 = audit.index("\n## ", 5)
+    audit = audit[:next_h2]
+    assert "all five blocks" in audit, (
+        "the Restructure Plan Audit must state overall pass requires all five blocks pass"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 6. v3.12.0 — agent-body optimization contracts (REQ-007, REQ-009..REQ-012)
+# --------------------------------------------------------------------------- #
+
+
+def test_structure_adversary_warm_start_inputs(plugin_root: Path) -> None:
+    """REQ-007/REQ-009: the adversary Inputs gain the warm-start payload (delta
+    + carried modalities_run union + carried clean evidence) and the published
+    per-round partition-check.json artifact it consumes."""
+    body = _read(plugin_root, "agents", "structure-adversary.md")
+    assert "warm-start" in body, "the adversary must document the warm-start payload"
+    assert "delta" in body
+    assert "partition-check.json" in body, (
+        "the adversary must consume the published per-round partition-check.json"
+    )
+    # The from-scratch recompute happens via deterministic orchestrator code,
+    # the adversary consumes the published artifact (REQ-009).
+    assert "from-scratch" in body
+    # The phrase "partition check" stays present (test-pinned in v3.11.0 too).
+    assert "partition check" in body
+    # The carried modality union only grows + re-confirm carried clean evidence.
+    assert "re-confirm" in body or "reconfirm" in body
+
+
+def test_structure_analyst_precomputed_universe_and_agree_dispute(plugin_root: Path) -> None:
+    """REQ-011/REQ-012: the analyst Inputs gain the orchestrator-precomputed
+    file universe; the Convergence round gains the agree-set/dispute-set
+    output contract + per-revision partition feedback."""
+    body = _read(plugin_root, "agents", "structure-analyst.md")
+    # Precomputed file universe (git ls-files + per-dir histogram) handed in.
+    assert "file universe" in body or "histogram" in body, (
+        "the analyst must receive the orchestrator-precomputed file universe"
+    )
+    # The literal git ls-files stays present as the universe's source (pinned).
+    assert "git ls-files" in body
+    # The agree/dispute convergence contract.
+    assert "agree" in body and "dispute" in body, (
+        "the analyst Convergence round must emit the agree-set/dispute-set contract"
+    )
+
+
+def test_reference_tracer_trimmed_shard_brief(plugin_root: Path) -> None:
+    """REQ-010: the tracer Inputs name the trimmed per-shard brief contents
+    (the shard's movement slice + relevant map sections, not full rationale)."""
+    body = _read(plugin_root, "agents", "reference-tracer.md")
+    assert "shard" in body
+    # The trimmed-brief framing: relevant map sections, not other drafts / full
+    # rationale.
+    assert "map sections" in body or "relevant map" in body, (
+        "the tracer Inputs must name the trimmed per-shard brief (map sections, "
+        "not full rationale)"
+    )
+
+
+def test_system_architect_spot_check_weighted_to_thinnest_coverage(plugin_root: Path) -> None:
+    """REQ-013: the spot-check sample is weighted toward movements with the
+    THINNEST adversary-modality coverage (from the final two rounds'
+    modalities_run union)."""
+    body = _read(plugin_root, "agents", "system-architect.md")
+    audit = body[body.index("## Restructure Plan Audit"):]
+    next_h2 = audit.index("\n## ", 5)
+    audit = audit[:next_h2]
+    assert "thinnest" in audit.lower(), (
+        "the spot-check must weight toward the thinnest adversary-modality coverage"
+    )
+    assert "modalities_run" in audit, (
+        "the thinnest-coverage computation must reference the modalities_run union"
+    )
