@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.13.1] — 2026-06-11 — code-wiki usage documentation
+
+**PATCH — docs only; zero code/test-behavior change.** Closes the documentation gap the v3.13.0 release left: the phenotype existed and was demo-proven, but nothing told a user HOW to launch a wiki.
+
+- **`phenotypes/README.md` brought current** — it still read "All three production seeds" with no `code-wiki` row. Now: four seeds with a `code-wiki` table row; a NEW `## Launching a code wiki` quick-start (emit → fill `codebases.json` → `npm run build && npm run start` or `docker compose up --build` → the cloud path via the `config-management` phenotype, matching the scaffold's `post_emit_notes` verbatim); the `## Adding a phenotype` section updated to reflect that the absorb capability is SHIPPED (`/architect-team:absorb-phenotype` per `phenotype-absorption`) and `code-wiki` is its first absorb-tool-produced record, with `user-management` remaining the hand-authored worked example; the CLI examples gain a `code-wiki` emit line.
+- **`README.md` gains `### ▸ Launch a code wiki from your maps (v3.13.0)`** in the USAGE section — the emit/register/run commands + the hosting variation point + a pointer to the full quick-start.
+- Version 3.13.1 (`plugin.json` + `marketplace.json`); the release-version pin test updated; CODEBASE_MAP ledger sentence prepended. Inventory 41 skills / 37 agents / 20 commands / 4 phenotypes and the suite total **4411 passing + 5 skipped** are unchanged.
+
 ## [3.13.0] — 2026-06-11 — code-wiki phenotype (absorbed from deepwiki-open)
 
 **MINOR — a fourth phenotype seeded into the v2.3.0 phenotype subsystem: `code-wiki`, a self-hosted documentation-wiki application pattern absorbed from [deepwiki-open](https://github.com/AsyncFuncAI/deepwiki-open.git) (MIT) via the `phenotype-absorption` skill.** The user asked to "launch a code wiki" that hosts the CT6 codebase maps "in a visually appealing way"; the run absorbed deepwiki-open's presentation layer — sidebar navigation tree, markdown content pane, client-rendered Mermaid diagrams, dark/light theming — as a lean, generalized Next.js scaffold, stripping the entire LLM machinery and swapping the content source from "generate with an LLM at view time" to "ingest already-written `*_MAP.md` files." Zero engine/schema changes; the three existing seeds (`user-management`, `config-management`, `ai-management`) are untouched.

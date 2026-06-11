@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 13 . 0
+                        ─── C T 6 ───   v 3 . 13 . 1
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.13.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.13.1-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-4411%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -441,6 +441,19 @@ Installs the MemPalace CLI (uv-first, pip fallback) and prints the `claude mcp a
 The requirements folder may contain OpenSpec artifacts (`proposal.md`, `specs/`, `design.md`, `tasks.md`), a Superpowers-formatted brief, or plain markdown. The orchestrator detects and normalizes.
 
 **Default: auto-commit + auto-merge-to-main + push on clean pass (v3.7.0).** At the end of a successful Phase 8, the pipeline stages its working set, commits with a structured message including the requirements implemented + tests added + archive path, then — when the run's `architect-team/<slug>` branch merges cleanly — merges `--no-ff` into `main`, pushes `main`, deletes the branch (local + remote), and removes the run worktree (see Logic Map D). A conflict or protected branch falls back to the feature-branch + PR path and is reported, never forced. To opt out per invocation: pass `--no-auto-merge` (feature branch + recommend a PR, worktree persists), `--no-commit` (skip both commit + merge), `--no-push` (commit locally only), or `--no-compact` (suppress the end-of-run `/compact` prompt). Natural-language opt-outs ("don't commit", "no push", "keep the branch") are honored.
+
+### ▸ Launch a code wiki from your maps (v3.13.0)
+
+The maps every run produces (`CODEBASE_MAP.md` / `ROUTE_MAP.md` / `INTEGRATION_MAP.md` / `DESIGN_MAP.md` / `INTERACTION_INTUITION_MAP.md`) double as wiki content. The `code-wiki` phenotype hosts them — for any number of codebases — in a navigable Next.js wiki (sidebar tree, rendered Mermaid, dark/light theming, absorbed from deepwiki-open with the LLM stack stripped: zero API keys).
+
+```bash
+# emit the scaffold, register codebases, run
+python scripts/phenotypes/phenotypes.py emit code-wiki ./my-wiki --param "wiki_name=Acme Engineering Docs"
+#   -> fill <WIKI_CONTENT_DIR>/codebases.json with [{ "name": ..., "maps_dir": ... }] (one entry per codebase)
+cd my-wiki && npm install && npm run build && npm run start     # or: docker compose up --build
+```
+
+Hosting is a variation point — `local` (docker-compose, the default), `aws`, or `gcp`; the cloud paths deploy via the `config-management` phenotype (apply its platform layers first, then the emitted `iac/<cloud>/` service layer — both sets `tofu validate`-clean as shipped). Full quick-start: [`phenotypes/README.md`](phenotypes/README.md).
 
 ### The pipeline at a glance
 
