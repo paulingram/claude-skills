@@ -152,6 +152,10 @@ If `mandate.active == true`, the orchestrator persists `deploy_mandate = mandate
 
 When `mandate.active == false`, no deploy-mandate state is set; the v2.20.0 tool is a no-op for the rest of the run. Per `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)`.
 
+### Phase −2 appearance-mode binding (v3.14.0)
+
+Alongside the deploy-mandate detection, the orchestrator binds the run's `appearance_mode` — `strict` (the DEFAULT) / `propose` / `innovate` — from the `--appearance` flag (or its parse-time natural-language equivalents), persists it into `<workspace>/.architect-team/intake-state.json`, and carries it in every teammate's spawn brief (extending the v0.9.13 manifest schema, same as `deploy_mandate` / `baseline_sha`). An explicit visual ask in the requirement prose puts the NAMED surfaces in scope under `strict`; when the prompt asks to "improve" / "update" a UI surface and it is genuinely ambiguous whether the LOOK may change, surface ONE `AskUserQuestion` at intake (domain gate). Phase 3's review gate (the schema v7 optional `appearance_scope_review` field — the hook BLOCKS `fail`), the Phase 7 Master Review Audit's run-diff walk, and Phase 8's final-report proposals rule all read this binding. Canonical home: `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`.
+
 ## Phase 0.1 — Discipline freshness check (v2.18.0)
 
 Runs AFTER the Phase −2 triage (so the bug-fix-pipeline branch inherits the same check) and BEFORE Phase −1 — Intake & Mapping. Per `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`:
@@ -563,6 +567,7 @@ Emit a final report containing:
 - Total commits, files changed, lines added/removed
 - Total tests added (unit / integration / e2e), all passing
 - All Playwright flows executed, with timing and pass status
+- Appearance proposals per the run's `appearance_mode` (v3.14.0): under `strict`, a READ-ONLY "Appearance proposals (not implemented — strict mode)" listing citing `<workspace>/.architect-team/appearance-proposals/<run-id>.json` and stating how to act on them in a future invocation (imperative, never interrogative — no v2.10.0 follow-up-question phrasings); under `propose`, the per-proposal gate decisions with citations; under `innovate`, every `implemented-innovate` visual delta enumerated
 - Each teammate spawned, its task group, and outcome
 - Final statement: **"Spec `<change-name>` has been implemented."** Followed by the archive path.
 
