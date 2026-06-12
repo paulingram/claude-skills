@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.13.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.14.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.14.0 — appearance-change policy (strict / propose / innovate)
+
+A new cross-pipeline discipline closing the unsolicited frontend-appearance-change gap — verbatim driver: *"sometimes when asking for updates, the agent will arbitrarily change our front end, adding things we didnt explicitly ask for as part of an ask to improve."* By default every run is now **strict**: what a user SEES changes only when the user asked for it.
+
+| Capability | What it is |
+|---|---|
+| **The three modes** | `strict` (DEFAULT — no appearance-affecting change beyond the explicit mandate; backend changes unrestricted; improvement ideas RECORDED as proposals, never implemented) / `propose` (proposals batched at ONE multi-select `AskUserQuestion` approval gate — only approved ones implemented, with the user's verbatim citation stored) / `innovate` (authorized — every visual delta logged `implemented-innovate` + `DESIGN_MAP.md`-reconciled in the same change). Selected via `--appearance <strict\|propose\|innovate>` on `/architect-team` + `:bug-fix` + `:mini` (+ natural-language equivalents); bound ONCE at Phase −2 / B−1 / M0 into `intake-state.json`; carried in every teammate spawn brief. |
+| **The mandate boundary** | Three sanctioned sources under `strict`: **requirement text** (only the NAMED surfaces), **spec restoration** (`DESIGN_MAP.md` / the design source / the intended rendering a bug broke — always in scope in every mode), and the **mandated-capability minimum** (the smallest entry point a required capability needs, matching the existing design system, zero decorative extras). Everything else is out of mandate regardless of merit — "better" is the user's call. |
+| **The proposals artifact** | `<workspace>/.architect-team/appearance-proposals/<run-id>.json` — statuses `recorded` / `approved` / `rejected` / `implemented-approved` / `implemented-innovate`. Strict runs list proposals READ-ONLY in the final report (imperative phrasing — never a v2.10.0 follow-up question). Completeness-audit SRs whose remediation would ADD new visible UI surface are `appearance_gated: true` and user-gated under strict/propose; pure-wiring SRs (dead buttons, mock data, missing APIs for existing elements) route unchanged in every mode. |
+| **Review-gate enforcement** | Schema v7 gains its THIRD OPTIONAL field `appearance_scope_review` (string or `{verdict, verdict_path}`; the hook **BLOCKS `fail`**; `REQUIRED_EVIDENCE_FIELDS` stays at 17; older evidence files stay valid). The independent `task-reviewer` traces EVERY appearance-affecting delta to a mandate; the `system-architect` Master Review Audit walks the run-level diff + checks proposals-artifact integrity. NO new Layer 3 tool in v3.14.0 (`verify-no-unsolicited-appearance-change` is the named v3.14.x follow-up). NEW `tests/test_appearance_change_policy.py` (48 tests); suite 4415 → **4463 passing + 5 skipped** (177 files; both encodings). |
 
 ### v3.13.0 — code-wiki phenotype (absorbed from deepwiki-open)
 
