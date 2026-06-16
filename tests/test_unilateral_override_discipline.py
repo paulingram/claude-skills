@@ -103,10 +103,25 @@ def test_pretool_hook_registered_in_hooks_json() -> None:
 
 
 def test_pretool_hook_uses_guardrail_script() -> None:
+    # Two PreToolUse hooks now coexist, each on its own matcher: the v3.0.0
+    # unilateral-override guard on Edit/Write/NotebookEdit (source-edit bypass),
+    # and the skill-invocation hard-gate on the "*" matcher (real-time skill
+    # enforcement). Assert each matcher routes to the correct script.
     hooks = json.loads((REPO_ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    expected_by_matcher = {
+        "Edit": "pretool_unilateral_override_guard.py",
+        "Write": "pretool_unilateral_override_guard.py",
+        "NotebookEdit": "pretool_unilateral_override_guard.py",
+        "*": "pretool_skill_gate.py",
+    }
     for entry in hooks["hooks"]["PreToolUse"]:
+        expected = expected_by_matcher.get(entry["matcher"])
+        assert expected is not None, f"unexpected PreToolUse matcher {entry['matcher']!r}"
         for hook in entry["hooks"]:
-            assert "pretool_unilateral_override_guard.py" in hook["command"]
+            assert expected in hook["command"], (
+                f"PreToolUse[{entry['matcher']}] should route to {expected}, "
+                f"got {hook['command']!r}"
+            )
 
 
 def test_pretool_hook_uses_polyglot_python_pattern() -> None:
