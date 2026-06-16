@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 15 . 0
+                        ─── C T 6 ───   v 3 . 15 . 1
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.15.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.15.1-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-4415%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -67,20 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.15.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.15.1  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.15.0 — skill-invocation hard-gate (real-time pipeline-bypass prevention)
+### v3.15.0 → v3.15.1 — skill-invocation hard-gate (real-time pipeline-bypass prevention)
 
 A new `PreToolUse[*]` hook closing the *"sometimes when I call for the architect team, the AI doesnt load the skill"* gap — verbatim driver: *"you invoked the skill and I've been driving it by hand instead of running it."* The command body only *instructs* the model to invoke the Skill; nothing FORCED it, and the only prior guard (`hooks/skill_invocation_audit.py`, Layer 6) detects a miss after the turn ends. Soft prompts get rationalized past; deterministic code does not.
 
 | Capability | What it is |
 |---|---|
-| **The gate** | `hooks/pretool_skill_gate.py` (stdlib-only), wired `PreToolUse[*]`. When the session transcript's most-recent GENUINE user prompt is an unsatisfied pipeline-command request (`/architect-team:architect-team` / `:bug-fix` / `:ux-test` / `:mini` / `:refine-prompt`, slash or prose), it BLOCKS (exit 2) the first non-`Skill` tool call (Read/Bash/Edit/Write/Agent/…) until a pipeline skill is engaged. Converts the Layer-6 audit from DETECTION to PREVENTION. |
+| **The gate** | `hooks/pretool_skill_gate.py` (stdlib-only), wired `PreToolUse[*]`. When the session transcript's most-recent GENUINE user prompt is an unsatisfied pipeline-command request (`/architect-team:architect-team` / `:bug-fix` / `:ux-test` / `:mini` / `:refine-prompt`, slash or prose), it BLOCKS (exit 2) the first BUILD/DISPATCH tool call (`Edit`/`Write`/`NotebookEdit`/`Agent`/`Task*`) until a pipeline skill is engaged — read-only investigation + the command wrapper's own `Bash` setup (banner/cleanup/worktree) are never blocked (**narrowed in v3.15.1** after the original all-non-`Skill` block over-fired on the wrapper's setup). Converts the Layer-6 audit from DETECTION to PREVENTION. |
 | **Universal / global** | No reference to any specific codebase, repo, app, or project — keyed off the plugin's own discovered command set (`COMMAND_TO_SKILLS`, reused from `skill_invocation_audit.py`) + the Skill-tool ledger; works in any repo the plugin is installed into. Scoped to the 5 pipeline-driving commands only — read-only commands (`/status`, `/memory`) and built-in REPL commands (`/effort`, `/model`) never gate. |
 | **False-block-safe** | The catastrophic failure for a `*`-matcher hook is a spurious block. The anchor excludes the harness's injected/meta records (`isMeta` command/skill body-echoes, `promptSource:"system"` task-notifications, `isSidechain` subagent transcripts); satisfaction = engaging ANY pipeline skill after the request (so `/architect-team`'s `proposal-refiner`-first step never false-blocks) with ts-ordered user-precedence; the `Skill` tool is always allowed; fail-open on any error. |
-| **Adversarially verified on real data** | Independent review against two real transcripts caught a session-bricking `isMeta` body-echo bug + a refiner-first false-block before ship; the fix was re-verified across 9 real transcripts / 3822 simulated tool calls — **0 spurious blocks, 402 genuine historical bypasses correctly caught**. NEW `tests/test_pretool_skill_gate.py` (38 tests); suite 4463 → **4501 passing + 5 skipped** (178 files; both encodings). NO new Layer 3 tool. |
+| **Adversarially verified on real data** | Independent review against two real transcripts caught a session-bricking `isMeta` body-echo bug + a refiner-first false-block before ship; the fix was re-verified across 9 real transcripts / 3822 simulated tool calls — **0 spurious blocks, 402 genuine historical bypasses correctly caught**. NEW `tests/test_pretool_skill_gate.py` (40 tests); suite **4503 passing + 5 skipped** (178 files; both encodings). NO new Layer 3 tool. **v3.15.1** re-verified the narrowed gate across 9 transcripts / 3939 calls — blocks only on build/dispatch tools, 0 non-build/dispatch blocked. |
 
 ### v3.14.0 — appearance-change policy (strict / propose / innovate)
 
@@ -1252,7 +1252,8 @@ Tests validate: plugin/marketplace JSON; all 41 skill frontmatters; all 37 agent
            v3.12.0 ─ structure-optimization performance + review remediation — 3-lens panel: 10 in-place correctness fixes (partition `.splitlines()` + `normcase`; `phase_complete`; `"to": []`; shard assembly; S6 routing table; arg precedence) + S5/S3 cost optimizations (adversary-round warm-start, per-round partition-recompute dedup → published `partition-check.json`, structured agree/dispute convergence, front-loading, precomputed file universe, shard policy, mechanical S7 transcription, thinnest-coverage sampling) + a permanent `## Optimization guardrails` section — every accuracy invariant preserved
            v3.13.0 ─ code-wiki phenotype — a fourth seeded phenotype absorbed (READ-ONLY) from deepwiki-open (MIT) via `phenotype-absorption`: the sidebar-nav + markdown + client-Mermaid + theming presentation pattern re-expressed as a lean Next.js scaffold (`kind: singleton`, plain CSS, `lib/maps-loader` ingesting `codebases.json` → `docs/*_MAP.md`), the entire LLM stack stripped; `deploy.via = config-management phenotype` (`iac/aws` + `iac/gcp` service-layer plug-ins, both `tofu validate`-clean); proven by an executed local demo (HTTP 200 + a Playwright screenshot of 2 rendered Mermaid diagrams + the nav tree)
            v3.14.0 ─ appearance-change policy — three modes governing unsolicited frontend-appearance changes (`strict` DEFAULT: no appearance-affecting change beyond the explicit mandate, improvement ideas recorded as proposals and never implemented; `propose`: proposals batched at a user approval gate; `innovate`: authorized + every delta logged + DESIGN_MAP-reconciled); `--appearance` flag on `/architect-team` + `:bug-fix` + `:mini`; `appearance_mode` bound at intake + carried in every spawn brief; `.architect-team/appearance-proposals/<run-id>.json` artifact; schema v7 gains the OPTIONAL `appearance_scope_review` field (hook-blocked on fail); task-reviewer per-delta trace + Master Review Audit run-diff walk
-   ◆       v3.15.0 ─ skill-invocation hard-gate — a new `PreToolUse[*]` hook (`hooks/pretool_skill_gate.py`) converting Layer-6 skill-invocation DETECTION into real-time PREVENTION: when the latest genuine user prompt is an unsatisfied pipeline-command request it BLOCKS (exit 2) the first non-`Skill` tool call until a pipeline skill is engaged; universal (keyed off the plugin's own command set + Skill ledger, reusing `skill_invocation_audit`); scoped to the 5 pipeline-driving commands; false-block-safe (excludes `isMeta`/`system`/`isSidechain` records, fail-open, Skill always allowed); adversarially verified on 9 real transcripts — 0 spurious blocks, 402 genuine bypasses caught (current)
+           v3.15.0 ─ skill-invocation hard-gate — a new `PreToolUse[*]` hook (`hooks/pretool_skill_gate.py`) converting Layer-6 skill-invocation DETECTION into real-time PREVENTION: when the latest genuine user prompt is an unsatisfied pipeline-command request it BLOCKS (exit 2) the first non-`Skill` tool call until a pipeline skill is engaged; universal (keyed off the plugin's own command set + Skill ledger, reusing `skill_invocation_audit`); scoped to the 5 pipeline-driving commands; false-block-safe (excludes `isMeta`/`system`/`isSidechain` records, fail-open, Skill always allowed); adversarially verified on 9 real transcripts — 0 spurious blocks, 402 genuine bypasses caught
+   ◆       v3.15.1 ─ skill-gate narrowing fix — the v3.15.0 `*`-matcher over-fired on the command wrapper's own pre-Skill setup (dispatch banner / cleanup / worktree = Bash, + ToolSearch), seen on a server blocking the banner; narrowed to block ONLY build/dispatch tools (`Edit`/`Write`/`NotebookEdit`/`Agent`/`Task*`) — read-only investigation + the wrapper's Bash are always allowed, so a well-behaved run never trips it; re-verified 9 transcripts / 3939 calls — blocks only build/dispatch (204 catches), 0 non-build/dispatch blocked (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
