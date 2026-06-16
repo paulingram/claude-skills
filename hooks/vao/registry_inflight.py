@@ -160,7 +160,8 @@ def verify_inflight_clarifications_processed(
                 "the canonical home in common-pipeline-conventions/SKILL.md "
                 "## In-flight clarification injection mechanism (v2.19.0)). "
                 "Read the message, classify as scope-amendment / clarification "
-                "/ out-of-scope per v2.5.0, take the named action, then "
+                "/ out-of-scope / parallel-problem per v2.5.0, take the named "
+                "action (a parallel-problem opens a sanctioned concurrent lane), then "
                 "`hooks.inflight_inbox.mark_processed(...)`. Re-run Phase 8 "
                 "once all messages are processed."
             ),
