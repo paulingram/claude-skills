@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 15 . 1
+                        ─── C T 6 ───   v 3 . 16 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.15.1-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.16.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-4415%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.15.1  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.16.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.16.0 — responsive + parallel `/architect-team:inject` (concurrent in-run lanes)
+
+Closes *"inject just sits there passively … I need it to spawn more teams so we can have multiple problems worked on in parallel."* Before: the inbox was read only at phase boundaries (the Lead blocked synchronously on teammates), and spawning a parallel team for an injected problem was a *forbidden* anti-pattern — an inject could only be folded into the one sequential flow.
+
+| Capability | What it is |
+|---|---|
+| **`parallel-problem` + concurrent lanes** | A new inbox classification (`hooks/inflight_inbox.py`) + a `lane_id` field. A separable, independent injected problem (disjoint file scope) opens a sanctioned concurrent in-run **lane** — a background team holding a disjoint `hooks/locks.py` file-scope lock — that works alongside the existing team(s) and converges via Phase 4. NOT a sibling `/architect-team` run: one coverage map / openspec change / commit range. |
+| **Responsive (poll on every wake)** | The inbox is drained at every phase boundary AND after every background-dispatch return / wake (background dispatch frees the Lead's turn), not only at phase boundaries — so an inject is serviced promptly instead of sitting until the next phase. |
+| **Honest about the limits** | Adversarial-review-driven: it is polling, not async push (a message injected mid-tool-call is serviced when that call returns); lane isolation is `globs_intersect` file-glob + advisory (`cdlg_overlap` is NOT wired into `acquire_lock` — keep lane scopes coarse; Phase 4 backstops a shared boundary); background lanes degrade to sequential in subagents-mode; a failed lane spawn downgrades the message rather than wedging Phase 8. |
+| **Tests** | New `tests/test_parallel_lane_inject.py` (13 cases incl. the end-to-end dogfood: append → read → lock-isolated lane → processed → verified). Suite 4503 → **4516 passing + 5 skipped** (179 files; both encodings). No new Layer 3 tool. |
 
 ### v3.15.0 → v3.15.1 — skill-invocation hard-gate (real-time pipeline-bypass prevention)
 
@@ -1253,7 +1264,8 @@ Tests validate: plugin/marketplace JSON; all 41 skill frontmatters; all 37 agent
            v3.13.0 ─ code-wiki phenotype — a fourth seeded phenotype absorbed (READ-ONLY) from deepwiki-open (MIT) via `phenotype-absorption`: the sidebar-nav + markdown + client-Mermaid + theming presentation pattern re-expressed as a lean Next.js scaffold (`kind: singleton`, plain CSS, `lib/maps-loader` ingesting `codebases.json` → `docs/*_MAP.md`), the entire LLM stack stripped; `deploy.via = config-management phenotype` (`iac/aws` + `iac/gcp` service-layer plug-ins, both `tofu validate`-clean); proven by an executed local demo (HTTP 200 + a Playwright screenshot of 2 rendered Mermaid diagrams + the nav tree)
            v3.14.0 ─ appearance-change policy — three modes governing unsolicited frontend-appearance changes (`strict` DEFAULT: no appearance-affecting change beyond the explicit mandate, improvement ideas recorded as proposals and never implemented; `propose`: proposals batched at a user approval gate; `innovate`: authorized + every delta logged + DESIGN_MAP-reconciled); `--appearance` flag on `/architect-team` + `:bug-fix` + `:mini`; `appearance_mode` bound at intake + carried in every spawn brief; `.architect-team/appearance-proposals/<run-id>.json` artifact; schema v7 gains the OPTIONAL `appearance_scope_review` field (hook-blocked on fail); task-reviewer per-delta trace + Master Review Audit run-diff walk
            v3.15.0 ─ skill-invocation hard-gate — a new `PreToolUse[*]` hook (`hooks/pretool_skill_gate.py`) converting Layer-6 skill-invocation DETECTION into real-time PREVENTION: when the latest genuine user prompt is an unsatisfied pipeline-command request it BLOCKS (exit 2) the first non-`Skill` tool call until a pipeline skill is engaged; universal (keyed off the plugin's own command set + Skill ledger, reusing `skill_invocation_audit`); scoped to the 5 pipeline-driving commands; false-block-safe (excludes `isMeta`/`system`/`isSidechain` records, fail-open, Skill always allowed); adversarially verified on 9 real transcripts — 0 spurious blocks, 402 genuine bypasses caught
-   ◆       v3.15.1 ─ skill-gate narrowing fix — the v3.15.0 `*`-matcher over-fired on the command wrapper's own pre-Skill setup (dispatch banner / cleanup / worktree = Bash, + ToolSearch), seen on a server blocking the banner; narrowed to block ONLY build/dispatch tools (`Edit`/`Write`/`NotebookEdit`/`Agent`/`Task*`) — read-only investigation + the wrapper's Bash are always allowed, so a well-behaved run never trips it; re-verified 9 transcripts / 3939 calls — blocks only build/dispatch (204 catches), 0 non-build/dispatch blocked (current)
+           v3.15.1 ─ skill-gate narrowing fix — the v3.15.0 `*`-matcher over-fired on the command wrapper's own pre-Skill setup (dispatch banner / cleanup / worktree = Bash, + ToolSearch), seen on a server blocking the banner; narrowed to block ONLY build/dispatch tools (`Edit`/`Write`/`NotebookEdit`/`Agent`/`Task*`) — read-only investigation + the wrapper's Bash are always allowed, so a well-behaved run never trips it; re-verified 9 transcripts / 3939 calls — blocks only build/dispatch (204 catches), 0 non-build/dispatch blocked
+   ◆       v3.16.0 ─ responsive + parallel `/architect-team:inject` — a new `parallel-problem` inbox classification + `lane_id` opens a sanctioned concurrent in-run LANE (a background team with a disjoint `hooks/locks.py` file-scope lock, converging via Phase 4) instead of folding; the inbox is polled on every phase boundary AND every background-dispatch return/wake; the forbidden `spawn-sibling-invocation` rule is amended to allow in-run lanes. Honest: polling-not-push, lock isolation is file-glob/advisory (`cdlg_overlap` not wired into `acquire_lock`), lanes degrade to sequential in subagents-mode, a failed lane downgrades rather than wedging Phase 8. New `tests/test_parallel_lane_inject.py` (13 cases incl. the end-to-end dogfood) (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

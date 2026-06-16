@@ -1,14 +1,16 @@
 ---
-description: Inject an in-flight clarification or scope amendment into the currently running architect-team pipeline. The message lands in the per-run inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` and is picked up at the next phase boundary, where the orchestrator classifies it as `scope-amendment` (triggers an upstream re-run) or `clarification` (folds into the next phase) per v2.5.0. Works from the same Claude Code session at a turn boundary OR from a separate terminal session.
+description: Inject an in-flight clarification, scope amendment, or separable parallel problem into the currently running architect-team pipeline. The message lands in the per-run inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` and is picked up promptly — on the orchestrator's next wake / dispatch-return, not only at a phase boundary (v3.16.0) — where it is classified as `scope-amendment` (upstream re-run), `clarification` (folds into the next phase), `out-of-scope` (recorded), or `parallel-problem` (opens a concurrent in-run lane) per v2.5.0. Works from the same Claude Code session at a turn boundary OR from a separate terminal session.
 argument-hint: "<message>"
 ---
 
 # /architect-team:inject
 
 Append a clarification or scope amendment to the in-flight pipeline run's inbox.
-The orchestrator reads the inbox at every phase boundary per the v2.19.0
-phase-boundary check protocol; new messages are classified + acted on, not
-silently ignored.
+The orchestrator reads the inbox at every phase boundary AND on every wake /
+dispatch-return (v3.16.0) per the v2.19.0 check protocol; new messages are
+classified + acted on, not silently ignored — a `parallel-problem` may spawn a
+concurrent lane (a dedicated background team with a disjoint file-scope lock)
+that works alongside the in-flight team(s).
 
 ## Dispatch mode banner — runs first
 
@@ -112,10 +114,10 @@ Print a one-block confirmation showing:
 ║  Run-id:  <run-id>                                             ║
 ║  Inbox:   .architect-team/inbox/<run-id>.jsonl                 ║
 ║                                                                ║
-║  The orchestrator will process this at the next phase          ║
-║  boundary (Phase −1 / Phase 0 / Phase 2 dispatch return / ...) ║
-║  and classify it as scope-amendment, clarification, or         ║
-║  out-of-scope per v2.5.0.                                      ║
+║  The orchestrator processes this promptly — on its next wake / ║
+║  dispatch return, not only at a phase boundary (v3.16.0) — then║
+║  classifies it: scope-amendment / clarification / out-of-scope ║
+║  / parallel-problem (which opens a concurrent in-run lane).    ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
 

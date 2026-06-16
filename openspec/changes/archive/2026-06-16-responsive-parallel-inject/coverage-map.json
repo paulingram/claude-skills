@@ -1,0 +1,21 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "responsive-parallel-inject",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "plain-language requirement refined in-conversation: make /architect-team:inject responsive + able to spawn concurrent in-run lanes",
+  "entries": [
+    {"source_requirement_id": "USER-parallel-classification", "spec_requirement_id": "REQ-001", "scenarios": ["parallel-problem records a lane and rejects a missing one"], "acceptance_criteria": ["parallel-problem in CLASSIFICATIONS", "lane_id field on the message (null on append)", "mark_processed requires lane_id for parallel-problem (ValueError without)", "other classifications work without lane_id", "stdlib-only"], "layer": "backend"},
+    {"source_requirement_id": "USER-sanctioned-lanes", "spec_requirement_id": "REQ-002", "scenarios": ["lane isolation enforced by the lock layer"], "acceptance_criteria": ["### Parallel lanes (v3.16.0) subsection in common-pipeline-conventions", "disjoint scope -> lock granted; overlapping -> blocked (via hooks/locks.py)", "spawn-sibling-invocation amended: forbidden RUN vs allowed in-run LANE", "lanes converge via Phase 4"], "layer": "backend"},
+    {"source_requirement_id": "USER-responsive", "spec_requirement_id": "REQ-003", "scenarios": ["protocol documents poll-on-every-wake"], "acceptance_criteria": ["inbox checked at every phase boundary AND after every background-dispatch return/wake", "canonical v2.19.0 protocol + all 3 pipeline bodies updated"], "layer": "backend"},
+    {"source_requirement_id": "USER-honest-limits", "spec_requirement_id": "REQ-004", "scenarios": ["honesty residuals present"], "acceptance_criteria": ["polling-not-push stated", "isolation residual: cdlg_overlap NOT wired into acquire_lock; file-glob + advisory", "subagents-mode dispatch caveat (degrades to sequential)", "failed-lane-spawn downgrade documented"], "layer": "backend"},
+    {"source_requirement_id": "USER-command-verifier-docs", "spec_requirement_id": "REQ-005", "scenarios": ["surfaces updated"], "acceptance_criteria": ["commands/inject.md responsive + parallel-problem", "verify_inflight_clarifications_processed remediation mentions parallel-problem", "plugin.json + marketplace.json = 3.16.0", "CHANGELOG/CLAUDE.md/CODEBASE_MAP/INTEGRATION_MAP/README current"], "layer": "backend"},
+    {"source_requirement_id": "USER-tests", "spec_requirement_id": "REQ-006", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_parallel_lane_inject.py present + passing (incl. end-to-end dogfood + overlapping-block)", "two appears-once structural tests fixed", "full suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (orchestration discipline + inbox helper + tests + docs).",
+    "dev_api_integration": "N/A — no API surface; the pytest suite (incl. the end-to-end inbox+lock mechanism test) is the integration surface.",
+    "both_layer_front_to_back": "N/A — single-layer (Python hook + doctrine) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}

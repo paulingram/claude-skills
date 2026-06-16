@@ -14,8 +14,9 @@ Each line is one JSON object with the v2.19.0 message schema:
       "injected_via": str,               # "slash-command" | "natural-language-mid-run" | "external-webhook"
       "source_session": str | None,      # claude-code session id (if known)
       "processed_at": str | None,        # ISO 8601 UTC, set when orchestrator processes
-      "classification": str | None,      # "scope-amendment" | "clarification" | "out-of-scope" | None
+      "classification": str | None,      # "scope-amendment" | "clarification" | "out-of-scope" | "parallel-problem" | None
       "action_taken": str | None,        # one-line description of what changed
+      "lane_id": str | None,             # v3.16.0: parallel-problem -> the spawned parallel lane's id
     }
 
 Use:
@@ -65,7 +66,12 @@ INBOX_RELATIVE_DIR = ".architect-team/inbox"
 INTAKE_STATE_RELATIVE_PATH = ".architect-team/intake-state.json"
 
 INJECTION_VIAS = ("slash-command", "natural-language-mid-run", "external-webhook")
-CLASSIFICATIONS = ("scope-amendment", "clarification", "out-of-scope")
+# v3.16.0 adds `parallel-problem`: a separable, independent injected problem that
+# the orchestrator works in a SANCTIONED concurrent in-run LANE (a dedicated
+# background team with a disjoint file-scope lock) rather than folding into the
+# single sequential flow. See common-pipeline-conventions/SKILL.md
+# `## In-flight clarification discipline (v2.5.0)` `### Parallel lanes (v3.16.0)`.
+CLASSIFICATIONS = ("scope-amendment", "clarification", "out-of-scope", "parallel-problem")
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +257,7 @@ def append_clarification(
         "processed_at": None,
         "classification": None,
         "action_taken": None,
+        "lane_id": None,
     }
     _append_line(path, json.dumps(msg, sort_keys=True) + "\n")
     return msg
@@ -263,14 +270,26 @@ def mark_processed(
     *,
     classification: str,
     action_taken: str,
+    lane_id: str | None = None,
 ) -> dict[str, Any] | None:
     """Mark a message as processed. Rewrites the JSONL file in place (no
     deletions/reorderings — same line index, just updated fields). Returns
-    the updated message dict, or None if not found."""
+    the updated message dict, or None if not found.
+
+    v3.16.0: a `parallel-problem` classification REQUIRES a non-empty `lane_id`
+    — the id of the sanctioned concurrent in-run lane (a dedicated background
+    team with a disjoint file-scope lock) the orchestrator spawned for it. The
+    linkage makes "was a lane actually opened for this problem?" auditable. For
+    the other classifications `lane_id` is optional and recorded when supplied."""
     if classification not in CLASSIFICATIONS:
         raise ValueError(f"classification must be one of {CLASSIFICATIONS}, got {classification!r}")
     if not isinstance(action_taken, str) or not action_taken.strip():
         raise ValueError("action_taken must be a non-empty string")
+    if classification == "parallel-problem" and (not isinstance(lane_id, str) or not lane_id.strip()):
+        raise ValueError(
+            "classification 'parallel-problem' requires a non-empty lane_id "
+            "(the id of the concurrent in-run lane the orchestrator spawned)"
+        )
 
     # (A4) A run_id that fails safe_id degrades to not-found (None), mirroring
     # the read-path contract — a traversal attempt never reaches the filesystem.
@@ -305,6 +324,8 @@ def mark_processed(
                 entry["processed_at"] = _utc_now_iso()
                 entry["classification"] = classification
                 entry["action_taken"] = action_taken
+                if lane_id is not None:
+                    entry["lane_id"] = lane_id
                 out_lines.append(json.dumps(entry, sort_keys=True))
                 updated = entry
             else:
