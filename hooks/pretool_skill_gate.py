@@ -14,10 +14,16 @@ rationalized past. Deterministic code cannot be.
 
 Behaviour: when the session transcript's MOST RECENT genuine user prompt is an
 unsatisfied pipeline-command request (no matching ``Skill`` tool call appears
-AFTER it), this hook BLOCKS (exit 2) the first non-``Skill`` tool call —
-Read / Bash / Edit / Write / Agent / ... — and tells the model to invoke the
-required Skill first. The instant a matching ``Skill`` call appears in the
-transcript, the gate opens and subsequent tool calls proceed normally.
+AFTER it), this hook BLOCKS (exit 2) the first BUILD / DISPATCH tool call —
+``Edit`` / ``Write`` / ``NotebookEdit`` / ``Agent`` / ``Task`` (the tools that
+actually do the pipeline's work) — and tells the model to invoke the required
+Skill first. It deliberately does NOT block read-only investigation
+(``Read`` / ``Grep`` / ``Glob`` / ``ToolSearch`` / ...) or the slash-command
+WRAPPER's own documented pre-Skill setup (the dispatch banner, worktree
+cleanup/creation — all ``Bash``). A well-behaved run invokes the Skill before any
+build/dispatch tool, so the gate never fires on it; it fires ONLY on a genuine
+attempt to build or dispatch by hand before loading the pipeline. The instant a
+matching ``Skill`` call appears in the transcript, the gate opens.
 
 Detection is REUSED from ``hooks/skill_invocation_audit.py`` (``find_skill_requests``
 + ``COMMAND_TO_SKILLS``); this hook adds the PreToolUse plumbing and reads the
@@ -32,6 +38,10 @@ installed into.
 SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - The ``Skill`` tool itself is ALWAYS allowed (else the model could never
   satisfy the mandate).
+- Only BUILD/DISPATCH tools gate (``Edit`` / ``Write`` / ``NotebookEdit`` /
+  ``Agent`` / ``Task`` ...); read-only investigation (``Read`` / ``Grep`` / ...)
+  and the command wrapper's ``Bash`` setup are NEVER blocked (the v3.15.1 fix
+  for over-firing on the wrapper's documented pre-Skill steps).
 - Scoped to pipeline-DRIVING commands only (expected skill is a pipeline skill);
   read-only commands (``/status`` ...) and built-in REPL commands (``/effort``,
   ``/model``) never gate.
@@ -80,6 +90,28 @@ _PIPELINE_SKILLS: frozenset[str] = frozenset({
     "ux-test-builder",
     "mini-architect-team-pipeline",
     "proposal-refiner",
+})
+
+# Tools that constitute actually DOING the pipeline's work — mutating files or
+# dispatching teammates. The gate blocks ONLY these before the Skill is invoked.
+# It deliberately does NOT block read-only investigation (Read / Grep / Glob /
+# ToolSearch / WebFetch / ...) OR the slash-command WRAPPER's own documented
+# pre-Skill setup steps (the dispatch banner, merged-worktree cleanup, worktree
+# creation — all Bash; see commands/architect-team.md "runs first"). A normal
+# pipeline run invokes the Skill (proposal-refiner or the pipeline) before any of
+# these work tools, so the gate never fires on a well-behaved run; it fires ONLY
+# on an attempt to BUILD (Edit/Write) or DISPATCH (Agent/Task) by hand before
+# loading the pipeline — the overwhelmingly common bypass path.
+# KNOWN LIMITATION: a model could still build entirely via Bash (heredocs /
+# redirection / git) and never invoke the Skill — Bash is intentionally NOT
+# blocked because the command WRAPPER itself requires pre-Skill Bash (banner /
+# cleanup / worktree), so blocking it would reintroduce the v3.15.0 over-fire.
+# That residual Bash lane is backstopped AFTER-THE-FACT by the Layer-6
+# skill_invocation_audit + the verify-no-pipeline-bypass tool; closing it in
+# real time (inspecting Bash command text) is a deliberate future follow-up.
+_BLOCKED_TOOLS: frozenset[str] = frozenset({
+    "Edit", "Write", "NotebookEdit",                          # file mutations
+    "Agent", "Task", "TaskCreate", "TaskUpdate", "TaskStop",  # teammate dispatch
 })
 
 # The unambiguous signal of a GENUINE slash-command invocation: the harness
@@ -402,6 +434,12 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     tool = (payload.get("tool_name") or payload.get("tool") or "").strip()
     if tool == "Skill":
         return 0, ""  # the Skill tool itself is always allowed
+    if tool not in _BLOCKED_TOOLS:
+        # Read-only investigation + the command wrapper's own pre-Skill setup
+        # (banner / cleanup / worktree — Bash) are always allowed; only the
+        # build/dispatch tools gate before the Skill. This is the v3.15.1 fix
+        # for the gate over-firing on the slash-command wrapper's setup steps.
+        return 0, ""
 
     transcript_path = (
         payload.get("transcript_path")

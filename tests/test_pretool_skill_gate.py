@@ -129,7 +129,7 @@ def test_blocks_unsatisfied_pipeline_command(tmp_path: Path) -> None:
     t = _write(tmp_path, [
         _user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z"),
     ])
-    code, msg = check_payload(_payload(t, tool="Read"))
+    code, msg = check_payload(_payload(t, tool="Edit"))
     assert code == 2
     assert "BLOCKED" in msg
     assert "architect-team-pipeline" in msg
@@ -162,13 +162,55 @@ def test_skill_tool_always_allowed_even_with_pending_mandate(tmp_path: Path) -> 
     assert code == 0 and msg == ""
 
 
-def test_blocks_every_non_skill_tool(tmp_path: Path) -> None:
+def test_blocks_build_and_dispatch_tools_allows_setup_tools(tmp_path: Path) -> None:
+    # v3.15.1: only build/dispatch tools gate before the Skill; read-only
+    # investigation + the command wrapper's Bash setup do NOT.
     t = _write(tmp_path, [
         _user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z"),
     ])
-    for tool in ("Read", "Bash", "Edit", "Write", "Grep", "Glob", "Agent", "TodoWrite"):
+    for tool in ("Edit", "Write", "NotebookEdit", "Agent", "Task", "TaskCreate", "TaskUpdate", "TaskStop"):
         code, _ = check_payload(_payload(t, tool=tool))
-        assert code == 2, f"{tool} should be blocked while the mandate is pending"
+        assert code == 2, f"{tool} (build/dispatch) should be blocked while the mandate is pending"
+    for tool in ("Read", "Bash", "Grep", "Glob", "ToolSearch", "WebFetch", "TodoWrite"):
+        code, _ = check_payload(_payload(t, tool=tool))
+        assert code == 0, f"{tool} (investigation/wrapper) must NOT be blocked"
+
+
+def test_wrapper_banner_bash_before_skill_is_allowed(tmp_path: Path) -> None:
+    # REGRESSION (v3.15.1): the exact server scenario — /architect-team invoked,
+    # the model runs the command's documented FIRST step (the dispatch banner, a
+    # Bash call) BEFORE the Skill. The gate must NOT block it (it previously did,
+    # with a `*` matcher that blocked every non-Skill tool).
+    t = _write(tmp_path, [
+        _user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z"),
+    ])
+    banner_payload = {
+        "tool_name": "Bash",
+        "transcript_path": str(t),
+        "tool_input": {"command": "python3 -c 'from teams_mode import format_dispatch_banner'"},
+    }
+    assert check_payload(banner_payload)[0] == 0
+    # ToolSearch (schema lookups) likewise allowed before the Skill
+    assert check_payload(_payload(t, tool="ToolSearch"))[0] == 0
+    # but actually BUILDING (Edit) before the Skill is still blocked
+    assert check_payload(_payload(t, tool="Edit"))[0] == 2
+
+
+def test_known_limitation_bash_and_sendmessage_not_blocked(tmp_path: Path) -> None:
+    # Documents the INTENTIONAL design choices (so a future maintainer doesn't
+    # "fix" them and reintroduce the over-fire):
+    #  - SendMessage (teammate-to-teammate) is not a build/dispatch-by-hand vector
+    #    and is not blocked.
+    #  - KNOWN LIMITATION: a Bash-mediated file write before the Skill is allowed
+    #    (Bash can't be blocked without breaking the wrapper); backstopped by the
+    #    after-the-fact Layer-6 audit.
+    t = _write(tmp_path, [
+        _user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z"),
+    ])
+    assert check_payload(_payload(t, tool="SendMessage"))[0] == 0
+    bash_write = {"tool_name": "Bash", "transcript_path": str(t),
+                  "tool_input": {"command": "cat > feature.py <<'EOF'\nx=1\nEOF"}}
+    assert check_payload(bash_write)[0] == 0  # known, documented limitation
 
 
 # --------------------------------------------------------------------------- #
@@ -184,7 +226,7 @@ def test_user_precedence_new_request_needs_new_skill(tmp_path: Path) -> None:
         _tool_result("2026-06-16T10:00:06Z"),
         _user(_command_text("architect-team:bug-fix"), "2026-06-16T11:00:00Z"),
     ])
-    code, msg = check_payload(_payload(t, tool="Read"))
+    code, msg = check_payload(_payload(t, tool="Edit"))
     assert code == 2
     assert "bug-fix-pipeline" in msg
 
@@ -222,7 +264,7 @@ def test_prose_form_blocks_then_opens(tmp_path: Path) -> None:
     pend = _write(tmp_path, [
         _user("please use the architect team to build the dashboard", "2026-06-16T10:00:00Z"),
     ], name="pend.jsonl")
-    code, _ = check_payload(_payload(pend, tool="Read"))
+    code, _ = check_payload(_payload(pend, tool="Edit"))
     assert code == 2
 
     ok = _write(tmp_path, [
@@ -257,7 +299,7 @@ def test_bug_fix_command_gated_and_satisfied_by_bugfix_skill(tmp_path: Path) -> 
     pend = _write(tmp_path, [
         _user(_command_text("architect-team:bug-fix"), "2026-06-16T10:00:00Z"),
     ], name="bf_pend.jsonl")
-    assert check_payload(_payload(pend, tool="Read"))[0] == 2
+    assert check_payload(_payload(pend, tool="Edit"))[0] == 2
     ok = _write(tmp_path, [
         _user(_command_text("architect-team:bug-fix"), "2026-06-16T10:00:00Z"),
         _skill_call("bug-fix-pipeline", "2026-06-16T10:00:03Z"),
@@ -301,7 +343,7 @@ def test_real_nested_shape_blocks_and_opens(tmp_path: Path) -> None:
         {"type": "user", "userType": "external", "timestamp": "2026-06-16T10:00:00Z",
          "message": {"role": "user", "content": _command_text("architect-team:architect-team")}},
     ], name="nested_pend.jsonl")
-    assert check_payload(_payload(pend, tool="Read"))[0] == 2
+    assert check_payload(_payload(pend, tool="Edit"))[0] == 2
 
     opened = _write(tmp_path, [
         {"type": "user", "userType": "external", "timestamp": "2026-06-16T10:00:00Z",
@@ -321,7 +363,7 @@ def test_user_text_in_content_blocks(tmp_path: Path) -> None:
         _user_blocks([{"type": "text", "text": _command_text("architect-team:architect-team")}],
                      "2026-06-16T10:00:00Z"),
     ])
-    assert check_payload(_payload(t, tool="Read"))[0] == 2
+    assert check_payload(_payload(t, tool="Edit"))[0] == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -375,7 +417,7 @@ def test_genuine_command_still_anchors_past_later_meta(tmp_path: Path) -> None:
         _user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z"),
         _meta_body("# body ... architect-team-pipeline ...", "2026-06-16T10:00:00Z"),
     ])
-    assert check_payload(_payload(t, tool="Read"))[0] == 2
+    assert check_payload(_payload(t, tool="Edit"))[0] == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -405,7 +447,7 @@ def test_nonpipeline_skill_with_substring_name_does_not_satisfy(tmp_path: Path) 
         _user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z"),
         _skill_call("some-architect-team-pipeline-helper", "2026-06-16T10:00:05Z"),
     ])
-    assert check_payload(_payload(t, tool="Read"))[0] == 2
+    assert check_payload(_payload(t, tool="Edit"))[0] == 2
 
 
 def test_mini_command_satisfied_by_mini_skill(tmp_path: Path) -> None:
@@ -425,7 +467,7 @@ def test_json_array_transcript_form(tmp_path: Path) -> None:
     p = tmp_path / "arr.json"
     p.write_text(json.dumps([_user(_command_text("architect-team:architect-team"),
                                    "2026-06-16T10:00:00Z")]), encoding="utf-8")
-    assert check_payload({"tool_name": "Read", "transcript_path": str(p)})[0] == 2
+    assert check_payload({"tool_name": "Edit", "transcript_path": str(p)})[0] == 2
 
 
 def test_tail_read_on_large_transcript(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -435,7 +477,7 @@ def test_tail_read_on_large_transcript(tmp_path: Path, monkeypatch: pytest.Monke
     recs = filler + [_user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z")]
     t = _write(tmp_path, recs)
     assert t.stat().st_size > 400  # force the tail path
-    assert check_payload(_payload(t, tool="Read"))[0] == 2
+    assert check_payload(_payload(t, tool="Edit"))[0] == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -501,7 +543,7 @@ def _run_hook(payload: dict, encoding: str = "utf-8") -> subprocess.CompletedPro
 
 def test_subprocess_blocks_unsatisfied(tmp_path: Path) -> None:
     t = _write(tmp_path, [_user(_command_text("architect-team:architect-team"), "2026-06-16T10:00:00Z")])
-    res = _run_hook(_payload(t, tool="Read"))
+    res = _run_hook(_payload(t, tool="Edit"))
     assert res.returncode == 2
     assert b"BLOCKED" in res.stderr
 
