@@ -1,0 +1,21 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "skill-invocation-pretool-gate",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "plain-language requirement refined in-conversation: real-time PreToolUse skill-invocation hard-gate, universal to the plugin",
+  "entries": [
+    {"source_requirement_id": "USER-realtime-prevention", "spec_requirement_id": "REQ-001", "scenarios": ["blocks the first non-Skill tool call while the mandate is pending"], "acceptance_criteria": ["hooks/pretool_skill_gate.py exists, stdlib-only", "check_payload returns exit 2 for a non-Skill tool when the latest genuine prompt is an unsatisfied pipeline command", "stderr names the expected pipeline skill"], "layer": "backend"},
+    {"source_requirement_id": "USER-reuse-detection", "spec_requirement_id": "REQ-002", "scenarios": ["detection is sourced from the audit module"], "acceptance_criteria": ["imports find_skill_requests + COMMAND_TO_SKILLS from skill_invocation_audit (dual-form)", "recognizes the <command-name> genuine-invocation marker"], "layer": "backend"},
+    {"source_requirement_id": "USER-universal-and-safe", "spec_requirement_id": "REQ-003", "scenarios": ["read-only and built-in commands do not gate", "an injected command/skill body echo does not re-block after the Skill was invoked", "no codebase-specific strings or absolute paths"], "acceptance_criteria": ["only the 5 pipeline-driving commands gate", "isMeta / promptSource:system / isSidechain records excluded from the anchor", "no codebase/repo/app token or absolute path in the hook", "verified against real transcripts: 0 spurious blocks"], "layer": "backend"},
+    {"source_requirement_id": "USER-failopen-skill-escape", "spec_requirement_id": "REQ-004", "scenarios": ["Skill tool always allowed", "fail-open on a missing transcript"], "acceptance_criteria": ["tool==Skill -> exit 0 always", "missing/unreadable/garbled transcript -> exit 0", "any internal error -> exit 0", "satisfaction is exact/base or any-pipeline-engagement; no substring false-satisfy"], "layer": "backend"},
+    {"source_requirement_id": "USER-wiring", "spec_requirement_id": "REQ-005", "scenarios": ["wiring present and portable"], "acceptance_criteria": ["hooks.json PreToolUse '*' matcher references pretool_skill_gate.py", "command uses ${CLAUDE_PLUGIN_ROOT} + detect-once shim, no absolute path"], "layer": "backend"},
+    {"source_requirement_id": "USER-tests-docs-version", "spec_requirement_id": "REQ-006", "scenarios": ["suite green and docs/version current"], "acceptance_criteria": ["tests/test_pretool_skill_gate.py present + passing", "full suite green under cp1252 AND PYTHONUTF8=1", "plugin.json + marketplace.json + CHANGELOG bumped", "CODEBASE_MAP / INTEGRATION_MAP / CLAUDE.md / README current"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface in this change (plugin hook + tests + docs).",
+    "dev_api_integration": "N/A — no API surface; the pytest suite (incl. end-to-end subprocess execution of the hook) is the repo's integration surface.",
+    "both_layer_front_to_back": "N/A — single-layer (Python hook) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}

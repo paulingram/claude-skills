@@ -418,14 +418,14 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     version-bump consistency check tracks WHICHEVER version is the current
     release. The test name preserves its v1.5.0 origin (it was added in v1.5.0)
     but its semantic intent is 'plugin metadata is at the current release
-    version', which the current release (v3.14.0 — appearance-change policy)
-    makes 3.14.0."""
+    version', which the current release (v3.15.0 — skill-invocation hard-gate)
+    makes 3.15.0."""
     plugin_json = json.loads(
         (plugin_root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.14.0"
+    assert plugin_json["version"] == "3.15.0"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.14.0"
+    assert marketplace_json["plugins"][0]["version"] == "3.15.0"
