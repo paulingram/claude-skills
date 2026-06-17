@@ -50,7 +50,9 @@ buildable, verifiable substrate plus the design for the parts that aren't.
   - `triage.py` — the EVAL-11/12 **quarantine rule** (an issue first seen on an old version may already be fixed by an intermediate release the reporter didn't upgrade to — hold + verify from the fixed version onward) + EVAL-6 resolution log + EVAL-7/13 recurrence + EVAL-5 two-stage core-issue review.
   - `sink.py` — EVAL-2: the GitHub-issue sink adapter (payload built; the real POST is injected — operator's, like `notify.py`).
   - `server.py` — EVAL-2 + SEC: a stdlib submission server verifying a signed Ed25519 envelope (reusing `common/handshake.py`; no per-user codes; replay/tamper rejected; SEC-4 attestation pluggable + off by default) + re-applying privacy before storing. The live socket / GitHub API / Postgres / LLM are operator-provided.
-- *(landing next)* `session_review/` (SR), `seeded_mempalace/` (SMP).
+- **`session_review/`** — the Session Review service (v3.26.0; SR-1…3):
+  - `session_review.py` — a session-level review agent (of similar design to the Librarian): `review_session` reviews a full session via the shared LLM (SR-1; string-aware parse) and keeps ONLY the issues the agents couldn't solve on the first attempt (SR-3, normalized as reused triage `issue` records); `review_and_push` does the SR-2 outbound summary push + files the unsolved issues through the triage `sink`; runs on the shared `bg_runtime` (`build_review_task` + `install_descriptor`). EVAL-17 default-off: under `off` nothing is transmitted (no push, no filing). The LLM + push target + persistence are operator-provided.
+- *(landing next)* `seeded_mempalace/` (SMP).
 
 ## Separation plan (REPO-1 … REPO-4)
 

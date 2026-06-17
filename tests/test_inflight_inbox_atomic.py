@@ -148,6 +148,34 @@ def test_mark_processed_uses_os_replace(tmp_path: Path, monkeypatch) -> None:
     assert seen["tmp_existed_before_replace"], "a temp file was not written before replace"
 
 
+def test_inbox_lock_rides_out_windows_permission_error(tmp_path: Path, monkeypatch) -> None:
+    """v3.26.0 flake fix: on Windows a concurrent holder mid-`unlink` makes
+    `os.open(O_CREAT|O_EXCL)` on the `.lock` raise PermissionError (not
+    FileExistsError). `_inbox_lock` must treat it as transient contention and
+    retry, never crash the caller (the failure surfaced as a PermissionError out
+    of `mark_processed` under full-suite CPU contention)."""
+    import hooks.inflight_inbox as ib
+
+    run_id = "run-permerr"
+    m1 = append_clarification(tmp_path, run_id, "msg")
+    real_open = os.open
+    calls = {"n": 0}
+
+    def _flaky_open(path, flags, *a, **k):
+        # raise PermissionError on the FIRST lock-acquire attempt, then succeed
+        if str(path).endswith(".lock") and calls["n"] == 0:
+            calls["n"] += 1
+            raise PermissionError(13, "Permission denied")
+        return real_open(path, flags, *a, **k)
+
+    monkeypatch.setattr("hooks.inflight_inbox.os.open", _flaky_open)
+    updated = ib.mark_processed(
+        tmp_path, run_id, m1["message_id"],
+        classification="clarification", action_taken="ok",
+    )
+    assert updated is not None and calls["n"] == 1  # retried past the PermissionError, did not crash
+
+
 def test_concurrent_append_survives_mark_processed(tmp_path: Path) -> None:
     """Stress test the atomicity: a thread hammers append_clarification while the
     main thread repeatedly marks messages processed. Because mark_processed
