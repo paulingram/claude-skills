@@ -44,6 +44,7 @@ EXPECTED_AGENTS: set[str] = {
     "reference-tracer",
     "structure-adversary",
     "closeout-agent",
+    "mcp-design-agent",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

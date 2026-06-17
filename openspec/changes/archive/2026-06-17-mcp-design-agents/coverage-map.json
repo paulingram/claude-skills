@@ -1,0 +1,20 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "mcp-design-agents",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "CT6-6 requirements §4 (MCP-1 … MCP-3): MCP design agents that standardize LLM output via explicit output contracts for agents embedded in an application — component 4 of the in-repo tier",
+  "entries": [
+    {"source_requirement_id": "MCP-1,MCP-3", "spec_requirement_id": "REQ-001", "scenarios": ["a closed contract validates conforming and rejects non-conforming values"], "acceptance_criteria": ["stdlib-only engine scripts/mcp_design/output_contract.py", "build_output_contract: closed JSON Schema + structured-output tool + enum type-checked at build", "validate_against_contract: object-ness/required/closed-extras/per-field type+enum+array-item, bool not integer/number", "assess_contract: completeness signals (no-fields/open-object/nothing-required/fields-missing-description/no-structured-output-mechanism)"], "layer": "backend"},
+    {"source_requirement_id": "MCP-1,MCP-2", "spec_requirement_id": "REQ-002", "scenarios": ["the skill + agent state the pattern and the bound"], "acceptance_criteria": ["skills/mcp-output-contract-design/SKILL.md documents MCP-1…3 + the four-part pattern + embedded-in-app framing", "agents/mcp-design-agent.md enumerates producer points + designs a contract each", "agent bounded to .architect-team/mcp-design/; never writes the app's code"], "layer": "backend"},
+    {"source_requirement_id": "HONESTY", "spec_requirement_id": "REQ-003", "scenarios": ["the honest boundary is stated"], "acceptance_criteria": ["reject-not-produce distinction stated (forced-tool + retry is the app's runtime)", "minimal-validator limits named (no format/pattern/range/nested-object); json_schema is standard JSON Schema"], "layer": "backend"},
+    {"source_requirement_id": "REUSE+CURRENCY", "spec_requirement_id": "REQ-004", "scenarios": ["version + counts current + clean boundary"], "acceptance_criteria": ["clean boundary vs verified-agent-output (VAO = CT6's own agents; this = the user's app)", "Python stdlib-only", "plugin.json + marketplace.json = 3.20.0", "45 skills + 39 agents across README/CLAUDE/CODEBASE_MAP"], "layer": "backend"},
+    {"source_requirement_id": "TESTS", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_mcp_design.py present + passing", "JSON-type guards (bool-not-integer, int-is-number, no array-items crash, empty fields, enum-mismatch rejected, object no-recurse)", "CLI build->validate->assess round-trip", "full suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only engine + a skill + an agent + tests + docs).",
+    "dev_api_integration": "N/A — provider-agnostic contract design; the engine + CLI are exercised by the pytest suite (incl. real subprocess round-trip).",
+    "both_layer_front_to_back": "N/A — single-layer (Python engine + skill/agent doctrine) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}
