@@ -49,6 +49,7 @@ EXPECTED_SKILLS: set[str] = {
     "structure-optimization",
     "data-dictionary",
     "closeout",
+    "claude-md-efficiency",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}

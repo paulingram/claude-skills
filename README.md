@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 18 . 0
+                        ─── C T 6 ───   v 3 . 19 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.18.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.19.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4574%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4588%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,19 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.18.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.19.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.19.0 — Claude.md efficiency (CT6-6 component 3, CMD-1 … CMD-4)
+
+When MemPalace is installed, `CLAUDE.md` becomes a thin POINTER — it tells the agent WHERE to find things (loaded on demand) instead of CONTAINING the full context, and it stays very small.
+
+| Capability | What it is |
+|---|---|
+| **Pointer, not container (CMD-1/2/3)** | The new `claude-md-efficiency` skill + `scripts/claude_md/claude_md_efficiency.py` engine: an assessor (pointer-shape + a byte budget → advisory staleness signals) and a generator that emits a minimal pointer `CLAUDE.md` (wake-up first step + standards + customizations). CONDITIONAL on MemPalace (CMD-1) — with none installed, a self-contained `CLAUDE.md` is correct and the discipline does not apply. |
+| **Standards + customizations (CMD-4)** | Two parts: standards that point to a reference MemPalace (query on demand, never inline) + customizations the user toggles on/off. Reuses `mempalace-integration` for the availability check + the mine / wake-up flow it points INTO. |
+| **Tests** | New `tests/test_claude_md_efficiency.py` (12 cases incl. the generate→assess round-trip + the empty / at-budget / byte-counting boundary pins). Suite 4574 → **4588 passing + 5 skipped** (182 files; both encodings). Adversarial review: SHIP. No new Layer 3 tool. |
 
 ### v3.18.0 — the `closeout` capability (CO-1 … CO-3)
 
@@ -328,7 +338,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (43) ───────────────────────┬─ AGENTS (38) ─────────────────────────┐
+┌─ SKILLS (44) ───────────────────────┬─ AGENTS (38) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -379,6 +389,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v3.11.0 — restructure planning)  │                                       │
 │ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (opus) ★             │
 │ ◇ closeout (v3.18.0)                │                                       │
+│ ◇ claude-md-efficiency (v3.19.0)    │                                       │
 ├─ COMMANDS (21) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
