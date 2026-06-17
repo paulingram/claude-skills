@@ -1,0 +1,23 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "seeded-mempalace-service",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "source": "CT6-6 §5 (SMP-1…5) — the Seeded MemPalace service on the v3.23.0 substrate; authenticated download of a seeded bundle (schema + curated + phenotype catalog + research synthesis) that merges without clobbering the user's projects",
+  "entries": [
+    {"source_requirement_id": "SMP-3,SMP-5", "spec_requirement_id": "REQ-001", "scenarios": ["a re-download refreshes seeded sections but preserves all user projects"], "acceptance_criteria": ["defined bundle: schema + curated + phenotype_catalog + research_synthesis (freshness stamp, SMP-5)", "validate_bundle checks shape", "merge_into_local refreshes ONLY seeded keys, preserves EVERY user top-level key (SMP-3)", "seeded sections deep-copied on merge"], "layer": "backend"},
+    {"source_requirement_id": "SMP-4", "spec_requirement_id": "REQ-002", "scenarios": ["only entitled phenotypes carry full records, master is never corrupted"], "acceptance_criteria": ["catalog REUSES scripts/phenotypes/discover_phenotypes (not a new schema)", "gate_catalog ships full record only for entitled; non-entitled = browse metadata + record None", "gating deep-copies (no master aliasing/mutation)", "served records strip internal _dir/_label_dir path fields"], "layer": "backend"},
+    {"source_requirement_id": "SMP-1,SMP-2", "spec_requirement_id": "REQ-003", "scenarios": ["a forged identity cannot obtain another user's entitlements"], "acceptance_criteria": ["client signs the download request via services/common/handshake.py + merges (runs before MemTime)", "server verifies the envelope; unsigned/tampered/replayed rejected", "entitlements resolved by the VERIFIED public key, NOT the self-asserted requester string (no impersonation)", "make_handler defaults replay protection on"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REPO-3/4+TESTS+REVIEW", "spec_requirement_id": "REQ-004", "scenarios": ["suite green"], "acceptance_criteria": ["services/seeded_mempalace stdlib-only core, design-not-deployed; ChromaDB/server/network/billing are adapters; MemTime interpreted + disclosed", "tests/test_services_seeded_mempalace.py present + passing (15 cases)", "full suite green cp1252 AND PYTHONUTF8=1", "independent adversarial review FIX-FIRST -> remediated 5"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only service + tests).",
+    "dev_api_integration": "N/A — ChromaDB, the live seeded-MemPalace HTTP server, the network transport, and the billing system are external infra behind adapter boundaries (not in-repo); the deterministic core (bundle/merge, catalog gate, signed request, handshake verify) is exercised by the pytest suite with an injected transport + in-process Ed25519 signing + the real phenotype store.",
+    "both_layer_front_to_back": "N/A — single-layer (Python service) change."
+  },
+  "confirmed_stubs": [
+    {"stub": "services/seeded_mempalace/client.py transport (the network fetch)", "why": "the real HTTP GET to the project's server is the operator's (the separated tier's own dep, REPO-4); the core injects the transport (the server's handle_bundle_request is the in-process counterpart) — an adapter boundary, not a gap"},
+    {"stub": "services/seeded_mempalace entitlements_for + the billing system", "why": "the SMP-4 purchase/entitlement issuance is an external system; the core injects entitlements_for(requester, public_key) and resolves access by the verified key — documented, not a gap"},
+    {"stub": "the seeded MemPalace bundle content + ChromaDB write", "why": "the real curated content + research synthesis (SMP-5) live in the operator's ChromaDB-backed MemPalace; the core defines the bundle CONTRACT + the non-clobbering merge — by design, not a gap"}
+  ],
+  "implementing_commits": []
+}
