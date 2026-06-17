@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 19 . 0
+                        ─── C T 6 ───   v 3 . 20 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.19.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.20.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4588%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4610%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,19 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.19.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.20.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.20.0 — MCP design agents (CT6-6 component 4, MCP-1 … MCP-3)
+
+Best-in-class output standardization for an LLM agent embedded in an application — an explicit output contract so the agent's output is guaranteed consistent to parse and consume.
+
+| Capability | What it is |
+|---|---|
+| **Output contract (MCP-1/3)** | The new `mcp-output-contract-design` skill + `scripts/mcp_design/output_contract.py` engine: `build_output_contract` (a CLOSED JSON Schema — typed fields, a required set, enums, `additionalProperties: false`) + the structured-output tool the model is FORCED to call + `validate_against_contract` (the runtime guarantee — a non-conforming value is rejected before the app consumes it) + an `assess_contract` completeness check. |
+| **The design worker (MCP-2)** | The new `mcp-design-agent` enumerates an app's agent producer points and designs a contract for each (bounded write to `.architect-team/mcp-design/`; never writes the app's code). Reuse boundary — `verified-agent-output` verifies CT6's OWN agents; this is the outward-facing counterpart for the user's embedded-agent application. |
+| **Tests** | New `tests/test_mcp_design.py` (18 cases incl. the bool-is-not-integer / number-accepts-int type guards, the enum-type-mismatch build guard, and the CLI build→validate→assess round-trip). Suite 4588 → **4610 passing + 5 skipped** (183 files; both encodings). Adversarial review: SHIP. No new command / Layer 3 tool. |
 
 ### v3.19.0 — Claude.md efficiency (CT6-6 component 3, CMD-1 … CMD-4)
 
@@ -338,7 +348,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (44) ───────────────────────┬─ AGENTS (38) ─────────────────────────┐
+┌─ SKILLS (45) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -388,8 +398,10 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ◇ structure-optimization           *│                                       │
 │   (v3.11.0 — restructure planning)  │                                       │
 │ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (opus) ★             │
-│ ◇ closeout (v3.18.0)                │                                       │
+│ ◇ closeout (v3.18.0)                │ ◆ mcp-design-agent (opus) ★           │
 │ ◇ claude-md-efficiency (v3.19.0)    │                                       │
+│ ◇ mcp-output-contract-design        │                                       │
+│   (v3.20.0 — MCP design)            │                                       │
 ├─ COMMANDS (21) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
