@@ -1,0 +1,24 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "librarian-service",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "source": "CT6-6 §1 (Librarian, LIB-1…13) — the first concrete service on the v3.23.0 substrate; background topic-research curation + a searchable concept index, on the shared BG runtime + Anthropic key",
+  "entries": [
+    {"source_requirement_id": "LIB-10,LIB-11,LIB-12,LIB-13", "spec_requirement_id": "REQ-001", "scenarios": ["a conceptual query ranks a concept hit above a mere text mention"], "acceptance_criteria": ["stdlib sqlite3 reference index: title/summary/keywords/concept-cloud per doc", "lookup by keyword + by concept; idempotent re-index by doc_id", "conceptual_search weighted overlap concept x3 / keyword x2 / text x1", "unicode-folded tokens (NFKD + casefold) so cafe ~ cafe"], "layer": "backend"},
+    {"source_requirement_id": "LIB-11,LIB-12", "spec_requirement_id": "REQ-002", "scenarios": ["a brace inside a string value does not truncate the parse"], "acceptance_criteria": ["extraction prompt asks confirm-relevance + title/summary/keywords/concept-cloud as one JSON object", "string-aware parse via JSONDecoder.raw_decode (brace-in-string safe)", "unparseable reply -> not-relevant record, never raises", "stable sha256 doc id (idempotent re-ingest)"], "layer": "backend"},
+    {"source_requirement_id": "LIB-1,LIB-2,LIB-3,LIB-5,LIB-6,LIB-8,LIB-9", "spec_requirement_id": "REQ-003", "scenarios": ["fetch -> extract -> index -> metadata, with a safe body store"], "acceptance_criteria": ["research_topic: fetch->extract->index relevant keepers (relevant AND (title OR summary) gate)->write per-topic metadata", "per-topic scheduler task on shared bg_runtime + per-OS install descriptor", "LIB-8 file-folder body store with path-safe filename (no traversal escape)", "Source/StaticSource + LLMClient/FakeLLMClient adapters"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REPO-3/4+LIB-4/LIB-7", "spec_requirement_id": "REQ-004", "scenarios": ["the adapter boundary + honest scope are documented"], "acceptance_criteria": ["services/librarian stdlib-only core, design-not-deployed", "source / vector-store (LIB-9) / LLM are adapters with stdlib fallbacks", "LIB-4 centralized curation endpoint + LIB-7 global-MemPalace-install disclosed as not built", "services/README Layout documents the landed Librarian"], "layer": "backend"},
+    {"source_requirement_id": "TESTS+REVIEW", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_services_librarian.py present + passing (14 cases)", "index round-trip/idempotent/keyword+concept/conceptual ranking/concept-cloud", "extract prompt + string-aware parse + stable id", "orchestration keep-vs-skip + metadata + scheduler + descriptor + body-store path safety + per-topic closure", "full suite green cp1252 AND PYTHONUTF8=1", "independent adversarial review FIX-FIRST -> remediated"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only background service + tests).",
+    "dev_api_integration": "N/A — the data source / vector store / Anthropic LLM are external infra behind adapter boundaries (not in-repo); the deterministic core (index + extract parse + orchestration) is exercised by the pytest suite with StaticSource + FakeLLMClient.",
+    "both_layer_front_to_back": "N/A — single-layer (Python service) change."
+  },
+  "confirmed_stubs": [
+    {"stub": "services/librarian/librarian.py Source (real fetch)", "why": "the web-scrape / attached-API content source is the operator's to provide (the separated service tier's own dep, REPO-4); the core ships the Source interface + StaticSource for tests — an honest adapter boundary, not a gap"},
+    {"stub": "services/librarian MemPalace vector store (LIB-9)", "why": "the preferred vector store needs ChromaDB/MemPalace (external infra); the stdlib sqlite concept index is the documented deterministic stand-in, with conceptual_search hedged as overlap-not-semantic — by design, not a gap"},
+    {"stub": "LIB-4 centralized curation endpoint + LIB-7 global-MemPalace-install research", "why": "explicitly design-stage per the honesty ledger — topics are a local registry here, not a server-side curation point; documented as not built, not a silent omission"}
+  ],
+  "implementing_commits": []
+}
