@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 17 . 0
+                        ─── C T 6 ───   v 3 . 18 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -32,13 +32,13 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 20 slash commands like
+> compatibility with existing installations + the 21 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.16.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.18.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4415%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4574%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,29 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.16.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.18.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.18.0 — the `closeout` capability (CO-1 … CO-3)
+
+A double-check at the END of a session: before context is compacted or work is declared done, confirm the documentation reflects what changed — and if a doc is lax, **update it, not just flag it**. The first CT6-6 service-tier discipline; the data counterpart of the Phase-8 doc-currency gate, but for *any* session.
+
+| Capability | What it is |
+|---|---|
+| **Fires before compaction (CO-1)** | A new `PreCompact` hook (`hooks/precompact-closeout.py`) runs the deterministic staleness engine (`hooks/closeout_check.py`) against the working tree and, when docs look stale, injects a closeout reminder — non-blocking, fail-open, never delays compaction. |
+| **Reviews + updates (CO-2/CO-3)** | The `closeout` skill + `closeout-agent` review the changes against the requirement, confirm every doc in the currency inventory, and perform the update via the `documentation-currency` + `doc-updater` whole-file pattern. Works from the working-tree diff, so it runs OUTSIDE a full pipeline run. Manual trigger: `/architect-team:closeout` (`--check` for read-only). |
+| **Tests** | New `tests/test_closeout.py` (29 cases incl. the PreCompact-hook subprocess + the working-tree collector). Suite 4539 → **4574 passing + 5 skipped** (181 files; both encodings). Adversarial review FIX-FIRST → remediated (a CHANGELOG-touch false-negative, rename/copy detection, the repo-root fallback). No new Layer 3 tool. |
+
+### v3.17.0 — the `data-dictionary` skill (CT6-6 component 1, DD-1 … DD-18)
+
+A self-contextualizing data-dictionary builder: derive the data model from code / docs / a live DB, define every field, and record provenance + corroboration.
+
+| Capability | What it is |
+|---|---|
+| **The engine** | `scripts/data_dictionary/data_dictionary.py` (stdlib-only): SQLite introspection + ~100-row sampling (DD-9/10), grain inference (DD-11), field inference (DD-12), the fixed provenance vocabulary `direct-user-input`/`direct-code-comment`/`inference`/`live-data` (DD-13), and value-level corroboration of EVERY provided definition against the live data (DD-14) — the classic customer_id-vs-hash key conflict is flagged + downgraded. |
+| **The artifact** | `DATA_DICTIONARY_MAP.md` (+ `data-dictionary.json`): a by-field/by-table reference map + a relational/blend map incl. non-DB code joins, e.g. census merged onto customers on zip (DD-7). Honest live-DB boundary — the no-DB path never fabricates `live-data`. |
+| **Tests** | `tests/test_data_dictionary.py` (21 cases incl. the local-SQLite end-to-end dogfood). |
 
 ### v3.16.0 — responsive + parallel `/architect-team:inject` (concurrent in-run lanes)
 
@@ -308,7 +328,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (42) ───────────────────────┬─ AGENTS (37) ─────────────────────────┐
+┌─ SKILLS (43) ───────────────────────┬─ AGENTS (38) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -357,8 +377,9 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (lineage P3 — asset lineage)      │                                       │
 │ ◇ structure-optimization           *│                                       │
 │   (v3.11.0 — restructure planning)  │                                       │
-│ ◇ data-dictionary (v3.17.0)         │                                       │
-├─ COMMANDS (20) ─────────────────────┴───────────────────────────────────────┤
+│ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (opus) ★             │
+│ ◇ closeout (v3.18.0)                │                                       │
+├─ COMMANDS (21) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -384,7 +405,10 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v3.3.0 — passive observer team: local / CI / production-QA)              │
 │ ▸ /architect-team:optimize-structure [<codebase-path> | --all]              │
 │   (v3.11.0 — adversarially-verified restructure plan + OpenSpec change)     │
-├─ HOOKS (4 scripts / 6 events) ───────────────────────────────────────────────┤
+│ ▸ /architect-team:closeout [--check] [--workspace <path>]                   │
+│   (v3.18.0 — doc-currency double-check before compact / end-of-work)        │
+├─ HOOKS (6 scripts / 7 events) ──────────────────────────────────────────────┤
+│ ▸ PreToolUse(*)             skill-invocation hard-gate (v3.15.0/1)          │
 │ ▸ PreToolUse(Edit/Write/    unilateral-override guard                       │
 │     NotebookEdit)                                                           │
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v7 + independent review  │
@@ -393,6 +417,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ▸ TeammateIdle              teammate-idle review-gate re-check              │
 │ ▸ Stop                      pipeline-completion audit (terminal gate)       │
 │                             + v3.9.2 openspec validate --all --strict gate  │
+│ ▸ PreCompact                closeout doc-currency reminder (v3.18.0)        │
 ├─ SETUP ─────────────────────────────────────────────────────────────────────┤
 │ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright │
 │                                      + HARD-gates required plugins +        │

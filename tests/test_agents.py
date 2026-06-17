@@ -43,6 +43,7 @@ EXPECTED_AGENTS: set[str] = {
     "structure-analyst",
     "reference-tracer",
     "structure-adversary",
+    "closeout-agent",
 }
 
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}

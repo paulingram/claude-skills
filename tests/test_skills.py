@@ -48,6 +48,7 @@ EXPECTED_SKILLS: set[str] = {
     "data-lineage-mapping",
     "structure-optimization",
     "data-dictionary",
+    "closeout",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
