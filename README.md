@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 21 . 0
+                        ─── C T 6 ───   v 3 . 22 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.21.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.22.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4632%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4649%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,19 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.21.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.22.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.22.0 — Token compression (CT6-6 component 6, TC-1 … TC-3)
+
+Reduce the token cost of agents' INTERNAL communication ("talk like a caveman") without harming external output quality.
+
+| Capability | What it is |
+|---|---|
+| **Caveman compression (TC-2)** | The new `token-compression` skill + `scripts/token_compression/caveman.py` engine: `compress` drops pure filler (articles / politeness / intensifiers + wordy phrases) and preserves content words, identifiers, numbers, line structure, and fenced / inline code verbatim; `compression_stats` measures the saving (~30% on realistic internal text). |
+| **Internal-only boundary (TC-1)** | A hard rule — NEVER compress external output (the user answer, API payloads, commits, PRs, test output); it applies ONLY to inter-agent messages + an agent's own scratch / internal notes. |
+| **Honest boundary + tests (TC-3)** | A lossy-of-filler heuristic, not a semantic ML compressor; the token counts are estimates; a heavier ML package (LLMLingua-style) is documented as a 3rd-party app-layer option over this stdlib floor. New `tests/test_token_compression.py` (15 cases). Suite 4632 → **4649 passing + 5 skipped** (185 files; both encodings). Adversarial review: SHIP. No new command / agent / Layer 3 tool. |
 
 ### v3.21.0 — Logit / Helpdesk (CT6-6 component 5, HD-1 … HD-3)
 
@@ -358,7 +368,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (46) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
+┌─ SKILLS (47) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -413,6 +423,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ◇ mcp-output-contract-design        │                                       │
 │   (v3.20.0 — MCP design)            │                                       │
 │ ◇ helpdesk (v3.21.0)                │                                       │
+│ ◇ token-compression (v3.22.0)       │                                       │
 ├─ COMMANDS (22) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
