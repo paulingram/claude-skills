@@ -124,6 +124,18 @@ def _inbox_lock(path: Path, *, timeout: float = 5.0) -> Iterator[None]:
                 break
             time.sleep(delay)
             delay = min(delay * 1.5, 0.05)
+        except PermissionError:
+            # Windows-only: when a concurrent holder is mid-`unlink` of the lock
+            # file, `os.open(O_CREAT|O_EXCL)` raises PermissionError
+            # (ERROR_ACCESS_DENIED) instead of FileExistsError. It is the SAME
+            # transient lock contention — wait + retry (bounded by the deadline),
+            # never let it crash the caller. (Before this, a high-contention
+            # append-vs-rewrite race surfaced as a PermissionError out of
+            # mark_processed.) POSIX never reaches this branch.
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(delay)
+            delay = min(delay * 1.5, 0.05)
     try:
         yield
     finally:

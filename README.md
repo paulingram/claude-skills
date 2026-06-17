@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 25 . 0
+                        ─── C T 6 ───   v 3 . 26 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.25.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.26.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4719%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4731%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.25.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.26.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.26.0 — the Session Review service (CT6-6 server tier, SR-1 … SR-3)
+
+The third service on the v3.23.0 substrate — a session-level review agent (of similar design to the Librarian) that summarizes a session and surfaces the issues the agents couldn't solve on the first attempt. **Design + a runnable stdlib-only core + tests, NOT a live-deployed service.**
+
+| Capability | What it is |
+|---|---|
+| **Session-level review (SR-1)** | `services/session_review/session_review.py` — reviews a full agent session via the shared LLM (string-aware JSON parse) and runs on the shared `bg_runtime` (schedulable + a per-OS install descriptor), like the Librarian. |
+| **Outbound summary push (SR-2)** | `review_and_push` produces a session summary and pushes it via an injected pusher — but **off by default** (EVAL-17): under `off` nothing is transmitted off-machine (no summary push, no issue filing); the operator opts in to `summary` / `full`. |
+| **Issues agents couldn't solve (SR-3)** | Only the issues NOT solved on the first attempt are kept (a robust boolean coercion — a stringified `"false"` is correctly treated as not-solved) and filed through the **triage `sink`** as normalized triage issue records, so they follow the same triage process. |
+| **Review + tests** | Adversarial review FIX-FIRST → remediated (an SR-3 truthiness bug dropping stringified-false issues; an SR-2 push that leaked the summary under `off`). New `tests/test_services_session_review.py` (11 cases) + a folded-in fix for a pre-existing Windows `inflight_inbox` lock flake (a concurrent-holder `PermissionError` on `O_CREAT\|O_EXCL` is now retried, not crashed). Suite 4719 → **4731 passing + 5 skipped** (189 files; both encodings). Skill / agent / command counts unchanged; NO new Layer-3 tool. |
 
 ### v3.25.0 — the Triage / Evaluator service (CT6-6 server tier, EVAL-1 … 17 + SEC)
 

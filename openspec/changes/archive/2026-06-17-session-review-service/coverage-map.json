@@ -1,0 +1,22 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "session-review-service",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "source": "CT6-6 §8 (SR-1…3) — the Session Review agent on the v3.23.0 substrate; session-level review + outbound summary push + the issues agents couldn't solve on the first attempt, reusing the triage record + sink",
+  "entries": [
+    {"source_requirement_id": "SR-1", "spec_requirement_id": "REQ-001", "scenarios": ["a session is reviewed at the session level and is schedulable"], "acceptance_criteria": ["session-level review of a full session via the injected LLM (string-aware parse)", "of similar design to the Librarian; runs on the shared bg_runtime", "build_review_task returns a ServiceTask named session-review", "install_descriptor returns a per-OS boot/restart descriptor"], "layer": "backend"},
+    {"source_requirement_id": "SR-2,EVAL-17", "spec_requirement_id": "REQ-002", "scenarios": ["off transmits nothing; an opt-in pushes the summary"], "acceptance_criteria": ["review_and_push performs a simple outbound summary push via an injected pusher", "off (default) transmits NOTHING off-machine: no push, no filing (EVAL-17)", "summary/full opts in to transmit; push is best-effort (raising pusher swallowed)"], "layer": "backend"},
+    {"source_requirement_id": "SR-3", "spec_requirement_id": "REQ-003", "scenarios": ["a stringified-false issue is kept, a genuinely-solved one is dropped"], "acceptance_criteria": ["keep ONLY issues NOT solved on the first attempt", "robust boolean coercion: stringified 'false' kept; missing kept; real true / 'true' / 1 dropped", "kept issues normalized as REUSED triage issue records + filed through the triage sink"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REPO-3/4+TESTS+REVIEW", "spec_requirement_id": "REQ-004", "scenarios": ["suite green"], "acceptance_criteria": ["services/session_review stdlib-only core, design-not-deployed; LLM/push-target/persistence are adapters", "tests/test_services_session_review.py present + passing (11 cases)", "full suite green cp1252 AND PYTHONUTF8=1", "independent adversarial review FIX-FIRST -> remediated 5"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only background service + tests).",
+    "dev_api_integration": "N/A — the real LLM + the live outbound-push target (the triage server) are external infra behind adapter boundaries (not in-repo); the deterministic core (review parse, SR-3 filter, push gating) is exercised by the pytest suite with FakeLLMClient + InMemorySink + an injected pusher.",
+    "both_layer_front_to_back": "N/A — single-layer (Python service) change."
+  },
+  "confirmed_stubs": [
+    {"stub": "services/session_review summary_pusher (SR-2 outbound push)", "why": "the live push target is the triage server; a real pusher signs the payload via services/common/handshake.py and POSTs it (the separated tier's own dep, REPO-4). The core injects the pusher (None -> not transmitted, honest) — an adapter boundary, not a gap"},
+    {"stub": "session-review LLM (the session reviewer)", "why": "the real Anthropic call needs the SDK + network; the core injects an LLMClient (FakeLLMClient for tests) — the documented adapter boundary, not a gap"}
+  ],
+  "implementing_commits": []
+}
