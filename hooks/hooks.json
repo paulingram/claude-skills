@@ -101,6 +101,18 @@
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/precompact-closeout.py\"",
+            "async": false
+          }
+        ]
+      }
     ]
   }
 }

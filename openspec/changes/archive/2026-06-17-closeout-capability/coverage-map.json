@@ -1,0 +1,20 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "closeout-capability",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "CT6-6 requirements §2 (CO-1 … CO-3): a closeout agent that fires before compaction, reviews docs vs the requirements, and updates stale docs itself — component 2 of the in-repo tier",
+  "entries": [
+    {"source_requirement_id": "CO-1", "spec_requirement_id": "REQ-001", "scenarios": ["a code change with no doc update is flagged before compaction", "a new surface with only a CHANGELOG touch is still flagged"], "acceptance_criteria": ["PreCompact hook wired in hooks.json (first PreCompact wiring)", "stdlib-only engine hooks/closeout_check.py classifies changed files + emits signals", "porcelain parser handles rename/staged-add/copy/spaced paths", "new-surface-undocumented keys off README/CLAUDE/CODEBASE_MAP not any currency doc"], "layer": "backend"},
+    {"source_requirement_id": "CO-2,CO-3", "spec_requirement_id": "REQ-002", "scenarios": ["the contract documents review + self-update + the boundary"], "acceptance_criteria": ["skills/closeout/SKILL.md reviews vs the requirement + updates if lax (CO-2/CO-3)", "agents/closeout-agent.md Write-only bounded to the inventory, works from the working-tree diff outside a pipeline run", "reuses documentation-currency + the doc-updater whole-file pattern"], "layer": "backend"},
+    {"source_requirement_id": "CO-safety", "spec_requirement_id": "REQ-003", "scenarios": ["bad input never wedges the session"], "acceptance_criteria": ["PreCompact hook always exits 0 (never blocks/delays compaction)", "fails open on unreadable payload / git failure / import failure", "engine signals documented as advisory heuristics"], "layer": "backend"},
+    {"source_requirement_id": "REUSE+CURRENCY", "spec_requirement_id": "REQ-004", "scenarios": ["counts + version current"], "acceptance_criteria": ["engine inventory mirrors documentation-currency (pinned against drift)", "Python stdlib-only", "21st command /architect-team:closeout", "plugin.json + marketplace.json = 3.18.0", "43 skills / 38 agents / 21 commands across README/CLAUDE/CODEBASE_MAP"], "layer": "backend"},
+    {"source_requirement_id": "TESTS", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_closeout.py present + passing", "engine units + signals + inventory-alignment pin", "working-tree collector against a real temp git repo (rename/staged-add/spaced)", "PreCompact hook subprocess (reminder/silent/fail-open)", "full suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a PreCompact hook + a stdlib-only engine + a skill/agent contract + tests + docs).",
+    "dev_api_integration": "N/A — no service API; the engine + hook are exercised by the pytest suite (incl. a real temp git repo + the hook as a subprocess).",
+    "both_layer_front_to_back": "N/A — single-layer (Python hook/engine + doctrine) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}

@@ -91,7 +91,8 @@ VARIANT_AGENTS = list(OPERATING_CONTEXT_VARIANT_AGENTS)
 # canonical blocks); they stay OUT of the operating-context standard set.
 STANDARD_AGENTS_FORBIDDEN_GIT = [
     "adversarial-reviewer", "interaction-observer", "oracle-deriver",
-    "backend", "bug-classifier", "bug-replicator", "codebase-map-reviewer",
+    "backend", "bug-classifier", "bug-replicator", "closeout-agent",
+    "codebase-map-reviewer",
     "diagnostic-researcher", "doc-updater", "editability-reviewer",
     "fix-sensibility-checker", "flow-executor", "flow-explorer", "frontend",
     "domain-researcher", "endpoint-tracer",
