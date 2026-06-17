@@ -27,6 +27,7 @@ EXPECTED_COMMANDS: set[str] = {
     "monitor-tests",
     "optimize-structure",
     "closeout",
+    "logit",
 }
 
 REQUIRED_KEYS = {"description"}
