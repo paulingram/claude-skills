@@ -1,0 +1,20 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "claude-md-efficiency",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "CT6-6 requirements §7 (CMD-1 … CMD-4): when MemPalace is installed, CLAUDE.md becomes a thin pointer (load on demand) not a container — component 3 of the in-repo tier",
+  "entries": [
+    {"source_requirement_id": "CMD-2,CMD-3,CMD-4", "spec_requirement_id": "REQ-001", "scenarios": ["a container is flagged and a generated pointer passes"], "acceptance_criteria": ["stdlib-only engine scripts/claude_md/claude_md_efficiency.py", "assess_claude_md: pointer-shape + byte budget + signals (over-budget/no-pointers/missing-standards-pointer/missing-customizations)", "generate_pointer_claude_md: wake-up first step (CMD-2) + under budget (CMD-3) + standards + customizations (CMD-4)"], "layer": "backend"},
+    {"source_requirement_id": "CMD-1", "spec_requirement_id": "REQ-002", "scenarios": ["the contract states the precondition + reuse"], "acceptance_criteria": ["skills/claude-md-efficiency/SKILL.md documents CMD-1…CMD-4", "CMD-1 precondition: only when MemPalace installed, stop if absent", "MemPalace detection delegated to mempalace-integration (not reinvented)"], "layer": "backend"},
+    {"source_requirement_id": "HONESTY", "spec_requirement_id": "REQ-003", "scenarios": ["the honest boundary is stated"], "acceptance_criteria": ["signals disclaimed as heuristics with human-judgment backstop", "forbids deleting context not first stored in MemPalace"], "layer": "backend"},
+    {"source_requirement_id": "REUSE+CURRENCY", "spec_requirement_id": "REQ-004", "scenarios": ["version + skill count current"], "acceptance_criteria": ["Python stdlib-only", "engine is the single home for budget + markers (skill calls it)", "plugin.json + marketplace.json = 3.19.0", "44 skills with claude-md-efficiency entry across README/CLAUDE/CODEBASE_MAP"], "layer": "backend"},
+    {"source_requirement_id": "TESTS", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_claude_md_efficiency.py present + passing", "assessor + generate→assess round-trip + CLI", "boundary pins: empty/None, exactly-at-budget, byte-counting", "full suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only engine + a skill contract + tests + docs).",
+    "dev_api_integration": "N/A — no service API; the engine + CLI are exercised by the pytest suite (incl. real subprocess + generate→assess round-trip).",
+    "both_layer_front_to_back": "N/A — single-layer (Python engine + skill doctrine) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}
