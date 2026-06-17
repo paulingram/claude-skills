@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 24 . 0
+                        ─── C T 6 ───   v 3 . 25 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.24.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.25.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4689%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4719%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.24.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.25.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.25.0 — the Triage / Evaluator service (CT6-6 server tier, EVAL-1 … 17 + SEC)
+
+The second service on the v3.23.0 substrate — capture, de-duplicate, and triage issues across versions to make the models self-correcting. **Design + a runnable stdlib-only core + tests, NOT a live-deployed service** (the live HTTP server / GitHub API / Postgres / Anthropic LLM are adapters / operator-provided).
+
+| Capability | What it is |
+|---|---|
+| **Evaluator (EVAL-1/3)** | `services/triage/evaluator.py` — reviews Claude Code logs "as a senior agentic architect", categorizing + ROOT-CAUSING each issue (string-aware JSON parse); `build_optimization_task` is the ~hourly BG task that feeds issues to a sink. |
+| **Tally + quarantine (EVAL-4/10/11/12)** | `tally_queue.py` batches duplicates by fingerprint and promotes recurring ones to a backlog; `triage.py` carries the **quarantine rule** (the "most important": an issue first seen on an old version may already be fixed by an intermediate release the reporter didn't upgrade to — hold + verify from the fixed version onward) + resolution / recurrence tracking + the two-stage core-issue review. |
+| **SEC handshake + privacy (SEC-1…5 / EVAL-15…17)** | `server.py` verifies a signed Ed25519 submission envelope (reusing `services/common/handshake.py` — no per-user codes; replay / tamper rejected; the SEC-4 attestation is pluggable), then re-applies privacy (reusing the helpdesk `logit` engine — `full` / `summary` / `off`, **off by default**, EVAL-17) before storing. The GitHub-issue sink is an adapter (`sink.py`). |
+| **Review + tests** | Adversarial review FIX-FIRST → remediated (privacy default → off per EVAL-17, a SEC-1 anti-spam overclaim, a fingerprint boundary collision, server top-level-key redaction). New `tests/test_services_triage.py` (30 cases). Suite 4689 → **4719 passing + 5 skipped** (188 files; both encodings). Skill / agent / command counts unchanged; NO new Layer-3 tool. |
 
 ### v3.24.0 — the Librarian service (CT6-6 server tier, LIB-1 … LIB-13)
 

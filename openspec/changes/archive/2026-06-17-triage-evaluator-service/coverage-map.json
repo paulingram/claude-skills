@@ -1,0 +1,25 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "triage-evaluator-service",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "source": "CT6-6 §9 (EVAL-1…17) + §12 (SEC) — the Evaluator / triage service on the v3.23.0 substrate; log->categorized issue, dedup tally, the quarantine rule across versions, and a signed-submission server",
+  "entries": [
+    {"source_requirement_id": "EVAL-1,EVAL-3,EVAL-8,EVAL-9,EVAL-14", "spec_requirement_id": "REQ-001", "scenarios": ["logs become categorized, versioned, deduplicable issue records"], "acceptance_criteria": ["evaluator reviews logs as a senior agentic architect: categorize + root-cause", "string-aware JSON parse (bracket/brace-in-string safe)", "normalized issue record: what/what-happened + version (EVAL-8) + metadata (EVAL-9) + redacted evidence (EVAL-14) + dedup fingerprint", "EVAL-3 ~hourly BG optimization task on bg_runtime"], "layer": "backend"},
+    {"source_requirement_id": "EVAL-4,EVAL-10", "spec_requirement_id": "REQ-002", "scenarios": ["duplicates collapse and recurring issues reach the backlog"], "acceptance_criteria": ["batch duplicates by fingerprint (count + representative + versions)", "summary most-frequent-first", "promote over-threshold entries to a longer-lasting backlog"], "layer": "backend"},
+    {"source_requirement_id": "EVAL-5,EVAL-6,EVAL-7,EVAL-11,EVAL-12,EVAL-13", "spec_requirement_id": "REQ-003", "scenarios": ["an old-version report with an intermediate similar fix is quarantined"], "acceptance_criteria": ["EVAL-11 quarantine: intermediate similar fix (seen < fix <= current) -> quarantine + verify_from", "EVAL-12 first-occurrence: judged-already-fixed -> quarantine, else open", "numeric version comparison (3.10 > 3.9); earliest intermediate fix chosen", "EVAL-6 resolution log + may-already-be-fixed flag; EVAL-7/13 recurrence tracking; EVAL-5 two-stage core-issue review"], "layer": "backend"},
+    {"source_requirement_id": "EVAL-2,EVAL-15,EVAL-16,EVAL-17,SEC-1,SEC-2,SEC-3,SEC-4,SEC-5", "spec_requirement_id": "REQ-004", "scenarios": ["a signed submission is accepted; a forged/replayed one is rejected"], "acceptance_criteria": ["server verifies a signed Ed25519 envelope (reuse services/common/handshake.py); no per-user secret", "tampered/stale/replayed rejected; SEC-4 attestation pluggable", "privacy re-applied server-side (off stores nothing; summary allow-list structural + redacted evidence)", "EVAL-2 GitHub-issue sink adapter (payload built; real POST injected)"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REPO-3/4+TESTS+REVIEW", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["services/triage stdlib-only core, design-not-deployed; live server/GitHub/Postgres/LLM/SEC-4 are adapters", "tests/test_services_triage.py present + passing (30 cases)", "full suite green cp1252 AND PYTHONUTF8=1", "independent adversarial review FIX-FIRST -> remediated 5"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only background service + tests).",
+    "dev_api_integration": "N/A — the live triage HTTP server / GitHub API / Postgres / Anthropic LLM are external infra behind adapter boundaries (not in-repo); the deterministic core (evaluator parse, tally, quarantine, handshake-verify, privacy) is exercised by the pytest suite with FakeLLMClient + InMemorySink + in-process Ed25519 signing.",
+    "both_layer_front_to_back": "N/A — single-layer (Python service) change."
+  },
+  "confirmed_stubs": [
+    {"stub": "services/triage/server.py make_handler (live http.server bind/serve)", "why": "the live socket + serve_forever is the operator's; the deterministic core is handle_submission, exercised without sockets — an honest boundary, not a gap"},
+    {"stub": "services/triage/sink.py GitHubIssueSink poster + the GitHub->server pull-back", "why": "the real token + HTTP POST to the GitHub issues API, and pulling issues back, need the live API (the separated tier's own dep, REPO-4); the core builds the payload + injects the poster (InMemorySink for tests) — documented, not a gap"},
+    {"stub": "services/triage/server.py SEC-4 attestation_verifier", "why": "the project-unique genuine-logger proof is the separable closed/paid piece (SEC-4); the open core ships a pluggable verifier + the handshake's HMAC stub, and the docstring is explicit that anti-spam needs it enabled — by design, not a gap"},
+    {"stub": "triage tally/backlog persistence", "why": "the real server persists to Postgres (the separated tier's own dep, REPO-4); the in-memory TallyQueue is the testable deterministic core — documented, not a gap"}
+  ],
+  "implementing_commits": []
+}

@@ -43,7 +43,14 @@ buildable, verifiable substrate plus the design for the parts that aren't.
   - `library_index.py` — a stdlib `sqlite3` keyword / summary / concept-cloud reference index + the LIB-10 conceptual search (weighted overlap — concept ×3 / keyword ×2 / text ×1 — over unicode-folded tokens; an honest deterministic stand-in for the LIB-9 vector store, NOT semantic/synonym expansion).
   - `extract.py` — the LLM read → confirm-relevant → title / summary / strong-keywords / concept-cloud extraction (LIB-11/12), with a string-aware JSON parse (a brace inside a string value can't truncate the object).
   - `librarian.py` — the fetch → extract → index → metadata orchestration on the shared `bg_runtime` (scheduler tasks + install descriptor) + the LIB-8 file-folder body store (path-safe filename). The data source (scrape / API), the MemPalace vector store (LIB-9), and the LLM are adapters with stdlib fallbacks (`StaticSource` / `FakeLLMClient`). NOT built (design-stage): LIB-4's centralized curation endpoint + LIB-7's global-MemPalace-install research.
-- *(landing next)* `triage/` (EVAL + SEC server), `session_review/` (SR), `seeded_mempalace/` (SMP).
+- **`triage/`** — the Evaluator / triage service (v3.25.0; EVAL-1…17 + SEC):
+  - `issue.py` — the normalized issue record + dedup fingerprint (EVAL-8/9/14), REUSING the helpdesk `logit` privacy engine (full / summary / off — **off by default**, EVAL-17).
+  - `evaluator.py` — EVAL-1: review logs "as a senior agentic architect", categorize + root-cause each issue (string-aware JSON parse); EVAL-3: the ~hourly `bg_runtime` optimization task.
+  - `tally_queue.py` — EVAL-4/10: batch duplicate issues by fingerprint; promote recurring ones to a longer-lasting backlog.
+  - `triage.py` — the EVAL-11/12 **quarantine rule** (an issue first seen on an old version may already be fixed by an intermediate release the reporter didn't upgrade to — hold + verify from the fixed version onward) + EVAL-6 resolution log + EVAL-7/13 recurrence + EVAL-5 two-stage core-issue review.
+  - `sink.py` — EVAL-2: the GitHub-issue sink adapter (payload built; the real POST is injected — operator's, like `notify.py`).
+  - `server.py` — EVAL-2 + SEC: a stdlib submission server verifying a signed Ed25519 envelope (reusing `common/handshake.py`; no per-user codes; replay/tamper rejected; SEC-4 attestation pluggable + off by default) + re-applying privacy before storing. The live socket / GitHub API / Postgres / LLM are operator-provided.
+- *(landing next)* `session_review/` (SR), `seeded_mempalace/` (SMP).
 
 ## Separation plan (REPO-1 … REPO-4)
 
