@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 23 . 0
+                        ─── C T 6 ───   v 3 . 24 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.23.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.24.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4675%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4689%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.23.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.24.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.24.0 — the Librarian service (CT6-6 server tier, LIB-1 … LIB-13)
+
+The first concrete service on the v3.23.0 substrate — a background topic-research curation service under a new `services/librarian/`. **Design + a runnable stdlib-only core + tests, NOT a live-deployed service** (the data source / vector store / Anthropic LLM are adapters with stdlib fallbacks).
+
+| Capability | What it is |
+|---|---|
+| **Read → extract (LIB-11/12)** | `services/librarian/extract.py` — per download, the shared LLM confirms relevance and returns a title, a summary (so an agent can decide whether to read the full doc), strong searchable keywords, and a CONCEPT CLOUD (what the doc is useful for); the JSON reply is parsed **string-aware** (`JSONDecoder.raw_decode`, so a brace inside a string value can't truncate it). |
+| **Conceptual search (LIB-10/13)** | `services/librarian/library_index.py` — a stdlib `sqlite3` reference index over title / summary / keywords / concept-cloud; `conceptual_search` ranks by weighted overlap (concept ×3 / keyword ×2 / text ×1) over unicode-folded tokens. Honest: overlap, NOT semantic / synonym expansion — true relatedness is the LIB-9 vector adapter. |
+| **Background curation (LIB-1…9)** | `services/librarian/librarian.py` — the fetch→extract→index→metadata flow on the shared `bg_runtime` (scheduled, restartable) + the LIB-8 file-folder body store (path-safe filename). The data SOURCE + the MemPalace VECTOR store + the LLM are adapters with stdlib fallbacks (`StaticSource` / `FakeLLMClient`). |
+| **Review + tests** | Adversarial review FIX-FIRST → remediated (string-unaware parse, missing body store, over-claimed LIB-10, ASCII-only tokenizer). New `tests/test_services_librarian.py` (14 cases). Suite 4675 → **4689 passing + 5 skipped** (187 files; both encodings). Skill / agent / command counts unchanged; NO new Layer-3 tool. |
 
 ### v3.23.0 — Service-tier foundation (the CT6-6 server tier begins)
 
