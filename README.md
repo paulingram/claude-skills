@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 27 . 0
+                        ─── C T 6 ───   v 3 . 28 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.27.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.28.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4746%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4753%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,19 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.27.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.28.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.28.0 — the service-tier separation manifest (CT6-6 server tier, REPO-1 … REPO-4)
+
+The final CT6-6 component — the two-repo separation plan + a machine-checkable separability invariant. **This completes the entire CT6-6 program** (the in-repo tier v3.17.0–v3.22.0 + the service tier v3.23.0–v3.28.0).
+
+| Capability | What it is |
+|---|---|
+| **The manifest (REPO-1/2/3)** | `services/separation.py` (`SEPARATION_MANIFEST`) + `services/SEPARATION_MANIFEST.md` — the open-core-vs-paid-repo plan, each service marked separable, and the adapter SEAMS the closed/paid pieces plug into (the SEC-4 attestation algorithm; the SMP-4 phenotype entitlement / billing). |
+| **The separability invariant (REPO-4)** | `check_separation()` parses every `services/**/*.py` and asserts each is import-clean — stdlib + in-repo only at module load (recursing through `try` / `if` / `with` / class bodies, allowing only genuinely-lazy in-function imports). Any external / closed dep MUST be injected via a seam, never hard-imported — that import-cleanliness is what makes each service liftable into its own repo. |
+| **Review + tests** | Adversarial review FIX-FIRST → remediated a CRITICAL scanner soundness hole (a module-load import nested in `try/except` / `if` / a class body was invisible — a hard `try: import chromadb` would have passed; now caught) + a `validate_manifest` crash-on-malformed + a Python-3.10+ guard. New `tests/test_services_separation.py` (7 cases). Suite 4746 → **4753 passing + 5 skipped** (191 files; both encodings). Skill / agent / command counts unchanged; NO new Layer-3 tool. |
 
 ### v3.27.0 — the Seeded MemPalace service (CT6-6 server tier, SMP-1 … SMP-5)
 

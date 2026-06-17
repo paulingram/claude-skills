@@ -57,9 +57,16 @@ buildable, verifiable substrate plus the design for the parts that aren't.
   - `catalog.py` — the SMP-4 phenotype catalog, REUSING the existing phenotype store (`discover_phenotypes`); `gate_catalog` ships full records only for entitled phenotypes (browse vs purchase).
   - `client.py` — SMP-1/2: signs a download request with the Ed25519 SEC handshake + merges the returned bundle (runs during setup, before "MemTime" = the session-start MemPalace init).
   - `server.py` — SMP-2: verifies the handshake, resolves entitlements by the **verified public key** (not a self-asserted name), and gates the catalog. ChromaDB / the live server / the network / billing are operator-provided.
-- *(all four planned service dirs have landed; next: the REPO-1…4 separation manifest — see below.)*
+- **`separation.py` + `SEPARATION_MANIFEST.md`** (v3.28.0) — the REPO-1…4 separation manifest + the machine-checkable separability invariant (`check_separation` asserts every service is import-clean — see the Separation plan below). *(All four service dirs + the separation manifest have landed — the CT6-6 program is complete.)*
 
 ## Separation plan (REPO-1 … REPO-4)
+
+> **Now encoded + enforced (v3.28.0):** `services/separation.py` holds the
+> `SEPARATION_MANIFEST` (the open-core-vs-paid plan + the adapter seams) and
+> `check_separation()` (the REPO-4 invariant — every `services/**/*.py` is
+> import-clean: stdlib + in-repo only at module load, so external/closed deps are
+> injected, not hard-imported). The narrative below is the human companion; see
+> `services/SEPARATION_MANIFEST.md` for the full seam table + the separate-out procedure.
 
 Each service is written as an independent unit (its own dir, entry point, and — as
 they land — installer + config). The **paid/closed** pieces (most notably the

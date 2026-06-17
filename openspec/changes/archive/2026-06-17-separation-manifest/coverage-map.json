@@ -1,0 +1,21 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "separation-manifest",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "source": "CT6-6 §13 (REPO-1…4) — the service-tier separation manifest + the machine-checkable separability invariant; the FINAL CT6-6 component (completes the program)",
+  "entries": [
+    {"source_requirement_id": "REPO-1,REPO-2,REPO-3", "spec_requirement_id": "REQ-001", "scenarios": ["the manifest is well-formed and a malformed one is reported invalid"], "acceptance_criteria": ["SEPARATION_MANIFEST: open-core-vs-paid plan; every service separable (REPO-3); adapter seams; paid/closed pieces (SEC-4 attestation, SMP-4 entitlement) each mapped to a real seam", "validate_manifest checks shape + reports invalid (never raises) on malformed/non-dict input", "services/SEPARATION_MANIFEST.md documents the plan + seam table + separate-out procedure"], "layer": "backend"},
+    {"source_requirement_id": "REPO-4", "spec_requirement_id": "REQ-002", "scenarios": ["a nested module-load external import is caught; a lazy one is allowed"], "acceptance_criteria": ["check_separation parses every services/**/*.py; import-clean = stdlib + in-repo only at module load", "any external module-load import is a violation (inject via a seam, never hard-import)", "SOUND against nesting: catches imports in try/except, if, with, for, class bodies; allows in-function (lazy) imports", "the real services/ tree is reported clean"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+TESTS+REVIEW", "spec_requirement_id": "REQ-003", "scenarios": ["suite green"], "acceptance_criteria": ["services/separation.py stdlib-only; DESIGNS + VALIDATES the boundary; the actual repo SPLIT is a future op", "tests/test_services_separation.py present + passing (7 cases)", "full suite green cp1252 AND PYTHONUTF8=1", "independent adversarial review FIX-FIRST -> remediated 3 (scanner-nesting soundness, validate crash, 3.10+ guard)"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only manifest + invariant + tests).",
+    "dev_api_integration": "N/A — the component makes no network/DB call; it statically parses the in-repo services/ tree. The invariant is exercised by the pytest suite over the real tree + synthetic tmp-dir cases.",
+    "both_layer_front_to_back": "N/A — single-layer (Python) change."
+  },
+  "confirmed_stubs": [
+    {"stub": "the actual two-repo SPLIT", "why": "REPO-3 says design-for-separation NOW, split LATER; this change encodes + validates the boundary, the physical split (creating the paid/closed repo) is a future operation — documented, not a gap"},
+    {"stub": "the paid/closed implementations behind the seams", "why": "the SEC-4 attestation algorithm + the SMP-4 entitlement/billing live in the future closed repo and are injected via the documented seams (attestation_verifier / entitlements_for); the open core ships the stubs — by design, not a gap"}
+  ],
+  "implementing_commits": []
+}
