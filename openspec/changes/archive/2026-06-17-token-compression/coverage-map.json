@@ -1,0 +1,20 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "token-compression",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "CT6-6 requirements §3 (TC-1 … TC-3): optimize agents' internal communication ('talk like a caveman') without harming external output — the sixth and final in-repo component",
+  "entries": [
+    {"source_requirement_id": "TC-2", "spec_requirement_id": "REQ-001", "scenarios": ["compress drops filler, preserves content + code, and measures savings"], "acceptance_criteria": ["stdlib-only engine scripts/token_compression/caveman.py", "compress: filler-drop + phrase-subs, preserves content/identifiers/numbers/line-structure/code verbatim + prepositions/copulas", "estimate_tokens + compression_stats present"], "layer": "backend"},
+    {"source_requirement_id": "TC-1", "spec_requirement_id": "REQ-002", "scenarios": ["the internal-only boundary is stated"], "acceptance_criteria": ["skill states NEVER compress external output (non-negotiable)", "distinguishes internal vs external + enumerates external surfaces (user answer / API payloads / commits / PRs / test output)"], "layer": "backend"},
+    {"source_requirement_id": "TC-2,TC-3", "spec_requirement_id": "REQ-003", "scenarios": ["TC-3 is honestly framed"], "acceptance_criteria": ["describes the caveman style", "heavier ML package (LLMLingua-style) framed as a 3rd-party app-layer option over the stdlib floor, measured against compression_stats"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REUSE+CURRENCY", "spec_requirement_id": "REQ-004", "scenarios": ["honest boundary + counts current"], "acceptance_criteria": ["lossy-of-filler + estimate disclaimers present", "Python stdlib-only", "plugin.json + marketplace.json = 3.22.0", "47 skills with token-compression entry across README/CLAUDE/CODEBASE_MAP"], "layer": "backend"},
+    {"source_requirement_id": "TESTS", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_token_compression.py present + passing", "filler/content/code/line-structure/phrase-subs + boundary-space/unbalanced-backtick/compress-to-nothing edges + CLI", "full suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only engine + a skill + tests + docs).",
+    "dev_api_integration": "N/A — a deterministic in-process text transform; the engine + CLI are exercised by the pytest suite (incl. real subprocess).",
+    "both_layer_front_to_back": "N/A — single-layer (Python engine + skill doctrine) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}
