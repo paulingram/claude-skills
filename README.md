@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 16 . 0
+                        ─── C T 6 ───   v 3 . 17 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -308,7 +308,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (41) ───────────────────────┬─ AGENTS (37) ─────────────────────────┐
+┌─ SKILLS (42) ───────────────────────┬─ AGENTS (37) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -357,6 +357,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (lineage P3 — asset lineage)      │                                       │
 │ ◇ structure-optimization           *│                                       │
 │   (v3.11.0 — restructure planning)  │                                       │
+│ ◇ data-dictionary (v3.17.0)         │                                       │
 ├─ COMMANDS (20) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
