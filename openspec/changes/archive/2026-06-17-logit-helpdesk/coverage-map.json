@@ -1,0 +1,20 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "logit-helpdesk",
+  "generated_at": "2026-06-16T00:00:00Z",
+  "source": "CT6-6 requirements §11 (HD-1 … HD-3) + §9 EVAL-15/16/17 privacy: a manual triage-submission skill (Logit/Helpdesk) the user runs after a bad session — component 5 of the in-repo tier",
+  "entries": [
+    {"source_requirement_id": "HD-2,HD-3,EVAL-8", "spec_requirement_id": "REQ-001", "scenarios": ["a consented, versioned submission is built and validates"], "acceptance_criteria": ["stdlib-only engine scripts/helpdesk/logit.py", "build_submission requires consent + version; stamps version + source:manual-helpdesk (same triage process)", "redact_evidence + validate_submission present", "raises without consent / without version"], "layer": "backend"},
+    {"source_requirement_id": "HD-1,HD-2", "spec_requirement_id": "REQ-002", "scenarios": ["the skill + command document the manual consent flow"], "acceptance_criteria": ["skills/helpdesk/SKILL.md is the manual counterpart (Logit/Helpdesk)", "consent gate (AskUserQuestion) then privacy-level choice", "/architect-team:logit is the command entry point"], "layer": "backend"},
+    {"source_requirement_id": "EVAL-15,EVAL-16,EVAL-17", "spec_requirement_id": "REQ-003", "scenarios": ["summary strips unlisted identifiable content and off produces nothing"], "acceptance_criteria": ["full shares code/data (EVAL-15)", "summary is an allow-list (default-deny): drops code/data/nested/unknown/non-dict (EVAL-16)", "off produces None (EVAL-17)", "validate_submission rejects non-allow-listed keys under summary (backstop)"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REUSE+CURRENCY", "spec_requirement_id": "REQ-004", "scenarios": ["boundary stated + counts current"], "acceptance_criteria": ["server-tier send boundary (SEC + EVAL) stated in skill + command; never claim 'sent' for a local-only payload", "transmission mirrors scripts/notify/notify.py", "Python stdlib-only", "plugin.json + marketplace.json = 3.21.0", "46 skills + 22 commands across README/CLAUDE/CODEBASE_MAP"], "layer": "backend"},
+    {"source_requirement_id": "TESTS", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_helpdesk.py present + passing", "privacy levels + allow-list leak regressions (unlisted/nested/non-dict) + consent/version guards", "CLI build->validate round-trip", "full suite green cp1252 AND PYTHONUTF8=1"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only engine + a skill + a command + tests + docs).",
+    "dev_api_integration": "N/A — the actual triage-server send is the server-tier (not in-repo); the engine + CLI are exercised by the pytest suite (incl. real subprocess round-trip).",
+    "both_layer_front_to_back": "N/A — single-layer (Python engine + skill/command doctrine) change."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}

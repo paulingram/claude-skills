@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 20 . 0
+                        ─── C T 6 ───   v 3 . 21 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -32,13 +32,13 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 21 slash commands like
+> compatibility with existing installations + the 22 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.20.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.21.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4610%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4632%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,19 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.20.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.21.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.21.0 — Logit / Helpdesk (CT6-6 component 5, HD-1 … HD-3)
+
+The user-run counterpart to the automatic issue logging — after a session goes badly, file a triage report with consent + a chosen privacy level.
+
+| Capability | What it is |
+|---|---|
+| **Manual triage submission (HD-1/3)** | The new `helpdesk` skill + `/architect-team:logit` command (22nd) + `scripts/helpdesk/logit.py` engine: capture the issues the agents couldn't solve on the first attempt, build a triage submission stamped with the version + `source: manual-helpdesk` so the SAME triage process consumes it. |
+| **Consent + privacy (HD-2 / EVAL-15…17)** | Asks consent before sending; `full` shares code/data, `summary` keeps only a safe allow-list (default-deny — code/data/nested/unknown keys dropped, with a validator backstop), `off` sends nothing. |
+| **Honest boundary + tests** | The actual SEND to the triage server is the server-tier (the SEC handshake + the EVAL server), not in-repo — the skill produces the payload locally. New `tests/test_helpdesk.py` (18 cases incl. the allow-list leak regressions). Suite 4610 → **4632 passing + 5 skipped** (184 files; both encodings). Adversarial review FIX-FIRST → remediated (deny-list→allow-list privacy, non-dict crash, version guard). No new Layer 3 tool. |
 
 ### v3.20.0 — MCP design agents (CT6-6 component 4, MCP-1 … MCP-3)
 
@@ -348,7 +358,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (45) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
+┌─ SKILLS (46) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
 │ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
 │ ◇ reuse-first-design                │ ◆ backend (opus)                      │
@@ -402,7 +412,8 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ◇ claude-md-efficiency (v3.19.0)    │                                       │
 │ ◇ mcp-output-contract-design        │                                       │
 │   (v3.20.0 — MCP design)            │                                       │
-├─ COMMANDS (21) ─────────────────────┴───────────────────────────────────────┤
+│ ◇ helpdesk (v3.21.0)                │                                       │
+├─ COMMANDS (22) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -430,6 +441,8 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v3.11.0 — adversarially-verified restructure plan + OpenSpec change)     │
 │ ▸ /architect-team:closeout [--check] [--workspace <path>]                   │
 │   (v3.18.0 — doc-currency double-check before compact / end-of-work)        │
+│ ▸ /architect-team:logit [--privacy <full|summary|off>]                      │
+│   (v3.21.0 — manual triage report; consent + privacy)                       │
 ├─ HOOKS (6 scripts / 7 events) ──────────────────────────────────────────────┤
 │ ▸ PreToolUse(*)             skill-invocation hard-gate (v3.15.0/1)          │
 │ ▸ PreToolUse(Edit/Write/    unilateral-override guard                       │

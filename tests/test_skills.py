@@ -51,6 +51,7 @@ EXPECTED_SKILLS: set[str] = {
     "closeout",
     "claude-md-efficiency",
     "mcp-output-contract-design",
+    "helpdesk",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
