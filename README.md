@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 22 . 0
+                        ─── C T 6 ───   v 3 . 23 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.22.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.23.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4649%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4675%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.22.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.23.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.23.0 — Service-tier foundation (the CT6-6 server tier begins)
+
+The first piece of the CT6-6 SERVICE / SERVER tier — a new top-level `services/`, written separable (REPO-3). **Design + a runnable stdlib-only core + tests, NOT a live-deployed service** (the live server / ChromaDB / Anthropic API are external infra).
+
+| Capability | What it is |
+|---|---|
+| **SEC handshake (SEC-1…5)** | `services/common/ed25519.py` — a pure-Python, stdlib-only Ed25519 (RFC 8032, no 3rd-party dep; independently validated against libsodium + the RFC vectors) — under `handshake.py`'s signed submission envelopes with replay protection + a pluggable attestation hook (the separable SEC-4 "genuine logger" piece). |
+| **BG runtime (BG-1…4)** | `services/common/bg_runtime.py` — a cron-like scheduler + a self-check (BG-3) + per-OS boot/restart install descriptors (systemd / launchd / Task Scheduler, injection-guarded) + a log-ship interface. |
+| **Shared config** | `services/common/service_config.py` — the decided one-Anthropic-key model (LLM == sign-up) + an `LLMClient` adapter (the real Anthropic call is a documented boundary; `FakeLLMClient` for tests). |
+| **Review + tests** | New `tests/test_services_common.py` (26 cases incl. the Ed25519 KAT + malleability + descriptor-injection guards). Suite 4649 → **4675 passing + 5 skipped** (186 files; both encodings). Adversarial **security** review: SHIP (crypto cross-validated vs libsodium + RFC 8032). |
 
 ### v3.22.0 — Token compression (CT6-6 component 6, TC-1 … TC-3)
 

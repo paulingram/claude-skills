@@ -1,0 +1,23 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "service-tier-foundation",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "source": "CT6-6 §12 (SEC) + §10 (BG) — the shared substrate for the service/server tier; user chose all components, in-repo separable, one Anthropic key, Ed25519 handshake",
+  "entries": [
+    {"source_requirement_id": "SEC-1,SEC-2,SEC-3,SEC-5", "spec_requirement_id": "REQ-001", "scenarios": ["a tampered or replayed submission is rejected"], "acceptance_criteria": ["stdlib-only pure-Python Ed25519 (RFC 8032); verify total on adversarial input; malleability S>=L rejected", "signed envelopes bind payload/nonce/ts/alg/attestation", "freshness window + nonce-replay checks", "pluggable SEC-4 attestation hook (HMAC stub)"], "layer": "backend"},
+    {"source_requirement_id": "BG-1,BG-2,BG-3,BG-4", "spec_requirement_id": "REQ-002", "scenarios": ["scheduler runs due tasks, self-checks, and emits boot/restart descriptors"], "acceptance_criteria": ["cron-like scheduler (deterministic due/run/health)", "self-check flags stale tasks; failing task never crashes the loop", "per-OS boot/restart install descriptors (systemd/launchd/Task Scheduler), injection-guarded", "log-ship interface + stdlib fallback"], "layer": "backend"},
+    {"source_requirement_id": "KEY-MODEL", "spec_requirement_id": "REQ-003", "scenarios": ["the one key serves both roles and is never logged"], "acceptance_criteria": ["llm_key == signup_key == anthropic_key", "resolved from config or ANTHROPIC_API_KEY", "redacted() masks the key", "LLMClient adapter; real Anthropic call lazy; FakeLLMClient for tests"], "layer": "backend"},
+    {"source_requirement_id": "HONEST+REPO-3/4", "spec_requirement_id": "REQ-004", "scenarios": ["the honest boundary + separability are documented"], "acceptance_criteria": ["services/ written separable (REPO-3)", "README states design-not-deployed + separation plan + decided model", "services/common stdlib-only (Anthropic import lazy)"], "layer": "backend"},
+    {"source_requirement_id": "TESTS+REVIEW", "spec_requirement_id": "REQ-005", "scenarios": ["suite green"], "acceptance_criteria": ["tests/test_services_common.py present + passing", "Ed25519 KAT/round-trip/determinism/tamper/malleability/non-canonical", "handshake replay/stale/attestation/field-binding", "BG scheduler/self-check/descriptor-injection/log-shipper + config", "full suite green cp1252 AND PYTHONUTF8=1", "independent adversarial security review SHIP"], "layer": "backend"}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface (a stdlib-only service substrate + tests + docs).",
+    "dev_api_integration": "N/A — the live triage server / Anthropic API are external infra (not in-repo); the crypto + runtime core are exercised by the pytest suite + cross-validated by the security review vs libsodium + RFC 8032.",
+    "both_layer_front_to_back": "N/A — single-layer (Python service substrate) change."
+  },
+  "confirmed_stubs": [
+    {"stub": "services/common/handshake.py HMAC attestation", "why": "the SEC-4 genuine-logger algorithm is the separable closed/paid piece; the open core ships a pluggable hook + a stdlib HMAC stub by design (documented), not a gap"},
+    {"stub": "services/common/service_config.py anthropic_client()", "why": "the real Anthropic LLM call needs the SDK + network (the separated service tier's own dep, REPO-4); the stdlib core injects FakeLLMClient — an honest adapter boundary, not a gap"}
+  ],
+  "implementing_commits": []
+}
