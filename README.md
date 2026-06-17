@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 26 . 0
+                        ─── C T 6 ───   v 3 . 27 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.26.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.27.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4731%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4746%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.26.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.27.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.27.0 — the Seeded MemPalace service (CT6-6 server tier, SMP-1 … SMP-5)
+
+The fourth service on the v3.23.0 substrate — an authenticated download of a seeded MemPalace (a defined schema + curated content + the phenotype catalog + the latest research synthesis), leaving room for the user's own projects. **Design + a runnable stdlib-only core + tests, NOT a live-deployed service** (ChromaDB, the live server, the network, and the billing system are adapters / operator-provided).
+
+| Capability | What it is |
+|---|---|
+| **Bundle schema + merge (SMP-3/5)** | `services/seeded_mempalace/bundle.py` — the defined seeded-MemPalace bundle (schema + curated + phenotype catalog + a `research_synthesis` freshness section, SMP-5) + a merge that REFRESHES the seeded sections while PRESERVING every user top-level key (SMP-3 — a re-download never clobbers the user's projects). |
+| **Phenotype catalog (SMP-4)** | `catalog.py` — reuses the existing phenotype store (`discover_phenotypes`) to build a browseable catalog; `gate_catalog` ships full records only for entitled phenotypes (a non-owner browses metadata, purchases to download) — the future purchase model. |
+| **Authenticated client + server (SMP-1/2)** | `client.py` signs a download request with the local Ed25519 key (reusing `services/common/handshake.py`) + merges the result; `server.py` verifies the SEC handshake and resolves entitlements by the **verified public key**. The download runs during setup, before "MemTime" (the session-start MemPalace init). |
+| **Review + tests** | Adversarial review FIX-FIRST → remediated (entitlements keyed on the verified public key, not a self-asserted name — closes an impersonation hole; `gate_catalog` deep-copies so a served record can't corrupt the master; `merge_into_local` preserves all user keys; served records strip the operator's filesystem paths; default replay protection). New `tests/test_services_seeded_mempalace.py` (15 cases). Suite 4731 → **4746 passing + 5 skipped** (190 files; both encodings). Skill / agent / command counts unchanged; NO new Layer-3 tool. |
 
 ### v3.26.0 — the Session Review service (CT6-6 server tier, SR-1 … SR-3)
 

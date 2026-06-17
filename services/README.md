@@ -52,7 +52,12 @@ buildable, verifiable substrate plus the design for the parts that aren't.
   - `server.py` — EVAL-2 + SEC: a stdlib submission server verifying a signed Ed25519 envelope (reusing `common/handshake.py`; no per-user codes; replay/tamper rejected; SEC-4 attestation pluggable + off by default) + re-applying privacy before storing. The live socket / GitHub API / Postgres / LLM are operator-provided.
 - **`session_review/`** — the Session Review service (v3.26.0; SR-1…3):
   - `session_review.py` — a session-level review agent (of similar design to the Librarian): `review_session` reviews a full session via the shared LLM (SR-1; string-aware parse) and keeps ONLY the issues the agents couldn't solve on the first attempt (SR-3, normalized as reused triage `issue` records); `review_and_push` does the SR-2 outbound summary push + files the unsolved issues through the triage `sink`; runs on the shared `bg_runtime` (`build_review_task` + `install_descriptor`). EVAL-17 default-off: under `off` nothing is transmitted (no push, no filing). The LLM + push target + persistence are operator-provided.
-- *(landing next)* `seeded_mempalace/` (SMP).
+- **`seeded_mempalace/`** — the Seeded MemPalace service (v3.27.0; SMP-1…5):
+  - `bundle.py` — the defined bundle schema (schema + curated + phenotype catalog + a `research_synthesis` freshness section, SMP-3/5) + a merge that refreshes the seeded sections while PRESERVING every user top-level key (a re-download never clobbers the user's projects).
+  - `catalog.py` — the SMP-4 phenotype catalog, REUSING the existing phenotype store (`discover_phenotypes`); `gate_catalog` ships full records only for entitled phenotypes (browse vs purchase).
+  - `client.py` — SMP-1/2: signs a download request with the Ed25519 SEC handshake + merges the returned bundle (runs during setup, before "MemTime" = the session-start MemPalace init).
+  - `server.py` — SMP-2: verifies the handshake, resolves entitlements by the **verified public key** (not a self-asserted name), and gates the catalog. ChromaDB / the live server / the network / billing are operator-provided.
+- *(all four planned service dirs have landed; next: the REPO-1…4 separation manifest — see below.)*
 
 ## Separation plan (REPO-1 … REPO-4)
 
