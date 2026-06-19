@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "change": "librarian-installable",
+  "generated_at": "2026-06-18T23:30:00Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — plugin self-development (stdlib-only Python installer + daemon glue + Markdown command + structural/unit tests). No frontend/backend runs at build time; the daemon's real network + LLM are adapter boundaries tested offline via StaticSource + FakeLLMClient + a fake env.",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "librarian-install/Slash command entry point",
+      "scenarios": ["command file invokes the installer polyglot"],
+      "acceptance_criteria": ["commands/librarian-install.md runs install_librarian.py under python3||python and mirrors mempalace-install structure"],
+      "layer": "infra",
+      "task_ids": ["3.1"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_command_polyglot_invocation"]}
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "librarian-install/Full-lifecycle installer CLI",
+      "scenarios": ["every documented subcommand is dispatchable", "installer imports only the standard library at module load"],
+      "acceptance_criteria": ["install/status/add-topic/list-topics/remove-topic/run-once/uninstall dispatch; --json works; stdlib-only import"],
+      "layer": "infra",
+      "task_ids": ["2.1"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_subcommands_dispatch", "tests/test_install_librarian.py::test_stdlib_only_import"]}
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "librarian-install/Daemon entry point",
+      "scenarios": ["the daemon module is runnable and wires the scheduler"],
+      "acceptance_criteria": ["daemon loads config+registry, builds Librarian, registers ServiceTask per topic, runs scheduler (bounded ticks in test)"],
+      "layer": "infra",
+      "task_ids": ["1.2"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_daemon_bounded_run"]}
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "librarian-install/Real urllib data source",
+      "scenarios": ["fetch failures degrade gracefully"],
+      "acceptance_criteria": ["UrlSource fetches via urllib; unreachable/error URLs are logged + skipped, tick does not crash"],
+      "layer": "infra",
+      "task_ids": ["1.1"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_urlsource_graceful_failure", "tests/test_install_librarian.py::test_urlsource_fetch_ok"]}
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "librarian-install/Configurable LLM with honest degraded fallback",
+      "scenarios": ["the active LLM mode is reported"],
+      "acceptance_criteria": ["Anthropic adapter when ANTHROPIC_API_KEY resolves else FakeLLMClient; mode named in output"],
+      "layer": "infra",
+      "task_ids": ["2.3"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_llm_mode_reported_with_key", "tests/test_install_librarian.py::test_llm_mode_reported_degraded"]}
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "librarian-install/No-key install is provisioned-but-disabled",
+      "scenarios": ["missing key blocks enable and prints remediation"],
+      "acceptance_criteria": ["no key => state+descriptor provisioned, daemon NOT enabled, --enable remediation printed, no 'running/deployed' wording"],
+      "layer": "infra",
+      "task_ids": ["2.4"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_no_key_install_disabled"]}
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "spec_requirement_id": "librarian-install/Per-user state layout",
+      "scenarios": ["install creates the state layout"],
+      "acceptance_criteria": ["~/.architect-team/librarian/ with config.json/topics.json/bodies/metadata; base dir injectable for tests"],
+      "layer": "infra",
+      "task_ids": ["2.2"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_state_layout_created"]}
+    },
+    {
+      "source_requirement_id": "REQ-008",
+      "spec_requirement_id": "librarian-install/Per-OS boot descriptor with printed register hint",
+      "scenarios": ["descriptor is written and the register hint is printed not run"],
+      "acceptance_criteria": ["install --enable writes the per-OS descriptor naming the daemon and PRINTS (never executes) the register hint"],
+      "layer": "infra",
+      "task_ids": ["2.5"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_descriptor_written_and_hint_printed"]}
+    },
+    {
+      "source_requirement_id": "REQ-009",
+      "spec_requirement_id": "librarian-install/Topic registry management",
+      "scenarios": ["topics round-trip through the registry"],
+      "acceptance_criteria": ["add-topic/list-topics/remove-topic round-trip topics.json; daemon builds one task per topic"],
+      "layer": "infra",
+      "task_ids": ["2.6"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_topic_registry_roundtrip"]}
+    },
+    {
+      "source_requirement_id": "REQ-010",
+      "spec_requirement_id": "librarian-install/run-once and status and uninstall",
+      "scenarios": ["run-once executes a full cycle offline in tests", "uninstall removes the descriptor and optionally purges state"],
+      "acceptance_criteria": ["run-once does fetch->extract->index->metadata offline reporting per-topic counts; status reports health; uninstall removes descriptor, --purge removes state"],
+      "layer": "infra",
+      "task_ids": ["2.7"],
+      "tests": {"unit": ["tests/test_install_librarian.py::test_run_once_offline", "tests/test_install_librarian.py::test_status_report", "tests/test_install_librarian.py::test_uninstall_purge"]}
+    },
+    {
+      "source_requirement_id": "REQ-011",
+      "spec_requirement_id": "librarian-install/Honest-boundary and stdlib-only discipline",
+      "scenarios": ["separation invariant still holds"],
+      "acceptance_criteria": ["plugin core stdlib-only at module load; check_separation() passes including the new daemon.py; no overclaimed deployment wording"],
+      "layer": "infra",
+      "task_ids": ["1.3"],
+      "tests": {"unit": ["tests/test_services_separation.py", "tests/test_install_librarian.py::test_stdlib_only_import"]}
+    },
+    {
+      "source_requirement_id": "REQ-012",
+      "spec_requirement_id": "librarian-install/Tests and release artifacts",
+      "scenarios": ["the suite is green and the version is bumped"],
+      "acceptance_criteria": ["new tests pass; existing librarian/common tests green; plugin.json + marketplace.json bumped; CHANGELOG entry added"],
+      "layer": "infra",
+      "task_ids": ["3.2", "3.3"],
+      "tests": {"unit": ["tests/test_install_librarian.py", "tests/test_services_librarian.py", "tests/test_services_common.py"]}
+    }
+  ]
+}

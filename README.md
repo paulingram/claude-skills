@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 28 . 0
+                        ─── C T 6 ───   v 3 . 29 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -32,13 +32,13 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 22 slash commands like
+> compatibility with existing installations + the 23 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.28.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.29.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4753%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4780%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.28.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.29.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.29.0 — the Librarian becomes installable (CT6-6 server tier)
+
+Makes the CT6-6 Librarian a first-class **installable**, mirroring the `mempalace-install` pattern, while REUSING the existing `bg_runtime` / `service_config` / `librarian` / `library_index` substrate (reuse-first — no new service logic). The Librarian is now installable and, once enabled with an API key, **runs as a background daemon on the local machine** — NOT a deployed/production service.
+
+| Capability | What it is |
+|---|---|
+| **The command (23rd)** | `commands/librarian-install.md` → `/architect-team:librarian-install` — full-lifecycle: `install` / `status` / `add-topic` / `list-topics` / `remove-topic` / `run-once` / `uninstall`, with `--enable` / `--check-only` / `--json` / `--purge`. Slash-command count 22 → 23. |
+| **The installer + CLI** | `scripts/setup/install_librarian.py` — stdlib-only. State under `~/.architect-team/librarian/` (`config.json`, `topics.json`, `index.sqlite`, `bodies/`, `metadata/`, `librarian.log.jsonl`). Uses the real Anthropic adapter when `ANTHROPIC_API_KEY` resolves, else falls back to `FakeLLMClient` in an honest **provisioned-but-disabled** state (no-key ⇒ `--enable` remediation). Generates the per-OS boot descriptor via `bg_runtime.install_descriptor` (launchd / systemd / schtasks) and PRINTS the register hint — never auto-loads. |
+| **The daemon + source adapter** | `services/librarian/daemon.py` — the daemon entry point (a path-runnable script building `Librarian` + `Scheduler` + `run_forever`) + `UrlSource(Source)`, a stdlib `urllib` fetcher over the topic→URL registry with graceful skip-on-failure (the live HTTP fetch is the real network adapter; its stdlib fallback keeps the core testable). |
+| **Honest boundary + tests** | The plugin core stays stdlib-only; `check_separation()` stays clean; nothing is described as "deployed/running in production." New `tests/test_install_librarian.py` (23 offline tests). Suite 4757 → **4780 passing + 3 skipped** (192 test files; both encodings). Skill / agent counts unchanged; +1 command; NO new Layer-3 tool. |
 
 ### v3.28.0 — the service-tier separation manifest (CT6-6 server tier, REPO-1 … REPO-4)
 
@@ -489,12 +500,14 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v3.20.0 — MCP design)            │                                       │
 │ ◇ helpdesk (v3.21.0)                │                                       │
 │ ◇ token-compression (v3.22.0)       │                                       │
-├─ COMMANDS (22) ─────────────────────┴───────────────────────────────────────┤
+├─ COMMANDS (23) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team-setup                                                     │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
 │ ▸ /architect-team:visual-to-api <codebase-path>     (v2.15.0 — 4-stage)   * │
 │ ▸ /architect-team:mempalace-install                                         │
+│ ▸ /architect-team:librarian-install [status|add-topic|run-once|uninstall]   │
+│   (v3.29.0 — install the topic-research Librarian background daemon)        │
 │ ▸ /architect-team:memory <search|mine|status|wake-up|sweep>                 │
 │ ▸ /architect-team:editability-audit [<codebase-path>]                       │
 │ ▸ /architect-team:bug-fix <bug-description | requirements-folder>           │
@@ -590,6 +603,14 @@ Idempotent. Flags: `--check-only` (report only), `--force-reinstall` (reinstall 
 ```
 
 Installs the MemPalace CLI (uv-first, pip fallback) and prints the `claude mcp add` + per-workspace `mempalace init` commands for you to run. The pipeline degrades gracefully without it — every wake-up / mine / search is skipped with a one-line note.
+
+### ▸ Install the Librarian (optional — a background topic-research daemon)
+
+```bash
+/architect-team:librarian-install
+```
+
+The CT6-6 **Librarian** is also installable (v3.29.0), mirroring the MemPalace install. The stdlib-only installer provisions state under `~/.architect-team/librarian/`, generates the per-OS boot descriptor (launchd / systemd / Task Scheduler), and **prints** the register hint (it never auto-loads it). With an `ANTHROPIC_API_KEY` set it wires the real Anthropic adapter; with no key it installs in an honest **provisioned-but-disabled** state and tells you to re-run with `--enable` once a key is available. Once enabled it runs as a background daemon on your machine — installable + self-managed, not a deployed/production service.
 
 ### ▸ Updating other instances
 
@@ -1004,6 +1025,10 @@ On-demand pixel-perfect audit against `DESIGN_MAP.md`. Refreshes the design map 
 ### `/architect-team:mempalace-install [--check-only] [--workspace <path>]`
 
 One-time installer for the MemPalace CLI + MCP server. uv-first, pip fallback. Prints (does not auto-run) the `claude mcp add` + per-workspace `mempalace init` commands.
+
+### `/architect-team:librarian-install [install|status|add-topic|list-topics|remove-topic|run-once|uninstall] [--enable] [--check-only] [--json] [--purge]`
+
+Full-lifecycle installer (v3.29.0) for the CT6-6 **Librarian** background topic-research daemon, mirroring `mempalace-install`. Stdlib-only installer + CLI (`scripts/setup/install_librarian.py`); provisions state under `~/.architect-team/librarian/` and generates the per-OS boot descriptor (launchd / systemd / Task Scheduler) — printing the register hint, never auto-loading. With `ANTHROPIC_API_KEY` resolvable it wires the real Anthropic LLM adapter; with no key it provisions in an honest **disabled** state and surfaces the `--enable` remediation. Once installed and enabled it runs as a background daemon on the local machine (the daemon entry point + the stdlib `UrlSource` fetcher live in `services/librarian/daemon.py`) — installable + self-managed, NOT a deployed/production service.
 
 ### `/architect-team:memory <search|mine|status|wake-up|sweep> [args]`
 

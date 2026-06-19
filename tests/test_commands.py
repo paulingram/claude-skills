@@ -28,6 +28,7 @@ EXPECTED_COMMANDS: set[str] = {
     "optimize-structure",
     "closeout",
     "logit",
+    "librarian-install",
 }
 
 REQUIRED_KEYS = {"description"}
