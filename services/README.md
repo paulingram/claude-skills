@@ -19,6 +19,11 @@ this code. Where a component needs such a thing, the stdlib core sits behind an
 the real adapter (and the deployment) is the operator's to provide. Nothing here
 should be described as "deployed" or "running in production" — it is the
 buildable, verifiable substrate plus the design for the parts that aren't.
+The Librarian is now **installable** (v3.29.0) — see its bullet below; once
+installed and enabled with an API key it runs as a background daemon on the
+local machine. That is an opt-in install + a self-managed daemon, NOT a
+"deployed/production" service: the real network `Source` and the real Anthropic
+LLM remain adapter boundaries with stdlib fallbacks.
 
 ## Decided model (2026-06-17)
 
@@ -39,10 +44,12 @@ buildable, verifiable substrate plus the design for the parts that aren't.
   - `handshake.py` — signed submission envelopes + replay protection + the pluggable attestation hook (SEC-1/2/3/5).
   - `bg_runtime.py` — the always-on runtime: cron-like scheduler + self-check + per-OS boot/restart install descriptors (systemd / launchd / Task Scheduler) + a log-ship interface (BG-1…4).
   - `service_config.py` — the same-Anthropic-key config + the `LLMClient` adapter interface (real Anthropic adapter is a documented boundary; `FakeLLMClient` for tests).
-- **`librarian/`** — the topic-research curation service (v3.24.0; LIB-1…13):
+- **`librarian/`** — the topic-research curation service (v3.24.0; LIB-1…13), now **installable** (v3.29.0):
   - `library_index.py` — a stdlib `sqlite3` keyword / summary / concept-cloud reference index + the LIB-10 conceptual search (weighted overlap — concept ×3 / keyword ×2 / text ×1 — over unicode-folded tokens; an honest deterministic stand-in for the LIB-9 vector store, NOT semantic/synonym expansion).
   - `extract.py` — the LLM read → confirm-relevant → title / summary / strong-keywords / concept-cloud extraction (LIB-11/12), with a string-aware JSON parse (a brace inside a string value can't truncate the object).
   - `librarian.py` — the fetch → extract → index → metadata orchestration on the shared `bg_runtime` (scheduler tasks + install descriptor) + the LIB-8 file-folder body store (path-safe filename). The data source (scrape / API), the MemPalace vector store (LIB-9), and the LLM are adapters with stdlib fallbacks (`StaticSource` / `FakeLLMClient`). NOT built (design-stage): LIB-4's centralized curation endpoint + LIB-7's global-MemPalace-install research.
+  - `daemon.py` (v3.29.0) — the daemon **entry point** (a path-runnable script that builds the `Librarian` + `Scheduler` and calls `run_forever`) + `UrlSource(Source)`, a stdlib `urllib` fetcher over the topic→URL registry that skips a failing fetch gracefully (the live HTTP fetch is the real network adapter — its stdlib-only fallback keeps the core testable).
+  - **Installable** via `/architect-team:librarian-install` (v3.29.0) — the full-lifecycle command + `scripts/setup/install_librarian.py` (stdlib-only installer + CLI; state under `~/.architect-team/librarian/`) generate the per-OS boot descriptor (launchd / systemd / Task Scheduler) via `bg_runtime.install_descriptor` and PRINT the register hint (never auto-loaded). With a resolvable `ANTHROPIC_API_KEY` the installer wires the real Anthropic LLM adapter; with no key it provisions in an honest **disabled** state (`FakeLLMClient`) and surfaces the `--enable` remediation. Installable + self-managed daemon — NOT "deployed/production".
 - **`triage/`** — the Evaluator / triage service (v3.25.0; EVAL-1…17 + SEC):
   - `issue.py` — the normalized issue record + dedup fingerprint (EVAL-8/9/14), REUSING the helpdesk `logit` privacy engine (full / summary / off — **off by default**, EVAL-17).
   - `evaluator.py` — EVAL-1: review logs "as a senior agentic architect", categorize + root-cause each issue (string-aware JSON parse); EVAL-3: the ~hourly `bg_runtime` optimization task.
@@ -69,7 +76,9 @@ buildable, verifiable substrate plus the design for the parts that aren't.
 > `services/SEPARATION_MANIFEST.md` for the full seam table + the separate-out procedure.
 
 Each service is written as an independent unit (its own dir, entry point, and — as
-they land — installer + config). The **paid/closed** pieces (most notably the
+they land — installer + config; the Librarian's `daemon.py` entry point +
+`scripts/setup/install_librarian.py` installer landed in v3.29.0). The **paid/closed**
+pieces (most notably the
 SEC-4 project-unique attestation algorithm) are kept behind interfaces so they can
 move into a separate, separately-distributed repo without touching the open core:
 the open core ships the standard mechanism (Ed25519 envelope + replay) and a
