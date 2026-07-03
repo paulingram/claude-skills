@@ -598,7 +598,7 @@ These reasoning patterns indicate an imminent bypass and MUST trigger a halt:
 | *"I already mapped the codebases this session, so I'll skip Phase −1"* | Phase −1 also discovers map invalidation and triggers re-mining; skipping it means stale-map operation |
 | *"I'll drive directly from the plan"* | The plan was Phase 0's deliverable. Phase 1 validates it; Phases 2-7 execute it. "Driving from the plan" without those phases means no spec layer, no parallel teams, no independent reviewers |
 | *"I'll put tokens into code instead of the mapping/spec ceremony"* | The ceremony IS the work. The token cost is the cost of correctness |
-| *"I'll write the code, test it myself, and commit directly"* | Producer === checker. v6 review evidence schema is non-negotiable |
+| *"I'll write the code, test it myself, and commit directly"* | Producer === checker. v7 review evidence schema is non-negotiable |
 | *"No subagents this time — I have enough context"* | Phase 2's parallel dispatch is the mechanism. Solo means no parallelism, no scope-isolation, no independent verdicts |
 
 ### Halt-and-disclose rule

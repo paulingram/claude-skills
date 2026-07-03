@@ -470,7 +470,7 @@ The 17 top-level evidence fields are the teammate's **self-review**. A self-revi
 
 So the gate does not open on the self-review. After the teammate writes its self-review and signals its task complete, the orchestrator dispatches an independent **`task-reviewer`** agent (Phase 3 of `architect-team-pipeline`). The dispatch:
 
-1. The teammate finishes its task, writes the 12-field self-review into `<cwd>/.architect-team/reviews/<task-id>.json`, and signals complete.
+1. The teammate finishes its task, writes the 17-field self-review into `<cwd>/.architect-team/reviews/<task-id>.json`, and signals complete.
 2. The orchestrator spawns a `task-reviewer` agent against that `task_id`, passing the `teammate` name, the coverage-map slice, and the teammate's `files_owned`.
 3. The `task-reviewer` is **read-only on source** (no `Edit`). It reads the teammate's `git diff`, confirms each coverage-map acceptance criterion is actually met by the code, runs the repo's linters / type-checkers / the slice's tests itself, greps the diff for stubs / `TODO` / `NotImplementedError` / mock returns / placeholder data, and checks every new file against a Reuse Decision.
 4. The `task-reviewer` writes the `independent_review` block into the SAME evidence file — `reviewer` is itself (never the teammate), `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` reflect its independent findings.

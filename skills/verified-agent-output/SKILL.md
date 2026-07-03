@@ -200,7 +200,7 @@ The plugin's own pytest suite asserts each VAO layer is wired. Mirrors v1.4 / 1.
 - Layer 2: every teammate spawn brief in the pipeline-body documentation includes `vao_task_shape`; the spawn-brief schema in `team-spawning-and-review-gates` includes adversarial-pairing rules.
 - Layer 3: each `vao_tools.py` tool has positive + negative synthetic-fixture round-trips.
 - Layer 4: `common-pipeline-conventions` has the `## Run-history shape detection` section; the four shape-vector fields are documented.
-- Layer 5: schema v7's six required VAO fields are present and the hook blocks `fail` on each.
+- Layer 5: schema v7's five required VAO fields are present and the hook blocks `fail` on each.
 - Layer 6: `skill_invocation_audit.py` catches the heirship "applied methodology by hand" fixture.
 
 The seven synthetic fixtures under `tests/fixtures/vao/` are the canonical positive cases for each failure shape; the pipeline MUST block each.
@@ -242,7 +242,7 @@ The picture: v2.0.0 EARLIER nets catch failures the LATER nets had to catch post
 
 ## Schema v7 — the breaking change
 
-Schema v7 adds six required fields to `REQUIRED_EVIDENCE_FIELDS`:
+Schema v7 adds five required fields to `REQUIRED_EVIDENCE_FIELDS`:
 
 ```python
 REQUIRED_EVIDENCE_FIELDS = {
@@ -294,7 +294,7 @@ Trade-off: `--no-vao` re-opens the v1.x failure modes (scope-narrowing, git-stas
 
 - `hooks/vao_tools.py` — the five Layer-3 tools (verify-oracle-match, verify-baseline-clean, verify-no-fake-data, verify-every-element, verify-rendered-parity).
 - `hooks/skill_invocation_audit.py` — the Layer 6 Stop-hook auditor.
-- `hooks/review_evidence_schema.py` — schema v7 declaring the six required VAO fields.
+- `hooks/review_evidence_schema.py` — schema v7 declaring the five required VAO fields.
 - `hooks/pipeline-completion-audit.py` — extended to assert VAO verdicts + delegate to Layer 6.
 - `agents/oracle-deriver.md` — the Phase 0.5 agent.
 - `agents/adversarial-reviewer.md` — the Phase 3 paired adversarial agent.

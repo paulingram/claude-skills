@@ -185,3 +185,21 @@ def test_oracle_deriver_has_baseline_sha(plugin_root: Path) -> None:
     """v3.10.0 (R4c): oracle-deriver's restored canonical git block names $BASELINE_SHA."""
     body = (plugin_root / "agents" / "oracle-deriver.md").read_text(encoding="utf-8")
     assert "$BASELINE_SHA" in body, "oracle-deriver must carry the $BASELINE_SHA instruction"
+
+
+@pytest.mark.parametrize("agent_name", sorted(EXPECTED_AGENTS))
+def test_agent_body_opens_with_role_or_h1(plugin_root: Path, agent_name: str) -> None:
+    """Section-structure convention (instruction-compliance rubric dimension a):
+    an agent body opens with either an H1 title or a 'You are' role statement
+    (both attested in the corpus). Reuses EXPECTED_AGENTS + the frontmatter helper;
+    complements the aggregate compliance lint without re-declaring the
+    frontmatter-presence assertions above."""
+    path = plugin_root / "agents" / f"{agent_name}.md"
+    if not path.exists():
+        pytest.skip(f"{agent_name} not present yet")
+    _, body = frontmatter.parse(path)
+    first = next((ln for ln in body.splitlines() if ln.strip()), "")
+    low = first.lower()
+    assert first.startswith("# ") or low.startswith(("you are", "you're", "you will")), (
+        f"{agent_name}: body must open with an H1 title or a 'You are' role statement, got {first!r}"
+    )

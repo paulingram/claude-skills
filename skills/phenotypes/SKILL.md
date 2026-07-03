@@ -94,7 +94,7 @@ See `phenotypes/SCHEMA.md` for the `phenotype.json` and `scaffold/scaffold.manif
 and the blueprint's verbatim H2 section headings. `validate_phenotype` enforces the required keys,
 `label == dirname`, `kind ∈ {pair, singleton}`, and a non-empty `match.keywords`.
 
-## The `absorb` capability (designed; build deferred)
+## The `absorb` capability (shipped v3.13.0)
 
 Goal: point at any arbitrary codebase and ingest it as a new labeled phenotype.
 
@@ -108,7 +108,8 @@ Goal: point at any arbitrary codebase and ingest it as a new labeled phenotype.
   is reviewed by the same gates; the result must `validate`.
 
 The full design is in `openspec/changes/add-phenotype-subsystem/design.md` §11; the `user-management`
-phenotype is its first hand-run worked example and golden reference.
+phenotype is its first hand-run worked example and golden reference, and `code-wiki` (v3.13.0) is the
+first phenotype absorbed via the shipped `phenotype-absorption` skill.
 
 ## Non-negotiable disciplines
 

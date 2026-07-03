@@ -87,7 +87,7 @@ Your Phase 5 Playwright work is the input that verification audits, so it must b
 - **No unconfirmed placeholder pages.** A route reached during a flow that is wired to a `ComingSoon` / `Stub` / `Mock` / skeleton / lorem-ipsum page where the design specifies a real live page is a `placeholder-page` gap — a Playwright test clicking through a placeholder and passing has verified nothing. Surface it; do not pass it.
 - **The confirmed-stub mechanism.** An intentionally-inert control or an intentional placeholder page is a `confirmed-stub` ONLY with explicit user confirmation, recorded in the converged interaction map and `coverage-map.json` `confirmed_stubs[]`. An unconfirmed inert control or unconfirmed placeholder page is a gap, never a silent pass — escalate the structured question to the orchestrator; do not self-confirm a stub.
 
-### Setting the ui_interaction_review evidence field (evidence schema v6)
+### Setting the ui_interaction_review evidence field (evidence schema v7)
 
 In the Phase 5 review-gate evidence you produce, set `ui_interaction_review` honestly — it gates a genuinely orthogonal axis to `integration_testing_review` (real-interaction-vs-fake-interaction, not real-backend-vs-mock):
 

@@ -89,3 +89,19 @@ def test_readme_documents_python3_prerequisite(plugin_root: Path) -> None:
     assert "python-is-python3" in content, "README missing Ubuntu/Debian apt remediation"
     assert "brew install python" in content, "README missing macOS brew remediation"
     assert "python.org" in content, "README missing Windows python.org remediation"
+
+
+@pytest.mark.parametrize("cmd_name", sorted(EXPECTED_COMMANDS))
+def test_command_body_opens_with_h1(plugin_root: Path, cmd_name: str) -> None:
+    """Section-structure convention (instruction-compliance rubric dimension a):
+    every command body opens with an H1 title. Reuses EXPECTED_COMMANDS + the
+    frontmatter helper; complements the aggregate compliance lint without
+    re-declaring the frontmatter-presence assertions above."""
+    path = plugin_root / "commands" / f"{cmd_name}.md"
+    if not path.exists():
+        pytest.skip(f"{cmd_name} not present yet")
+    _, body = frontmatter.parse(path)
+    first = next((ln for ln in body.splitlines() if ln.strip()), "")
+    assert first.startswith("# "), (
+        f"{cmd_name}: command body must open with an H1 heading, got {first!r}"
+    )

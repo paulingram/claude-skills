@@ -5,7 +5,7 @@ allowed-tools: Skill, Read, Glob, Grep, LS, Bash, Write, AskUserQuestion, TodoWr
 
 # Proposal Refiner — Standalone Invocation
 
-You are starting the `proposal-refiner` skill in **STANDALONE** mode against a free-text prompt. The skill grades the prompt across five axes (clarity, scope, acceptance, codebase grounding, conflict), generates codebase-anchored clarifying questions, iterates with you up to 5 cycles or until you confirm `ship it`, and writes the refined version to a markdown file. No downstream pipeline runs in this mode — that's the difference from `/architect-team` with free-text input (which runs the refiner THEN the architect-team-pipeline).
+You are starting the `proposal-refiner` skill in **STANDALONE** mode against a free-text prompt. The skill grades the prompt across six axes (clarity, scope, acceptance, codebase grounding, conflict, scope-fidelity), generates codebase-anchored clarifying questions, iterates with you up to 5 cycles or until you confirm `ship it`, and writes the refined version to a markdown file. No downstream pipeline runs in this mode — that's the difference from `/architect-team` with free-text input (which runs the refiner THEN the architect-team-pipeline).
 
 ## Argument parsing (do this first, before invoking the skill)
 
