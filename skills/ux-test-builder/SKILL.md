@@ -257,6 +257,8 @@ Emit a summary report at `<cwd>/.architect-team/runs/ux-test-<persona-slug>-<ts>
 
 Persist the report; auto-mine to MemPalace (`--room ux-test-reports`); auto-commit + push per the Phase 8 default-branch guard discipline (feature branch `architect-team/ux-test-<persona-slug>` unless `--allow-push-to-default`).
 
+**Mark the run complete (v3.30.0 — the LAST state action of U9):** after the commit + push land, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete` from the workspace root. Until then the run-continuity enforcement treats the UX-test run as in-flight. Keep `--set phase="Phase U<N>" slug=ux-test-<persona-slug>` current at phase boundaries. Per `common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`. Note: bugs routed to `bug-fix-pipeline` at U8 are their OWN runs with their own markers — the UX run marks complete when ITS phases are done, per the SR hand-off contract.
+
 ## Operating rules (non-negotiable)
 
 The UX-test-builder inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — the no-arbitrary-timers rule, the unbounded-solving discipline (no iteration ceiling; loop until success), the shared-state concurrency model, the required-input-marker discipline, the safety rules for auto-commit. **Plus**:

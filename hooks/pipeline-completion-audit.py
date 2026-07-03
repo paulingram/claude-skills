@@ -23,13 +23,43 @@ since their triggers split into `PostToolUse(TaskUpdate)` vs `TaskCompleted` and
 It is also runnable standalone as a pre-commit gate:
     python3 pipeline-completion-audit.py --check
 Phase 8 runs this BEFORE auto-commit; only a clean (exit 0) result may commit.
+(--check audits the WORKLIST only — the run-lifecycle guard below deliberately
+does not apply, since Phase 8 runs the check while the run is still active.)
+
+v3.30.0 — the CONTINUATION GUARD. Two upgrades close the "we've done a lot,
+want me to continue?" arbitrary-stop gap:
+
+1. RUN LIFECYCLE: while `.architect-team/active-run.json` says a run is
+   ACTIVE (see hooks/run_continuity.py), a Stop is blocked even when the
+   worklist audit is momentarily clean — a run between phases is not done.
+   Done means the orchestrator ran `run_continuity.py --mark-complete` as the
+   final phase action (after auto-merge/push). The sanctioned pauses are
+   UNCHANGED and checked first: `escalation-pending.md` (human decision) and a
+   fresh `in-progress.md` (background work).
+
+2. BOUNDED PERSISTENCE for ENGAGED sessions: for a session whose transcript
+   shows it operates under a pipeline skill, `stop_hook_active` no longer
+   means give-up-after-one-block. The guard keeps blocking while the run makes
+   PROGRESS (the run_continuity fingerprint changes between stops — unbounded,
+   per the Unbounded solving discipline), and auto-escalates (writes
+   `escalation-pending.md` + allows) after `CT6_MAX_NO_PROGRESS_STOPS`
+   (default 3) consecutive NO-progress continuation attempts — so a wedged
+   session never infinite-loops. A fresh genuine user prompt resets the budget.
+
+   NON-engaged sessions keep the legacy semantics exactly (block once, then
+   `stop_hook_active` => allow), with the block message additionally naming
+   the resume-via-Skill directive when a run is active — the one nudge that
+   funnels a resumed session back into the pipeline without nagging unrelated
+   sessions.
 
 SAFETY (this hook can block a session, so it is deliberately conservative):
-- Acts ONLY when `.architect-team/` holds a real run (state files present).
+- Acts ONLY when `.architect-team/` holds a real run (state files present) OR
+  an explicit active-run marker exists.
 - A `.architect-team/escalation-pending.md` marker => the orchestrator is
   legitimately paused for the human => exit 0 (allow).
-- `stop_hook_active: true` in the payload => already fired this stop => exit 0
-  (never loop).
+- `stop_hook_active: true` + a NON-engaged session => exit 0 (legacy: never
+  loop); engaged sessions get the bounded no-progress budget above instead.
+- `CT6_RUN_CONTINUITY_DISABLED=1` => full legacy behaviour.
 - ANY unexpected error => exit 0 (fail open — never wedge a session on a bug).
 
 Exit codes: 0 = allow / not-an-architect-team-run / clean. 2 = block.
@@ -65,6 +95,17 @@ try:  # pragma: no cover - exercised by both import paths
     from hooks.shared_util import load_json as _shared_load_json
 except ImportError:  # pragma: no cover - bare-module fallback
     from shared_util import load_json as _shared_load_json
+
+# v3.30.0 — run-continuity substrate (active-run marker + progress fingerprint
+# + engagement detection). MODULE-object import; unavailable => the guard is
+# inert and this hook behaves exactly as pre-v3.30.0 (fail open).
+try:  # pragma: no cover - exercised by both import paths
+    from hooks import run_continuity as _rc
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        import run_continuity as _rc  # type: ignore[no-redef]
+    except ImportError:  # pragma: no cover - substrate unavailable
+        _rc = None  # type: ignore[assignment]
 
 
 def _read_stdin_utf8() -> str:
@@ -500,7 +541,43 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     return True, violations
 
 
-def _emit_block(violations: list[str]) -> int:
+def _lifecycle_line(marker: dict | None) -> str:
+    """The synthetic worklist line for an active-but-clean run (v3.30.0)."""
+    if not marker:
+        return ""
+    slug = marker.get("slug") or marker.get("run_id") or "(unnamed)"
+    phase = marker.get("phase") or "(unknown)"
+    skill = marker.get("skill") or "architect-team-pipeline"
+    return (
+        f"the active-run marker says run '{slug}' (skill {skill}, phase {phase}) "
+        f"is still ACTIVE - the worklist may be momentarily clean, but the run "
+        f"has not been driven to completion and marked complete "
+        f"(run_continuity.py --mark-complete is the final phase action)"
+    )
+
+
+def _resume_note(marker: dict | None) -> str:
+    """Appendix for NON-engaged sessions when a run is active — the one nudge
+    that funnels a resumed session back into the pipeline."""
+    if not marker:
+        return ""
+    skill = marker.get("skill") or "architect-team-pipeline"
+    hooks_dir = Path(__file__).resolve().parent
+    return (
+        "\n\nRUN-CONTINUITY NOTE: an architect-team run is ACTIVE in this "
+        "workspace and this session has not engaged the pipeline. To resume "
+        f"the run (the default), call Skill(skill=\"{skill}\") and continue "
+        "it - do NOT solve by hand. If the USER explicitly directed working "
+        "outside the pipeline, record it first:\n"
+        f"    python \"{hooks_dir / 'run_continuity.py'}\" --stand-down \"<the user's words>\"\n"
+        "If this session is unrelated to the run, simply stop again - this "
+        "notice fires once per turn."
+    )
+
+
+def _emit_block(violations: list[str], marker: dict | None = None) -> int:
+    if not violations and marker:
+        violations = [_lifecycle_line(marker)]
     lines = "\n  - ".join(violations)
     print(
         "pipeline-completion-audit: BLOCKED — the architect-team run is incomplete. "
@@ -525,10 +602,89 @@ def _emit_block(violations: list[str]) -> int:
         "markers are treated as missing — an abandoned run cannot silently bypass "
         "the audit forever.\n"
         "  4. If this run is abandoned, remove the .architect-team/ directory (it is "
-        "gitignored runtime state).",
+        "gitignored runtime state)."
+        + (_resume_note(marker) if marker else ""),
         file=sys.stderr,
     )
     return 2
+
+
+def _emit_continuation_block(
+    violations: list[str],
+    marker: dict | None,
+    count: int,
+    budget: int,
+    needs_skill_reload: bool,
+) -> int:
+    """The ENGAGED-session block (v3.30.0): keep the run working — bounded only
+    by the no-progress budget, never by an iteration count."""
+    items = list(violations)
+    if marker and marker.get("status") == "active":
+        items.append(_lifecycle_line(marker))
+    if not items:
+        items.append("the run is not complete")
+    lines = "\n  - ".join(items)
+    skill = (marker or {}).get("skill") or "architect-team-pipeline"
+    hooks_dir = Path(__file__).resolve().parent
+    reload_note = (
+        "FIRST ACTION: your context has been compacted since the pipeline "
+        f"playbook was loaded - re-invoke Skill(skill=\"{skill}\") NOW to "
+        "reload the pipeline instructions, then continue the run.\n\n"
+    ) if needs_skill_reload else ""
+    budget_note = (
+        f"(no-progress continuation attempt {count} of {budget} - real "
+        "progress resets this budget; at the cap the guard auto-escalates to "
+        "the user instead of looping.)"
+    ) if count > 0 else (
+        "(progress detected since the last stop - the continuation budget is "
+        "fresh; the guard auto-escalates to the user only if the run stops "
+        f"making progress for {budget} consecutive attempts.)"
+    )
+    print(
+        "pipeline-completion-audit: CONTINUE - the architect-team run is not "
+        "finished, and this session is its orchestrator. Do not end the turn; "
+        "do not ask the user whether to continue (the mandate is the entire "
+        "stack, end to end - asking 'want me to continue?' is the forbidden "
+        "end-of-run deferral). Keep executing the pipeline until every item "
+        "below is closed and the run is marked complete:\n  - "
+        + lines
+        + "\n\n"
+        + reload_note
+        + "Sanctioned pauses (ONLY these):\n"
+        "  - a genuine human decision: write .architect-team/escalation-pending.md "
+        "describing exactly what the user must decide, then stop.\n"
+        "  - waiting on a background process: touch .architect-team/in-progress.md "
+        "and refresh it while waiting.\n"
+        "  - the run is genuinely finished (audit clean, committed, pushed): run\n"
+        f"        python \"{hooks_dir / 'run_continuity.py'}\" --mark-complete\n"
+        "    then stop.\n\n"
+        + budget_note,
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _auto_escalate(at: Path, count: int, violations: list[str]) -> None:
+    """Write escalation-pending.md after the no-progress budget is exhausted —
+    the wedged run surfaces loudly to the human instead of looping forever."""
+    try:
+        at.mkdir(parents=True, exist_ok=True)
+        body = (
+            "# Escalation: run-continuity guard — no progress\n\n"
+            f"The Stop-hook continuation guard blocked this session {count} "
+            "consecutive times with NO observable progress (identical run "
+            "fingerprint). The run appears wedged and needs a human decision.\n\n"
+            "Outstanding items at escalation time:\n"
+        )
+        for v in (violations or ["(worklist clean — the run was mid-flight but not marked complete)"]):
+            body += f"- {v}\n"
+        body += (
+            "\nResolve the blocker (or direct the next step), delete this "
+            "file, and resume the run.\n"
+        )
+        (at / ESCALATION_MARKER).write_text(body, encoding="utf-8")
+    except OSError:
+        pass
 
 
 def main(argv: list[str]) -> int:
@@ -558,16 +714,86 @@ def main(argv: list[str]) -> int:
         except json.JSONDecodeError as e:
             print(f"pipeline-completion-audit: malformed hook payload: {e}", file=sys.stderr)
             return 0  # fail open on a hook-side decode error
-        if payload.get("stop_hook_active") is True:
-            return 0  # already fired once this stop — never loop
         if (at / ESCALATION_MARKER).exists():
             return 0  # legitimately paused for the human
         if _in_progress_is_fresh(at):
             return 0  # v2.16.0 — agent is actively waiting on background work
+
+        # v3.30.0 continuation-guard context (all fail-open: substrate
+        # unavailable / kill-switch set => pure legacy behaviour).
+        continuity_on = _rc is not None and not _rc.continuity_disabled()
+        marker = _rc.read_marker(root) if continuity_on else None
+        if not (isinstance(marker, dict) and marker.get("status") == "active"):
+            marker = None
+        if marker is not None and _rc.marker_is_stale(marker):
+            # An abandoned run's marker must not tax the workspace forever
+            # (review remediation #3). Live engaged runs never go stale — the
+            # guard touches the marker on every block below.
+            marker = None
+        transcript_path = (
+            payload.get("transcript_path")
+            or payload.get("transcriptPath")
+            or payload.get("transcript")
+        )
+        records: list = []
+        head: list = []
+        truncated = False
+        if continuity_on and transcript_path:
+            records, head, truncated = _rc.load_transcript_slices(transcript_path)
+        # ENGAGED = this session is the run's orchestrator: it invoked a
+        # pipeline skill (tail or head slice — the original invocation can
+        # scroll past the tail cap on a long run, review remediation #4), OR
+        # it is the very session recorded on the marker at engagement time
+        # (survives any transcript truncation). Ambiguous (None) => False.
+        session_id = str(payload.get("session_id") or "")
+        engaged = continuity_on and (
+            bool(marker and session_id and marker.get("session_id") == session_id)
+            or _rc.session_engaged_pipeline(
+                records, head_records=head, truncated=truncated
+            ) is True
+        )
+
         is_real, violations = audit(root)
-        if not is_real or not violations:
+        incomplete = (is_real and bool(violations)) or marker is not None
+        if not incomplete:
+            if continuity_on:
+                _rc.clear_guard_state(root)
             return 0
-        return _emit_block(violations)
+
+        if not engaged:
+            # Legacy semantics for sessions not operating under the pipeline:
+            # one block per stop-chain, then stand down — plus the resume
+            # nudge naming the Skill when a run is active.
+            if payload.get("stop_hook_active") is True:
+                return 0  # already fired once this stop — never loop
+            return _emit_block(violations, marker)
+
+        # ENGAGED orchestrator session — the v3.30.0 continuation guard.
+        # Progress (a changed run fingerprint) or a fresh user prompt resets
+        # the budget: a progressing run is pushed forever (Unbounded solving);
+        # a wedged one auto-escalates instead of looping.
+        fingerprint = _rc.run_fingerprint(root)
+        anchor = _rc.latest_prompt_anchor(records)
+        count = _rc.note_continuation_block(root, fingerprint, anchor)
+        _rc.touch_marker(root)  # staleness heartbeat; fingerprint-excluded
+        budget = _rc.max_no_progress_stops()
+        if count >= budget:
+            _auto_escalate(at, count, violations)
+            print(
+                "pipeline-completion-audit: allowing stop after "
+                f"{count} consecutive no-progress continuation attempts - the "
+                "run appears wedged. escalation-pending.md has been written; "
+                "a human decision is needed before the run resumes.",
+                file=sys.stderr,
+            )
+            return 0
+        needs_reload = _rc.session_engaged_pipeline(
+            records, since_last_compact=True, head_records=head,
+            truncated=truncated,
+        ) is False
+        return _emit_continuation_block(
+            violations, marker, count, budget, needs_reload
+        )
     except Exception as e:  # fail open — never wedge a session on a bug here
         print(f"pipeline-completion-audit: internal error, allowing stop: {e}", file=sys.stderr)
         return 0

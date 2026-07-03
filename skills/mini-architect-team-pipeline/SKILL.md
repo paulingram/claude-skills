@@ -363,6 +363,10 @@ branches); the net effect — clean-merge → push → delete-branch → remove-
 conflict/branch-protection → halt-never-force — is identical. Per
 `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
 
+### Mark the run complete (v3.30.0)
+
+After the merge sequence lands (or, under `--no-merge` / `--no-push`, after the last step that DID run), and BEFORE the compact prompt, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete` from the workspace root — the LAST state action of the mini run. Until then the run-continuity enforcement treats the mini run as in-flight (Stops blocked; resumed sessions directed back into this skill). Keep `--set phase="Phase M<N>" slug=<slug>` current at phase boundaries. On the M6-red hand-off to the full `/architect-team` pipeline, do NOT mark complete — the full pipeline's Skill invocation refreshes the same marker and the run continues under it. Per `common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`.
+
 ### Compact prompt
 
 After successful merge, emit the standard `/compact` prompt (matches `architect-team-pipeline` Phase 8 behavior). Suppressed by `--no-compact`.

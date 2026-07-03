@@ -35,6 +35,18 @@ set and the ``Skill``-tool ledger ONLY. It contains NO reference to any specific
 codebase, repo, app, or project, and works in any repository the plugin is
 installed into.
 
+v3.30.0 adds a SECOND arm — the STICKY RUN arm (run-continuity). The v3.15.0
+arm anchors to the most-recent user prompt, so a resumed session whose latest
+prompt is "continue" (not a pipeline command) stood the gate down and the model
+could hand-solve mid-run. Now, while ``.architect-team/active-run.json`` says a
+pipeline run is ACTIVE (the marker this hook itself engages the moment a
+run-driving Skill is invoked — see ``hooks/run_continuity.py``), a user-facing
+session that has NOT invoked a pipeline skill since its last compact boundary
+is blocked from build/dispatch tools until it re-invokes the Skill. Once the
+architect team is engaged for a run, the run is driven through the pipeline
+until it completes or the USER explicitly stands it down — never abandoned to
+hand-solving because a resume prompt didn't repeat the command.
+
 SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - The ``Skill`` tool itself is ALWAYS allowed (else the model could never
   satisfy the mandate).
@@ -45,13 +57,23 @@ SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - Scoped to pipeline-DRIVING commands only (expected skill is a pipeline skill);
   read-only commands (``/status`` ...) and built-in REPL commands (``/effort``,
   ``/model``) never gate.
-- Anchored to the SINGLE most-recent genuine user prompt — so a follow-up user
-  message that is not a pipeline command stands the gate down (a natural escape
-  if the user did not actually want the pipeline).
+- Arm 1 stays anchored to the SINGLE most-recent genuine user prompt; the
+  sticky arm activates ONLY on an explicit ``active-run.json`` marker with
+  ``status: "active"`` and an explicit ``cwd`` in the payload.
+- The sticky arm stands down for: teammate sessions (the ``CT6-TEAMMATE``
+  spawn-brief token, or the brief-shaped-first-prompt fallback — blocking the
+  pipeline's own workers would brick the run), sidechain/subagent transcripts
+  (no genuine user prompt), sessions already operating under a pipeline skill
+  (engaged since the last compact boundary), a ``complete`` / ``stood-down``
+  marker, and the ``CT6_RUN_CONTINUITY_DISABLED=1`` kill-switch.
+- The USER's explicit direction to work outside the pipeline is honoured via
+  ``python hooks/run_continuity.py --stand-down "<their words>"`` — an
+  auditable artifact, not a silent bypass.
 - No transcript path / unreadable transcript / no pending request => allow.
 - ANY unexpected error => allow (fail open — never wedge a session on a bug).
 
-Exit codes: 0 = allow. 2 = block (a pending skill-invocation mandate).
+Exit codes: 0 = allow. 2 = block (a pending skill-invocation mandate, or an
+active run awaiting resume-via-Skill).
 Registered in ``hooks/hooks.json`` as ``PreToolUse[*]``. Payload read from stdin.
 Stdlib-only.
 """
@@ -76,6 +98,19 @@ except ImportError:  # pragma: no cover - exercised by the bare-module runner
     except ImportError:  # pragma: no cover - detection module unavailable
         find_skill_requests = None  # type: ignore[assignment]
         COMMAND_TO_SKILLS = {}  # type: ignore[assignment]
+
+# Run-continuity substrate (v3.30.0) — MODULE-object import on purpose: this
+# module and run_continuity reference each other (run_continuity reuses the
+# transcript record helpers defined below), and module-object + lazy attribute
+# access is the circular-import-safe shape. Unavailable => the sticky arm is
+# inert (fail open); arm 1 is unaffected.
+try:  # package shape
+    from hooks import run_continuity as _rc
+except ImportError:  # pragma: no cover - bare-module shape
+    try:
+        import run_continuity as _rc  # type: ignore[no-redef]
+    except ImportError:  # pragma: no cover - substrate unavailable
+        _rc = None  # type: ignore[assignment]
 
 
 # Pipeline-DRIVING skills. A request is GATED only when its expected skills
@@ -427,10 +462,148 @@ def _format_block(unsatisfied: list[dict[str, Any]], tool: str) -> str:
     )
 
 
+def _format_sticky_block(marker: dict[str, Any], tool: str) -> str:
+    skill = str(marker.get("skill") or "architect-team-pipeline")
+    slug = marker.get("slug") or marker.get("run_id") or "(unnamed)"
+    phase = marker.get("phase") or "(unknown)"
+    started = marker.get("started_at") or "(unknown)"
+    hooks_dir = Path(__file__).resolve().parent
+    return (
+        "CT6 run-continuity gate BLOCKED - an architect-team run is ACTIVE.\n"
+        "\n"
+        f"  - active run: slug={slug} phase={phase} started={started}\n"
+        f"  - run-driving skill: {skill}\n"
+        "  - this session has NOT engaged a pipeline Skill since its last\n"
+        "    compact boundary, so the pipeline playbook is not in context\n"
+        f"  - tool about to fire: {tool}   <- blocked\n"
+        "\n"
+        "Once the architect team is engaged for a run, ALL further work on it\n"
+        "goes through the pipeline until the run completes - resuming by hand\n"
+        "is forbidden (this includes after /compact and after a session\n"
+        "restart; the skill text must be re-loaded to drive the run).\n"
+        "\n"
+        "RESOLUTIONS (pick exactly one):\n"
+        f"  1. Resume the run (the default): call Skill(skill=\"{skill}\") NOW,\n"
+        "     then continue the run from its recorded state.\n"
+        "  2. The run is actually finished (audit clean, committed, pushed):\n"
+        f"     python \"{hooks_dir / 'run_continuity.py'}\" --mark-complete\n"
+        "  3. ONLY IF the USER explicitly directed working outside the\n"
+        "     pipeline in their own words: record the auditable stand-down\n"
+        f"     python \"{hooks_dir / 'run_continuity.py'}\" --stand-down \"<the user's words>\"\n"
+        "     Never stand down on your own judgment.\n"
+        "\n"
+        "If this session is a CT6 pipeline TEAMMATE whose spawn brief lacks\n"
+        "the CT6-TEAMMATE token, tell the Lead (SendMessage) to re-issue the\n"
+        "brief with the token per team-spawning-and-review-gates."
+    )
+
+
+def _sticky_run_check(
+    payload: dict[str, Any],
+    records: list[dict[str, Any]],
+    transcript_path: str,
+    tool: str,
+) -> tuple[int, str]:
+    """Arm 2 (v3.30.0) — the sticky active-run check. Fail-open throughout.
+
+    Stands down for (review remediations #1/#3): a non-`active` or STALE
+    marker (an abandoned run must not tax the workspace forever), a workspace
+    paused at `escalation-pending.md` (the sanctioned human-decision gate —
+    the human may direct hand-edits to resolve the very blocker), teammate /
+    sidechain sessions, engaged sessions, and any AMBIGUOUS engagement answer
+    on a tail-truncated transcript (the evidence may be evicted — never block
+    on what cannot be proven)."""
+    if _rc is None:
+        return 0, ""
+    try:
+        if _rc.continuity_disabled():
+            return 0, ""
+        cwd = payload.get("cwd")
+        if not isinstance(cwd, str) or not cwd.strip():
+            # No explicit workspace in the payload => no marker to consult.
+            # (Deliberate: never fall back to the hook process's own cwd —
+            # that would let ambient state gate unrelated payloads.)
+            return 0, ""
+        marker = _rc.read_marker(cwd)
+        if not isinstance(marker, dict) or marker.get("status") != "active":
+            return 0, ""
+        if _rc.marker_is_stale(marker):
+            return 0, ""  # abandoned run — the marker no longer gates anyone
+        if (Path(cwd) / _rc.STATE_DIRNAME / "escalation-pending.md").exists():
+            return 0, ""  # legitimately paused for a human decision
+        truncated = False
+        head: list[dict[str, Any]] = []
+        try:
+            truncated = Path(transcript_path).stat().st_size > _TAIL_BYTES
+        except OSError:
+            truncated = False
+        if truncated:
+            head = _rc.read_transcript_head(transcript_path)
+        if not _rc.session_has_genuine_prompt(list(records) + head):
+            return 0, ""  # sidechain / subagent transcript — not a user session
+        if _rc.is_teammate_transcript(records, head_records=head, truncated=truncated):
+            return 0, ""  # the pipeline's own workers are never gated here
+        engaged = _rc.session_engaged_pipeline(
+            records, since_last_compact=True, head_records=head, truncated=truncated
+        )
+        if engaged is not False:
+            return 0, ""  # engaged, or ambiguous on a truncated transcript
+        return 2, _format_sticky_block(marker, tool or "<tool>")
+    except Exception:
+        return 0, ""
+
+
+def record_engagement(payload: dict[str, Any]) -> None:
+    """Engage/refresh the active-run marker when a run-driving Skill has RUN.
+
+    Called from ``main()`` ONLY for a ``PostToolUse`` payload (NOT from the
+    pure ``check_payload``, and NOT at PreToolUse time) — PostToolUse fires
+    only after the tool executed, so a Skill call the user DENIED or that
+    errored never writes a phantom `active` marker for a run that never
+    started (review remediation #2). Deterministic: the marker exists because
+    the Skill tool actually ran, not because the model remembered to write
+    state. Requires an explicit payload ``cwd`` plus transcript evidence of a
+    genuine user-facing, non-teammate session; anything less is a silent no-op
+    (fail open = less enforcement, never more)."""
+    if _rc is None:
+        return
+    try:
+        if _rc.continuity_disabled():
+            return
+        tool = (payload.get("tool_name") or payload.get("tool") or "").strip()
+        if tool != "Skill":
+            return
+        cwd = payload.get("cwd")
+        if not isinstance(cwd, str) or not cwd.strip():
+            return
+        inp = payload.get("tool_input") or payload.get("input")
+        if not isinstance(inp, dict):
+            return
+        skill = str(inp.get("skill") or inp.get("skill_name") or "").strip().lower()
+        base = skill.split(":")[-1]
+        if base not in _rc.RUN_DRIVING_SKILLS:
+            return
+        transcript_path = (
+            payload.get("transcript_path")
+            or payload.get("transcriptPath")
+            or payload.get("transcript")
+        )
+        records = _rc.read_transcript(transcript_path)
+        if not records or not _rc.session_has_genuine_prompt(records):
+            return
+        if _rc.is_teammate_transcript(records):
+            return
+        _rc.engage_marker(cwd, base, payload.get("session_id"))
+    except Exception:
+        pass
+
+
 def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     """Inspect a PreToolUse payload -> ``(exit_code, stderr_message)``.
 
-    Pure function — safe to call from tests with any payload shape."""
+    Pure function — safe to call from tests with any payload shape. Two arms:
+    arm 1 is the v3.15.0 most-recent-prompt mandate; arm 2 is the v3.30.0
+    sticky active-run check (consulted only when arm 1 does not block)."""
     tool = (payload.get("tool_name") or payload.get("tool") or "").strip()
     if tool == "Skill":
         return 0, ""  # the Skill tool itself is always allowed
@@ -457,20 +630,19 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     for rec in records:
         if _is_user_prompt(rec):
             last_prompt = rec
-    if last_prompt is None:
-        return 0, ""
 
-    requests = _pipeline_requests(_text(last_prompt))
-    if not requests:
-        return 0, ""
+    if last_prompt is not None:
+        requests = _pipeline_requests(_text(last_prompt))
+        if requests:
+            request_ts = _timestamp(last_prompt)
+            invocations = _skill_invocations(records)
+            unsatisfied = [
+                r for r in requests if not _is_satisfied(r, request_ts, invocations)
+            ]
+            if unsatisfied:
+                return 2, _format_block(unsatisfied, tool or "<tool>")
 
-    request_ts = _timestamp(last_prompt)
-    invocations = _skill_invocations(records)
-    unsatisfied = [r for r in requests if not _is_satisfied(r, request_ts, invocations)]
-    if not unsatisfied:
-        return 0, ""
-
-    return 2, _format_block(unsatisfied, tool or "<tool>")
+    return _sticky_run_check(payload, records, str(transcript_path), tool)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -492,6 +664,15 @@ def main(argv: list[str] | None = None) -> int:
                 payload = parsed
         except json.JSONDecodeError:
             pass
+
+    # v3.30.0 — this script serves TWO wired events (like review-gate-task.py's
+    # trigger split): PostToolUse(Skill) records engagement (the Skill actually
+    # RAN — a denied/errored call never engages, review remediation #2) and
+    # returns; PreToolUse[*] runs the gate check and never records.
+    event = str(payload.get("hook_event_name") or "").strip()
+    if event == "PostToolUse":
+        record_engagement(payload)
+        return 0
 
     try:
         exit_code, message = check_payload(payload)

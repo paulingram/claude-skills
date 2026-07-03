@@ -45,6 +45,34 @@ def test_hooks_json_wires_stop(plugin_root: Path) -> None:
     )
 
 
+def test_hooks_json_wires_post_tool_use_skill_engagement(plugin_root: Path) -> None:
+    """v3.30.0 (review remediation #2): engagement recording rides
+    PostToolUse(Skill) — the marker is written only after a run-driving Skill
+    actually RAN, never at PreToolUse where a denied call would leave a
+    phantom active marker."""
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries = data["hooks"].get("PostToolUse", [])
+    matched = [e for e in entries if e.get("matcher") == "Skill"]
+    assert matched, "no PostToolUse hook with matcher 'Skill'"
+    cmds = [h["command"] for entry in matched for h in entry["hooks"]]
+    assert any("pretool_skill_gate.py" in c for c in cmds), (
+        f"no PostToolUse(Skill) command references pretool_skill_gate.py; got: {cmds}"
+    )
+
+
+def test_hooks_json_wires_session_start(plugin_root: Path) -> None:
+    """v3.30.0: SessionStart must wire the run-continuity resume directive."""
+    path = plugin_root / "hooks" / "hooks.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries = data["hooks"].get("SessionStart", [])
+    assert entries, "no SessionStart hooks defined"
+    cmds = [h["command"] for entry in entries for h in entry["hooks"]]
+    assert any("sessionstart-run-continuity.py" in c for c in cmds), (
+        f"no SessionStart command references sessionstart-run-continuity.py; got: {cmds}"
+    )
+
+
 def _all_hook_commands(plugin_root: Path) -> list[str]:
     path = plugin_root / "hooks" / "hooks.json"
     data = json.loads(path.read_text(encoding="utf-8"))
