@@ -2,14 +2,20 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "architect-team-marketplace",
   "description": "Marketplace for the architect-team multi-agent pipeline plugin",
-  "owner": { "name": "Paul Ingram", "email": "paul.ingram0322@gmail.com" },
+  "owner": {
+    "name": "Paul Ingram",
+    "email": "paul.ingram0322@gmail.com"
+  },
   "plugins": [
     {
       "name": "architect-team",
       "description": "Spec-to-production multi-agent coding pipeline.",
-      "version": "3.30.0",
+      "version": "3.31.0",
       "source": "./",
-      "author": { "name": "Paul Ingram", "email": "paul.ingram0322@gmail.com" }
+      "author": {
+        "name": "Paul Ingram",
+        "email": "paul.ingram0322@gmail.com"
+      }
     }
   ]
 }

@@ -179,7 +179,7 @@ Set `integration_testing_review` in your review-gate evidence honestly:
 
 Never set `integration_testing_review: "pass"` for a `both`-layer feature whose Playwright run used mocks. That is the dishonesty this field exists to prevent.
 
-## Setting the ui_interaction_review evidence field (evidence schema v6)
+## Setting the ui_interaction_review evidence field (evidence schema v7)
 
 Set `ui_interaction_review` in your review-gate evidence honestly. It is the gate — orthogonal to `integration_testing_review` — that every interactive element your slice ships is genuinely user-flow-tested with a real `page.click` / `page.fill` path and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value (per `dynamic-value-discovery`) — or a user-confirmed stub.
 

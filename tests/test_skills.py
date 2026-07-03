@@ -109,3 +109,19 @@ def test_skill_description_within_1024_char_cap(plugin_root: Path, skill_name: s
         f"{SKILL_DESCRIPTION_MAX_CHARS}-char Agent Skills cap — rewrite trigger-first "
         f"and move operative detail into the body (C6)"
     )
+
+
+@pytest.mark.parametrize("skill_name", sorted(EXPECTED_SKILLS))
+def test_skill_body_opens_with_h1(plugin_root: Path, skill_name: str) -> None:
+    """Section-structure convention (instruction-compliance rubric dimension a):
+    every SKILL.md body opens with an H1 title. Reuses EXPECTED_SKILLS + the
+    frontmatter helper; complements the aggregate compliance lint without
+    re-declaring the frontmatter-presence assertions above."""
+    path = plugin_root / "skills" / skill_name / "SKILL.md"
+    if not path.exists():
+        pytest.skip(f"{skill_name} not present yet")
+    _, body = frontmatter.parse(path)
+    first = next((ln for ln in body.splitlines() if ln.strip()), "")
+    assert first.startswith("# "), (
+        f"{skill_name}: SKILL.md body must open with an H1 heading, got {first!r}"
+    )

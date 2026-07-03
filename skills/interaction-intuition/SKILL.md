@@ -24,7 +24,7 @@ If `ROUTE_MAP.md` is absent (not a frontend codebase), the intuiter does NOT spa
 
 ## Outputs
 
-One per frontend codebase: `<codebase>/docs/INTERACTION_INTUITION_MAP.md`. Sibling to `ROUTE_MAP.md` and `DESIGN_MAP.md`. Auto-mined to MemPalace `--room interaction-intuitions` after the agent finishes, and again after the Phase −1D bulk-verify gate flips `confirmed: true`.
+One per frontend codebase: `<codebase>/docs/INTERACTION_INTUITION_MAP.md`. Sibling to `ROUTE_MAP.md` and `DESIGN_MAP.md`. Auto-mined to MemPalace (room `interaction-intuitions`, auto-detected by `mempalace init` from the artifact path — `mempalace mine` takes `--wing` only, never `--room`) after the agent finishes, and again after the Phase −1D bulk-verify gate flips `confirmed: true`.
 
 ## Confidence rubric
 
@@ -136,4 +136,4 @@ The Phase −1D gate fires whenever the union of low-confidence intuitions is no
 - `frontend-route-mapping` + `design-fidelity-mapping` (Phase −1B) — produce the inputs (`ROUTE_MAP.md`, `DESIGN_MAP.md`). The intuiter consumes them.
 - `intake-and-mapping` (Phase −1) — orchestrates the per-codebase pipeline including the intuiter dispatch.
 - `dynamic-value-discovery` (cross-role) — the intuiter applies this discipline when reasoning about labels that might be dynamic data ("Account balance: $1,240.00" — the literal IS a dynamic-value-binding signal).
-- `mempalace-integration` — the intuiter's output is mined to MemPalace `--room interaction-intuitions` for prior-context recall in future runs against the same project.
+- `mempalace-integration` — the intuiter's output is mined to MemPalace (room `interaction-intuitions`, auto-detected by `mempalace init` from the artifact path — `mine` takes `--wing` only, never `--room`) for prior-context recall in future runs against the same project.

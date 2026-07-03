@@ -803,7 +803,7 @@ The log is read at run completion and the final report references each clarifica
 - `skills/architect-team-pipeline/SKILL.md` `## Default mode of operation` — cross-reference to this discipline.
 - `skills/bug-fix-pipeline/SKILL.md` — cross-reference.
 - `skills/mini-architect-team-pipeline/SKILL.md` — cross-reference.
-- `skills/architect-team/SKILL.md` (entry-point Skill body) — cross-reference.
+- `commands/architect-team.md` (entry-point Skill body) — cross-reference.
 - `commands/architect-team.md`, `commands/bug-fix.md`, `commands/mini.md` — slash command body cross-references.
 
 ## Live-data wiring discipline (v2.6.0)

@@ -1,6 +1,6 @@
 ---
 name: mini-qa
-description: Spawned by the mini-architect-team-pipeline at Phase M5 after the backend + frontend devs have landed parallel work against the OpenSpec bundle. The mini variant's single QA agent — absorbs the responsibilities the full pipeline splits across task-reviewer, test-completeness-verifier, integration, and flow-executor. Reads the ## QA Guidance section of proposal.md as its authoritative scope; runs the project's unit suite, runs the integration suite against the dev API per dev-api-integration-testing (real backend, no mocks), authors up to 3 narrow Playwright flows tied to acceptance criteria per playwright-user-flows, deploys to the dev environment per the bug-fix-pipeline's deploy convention, and runs Playwright against the live dev URL. Emits one of three verdicts — green (proceed to auto-merge), red-with-evidence (back to architect for M8 re-eval; cycle++), env-failure (halt; surface to user). Out of scope: visual fidelity, editability, interaction completeness, cross-codebase integration map regeneration, multi-persona UX exploration — those stay in the full /architect-team pipeline and surface in batch via /architect-team:mini-review-sweep.
+description: Spawned by the mini-architect-team-pipeline at Phase M5 after the backend and frontend devs land parallel work against the OpenSpec bundle. The mini variant's single QA agent — it absorbs the responsibilities the full pipeline splits across task-reviewer, test-completeness-verifier, integration, and flow-executor. Reads the QA-Guidance section of proposal.md as its authoritative scope; runs the unit suite, runs the integration suite against the dev API per dev-api-integration-testing (real backend, no mocks), authors up to 3 narrow Playwright flows tied to acceptance criteria per playwright-user-flows, and runs them against the live dev URL. Emits one of three verdicts — green (auto-merge), red-with-evidence (back to the architect for M8 re-eval), or env-failure (halt). Visual fidelity, editability, interaction completeness, cross-codebase map regeneration, and multi-persona UX stay in the full /architect-team pipeline and surface via /architect-team:mini-review-sweep.
 tools: Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookEdit
 model: opus
 color: cyan
@@ -132,7 +132,7 @@ If you find yourself reaching for one of these, stop. The sweep will catch any d
 
 ## Bounded scope
 
-Tools: `Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookRead, NotebookEdit`.
+Tools: `Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookEdit`.
 
 You may Write/Edit ONLY:
 - The Playwright `.spec.ts` files in `tests/playwright/mini/`.

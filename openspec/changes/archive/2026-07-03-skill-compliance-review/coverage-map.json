@@ -1,0 +1,98 @@
+{
+  "schema": "coverage-map/v1",
+  "change": "skill-compliance-review",
+  "generated_at": "2026-07-03T20:00:00Z",
+  "source": ".architect-team/refined-prompts/review-codebase-skill-compliance-20260703T192842Z.md (grade-A refined prompt; 4 acceptance criteria + done-bar). Goal: optimize the plugin's AI-facing instruction surfaces for maximum, literal agent compliance, backed by clearer text and enforcement wiring.",
+  "entries": [
+    {
+      "source_requirement_id": "AC1-written-compliance-rubric",
+      "source_text": "A written compliance rubric exists, grading every in-scope file on three equally-weighted dimensions: (a) structural/format uniformity, (b) terminology + contradiction hygiene, (c) literal-imperative wording — and every in-scope file passes it.",
+      "spec_requirement_id": "REQ-001",
+      "scenarios": [
+        "the rubric exists and defines three equally-weighted dimensions",
+        "every in-scope file is graded against the rubric"
+      ],
+      "acceptance_criteria": [
+        "docs/INSTRUCTION_COMPLIANCE_RUBRIC.md exists and defines dimensions (a) structural/format uniformity, (b) terminology + contradiction hygiene, (c) literal-imperative wording, weighted equally",
+        "the rubric states, per dimension, the pass criterion and whether it is judged deterministically or by LLM-judgment",
+        "a file grade is a pass only when all three dimensions pass",
+        "a recorded three-dimension grade exists for each of the 47 SKILL.md + 39 agents + 23 commands + CLAUDE.md + docs/CODEBASE_MAP.md + docs/INTEGRATION_MAP.md"
+      ],
+      "layer": "infra"
+    },
+    {
+      "source_requirement_id": "AC2-deterministic-consistency-lint",
+      "source_text": "A deterministic consistency lint — frontmatter shape, section structure, cross-reference validity — passes across the whole in-scope set.",
+      "spec_requirement_id": "REQ-002",
+      "scenarios": [
+        "the lint reports zero findings across the in-scope set",
+        "the lint flags a broken cross-reference",
+        "the lint flags a frontmatter that breaks yaml.safe_load"
+      ],
+      "acceptance_criteria": [
+        "scripts/compliance/instruction_compliance.py exists, stdlib-only, no import-time side effects, mirroring scripts/claude_md/claude_md_efficiency.py",
+        "checks frontmatter shape (parses under yaml.safe_load; the house ': '-in-unquoted-value rule), required-field presence per file class, section-structure expectations, and cross-reference validity against the real repo inventory",
+        "returns zero findings across 47 SKILL.md + 39 agents + 23 commands + CLAUDE.md + the 2 maps",
+        "a broken skill/agent/command/path reference produces a finding naming the citing file + the unresolved reference + its kind",
+        "an unquoted ': ' / unparseable frontmatter produces a frontmatter-shape finding naming the file + field"
+      ],
+      "layer": "infra"
+    },
+    {
+      "source_requirement_id": "AC3-structural-test-pins-extend-not-duplicate",
+      "source_text": "Structural test pins EXTEND the existing tests/test_skills.py / tests/test_agents.py / tests/test_commands.py (or a new compliance-lint test file) so future drift fails the suite — no duplicated coverage.",
+      "spec_requirement_id": "REQ-003",
+      "scenarios": [
+        "the compliance test file gates on lint findings",
+        "no duplicated coverage"
+      ],
+      "acceptance_criteria": [
+        "tests/test_instruction_compliance.py runs the engine across the full in-scope set and fails on any finding",
+        "a real yaml.safe_load parse pin over every in-scope file via tests/helpers/frontmatter.py",
+        "extends tests/test_skills.py / test_agents.py / test_commands.py by reusing the existing frontmatter helper + expected-inventory constants, not re-declaring their per-file frontmatter-presence assertions",
+        "full suite green under both Windows cp1252 and PYTHONUTF8=1"
+      ],
+      "layer": "infra"
+    },
+    {
+      "source_requirement_id": "AC4-enforcement-traces-to-named-gap-with-tests",
+      "source_text": "Every enforcement (hook/gate) change traces to a named compliance gap and carries its own tests. Enforcement is added only where instruction wording alone cannot guarantee compliance; each change failing open per house convention.",
+      "spec_requirement_id": "REQ-004",
+      "scenarios": [
+        "an enforcement change is traceable, tested, fail-open, and portable",
+        "no hook change when no text-unenforceable gap exists"
+      ],
+      "acceptance_criteria": [
+        "any hooks/ change traces to a specific named compliance gap surfaced by the review",
+        "each carries a tests/test_hooks_structure.py wiring pin + a behavior test",
+        "each fails open on error/missing input and exposes a CT6_*_DISABLED kill-switch",
+        "each is wired in hooks/hooks.json via ${CLAUDE_PLUGIN_ROOT} + the detect-once shim, no absolute path",
+        "if no text-unenforceable gap is found, zero hooks/ files and zero hooks.json entries change"
+      ],
+      "layer": "infra"
+    },
+    {
+      "source_requirement_id": "DONE-BAR-remediation-loop-and-ship",
+      "source_text": "Done-bar: the first full review pass produces the rubric + findings; the run then remediates until all four criteria are green. Ship per repo conventions: in-place edits, version bump in plugin.json + marketplace.json + CHANGELOG entry, full pytest suite green under both Windows cp1252 and PYTHONUTF8=1.",
+      "spec_requirement_id": "REQ-005",
+      "scenarios": [
+        "the whole in-scope set reaches green",
+        "shipped per repo conventions and within the out-of-scope boundary"
+      ],
+      "acceptance_criteria": [
+        "every in-scope file passes the rubric AND the lint reports zero findings AND tests/test_instruction_compliance.py passes under both encodings",
+        "remediation is in-place instruction-file edits only; no out-of-scope surface (scripts/ or services/ engines beyond a required hook change, phenotypes/<label>/, requirements docs, historical CHANGELOG entries, README visual styling) modified",
+        ".claude-plugin/plugin.json + .claude-plugin/marketplace.json version bumped + CHANGELOG.md entry added",
+        "full pytest suite green under both Windows cp1252 and PYTHONUTF8=1"
+      ],
+      "layer": "infra"
+    }
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — no UI/frontend surface in this change. Authorization: the requirement's scope is infra only (a docs rubric + a stdlib-only lint engine + pytest pins + conditional hooks + instruction-text edits); there is no rendered UI to drive. Per the Phase 1 gate, Playwright criteria are explicitly not applicable.",
+    "dev_api_integration": "N/A — no API surface in this change. Authorization: no endpoint, handler, or request schema is created or modified; the deterministic pytest suite (running the lint engine over the in-scope set + real yaml.safe_load parses + end-to-end engine CLI) is the repo's integration surface. Per the Phase 1 gate, dev-API integration criteria are explicitly not applicable.",
+    "both_layer_front_to_back": "N/A — single-layer (infra) change: instruction Markdown + a stdlib Python lint engine + tests. No frontend-to-backend flow exists to trace."
+  },
+  "confirmed_stubs": [],
+  "implementing_commits": []
+}
