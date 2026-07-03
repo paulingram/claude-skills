@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 29 . 0
+                        ─── C T 6 ───   v 3 . 30 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.29.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.30.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4780%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4850%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,21 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.29.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.30.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.30.0 — run continuity: autonomous continuation + sticky resume-via-Skill
+
+Closes the two run-abandonment gaps observed in real runs: *the pipeline arbitrarily stops mid-run* ("we've done a lot — say continue if you want me to keep going") and *a resumed session solves by hand instead of re-loading the pipeline skill*. Once the architect team is engaged for a run, the run is driven through the pipeline to completion — across turn ends, context compactions, and session restarts — unless the USER explicitly stands it down.
+
+| Capability | What it is |
+|---|---|
+| **The lifecycle marker** | `hooks/run_continuity.py` + `.architect-team/active-run.json` (`active` / `complete` / `stood-down`). ENGAGED deterministically the moment a run-driving Skill completes (PostToolUse — a denied call never engages); completed ONLY by the worklist-guarded `--mark-complete` (the documented last state action of Phase 8 / B8 / M8 / U9); stood down ONLY on the user's explicit words via `--stand-down` (auditable `pipeline-stand-down.md`). |
+| **Stop-hook continuation guard** | An ACTIVE marker blocks a Stop even with a momentarily clean worklist. Engaged sessions keep getting blocked while the run makes PROGRESS (fingerprint over `.architect-team/**` + git state — unbounded, per Unbounded solving); after `CT6_MAX_NO_PROGRESS_STOPS` (default 3) consecutive no-progress blocks it auto-writes `escalation-pending.md` and allows — a wedged run surfaces instead of looping. Non-engaged sessions: one nudge + the resume-via-Skill directive, never wedged. |
+| **PreToolUse sticky run arm** | While a run is active, a user-facing session that has NOT invoked a pipeline skill since its last compact boundary is blocked from build/dispatch tools until it re-invokes the Skill (read-only + Bash never gate). Teammate sessions stand down via the new mandatory `[CT6-TEAMMATE <name> RUN <id>]` spawn-brief first line (+ a fail-open brief-shape fallback), recognized from a HEAD slice of the transcript so a long teammate's brief never scrolls out of recognition; stale markers (default 72h) and `escalation-pending.md` pauses also stand it down. |
+| **SessionStart resume directive** | The first `SessionStart` hook (`sessionstart-run-continuity.py`, 8th wired event): on startup / resume / clear / **compact**, an active marker injects "invoke `Skill(<skill>)` FIRST, then resume the run" — sharpened post-compact, where the playbook text was just dropped from context. |
+| **Escapes + tests** | `CT6_RUN_CONTINUITY_DISABLED=1` kill-switch; everything fails open; `--check` (the Phase 8 pre-commit gate) deliberately skips the lifecycle check. Adversarially reviewed (FIX-FIRST -> 3 MAJOR + 5 MINOR remediated). New `tests/test_run_continuity.py` (28) + `tests/test_pipeline_completion_audit_continuation.py` (17) + `tests/test_sessionstart_run_continuity.py` (8) + 17 sticky-arm gate cases; every legacy Stop-hook / gate pin preserved verbatim. Suite -> **4850 passing + 5 skipped** (195 test files; both encodings). +1 enforcement script (6 → 7); +1 wired event (SessionStart). |
 
 ### v3.29.0 — the Librarian becomes installable (CT6-6 server tier)
 
@@ -532,8 +544,10 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v3.18.0 — doc-currency double-check before compact / end-of-work)        │
 │ ▸ /architect-team:logit [--privacy <full|summary|off>]                      │
 │   (v3.21.0 — manual triage report; consent + privacy)                       │
-├─ HOOKS (6 scripts / 7 events) ──────────────────────────────────────────────┤
+├─ HOOKS (7 scripts / 8 events) ──────────────────────────────────────────────┤
 │ ▸ PreToolUse(*)             skill-invocation hard-gate (v3.15.0/1)          │
+│                             + v3.30.0 sticky run arm (active-run marker =>  │
+│                             build/dispatch tools need the Skill re-engaged) │
 │ ▸ PreToolUse(Edit/Write/    unilateral-override guard                       │
 │     NotebookEdit)                                                           │
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v7 + independent review  │
@@ -542,7 +556,10 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ▸ TeammateIdle              teammate-idle review-gate re-check              │
 │ ▸ Stop                      pipeline-completion audit (terminal gate)       │
 │                             + v3.9.2 openspec validate --all --strict gate  │
+│                             + v3.30.0 continuation guard (no mid-run stops; │
+│                             no-progress bound => auto-escalate)             │
 │ ▸ PreCompact                closeout doc-currency reminder (v3.18.0)        │
+│ ▸ SessionStart              run-continuity resume directive (v3.30.0)       │
 ├─ SETUP ─────────────────────────────────────────────────────────────────────┤
 │ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright │
 │                                      + HARD-gates required plugins +        │
@@ -781,7 +798,7 @@ Every surfaced issue becomes an SR; test-failure origins route through diagnosti
 
 ### ▌ Logic Map C — the completion audit (Stop hook)
 
-The orchestrator runs as the main session — no hook can gate its mid-run behaviour, but the `Stop` hook gates its **terminal** state: it blocks the orchestrator from ending a run, or auto-committing, while the run is still incomplete.
+The orchestrator runs as the main session — no hook can gate its mid-run behaviour, but the `Stop` hook gates its **terminal** state: it blocks the orchestrator from ending a run, or auto-committing, while the run is still incomplete. Since v3.30.0 it is also the **continuation guard**: an active run may not end its turn with *"we've done a lot — want me to continue?"*.
 
 ```
    orchestrator session ends ──▶ ▣ Stop HOOK · pipeline-completion-audit.py
@@ -795,19 +812,25 @@ The orchestrator runs as the main session — no hook can gate its mid-run behav
      · an openspec change that fails `openspec validate --all --strict`
        (v3.9.2, once a master-review verdict exists)
      · a documentation-currency audit verdict that is not overall: pass
+     · an ACTIVE active-run.json lifecycle marker — the run has not executed
+       `run_continuity.py --mark-complete` yet (v3.30.0; clean worklist or not)
         │                                              │
       no│  (clean — or not an architect-team run)      │ yes
         ▼                                              ▼
-   ✓ exit 0 — ALLOW the stop          ◆ is .architect-team/escalation-pending.md present?
+   ✓ exit 0 — ALLOW the stop          ◆ escalation-pending.md present, or a
+                                        fresh in-progress.md (background wait)?
                                           │                              │
                                       yes │  (legitimately                │ no
-                                          ▼   paused for a human)         ▼
+                                          ▼   paused / waiting)           ▼
                                  ✓ exit 0 — ALLOW             ✗ exit 2 — BLOCK
-                                                              resolve the gaps, OR write the
-                                                              escalation marker, then stop again
+                                                              resolve the gaps / keep driving
+                                                              the run, OR write the escalation
+                                                              marker, then stop again
 ```
 
-The same audit runs as `pipeline-completion-audit.py --check` before the Phase 8 auto-commit — so "clean pass" is a checked fact, not the orchestrator's self-assessment.
+For a session that ENGAGED a pipeline skill, the block persists across stop-chains while the run keeps making progress (the `run_continuity` fingerprint changes) — unbounded, per the Unbounded solving discipline — and after `CT6_MAX_NO_PROGRESS_STOPS` (default 3) consecutive **no-progress** blocks the guard auto-writes `escalation-pending.md` and allows the stop, so a wedged run surfaces to the human instead of looping. Non-engaged sessions get one nudge (with the resume-via-Skill directive) and are never wedged.
+
+The same audit runs as `pipeline-completion-audit.py --check` before the Phase 8 auto-commit — so "clean pass" is a checked fact, not the orchestrator's self-assessment (`--check` deliberately skips the lifecycle marker: Phase 8 runs it while the run is still active).
 
 ### ▌ Logic Map D — Phase 8 git behavior (auto-merge-to-main, v3.7.0)
 

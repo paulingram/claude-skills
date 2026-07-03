@@ -536,6 +536,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <n
 
 This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.
 
+**Mark the run complete (v3.30.0 — the LAST state action of B8):** after the commit + push (and auto-merge, when it applies) have landed, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete` from the workspace root. Until this runs, the run-continuity enforcement treats the bug-fix run as in-flight (Stops blocked, resumed sessions directed back into this skill). Keep `--set phase="Phase B<N>" slug=<bug-slug>` current at phase boundaries. Per `common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`.
+
 ## Operating rules (non-negotiable)
 
 The bug-fix pipeline inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — including the no-arbitrary-timers rule, the unbounded-solving discipline (no iteration ceiling; loop until resolved), the shared-state concurrency model, the required-input-marker discipline, the safety rules for the auto-commit step, and the documentation-currency gate. **Plus**:

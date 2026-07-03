@@ -52,6 +52,16 @@
             "async": false
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/pretool_skill_gate.py\"",
+            "async": false
+          }
+        ]
       }
     ],
     "TaskCompleted": [
@@ -109,6 +119,18 @@
           {
             "type": "command",
             "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/precompact-closeout.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/sessionstart-run-continuity.py\"",
             "async": false
           }
         ]

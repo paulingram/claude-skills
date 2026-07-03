@@ -564,3 +564,225 @@ def test_subprocess_failopen_on_cp1252_with_utf8_payload(tmp_path: Path) -> None
     res = _run_hook(payload, encoding="cp1252")
     assert res.returncode == 0
     assert b"Traceback" not in res.stderr
+
+
+# --------------------------------------------------------------------------- #
+# arm 2 (v3.30.0): the sticky active-run check + deterministic engagement
+# --------------------------------------------------------------------------- #
+
+from hooks import run_continuity as rc  # noqa: E402
+from hooks.pretool_skill_gate import record_engagement  # noqa: E402
+
+
+def _compact_boundary() -> dict:
+    return {"type": "system", "subtype": "compact_boundary"}
+
+
+def test_sticky_blocks_resumed_session_build_tool(tmp_path: Path) -> None:
+    """THE resume gap: marker active, latest prompt is just 'continue' (not a
+    pipeline command — arm 1 stands down), no Skill in this session => build
+    tools block until the Skill is re-invoked."""
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    code, msg = check_payload(_payload(t, tool="Edit"))
+    assert code == 2, f"resumed hand-build must block; msg={msg!r}"
+    assert "run-continuity" in msg
+    assert 'Skill(skill="architect-team-pipeline")' in msg
+    assert "--stand-down" in msg
+    # read-only investigation and the wrapper's Bash setup stay open
+    assert check_payload(_payload(t, tool="Read"))[0] == 0
+    assert check_payload(_payload(t, tool="Bash"))[0] == 0
+    # and the Skill tool itself is always allowed (the resolution path)
+    assert check_payload(_payload(t, tool="Skill"))[0] == 0
+
+
+def test_sticky_open_once_session_engages(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [
+        _user("continue", "2026-07-03T10:00:00Z"),
+        _skill_call("architect-team:architect-team-pipeline", "2026-07-03T10:00:05Z"),
+    ])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+    assert check_payload(_payload(t, tool="Agent"))[0] == 0
+
+
+def test_sticky_requires_reinvocation_after_compact(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "bug-fix-pipeline")
+    base = [
+        _user(_command_text("architect-team:bug-fix"), "2026-07-03T09:00:00Z"),
+        _skill_call("bug-fix-pipeline", "2026-07-03T09:00:05Z"),
+        _compact_boundary(),
+        _user("keep going", "2026-07-03T11:00:00Z"),
+    ]
+    t = _write(tmp_path, base)
+    code, msg = check_payload(_payload(t, tool="Write"))
+    assert code == 2, "post-compact the playbook is gone; a build tool must wait for re-invocation"
+    assert 'Skill(skill="bug-fix-pipeline")' in msg
+    t2 = _write(tmp_path, base + [_skill_call("bug-fix-pipeline", "2026-07-03T11:00:10Z")], name="t2.jsonl")
+    assert check_payload(_payload(t2, tool="Write"))[0] == 0
+
+
+def test_sticky_stands_down_for_teammates(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    token = _write(tmp_path, [
+        _user("[CT6-TEAMMATE backend RUN my-feature]\nYour tasks: T1, T2...", "2026-07-03T10:00:00Z"),
+    ], name="teammate.jsonl")
+    assert check_payload(_payload(token, tool="Edit"))[0] == 0
+    brief = ("You are the frontend teammate. " * 70
+             + "Write evidence to .architect-team/reviews/T3.json before completing.")
+    legacy = _write(tmp_path, [_user(brief, "2026-07-03T10:00:00Z")], name="legacy.jsonl")
+    assert check_payload(_payload(legacy, tool="Edit"))[0] == 0
+
+
+def test_sticky_stands_down_for_sidechain_transcripts(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [_sidechain_user("subagent work item", "2026-07-03T10:00:00Z")])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+
+
+def test_sticky_ignores_complete_and_stood_down_markers(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    rc.mark_complete(tmp_path)
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    rc.stand_down(tmp_path, "user said work by hand")
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+
+
+def test_sticky_requires_explicit_payload_cwd(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    payload = {"tool_name": "Edit", "transcript_path": str(t)}  # no cwd
+    assert check_payload(payload)[0] == 0, "no explicit cwd => never consult ambient state"
+
+
+def test_sticky_kill_switch(tmp_path: Path, monkeypatch) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    monkeypatch.setenv(rc.DISABLE_ENV, "1")
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+
+
+def test_arm1_takes_precedence_over_sticky_message(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [_user(_command_text("architect-team:architect-team"), "2026-07-03T10:00:00Z")])
+    code, msg = check_payload(_payload(t, tool="Edit"))
+    assert code == 2
+    assert "pipeline command that mandates a Skill" in msg, "arm 1 message wins on a pending mandate"
+
+
+def test_record_engagement_writes_marker(tmp_path: Path) -> None:
+    t = _write(tmp_path, [_user("<command-name>/architect-team:architect-team</command-name> build", "2026-07-03T10:00:00Z")])
+    payload = {
+        "tool_name": "Skill",
+        "tool_input": {"skill": "architect-team:architect-team-pipeline"},
+        "transcript_path": str(t),
+        "cwd": str(tmp_path),
+        "session_id": "sess-42",
+    }
+    record_engagement(payload)
+    m = rc.read_marker(tmp_path)
+    assert m is not None and m["status"] == "active"
+    assert m["skill"] == "architect-team-pipeline"
+    assert m["session_id"] == "sess-42"
+
+
+def test_record_engagement_ignores_non_run_driving_skills(tmp_path: Path) -> None:
+    t = _write(tmp_path, [_user("hello", "2026-07-03T10:00:00Z")])
+    for skill in ("proposal-refiner", "data-dictionary", "closeout"):
+        record_engagement({
+            "tool_name": "Skill", "tool_input": {"skill": skill},
+            "transcript_path": str(t), "cwd": str(tmp_path),
+        })
+    assert rc.read_marker(tmp_path) is None
+
+
+def test_record_engagement_requires_cwd_and_user_session(tmp_path: Path) -> None:
+    t = _write(tmp_path, [_user("go", "2026-07-03T10:00:00Z")])
+    record_engagement({  # no cwd
+        "tool_name": "Skill", "tool_input": {"skill": "architect-team-pipeline"},
+        "transcript_path": str(t),
+    })
+    assert rc.read_marker(tmp_path) is None
+    teammate = _write(tmp_path, [
+        _user("[CT6-TEAMMATE qa RUN x]\ntasks...", "2026-07-03T10:00:00Z"),
+    ], name="tm.jsonl")
+    record_engagement({
+        "tool_name": "Skill", "tool_input": {"skill": "architect-team-pipeline"},
+        "transcript_path": str(teammate), "cwd": str(tmp_path),
+    })
+    assert rc.read_marker(tmp_path) is None, "a teammate session never engages the run marker"
+
+
+def test_subprocess_sticky_block_end_to_end(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    res = _run_hook(_payload(t, tool="Edit"))
+    assert res.returncode == 2
+    assert b"run-continuity" in res.stderr
+
+
+# --------------------------------------------------------------------------- #
+# v3.30.0 adversarial-review remediations (sticky arm + engagement recording)
+# --------------------------------------------------------------------------- #
+
+def test_sticky_stands_down_during_escalation_pause(tmp_path: Path) -> None:
+    """Remediation #3a: escalation-pending.md is the sanctioned human-decision
+    pause — the human may direct hand-edits to resolve the very blocker, so
+    the sticky arm must stand down exactly like the Stop guard does."""
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    (tmp_path / ".architect-team" / "escalation-pending.md").write_text(
+        "waiting on the human", encoding="utf-8")
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+
+
+def test_sticky_stands_down_on_stale_marker(tmp_path: Path) -> None:
+    """Remediation #3b: an abandoned run's marker must not tax the workspace
+    forever — staleness stands the sticky arm down."""
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    m = rc.read_marker(tmp_path)
+    m["updated_at"] = "2020-01-01T00:00:00+00:00"
+    rc._atomic_write_json(rc.marker_path(tmp_path), m)
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+
+
+def test_pretooluse_skill_does_not_engage_marker(tmp_path: Path) -> None:
+    """Remediation #2: engagement is recorded at PostToolUse (the Skill RAN),
+    never at PreToolUse (a denied/errored call must not write a phantom
+    active marker)."""
+    t = _write(tmp_path, [_user("go", "2026-07-03T10:00:00Z")])
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Skill",
+        "tool_input": {"skill": "architect-team-pipeline"},
+        "transcript_path": str(t),
+        "cwd": str(tmp_path),
+    }
+    res = _run_hook(payload)
+    assert res.returncode == 0
+    assert rc.read_marker(tmp_path) is None, "PreToolUse must not engage"
+    payload["hook_event_name"] = "PostToolUse"
+    res = _run_hook(payload)
+    assert res.returncode == 0
+    m = rc.read_marker(tmp_path)
+    assert m is not None and m["status"] == "active", "PostToolUse engages"
+
+
+def test_posttooluse_nonskill_never_blocks_or_engages(tmp_path: Path) -> None:
+    rc.engage_marker(tmp_path, "architect-team-pipeline")
+    rc.mark_complete(tmp_path)
+    t = _write(tmp_path, [_user("continue", "2026-07-03T10:00:00Z")])
+    payload = {
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Edit",
+        "transcript_path": str(t),
+        "cwd": str(tmp_path),
+    }
+    res = _run_hook(payload)
+    assert res.returncode == 0
+    assert rc.read_marker(tmp_path)["status"] == "complete", (
+        "a PostToolUse payload for a non-Skill tool never touches the marker"
+    )

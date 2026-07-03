@@ -26,6 +26,16 @@ Two teammates MUST NEVER edit the same file. Period.
 
 ### What to put in the teammate's brief
 
+**First line (MANDATORY, v3.30.0): the run-continuity teammate token.** Every teams-mode spawn brief AND every subagents-mode dispatch prompt begins with the literal line:
+
+```
+[CT6-TEAMMATE <teammate-name> RUN <run-id-or-slug>]
+```
+
+The `CT6-TEAMMATE` token is how the run-continuity enforcement (`common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`) recognizes a teammate session and stands down — teammates never invoke Skills, so without the token the PreToolUse sticky arm could block the run's own workers. A brief that omits the token risks its teammate being told to resume the pipeline instead of executing its slice; the Lead re-issues the brief with the token if a teammate reports that block.
+
+Then the brief fields:
+
 - `task_ids`: the exact task IDs from `tasks.md` it owns.
 - `files_owned`: the explicit list of files it may write. Anything not in this list is read-only for this teammate.
 - `files_consumed`: files it reads but does not write (with the owning teammate's name where relevant).
