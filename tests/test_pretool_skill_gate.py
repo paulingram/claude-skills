@@ -786,3 +786,22 @@ def test_posttooluse_nonskill_never_blocks_or_engages(tmp_path: Path) -> None:
     assert rc.read_marker(tmp_path)["status"] == "complete", (
         "a PostToolUse payload for a non-Skill tool never touches the marker"
     )
+
+
+def test_errored_skill_run_does_not_engage(tmp_path: Path) -> None:
+    """Re-verify residual: a run-driving Skill whose execution ERRORED must not
+    engage the marker (the denied case never reaches PostToolUse at all)."""
+    t = _write(tmp_path, [_user("go", "2026-07-03T10:00:00Z")])
+    payload = {
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Skill",
+        "tool_input": {"skill": "architect-team-pipeline"},
+        "tool_response": {"is_error": True, "error": "skill not found"},
+        "transcript_path": str(t),
+        "cwd": str(tmp_path),
+    }
+    record_engagement(payload)
+    assert rc.read_marker(tmp_path) is None, "an errored Skill run must not engage"
+    payload["tool_response"] = {"content": "skill body loaded"}
+    record_engagement(payload)
+    assert rc.read_marker(tmp_path) is not None, "a successful run engages"
