@@ -583,6 +583,12 @@ def record_engagement(payload: dict[str, Any]) -> None:
         base = skill.split(":")[-1]
         if base not in _rc.RUN_DRIVING_SKILLS:
             return
+        # An ERRORED Skill run must not engage either (the denied case never
+        # reaches PostToolUse at all; this closes the errored-execution
+        # residual). Unknown response shapes engage as normal — fail open.
+        resp = payload.get("tool_response")
+        if isinstance(resp, dict) and (resp.get("is_error") or resp.get("error")):
+            return
         transcript_path = (
             payload.get("transcript_path")
             or payload.get("transcriptPath")

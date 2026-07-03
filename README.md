@@ -38,7 +38,7 @@
 
 ![version](https://img.shields.io/badge/version-3.30.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-4850%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-4851%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -81,7 +81,7 @@ Closes the two run-abandonment gaps observed in real runs: *the pipeline arbitra
 | **Stop-hook continuation guard** | An ACTIVE marker blocks a Stop even with a momentarily clean worklist. Engaged sessions keep getting blocked while the run makes PROGRESS (fingerprint over `.architect-team/**` + git state — unbounded, per Unbounded solving); after `CT6_MAX_NO_PROGRESS_STOPS` (default 3) consecutive no-progress blocks it auto-writes `escalation-pending.md` and allows — a wedged run surfaces instead of looping. Non-engaged sessions: one nudge + the resume-via-Skill directive, never wedged. |
 | **PreToolUse sticky run arm** | While a run is active, a user-facing session that has NOT invoked a pipeline skill since its last compact boundary is blocked from build/dispatch tools until it re-invokes the Skill (read-only + Bash never gate). Teammate sessions stand down via the new mandatory `[CT6-TEAMMATE <name> RUN <id>]` spawn-brief first line (+ a fail-open brief-shape fallback), recognized from a HEAD slice of the transcript so a long teammate's brief never scrolls out of recognition; stale markers (default 72h) and `escalation-pending.md` pauses also stand it down. |
 | **SessionStart resume directive** | The first `SessionStart` hook (`sessionstart-run-continuity.py`, 8th wired event): on startup / resume / clear / **compact**, an active marker injects "invoke `Skill(<skill>)` FIRST, then resume the run" — sharpened post-compact, where the playbook text was just dropped from context. |
-| **Escapes + tests** | `CT6_RUN_CONTINUITY_DISABLED=1` kill-switch; everything fails open; `--check` (the Phase 8 pre-commit gate) deliberately skips the lifecycle check. Adversarially reviewed (FIX-FIRST -> 3 MAJOR + 5 MINOR remediated). New `tests/test_run_continuity.py` (28) + `tests/test_pipeline_completion_audit_continuation.py` (17) + `tests/test_sessionstart_run_continuity.py` (8) + 17 sticky-arm gate cases; every legacy Stop-hook / gate pin preserved verbatim. Suite -> **4850 passing + 5 skipped** (195 test files; both encodings). +1 enforcement script (6 → 7); +1 wired event (SessionStart). |
+| **Escapes + tests** | `CT6_RUN_CONTINUITY_DISABLED=1` kill-switch; everything fails open; `--check` (the Phase 8 pre-commit gate) deliberately skips the lifecycle check. Adversarially reviewed (FIX-FIRST -> 3 MAJOR + 5 MINOR remediated). New `tests/test_run_continuity.py` (28) + `tests/test_pipeline_completion_audit_continuation.py` (17) + `tests/test_sessionstart_run_continuity.py` (8) + 18 sticky-arm gate cases; every legacy Stop-hook / gate pin preserved verbatim. Suite -> **4851 passing + 5 skipped** (195 test files; both encodings). +1 enforcement script (6 → 7); +1 wired event (SessionStart). |
 
 ### v3.29.0 — the Librarian becomes installable (CT6-6 server tier)
 

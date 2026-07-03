@@ -766,7 +766,7 @@ def main(argv: list[str]) -> int:
             force = "--force" in argv
             if not force and _worklist_blocks_completion(root):
                 print(
-                    "run_continuity: REFUSED --mark-complete — the completion "
+                    "run_continuity: REFUSED --mark-complete - the completion "
                     "audit (--check) reports open worklist debt in this "
                     "workspace. Close the worklist first (the run is not "
                     "complete), or pass --force ONLY with the user's explicit "
