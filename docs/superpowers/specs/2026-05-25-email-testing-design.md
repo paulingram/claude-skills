@@ -1,5 +1,7 @@
 # v0.9.34 — Email Testing Discipline
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 **Date:** 2026-05-25
 **Author:** Paul Ingram + Claude Opus 4.6
 

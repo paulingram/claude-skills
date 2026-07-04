@@ -1,5 +1,7 @@
 # architect-team plugin Implementation Plan
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the `architect-team` Claude Code plugin — a spec-to-production multi-agent coding pipeline triggered by `/architect-team <path>`. Ships 8 skills, 10 agents, 2 commands, 2 hooks, and a cross-platform Python setup script.

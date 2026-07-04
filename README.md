@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 31 . 0
+                        ─── C T 6 ───   v 3 . 31 . 1
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.31.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.31.1-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-5159%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -79,7 +79,7 @@ CLAUDE TEAM SIX IS a body of AI-facing instructions — 47 `skills/*/SKILL.md`, 
 |---|---|
 | **The rubric (the contract)** | `docs/INSTRUCTION_COMPLIANCE_RUBRIC.md` grades every in-scope file on **three equally-weighted dimensions** — a file passes only when all three pass: **(a) structural / format uniformity** [DETERMINISTIC] (frontmatter fence + `yaml.safe_load` parse, the house no-`': '`/no-`' #'` YAML-hazard rule, required fields per class, a uniform 1024-char raw-description cap, section structure, cross-reference validity); **(b) terminology + contradiction hygiene** [LLM-judgment] (one term = one meaning, no cross-file contradiction, canonical-home discipline, consistent inventory counts); **(c) literal-imperative wording** [LLM-judgment] (every load-bearing rule a followable imperative, hedges only on advisory text). |
 | **The deterministic engine** | `scripts/compliance/instruction_compliance.py` (stdlib-only, `yaml.safe_load` when importable, no import-time side effects, mirroring `scripts/claude_md/claude_md_efficiency.py`): `assess_instruction_files(root)` checks dimension (a) + cross-reference validity across the in-scope set. The 1024-char cap is measured on the RAW authored description BEFORE any `' #'`/`': '` truncation can mask an over-length value, for all three frontmatter classes. The cross-reference grammar is NARROW (only unambiguous `skills/`/`agents/`/`commands/`/`hooks\|scripts\|services/`/`docs/*_MAP.md` path forms resolve); the invoke-form `/architect-team:<cmd>` and bare skill-name citations are the documented LLM-judgment carve-out, deliberately NOT machine-checked (prose-ambiguous — a false positive there is a wording fix, not an engine bug). |
-| **The enforced gate + remediation** | New `tests/test_instruction_compliance.py` (308 cases: the enforced zero-findings suite gate + a `yaml.safe_load` real-parse pin + 62 per-file agents/commands cap pins + the engine unit cases) + 1 section-structure pin each in `tests/test_skills.py` / `test_agents.py` / `test_commands.py`. **17 files remediated in place** (6 skills, 9 agents, 2 commands) — including **7 over-cap descriptions** (`doc-updater` was 1381 raw chars) rewritten trigger-first to ≤ 1024, whose trailing trigger guidance had been silently truncated by the loader; a broken cross-reference; and stale v6→v7 evidence-schema labels. |
+| **The enforced gate + remediation** | New `tests/test_instruction_compliance.py` (199 cases: the enforced zero-findings suite gate + a `yaml.safe_load` real-parse pin + 62 per-file agents/commands cap pins + the engine unit cases) + 1 section-structure pin each in `tests/test_skills.py` / `test_agents.py` / `test_commands.py`. **17 files remediated in place** (6 skills, 9 agents, 2 commands) — including **7 over-cap descriptions** (`doc-updater` was 1381 raw chars) rewritten trigger-first to ≤ 1024, whose trailing trigger guidance had been silently truncated by the loader; a broken cross-reference; and stale v6→v7 evidence-schema labels. |
 | **REQ-004: enforcement only where text can't hold it → NO hook** | The 3-round adversarial sweep expanded the flagged set 95 → the full 112 files and NAMED no dimension-(b)/(c) gap that clear wording alone cannot hold, so — per the change's discipline that enforcement is never added speculatively — **no `hooks/` change was made**; the discipline is held by the lint + the suite pins. Suite 4851 → **5159 passing + 5 skipped** (195 → 196 test files; both encodings). Skill / agent / command counts unchanged; NO new skill / agent / command / hook / Layer-3 tool. |
 
 ### v3.30.0 — run continuity: autonomous continuation + sticky resume-via-Skill

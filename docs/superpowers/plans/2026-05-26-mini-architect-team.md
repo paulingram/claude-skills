@@ -1,5 +1,7 @@
 # Mini Architect-Team Pipeline Implementation Plan
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship v0.10.0 — a faster sibling pipeline (`/architect-team:mini`) for rapid small feature changes, plus the `Mini-Run:` trailer + `/architect-team:mini-review-sweep` command for batched heavyweight review.
