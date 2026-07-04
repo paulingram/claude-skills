@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "change": "doc-currency-refresh",
+  "generated_at": "2026-07-04T05:20:00Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — documentation-currency + disposition change over the CT6 plugin's non-instruction doc corpus (markdown + a JSON run-artifact ledger + tool-driven OpenSpec archival). No frontend/backend runs at build time; there is no UI/API surface. Recorded authorizations: Playwright N/A (no runnable UI in this change) and dev-API integration N/A (no service endpoint touched) — the verification surface is the widened independent documentation-currency audit + `openspec validate --all --strict` + the full pytest suite under both encodings.",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "documentation-currency-refresh/Per-file disposition ledger",
+      "scenarios": [
+        "ledger covers 100% of the in-scope set with class totals",
+        "every entry carries a fixed-vocabulary verdict plus evidence",
+        "excluded classes are enumerated with reasons"
+      ],
+      "acceptance_criteria": [
+        ".architect-team/doc-disposition/ledger.json assigns every in-scope tracked doc (22 flat + 49 living specs + 12 non-archived change docs = 83) exactly one verdict in {current,updated,frozen-historical,archived,current-in-flight} with evidence; class totals stated; excluded classes (109 instruction / 193 archive / 10 dot-dir) enumerated with reasons; in-scope + excluded reconciles to the full tracked *.md count (395)"
+      ],
+      "layer": "infra",
+      "task_ids": ["1.1", "1.2", "1.3", "5.4"],
+      "tests": {"unit": ["reconciliation of ledger totals against `git ls-files '*.md'` (documented in the ledger header; verified by the Group-E widened audit)"]}
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "documentation-currency-refresh/Gated inventory re-verification",
+      "scenarios": [
+        "each inventory doc receives a verdict",
+        "inventory version and count claims match the corpus"
+      ],
+      "acceptance_criteria": [
+        "the 7 gated inventory docs (README, CHANGELOG, CLAUDE, CODEBASE_MAP, INTEGRATION_MAP, phenotypes/README, phenotypes/SCHEMA) are re-verified against HEAD (not rebuilt); maps satisfied-by-Phase−1 with evidence ref; drift fixed in place; version/test/inventory-count claims consistent"
+      ],
+      "layer": "infra",
+      "task_ids": ["2.1"],
+      "tests": {"unit": ["tests/test_documentation_currency.py", "tests/test_cross_consistency.py"]}
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "documentation-currency-refresh/Non-inventory currency pass",
+      "scenarios": [
+        "each non-inventory flat doc gets a verdict",
+        "historical superpowers docs are frozen, not rewritten"
+      ],
+      "acceptance_criteria": [
+        "all 15 non-inventory flat docs verdicted (INSTRUCTION_COMPLIANCE_RUBRIC, LINEAGE_UPGRADE_REQUIREMENTS, services/README, services/SEPARATION_MANIFEST, 4 phenotype blueprints, 7 superpowers historical); drifted-current updated in place; the 7 superpowers docs frozen-historical with at most a one-line header, dated bodies never rewritten"
+      ],
+      "layer": "infra",
+      "task_ids": ["2.2", "2.3", "2.4"],
+      "tests": {"unit": ["tests/test_instruction_compliance.py (INSTRUCTION_COMPLIANCE_RUBRIC currency corroboration)", "the Group-E widened audit walk over the 15 non-inventory flat docs"]}
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "documentation-currency-refresh/OpenSpec documentation pass with tool-based archival",
+      "scenarios": [
+        "the three shipped changes are archived via the tool",
+        "validation is green after each archive",
+        "the immutable archive tree is untouched"
+      ],
+      "acceptance_criteria": [
+        "all 49 living specs + 12 non-archived change docs verdicted; consolidate-duplicated-rules / exploration-pipeline / librarian-installable archived via `openspec archive <change> -y`; `openspec validate --all --strict` exits 0 after EACH; living-spec count 49→52; no pre-existing openspec/changes/archive/** file hand-edited"
+      ],
+      "layer": "infra",
+      "task_ids": ["3.1", "3.2", "3.3", "3.4", "3.5"],
+      "tests": {"unit": ["`openspec validate --all --strict` (exit 0 after each archive; the tool-native gate)"]}
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "documentation-currency-refresh/Disposition execution — archive never delete",
+      "scenarios": [
+        "every archived file is reachable via the archive index",
+        "archival preserves git history",
+        "nothing is hard-deleted"
+      ],
+      "acceptance_criteria": [
+        "docs/archive/INDEX.md exists (present even if empty); every stale non-historical flat doc git mv'd into docs/archive/ with an index entry (original path + reason); git log --follow traces each move; no tracked doc removed without a git mv destination; every file under docs/archive/ except INDEX.md has an index entry"
+      ],
+      "layer": "infra",
+      "task_ids": ["4.1", "4.2", "4.3", "4.4"],
+      "tests": {"unit": ["git diff inspection: no delete without a git mv destination (verified in the Group-E audit + the suite run)"]}
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "documentation-currency-refresh/Widened independent audit and green suite",
+      "scenarios": [
+        "the widened audit returns PASS over the full set",
+        "cross-doc counts are consistent corpus-wide",
+        "the suite stays green under both encodings"
+      ],
+      "acceptance_criteria": [
+        "the independent (producer≠checker) system-architect Documentation Currency Audit, widened to the full expanded in-scope set, returns PASS with its walked-file list matching the ledger; version/test/file/inventory counts consistent corpus-wide (post-archive state); full pytest suite green under cp1252 AND PYTHONUTF8=1; openspec validate --all --strict green; any sanctioned-move-altered pin updated in this change"
+      ],
+      "layer": "infra",
+      "task_ids": ["5.1", "5.2", "5.3"],
+      "tests": {"unit": ["tests/test_documentation_currency.py", "tests/test_cross_consistency.py", "tests/test_instruction_compliance.py"], "integration": ["full `python -m pytest` under both encodings", "`openspec validate --all --strict`"]}
+    }
+  ]
+}

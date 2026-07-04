@@ -1,5 +1,7 @@
 # Structure Optimization Pipeline (v3.11.0) Implementation Plan
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship the `structure-optimization` skill (+ `/architect-team:optimize-structure` command, 3 new agents, a `system-architect` Restructure Plan Audit mode) that produces an adversarially-verified, reference-closed codebase-restructure plan as an OpenSpec change.

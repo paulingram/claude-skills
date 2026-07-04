@@ -1,5 +1,7 @@
 # v0.10.0 — Mini Architect-Team Pipeline
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 **Date:** 2026-05-26
 **Author:** Paul Ingram + Claude Opus 4.7
 

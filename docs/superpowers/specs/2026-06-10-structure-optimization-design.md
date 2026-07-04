@@ -1,5 +1,7 @@
 # v3.11.0 — Structure Optimization Pipeline
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 **Date:** 2026-06-10
 **Author:** Paul Ingram + Claude Fable 5
 

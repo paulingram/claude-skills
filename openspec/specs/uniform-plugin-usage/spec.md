@@ -11,7 +11,7 @@ The plugin SHALL invoke every mapping / exploration / review-convergence ralph l
 
 - **WHEN** the repository is searched for `--max-iterations` outside `CHANGELOG.md` and removal-description prose
 - **THEN** no actual `/ralph-loop` invocation example still passes `--max-iterations`
-- **AND** `README.md`, `docs/INTEGRATION_MAP.md`, and `openspec/changes/exploration-pipeline/design.md` show the `--completion-promise`-only form
+- **AND** `README.md`, `docs/INTEGRATION_MAP.md`, and `openspec/changes/archive/2026-07-04-exploration-pipeline/design.md` show the `--completion-promise`-only form
 
 #### Scenario: exploration skills use the explicit completion-promise flag
 

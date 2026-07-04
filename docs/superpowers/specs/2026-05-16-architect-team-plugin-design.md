@@ -1,5 +1,7 @@
 # architect-team plugin — design spec
 
+> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+
 **Status:** approved (brainstorming gate)
 **Created:** 2026-05-16
 **Author:** Paul Ingram (with Claude)
