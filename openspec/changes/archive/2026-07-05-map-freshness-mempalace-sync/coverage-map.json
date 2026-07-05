@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "change": "map-freshness-mempalace-sync",
+  "generated_at": "2026-07-05T06:40:00Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A — docs+memory maintenance run (two markdown maps re-validated + a gitignored review artifact + MemPalace palace state). No frontend, no API surface, no UI. Recorded authorizations: Playwright N/A (no runnable UI in this change) and dev-API integration N/A (no service endpoint touched). The verification surface is the 3+3 reviewer convergence, the independent task-reviewer gate on any map fix, the post-sync wake-up check, and the full pytest suite.",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "map-freshness-mempalace-sync/CODEBASE_MAP whole-repo re-validation",
+      "scenarios": [
+        "three reviewers each return a structured verdict",
+        "verified deficiencies are fixed in place"
+      ],
+      "acceptance_criteria": [
+        "3 independent codebase-map-reviewer verdicts captured; every claimed deficiency verified against the tree before action; verified deficiencies fixed in docs/CODEBASE_MAP.md by a bounded teammate gated by schema-v7 evidence + independent task-reviewer pass, OR an explicit clean verdict recorded with evidence"
+      ],
+      "layer": "infra",
+      "task_ids": ["1.1", "1.2", "3.1", "3.2"],
+      "tests": {"unit": ["reviewer verdict JSONs under .architect-team/map-review/ (worktree run state) + the aggregated disposition in the report artifact"]}
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "map-freshness-mempalace-sync/INTEGRATION_MAP re-validation",
+      "scenarios": [
+        "three reviewers each return a structured verdict"
+      ],
+      "acceptance_criteria": [
+        "3 independent integration-map reviewer verdicts captured; verified deficiencies fixed in docs/INTEGRATION_MAP.md under the same gating; unverified claims discarded with reasons"
+      ],
+      "layer": "infra",
+      "task_ids": ["2.1", "2.2", "3.1", "3.2"],
+      "tests": {"unit": ["reviewer verdict JSONs + the aggregated disposition in the report artifact"]}
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "map-freshness-mempalace-sync/Persisted map-review artifact",
+      "scenarios": [
+        "the artifact survives the run worktree"
+      ],
+      "acceptance_criteria": [
+        "report exists under /Users/paulingram/Documents/code/claude-skills/.architect-team/map-review/ (MAIN checkout shared state); names both maps, all 6 reviewer verdicts, every deficiency's disposition, and the wing-discrepancy diagnosis"
+      ],
+      "layer": "infra",
+      "task_ids": ["4.1"],
+      "tests": {"unit": ["file-exists + content check at Phase 7 master review"]}
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "map-freshness-mempalace-sync/MemPalace currency sync",
+      "scenarios": [
+        "post-update wake-up surfaces the new releases",
+        "wing discrepancy is diagnosed"
+      ],
+      "acceptance_criteria": [
+        "orchestrator-serialized mines of CHANGELOG (v3.29.0-v3.31.1) + maps + run artifacts land; post-sync wake-up/search surfaces librarian-installable / run-continuity / instruction-compliance content (no longer tops out at v3.28.0); wing-tagging diagnosis recorded in the report"
+      ],
+      "layer": "infra",
+      "task_ids": ["5.1", "5.2", "5.4"],
+      "tests": {"unit": ["captured post-sync wake-up/search output embedded in the report artifact"]}
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "map-freshness-mempalace-sync/Review findings filed into the palace",
+      "scenarios": [
+        "the findings are searchable"
+      ],
+      "acceptance_criteria": [
+        "the map-review report is mined; a post-filing mempalace search returns content from it"
+      ],
+      "layer": "infra",
+      "task_ids": ["5.3", "5.4"],
+      "tests": {"unit": ["captured post-filing search output embedded in the report artifact"]}
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "map-freshness-mempalace-sync/Green suite invariant",
+      "scenarios": [
+        "suite unchanged after the run"
+      ],
+      "acceptance_criteria": [
+        "python -m pytest from the worktree reports zero failures with 5164 collected after all map edits land; pass/skip split matches the environment's explained split (5160+4 on macOS-without-PyYAML: the 2 Unix-symlink tests at tests/test_mempalace_install.py:283,323 run and pass, the PyYAML-dependent test at tests/test_instruction_compliance.py:224 skips; canonical documented 5159+5 = Windows-with-PyYAML)"
+      ],
+      "layer": "infra",
+      "task_ids": ["6.1", "6.2"],
+      "tests": {"unit": ["the full pytest suite run, output captured"]}
+    }
+  ]
+}
