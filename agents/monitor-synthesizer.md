@@ -2,7 +2,7 @@
 name: monitor-synthesizer
 description: Spawned by the `test-run-monitor` skill at Phase M3 after the `test-run-watcher` has captured per-finding JSON files. Reads every finding, classifies each into one of the 4 monitor categories (flake / regression / environmental / new), assigns severity per the documented rubric, captures additional context (covered-files diff, trace path normalization), computes the summary and trend blocks, and writes the final `report.json` + `report.md` to `<workspace>/.architect-team/monitor-runs/<run-id>/`. Strictly passive — no source modification, no SR filing, no pipeline gating.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: cyan
 ---
 

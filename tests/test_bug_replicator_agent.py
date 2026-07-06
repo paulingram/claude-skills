@@ -47,9 +47,9 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
     assert fm["name"] == AGENT_NAME
 
 
-def test_agent_model_is_opus(plugin_root: Path) -> None:
+def test_agent_model_is_fable(plugin_root: Path) -> None:
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "opus", "bug-replicator must use opus (judgment-heavy)"
+    assert fm["model"] == "fable", "bug-replicator must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
 
 
 def test_agent_tools_no_edit(plugin_root: Path) -> None:

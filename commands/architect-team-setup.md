@@ -1,6 +1,6 @@
 ---
 description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), verifies prerequisite plugins (superpowers, cartographer, ralph-loop) are installed, and verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32).
-argument-hint: "[--check-only] [--no-prompt] [--force-reinstall]"
+argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall]"
 allowed-tools: ["Bash(python:*)", "Bash(python3:*)"]
 ---
 
@@ -22,6 +22,15 @@ After the script finishes, summarize:
 
 If `cartographer`, `ralph-loop`, or `superpowers` are missing, instruct the user to run the corresponding `/plugin install <name>@<marketplace>` commands. The setup script cannot install plugins on the user's behalf.
 
+**Cartographer marketplace source.** `cartographer` ships from a THIRD-PARTY marketplace — `kingbootoshi/cartographer` — that must be ADDED before it can be installed (no other CT6 doc named it, which cost a real first-install a GitHub search). When cartographer is missing, `setup.py` names the source and prints, in order:
+
+```
+/plugin marketplace add kingbootoshi/cartographer
+/plugin install cartographer@cartographer-marketplace
+```
+
+`superpowers` and `ralph-loop` are on the built-in `claude-plugins-official` marketplace, so they need only the single `/plugin install` step.
+
 ## Agent Teams Mode (v1.0.0)
 
 The architect-team plugin v1.0.0 defaults to Claude Code's experimental **Agent Teams** primitive — long-lived named teammates with 1M context windows + a shared task list — rather than the v0.9.36 ephemeral-subagent dispatch. Two requirements gate teams mode; without them the pipeline transparently falls back to subagents mode.
@@ -37,6 +46,7 @@ The architect-team plugin v1.0.0 defaults to Claude Code's experimental **Agent 
 
 - `--check-only` — Report the status of every dependency + the Agent-Teams checks. **Never modifies user files.** Exits non-zero if either the flag or the version is unsatisfied (so CI can fail loudly).
 - `--no-prompt` — Skip the interactive consent prompt and instead print the suggested `~/.claude/settings.json` edit to stdout. Required for non-interactive contexts (CI, scripts).
+- `--yes` / `-y` — Assume **yes** to every consent prompt WITHOUT reading stdin, so a non-interactive install proceeds unattended (e.g. the Agent-Teams `settings.json` write happens automatically). Equivalently, set the env var `CT6_SETUP_ASSUME_YES=1` (truthy set `{1, true, yes}`). `--check-only` still never writes, even with `--yes`; and `--yes` takes precedence over `--no-prompt` (consent is assumed and the write proceeds).
 - `--force-reinstall` — Reinstall every managed dependency even if present.
 
 ### Consent flow

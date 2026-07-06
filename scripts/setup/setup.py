@@ -66,7 +66,27 @@ REQUIRED_PLUGINS = {
     "ralph-loop@claude-plugins-official",
 }
 
-PYTHON_TEST_PACKAGES = ["pytest", "pytest-asyncio", "httpx"]
+# `tiktoken` is a cartographer RUNTIME dependency (observed missing on a real VM
+# install), not a test tool; setup installs it here so cartographer can run. The
+# list name is kept for backward compatibility with existing tests.
+PYTHON_TEST_PACKAGES = ["pytest", "pytest-asyncio", "httpx", "tiktoken"]
+
+# npm package id for the openspec CLI (used by both the direct global install and
+# the EACCES `--prefix` retry, so the two stay in lockstep).
+OPENSPEC_NPM_PKG = "@fission-ai/openspec@latest"
+
+# Truthy string set shared by the teams-mode flag check + the CT6_SETUP_ASSUME_YES
+# consent override (previously inlined in _settings_has_flag).
+_TRUTHY_VALUES = {"1", "true", "yes"}
+
+# Non-interactive consent: setting either --yes OR this env var makes every
+# consent prompt assume "y" WITHOUT reading stdin (CI / scripted installs).
+ASSUME_YES_ENV_VAR = "CT6_SETUP_ASSUME_YES"
+
+
+def _is_truthy(value: object) -> bool:
+    """True iff `value` is a truthy string in `_TRUTHY_VALUES` (case-insensitive)."""
+    return isinstance(value, str) and value.strip().lower() in _TRUTHY_VALUES
 
 # v1.0.0 agent-teams constants. Mirror the helper in scripts/setup/teams_mode.py
 # (we re-declare them here so the script keeps a single, obvious settings path
@@ -76,6 +96,77 @@ PYTHON_TEST_PACKAGES = ["pytest", "pytest-asyncio", "httpx"]
 TEAMS_ENV_VAR = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
 MIN_CLAUDE_VERSION = (2, 1, 32)
 DEFAULT_USER_SETTINGS_PATH: Path = Path.home() / ".claude" / "settings.json"
+
+# Fable 5 is the plugin's default agent model. Fable 5 is brand-new and the
+# `fable` agent-model alias ships only with Fable-5-aware Claude Code releases;
+# that shipping version is NOT knowable from here, so setup does NOT gate on a
+# version threshold (SETUP-ADV-1: a threshold would be false precision — the
+# TEAMS minimum 2.1.32 is not the fable-alias version). Instead check_model_default()
+# ALWAYS surfaces ONE informational note carrying the deterministic fallback lever
+# (scripts/setup/set_default_model.py) for a harness that predates the alias —
+# never auto-applied, never gates the run.
+FABLE_FALLBACK_REMEDIATION = (
+    "python3 scripts/setup/set_default_model.py --model opus  "
+    "# fallback: this harness predates the fable alias"
+)
+
+
+# ---- Plugin marketplace provenance + install/ladder helpers -----------------
+#
+# Third-party marketplace SOURCES that must be added (`/plugin marketplace add`)
+# before the plugin can be installed. claude-plugins-official is a BUILT-IN
+# marketplace (no add step); cartographer ships from a third-party GitHub repo
+# (kingbootoshi/cartographer) that NO other CT6 doc named — the exact gap that
+# cost a real first-install a GitHub search.
+_PLUGIN_MARKETPLACE_SOURCES: dict[str, str] = {
+    "cartographer@cartographer-marketplace": "kingbootoshi/cartographer",
+}
+
+
+def plugin_remediation_lines(plugin_id: str) -> list[str]:
+    """The ordered `/plugin ...` commands that install a missing required plugin.
+
+    For a plugin whose marketplace is a third-party source (cartographer), the
+    `/plugin marketplace add <source>` step is emitted FIRST, then the install.
+    Default-marketplace plugins get the single install line.
+    """
+    lines: list[str] = []
+    source = _PLUGIN_MARKETPLACE_SOURCES.get(plugin_id)
+    if source:
+        lines.append(f"/plugin marketplace add {source}")
+    name, _, market = plugin_id.partition("@")
+    lines.append(f"/plugin install {name}@{market}")
+    return lines
+
+
+def _is_permission_error(stderr: str) -> bool:
+    """True when npm stderr indicates a permission failure (EACCES / EPERM)."""
+    s = (stderr or "").lower()
+    return any(m in s for m in ("eacces", "eperm", "not permitted", "permission denied"))
+
+
+def _is_externally_managed(stderr: str) -> bool:
+    """True when pip stderr indicates a PEP-668 externally-managed environment."""
+    s = (stderr or "").lower()
+    return "externally managed" in s or "externally-managed-environment" in s
+
+
+def _pip_available() -> bool:
+    """True when the `pip` module is importable in the current interpreter."""
+    try:
+        import importlib.util
+        return importlib.util.find_spec("pip") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+# Persistent remediation surfaced after a non-persistent npm `--prefix` retry.
+_NPM_PREFIX_REMEDIATION = (
+    "installed to ~/.local via a non-persistent `npm install -g --prefix ~/.local` "
+    "retry (the global prefix was not writable). To make it permanent: run "
+    "`npm config set prefix ~/.local` and ensure `~/.local/bin` is on your PATH. "
+    "(setup never mutates your npm config for you.)"
+)
 
 
 # ---- Version checks ---------------------------------------------------------
@@ -155,17 +246,40 @@ def _python3_on_path() -> tuple[bool, str | None]:
 # ---- openspec ----------------------------------------------------------------
 
 
-def _install_openspec() -> tuple[bool, str | None]:
+def _install_openspec(runner=subprocess.run) -> tuple[bool, str | None]:
+    """Install the openspec CLI globally; on a permission failure (EACCES / EPERM),
+    retry ONCE non-persistently with `--prefix ~/.local` and surface the persistent
+    remediation. `runner` is injectable so tests never touch npm for real.
+    """
     npm = shutil.which("npm")
     if not npm:
         return False, "npm not on PATH"
-    res = subprocess.run(
-        [npm, "install", "-g", "@fission-ai/openspec@latest"],
+    res = runner(
+        [npm, "install", "-g", OPENSPEC_NPM_PKG],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
-    if res.returncode != 0:
-        return False, res.stderr.strip() or "npm install failed"
-    return True, None
+    if res.returncode == 0:
+        return True, None
+    stderr = (res.stderr or "").strip()
+    if not _is_permission_error(stderr):
+        return False, stderr or "npm install failed"
+    # Permission failure on the global prefix — retry into a user-writable prefix
+    # WITHOUT mutating the user's npm config.
+    prefix = str(Path.home() / ".local")
+    res2 = runner(
+        [npm, "install", "-g", "--prefix", prefix, OPENSPEC_NPM_PKG],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if res2.returncode == 0:
+        return True, _NPM_PREFIX_REMEDIATION
+    stderr2 = (res2.stderr or "").strip()
+    return False, (
+        "npm global install failed with a permission error and the "
+        "`--prefix ~/.local` retry also failed: "
+        + (stderr2 or "unknown error")
+        + ". Remediation: run `npm config set prefix ~/.local` and ensure "
+        "`~/.local/bin` is on your PATH, then re-run setup."
+    )
 
 
 def ensure_openspec(check_only: bool, force: bool) -> tuple[str, str, str | None]:
@@ -175,8 +289,8 @@ def ensure_openspec(check_only: bool, force: bool) -> tuple[str, str, str | None
         return name, "present", None
     if check_only:
         return name, "missing", "would install via npm i -g @fission-ai/openspec@latest"
-    ok, err = _install_openspec()
-    return (name, "installed", None) if ok else (name, "failed", err)
+    ok, detail = _install_openspec()
+    return (name, "installed", detail) if ok else (name, "failed", detail)
 
 
 # ---- Python test tools -------------------------------------------------------
@@ -191,27 +305,68 @@ def _pkg_importable(pkg: str) -> bool:
     return res.returncode == 0
 
 
-def _install_packages(pkgs: Iterable[str]) -> tuple[bool, str | None]:
-    """Install packages via uv if present (with --system when not in a venv) or plain pip."""
-    uv = shutil.which("uv")
-    if uv:
+_UNSET = object()
+
+
+def _install_packages(
+    pkgs: Iterable[str],
+    runner=subprocess.run,
+    uv_path=_UNSET,
+    pip_available: bool | None = None,
+) -> tuple[bool, str | None]:
+    """Install packages through the PEP-668-aware ladder.
+
+    Rungs, in order:
+      1. `uv pip install [--system]` when uv is present (unchanged behaviour).
+      2. `python -m pip install --user` when uv is absent.
+      3. on a PEP-668 externally-managed-environment error, retry (2) with
+         `--break-system-packages`.
+      4. when neither uv nor an importable pip exists, return a failed row with an
+         actionable `python3-pip` remediation (no traceback).
+
+    `runner` / `uv_path` / `pip_available` are injectable so tests exercise each
+    rung without touching uv/pip for real.
+    """
+    pkgs = list(pkgs)
+    if uv_path is _UNSET:
+        uv_path = shutil.which("uv")
+    if uv_path:
         in_venv = bool(os.environ.get("VIRTUAL_ENV")) or hasattr(sys, "real_prefix") or (
             getattr(sys, "base_prefix", sys.prefix) != sys.prefix
         )
-        cmd = [uv, "pip", "install"]
+        cmd = [uv_path, "pip", "install"]
         if not in_venv:
             cmd.append("--system")
         cmd.extend(pkgs)
-        res = subprocess.run(cmd, capture_output=True, text=True,
-                             encoding="utf-8", errors="replace")
-    else:
-        res = subprocess.run(
-            [sys.executable, "-m", "pip", "install", *pkgs],
+        res = runner(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if res.returncode != 0:
+            return False, (res.stderr or "").strip() or "uv pip install failed"
+        return True, None
+
+    # No uv — the pip ladder. First confirm pip is importable at all.
+    if pip_available is None:
+        pip_available = _pip_available()
+    if not pip_available:
+        return False, (
+            "neither uv nor pip is available in this interpreter. Install pip "
+            "first — on Debian/Ubuntu: `sudo apt install python3-pip` — then "
+            "re-run setup. (setup reports; it does not sudo for you.)"
+        )
+
+    base = [sys.executable, "-m", "pip", "install", "--user"]
+    res = runner([*base, *pkgs], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if res.returncode == 0:
+        return True, None
+    stderr = (res.stderr or "").strip()
+    if _is_externally_managed(stderr):
+        res2 = runner(
+            [*base, "--break-system-packages", *pkgs],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
-    if res.returncode != 0:
-        return False, res.stderr.strip() or "pip install failed"
-    return True, None
+        if res2.returncode == 0:
+            return True, "installed with --break-system-packages (PEP-668 externally-managed environment)"
+        return False, (res2.stderr or "").strip() or "pip install --break-system-packages failed"
+    return False, stderr or "pip install failed"
 
 
 def ensure_python_test_tools(check_only: bool, force: bool) -> tuple[str, str, str | None]:
@@ -222,8 +377,8 @@ def ensure_python_test_tools(check_only: bool, force: bool) -> tuple[str, str, s
     if check_only:
         return name, "missing", f"would install: {missing or PYTHON_TEST_PACKAGES}"
     targets = PYTHON_TEST_PACKAGES if force else missing
-    ok, err = _install_packages(targets)
-    return (name, "installed", None) if ok else (name, "failed", err)
+    ok, detail = _install_packages(targets)
+    return (name, "installed", detail) if ok else (name, "failed", detail)
 
 
 # ---- Playwright --------------------------------------------------------------
@@ -458,8 +613,7 @@ def _settings_has_flag(settings_path: Path) -> bool:
     env_block = data.get("env")
     if not isinstance(env_block, dict):
         return False
-    value = env_block.get(TEAMS_ENV_VAR)
-    return isinstance(value, str) and value.strip().lower() in {"1", "true", "yes"}
+    return _is_truthy(env_block.get(TEAMS_ENV_VAR))
 
 
 def _write_flag_to_settings(settings_path: Path) -> None:
@@ -492,6 +646,7 @@ def check_teams_mode(
     env: dict[str, str] | None = None,
     settings_path: Path | None = None,
     claude_cmd: str = "claude",
+    assume_yes: bool = False,
 ) -> tuple[str, str, str | None]:
     """Inspect the v1.0.0 agent-teams requirements; optionally prompt to enable.
 
@@ -526,7 +681,7 @@ def check_teams_mode(
     )
 
     # Flag probe.
-    flag_in_env = (env.get(TEAMS_ENV_VAR) or "").strip().lower() in {"1", "true", "yes"}
+    flag_in_env = _is_truthy(env.get(TEAMS_ENV_VAR))
     flag_in_settings = _settings_has_flag(settings_path)
     flag_ok = flag_in_env or flag_in_settings
 
@@ -551,46 +706,65 @@ def check_teams_mode(
         )
     detail = " | ".join(issues)
 
-    # In --check-only mode, never write anything.
+    # In --check-only mode, never write anything (report-only, even under --yes).
     if check_only:
-        if not version_ok:
-            return name, "warn", detail
-        return name, "missing", detail
+        return (name, "warn", detail) if not version_ok else (name, "missing", detail)
 
-    # In --no-prompt mode, print the suggested edit but do not write.
-    if no_prompt:
-        print(
-            "\n[teams-mode] " + detail,
-            flush=True,
-        )
-        if not version_ok:
-            return name, "warn", detail
-        return name, "missing", detail
-
-    # Interactive: if the flag is the only thing missing, prompt for consent.
+    # A version gap cannot be fixed by this script — surface a warn and stop.
     if not version_ok:
-        # Version mismatch cannot be fixed by this script — just surface a warn.
         print("\n[teams-mode] " + detail, flush=True)
         return name, "warn", detail
 
-    if not flag_ok:
-        prompt = (
-            f"Add {TEAMS_ENV_VAR}=1 to {settings_path}? (y/N): "
-        )
-        answer = _prompt_user_consent(prompt)
-        if answer == "y" or answer == "yes":
-            try:
-                _write_flag_to_settings(settings_path)
-            except OSError as exc:
-                return name, "failed", f"could not write {settings_path}: {exc}"
-            return name, "installed", f"wrote {TEAMS_ENV_VAR}=1 to {settings_path}"
+    # Here version_ok is True and the flag is unsatisfied.
+    # Non-interactive consent: --yes / CT6_SETUP_ASSUME_YES assume "y" WITHOUT
+    # reading stdin (this short-circuits the prompt entirely).
+    if assume_yes:
+        try:
+            _write_flag_to_settings(settings_path)
+        except OSError as exc:
+            return name, "failed", f"could not write {settings_path}: {exc}"
+        return name, "installed", f"wrote {TEAMS_ENV_VAR}=1 to {settings_path} (assumed consent)"
+
+    # In --no-prompt mode, print the suggested edit but do not write.
+    if no_prompt:
+        print("\n[teams-mode] " + detail, flush=True)
         return name, "missing", detail
 
-    # Should not reach here, but return a defensive fallback.
-    return name, "present", "agent-teams mode satisfied"
+    # Interactive: prompt for consent.
+    prompt = f"Add {TEAMS_ENV_VAR}=1 to {settings_path}? (y/N): "
+    answer = _prompt_user_consent(prompt)
+    if answer == "y" or answer == "yes":
+        try:
+            _write_flag_to_settings(settings_path)
+        except OSError as exc:
+            return name, "failed", f"could not write {settings_path}: {exc}"
+        return name, "installed", f"wrote {TEAMS_ENV_VAR}=1 to {settings_path}"
+    return name, "missing", detail
 
 
 # ---- Main --------------------------------------------------------------------
+
+
+def check_model_default(remediation: str | None = None) -> tuple[str, str, str | None]:
+    """Informational note: the plugin pins all agents to model 'fable' (Fable 5).
+
+    UNCONDITIONAL by design (SETUP-ADV-1). Fable 5 is brand-new and the `fable`
+    agent-model alias ships only with Fable-5-aware Claude Code releases; that
+    version is NOT knowable from setup, so a version gate would be false precision.
+    Instead this ALWAYS returns ONE informational `note` line stating the default
+    and carrying the deterministic Opus fallback lever
+    (`set_default_model.py --model opus`) for a harness that predates the alias.
+    It never fails the run, never gates, and never auto-applies the fallback.
+    """
+    name = "model-default (agents pinned to 'fable' — Fable 5)"
+    if remediation is None:
+        remediation = FABLE_FALLBACK_REMEDIATION
+    detail = (
+        "agents default to model 'fable' (Fable 5). If agents fail to spawn because "
+        "your Claude Code predates the 'fable' alias, restore the Opus fallback "
+        f"with: {remediation}"
+    )
+    return name, "note", detail
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -610,7 +784,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip interactive consent prompts (print suggested edits instead). "
              "Required for non-interactive contexts (CI, scripts).",
     )
+    parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Assume 'yes' to every consent prompt without reading stdin "
+             "(non-interactive install). Also enabled by CT6_SETUP_ASSUME_YES=1.",
+    )
     args = parser.parse_args(argv)
+
+    # Non-interactive consent: the flag OR the env var short-circuits prompts.
+    assume_yes = bool(args.yes) or _is_truthy(os.environ.get(ASSUME_YES_ENV_VAR))
 
     rows: list[tuple[str, str, str | None]] = []
 
@@ -638,8 +821,12 @@ def main(argv: list[str] | None = None) -> int:
         check_teams_mode(
             check_only=args.check_only,
             no_prompt=args.no_prompt,
+            assume_yes=assume_yes,
         )
     )
+
+    # REQ-006 / task 2.4: heuristic fable-availability note (never gates the run).
+    rows.append(check_model_default())
 
     # openspec-propose skill prerequisite (HARD block when missing).
     openspec_propose_row = ensure_openspec_propose_skill()
@@ -687,9 +874,9 @@ def _print_report(
             "absence BLOCKS the pipeline (exit 1). Install each manually:"
         )
         for p in plugins_missing:
-            name, _, market = p.partition("@")
             print(f"  [missing  ] {p}")
-            print(f"             /plugin install {name}@{market}")
+            for line in plugin_remediation_lines(p):
+                print(f"             {line}")
 
 
 def _write_last_run(

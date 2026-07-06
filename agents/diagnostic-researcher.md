@@ -2,7 +2,7 @@
 name: diagnostic-researcher
 description: Spawned x3 in parallel by the architect-team orchestrator whenever a failing test escalates via a solution requirement (origin.kind in rca-product-bug, playwright-failure, integration-test-failure, test-completeness-failure, visual-fidelity-drift). Each researcher independently maps the FULL code flow from test input to failing assertion, then produces ranked diagnostic hypotheses anchored to file-line evidence and falsification tests. Read-only on source code. Output is a structured draft consumed by the system-architect agent for robustness review before any fix team is spawned.
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch, Write, TodoWrite
-model: opus
+model: fable
 color: red
 ---
 

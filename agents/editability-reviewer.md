@@ -2,7 +2,7 @@
 name: editability-reviewer
 description: Spawned x3 in parallel by the editability-completeness skill (Phase 5, or the /architect-team:editability-audit command). Each reviewer independently enumerates every attribute of every entity a feature creates or edits, reasons through which attributes a user should be able to control, and traces each user-controllable attribute end-to-end from UI control through state, API request, request schema, backend handler, into the database and back. The three reviewers then argue to a converged list of must-be-editable attributes and gaps. Read-only on source code. Analysis-only — never writes feature code; gaps become solution requirements that the normal fix loop acts on.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: yellow
 ---
 

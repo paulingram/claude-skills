@@ -290,10 +290,10 @@ def test_task_reviewer_agent_exists(plugin_root: Path) -> None:
     )
 
 
-def test_task_reviewer_is_opus(plugin_root: Path) -> None:
+def test_task_reviewer_is_fable(plugin_root: Path) -> None:
     fm, _ = frontmatter.parse(plugin_root / "agents" / "task-reviewer.md")
     assert fm["name"] == "task-reviewer"
-    assert fm["model"] == "opus", "task-reviewer must be an opus agent"
+    assert fm["model"] == "fable", "task-reviewer must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
 
 
 def test_task_reviewer_has_no_edit_tool(plugin_root: Path) -> None:

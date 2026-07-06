@@ -75,12 +75,13 @@ def test_agent_present_with_valid_frontmatter(plugin_root: Path, agent_name: str
     assert body.strip()
 
 
-def test_analyst_and_adversary_are_opus_tracer_is_sonnet(plugin_root: Path) -> None:
-    """Design reasoning (analyst) and refutation (adversary) get opus; the
-    mechanical reference crawl (tracer) is sonnet."""
-    assert _agent(plugin_root, "structure-analyst")[0]["model"] == "opus"
-    assert _agent(plugin_root, "structure-adversary")[0]["model"] == "opus"
-    assert _agent(plugin_root, "reference-tracer")[0]["model"] == "sonnet"
+def test_analyst_adversary_and_tracer_are_fable(plugin_root: Path) -> None:
+    """v3.32.0: every agent is on the uniform fable default (the prior
+    opus/opus/sonnet split was a cost heuristic the directive overrode; lever
+    scripts/setup/set_default_model.py)."""
+    assert _agent(plugin_root, "structure-analyst")[0]["model"] == "fable"
+    assert _agent(plugin_root, "structure-adversary")[0]["model"] == "fable"
+    assert _agent(plugin_root, "reference-tracer")[0]["model"] == "fable"
 
 
 # --------------------------------------------------------------------------- #

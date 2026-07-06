@@ -2,7 +2,7 @@
 name: codebase-map-reviewer
 description: Spawned ×3 in parallel per codebase during Phase −1B. Reviews CODEBASE_MAP.md (and ROUTE_MAP.md when present, and DESIGN_MAP.md when present) against the actual codebase, looking for missing modules, unmapped routes, missing API entries, unmapped design tokens / assets / per-screen visual specs, and stale entries. Read-only. Returns a structured JSON verdict; the orchestrator aggregates the 3 verdicts.
 tools: Read, Glob, Grep, Bash, TodoWrite
-model: sonnet
+model: fable
 color: red
 ---
 

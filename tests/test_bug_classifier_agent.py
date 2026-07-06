@@ -40,10 +40,10 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
     assert fm["name"] == AGENT_NAME
 
 
-def test_agent_model_is_sonnet(plugin_root: Path) -> None:
+def test_agent_model_is_fable(plugin_root: Path) -> None:
     """Classifier is lightweight — sonnet, not opus."""
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "sonnet", "bug-classifier must use sonnet (lightweight classification)"
+    assert fm["model"] == "fable", "bug-classifier must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
 
 
 def test_agent_tools_minimal_analysis_only(plugin_root: Path) -> None:

@@ -805,3 +805,170 @@ def test_errored_skill_run_does_not_engage(tmp_path: Path) -> None:
     payload["tool_response"] = {"content": "skill body loaded"}
     record_engagement(payload)
     assert rc.read_marker(tmp_path) is not None, "a successful run engages"
+
+
+# --------------------------------------------------------------------------- #
+# arm-1 teammate/sidechain standdown + the teammate-message anchor exclusion
+# (SR-gate-teammate-false-block — two live-captured false-block manifestations)
+# --------------------------------------------------------------------------- #
+
+def _teammate_message(body: str, ts: str, sender: str = "team-lead",
+                      summary: str = "status") -> dict:
+    """A SendMessage-injected PEER message, as the harness records it: a
+    role:"user" record whose text is wrapped in a
+    ``<teammate-message teammate_id="..." summary="...">...</teammate-message>``
+    envelope. Verbatim shape of the message that launches a CT6 teammate
+    session and of every inbound peer message thereafter."""
+    text = (f'<teammate-message teammate_id="{sender}" summary="{summary}">\n'
+            f"{body}\n</teammate-message>")
+    return {"type": "user", "userType": "external", "timestamp": ts,
+            "message": {"role": "user", "content": text}}
+
+
+def test_m1_teammate_session_with_ct6_token_allows(tmp_path: Path) -> None:
+    # M1: a TEAMMATE session. The spawn brief carries the CT6-TEAMMATE token
+    # (arm 2's recognition signal) AND the original /architect-team command as
+    # the latest genuine prompt, with NO Skill call in THIS transcript. Pre-fix
+    # arm 1 (which had no teammate/sidechain standdown — only arm 2 did) blocked
+    # every teammate build/dispatch tool; post-fix BOTH arms stand down for the
+    # pipeline's own workers, so the teammate can do its work.
+    brief = (
+        "[CT6-TEAMMATE backend RUN my-feature]\n"
+        "You are teammate 'backend'. Original request: "
+        "<command-name>/architect-team:architect-team</command-name> build the dashboard.\n"
+        "Your tasks: implement the auth slice; write evidence to "
+        ".architect-team/reviews/12.json before completing."
+    )
+    t = _write(tmp_path, [_user(brief, "2026-07-06T00:00:00Z")])
+    for tool in ("Edit", "Write", "Agent", "Task", "TaskUpdate"):
+        code, msg = check_payload(_payload(t, tool=tool))
+        assert code == 0, f"teammate session wrongly blocked {tool}: {msg[:160]!r}"
+
+
+def test_m1_teammate_skill_invocation_does_not_rely_on_satisfying_arm1(tmp_path: Path) -> None:
+    # M1 (live evidence from teammate model-default): inside a TEAMMATE session,
+    # the teammate self-invoking Skill(architect-team-pipeline) does NOT clear
+    # arm 1 — a later record (a re-injected brief / body echo) RE-ANCHORS the
+    # genuine-prompt search PAST the teammate's own Skill call, so the just-made
+    # Skill call looks stale and arm 1 re-blocks. This is exactly why the fix
+    # must be a STANDDOWN (teammate/sidechain detection like arm 2), NOT a
+    # "the teammate's Skill call satisfies arm 1" path. Here the re-anchor record
+    # is a PLAIN user record (not a <teammate-message>, not isMeta) carrying the
+    # pipeline command, so the ONLY thing that keeps the gate open is the
+    # worker-session standdown — proving the standdown alone is sufficient.
+    records = [
+        _user("[CT6-TEAMMATE backend RUN my-feature]\n"
+              "<command-name>/architect-team:architect-team</command-name> build the dashboard.\n"
+              "Write .architect-team/reviews/12.json before completing.",
+              "2026-07-06T00:00:00Z"),
+        _skill_call("architect-team-pipeline", "2026-07-06T00:00:05Z"),
+        # a later record re-injecting the command AFTER the teammate's Skill call
+        # (models the observed "re-anchors rather than clearing" mechanic).
+        _user("Reminder for the /architect-team:architect-team run: implement the "
+              "auth slice and reconcile the shared schema.", "2026-07-06T00:10:00Z"),
+    ]
+    t = _write(tmp_path, records)
+    # sanity: WITHOUT the re-anchor record the teammate's own Skill call would
+    # satisfy arm 1 anyway — but the point is the standdown makes that moot.
+    for tool in ("Edit", "Write", "Agent", "TaskUpdate"):
+        code, msg = check_payload(_payload(t, tool=tool))
+        assert code == 0, (
+            f"teammate session re-blocked {tool} after re-anchor past its own "
+            f"Skill call — the M1 standdown must hold regardless: {msg[:160]!r}")
+
+
+def test_m1_teammate_session_brief_delivered_as_teammate_message_allows(tmp_path: Path) -> None:
+    # M1 (real harness shape): the teammate's spawn brief arrives as a
+    # <teammate-message> from the Lead (not a bare user prompt). Once that
+    # wrapper is excluded from the genuine-prompt anchor, the transcript has NO
+    # genuine human prompt -> the session is a worker session -> both arms stand
+    # down. The brief embeds the pipeline command, which pre-fix re-armed arm 1.
+    brief = _teammate_message(
+        "You are teammate 'frontend' for the /architect-team:architect-team run. "
+        "Implement the header; write .architect-team/reviews/7.json before done.",
+        "2026-07-06T00:00:00Z", sender="team-lead", summary="dispatch")
+    t = _write(tmp_path, [brief])
+    for tool in ("Edit", "Write", "Task"):
+        code, msg = check_payload(_payload(t, tool=tool))
+        assert code == 0, f"teammate brief (as <teammate-message>) blocked {tool}: {msg[:160]!r}"
+
+
+def test_m2_lead_teammate_messages_do_not_reanchor_past_skill(tmp_path: Path) -> None:
+    # M2: the LEAD session. A genuine human /architect-team command is SATISFIED
+    # by the Lead's Skill call. Then inbound teammate-message records arrive as
+    # role:"user" records; each references the run (so it matches a pipeline
+    # request). Pre-fix arm 1 re-anchored to the latest such peer message,
+    # treated it as a fresh unsatisfied mandate, and re-blocked (observed 3x in
+    # one session). Post-fix the <teammate-message> records are excluded from
+    # the anchor, so the satisfying Skill call for the original command still
+    # governs -> allow.
+    records = [
+        _user(_command_text("architect-team:architect-team"), "2026-07-06T00:00:00Z"),
+        _skill_call("architect-team-pipeline", "2026-07-06T00:00:05Z"),
+        _teammate_message("backend: shared schema for the /architect-team:architect-team "
+                          "run is ready; please reconcile.", "2026-07-06T00:10:00Z",
+                          sender="backend"),
+        _teammate_message("frontend: continuing the architect-team pipeline work; "
+                          "run /architect-team:architect-team reconcile when green.",
+                          "2026-07-06T00:12:00Z", sender="frontend"),
+    ]
+    t = _write(tmp_path, records)
+    for tool in ("TaskUpdate", "Edit", "Agent", "Task"):
+        code, msg = check_payload(_payload(t, tool=tool))
+        assert code == 0, f"Lead build/dispatch wrongly re-blocked on peer message ({tool}): {msg[:160]!r}"
+
+
+def test_teammate_message_record_excluded_from_anchor(tmp_path: Path) -> None:
+    # The unit-level guarantee behind M2: a <teammate-message>-wrapped record is
+    # not a genuine user prompt, so it can never BECOME the anchor even when its
+    # body carries pipeline-command text. Here the ONLY records are peer messages
+    # with pipeline text -> no genuine prompt -> allow (no mandate to satisfy).
+    from hooks.pretool_skill_gate import _is_user_prompt
+    peer = _teammate_message("please use the architect team to rebuild the nav",
+                             "2026-07-06T00:00:00Z", sender="peer")
+    assert _is_user_prompt(peer) is False
+    t = _write(tmp_path, [peer])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 0
+
+
+def test_genuine_command_still_blocks_despite_later_teammate_message(tmp_path: Path) -> None:
+    # The exclusion must not over-reach: a GENUINE unsatisfied pipeline command
+    # followed by a peer message still blocks (the peer message is excluded, the
+    # genuine command remains the anchor and is unsatisfied). This proves the fix
+    # does not silently open the gate whenever any peer message is present.
+    t = _write(tmp_path, [
+        _user(_command_text("architect-team:architect-team"), "2026-07-06T00:00:00Z"),
+        _teammate_message("peer: I'm on task 2", "2026-07-06T00:05:00Z", sender="peer"),
+    ])
+    code, msg = check_payload(_payload(t, tool="Edit"))
+    assert code == 2, "a genuine unsatisfied command must still block despite a later peer message"
+    assert "architect-team-pipeline" in msg
+
+
+def test_prompt_merely_mentioning_teammate_is_not_excluded(tmp_path: Path) -> None:
+    # Guard against a too-loose discriminator: a genuine human prompt that merely
+    # uses the word "teammate" (no <teammate-message> envelope tag) is still a
+    # genuine prompt and still gates.
+    t = _write(tmp_path, [
+        _user(_command_text("architect-team:architect-team",
+                            args="have the teammate build the dashboard"),
+              "2026-07-06T00:00:00Z"),
+    ])
+    assert check_payload(_payload(t, tool="Edit"))[0] == 2
+
+
+def test_arm1_teammate_standdown_reuses_run_continuity_detection() -> None:
+    # The fix must SHARE arm 2's detection (run_continuity.is_teammate_transcript
+    # / session_has_genuine_prompt), not duplicate a second teammate matcher.
+    src = HOOK.read_text(encoding="utf-8")
+    assert "is_teammate_transcript" in src
+    assert "session_has_genuine_prompt" in src
+
+
+def test_subprocess_m1_teammate_session_allows_end_to_end(tmp_path: Path) -> None:
+    # end-to-end: the hook as a subprocess must not block a teammate's Edit.
+    brief = ("[CT6-TEAMMATE backend RUN x]\n"
+             "<command-name>/architect-team:architect-team</command-name> build it")
+    t = _write(tmp_path, [_user(brief, "2026-07-06T00:00:00Z")])
+    res = _run_hook(_payload(t, tool="Edit"))
+    assert res.returncode == 0, f"teammate Edit blocked end-to-end: {res.stderr[:200]!r}"

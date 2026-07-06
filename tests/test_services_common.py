@@ -275,3 +275,71 @@ def test_descriptor_generators_guard_injection() -> None:
     assert "a&amp;b&lt;c&gt;" in pl and "a&b<c>" not in pl
     wx = bg.windows_task_xml("svc", "run --flag=a&b<c>")
     assert "a&amp;b&lt;c&gt;" in wx and "a&b<c>" not in wx
+
+
+# --------------------------------------------------------------------------- #
+# resolve_model + build_llm_client (v3.32.0 — Fable-5 default, injected fallback)
+# --------------------------------------------------------------------------- #
+
+def test_default_model_is_fable_with_opus_fallback() -> None:
+    assert cfg.DEFAULT_MODEL == "claude-fable-5"
+    assert cfg.FALLBACK_MODEL == "claude-opus-4-8"
+
+
+def test_resolve_model_no_checker_prefers_fable() -> None:
+    # No availability checker => the preferred (fable) is returned unconditionally;
+    # the live probe is an adapter boundary, not run here.
+    assert cfg.resolve_model() == "claude-fable-5"
+
+
+def test_resolve_model_rejecting_checker_falls_back() -> None:
+    assert cfg.resolve_model(availability_checker=lambda m: False) == "claude-opus-4-8"
+    # an accepting checker keeps the preferred
+    assert cfg.resolve_model(availability_checker=lambda m: True) == "claude-fable-5"
+
+
+def test_resolve_model_raising_checker_falls_back() -> None:
+    def boom(model: str) -> bool:
+        raise RuntimeError("probe unavailable")
+
+    # A probe failure must degrade to the known-good fallback, never crash.
+    assert cfg.resolve_model(availability_checker=boom) == "claude-opus-4-8"
+
+
+def test_config_default_model_now_fable() -> None:
+    # The ServiceConfig constructor default and the config-from-dict load path both
+    # default to fable when the model is unspecified.
+    assert cfg.ServiceConfig("k").llm_model == "claude-fable-5"
+    assert cfg.load_config(None, env={}).llm_model == "claude-fable-5"
+
+
+def test_build_llm_client_routes_through_resolve_model_fake_path() -> None:
+    seen: dict = {}
+
+    def factory(config, model):
+        seen["model"] = model
+        seen["config_model"] = config.llm_model
+        return cfg.FakeLLMClient(lambda p: "ok")
+
+    c = cfg.ServiceConfig("sk-x")  # llm_model defaults to fable
+    client = cfg.build_llm_client(c, client_factory=factory)
+    assert isinstance(client, cfg.LLMClient)
+    assert client.complete("hi") == "ok"                      # FakeLLMClient path unaffected
+    assert seen["model"] == "claude-fable-5"                  # preferred wins with no checker
+    assert seen["config_model"] == "claude-fable-5"           # resolved config carries the model
+
+    # A rejecting checker makes build_llm_client hand the factory the fallback.
+    cfg.build_llm_client(c, client_factory=factory, availability_checker=lambda m: False)
+    assert seen["model"] == "claude-opus-4-8"
+
+
+def test_build_llm_client_respects_explicit_config_model() -> None:
+    seen: dict = {}
+
+    def factory(config, model):
+        seen["model"] = model
+        return cfg.FakeLLMClient()
+
+    c = cfg.ServiceConfig("sk-x", llm_model="claude-haiku-4-5-20251001")
+    cfg.build_llm_client(c, client_factory=factory)
+    assert seen["model"] == "claude-haiku-4-5-20251001"       # explicit config model preferred

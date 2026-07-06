@@ -2,7 +2,7 @@
 name: bug-classifier
 description: Spawned by the architect-team-pipeline at Phase −2 (before Phase −1) to triage the incoming requirement. Reads the source description (a folder of artifacts OR plain-language prose) and classifies it as `bug` (a defect to fix), `feature` (new capability to build), `mixed` (both), or `unclear` (ambiguous; emit a structured question to the user). Returns a structured verdict with `kind`, `bug_portion`, `feature_portion`, `confidence`, and `reasoning`. The orchestrator uses the verdict to route the work — pure-bug to the bug-fix-pipeline; pure-feature to the existing architect-team-pipeline; mixed spawns both in parallel; unclear pauses for the user. Lightweight (sonnet) analysis-only — no Bash, no Edit, no Write — language signals + structural read, not deep reasoning.
 tools: Read, Glob, Grep, TodoWrite
-model: sonnet
+model: fable
 color: blue
 ---
 

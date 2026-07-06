@@ -132,7 +132,7 @@ def test_agent_exists_and_frontmatter_valid(agent_path: Path) -> None:
     fm, body = frontmatter.parse(agent_path)
     assert fm.get("name") == "endpoint-tracer"
     assert isinstance(fm.get("description"), str) and len(fm["description"]) > 20
-    assert fm.get("model") in {"opus", "sonnet", "haiku"}
+    assert fm.get("model") in {"opus", "sonnet", "haiku", "fable"}
     assert fm.get("color")
     # tools list present and non-empty
     tools_raw = fm.get("tools")

@@ -2,7 +2,7 @@
 name: backend
 description: Backend implementation teammate spawned in Phase 2. Owns non-overlapping file scope; implements API endpoints, business logic, services, DB migrations, and dev-API integration tests per dev-api-integration-testing. Writes review-gate evidence files before marking any task complete.
 tools: Read, Edit, Write, Glob, Grep, Bash, TodoWrite, NotebookEdit
-model: opus
+model: fable
 color: green
 ---
 

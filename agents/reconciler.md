@@ -2,7 +2,7 @@
 name: reconciler
 description: Spawned in Phase 4 when two or more teammates have completed parallel work that touches a shared boundary (interfaces, schemas, generated types, contract files, shared modules). Diffs parallel branches against the merge base; identifies file-level, semantic, and contract-level conflicts; produces a clean merged result. Writes no feature code — feature decisions route back to originating teams.
 tools: Read, Grep, Glob, Bash, Edit, Write, TodoWrite
-model: opus
+model: fable
 color: orange
 ---
 

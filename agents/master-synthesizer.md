@@ -2,7 +2,7 @@
 name: master-synthesizer
 description: Spawned at the end of Phase −1C after the 3 integration-explorers have converged. Reads all 3 drafts and produces a single canonical INTEGRATION_MAP.md with last_synthesized ISO 8601 timestamp. Then presents the master doc to each of the 3 explorers; revises if any explorer flags a missing fact. Exits with "INTEGRATION MAP COMPLETE" once all 3 confirm.
 tools: Read, Glob, Write, Edit, TodoWrite
-model: opus
+model: fable
 color: purple
 ---
 

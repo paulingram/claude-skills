@@ -60,12 +60,23 @@ SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - Arm 1 stays anchored to the SINGLE most-recent genuine user prompt; the
   sticky arm activates ONLY on an explicit ``active-run.json`` marker with
   ``status: "active"`` and an explicit ``cwd`` in the payload.
-- The sticky arm stands down for: teammate sessions (the ``CT6-TEAMMATE``
-  spawn-brief token, or the brief-shaped-first-prompt fallback — blocking the
-  pipeline's own workers would brick the run), sidechain/subagent transcripts
-  (no genuine user prompt), sessions already operating under a pipeline skill
-  (engaged since the last compact boundary), a ``complete`` / ``stood-down``
-  marker, and the ``CT6_RUN_CONTINUITY_DISABLED=1`` kill-switch.
+- BOTH arms stand down for a WORKER session — a pipeline teammate (the
+  ``CT6-TEAMMATE`` spawn-brief token, or the brief-shaped-first-prompt
+  fallback) or a sidechain/subagent transcript (no genuine user prompt).
+  Blocking the pipeline's own workers would brick the run; a subagent cannot
+  invoke the user-facing Skill anyway. The worker-session detection is shared
+  with the sticky arm (``run_continuity.is_teammate_transcript`` /
+  ``session_has_genuine_prompt``) so the two arms cannot diverge
+  (SR-gate-teammate-false-block, M1 — arm 1 previously lacked this standdown).
+- The genuine-user-prompt anchor EXCLUDES the harness's injected ``role: user``
+  records: ``isMeta`` body-echoes, ``promptSource == "system"`` notifications,
+  ``isSidechain`` subagent records, AND ``<teammate-message ...>`` envelopes —
+  the SendMessage-injected PEER messages. Without the last exclusion an inbound
+  peer message re-anchors the arm-1 search PAST a satisfying Skill call and
+  re-arms the gate mid-run (SR-gate-teammate-false-block, M2).
+- The sticky arm additionally stands down for: sessions already operating under
+  a pipeline skill (engaged since the last compact boundary), a ``complete`` /
+  ``stood-down`` marker, and the ``CT6_RUN_CONTINUITY_DISABLED=1`` kill-switch.
 - The USER's explicit direction to work outside the pipeline is honoured via
   ``python hooks/run_continuity.py --stand-down "<their words>"`` — an
   auditable artifact, not a silent bypass.
@@ -157,6 +168,22 @@ _BLOCKED_TOOLS: frozenset[str] = frozenset({
 _COMMAND_NAME_RE = re.compile(
     r"<command-name>\s*/?(?P<name>[^<>\n]+?)\s*</command-name>", re.IGNORECASE
 )
+
+# The SendMessage-injected PEER-MESSAGE wrapper. When one agent sends a message
+# to another (Lead<->teammate, or teammate<->teammate) via the harness's
+# SendMessage tool, the harness injects it into the RECIPIENT's transcript as a
+# ``role: "user"`` record whose text is wrapped in a
+# ``<teammate-message teammate_id="..." summary="...">...</teammate-message>``
+# envelope (observed verbatim as the launch message of a CT6 teammate session
+# and as every inbound peer message thereafter). It is NOT a genuine human
+# prompt — keying on the opening tag lets ``_is_user_prompt`` exclude it, which
+# is what stops an inbound peer message from re-anchoring the arm-1 genuine-
+# prompt search PAST the Lead's satisfying Skill call and re-arming the gate
+# mid-run (SR-gate-teammate-false-block, manifestation M2). Matching the
+# opening tag is fail-open-safe: over-matching only REDUCES enforcement (this
+# module's deliberate bias), so a genuine prompt that merely quoted the tag
+# would at worst not gate — never wrongly block.
+_TEAMMATE_MESSAGE_RE = re.compile(r"<teammate-message\b", re.IGNORECASE)
 
 # Latency cap: this hook can fire on EVERY tool call (PreToolUse[*]). On a long
 # session the transcript can be many MB; the only records that matter are the
@@ -286,6 +313,12 @@ def _is_sidechain(rec: dict[str, Any]) -> bool:
     return bool(rec.get("isSidechain") or _message(rec).get("isSidechain"))
 
 
+def _is_teammate_message(rec: dict[str, Any]) -> bool:
+    """True for a SendMessage-injected peer message (``<teammate-message ...>``
+    envelope in the record's text). See ``_TEAMMATE_MESSAGE_RE``."""
+    return bool(_TEAMMATE_MESSAGE_RE.search(_text(rec)))
+
+
 def _is_user_prompt(rec: dict[str, Any]) -> bool:
     """True for a GENUINE user prompt only.
 
@@ -301,12 +334,18 @@ def _is_user_prompt(rec: dict[str, Any]) -> bool:
       - ``isSidechain: true`` — subagent transcripts (a subagent cannot call the
         user-facing Skill, and per the using-superpowers rule subagents skip
         skill-loading).
+      - a ``<teammate-message ...>`` envelope — a SendMessage-injected PEER
+        message (from the Lead or another teammate). It arrives as a
+        ``role: user`` record but is NOT a fresh human prompt; without this
+        exclusion an inbound peer message re-anchors the arm-1 search PAST the
+        Lead's satisfying Skill call and re-arms the gate mid-run
+        (SR-gate-teammate-false-block, M2). See ``_TEAMMATE_MESSAGE_RE``.
 
     NOTE: ``userType`` is ``"external"`` for ALL user records (genuine AND
     injected), so it is NOT a usable discriminator — the real signals are
-    ``isMeta`` / ``promptSource`` / ``isSidechain``. Tool-result deliveries
-    (role ``user`` but only ``tool_result`` content) yield empty text and are
-    excluded by the final check."""
+    ``isMeta`` / ``promptSource`` / ``isSidechain`` / the ``<teammate-message>``
+    envelope. Tool-result deliveries (role ``user`` but only ``tool_result``
+    content) yield empty text and are excluded by the final check."""
     if _role(rec) != "user":
         return False
     if _is_meta(rec):
@@ -314,6 +353,8 @@ def _is_user_prompt(rec: dict[str, Any]) -> bool:
     if _prompt_source(rec) == "system":
         return False
     if _is_sidechain(rec):
+        return False
+    if _is_teammate_message(rec):
         return False
     return bool(_text(rec).strip())
 
@@ -498,21 +539,78 @@ def _format_sticky_block(marker: dict[str, Any], tool: str) -> str:
     )
 
 
+def _transcript_head_and_truncation(
+    transcript_path: str,
+    records: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """``(head_records, truncated)`` for a transcript, via run_continuity's
+    head-slice reader.
+
+    The records that anchor session IDENTITY — the spawn brief with its
+    ``CT6-TEAMMATE`` token, the original slash-command prompt — live at the
+    transcript HEAD, while the tail-capped ``_read_records`` (the arm-1 latency
+    fix) only sees the last ``_TAIL_BYTES``. When the file is bigger than that
+    cap, the head slice is loaded so identity questions can consult it. Returns
+    ``([], False)`` when run_continuity is unavailable or the size can't be read
+    (fail open — degrade to the tail-only view, never raise)."""
+    if _rc is None:
+        return [], False
+    truncated = False
+    try:
+        truncated = Path(transcript_path).stat().st_size > _TAIL_BYTES
+    except OSError:
+        truncated = False
+    head = _rc.read_transcript_head(transcript_path) if truncated else []
+    return head, truncated
+
+
+def _is_worker_session(
+    records: list[dict[str, Any]],
+    head: list[dict[str, Any]],
+    truncated: bool,
+) -> bool:
+    """True when this transcript belongs to a pipeline TEAMMATE or a
+    sidechain/subagent — never the user's own session.
+
+    Shared by BOTH gate arms (SR-gate-teammate-false-block, M1): the pipeline's
+    own workers must never be gated (blocking them bricks the run — teammates
+    never invoke the user-facing Skill), and a subagent transcript holds no
+    genuine user prompt to satisfy. This reuses run_continuity's
+    ``session_has_genuine_prompt`` / ``is_teammate_transcript`` — the SAME
+    detection arm 2 has always used — so the two arms can never diverge on what
+    counts as a worker session. Fail-open: any error / unavailable substrate
+    returns False (defer to arm 1's own record-level exclusions)."""
+    if _rc is None:
+        return False
+    try:
+        if not _rc.session_has_genuine_prompt(list(records) + list(head)):
+            return True  # sidechain / subagent — no genuine user prompt at all
+        if _rc.is_teammate_transcript(records, head_records=head, truncated=truncated):
+            return True  # a pipeline teammate (CT6-TEAMMATE token / brief shape)
+    except Exception:
+        return False
+    return False
+
+
 def _sticky_run_check(
     payload: dict[str, Any],
     records: list[dict[str, Any]],
     transcript_path: str,
     tool: str,
+    head: list[dict[str, Any]],
+    truncated: bool,
 ) -> tuple[int, str]:
     """Arm 2 (v3.30.0) — the sticky active-run check. Fail-open throughout.
 
     Stands down for (review remediations #1/#3): a non-`active` or STALE
     marker (an abandoned run must not tax the workspace forever), a workspace
     paused at `escalation-pending.md` (the sanctioned human-decision gate —
-    the human may direct hand-edits to resolve the very blocker), teammate /
-    sidechain sessions, engaged sessions, and any AMBIGUOUS engagement answer
-    on a tail-truncated transcript (the evidence may be evicted — never block
-    on what cannot be proven)."""
+    the human may direct hand-edits to resolve the very blocker), engaged
+    sessions, and any AMBIGUOUS engagement answer on a tail-truncated
+    transcript (the evidence may be evicted — never block on what cannot be
+    proven). Teammate / sidechain (worker) sessions were already stood down
+    upstream in ``check_payload`` via ``_is_worker_session`` — the SAME shared
+    detection this arm previously inlined — so they never reach here."""
     if _rc is None:
         return 0, ""
     try:
@@ -531,18 +629,6 @@ def _sticky_run_check(
             return 0, ""  # abandoned run — the marker no longer gates anyone
         if (Path(cwd) / _rc.STATE_DIRNAME / "escalation-pending.md").exists():
             return 0, ""  # legitimately paused for a human decision
-        truncated = False
-        head: list[dict[str, Any]] = []
-        try:
-            truncated = Path(transcript_path).stat().st_size > _TAIL_BYTES
-        except OSError:
-            truncated = False
-        if truncated:
-            head = _rc.read_transcript_head(transcript_path)
-        if not _rc.session_has_genuine_prompt(list(records) + head):
-            return 0, ""  # sidechain / subagent transcript — not a user session
-        if _rc.is_teammate_transcript(records, head_records=head, truncated=truncated):
-            return 0, ""  # the pipeline's own workers are never gated here
         engaged = _rc.session_engaged_pipeline(
             records, since_last_compact=True, head_records=head, truncated=truncated
         )
@@ -632,6 +718,17 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     if not records:
         return 0, ""
 
+    # BOTH arms stand down for the pipeline's own workers — a teammate spawn-brief
+    # session (CT6-TEAMMATE token / brief shape) or a sidechain/subagent
+    # transcript. Arm 1 previously lacked this standdown (only arm 2 had it), so a
+    # teammate whose brief carries the original pipeline command as its latest
+    # genuine prompt — with no Skill call in the teammate transcript — was blocked
+    # on every build/dispatch tool (SR-gate-teammate-false-block, M1). The
+    # detection is shared with arm 2 (run_continuity), so the two cannot diverge.
+    head, truncated = _transcript_head_and_truncation(str(transcript_path), records)
+    if _is_worker_session(records, head, truncated):
+        return 0, ""
+
     last_prompt: dict[str, Any] | None = None
     for rec in records:
         if _is_user_prompt(rec):
@@ -648,7 +745,7 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
             if unsatisfied:
                 return 2, _format_block(unsatisfied, tool or "<tool>")
 
-    return _sticky_run_check(payload, records, str(transcript_path), tool)
+    return _sticky_run_check(payload, records, str(transcript_path), tool, head, truncated)
 
 
 def main(argv: list[str] | None = None) -> int:

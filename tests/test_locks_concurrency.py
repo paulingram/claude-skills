@@ -32,7 +32,9 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
@@ -126,20 +128,29 @@ def test_n_threads_same_scope_exactly_one_winner(
 ) -> None:
     """N threads race to acquire the IDENTICAL scope. Exactly one wins; every
     other gets `blocked` surfacing the single winner. No thread sees a torn or
-    overwritten lock file."""
+    overwritten lock file.
+
+    RT-5: additionally asserts WINNER IDENTITY — the single on-disk lock's holder
+    equals the run_id of the acquirer that returned `acquired`, not merely that
+    one file exists. Pre-fix mechanism A (a loser os.replace-overwriting the
+    in-flight winner) could leave count==1 with the on-disk holder rewritten to a
+    LOSER; the count-only assert never caught that shape."""
     n = 24
     scope = "src/shared/**"
-    results: list[dict] = []
+    # Track (run_id, result) so the winner's identity can be checked against the
+    # on-disk holder — the count==1-but-wrong-holder variant (RT-5).
+    results: list[tuple[str, dict]] = []
     results_lock = threading.Lock()
     barrier = threading.Barrier(n)
     errors: list[Exception] = []
 
     def _worker(idx: int) -> None:
+        run_id = f"run-{idx}"
         try:
             barrier.wait()  # release all threads at the same instant
-            r = locks_module.acquire_lock(scope, 14400, f"run-{idx}", locks_dir=tmp_path)
+            r = locks_module.acquire_lock(scope, 14400, run_id, locks_dir=tmp_path)
             with results_lock:
-                results.append(r)
+                results.append((run_id, r))
         except Exception as e:  # noqa: BLE001
             errors.append(e)
 
@@ -152,8 +163,8 @@ def test_n_threads_same_scope_exactly_one_winner(
     assert not errors, f"a worker raised: {errors!r}"
     assert len(results) == n, "not every worker returned a result"
 
-    acquired = [r for r in results if r.get("status") == "acquired"]
-    blocked = [r for r in results if r.get("status") == "blocked"]
+    acquired = [(rid, r) for rid, r in results if r.get("status") == "acquired"]
+    blocked = [(rid, r) for rid, r in results if r.get("status") == "blocked"]
     assert len(acquired) == 1, (
         f"expected exactly ONE winner, got {len(acquired)} "
         f"(identical-scope overwrite race)"
@@ -164,10 +175,17 @@ def test_n_threads_same_scope_exactly_one_winner(
     lock_files = list(tmp_path.glob("*.json"))
     assert len(lock_files) == 1, f"expected ONE lock file, found {len(lock_files)}"
     holder = json.loads(lock_files[0].read_text(encoding="utf-8"))["holder"]
+    # RT-5: the on-disk holder is the WINNING acquirer, not a loser whose reclaim
+    # overwrote the in-flight winner's file.
+    winner_run_id, winner_result = acquired[0]
+    assert holder == winner_run_id, (
+        f"on-disk holder {holder!r} is not the winning acquirer {winner_run_id!r} "
+        f"(count==1 but the holder was overwritten by a loser)"
+    )
     # Every blocked result surfaces that same holder.
-    for r in blocked:
+    for _rid, r in blocked:
         assert r.get("held_by") == holder
-    assert acquired[0].get("lock_id") == _scope_lock_id(scope)
+    assert winner_result.get("lock_id") == _scope_lock_id(scope)
 
 
 # ---- R5a: stale-lock reclaim via EXCL temp + os.replace ----------------------
@@ -367,3 +385,166 @@ def test_stale_intersecting_lock_does_not_block(
     assert len(surviving) == 1
     holder = json.loads(surviving[0].read_text(encoding="utf-8"))["holder"]
     assert holder == "run-new"
+
+
+# ---- SR-locks-flake regression suite (atomic-publish + grace-guard fallback) --
+#
+# Root cause (diagnostic-plan-20260706T0125Z): acquire_lock published the lock
+# NON-ATOMICALLY (os.open EXCL creates a 0-byte file, os.write fills it in a
+# SEPARATE syscall). During that empty window two destroyers manufactured extra
+# winners — _sweep_stale DELETED the empty file (freeing the path for a second
+# EXCL create) and the Step-3 reclaim branch OVERWROTE it. The fix publishes
+# atomically via a per-acquirer temp + os.link (primary path) with an
+# EXCL-create-then-write + _is_inflight grace-guard fallback for no-hardlink
+# filesystems. These tests deterministically provoke the OLD bug shape and pin
+# the fix + the fallback + the grace semantics.
+
+
+def _race_identical_scope(
+    locks_module: ModuleType, locks_dir: Path, n: int = 24, scope: str = "src/shared/**"
+) -> tuple[list[dict], list[Exception]]:
+    """Run the N-thread identical-scope race once; return (results, errors)."""
+    results: list[dict] = []
+    results_lock = threading.Lock()
+    barrier = threading.Barrier(n)
+    errors: list[Exception] = []
+
+    def _worker(idx: int) -> None:
+        try:
+            barrier.wait()
+            r = locks_module.acquire_lock(
+                scope, 14400, f"run-{idx}", locks_dir=locks_dir
+            )
+            with results_lock:
+                results.append(r)
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    threads = [threading.Thread(target=_worker, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=15)
+    return results, errors
+
+
+def test_rt1_widened_window_primary_path_exactly_one_winner(
+    locks_module: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    """RT-1 (PRIMARY, deterministic widened-window falsification). With the
+    create->write window WIDENED (os.write sleeps 10ms), the 24-thread
+    identical-scope race must still yield EXACTLY ONE winner on the atomic
+    os.link publish path — the widened sleep now lands inside the (unscanned)
+    temp's write and the os.link publish is atomic. Pre-fix this reliably
+    produced 2+ winners; the loop makes a residual surface deterministically."""
+    real_write = locks_module.os.write
+
+    def slow_write(fd, data):
+        time.sleep(0.010)  # de-schedule between temp create and its write
+        return real_write(fd, data)
+
+    monkeypatch.setattr(locks_module.os, "write", slow_write)
+
+    for iteration in range(10):
+        d = tmp_path / f"it{iteration}"
+        d.mkdir()
+        results, errors = _race_identical_scope(locks_module, d)
+        assert not errors, f"iter {iteration}: a worker raised: {errors!r}"
+        acquired = [r for r in results if r.get("status") == "acquired"]
+        assert len(acquired) == 1, (
+            f"iter {iteration}: widened-window race produced {len(acquired)} "
+            f"winners (expected exactly 1 on the atomic os.link path)"
+        )
+        assert len(list(d.glob("*.json"))) == 1, (
+            f"iter {iteration}: expected exactly one lock file on disk"
+        )
+        # No in-flight temp leftover survives a settled race.
+        assert not [p for p in d.glob("*") if ".tmp" in p.name], (
+            f"iter {iteration}: an .tmp leftover survived"
+        )
+
+
+def test_rt2_fallback_no_hardlink_exactly_one_winner(
+    locks_module: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    """RT-2 (FALLBACK path). Force the no-hardlink filesystem by making os.link
+    raise OSError, so publish falls back to EXCL-create-then-write (a residual
+    empty window). Under the widened window the _is_inflight grace guards on
+    BOTH destroyers must still hold exactly-one-winner. Without this test the
+    entire fallback + grace-guard layer is unexercised on a hardlink-capable CI
+    filesystem (RT-1 always takes the primary path there)."""
+    real_write = locks_module.os.write
+
+    def slow_write(fd, data):
+        time.sleep(0.008)
+        return real_write(fd, data)
+
+    def no_hardlink(src, dst):
+        raise OSError("forced: hardlinks unsupported on this filesystem")
+
+    monkeypatch.setattr(locks_module.os, "write", slow_write)
+    monkeypatch.setattr(locks_module.os, "link", no_hardlink)
+
+    for iteration in range(8):
+        d = tmp_path / f"it{iteration}"
+        d.mkdir()
+        results, errors = _race_identical_scope(locks_module, d)
+        assert not errors, f"iter {iteration}: a worker raised: {errors!r}"
+        acquired = [r for r in results if r.get("status") == "acquired"]
+        assert len(acquired) == 1, (
+            f"iter {iteration}: fallback race produced {len(acquired)} winners "
+            f"(the _is_inflight grace guards failed to hold the invariant)"
+        )
+        assert len(list(d.glob("*.json"))) == 1, (
+            f"iter {iteration}: expected exactly one lock file on disk"
+        )
+        assert not [p for p in d.glob("*") if ".tmp" in p.name], (
+            f"iter {iteration}: an .tmp leftover survived the fallback publish"
+        )
+
+
+def test_rt3_inflight_empty_file_blocks_not_reclaimed(
+    locks_module: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    """RT-3 (deterministic mechanism-A guard; post-fix inverse of pre-fix item 4).
+    An empty (mid-write) in-flight lock file at the path must be treated as a
+    LIVE holder: acquire_lock returns `blocked` and does NOT overwrite it. Reclaim
+    is reserved for a lock that parses AND is expired, or an aged empty orphan."""
+    scope = "src/shared/**"
+    lock_id = locks_module._hash_scope(scope)
+    lock_path = tmp_path / f"{lock_id}.json"
+    lock_path.write_text("")  # winner os.open'd but has not yet written its payload
+    # Model the sweep having already run before the winner created the file.
+    monkeypatch.setattr(locks_module, "_sweep_stale", lambda _dir: None)
+
+    res = locks_module.acquire_lock(scope, 14400, "run-loser", locks_dir=tmp_path)
+    assert res["status"] == "blocked", res
+    # The in-flight file was NOT overwritten by the losing acquirer.
+    assert lock_path.read_text(encoding="utf-8") == "", (
+        "the in-flight (empty) lock file was overwritten by a losing acquirer"
+    )
+    assert list(tmp_path.glob("*.json")) == [lock_path]
+
+
+def test_rt4_sweep_grace_keeps_recent_empty_sweeps_aged_orphan(
+    locks_module: ModuleType, tmp_path: Path
+) -> None:
+    """RT-4 (mechanism-B guard + crash-orphan recovery). (a) _sweep_stale must
+    KEEP a recent empty in-flight file. (b) An empty file older than
+    _INFLIGHT_GRACE_SECONDS is a genuine crash orphan and MUST be swept."""
+    scope = "src/shared/**"
+    lock_id = locks_module._hash_scope(scope)
+    lock_path = tmp_path / f"{lock_id}.json"
+
+    # (a) a recently-written empty file survives the sweep (in-flight).
+    lock_path.write_text("")
+    locks_module._sweep_stale(tmp_path)
+    assert lock_path.exists(), "a recent empty in-flight file was wrongly swept"
+
+    # (b) backdate its mtime beyond the grace window -> swept as a crash orphan.
+    old = time.time() - (locks_module._INFLIGHT_GRACE_SECONDS + 5.0)
+    os.utime(lock_path, (old, old))
+    locks_module._sweep_stale(tmp_path)
+    assert not lock_path.exists(), (
+        "an aged empty crash-orphan (older than the grace window) was not swept"
+    )

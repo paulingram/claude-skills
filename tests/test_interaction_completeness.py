@@ -67,7 +67,7 @@ VALID_TOOLS = {
     "TodoWrite", "NotebookEdit",
     "WebFetch", "WebSearch",
 }
-VALID_MODELS = {"opus", "sonnet", "haiku", "inherit"}
+VALID_MODELS = {"opus", "sonnet", "haiku", "inherit", "fable"}  # v3.32.0 uniform fable default
 REQUIRED_AGENT_KEYS = {"name", "description", "tools", "model", "color"}
 REQUIRED_SKILL_KEYS = {"name", "description"}
 
@@ -364,7 +364,7 @@ def test_agent_is_opus(plugin_root: Path) -> None:
     """Judgment-heavy review — the reviewer runs on the opus model."""
     fm, _ = frontmatter.parse(plugin_root.joinpath(*AGENT))
     assert fm["model"] in VALID_MODELS, f"interaction-reviewer invalid model {fm['model']!r}"
-    assert fm["model"] == "opus", "interaction-reviewer must run on the opus model"
+    assert fm["model"] == "fable", "interaction-reviewer must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
 
 
 def test_agent_tools_are_valid(plugin_root: Path) -> None:

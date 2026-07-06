@@ -167,7 +167,7 @@ def test_skill_has_worked_example_of_the_title_gap(plugin_root: Path) -> None:
 def test_agent_exists_and_is_opus(plugin_root: Path) -> None:
     """The user explicitly asked for an Opus AI to do this review."""
     content = _read(plugin_root, AGENT)
-    assert "model: opus" in content, "editability-reviewer must run on the opus model"
+    assert "model: fable" in content, "editability-reviewer must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
 
 
 def test_agent_is_read_only_on_source(plugin_root: Path) -> None:

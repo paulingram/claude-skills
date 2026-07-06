@@ -2,7 +2,7 @@
 name: integration-explorer
 description: Spawned ×3 in parallel during Phase −1C. Each independently produces an integration synthesis from all CODEBASE_MAP.md / ROUTE_MAP.md files plus read access to boundary code (HTTP clients, queues, shared schemas, deployment configs). In the round-robin convergence step, each reviews the other two's drafts and revises its own until all three agree.
 tools: Read, Glob, Grep, Bash, Write, Edit, TodoWrite, WebFetch
-model: opus
+model: fable
 color: blue
 ---
 

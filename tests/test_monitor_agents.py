@@ -20,7 +20,7 @@ def test_watcher_carries_frontmatter() -> None:
     body = WATCHER.read_text(encoding="utf-8")
     front, _, _ = body[3:].partition("---")
     assert "name: test-run-watcher" in front
-    assert "model: sonnet" in front
+    assert "model: fable" in front
     assert "color: cyan" in front  # v3.10.0 R4d: teal -> cyan (documented palette)
 
 
@@ -73,7 +73,7 @@ def test_synthesizer_carries_frontmatter() -> None:
     body = SYNTH.read_text(encoding="utf-8")
     front, _, _ = body[3:].partition("---")
     assert "name: monitor-synthesizer" in front
-    assert "model: opus" in front
+    assert "model: fable" in front
     assert "color: cyan" in front  # v3.10.0 R4d: teal -> cyan (documented palette)
 
 

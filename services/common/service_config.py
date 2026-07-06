@@ -17,8 +17,40 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-DEFAULT_MODEL = "claude-opus-4-8"
+DEFAULT_MODEL = "claude-fable-5"    # v3.32.0 — Fable 5, preferred wherever available
+FALLBACK_MODEL = "claude-opus-4-8"  # v3.32.0 — implemented Opus 4.8 fallback (resolve_model)
 STORAGE_MODES = ("mempalace", "file-folder")  # LIB-8 — vector store OR indexed file folder
+
+
+def resolve_model(
+    preferred: str = DEFAULT_MODEL,
+    fallback: str = FALLBACK_MODEL,
+    availability_checker: Optional[Callable[[str], bool]] = None,
+) -> str:
+    """Resolve the model id to use: ``preferred`` (Fable 5 by default) when it is
+    available, else ``fallback`` (Opus 4.8 by default).
+
+    Pure function. ``availability_checker`` is an INJECTED adapter — a callable
+    ``model_id -> bool``. The live-API availability probe is an ADAPTER BOUNDARY
+    (the services honest-boundary convention / REPO-4: no network/SDK import
+    leaks into this stdlib core), so the checker is supplied by the operator or a
+    test, never hard-wired here:
+
+    * no checker (the default) => ``preferred`` is returned unconditionally (the
+      Anthropic API itself errors informatively if the model is genuinely absent);
+    * ``checker(preferred)`` truthy => ``preferred``;
+    * ``checker(preferred)`` falsy  => ``fallback``;
+    * ``checker(preferred)`` RAISING => ``fallback`` (defensive + documented — a
+      probe failure must never crash model selection; it degrades to the
+      known-good fallback rather than propagating).
+    """
+    if availability_checker is None:
+        return preferred
+    try:
+        available = availability_checker(preferred)
+    except Exception:
+        return fallback
+    return preferred if available else fallback
 
 
 class ServiceConfig:
@@ -152,3 +184,41 @@ def anthropic_client(config: ServiceConfig):
             return "".join(block.text for block in msg.content if getattr(block, "type", "") == "text")
 
     return _AnthropicClient(config.anthropic_key, config.llm_model)
+
+
+def build_llm_client(
+    config: ServiceConfig,
+    *,
+    availability_checker: Optional[Callable[[str], bool]] = None,
+    client_factory: Optional[Callable[[ServiceConfig, str], LLMClient]] = None,
+) -> LLMClient:
+    """Build an ``LLMClient`` for ``config``, routing the model through ``resolve_model``.
+
+    The model actually used is ``resolve_model(preferred=config.llm_model,
+    fallback=FALLBACK_MODEL, availability_checker=availability_checker)`` — so a
+    fable-preferred config transparently falls back to opus when the injected
+    ``availability_checker`` reports fable unavailable. With no checker,
+    ``config.llm_model`` (the explicitly set model, or the fable default) wins and
+    the API errors informatively if that model is genuinely absent (the live probe
+    is an adapter boundary, not a hard dependency of this stdlib core).
+
+    ``client_factory(resolved_config, model) -> LLMClient`` is the injection seam:
+    tests pass a factory returning a ``FakeLLMClient``; production leaves it ``None``
+    and the real Anthropic adapter (``anthropic_client``) is built against a config
+    carrying the resolved model. Import-clean either way (no new top-level import),
+    so ``check_separation`` stays green.
+    """
+    model = resolve_model(
+        preferred=config.llm_model,
+        fallback=FALLBACK_MODEL,
+        availability_checker=availability_checker,
+    )
+    resolved_config = ServiceConfig(
+        anthropic_key=config.anthropic_key,
+        llm_model=model,
+        storage_mode=config.storage_mode,
+        extra=config.extra,
+    )
+    if client_factory is not None:
+        return client_factory(resolved_config, model)
+    return anthropic_client(resolved_config)
