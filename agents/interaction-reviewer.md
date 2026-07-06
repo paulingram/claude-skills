@@ -2,7 +2,7 @@
 name: interaction-reviewer
 description: Spawned x3 in parallel by the interaction-completeness skill (Phase 3 review gate, or Phase 5 cross-layer verification) for any slice with UI/UX surface. Each reviewer independently enumerates every interactive element AND every page / screen / route the slice ships, classifies each element by how it is wired (endpoint-backed / client-only / confirmed-stub / ambiguous) and each page as live / placeholder / confirmed-stub, traces each non-stub element to its endpoint or client behavior, audits every Playwright test for genuine user-driven interaction rather than direct API calls or vacuous navigate-and-assert, and applies dynamic-value-discovery to flag values hardcoded where they should be dynamic. The three reviewers then argue to a converged interaction map of genuine controls, live pages, and gaps. Read-only on source code. Analysis-only — never writes feature code; gaps become solution requirements that the normal fix loop acts on.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: yellow
 ---
 

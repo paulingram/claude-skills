@@ -2,7 +2,7 @@
 name: visual-capture
 description: Spawned in parallel (one per screen-group) by the visual-verification-team skill. Starts the LIVE running application and captures, for every assigned DESIGN_MAP screen, a capture set — per-state / per-viewport screenshots PLUS a computed-style and bounding-box data dump from the real DOM — and assembles the design-side reference (a design image, a design-prototype screenshot, or spec-only). Purely mechanical — it renders and records, it never judges. Its output is a countable artifact set that the visual-analyzer agents consume. Read-only on source code.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: sonnet
+model: fable
 color: cyan
 ---
 

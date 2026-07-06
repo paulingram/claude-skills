@@ -2,7 +2,7 @@
 name: test-run-watcher
 description: Spawned by the `test-run-monitor` skill at Phase M2. Drives the source-specific adapter (LocalAdapter / CIAdapter / ProductionQAAdapter) selected at Phase M1, executes the chosen test source, tails its output, and captures structured per-finding JSON files to `<workspace>/.architect-team/monitor-runs/<run-id>/findings/`. Strictly passive — no source modification, no mid-run inbox injection, no SR filing. The watcher's output is consumed by `monitor-synthesizer` at Phase M3 to produce the final per-run report.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite, WebFetch
-model: sonnet
+model: fable
 color: cyan
 ---
 

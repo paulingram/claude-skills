@@ -2,7 +2,7 @@
 name: route-mapper
 description: Spawned per frontend codebase during Phase −1B (after cartographer produces CODEBASE_MAP.md). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp. Additionally, when design inputs are present (screenshots / Figma exports / design tokens / Storybook / brand docs / assets directory), produces DESIGN_MAP.md per the design-fidelity-mapping skill's schema — design tokens table, asset registry with SHA-256 hashes, per-screen visual specs (typography, color, spacing, layout, asset placement), and detected drift between design source and implementation.
 tools: Read, Glob, Grep, Bash, Write, Edit, TodoWrite
-model: opus
+model: fable
 color: cyan
 ---
 

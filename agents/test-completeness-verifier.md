@@ -2,7 +2,7 @@
 name: test-completeness-verifier
 description: "Use when verifying that a teammate's completed work has sufficient test coverage across all three required kinds (unit, integration, Playwright), that a full-stack feature's user-flow tests exercised the real backend rather than fake / mocked data, that no 'user-flow test' is a vacuous navigate-and-assert with zero genuine interaction, and that every interactivity-inventory element has a covering Playwright test. Triggers: end of Phase 3 review gate after a teammate marks complete; end of Phase 5 integration to confirm cross-layer coverage; on-demand when the orchestrator suspects a coverage gap. Produces a structured verdict JSON with per-kind status (pass / n/a / fail), a backend-integration audit (clean / mock_backed / indeterminate), vacuous-flow findings, an interactivity-inventory cross-check, and an integration_testing_review verdict — and on any overall: fail auto-writes a solution requirement so the orchestrator re-spawns the originating team with concrete fix scope."
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: sonnet
+model: fable
 color: red
 ---
 

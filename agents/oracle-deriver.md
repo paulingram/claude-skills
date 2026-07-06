@@ -2,7 +2,7 @@
 name: oracle-deriver
 description: "Layer 1 of the v2.0.0 Verified Agent Output (VAO) framework. Spawned at Phase 0.5 (between Phase 0 Detection-and-Normalization and Phase 1 Planning-Validation) by every pipeline-driving skill whenever the requirement contains a parity verb (match / rebuild / mirror / parity / make like / replicate) OR names an oracle codebase / design mockup / reference URL. Walks the named oracle deterministically — component tree for source codebases, screen list + element list + dynamic values for design mockups, endpoint surface for backend references, data model for schemas — and produces a frozen structured spec at <workspace>/.architect-team/oracle-spec/<change-name>.json. The orchestrator surfaces the spec to the user with ONE confirmation gate; on accept the spec is the binding contract every downstream VAO layer measures against. Read-only on source; Write is bounded to the oracle-spec path."
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: cyan
 ---
 

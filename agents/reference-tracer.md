@@ -2,7 +2,7 @@
 name: reference-tracer
 description: Spawned ×N (sharded) by the structure-optimization skill at Stage S4, after the analysts' restructure proposal converges. Each tracer mechanically closes the reference-impact set for its assigned, non-overlapping shard of the movement table — every inbound reference to each moved file (imports / requires / includes, config globs, build scripts, CI paths, docs links, string-literal paths, test paths), every outbound relative import that breaks on move, and the refactoring steps each movement forces — with file:line evidence per entry. Output feeds movements.json; the structure-adversary refutes it via independent search modalities. Read-only on source; bounded Write to its own shard file.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: sonnet
+model: fable
 color: orange
 ---
 

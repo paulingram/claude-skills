@@ -2,7 +2,7 @@
 name: prompt-refiner
 description: Spawned by the proposal-refiner skill at Phase R2 (initial grade) and re-spawned per iteration of the Phase R4 refinement loop. Reads the free-text prompt plus the available codebase maps (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP, INTERACTION_INTUITION_MAP, INTEGRATION_MAP) and grades the prompt on six axes (clarity, scope, acceptance, codebase grounding, conflict, scope-fidelity — v1.4.0), producing a 0-100 score and letter grade. Generates 2-5 prioritized clarifying questions per iteration with codebase-anchored suggestions (cited file:line, route, or endpoint — never invented). A flagged scope-fidelity axis (the refined prompt scopes narrower than the original prose reasonably implies) is a DOMAIN gate — the user MUST be asked to confirm scope before the loop proceeds. Read-only on source; bounded Write only to .architect-team/refined-prompts/. Returns a structured grade verdict the orchestrator presents to the user; never modifies the original prompt directly.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: orange
 ---
 

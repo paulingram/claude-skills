@@ -2,7 +2,7 @@
 name: structure-analyst
 description: Spawned ×3 in parallel by the structure-optimization skill at Stage S2. Each analyst independently studies the codebase maps (CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP) + the code itself and drafts a COMPLETE restructure proposal — structural problems found, the target directory tree, a full file partition (every tracked file appears in the movement table OR the explicit stays-in-place list — verified against git ls-files), per-movement rationale, and the refactors each movement forces. The three drafts argue to convergence at Stage S3 (round-robin, evidence-cited) gated by the deterministic partition check. Read-only on source; bounded Write to the run's drafts directory only.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: blue
 ---
 

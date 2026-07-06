@@ -109,7 +109,7 @@ def test_interaction_observer_frontmatter(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-observer.md"
     body = agent.read_text(encoding="utf-8")
     assert "name: interaction-observer" in body
-    assert "model: opus" in body
+    assert "model: fable" in body
     assert "description:" in body
     assert "color:" in body
 

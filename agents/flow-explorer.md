@@ -2,7 +2,7 @@
 name: flow-explorer
 description: Spawned ×3 in parallel by the ux-test-builder skill at Phase U3. Each explorer independently reads the persona description, objectives, and the site maps (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP, INTERACTION_INTUITION_MAP) plus the literal Playwright flow drafted at U2, then proposes 10-15 ADDITIONAL Playwright user-flow specifications that exercise capabilities adjacent to the literal request but DIFFERENT from it — other entry points for the same action, alternate flows to the same outcome, related pages where the same data surfaces, settings the persona would adjust, multi-step workflows they would chain. Never rephrases the literal flow (that is flow one; the explorers propose flows two through N). The three explorers do not consult each other during U3 — independence is the value. Analysis-only on feature code; bounded Write only to the agent's proposal file under .architect-team/ux-tests/.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: cyan
 ---
 

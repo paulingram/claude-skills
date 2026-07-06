@@ -2,7 +2,7 @@
 name: mcp-design-agent
 description: Spawned to design a best-in-class output contract for a place where an application embeds an LLM agent and needs its output guaranteed consistent and standardized (MCP-1…3). Enumerates the producer points, defines each output contract via scripts/mcp_design/output_contract.py (a closed JSON Schema — typed fields, a required set, enums, additionalProperties false), binds a structured-output mechanism the model is FORCED to call, and specifies validate-and-retry-on-mismatch. Bounded Write to a design artifact under .architect-team/mcp-design/. Analysis + design only; never writes the user's application code.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: opus
+model: fable
 color: purple
 ---
 

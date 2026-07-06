@@ -74,18 +74,18 @@ def test_skill_synthesizes_holistically_into_clusters(plugin_root: Path) -> None
 
 # --- the two new agents -----------------------------------------------------
 
-def test_capture_agent_is_sonnet_and_mechanical(plugin_root: Path) -> None:
+def test_capture_agent_is_fable_and_mechanical(plugin_root: Path) -> None:
     content = _read(plugin_root, CAPTURE)
-    assert "model: sonnet" in content, "visual-capture should run on sonnet"
+    assert "model: fable" in content, "visual-capture must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
     assert "no verdict" in content.lower() or "never judge" in content.lower() or (
         "mechanical" in content.lower()
     ), "visual-capture does not establish that it is mechanical and produces no verdicts"
     assert "live" in content.lower(), "visual-capture does not render the live app"
 
 
-def test_analyzer_agent_is_opus_and_data_first(plugin_root: Path) -> None:
+def test_analyzer_agent_is_fable_and_data_first(plugin_root: Path) -> None:
     content = _read(plugin_root, ANALYZER)
-    assert "model: opus" in content, "visual-analyzer should run on opus"
+    assert "model: fable" in content, "visual-analyzer must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
     assert "data diff" in content.lower(), (
         "visual-analyzer does not establish the data diff as the verdict mechanism"
     )

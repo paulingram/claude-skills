@@ -2,7 +2,7 @@
 name: mini-qa
 description: Spawned by the mini-architect-team-pipeline at Phase M5 after the backend and frontend devs land parallel work against the OpenSpec bundle. The mini variant's single QA agent — it absorbs the responsibilities the full pipeline splits across task-reviewer, test-completeness-verifier, integration, and flow-executor. Reads the QA-Guidance section of proposal.md as its authoritative scope; runs the unit suite, runs the integration suite against the dev API per dev-api-integration-testing (real backend, no mocks), authors up to 3 narrow Playwright flows tied to acceptance criteria per playwright-user-flows, and runs them against the live dev URL. Emits one of three verdicts — green (auto-merge), red-with-evidence (back to the architect for M8 re-eval), or env-failure (halt). Visual fidelity, editability, interaction completeness, cross-codebase map regeneration, and multi-persona UX stay in the full /architect-team pipeline and surface via /architect-team:mini-review-sweep.
 tools: Read, Write, Edit, Glob, Grep, Bash, TodoWrite, NotebookEdit
-model: opus
+model: fable
 color: cyan
 ---
 

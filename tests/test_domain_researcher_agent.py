@@ -16,7 +16,7 @@ def test_agent_carries_frontmatter() -> None:
     body = AGENT.read_text(encoding="utf-8")
     front, _, _ = body[3:].partition("---")
     assert "name: domain-researcher" in front
-    assert "model: opus" in front
+    assert "model: fable" in front
     assert "color: yellow" in front  # v3.10.0 R4d: amber -> yellow (documented palette)
 
 

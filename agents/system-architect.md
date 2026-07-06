@@ -2,7 +2,7 @@
 name: system-architect
 description: Architectural deep-dives, design refinement, and contract audits on demand from the architect-team orchestrator. Analysis-only — produces decisive recommendations with file:line evidence; never writes feature code. Operates strictly from CODEBASE_MAP.md, ROUTE_MAP.md, INTEGRATION_MAP.md, and OpenSpec artifacts.
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, Write, TodoWrite
-model: opus
+model: fable
 color: blue
 ---
 

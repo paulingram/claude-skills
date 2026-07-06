@@ -42,10 +42,10 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
     assert fm["name"] == AGENT_NAME
 
 
-def test_agent_model_is_opus(plugin_root: Path) -> None:
+def test_agent_model_is_fable(plugin_root: Path) -> None:
     """The grader is judgment-heavy; opus is the required model."""
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "opus", "prompt-refiner must be model: opus (judgment-heavy)"
+    assert fm["model"] == "fable", "prompt-refiner must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
 
 
 # --- tools posture ----------------------------------------------------------

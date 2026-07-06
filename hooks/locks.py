@@ -24,12 +24,19 @@ malformed (corrupt JSON, missing required fields, unparseable timestamp).
 
 Concurrency model (advisory, best-effort — REQ-R5):
   - The IDENTICAL-scope race (two acquirers, same scope-hash filename) is closed
-    hard: the lock file is created with ``os.open(path, O_CREAT|O_EXCL|O_WRONLY)``
-    so the OS guarantees exactly one creator wins; a second concurrent creator
-    gets ``FileExistsError`` and is reported ``blocked``. A *stale* lock at that
-    path is reclaimed by staging a fresh lock in an EXCL-created temp and
-    swapping it in with an atomic ``os.replace`` (no destructive unlink→write
-    window).
+    hard by an ATOMIC publish: an acquirer serializes the full lock payload into
+    a per-acquirer-unique ``.inflight.tmp`` temp and hard-links (``os.link``) that
+    temp onto the final ``{lock_id}.json`` path. ``os.link`` is atomic and raises
+    ``FileExistsError`` if the target already exists, so the OS guarantees exactly
+    one creator wins AND every reader observes the lock file already
+    fully-populated — never an empty create→write window. A second concurrent
+    creator is reported ``blocked``. (Filesystems without hardlink support —
+    FAT/exFAT/some network shares — fall back to EXCL-create-then-write in place,
+    whose residual empty window is guarded by the ``_is_inflight`` reader-side
+    grace windows so the two destroyers never act on a live mid-write file.) A
+    *stale* lock at that path is reclaimed by staging a fresh lock in an
+    EXCL-created temp and swapping it in with an atomic ``os.replace`` (no
+    destructive unlink→write window).
   - The INTERSECTING-scope race (two acquirers, DIFFERENT scopes whose path
     spaces overlap — different filenames, so EXCL cannot see the collision) is
     closed advisorily: after its EXCL write succeeds, an acquirer RE-SCANS the
@@ -61,6 +68,7 @@ import json
 import os
 import re
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -87,6 +95,20 @@ _WILDCARD_CHARS = set("*?[")
 # stale lock at an already-existing path (EXCL-create the temp, then os.replace
 # it atomically over the stale lock — no destructive unlink→write window).
 _LOCK_TMP_SUFFIX = ".reclaim.tmp"
+
+# Grace window (wall-clock seconds) for the FALLBACK publish path only. On a
+# no-hardlink filesystem `_write_lock_excl` falls back to EXCL-create-then-write,
+# which briefly leaves the lock file zero-length between the create and the
+# write. A reader that observes a zero-length lock file MODIFIED within this
+# window treats it as a live in-flight publication (do NOT delete/reclaim) rather
+# than a stale/corrupt lock; a zero-length file OLDER than the window is a
+# genuine crash orphan and is reclaimed normally. On the PRIMARY os.link path no
+# reader ever observes an empty lock file, so this guard is inert there. The
+# value is chosen to exceed (coarse FAT/exFAT mtime granularity ≈ 2 s) + (a
+# create→write scheduling delay of tens of ms) with margin, while staying
+# negligible against the 4 h (14400 s) lock ttl — a crash-orphaned zero-length
+# file is reclaimed within ~5 s, never deadlocked.
+_INFLIGHT_GRACE_SECONDS = 5.0
 
 # Stabilization parameters for the intersecting-scope race resolution (REQ-R5b).
 # After its EXCL write, an acquirer that observes itself as the EARLIEST
@@ -116,12 +138,15 @@ def acquire_lock(
       2. Iterate the surviving locks. If any holds a glob that intersects
          `scope_glob`, return `{"status": "blocked", "held_by": <holder>,
          "lock_id": <existing-lock-id>}`.
-      3. Otherwise create the lock file atomically with
-         ``os.open(path, O_CREAT|O_EXCL|O_WRONLY)`` (REQ-R5a). If the path
-         already exists at this point — a same-scope acquirer that raced past the
-         sweep+scan — acquisition is ``blocked`` (no silent overwrite); a *stale*
-         survivor at that path is reclaimed via an atomic ``os.replace`` of a
-         freshly-EXCL-created temp.
+      3. Otherwise publish the lock file atomically (REQ-R5a) — write the full
+         payload into a per-acquirer temp and ``os.link`` it onto the final path
+         (fully-populated the instant it becomes visible; see
+         ``_write_lock_excl``). If the path already exists at this point — a
+         same-scope acquirer that raced past the sweep+scan — acquisition is
+         ``blocked`` (no silent overwrite); an in-flight (zero-length, recently
+         written) file is respected as a live holder; a *stale* survivor at that
+         path is reclaimed via an atomic ``os.replace`` of a freshly-EXCL-created
+         temp.
       4. RE-SCAN the lock dir (REQ-R5b). If another live lock with an
          INTERSECTING scope holds an earlier ``(acquired_at, session-id)``
          position, release own lock and return ``blocked`` naming that winner.
@@ -158,9 +183,11 @@ def acquire_lock(
                 "lock_id": lock.get("lock_id"),
             }
 
-    # Step 3: create the lock atomically (O_CREAT|O_EXCL). The OS guarantees a
-    # single creator wins the IDENTICAL-scope race — a concurrent same-scope
-    # acquirer that raced past Step 1+2 hits FileExistsError here.
+    # Step 3: publish the lock atomically (temp + os.link). The os.link is the
+    # single-creator race point — the OS guarantees a single winner wins the
+    # IDENTICAL-scope race and every reader sees a fully-populated file (no empty
+    # create→write window); a concurrent same-scope acquirer that raced past
+    # Step 1+2 hits FileExistsError here.
     lock_id = _hash_scope(scope_glob)
     payload = {
         "holder": run_id,
@@ -173,16 +200,38 @@ def acquire_lock(
     if not _write_lock_excl(lock_path, payload):
         # The path already exists. Re-read it: a live holder => blocked; a stale
         # survivor (the sweep missed a just-landed expiry, or a race) => reclaim.
+        now = datetime.now(timezone.utc)
         existing = _read_lock(lock_path)
-        if existing is not None and not _lock_is_expired(
-            existing, datetime.now(timezone.utc)
-        ):
+        if existing is not None and not _lock_is_expired(existing, now):
             return {
                 "status": "blocked",
                 "held_by": existing.get("holder"),
                 "lock_id": existing.get("lock_id") or lock_id,
             }
-        # Stale (or unreadable) lock at this path: reclaim it atomically.
+        # `existing is None` means the file was empty/unreadable at this read. On
+        # the fallback (no-hardlink) publish path that is either a concurrent
+        # acquirer's IN-FLIGHT publication (zero-length, recently written) OR its
+        # single os.write landed BETWEEN our read and now. Defend against BOTH
+        # orderings before ever reclaiming — reclaim (os.replace) CLOBBERS, so it
+        # must never run on a live holder (that is mechanism A, the read->reclaim
+        # TOCTOU). On the primary os.link path `existing` is never None (the .json
+        # appears atomically fully-populated), so this whole block is inert there.
+        if existing is None:
+            # (1) still zero-length + recent => a live in-flight publication.
+            if _is_inflight(lock_path, time.time()):
+                return {"status": "blocked", "held_by": None, "lock_id": lock_id}
+            # (2) the write may have landed since our first read — re-read so a
+            #     now-valid live holder is respected, not clobbered.
+            existing = _read_lock(lock_path)
+            if existing is not None and not _lock_is_expired(existing, now):
+                return {
+                    "status": "blocked",
+                    "held_by": existing.get("holder"),
+                    "lock_id": existing.get("lock_id") or lock_id,
+                }
+        # Genuinely stale (parseable-and-expired) or an aged/corrupt orphan
+        # (zero-length older than the grace window, or non-empty corruption) lock
+        # at this path: reclaim it atomically.
         if not _reclaim_stale_lock(lock_path, payload):
             # Lost the reclaim race to another acquirer — re-read the winner.
             winner = _read_lock(lock_path)
@@ -683,27 +732,132 @@ def _serialize_lock(payload: dict[str, Any]) -> bytes:
 
 
 def _write_lock_excl(lock_path: Path, payload: dict[str, Any]) -> bool:
-    """Create `lock_path` atomically via ``os.open(O_CREAT|O_EXCL|O_WRONLY)``.
+    """Publish `lock_path` ATOMICALLY, fully-populated — single-creator race-safe.
 
-    Returns True iff THIS call created the file (won the create race). Returns
-    False if the file already existed (``FileExistsError`` — a concurrent
-    same-scope acquirer beat us, or a stale survivor sits at the path). Any other
-    OSError propagates (a genuine filesystem failure should not be masked as a
-    benign "already exists").
+    Returns True iff THIS call published the lock (won the create race). Returns
+    False if the target already existed (a concurrent same-scope acquirer beat
+    us, or a survivor sits at the path). A non-``FileExistsError`` ``OSError`` from
+    the ``os.link`` publish means the filesystem lacks hardlinks → the fallback
+    path; any other genuine filesystem failure (e.g. a permission error creating
+    the temp) propagates rather than being masked as a benign "already exists".
 
-    ``O_EXCL`` is the cross-platform no-overwrite primitive — it works on Windows
-    (no ``fcntl`` needed), satisfying REQ-R5a's Windows constraint.
+    PRIMARY path (every hardlink-capable filesystem — NTFS / APFS / ext4 / HFS+ /
+    ReFS, i.e. essentially every real dev repo): serialize the FULL payload into
+    a per-acquirer-UNIQUE ``.inflight.tmp`` temp (EXCL-created, so all concurrent
+    acquirers stage in parallel; ``.tmp``-terminal, so no ``*.json`` scan —
+    ``_sweep_stale`` / ``_iter_valid_locks`` / ``detect_stale`` — ever observes
+    it), then ``os.link`` the temp onto the final path:
+
+      - success  → the final ``{lock_id}.json`` appears ATOMICALLY, already
+        fully-populated. No reader can ever observe an empty lock file. THIS is
+        the fix for the identical-scope multi-winner race — it removes the
+        create→write empty window that let ``_sweep_stale`` delete, and the
+        Step-3 reclaim branch overwrite, a live-but-mid-write lock.
+      - ``FileExistsError`` → a competitor already linked the final path; return
+        False. ``os.link`` is the single-creator race point, semantically like
+        the old ``O_EXCL`` but with a fully-written target.
+      - other ``OSError`` (hardlinks unsupported on this filesystem) → fall back.
+
+    The temp is ALWAYS removed in ``finally`` (the inode survives via the
+    hardlink on the success path); a leftover ``.tmp`` would fail the reclaim
+    test's no-leftover assertion.
+
+    FALLBACK path (FAT / exFAT / some network shares — ``os.link`` raises): the
+    EXCL-create-then-write-in-place publish (a residual empty window on that
+    exotic filesystem, guarded by the reader-side ``_is_inflight`` grace windows
+    in ``_sweep_stale`` and the Step-3 reclaim branch).
+
+    ``os.fsync`` is not required for the single-winner guarantee — ``os.link`` is
+    atomic regardless of flush and same-OS readers see the written bytes via the
+    shared inode after ``os.close``. ``O_EXCL`` remains the cross-platform
+    no-overwrite primitive (works on Windows — no ``fcntl``), satisfying
+    REQ-R5a's Windows constraint.
     """
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    serialized = _serialize_lock(payload)
+    tmp_path = lock_path.with_name(
+        f"{lock_path.name}.{uuid.uuid4().hex}.inflight.tmp"
+    )
     try:
-        fd = os.open(str(lock_path), flags, 0o644)
+        try:
+            tfd = os.open(
+                str(tmp_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
+            )
+        except FileExistsError:
+            # A uuid4 collision is astronomically unlikely; be defensive and
+            # treat it like a lost create race rather than crashing.
+            return False
+        try:
+            os.write(tfd, serialized)
+        finally:
+            os.close(tfd)
+        try:
+            os.link(str(tmp_path), str(lock_path))
+        except FileExistsError:
+            return False
+        except OSError:
+            # Hardlinks unsupported on this filesystem — publish in place.
+            return _write_lock_excl_inplace(lock_path, serialized)
+        return True
+    finally:
+        _safe_unlink(tmp_path)
+
+
+def _write_lock_excl_inplace(lock_path: Path, serialized: bytes) -> bool:
+    """FALLBACK publish: EXCL-create the final path and write content in place.
+
+    Used only when ``os.link`` is unsupported (a no-hardlink filesystem). This
+    reintroduces the create→write empty window; the reader-side ``_is_inflight``
+    grace guards in ``_sweep_stale`` and the Step-3 reclaim branch protect a
+    live-but-mid-write file from the two destroyers during that window. Returns
+    True iff THIS call created the file; False on ``FileExistsError``.
+    """
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
     except FileExistsError:
         return False
     try:
-        os.write(fd, _serialize_lock(payload))
+        os.write(fd, serialized)
     finally:
         os.close(fd)
     return True
+
+
+def _is_inflight(lock_path: Path, now_wall: float) -> bool:
+    """True iff `lock_path` looks like an in-flight (mid-write) lock publication.
+
+    An in-flight file is ZERO-LENGTH and was modified within
+    ``_INFLIGHT_GRACE_SECONDS``. Such a file is a concurrent acquirer's live
+    publication on the FALLBACK (no-hardlink) path — the EXCL create landed the
+    zero-byte file but the single ``os.write`` of the full payload has not yet
+    run — and it must NOT be deleted by ``_sweep_stale`` or reclaimed by the
+    Step-3 branch. A zero-length file OLDER than the grace window is a genuine
+    crash orphan and is NOT in-flight (it is reclaimed normally).
+
+    Zero-length ONLY, deliberately: the fallback publish writes the FULL payload
+    in a single ``os.write``, so the only observable partial state is
+    zero-length. A NON-empty file is therefore either a complete lock or
+    genuinely corrupt — never an in-flight publication — and a corrupt lock MUST
+    be swept, not respected (REQ-3: a malformed lock file must not block a new
+    acquire; ``tests/test_locks.py::test_malformed_lock_does_not_block_acquire``).
+    Treating a recent non-empty unparseable file as in-flight would spuriously
+    block acquisition against a corrupt lock for the whole grace window.
+
+    ``mtime`` is wall-clock, so the age is measured against ``now_wall`` (a
+    ``time.time()`` value), NOT ``time.monotonic()``. A backward clock step makes
+    the age negative → treated as recent → a conservative "leave it" that
+    self-heals once the clock settles; the documented residual (a forward step
+    beyond the window during the window) is fallback-path-only and astronomically
+    rare. On the PRIMARY ``os.link`` path no reader ever observes an empty
+    ``.json`` (the in-flight file is a ``.tmp``, excluded from every scan), so
+    this guard is inert defense-in-depth there.
+    """
+    try:
+        st = os.stat(str(lock_path))
+    except OSError:
+        return False
+    if st.st_size != 0:
+        return False
+    return (now_wall - st.st_mtime) < _INFLIGHT_GRACE_SECONDS
 
 
 def _reclaim_stale_lock(lock_path: Path, payload: dict[str, Any]) -> bool:
@@ -867,10 +1021,23 @@ def _iter_valid_locks(locks_dir: Path):
 
 
 def _sweep_stale(locks_dir: Path) -> None:
-    """Remove every stale OR malformed lock file in `locks_dir`."""
+    """Remove every stale OR malformed lock file in `locks_dir`.
+
+    A zero-length lock file MODIFIED within the grace window is a live IN-FLIGHT
+    publication on the fallback (no-hardlink) publish path, not a stale/corrupt
+    lock — it is LEFT IN PLACE (``_is_inflight`` guard). A zero-length file older
+    than the grace window is a genuine crash orphan and is still swept; a
+    non-empty unparseable/malformed file is corrupt (never in-flight) and is
+    swept immediately. A parseable-but-EXPIRED lock is genuinely stale and is
+    swept
+    regardless of mtime (the grace guard protects only empty-and-recent files).
+    On the primary os.link publish path no empty ``.json`` ever exists, so the
+    guard is inert there.
+    """
     if not locks_dir.is_dir():
         return
     now = datetime.now(timezone.utc)
+    now_wall = time.time()
     for path in list(locks_dir.glob("*.json")):
         try:
             text = path.read_text(encoding="utf-8")
@@ -880,8 +1047,23 @@ def _sweep_stale(locks_dir: Path) -> None:
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
+            # A zero-length file (json.loads("") raises here) that was JUST
+            # written is a live in-flight publication on the fallback path — leave
+            # it. Defend against the read->check TOCTOU too: the winner's single
+            # os.write may land BETWEEN our read_text above and now, so if a
+            # re-read shows a valid, non-expired lock, KEEP it (deleting it would
+            # be mechanism B — freeing the path for a second EXCL creator). Only a
+            # zero-length aged orphan, or genuine non-empty corruption, is swept.
+            if _is_inflight(path, now_wall):
+                continue
+            recheck = _read_lock(path)
+            if recheck is not None and not _lock_is_expired(recheck, now):
+                continue
             _safe_unlink(path)
             continue
+        # A file that PARSED is non-empty, so it can never be in-flight (the
+        # fallback publish's only partial state is zero-length). A wrong-shape or
+        # expired lock is genuinely stale and is swept.
         if not isinstance(data, dict):
             _safe_unlink(path)
             continue

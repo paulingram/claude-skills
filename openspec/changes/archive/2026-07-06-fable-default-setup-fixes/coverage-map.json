@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "change": "fable-default-setup-fixes",
+  "generated_at": "2026-07-05T07:45:00Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A \u2014 infra/backend-only change to the plugin's own setup script, agent frontmatter, one service-tier module, tests, and docs. No frontend, no UI, no service endpoint. Recorded authorizations: Playwright N/A (no runnable UI) and dev-API integration N/A (no endpoint touched); the verification surface is TDD unit tests with injected runners/checkers, the full pytest suite, the check_separation invariant, and the Phase 3/7 review gates.",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "fable-default-setup-fixes/Cartographer marketplace provenance",
+      "scenarios": [
+        "missing cartographer prints the marketplace source",
+        "README documents the source"
+      ],
+      "acceptance_criteria": [
+        "setup check output on cartographer-missing names kingbootoshi/cartographer and prints '/plugin marketplace add kingbootoshi/cartographer' then '/plugin install cartographer@cartographer-marketplace'; README setup section + commands/architect-team-setup.md name the source; covered by a unit test asserting the remediation text"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "1.1"
+      ],
+      "tests": {
+        "unit": [
+          "tests/test_setup_teams_checks.py (or the new setup-fallbacks test file): cartographer remediation-text assertion"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "fable-default-setup-fixes/npm EACCES fallback",
+      "scenarios": [
+        "EACCES triggers the prefix retry"
+      ],
+      "acceptance_criteria": [
+        "injected-runner test: global npm install returning an EACCES error causes a retry with --prefix ~/.local and a result message containing the persistent remediation (npm config set prefix + PATH note); no user npm config mutated"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "1.2"
+      ],
+      "tests": {
+        "unit": [
+          "EACCES-retry test with injected runner"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "fable-default-setup-fixes/PEP-668 Python-deps install ladder",
+      "scenarios": [
+        "externally-managed environment falls through the ladder",
+        "pip absent yields a hint, not a crash",
+        "tiktoken is in the dependency list"
+      ],
+      "acceptance_criteria": [
+        "ladder tests with injected runners: uv-absent \u2192 pip --user; externally-managed marker \u2192 --break-system-packages retry; no-pip \u2192 failed-with-remediation message containing python3-pip hint, no traceback; dep list includes tiktoken"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "1.3"
+      ],
+      "tests": {
+        "unit": [
+          "ladder tests (3+) with injected runners",
+          "dep-list tiktoken assertion"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "fable-default-setup-fixes/Non-interactive consent",
+      "scenarios": [
+        "--yes short-circuits the teams-mode prompt"
+      ],
+      "acceptance_criteria": [
+        "test: with --yes (and separately CT6_SETUP_ASSUME_YES=1) the consent path never calls input() (monkeypatched input raises if called) and proceeds as 'y'; flag documented in commands/architect-team-setup.md"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "1.4"
+      ],
+      "tests": {
+        "unit": [
+          "--yes test",
+          "env-var test (input() poisoned)"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "fable-default-setup-fixes/Fully-qualified command forms in docs",
+      "scenarios": [
+        "README carries no bare command instructions"
+      ],
+      "acceptance_criteria": [
+        "README lines 59/60/528/622/1051 (pre-change) use /architect-team:architect-team-setup; a sweep grep finds zero remaining bare instructional forms in README/commands/skills"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "1.5"
+      ],
+      "tests": {
+        "unit": [
+          "reviewer grep evidence in the Phase 3 review (docs change; no pytest surface)"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "fable-default-setup-fixes/Fable 5 agent-model default",
+      "scenarios": [
+        "every agent is fable",
+        "the lever flips and restores uniformly",
+        "setup surfaces the fallback remediation"
+      ],
+      "acceptance_criteria": [
+        "grep '^model:' agents/*.md == 39 x 'model: fable'; tests/test_agents.py VALID_MODELS includes fable + uniform-fable pin passes; scripts/setup/set_default_model.py --model/--check works idempotently on a tmp copy (tests/test_set_default_model.py); setup check prints the remediation string on the heuristic old-harness path (unit test); PLUS the uniform-fable ripple: the 24 per-agent model-pin assertions across 19 additional test files updated to fable (Lead scope grant to model-default), each preserving every other check in its test"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "2.1",
+        "2.2",
+        "2.3",
+        "2.4",
+        "2.6"
+      ],
+      "tests": {
+        "unit": [
+          "tests/test_set_default_model.py (new)",
+          "tests/test_agents.py updated pins",
+          "setup remediation-string test"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "spec_requirement_id": "fable-default-setup-fixes/Fable 5 service-tier default with injected fallback",
+      "scenarios": [
+        "no checker prefers fable",
+        "rejecting checker falls back to opus",
+        "separation invariant holds"
+      ],
+      "acceptance_criteria": [
+        "resolve_model() defaults return claude-fable-5; injected rejecting checker returns claude-opus-4-8; build_llm_client routes through resolve_model; tests added to tests/test_services_common.py; tests/test_services_separation.py (check_separation) stays green"
+      ],
+      "layer": "backend",
+      "task_ids": [
+        "2.5"
+      ],
+      "tests": {
+        "unit": [
+          "tests/test_services_common.py resolve_model cases",
+          "tests/test_services_separation.py unchanged-green"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-008",
+      "spec_requirement_id": "fable-default-setup-fixes/Version and documentation currency",
+      "scenarios": [
+        "version source-of-truth agrees",
+        "suite green after the change"
+      ],
+      "acceptance_criteria": [
+        "plugin.json + marketplace.json = 3.32.0; CHANGELOG top entry [3.32.0]; doc-currency audit overall: pass; full pytest suite zero failures with the environment-explained split plus this change's new tests"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "3.2",
+        "3.3",
+        "3.4"
+      ],
+      "tests": {
+        "unit": [
+          "full suite run captured at Phase 5",
+          "tests/test_cross_consistency.py version pins"
+        ]
+      }
+    },
+    {
+      "source_requirement_id": "REQ-009",
+      "spec_requirement_id": "fable-default-setup-fixes/Skill-gate teammate and peer-message exclusions",
+      "scenarios": [
+        "teammate session stands down",
+        "peer messages do not re-arm the gate",
+        "genuine bypasses are still caught"
+      ],
+      "acceptance_criteria": [
+        "arm 1 stands down on CT6-TEAMMATE/sidechain transcripts; teammate-message records excluded from the genuine-prompt anchor; regression tests reproduce M1+M2 pre-fix and pass post-fix; all pre-existing pins in tests/test_pretool_skill_gate.py green (no recall regression); SR-gate-teammate-false-block resolved"
+      ],
+      "layer": "infra",
+      "task_ids": [
+        "4.1",
+        "4.2",
+        "4.3"
+      ],
+      "tests": {
+        "unit": [
+          "tests/test_pretool_skill_gate.py M1+M2 regression cases + existing corpus"
+        ]
+      },
+      "sr_refs": [
+        "SR-gate-teammate-false-block"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-010",
+      "spec_requirement_id": "fable-default-setup-fixes/Deterministic lock-concurrency test",
+      "scenarios": [
+        "the test is deterministic post-fix"
+      ],
+      "acceptance_criteria": [
+        "diagnostic plan on disk before fix dispatch; generalized fix in hooks/locks.py and/or the test's synchronization; 50x test-file + 3x full-suite consecutive green; exactly-one-winner invariant unweakened; SR-locks-flake resolved"
+      ],
+      "layer": "backend",
+      "task_ids": [
+        "5.1",
+        "5.2",
+        "5.3"
+      ],
+      "tests": {
+        "unit": [
+          "tests/test_locks_concurrency.py determinism runs (captured)"
+        ]
+      },
+      "sr_refs": [
+        "SR-locks-flake"
+      ]
+    }
+  ]
+}

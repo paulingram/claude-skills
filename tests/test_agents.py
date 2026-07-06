@@ -50,7 +50,10 @@ EXPECTED_AGENTS: set[str] = {
 REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
 # v3.10.0 (R4a): `inherit` permitted in VALID_MODELS (future use; no agent's
 # current model is re-pinned this run).
-VALID_MODELS = {"opus", "sonnet", "haiku", "inherit"}
+# v3.32.0: `fable` (Claude Fable 5) added — the new uniform default across every
+# agent; scripts/setup/set_default_model.py is the sanctioned lever (and the
+# implemented opus fallback). See the uniform-fable pin below.
+VALID_MODELS = {"opus", "sonnet", "haiku", "inherit", "fable"}
 # v3.10.0 (R4a): the retired tokens `LS` (covered by Glob/Read/Bash),
 # `NotebookRead` (merged into Read), and `Task` (teammates do not spawn other
 # agents) are NO LONGER in the allowlist — an agent re-introducing one fails.
@@ -202,4 +205,19 @@ def test_agent_body_opens_with_role_or_h1(plugin_root: Path, agent_name: str) ->
     low = first.lower()
     assert first.startswith("# ") or low.startswith(("you are", "you're", "you will")), (
         f"{agent_name}: body must open with an H1 title or a 'You are' role statement, got {first!r}"
+    )
+
+
+def test_all_agents_uniform_fable(plugin_root: Path) -> None:
+    """v3.32.0: every agent ships `model: fable` — the deliberate uniform Fable-5
+    default (the prior opus/sonnet split was a cost heuristic the directive
+    overrode). The sanctioned, deterministic lever to flip this field (e.g. to the
+    `opus` fallback on a harness that predates the fable alias) is
+    scripts/setup/set_default_model.py; a drifted agent fails this pin."""
+    agents_dir = plugin_root / "agents"
+    models = {p.stem: frontmatter.parse(p)[0]["model"] for p in sorted(agents_dir.glob("*.md"))}
+    non_fable = {name: m for name, m in models.items() if m != "fable"}
+    assert not non_fable, f"agents not on the uniform fable default: {non_fable}"
+    assert len(models) == len(EXPECTED_AGENTS), (
+        f"expected {len(EXPECTED_AGENTS)} agents, found {len(models)}"
     )

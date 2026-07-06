@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 31 . 1
+                        ─── C T 6 ───   v 3 . 32 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.31.1-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.32.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-5159%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-5212%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -56,8 +56,8 @@ is missing.
 
 | Requirement | Detail |
 |---|---|
-| **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** | Set as a shell env var, or as `{"env": {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}}` in `~/.claude/settings.json`. `/architect-team-setup` checks for it and (with your consent) offers to add it to your settings file. |
-| **Claude Code ≥ 2.1.32** | Older versions don't ship the Agent Teams primitive. `/architect-team-setup` checks `claude --version`. |
+| **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** | Set as a shell env var, or as `{"env": {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}}` in `~/.claude/settings.json`. `/architect-team:architect-team-setup` checks for it and (with your consent) offers to add it to your settings file. |
+| **Claude Code ≥ 2.1.32** | Older versions don't ship the Agent Teams primitive. `/architect-team:architect-team-setup` checks `claude --version`. |
 | **`--no-teams` fallback** | Forces subagents mode even when the flag + version qualify — escape hatch for users hitting experimental-flag instability. Pass it on `/architect-team`, `/architect-team:bug-fix`, or `/architect-team:mini`. |
 
 Without the flag set or with Claude Code < 2.1.32, the pipeline runs in
@@ -67,9 +67,22 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.31.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.32.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.32.0 — Fable 5 default + first-install setup hardening + two SR-driven infrastructure fixes
+
+A real first install of CT6 on a fresh Linux VM hit five distinct setup failures, and the plugin's model defaults predated Fable 5. This release makes **Fable 5** (`claude-fable-5`) the default model everywhere — with an IMPLEMENTED **Opus 4.8** (`claude-opus-4-8`) fallback where the `fable` alias is unavailable — hardens the first-install path against the five observed friction points, and folds in two infrastructure fixes surfaced mid-session by the session-review loop.
+
+| Capability | What it is |
+|---|---|
+| **Fable 5 agent default + the model lever** | All 39 `agents/*.md` now carry `model: fable`. NEW `scripts/setup/set_default_model.py` — a stdlib-only deterministic CLI lever (`--model fable\|opus\|sonnet\|haiku` / `--check`) that rewrites ONLY the frontmatter `model:` line uniformly (idempotent, line-ending-preserving), mirroring `sync_agent_boilerplate.py`; it is the IMPLEMENTED Opus fallback for a harness that predates the `fable` alias. `setup.py`'s new `check_model_default()` ALWAYS surfaces one informational note carrying that fallback lever — never version-gated (a threshold would be false precision, SETUP-ADV-1), never auto-applied, never gates the run. |
+| **Fable 5 service default with an injected fallback** | `services/common/service_config.py`: `DEFAULT_MODEL = claude-fable-5`, new `FALLBACK_MODEL = claude-opus-4-8`, and `resolve_model(preferred, fallback, availability_checker=None)` — a pure function: no checker ⇒ `preferred` (the API errors informatively if a model is genuinely absent); a rejecting OR RAISING injected checker ⇒ `fallback`. `build_llm_client` routes the model through it. The live-availability probe stays an ADAPTER boundary (REPO-4: no network/SDK import in the stdlib core), so `check_separation()` stays green. |
+| **First-install setup hardening** | `setup.py` — (a) a missing cartographer names its third-party marketplace source (`kingbootoshi/cartographer`) and prints the exact `/plugin marketplace add` + `/plugin install` remediation (the gap that cost a real install a GitHub search); (b) an npm EACCES/EPERM global-install failure retries ONCE non-persistently with `--prefix ~/.local` and surfaces the persistent `npm config set prefix` remediation (never mutating your npm config); (c) a PEP-668 install ladder — `uv pip --system` → `pip install --user` → `--break-system-packages` on the externally-managed error, with an actionable `python3-pip` hint (no traceback) when no pip exists — plus `tiktoken` (a cartographer runtime dep) added to the dep list; (d) `--yes` / `-y` AND `CT6_SETUP_ASSUME_YES=1` short-circuit every consent prompt for non-interactive installs (`--check-only` still never writes). README + `commands/architect-team-setup.md` document all four. |
+| **Skill-gate teammate false-block fix (SR)** | `hooks/pretool_skill_gate.py` — arm 1 (the latest-genuine-prompt gate) previously lacked arm 2's worker-session standdown, so a teammate whose spawn brief carried the pipeline command as its latest prompt was blocked on every build/dispatch tool (M1); and an inbound `<teammate-message>` peer envelope re-anchored the genuine-prompt search PAST the Lead's satisfying Skill call, re-arming the gate mid-run (M2). Both arms now share one `_is_worker_session` standdown (via `run_continuity`, so the two cannot diverge) and the genuine-prompt anchor EXCLUDES `<teammate-message>` envelopes. Observed live 4× across two runs this session. 9 regression tests. |
+| **Atomic lock publish (SR)** | `hooks/locks.py` — the identical-scope multi-winner race (a pre-existing ~20% flake in `test_locks_concurrency`, root-caused by a 3-researcher diagnostic loop with quantified attribution) is closed by an ATOMIC publish: an acquirer serializes the full payload into a per-acquirer `.inflight.tmp` and `os.link`s it onto the final path, so every reader observes a fully-populated lock — no empty create→write window for `_sweep_stale` or the Step-3 reclaim branch to clobber. A guarded EXCL-create-in-place fallback (no-hardlink filesystems) keeps a residual window, protected by an `_is_inflight` zero-length-and-recent grace guard + TOCTOU re-reads on both destroyer paths. 0/400 multi-winner post-fix; RT-1…RT-5 regression pins. |
+| **Docs + tests** | Version → **v3.32.0**; README bare `/architect-team-setup` command forms fixed (5 sites → `/architect-team:architect-team-setup`, + one in `common-pipeline-conventions`). New `tests/test_setup_install_fallbacks.py` + `tests/test_set_default_model.py`; `test_agents.py` gains `fable` in `VALID_MODELS` + a uniform-fable pin; ~38 per-agent model pins flipped across 19 test files. Suite **5212 passing + 5 skipped** (198 test files; canonical Windows-with-PyYAML — macOS-without-PyYAML is 5213 + 4 skipped, the same 5217-collected total). Skill / agent / command counts unchanged; NO new skill / agent / command / hook / Layer-3 tool. |
 
 ### v3.31.0 — instruction-compliance standard: a rubric + a deterministic lint + an enforced suite gate
 
@@ -468,45 +481,45 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 
 ```
 ┌─ SKILLS (47) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
-│ ◇ architect-team-pipeline           │ ◆ system-architect (opus)             │
-│ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
-│ ◇ reuse-first-design                │ ◆ backend (opus)                      │
-│ ◇ frontend-route-mapping            │ ◆ reconciler (opus)                   │
-│ ◇ design-fidelity-mapping          *│ ◆ integration (sonnet)                │
-│ ◇ visual-fidelity-reconciliation   *│ ◆ scaffold-agent (sonnet)             │
-│ ◇ playwright-user-flows             │ ◆ codebase-map-reviewer (sonnet)      │
-│ ◇ dev-api-integration-testing       │ ◆ integration-explorer (opus)         │
-│ ◇ coverage-mapping                  │ ◆ master-synthesizer (opus)           │
-│ ◇ team-spawning-and-review-gates    │ ◆ route-mapper (opus)                 │
-│ ◇ root-cause-test-failures          │ ◆ test-completeness-verifier (sonnet) │
-│ ◇ diagnostic-research-team          │ ◆ diagnostic-researcher (opus)        │
-│ ◇ mempalace-integration             │ ◆ editability-reviewer (opus)         │
-│ ◇ expensive-verification-debugging  │ ◆ visual-capture (sonnet)             │
-│ ◇ editability-completeness          │ ◆ visual-analyzer (opus)              │
-│ ◇ readme-styling                    │ ◆ task-reviewer (opus)                │
-│ ◇ visual-verification-team          │ ◆ interaction-reviewer (opus)         │
-│ ◇ documentation-currency            │ ◆ bug-replicator (opus)               │
-│ ◇ interaction-completeness          │ ◆ qa-replayer (opus)                  │
-│ ◇ dynamic-value-discovery           │ ◆ bug-classifier (sonnet)             │
-│ ◇ interaction-intuition             │ ◆ interaction-intuiter (opus)         │
-│ ◇ bug-fix-pipeline                  │ ◆ doc-updater (opus)                  │
-│ ◇ ux-test-builder                   │ ◆ flow-explorer (opus)                │
-│ ◇ proposal-refiner                  │ ◆ flow-executor (opus)                │
-│ ◇ email-testing                     │ ◆ fix-sensibility-checker (opus)      │
-│ ◇ mini-architect-team-pipeline      │ ◆ prompt-refiner (opus)               │
-│ ◇ common-pipeline-conventions       │ ◆ mini-qa (opus)                      │
-│ ◇ verified-agent-output (v2.0.0)   *│ ◆ oracle-deriver (opus) ★             │
-│ ◇ interactive-mockup-discovery     *│ ◆ adversarial-reviewer (opus) ★       │
-│   (v2.1.0)                          │ ◆ interaction-observer (opus) ★       │
-│ ◇ phenotypes (v2.3.0)               │ ◆ endpoint-tracer (opus) ★            │
+│ ◇ architect-team-pipeline           │ ◆ system-architect (fable)            │
+│ ◇ intake-and-mapping                │ ◆ frontend (fable)                    │
+│ ◇ reuse-first-design                │ ◆ backend (fable)                     │
+│ ◇ frontend-route-mapping            │ ◆ reconciler (fable)                  │
+│ ◇ design-fidelity-mapping          *│ ◆ integration (fable)                 │
+│ ◇ visual-fidelity-reconciliation   *│ ◆ scaffold-agent (fable)              │
+│ ◇ playwright-user-flows             │ ◆ codebase-map-reviewer (fable)       │
+│ ◇ dev-api-integration-testing       │ ◆ integration-explorer (fable)        │
+│ ◇ coverage-mapping                  │ ◆ master-synthesizer (fable)          │
+│ ◇ team-spawning-and-review-gates    │ ◆ route-mapper (fable)                │
+│ ◇ root-cause-test-failures          │ ◆ test-completeness-verifier (fable)  │
+│ ◇ diagnostic-research-team          │ ◆ diagnostic-researcher (fable)       │
+│ ◇ mempalace-integration             │ ◆ editability-reviewer (fable)        │
+│ ◇ expensive-verification-debugging  │ ◆ visual-capture (fable)              │
+│ ◇ editability-completeness          │ ◆ visual-analyzer (fable)             │
+│ ◇ readme-styling                    │ ◆ task-reviewer (fable)               │
+│ ◇ visual-verification-team          │ ◆ interaction-reviewer (fable)        │
+│ ◇ documentation-currency            │ ◆ bug-replicator (fable)              │
+│ ◇ interaction-completeness          │ ◆ qa-replayer (fable)                 │
+│ ◇ dynamic-value-discovery           │ ◆ bug-classifier (fable)              │
+│ ◇ interaction-intuition             │ ◆ interaction-intuiter (fable)        │
+│ ◇ bug-fix-pipeline                  │ ◆ doc-updater (fable)                 │
+│ ◇ ux-test-builder                   │ ◆ flow-explorer (fable)               │
+│ ◇ proposal-refiner                  │ ◆ flow-executor (fable)               │
+│ ◇ email-testing                     │ ◆ fix-sensibility-checker (fable)     │
+│ ◇ mini-architect-team-pipeline      │ ◆ prompt-refiner (fable)              │
+│ ◇ common-pipeline-conventions       │ ◆ mini-qa (fable)                     │
+│ ◇ verified-agent-output (v2.0.0)   *│ ◆ oracle-deriver (fable) ★            │
+│ ◇ interactive-mockup-discovery     *│ ◆ adversarial-reviewer (fable) ★      │
+│   (v2.1.0)                          │ ◆ interaction-observer (fable) ★      │
+│ ◇ phenotypes (v2.3.0)               │ ◆ endpoint-tracer (fable) ★           │
 │ ◇ phenotype-absorption (v2.3.0)     │                                       │
 │ ◇ visual-to-api-design (v2.13.0)   *│                                       │
-│ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (sonnet) ★         │
-│   (v2.17.0)                         │ ◆ monitor-synthesizer (opus) ★        │
-│ ◇ test-run-monitor (v3.3.0)        *│ ◆ domain-researcher (opus) ★          │
-│ ◇ cartographer-team (v3.4.0)       *│ ◆ structure-analyst (opus) ★          │
-│ ◇ domain-research-team (v3.4.0)    *│ ◆ reference-tracer (sonnet) ★         │
-│ ◇ api-design-from-frontend         *│ ◆ structure-adversary (opus) ★        │
+│ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (fable) ★          │
+│   (v2.17.0)                         │ ◆ monitor-synthesizer (fable) ★       │
+│ ◇ test-run-monitor (v3.3.0)        *│ ◆ domain-researcher (fable) ★         │
+│ ◇ cartographer-team (v3.4.0)       *│ ◆ structure-analyst (fable) ★         │
+│ ◇ domain-research-team (v3.4.0)    *│ ◆ reference-tracer (fable) ★          │
+│ ◇ api-design-from-frontend         *│ ◆ structure-adversary (fable) ★       │
 │   (v3.4.0)                          │                                       │
 │ ◇ data-engineering-exploration     *│                                       │
 │   (v3.5.0)                          │                                       │
@@ -516,8 +529,8 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (lineage P3 — asset lineage)      │                                       │
 │ ◇ structure-optimization           *│                                       │
 │   (v3.11.0 — restructure planning)  │                                       │
-│ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (opus) ★             │
-│ ◇ closeout (v3.18.0)                │ ◆ mcp-design-agent (opus) ★           │
+│ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (fable) ★            │
+│ ◇ closeout (v3.18.0)                │ ◆ mcp-design-agent (fable) ★          │
 │ ◇ claude-md-efficiency (v3.19.0)    │                                       │
 │ ◇ mcp-output-contract-design        │                                       │
 │   (v3.20.0 — MCP design)            │                                       │
@@ -525,7 +538,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │ ◇ token-compression (v3.22.0)       │                                       │
 ├─ COMMANDS (23) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
-│ ▸ /architect-team-setup                                                     │
+│ ▸ /architect-team:architect-team-setup                                      │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
 │ ▸ /architect-team:visual-to-api <codebase-path>     (v2.15.0 — 4-stage)   * │
 │ ▸ /architect-team:mempalace-install                                         │
@@ -609,20 +622,24 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ### ▸ Install prerequisite Claude plugins (one-time)
 
 ```bash
+# cartographer ships from a THIRD-PARTY marketplace (kingbootoshi/cartographer);
+# add that source FIRST, then install. superpowers + ralph-loop live on the
+# built-in claude-plugins-official marketplace (no add step needed).
 /plugin install superpowers@claude-plugins-official
+/plugin marketplace add kingbootoshi/cartographer
 /plugin install cartographer@cartographer-marketplace
 /plugin install ralph-loop@claude-plugins-official
 ```
 
-These three are **HARD (exit-1) prerequisites** (v3.9.0) — `scripts/setup/setup.py` aborts with exit 1 if any is missing; superpowers in particular is a hard dependency, not a warning. The vendored `openspec-propose` authoring skill is a **4th hard-gated prerequisite** (verified by `ensure_openspec_propose_skill()`; a missing skill is also exit 1).
+These three are **HARD (exit-1) prerequisites** (v3.9.0) — `scripts/setup/setup.py` aborts with exit 1 if any is missing; superpowers in particular is a hard dependency, not a warning. The vendored `openspec-propose` authoring skill is a **4th hard-gated prerequisite** (verified by `ensure_openspec_propose_skill()`; a missing skill is also exit 1). The cartographer marketplace source is `kingbootoshi/cartographer` — `architect-team-setup` names it and prints the exact `/plugin marketplace add kingbootoshi/cartographer` + `/plugin install cartographer@cartographer-marketplace` remediation when cartographer is missing.
 
 ### ▸ Install CLI / Python / browser deps
 
 ```bash
-/architect-team-setup
+/architect-team:architect-team-setup
 ```
 
-Idempotent. Flags: `--check-only` (report only), `--force-reinstall` (reinstall everything managed).
+Idempotent. Flags: `--check-only` (report only), `--no-prompt` (print the suggested settings edit; never writes), `--yes` / `-y` (assume "y" to every consent prompt for non-interactive installs — also enabled by `CT6_SETUP_ASSUME_YES=1`), `--force-reinstall` (reinstall everything managed).
 
 ### ▸ Install MemPalace (optional — enables searchable cross-run memory)
 
@@ -994,7 +1011,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4e — Editability completeness (Phase 5 + on-demand)
 
 - **Trigger:** any feature with a create or edit flow, at Phase 5; or `/architect-team:editability-audit`.
-- **Mechanism:** three `editability-reviewer` agents (opus) spawn in parallel. Each independently enumerates every attribute of every entity (union of DB schema + API schemas + design + components), classifies each (`user-editable` / `user-settable-at-create-only` / `system-managed` / `derived` / `dynamic-via-action` / `ambiguous`), and traces every user-controllable attribute end-to-end through 7 stages: create control → edit control → state → request → request schema → handler → database → read-back.
+- **Mechanism:** three `editability-reviewer` agents (fable) spawn in parallel. Each independently enumerates every attribute of every entity (union of DB schema + API schemas + design + components), classifies each (`user-editable` / `user-settable-at-create-only` / `system-managed` / `derived` / `dynamic-via-action` / `ambiguous`), and traces every user-controllable attribute end-to-end through 7 stages: create control → edit control → state → request → request schema → handler → database → read-back.
 - **Convergence:** the three argue round-robin (evidence-cited) until they hold one identical canonical list of must-be-editable attributes + gaps. Ambiguous attributes escalate to the human.
 - **Gaps → SRs:** every gap (`missing-control`, `dead-control`, `orphan-field`, `no-readback`, `schema-mismatch`) becomes an `editability-gap` SR — spawns a fix team directly.
 - **Multi-pass:** after the fixes land, the three re-spawn and re-review; the loop runs until all three agree zero gaps remain — no fixed cycle cap (per `## Unbounded solving discipline`); it pauses only for a required owner input that cannot be auto-supplied.
@@ -1012,7 +1029,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4g — Interaction completeness (Phase 3 + Phase 5)
 
 - **Trigger:** any slice with UI/UX interactive surface, at the Phase 3 review gate and the Phase 5 cross-layer pass. The independent VERIFICATION gate that the `playwright-user-flows` authoring discipline was followed — the sibling of Loop 4e (editability), at the granularity of controls and pages instead of attributes.
-- **Mechanism:** three `interaction-reviewer` agents (opus, analysis-only) spawn in parallel. Each independently re-enumerates every interactive element (the union of the design / `DESIGN_MAP`, the `ROUTE_MAP.md`, the route table, and the component code) AND every page / screen / route; classifies each element `endpoint-backed` / `client-only` / `confirmed-stub` / `ambiguous` and each page `live` / `placeholder` / `confirmed-stub`; verifies every non-stub element has a genuine user-driven Playwright test (real `page.click` / `page.fill` — not a `page.request.*` direct call, not a vacuous navigate-and-assert); traces each element to its endpoint or client behavior; and applies `dynamic-value-discovery` to flag a hardcoded value the context shows should be dynamic.
+- **Mechanism:** three `interaction-reviewer` agents (fable, analysis-only) spawn in parallel. Each independently re-enumerates every interactive element (the union of the design / `DESIGN_MAP`, the `ROUTE_MAP.md`, the route table, and the component code) AND every page / screen / route; classifies each element `endpoint-backed` / `client-only` / `confirmed-stub` / `ambiguous` and each page `live` / `placeholder` / `confirmed-stub`; verifies every non-stub element has a genuine user-driven Playwright test (real `page.click` / `page.fill` — not a `page.request.*` direct call, not a vacuous navigate-and-assert); traces each element to its endpoint or client behavior; and applies `dynamic-value-discovery` to flag a hardcoded value the context shows should be dynamic.
 - **Convergence:** the three argue round-robin (evidence-cited) to one identical converged interaction map; a `system-architect` Round-3 robustness review checks for a shared blind spot; bounded multi-pass until all three agree the interactive surface is genuine.
 - **Confirmed-stub mechanism:** an intentionally-inert control or a placeholder page is `confirmed-stub` ONLY with explicit user confirmation — the reviewer escalates a structured question, never guesses. A confirmed stub is recorded in the converged map and in `coverage-map.json` `confirmed_stubs[]`; it needs no user-flow test but is tracked.
 - **Gaps → SRs:** every gap (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) becomes an SR — spawns a fix team directly; surfaces through the `ui_interaction_review` evidence field.
@@ -1048,7 +1065,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 Run the full Phase −1 → 8 pipeline against a requirements folder. See "Usage" above.
 
-### `/architect-team-setup [--check-only] [--force-reinstall]`
+### `/architect-team:architect-team-setup [--check-only] [--no-prompt] [--yes] [--force-reinstall]`
 
 Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent. Also **HARD-checks (exit 1)** that the required plugins (superpowers, cartographer, ralph-loop) are installed and verifies the vendored `openspec-propose` skill resolves via `ensure_openspec_propose_skill()`.
 
@@ -1246,7 +1263,7 @@ Markdown. Three failure modes, one enforcement layer.
 A new judgment-heavy verification discipline — the `interaction-completeness`
 skill — modeled on the proven `editability-completeness` pattern. For any slice
 with UI/UX surface it runs at the **Phase 3** review gate and the **Phase 5**
-cross-layer pass: three `interaction-reviewer` agents (opus, analysis-only)
+cross-layer pass: three `interaction-reviewer` agents (fable, analysis-only)
 spawn **in parallel** and each independently re-enumerates **every interactive
 element** (buttons, links, inputs, selects, toggles, menus, drag handles,
 file-uploads) AND **every page / screen / route** — the union of the design /
@@ -1339,7 +1356,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 47 skill frontmatters; all 39 agent frontmatters (tool + model names); all 23 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 112 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **5159 tests pass (+ 5 skipped).**
+Tests validate: plugin/marketplace JSON; all 47 skill frontmatters; all 39 agent frontmatters (tool + model names); all 23 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 112 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **5212 tests pass (+ 5 skipped).**
 
 ### Bumping versions
 
@@ -1462,7 +1479,8 @@ Tests validate: plugin/marketplace JSON; all 47 skill frontmatters; all 39 agent
            v3.14.0 ─ appearance-change policy — three modes governing unsolicited frontend-appearance changes (`strict` DEFAULT: no appearance-affecting change beyond the explicit mandate, improvement ideas recorded as proposals and never implemented; `propose`: proposals batched at a user approval gate; `innovate`: authorized + every delta logged + DESIGN_MAP-reconciled); `--appearance` flag on `/architect-team` + `:bug-fix` + `:mini`; `appearance_mode` bound at intake + carried in every spawn brief; `.architect-team/appearance-proposals/<run-id>.json` artifact; schema v7 gains the OPTIONAL `appearance_scope_review` field (hook-blocked on fail); task-reviewer per-delta trace + Master Review Audit run-diff walk
            v3.15.0 ─ skill-invocation hard-gate — a new `PreToolUse[*]` hook (`hooks/pretool_skill_gate.py`) converting Layer-6 skill-invocation DETECTION into real-time PREVENTION: when the latest genuine user prompt is an unsatisfied pipeline-command request it BLOCKS (exit 2) the first non-`Skill` tool call until a pipeline skill is engaged; universal (keyed off the plugin's own command set + Skill ledger, reusing `skill_invocation_audit`); scoped to the 5 pipeline-driving commands; false-block-safe (excludes `isMeta`/`system`/`isSidechain` records, fail-open, Skill always allowed); adversarially verified on 9 real transcripts — 0 spurious blocks, 402 genuine bypasses caught
            v3.15.1 ─ skill-gate narrowing fix — the v3.15.0 `*`-matcher over-fired on the command wrapper's own pre-Skill setup (dispatch banner / cleanup / worktree = Bash, + ToolSearch), seen on a server blocking the banner; narrowed to block ONLY build/dispatch tools (`Edit`/`Write`/`NotebookEdit`/`Agent`/`Task*`) — read-only investigation + the wrapper's Bash are always allowed, so a well-behaved run never trips it; re-verified 9 transcripts / 3939 calls — blocks only build/dispatch (204 catches), 0 non-build/dispatch blocked
-   ◆       v3.16.0 ─ responsive + parallel `/architect-team:inject` — a new `parallel-problem` inbox classification + `lane_id` opens a sanctioned concurrent in-run LANE (a background team with a disjoint `hooks/locks.py` file-scope lock, converging via Phase 4) instead of folding; the inbox is polled on every phase boundary AND every background-dispatch return/wake; the forbidden `spawn-sibling-invocation` rule is amended to allow in-run lanes. Honest: polling-not-push, lock isolation is file-glob/advisory (`cdlg_overlap` not wired into `acquire_lock`), lanes degrade to sequential in subagents-mode, a failed lane downgrades rather than wedging Phase 8. New `tests/test_parallel_lane_inject.py` (13 cases incl. the end-to-end dogfood) (current)
+           v3.16.0 ─ responsive + parallel `/architect-team:inject` — a new `parallel-problem` inbox classification + `lane_id` opens a sanctioned concurrent in-run LANE (a background team with a disjoint `hooks/locks.py` file-scope lock, converging via Phase 4) instead of folding; the inbox is polled on every phase boundary AND every background-dispatch return/wake; the forbidden `spawn-sibling-invocation` rule is amended to allow in-run lanes. Honest: polling-not-push, lock isolation is file-glob/advisory (`cdlg_overlap` not wired into `acquire_lock`), lanes degrade to sequential in subagents-mode, a failed lane downgrades rather than wedging Phase 8. New `tests/test_parallel_lane_inject.py` (13 cases incl. the end-to-end dogfood)
+   ◆       v3.32.0 ─ Fable 5 default + first-install setup hardening — Fable 5 (`claude-fable-5`) is the default agent + service model with an implemented Opus 4.8 (`claude-opus-4-8`) fallback (`resolve_model` / the `scripts/setup/set_default_model.py` lever); `setup.py` hardened for a real first install (cartographer marketplace provenance `kingbootoshi/cartographer`, npm EACCES `--prefix ~/.local` retry, PEP-668 uv→pip-`--user`→`--break-system-packages` ladder + `tiktoken`, `--yes`/`CT6_SETUP_ASSUME_YES` non-interactive consent); two SR fixes folded in (skill-gate teammate/peer-message false-block; atomic `os.link` lock publish closing the ~20% multi-winner race); README bare `/architect-team-setup` command forms fixed (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
