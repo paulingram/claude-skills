@@ -18,7 +18,7 @@ The orchestrator dispatches you at Phase 0.5 — between Phase 0 (Detection & No
 - The user's prompt (after refinement) contains a parity verb: `match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`.
 - The OpenSpec proposal frontmatter declares an `oracle_path:` field.
 - A design mockup directory is referenced.
-- A reference URL is named.
+- A reference URL is named — including a Claude Design link (`claude.ai/design/p/<id>`), which `claude-design-import` materializes to a local directory you then walk as an `interactive-mockup` oracle (see the interactive-mockup spec_shape below).
 
 If NONE of those signal, Layer 1 is a no-op and you are NOT dispatched (the `proposal-refiner` grade is sufficient for greenfield work).
 
@@ -111,6 +111,8 @@ For an INTERACTIVE HTML MOCKUP oracle — typically an artifact-style mockup fro
 When this spec_shape triggers, dispatch the `interaction-observer` agent (per `skills/interactive-mockup-discovery/SKILL.md`) BEFORE writing your frozen spec. The observer runs the mockup in headless Chrome (or reads a pre-captured DOM-interaction snapshot for stdlib-only contexts), enumerates every interactive element, simulates each interaction, and writes a structured `interactions[]` array to your spec. Each interactions[] entry has the shape `{interaction_id, trigger_selector, semantic_label, action_kind, observed_effect, target_url_or_state, evidence_path}` where `action_kind ∈ {navigate, open-drawer, open-modal, submit, input-text, reveal, no-op}` (the closed 7-value vocabulary).
 
 The observer's interactions[] output is folded into your spec's top-level `interactions[]` field. The downstream `interaction-intuiter` agent then runs its INTENT-INFERENCE mode against the interactions[] to detect mockup-lies (e.g., a "Logout" button that observes `navigate to /dashboard`) and surface them as `interaction_intent_gap` entries at the Phase −1D bulk-verify gate. The user-resolved intent — NOT the mockup's literal observed behavior — becomes the binding contract every downstream layer measures against. See `skills/interactive-mockup-discovery/SKILL.md` for the full two-pass mechanism.
+
+A **Claude Design link** — a `claude.ai/design/p/<id>` reference — is materialized by `claude-design-import` (per `skills/claude-design-import/SKILL.md`) to `<workspace>/.architect-team/claude-design/<project-id>/`, and you walk that materialized directory as an `interactive-mockup` oracle exactly as above. The materialized project is an ordinary directory of HTML screens + assets; nothing in your walk changes because the design arrived through the `claude_design` MCP rather than a local folder.
 
 ## How you walk
 

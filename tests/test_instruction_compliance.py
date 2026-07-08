@@ -12,7 +12,7 @@ Two layers live here:
   map names, `module.function` refs, multi-segment prose, colon-invocation prose)
   yield NONE.
 - **Suite-level pins (C.1 / C.2)** — run the engine + a real `yaml.safe_load`
-  parse across the *actual* in-scope set (47 SKILL.md + 39 agents + 23 commands +
+  parse across the *actual* in-scope set (48 SKILL.md + 39 agents + 23 commands +
   CLAUDE.md + the 2 maps). The zero-findings gate is guarded by
   `ENFORCE_ZERO_COMPLIANCE_FINDINGS`; flipping that one constant to True is the
   documented exit criterion of the group-D remediation waves.
@@ -400,8 +400,8 @@ ENFORCE_ZERO_COMPLIANCE_FINDINGS = True
 
 def test_engine_runs_over_the_real_in_scope_set() -> None:
     result = ic.assess_instruction_files(REPO_ROOT)
-    # 47 SKILL.md + 39 agents + 23 commands + CLAUDE.md + 2 maps = 112.
-    assert result["files_checked"] == 112, result["files_checked"]
+    # 48 SKILL.md + 39 agents + 23 commands + CLAUDE.md + 2 maps = 113.
+    assert result["files_checked"] == 113, result["files_checked"]
     assert isinstance(result["findings"], list)
 
 

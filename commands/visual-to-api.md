@@ -156,9 +156,14 @@ When `AUTO_COMPACT_PROMPT = true` AND Phase 8 completed cleanly, emit the canoni
 - If the working tree had unstaged changes BEFORE this command ran, treat them as the user's in-progress work; do NOT stage them in the pipeline's commit.
 - NEVER schedule arbitrary wall-clock wakeups, cron jobs, or background timer tools from inside the pipeline.
 
+## Claude Design link detection
+
+If the codebase's requirements or the invocation reference a Claude Design link (`claude.ai/design/p/<id>`) or the `claude_design` MCP, the pipeline routes it through the `claude-design-import` skill to materialize the design as an additional visual-input source before Stage 1 (per `scripts/claude_design/claude_design_import.py`). When the MCP is unavailable it instructs connecting it plus running `/design-login` and auto-falls-back to the local/zip path.
+
 ## Cross-references
 
 - `skills/visual-to-api-design/SKILL.md` — the canonical skill body documenting all 4 stages + 3-reviewer convergence + per-stage checklists + new SR origin kind `api-design-stage-incomplete`.
+- `skills/claude-design-import/SKILL.md` — detects a Claude Design link (`claude.ai/design/p/<id>`) or a `claude_design` MCP mention and materializes the design project as an additional visual-input source.
 - `commands/architect-team.md` — the general-purpose entry point that uses heuristic detection (this command is the explicit-routing alternative).
 - v2.9.0 polyglot Python invocation convention (`python3 ... || python ...`).
 - v2.13.0 — the release that introduced `visual-to-api-design` as the framework's 30th skill.

@@ -158,6 +158,10 @@ At Phase 8 success the pipeline now calls `finalize_run_worktree($WORKTREE_PATH)
 
 Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the end-of-run merge check emitted at Phase 8 success, and the re-entry detection logic.
 
+## Claude Design link detection
+
+If the requirement carries a Claude Design offer — a `claude.ai/design/p/<id>` link and/or a `claude_design` MCP mention — the pipeline's Phase −1 intake detects it (via `scripts/claude_design/claude_design_import.py`) and routes it through the `claude-design-import` skill, which materializes the design project locally and hands it to the existing interactive-mockup oracle path. No special flag is needed. When the `claude_design` MCP is unavailable, `claude-design-import` instructs connecting it plus running `/design-login` and auto-falls-back to the local/zip design-input path so the run never dead-ends.
+
 ## Invoke the pipeline
 
 Invoke the `architect-team-pipeline` skill from this plugin (use the Skill tool with `skill: architect-team-pipeline`) and follow its pipeline exactly against the requirement above (a folder OR a plain-language requirement OR the refined-prompt markdown that the upstream `proposal-refiner` step produced — all three are valid). The skill begins at Phase −1 (Intake & Mapping) and proceeds through Phase 8 (Final Report).

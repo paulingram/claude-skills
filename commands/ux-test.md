@@ -161,6 +161,10 @@ At Phase U9 success the pipeline calls `finalize_run_worktree($WORKTREE_PATH)` (
 
 Per `common-pipeline-conventions` `## Auto-worktree lifecycle` for the full rules including the path/branch convention, collision handling, the end-of-run merge check emitted at Phase U9 success, and the re-entry detection logic.
 
+## Claude Design link detection
+
+If the UX brief references a Claude Design link (`claude.ai/design/p/<id>`) or the `claude_design` MCP, the pipeline routes it through the `claude-design-import` skill to materialize the design project locally, so the persona's flows can be authored against the intended screens (per `scripts/claude_design/claude_design_import.py`). When the MCP is unavailable it instructs connecting it plus running `/design-login` and auto-falls-back to the local/zip design-input path.
+
 ## Invoke the pipeline
 
 Invoke the `ux-test-builder` skill from this plugin (use the Skill tool with `skill: ux-test-builder`) and follow its pipeline exactly against the requirement above (a folder OR a UX brief in prose OR the refined-prompt markdown that the upstream `proposal-refiner` step produced). The skill begins at Phase U0 (Intake) and proceeds through Phase U9 (Final Report).

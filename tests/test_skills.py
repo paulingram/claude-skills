@@ -53,6 +53,7 @@ EXPECTED_SKILLS: set[str] = {
     "mcp-output-contract-design",
     "helpdesk",
     "token-compression",
+    "claude-design-import",
 }
 
 REQUIRED_FRONTMATTER_KEYS = {"name", "description"}
