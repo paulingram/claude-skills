@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "change": "claude-design-mcp-import",
+  "generated_at": "2026-07-08T10:00:00Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A - self-referential plugin feature (a new stdlib engine + a new skill contract + markdown wiring + tests + docs). No runnable frontend, no backend service, no endpoint. Recorded authorizations: Playwright N/A (no runnable UI in this repo) and dev-API integration N/A (no endpoint touched); the claude_design MCP fetch is an injected adapter exercised offline via FakeClaudeDesignSource. The verification surface is TDD unit tests, the full pytest suite under both encodings, the instruction-compliance lint, openspec strict validation, and the Phase 3/7 review gates.",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "spec_requirement_id": "claude-design-import/Claude Design offer detection",
+      "scenarios": [
+        "URL form is detected",
+        "MCP mention form is detected",
+        "the Implement target is parsed",
+        "no offer returns not-detected"
+      ],
+      "acceptance_criteria": [
+        "detect_claude_design_offer returns detected:true with trigger_forms including design-url and project_id/file_selector parsed for a claude.ai/design/p/<id>?file=... URL; detected:true with mcp-mention for a claude_design mention alone; implement_target parsed from an 'Implement: <path>' line; detected:false with empty trigger_forms for no-offer prose. Covered by tests/test_claude_design_import.py."
+      ],
+      "layer": "infra",
+      "task_ids": ["1.1", "1.2"],
+      "tests": { "unit": ["tests/test_claude_design_import.py: detection + parse cases"] }
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "spec_requirement_id": "claude-design-import/Native MCP fetch and whole-project materialization",
+      "scenarios": [
+        "a fetched project materializes every file",
+        "path traversal is rejected",
+        "the focus is recorded"
+      ],
+      "acceptance_criteria": [
+        "materialize_project writes every fetched file under dest_dir with content intact and records materialized_dir + files_written + focus; _safe_relpath rejects absolute paths and '..' traversal (nothing written outside dest_dir); the whole project is fetched (not only the ?file= file) with focus recorded. Covered by tests against FakeClaudeDesignSource."
+      ],
+      "layer": "infra",
+      "task_ids": ["1.1", "1.2"],
+      "tests": { "unit": ["tests/test_claude_design_import.py: materialize + path-safety + focus"] }
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "spec_requirement_id": "claude-design-import/Materialized design flows into the existing front-end path",
+      "scenarios": [
+        "oracle-deriver recognizes the materialized project",
+        "design-fidelity-mapping lists the materialized dir as a source"
+      ],
+      "acceptance_criteria": [
+        "agents/oracle-deriver.md states a Claude Design link materialized by claude-design-import is walked as an interactive-mockup oracle; skills/design-fidelity-mapping/SKILL.md lists the materialized dir as a design-input source; no downstream derivation logic changed. Covered by structural tests / lint over the edited files."
+      ],
+      "layer": "infra",
+      "task_ids": ["2.1", "2.3", "2.4"],
+      "tests": { "unit": ["tests/test_claude_design_import.py or existing structural tests: wiring assertions", "tests/test_instruction_compliance.py: edited files lint-clean"] }
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "spec_requirement_id": "claude-design-import/Instruct-then-fallback when the MCP is unavailable",
+      "scenarios": [
+        "unavailable MCP yields an instruct-then-fallback plan",
+        "the run never dead-ends"
+      ],
+      "acceptance_criteria": [
+        "plan_when_unavailable returns action=instruct-then-fallback with an instruction naming connect-the-claude_design-MCP + run /design-login and fallback=zip-local when a local fallback is available (instruct-then-halt only when it is not); the skill documents proceeding down the zip/local path on decline. Covered by tests + the skill body."
+      ],
+      "layer": "infra",
+      "task_ids": ["1.1", "1.2", "2.1"],
+      "tests": { "unit": ["tests/test_claude_design_import.py: plan_when_unavailable cases"] }
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "spec_requirement_id": "claude-design-import/Both input sources stay first-class",
+      "scenarios": [
+        "the local design-input path still works",
+        "detection is additive"
+      ],
+      "acceptance_criteria": [
+        "a run with a local design dir and no link -> detection returns not-detected and existing local discovery proceeds unchanged; skills/intake-and-mapping/SKILL.md documents Claude Design import as an ADDITIONAL source, not a replacement. Covered by a no-offer detection test + the edited intake skill body."
+      ],
+      "layer": "infra",
+      "task_ids": ["1.2", "2.2"],
+      "tests": { "unit": ["tests/test_claude_design_import.py: no-offer path", "tests/test_intake_and_mapping.py (if present) or lint: additive wiring"] }
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "spec_requirement_id": "claude-design-import/Deterministic offline test coverage",
+      "scenarios": [
+        "detection and fetch are tested offline",
+        "the full suite stays green"
+      ],
+      "acceptance_criteria": [
+        "tests/test_claude_design_import.py runs fully offline (no network, FakeClaudeDesignSource); python -m pytest from the repo root is green under cp1252 and PYTHONUTF8=1 with the split explained by known environment-conditional tests + this change's new tests."
+      ],
+      "layer": "infra",
+      "task_ids": ["1.2", "2.6", "3.3"],
+      "tests": { "unit": ["tests/test_claude_design_import.py", "full suite"] }
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "spec_requirement_id": "claude-design-import/New skill and design-consuming command-surface wiring",
+      "scenarios": [
+        "the new skill is present and lint-clean",
+        "the design-consuming command subset carries the reference"
+      ],
+      "acceptance_criteria": [
+        "skills/claude-design-import/SKILL.md present, name==dir, description < 1024 with no ': '/' #' hazard, required sections incl. ## Cross-references; instruction-compliance lint reports zero findings over the in-scope set incl. the new/edited files; commands/architect-team.md + visual-to-api.md + ux-test.md reference the detection and bug-fix/mini do not. Covered by tests/test_instruction_compliance.py + tests/test_skills.py."
+      ],
+      "layer": "infra",
+      "task_ids": ["2.1", "2.5", "2.6", "3.1"],
+      "tests": { "unit": ["tests/test_instruction_compliance.py", "tests/test_skills.py"] }
+    },
+    {
+      "source_requirement_id": "REQ-008",
+      "spec_requirement_id": "claude-design-import/Version and documentation currency",
+      "scenarios": [
+        "version source-of-truth agrees",
+        "the skill count is consistent everywhere"
+      ],
+      "acceptance_criteria": [
+        "plugin.json + marketplace.json say 3.33.0 and CHANGELOG top entry is [3.33.0]; CLAUDE.md, README, docs/CODEBASE_MAP.md, docs/INSTRUCTION_COMPLIANCE_RUBRIC.md all state 48 skills matching the real skills/*/ count; doc-currency audit overall:pass. Covered by the Phase 8 doc-updater + system-architect audit."
+      ],
+      "layer": "infra",
+      "task_ids": ["4.1", "4.2"],
+      "tests": { "unit": ["Phase 8 documentation-currency audit verdict"] }
+    }
+  ]
+}

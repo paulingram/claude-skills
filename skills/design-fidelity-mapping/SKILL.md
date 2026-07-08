@@ -19,6 +19,7 @@ Run this skill if AT LEAST ONE of these is present:
 4. A Storybook config: `.storybook/main.{js,ts}` in the codebase.
 5. A brand guidelines doc: `BRAND.md`, `brand-guide.pdf`, links to a brand site in proposal/design.
 6. An `assets/`, `public/images/`, `public/assets/`, or `static/images/` directory in the codebase with at least one non-trivial logo, illustration, or icon asset.
+7. A materialized Claude Design project directory at `<workspace>/.architect-team/claude-design/<project-id>/` — produced by `claude-design-import` from a `claude.ai/design/p/<id>` offer (per `intake-and-mapping`). This is a first-class design-input source alongside the local/zip inputs above.
 
 If none of the above exist, this skill is skipped. The codebase-map-reviewer must NOT flag a missing `DESIGN_MAP.md` as a deficiency in that case.
 
@@ -371,6 +372,10 @@ If `.storybook/main.{js,ts}` is present, identify story files (`*.stories.tsx`).
 ### From the codebase's assets directory
 
 Walk every file in `public/images/`, `public/assets/`, `assets/`, `static/images/`. For each asset, run `sha256sum` (Unix) or `certutil -hashfile <path> SHA256` (Windows), record dimensions via `file` / `identify` if available, and grep the codebase for references (`<img src=`, `import logo from`, `url(...)` in CSS).
+
+### From a materialized Claude Design project
+
+When `intake-and-mapping` detected a Claude Design offer and `claude-design-import` materialized the project to `<workspace>/.architect-team/claude-design/<project-id>/`, treat that directory as a design-input source. It holds the whole project's HTML screens + assets. Walk each screen's markup + inline styles for the per-screen visual specs (colors, typography, spacing read from the rendered markup rather than estimated from a screenshot), register every asset under `## Asset Registry`, and use the offer's focus (`?file=` selector + `Implement:` target) to prioritize which screen's spec drives the Phase 1 build. The materialized project is an ordinary directory input — nothing about the capture changes because it arrived through the `claude_design` MCP.
 
 ## What "complete" means (for the codebase-map-reviewer)
 

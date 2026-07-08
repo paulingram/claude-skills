@@ -33,6 +33,12 @@ Resolve every path to an absolute path. Assert each is a git repo (`git -C <path
 - A routing config: `pages/`, `app/router/`, `src/routes/`, `react-router`, `vue-router`, `@angular/router`, `expo-router`, `tanstack/router`.
 - `index.html` as the entry.
 
+## Claude Design offer detection (additive design-input source)
+
+When `$REQ_DIR` prose carries a Claude Design offer — a `claude.ai/design/p/<id>` link and/or a `claude_design` MCP mention — invoke the `claude-design-import` skill to fetch and materialize the design project to `<workspace>/.architect-team/claude-design/<project-id>/`, then treat that materialized directory as a design-input source for the rest of Phase −1 (the route-mapper's `DESIGN_MAP.md` per `design-fidelity-mapping`, and the `oracle-deriver` interactive-mockup walk). Detect the offer with `detect_claude_design_offer` from `scripts/claude_design/claude_design_import.py`.
+
+This is ADDITIVE — an additional design-input source ALONGSIDE the existing local/zip discovery, never a replacement. When no Claude Design offer is present (`detected` is false), the existing local design-input discovery proceeds unchanged. When the `claude_design` MCP is unavailable, `claude-design-import` instructs the user to connect it and run `/design-login`, and on the user declining auto-falls-back to the local/zip path so the run never dead-ends.
+
 ## Per-codebase mapping (one ralph loop per codebase, dispatched in parallel across codebases)
 
 Each codebase's mapping work is independent of every other codebase's mapping work — only the later integration mapping depends on all per-codebase maps being done. So all per-codebase mapping ralph loops are dispatched in PARALLEL via a single Agent-tool batch — one teammate per codebase. For a 1-codebase workspace this is a no-op; for a multi-codebase workspace it cuts wall-clock by a factor of the codebase count. Within each codebase's ralph loop:

@@ -22,11 +22,11 @@ lets an agent pick the weaker one; a load-bearing directive phrased as "should
 consider" invites the agent to skip it. This rubric makes each of those a
 checkable defect rather than a matter of taste.
 
-## Scope — the 112 in-scope files
+## Scope — the 113 in-scope files
 
 | File class | Count | Path pattern | Frontmatter | Body title |
 |---|---:|---|---|---|
-| Skills | 47 | `skills/*/SKILL.md` | required (`name`, `description`) | `# <Title>` H1 |
+| Skills | 48 | `skills/*/SKILL.md` | required (`name`, `description`) | `# <Title>` H1 |
 | Agents | 39 | `agents/*.md` | required (`name`, `description`, `tools`, `model`, `color`) | operating instructions |
 | Commands | 23 | `commands/*.md` | required (`description`) | `# /architect-team:<name>` H1 |
 | Root instruction | 1 | `CLAUDE.md` | none (plain-doc class) | `# ` H1 |
@@ -166,7 +166,7 @@ be an engine bug, so the engine holds the path subset and the sweep judges the r
 | `scripts/<path>.py` | files under `scripts/` | **Deterministic** (engine) |
 | `docs/<FILE>.md` | **only** the maps that exist in THIS repo — `docs/CODEBASE_MAP.md`, `docs/INTEGRATION_MAP.md` | **Deterministic** (engine) |
 | `/architect-team:<command>` | the 23 `commands/*.md` stems | **LLM-judgment** (prose-ambiguous; not machine-checked) |
-| `` `architect-team:<skill>` `` (Skill-tool addressing) | the 47 `skills/*/` dir names | **LLM-judgment** (prose-ambiguous; not machine-checked) |
+| `` `architect-team:<skill>` `` (Skill-tool addressing) | the 48 `skills/*/` dir names | **LLM-judgment** (prose-ambiguous; not machine-checked) |
 | a bare back-ticked skill name (e.g. `` `mempalace-integration` ``) | the `skills/*/` dir names, when the token exactly matches one | **LLM-judgment** (prose-ambiguous; not machine-checked) |
 
 **NOT references — MUST NOT be flagged (documented so a false positive is a
@@ -239,7 +239,7 @@ canonical statement is compliant — cross-referencing is the intended pattern,
 not a violation.
 
 ### (b.4) Inventory-count consistency (semi-deterministic sub-check)
-Counts stated in prose — skills (47), agents (39), commands (23), phenotypes,
+Counts stated in prose — skills (48), agents (39), commands (23), phenotypes,
 Layer-3 tools (20), hook scripts — are consistent with the real inventory AND
 with each other across the in-scope files. This is the historical drift class
 (v3.13.0 shipped a fourth phenotype while a store doc still said three); a stale

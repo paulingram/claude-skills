@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 32 . 0
+                        ─── C T 6 ───   v 3 . 33 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.32.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.33.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-5212%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-5263%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,21 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.32.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.33.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.33.0 — native Claude Design import (a link, not a zip)
+
+A Claude Design project offered via a LINK now imports NATIVELY — the user pastes a `claude.ai/design/p/<id>` link (and/or names the `claude_design` MCP) and the pipeline fetches the whole design project through the MCP instead of asking for a downloaded zip. The design flows into the EXISTING front-end oracle path with no new downstream consumer.
+
+| Capability | What it is |
+|---|---|
+| **Detect the offer (both trigger forms)** | New skill `skills/claude-design-import/SKILL.md` over a new stdlib engine `scripts/claude_design/claude_design_import.py` (mirroring `scripts/claude_md/claude_md_efficiency.py`): `detect_claude_design_offer` fires on EITHER a `claude.ai/design/p/<id>` URL OR a `claude_design` MCP mention (an inclusive OR), parsing the `?file=` focus selector + a trailing `Implement:` target; `parse_design_url` reads the id case-insensitively. |
+| **Fetch + materialize the WHOLE project** | `materialize_project` writes the fetched screens + assets path-safely to `<workspace>/.architect-team/claude-design/<project-id>/` (`_safe_relpath` REJECTS absolute paths + `..` traversal); `import_claude_design` orchestrates fetch-plus-materialize. The `?file=` / `Implement:` focus prioritizes which screen drives the build — it never drops the rest of the project. |
+| **Reuse — no new downstream consumer** | The materialized directory is handed to the EXISTING `agents/oracle-deriver.md` `interactive-mockup` spec_shape (v2.1.0), which flows into `interactive-mockup-discovery` then `visual-to-api-design`. Wired ADDITIVELY into `skills/intake-and-mapping/SKILL.md` (input discovery), `skills/design-fidelity-mapping/SKILL.md` (a first-class design-input source), and the three design-consuming commands (`architect-team` / `visual-to-api` / `ux-test`). |
+| **Honest injected-adapter boundary** | The engine is deterministic + OFFLINE — it NEVER calls the network or the MCP. The real `claude_design` fetch is INJECTED at runtime via ToolSearch as a `ClaudeDesignSource` (offline tests use `FakeClaudeDesignSource`); no MCP tokens are persisted. `plan_when_unavailable` gives an instruct-then-fallback (connect the MCP + `/design-login`, else auto-fall-back to the zip/local design path) so a run never dead-ends. Design + a stdlib core + tests, not a live-deployed integration. |
+| **Counts + tests** | New `tests/test_claude_design_import.py` (47 offline tests). Skill count **47 → 48** (new `claude-design-import`); test files **198 → 199**. Folds in the stale `tests/test_dispatch_banner.py` version pin (stuck at 3.31.1 since v3.32.0) corrected to 3.33.0. Suite 5212 → **5263 passing + 5 skipped** (199 test files). NO new command / agent / hook / Layer-3 tool. |
 
 ### v3.32.0 — Fable 5 default + first-install setup hardening + two SR-driven infrastructure fixes
 
@@ -480,7 +492,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 ```
 
 ```
-┌─ SKILLS (47) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
+┌─ SKILLS (48) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (fable)            │
 │ ◇ intake-and-mapping                │ ◆ frontend (fable)                    │
 │ ◇ reuse-first-design                │ ◆ backend (fable)                     │
@@ -536,6 +548,7 @@ Two owner-directed deliverables on one branch: **the dev loop now runs unbounded
 │   (v3.20.0 — MCP design)            │                                       │
 │ ◇ helpdesk (v3.21.0)                │                                       │
 │ ◇ token-compression (v3.22.0)       │                                       │
+│ ◇ claude-design-import (v3.33.0)    │                                       │
 ├─ COMMANDS (23) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team:architect-team-setup                                      │
@@ -691,6 +704,17 @@ cd my-wiki && npm install && npm run build && npm run start     # or: docker com
 ```
 
 Hosting is a variation point — `local` (docker-compose, the default), `aws`, or `gcp`; the cloud paths deploy via the `config-management` phenotype (apply its platform layers first, then the emitted `iac/<cloud>/` service layer — both sets `tofu validate`-clean as shipped). Full quick-start: [`phenotypes/README.md`](phenotypes/README.md).
+
+### ▸ Import a Claude Design project (v3.33.0)
+
+Offer a Claude Design project by LINK — no zip download. Paste a `claude.ai/design/p/<id>` link (optionally with a `?file=<screen>` focus and a trailing `Implement: <path>` target), and/or name the `claude_design` MCP. Phase −1 intake detects the offer, fetches the WHOLE project through the MCP, and materializes it to `<workspace>/.architect-team/claude-design/<project-id>/`, then hands it to the existing interactive-mockup oracle path — no special flag needed.
+
+```bash
+/architect-team build this dashboard: https://claude.ai/design/p/abc123?file=Finance+Dashboard.html
+/architect-team:visual-to-api ./my-app     # a Claude Design link in the requirements is materialized before Stage 1
+```
+
+Connect the `claude_design` MCP and run `/design-login` first. When the MCP is unavailable, the run instructs you to connect it and auto-falls-back to the local/zip design-input path, so it never dead-ends. The fetch is an injected runtime adapter — no MCP tokens are persisted. Engine: `scripts/claude_design/claude_design_import.py`; contract: `skills/claude-design-import/SKILL.md`.
 
 ### ▸ Constrain appearance changes (v3.14.0)
 
@@ -1356,7 +1380,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 47 skill frontmatters; all 39 agent frontmatters (tool + model names); all 23 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 112 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **5212 tests pass (+ 5 skipped).**
+Tests validate: plugin/marketplace JSON; all 48 skill frontmatters; all 39 agent frontmatters (tool + model names); all 23 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 113 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all six trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **5263 tests pass (+ 5 skipped).**
 
 ### Bumping versions
 
@@ -1480,7 +1504,8 @@ Tests validate: plugin/marketplace JSON; all 47 skill frontmatters; all 39 agent
            v3.15.0 ─ skill-invocation hard-gate — a new `PreToolUse[*]` hook (`hooks/pretool_skill_gate.py`) converting Layer-6 skill-invocation DETECTION into real-time PREVENTION: when the latest genuine user prompt is an unsatisfied pipeline-command request it BLOCKS (exit 2) the first non-`Skill` tool call until a pipeline skill is engaged; universal (keyed off the plugin's own command set + Skill ledger, reusing `skill_invocation_audit`); scoped to the 5 pipeline-driving commands; false-block-safe (excludes `isMeta`/`system`/`isSidechain` records, fail-open, Skill always allowed); adversarially verified on 9 real transcripts — 0 spurious blocks, 402 genuine bypasses caught
            v3.15.1 ─ skill-gate narrowing fix — the v3.15.0 `*`-matcher over-fired on the command wrapper's own pre-Skill setup (dispatch banner / cleanup / worktree = Bash, + ToolSearch), seen on a server blocking the banner; narrowed to block ONLY build/dispatch tools (`Edit`/`Write`/`NotebookEdit`/`Agent`/`Task*`) — read-only investigation + the wrapper's Bash are always allowed, so a well-behaved run never trips it; re-verified 9 transcripts / 3939 calls — blocks only build/dispatch (204 catches), 0 non-build/dispatch blocked
            v3.16.0 ─ responsive + parallel `/architect-team:inject` — a new `parallel-problem` inbox classification + `lane_id` opens a sanctioned concurrent in-run LANE (a background team with a disjoint `hooks/locks.py` file-scope lock, converging via Phase 4) instead of folding; the inbox is polled on every phase boundary AND every background-dispatch return/wake; the forbidden `spawn-sibling-invocation` rule is amended to allow in-run lanes. Honest: polling-not-push, lock isolation is file-glob/advisory (`cdlg_overlap` not wired into `acquire_lock`), lanes degrade to sequential in subagents-mode, a failed lane downgrades rather than wedging Phase 8. New `tests/test_parallel_lane_inject.py` (13 cases incl. the end-to-end dogfood)
-   ◆       v3.32.0 ─ Fable 5 default + first-install setup hardening — Fable 5 (`claude-fable-5`) is the default agent + service model with an implemented Opus 4.8 (`claude-opus-4-8`) fallback (`resolve_model` / the `scripts/setup/set_default_model.py` lever); `setup.py` hardened for a real first install (cartographer marketplace provenance `kingbootoshi/cartographer`, npm EACCES `--prefix ~/.local` retry, PEP-668 uv→pip-`--user`→`--break-system-packages` ladder + `tiktoken`, `--yes`/`CT6_SETUP_ASSUME_YES` non-interactive consent); two SR fixes folded in (skill-gate teammate/peer-message false-block; atomic `os.link` lock publish closing the ~20% multi-winner race); README bare `/architect-team-setup` command forms fixed (current)
+           v3.32.0 ─ Fable 5 default + first-install setup hardening — Fable 5 (`claude-fable-5`) is the default agent + service model with an implemented Opus 4.8 (`claude-opus-4-8`) fallback (`resolve_model` / the `scripts/setup/set_default_model.py` lever); `setup.py` hardened for a real first install (cartographer marketplace provenance `kingbootoshi/cartographer`, npm EACCES `--prefix ~/.local` retry, PEP-668 uv→pip-`--user`→`--break-system-packages` ladder + `tiktoken`, `--yes`/`CT6_SETUP_ASSUME_YES` non-interactive consent); two SR fixes folded in (skill-gate teammate/peer-message false-block; atomic `os.link` lock publish closing the ~20% multi-winner race); README bare `/architect-team-setup` command forms fixed
+   ◆       v3.33.0 ─ claude-design-import — native ingestion of a Claude Design project offered via a `claude.ai/design/p` link (and/or the `claude_design` MCP): a new stdlib engine (`scripts/claude_design/claude_design_import.py`) detects the offer, materializes the WHOLE project locally path-safely, and hands it to the EXISTING interactive-mockup oracle path (`oracle-deriver` → `interactive-mockup-discovery` → `visual-to-api-design`) — no new downstream consumer; the real MCP fetch is an injected runtime adapter (ToolSearch, no tokens persisted) with an instruct-then-fallback to the zip/local path so a run never dead-ends; 48th skill (`claude-design-import`); NEW `tests/test_claude_design_import.py` (47 offline tests); folds in the stale dispatch-banner version pin (→ 3.33.0); suite → 5263 passing + 5 skipped (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```
