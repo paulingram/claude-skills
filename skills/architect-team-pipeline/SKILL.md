@@ -72,16 +72,22 @@ Per `common-pipeline-conventions` `## Dispatch mode (v1.0.0)`, the selection (en
 
 ## Notifications (per-project email events — opt-in, best-effort)
 
-Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the five recognized events (`phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
+Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the ten recognized events (`run_start`, `phase_start`, `phase_complete`, `waiting_on_agents`, `agents_complete`, `issue_discovered`, `git_commit`, `deploy`, `run_complete`, plus the tick-driven `heartbeat`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
 
-**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every phase below.** At the **start of each phase** (Phase −1, 0, 1, 2, 3, 3b, 4, 5, 6, 7, 8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the phase name:
+**Informative, not just status (v3.34.0 — the content contract).** Per the canonical rule, every invocation carries meaningful content: `phase_start` passes `--details` with what the phase is about to do *for this run*, `phase_complete` passes `--details` with what the phase actually accomplished, and both pass `--progress "<N> of <M> phases complete — <recap>"` (+ `--next-step` when known). The FIRST `phase_start` of the run (Phase −2) additionally carries the requirement summary in `--details` — the engagement email. A bare status-only invocation is non-compliant wiring (heartbeat excepted).
+
+**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every phase below.** At the **start of each phase** (Phase −2, −1, 0, 1, 2, 3, 3b, 4, 5, 6, 7, 8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the phase name plus the informative flags:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --details "<what this phase is about to do for this run>" --progress "<N of M phases complete — recap>" --next-step "<what follows>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --details "<what this phase is about to do for this run>" --progress "<N of M phases complete — recap>" --next-step "<what follows>"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --details "<what the phase accomplished>" --progress "<N of M phases complete — recap>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --details "<what the phase accomplished>" --progress "<N of M phases complete — recap>"
 ```
 
-The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below — Phase 3b for `issue_discovered` (SR pickup), Phase 5 for `deploy` (dev environment up), Phase 8 for `git_commit` (after the auto-commit).
+**Run-level bookends (v3.34.0).** `run_start` fires ONCE, at the end of Phase 1 the moment the OpenSpec bundle validates — the kickoff email that embeds the architecture and solution plan itself (see the inline wiring at Phase 1). `run_complete` fires ONCE as the run's FINAL notification at the end of Phase 8 (see the inline wiring there).
+
+**Dispatch-wait pair (v3.34.0).** At EVERY dispatch-and-wait point the orchestrator emits `waiting_on_agents` (roster + missions via `--agents`) when the dispatch goes out and `agents_complete` (roster + outcomes) when it fully returns — the major named points in this pipeline are the Phase −1B mapping fleet, the Phase 2→3 implementation teams, the Phase 3b diagnostic/fix teams, and the Phase 6 review swarm; the rule applies to any other dispatch-and-wait as well.
+
+The remaining moment events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below — Phase 3b for `issue_discovered` (SR pickup), Phase 5 for `deploy` (dev environment up), Phase 8 for `git_commit` (after the auto-commit).
 
 ## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch, including the Phase −2 bug-classifier)
 
@@ -405,6 +411,12 @@ Loop:
 6. Exit only when validation passes, all artifacts are `done`, every source requirement maps to scenarios with measurable acceptance criteria, Playwright + dev-API criteria are explicit, and every new module has a verified Reuse Decision.
 7. **Auto-mine to MemPalace** on every coverage-map revision: `mempalace --palace <palace> mine "openspec/changes/<change-name>/coverage-map.json" --wing <wing>`. Mine the final revision when the loop exits.
 
+**Run-start notification — the kickoff email carrying the plan (v3.34.0, best-effort, per `## Notifications`).** The moment this loop exits — the OpenSpec bundle validates and the architecture + solution plan therefore exists — the orchestrator emits `run_start` ONCE, embedding the plan artifacts themselves so stakeholders receive the architecture and solution plan in ONE email (not a pointer to it). Pass `--details` with a 2-4 sentence plain-language summary of the requirement and the chosen solution approach, and one `--plan-file` per bundle artifact. Invoke from the target project's root and proceed immediately regardless of outcome:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <run-id> --details "<requirement + solution-approach summary>" --next-step "Phase 2 — Decomposition & Team Spawn" --plan-file "openspec/changes/<change-name>/proposal.md" --plan-file "openspec/changes/<change-name>/design.md" --plan-file "openspec/changes/<change-name>/tasks.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <run-id> --details "<requirement + solution-approach summary>" --next-step "Phase 2 — Decomposition & Team Spawn" --plan-file "openspec/changes/<change-name>/proposal.md" --plan-file "openspec/changes/<change-name>/design.md" --plan-file "openspec/changes/<change-name>/tasks.md"
+```
+
 ## Phase 2 — Decomposition & Team Spawn
 
 1. From `tasks.md` and the coverage map, classify each task by layer (`backend`, `frontend`, `both`, `infra`).
@@ -421,6 +433,12 @@ Loop:
 5. State explicitly to each teammate: **do not mark your tasks complete until the Team Review Gate passes (Phase 3).**
 
 The Lead creates 3-5 teammate tasks per parallel group in the shared task list (teams mode) OR dispatches 3-5 subagents per parallel group via a single Agent-tool batch (subagents mode). Size each task group to 5-6 tasks per teammate.
+
+**Waiting-on-agents notification (v3.34.0, best-effort, per `## Notifications`).** Immediately after the teams are dispatched and the Lead enters its wait, emit `waiting_on_agents` naming every dispatched teammate and its mission, so recipients know the run is now blocked on agent work and on whom:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" waiting_on_agents --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --agents "<teammate — mission; teammate — mission>" --details "<what the dispatch covers>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" waiting_on_agents --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --agents "<teammate — mission; teammate — mission>" --details "<what the dispatch covers>"
+```
 
 After EVERY background Agent dispatch the orchestrator (Lead) makes in this pipeline — across Phase −2, Phase −1 mapping ralph loops, Phase −1C integration mapping, Phase −1D interaction intuition, Phase 2 team spawn, Phase 3 independent review, Phase 3b SR fix-team dispatch, Phase 4 reconciliation, Phase 5 integration, Phase 7 master synthesis, and Phase 8 doc-updater — the Lead routes the raw dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` per `common-pipeline-conventions` `## Background-agent resume discipline` BEFORE treating the work as complete. Truncated / stream-timed-out results auto-resume up to 2 attempts; `resumed_failed=True` surfaces to the user with on-disk artifacts cited.
 
@@ -446,6 +464,14 @@ Teammate writes its **self-review** — the 17 top-level fields of `<cwd>/.archi
 
 The `SubagentStop` hook re-checks the full review-evidence file (including the `independent_review` block) on idle and sends the teammate back to work (exit 2) if any item is unsatisfied.
 
+**Agents-complete notification (v3.34.0, best-effort, per `## Notifications`).** When EVERY teammate in the Phase 2 dispatch has passed this gate (the wait the Phase 2 `waiting_on_agents` announced has ended), emit `agents_complete` with the per-agent outcomes:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" agents_complete --project <name> --phase "Phase 3 — Team Review Gate" --agents "<teammate — outcome (tests/verdict); teammate — outcome>" --details "<what the teams delivered>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" agents_complete --project <name> --phase "Phase 3 — Team Review Gate" --agents "<teammate — outcome (tests/verdict); teammate — outcome>" --details "<what the teams delivered>"
+```
+
+The same `waiting_on_agents` → `agents_complete` pair brackets the OTHER major dispatch-and-wait points of this pipeline — the Phase −1B mapping fleet, the Phase 3b diagnostic-research + fix-team dispatches, and the Phase 6 review swarm — per the canonical dispatch-wait rule in `common-pipeline-conventions` `## Notifications wiring convention`.
+
 ## Phase 3b — Solution-Requirement Intake (continuous, runs after every subagent idle)
 
 The architect-team pipeline runs as a closing loop: failed tests, drifted visuals, and surfaced bugs do not sit in handoff files waiting for manual triage — they spawn fresh dev-loop entries automatically.
@@ -466,7 +492,7 @@ After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression 
    - If `affected_requirements` is populated → append/update entries in the active change's `coverage-map.json` referencing the SR ID. If empty → derive a new coverage-map entry from `acceptance_criteria` + `affected_screens` + `scope`.
    - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, or `visual-fidelity-drift`): the Lead invokes the `diagnostic-research-team` skill before dispatching the fix team.** This is non-optional. Each diagnostic-researcher applies `superpowers:systematic-debugging` — find the root cause before any fix is proposed, per `## Plugin prerequisites (v3.9.0)`. Per the skill, the Lead creates 3 `diagnostic-researcher` tasks in the shared list (teams mode) OR dispatches 3 `diagnostic-researcher` subagents in parallel via a single Agent-tool batch (subagents mode), then the Lead creates a `system-architect` task (teams mode) OR dispatches the `system-architect` subagent (subagents mode) to review robustness, producing a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. No researcher spawns the architect; only the Lead does. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. **Auto-mine the entire diagnostic-research dir** when the plan is approved: `mempalace --palace <palace> mine "<cwd>/.architect-team/diagnostic-research/<test-id>/" --wing <wing>`. The fix team CANNOT be dispatched until `diagnostic_plan_path` is populated and the plan file exists on disk. The diagnostic-research-team skill loops until the architect converges — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses ONLY if a required input that only the owner can supply is missing (surfaced loudly while the rest of the run continues), never on cycle count. While that loop is in progress or paused for required input, the Lead does NOT skip ahead to fix-team dispatch.
    - The Lead dispatches a Phase 2 fix team per `team-spawning-and-review-gates` rules — creating fix tasks in the shared list (teams mode) OR dispatching fix subagents via a single Agent-tool batch (subagents mode), using `suggested_team` as the hint and `scope.files_to_change` as `files_owned`. The teammate manifest's `expected_review_evidence` includes the task ID generated for the fix. The fix team's brief includes: the SR file path, verbatim `acceptance_criteria` (the originating failing test MUST be among them), a pointer to the original failing test as the verification check, AND (when the SR is a test-failure origin) the `diagnostic_plan_path` with the directive **"READ THIS PLAN FIRST. Your first work item is the pre-fix verification checklist in the plan. Do NOT propose a fix until you have captured every observation in that checklist."**
-   - Update the SR: `status: "in_progress"`, add `spawned_teammate: "<name>"` and `spawned_at: "<ISO 8601 UTC>"`.
+   - Update the SR: `status: "in_progress"`, add `spawned_teammate: "<name>"` and `spawned_at: "<ISO 8601 UTC>"`. Bracket the diagnostic-research and fix-team dispatches with the v3.34.0 dispatch-wait pair per `## Notifications` — `waiting_on_agents` (naming the researchers / fix team and the SR each chases) when the dispatch goes out, `agents_complete` (per-agent outcomes) when it returns.
 3. **The fix flows through Phase 2 → Phase 3 → Phase 4 → Phase 5** as a normal dev-loop iteration. When the originating test reaches verdict `pass` at Phase 5, the orchestrator marks the SR `status: "resolved"` with `resolved_at` and `resolved_by` (commit SHA), then unblocks the ORIGINATING teammate's task (the one whose failure surfaced the SR). The originating teammate re-runs whatever they were waiting on; their loop converges.
 3b. **Counter-evidence re-triggers research.** If, during the fix team's pre-fix verification checklist execution, the fix team's evidence contradicts the leading hypothesis in the diagnostic plan, the fix team writes `<cwd>/.architect-team/diagnostic-research/<test-id>/counter-evidence-<ts>.md` and signals idle. The orchestrator picks up the counter-evidence on its next pickup pass and re-invokes `diagnostic-research-team` with the counter-evidence as a new input. The fix team does NOT silently override the plan; it surfaces the conflict and lets research re-run.
 4. **Master review (Phase 7) walks every SR** and confirms each is `resolved` AND its acceptance criteria are reflected in a passing test in the coverage map. Test-failure SRs MUST have a `diagnostic_plan_path` and the plan file MUST exist on disk; SRs missing the plan are an audit gap and re-trigger `diagnostic-research-team` even at Phase 7. Any `open` or `in_progress` SR at Phase 7 is a coverage gap; the Lead re-dispatches the fix team until resolved.
@@ -691,6 +717,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || pytho
 This is what tells the run-continuity enforcement (the Stop-hook continuation guard + the PreToolUse sticky arm + the SessionStart resume directive — see `common-pipeline-conventions` `## Run continuity discipline`) that the run is genuinely DONE. Until this runs, a Stop is blocked as an arbitrary mid-run stop and every fresh/resumed session is directed back into the pipeline. Never run it early: "the audit will pass eventually" is not complete; committed-and-pushed is.
 
 Throughout the run, keep the marker's observability fields current at each phase boundary (best-effort, one line): `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --set phase="Phase 5" slug=<change-name>` — the resume directive and the block messages quote these fields to a resumed session.
+
+### Run-complete notification (v3.34.0 — the run's final email)
+
+Immediately after the run is marked complete (and after Phase 8's own `phase_complete`), emit `run_complete` ONCE — the run's final notification, telling recipients the run finished end-to-end and what it shipped (best-effort, per `## Notifications`; a notifier failure never blocks the close-out):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed"
+```
+
+Omit `--commit` when the run produced no commit (`--no-commit`).
 
 ### Auto-compact prompt (after the final report; default on)
 

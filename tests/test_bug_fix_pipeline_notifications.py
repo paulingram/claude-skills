@@ -69,16 +69,55 @@ def test_notifications_section_documents_invocation_form(plugin_root: Path) -> N
     assert "${CLAUDE_PLUGIN_ROOT}" in section, "section must use ${CLAUDE_PLUGIN_ROOT} (parity with main pipeline)"
 
 
-# ─── All five event types are listed ────────────────────────────────────────
+# ─── All wired event types are listed ───────────────────────────────────────
 
 
 FIVE_EVENTS = ("phase_start", "phase_complete", "issue_discovered", "git_commit", "deploy")
 
+# v3.34.0 — the run-level bookends + the dispatch-wait pair join the section.
+TEN_EVENTS = FIVE_EVENTS + (
+    "run_start",
+    "waiting_on_agents",
+    "agents_complete",
+    "run_complete",
+    "heartbeat",
+)
 
-@pytest.mark.parametrize("event", FIVE_EVENTS)
+
+@pytest.mark.parametrize("event", TEN_EVENTS)
 def test_notifications_section_lists_event(plugin_root: Path, event: str) -> None:
     section = _notifications_section(_read_body(plugin_root))
     assert event in section, f"Notifications section must list the `{event}` event"
+
+
+def test_phase_b3_wires_run_start_with_the_fix_proposal(plugin_root: Path) -> None:
+    """v3.34.0: the bug-fix kickoff email fires at B3 — the moment the fix
+    proposal exists — embedding the proposal artifacts via --plan-file."""
+    section = _phase_section(_read_body(plugin_root), "## Phase B3")
+    assert "run_start" in section, (
+        "Phase B3 must wire the `run_start` notification when the fix proposal exists"
+    )
+    assert "--plan-file" in section, (
+        "Phase B3's run_start invocation must embed the proposal via --plan-file"
+    )
+
+
+def test_phase_b8_wires_run_complete(plugin_root: Path) -> None:
+    """v3.34.0: the bug-fix run's final email fires at B8 after mark-complete."""
+    section = _phase_section(_read_body(plugin_root), "## Phase B8")
+    assert "run_complete" in section, (
+        "Phase B8 must wire the `run_complete` notification (the run's final email)"
+    )
+
+
+def test_phase_b1_names_the_dispatch_wait_pair(plugin_root: Path) -> None:
+    """v3.34.0: the B1 replicator dispatch is bracketed by the dispatch-wait
+    pair (waiting_on_agents when dispatched, agents_complete on return)."""
+    section = _phase_section(_read_body(plugin_root), "## Phase B1")
+    assert "waiting_on_agents" in section and "agents_complete" in section, (
+        "Phase B1 must bracket the bug-replicator dispatch with "
+        "waiting_on_agents / agents_complete"
+    )
 
 
 # ─── All ten B-phases get phase_start/phase_complete wiring ────────────────

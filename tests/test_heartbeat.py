@@ -10,10 +10,11 @@ here):
     from the existing run-metrics ledger + intake-state.json; never raises;
     yields a degraded payload (the 5 keys still present) on missing/malformed
     state.
-  * `scripts/notify/notify.py` heartbeat event — the CLI accepts the 6th event
-    type `heartbeat` and is a silent no-op exit 0 when the project has not
-    opted in (no `.architect-team-notify.json`). No network is touched: with no
-    config no provider send is ever attempted.
+  * `scripts/notify/notify.py` heartbeat event — the CLI accepts the event
+    type `heartbeat` (one of the ten in the v3.34.0 vocabulary) and is a
+    silent no-op exit 0 when the project has not opted in (no
+    `.architect-team-notify.json`). No network is touched: with no config no
+    provider send is ever attempted.
 
 `@prod-safe`: every test here only READS state, builds a payload, or drives the
 notifier with NO config (a silent no-op that never sends). No mutation reaches
@@ -294,13 +295,16 @@ def test_heartbeat_snapshot_never_raises_on_garbage_run_id(
 
 def test_heartbeat_in_event_types(notify: ModuleType) -> None:
     assert "heartbeat" in notify.EVENT_TYPES, (
-        "notify.EVENT_TYPES must include the 6th event type 'heartbeat'"
+        "notify.EVENT_TYPES must include the event type 'heartbeat' (v3.10.0 R6c)"
     )
 
 
-def test_event_types_has_exactly_six(notify: ModuleType) -> None:
-    assert len(notify.EVENT_TYPES) == 6, (
-        f"notify.EVENT_TYPES must have exactly 6 events; got {notify.EVENT_TYPES}"
+def test_event_types_has_exactly_ten(notify: ModuleType) -> None:
+    # v3.10.0 (R6c) took the vocabulary to six; v3.34.0 (informative run
+    # notifications) takes it to ten — run_start / waiting_on_agents /
+    # agents_complete / run_complete join the six.
+    assert len(notify.EVENT_TYPES) == 10, (
+        f"notify.EVENT_TYPES must have exactly 10 events; got {notify.EVENT_TYPES}"
     )
 
 

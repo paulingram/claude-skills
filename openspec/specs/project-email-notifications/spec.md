@@ -63,7 +63,7 @@ The system SHALL provide a provider-agnostic send interface with two interchange
 
 ### Requirement: Notification event types and per-recipient filtering
 
-The system SHALL support exactly five event types — `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, and `deploy` — and SHALL send a given event only to recipients whose `events` array includes that event type or the shorthand `"all"`. Each email MUST carry a subject and a body that convey the event's context.
+The system SHALL support exactly ten event types — `run_start`, `phase_start`, `phase_complete`, `waiting_on_agents`, `agents_complete`, `issue_discovered`, `git_commit`, `deploy`, `run_complete`, and `heartbeat` (the five classic phase events joined in v3.10.0 by the tick-driven `heartbeat` and in v3.34.0 by the run-level bookends `run_start` / `run_complete` and the dispatch-wait pair `waiting_on_agents` / `agents_complete`) — and SHALL send a given event only to recipients whose `events` array includes that event type or the shorthand `"all"`. Each email MUST carry a subject and a body that convey the event's context.
 
 #### Scenario: Event reaches only subscribed recipients
 
@@ -74,20 +74,20 @@ The system SHALL support exactly five event types — `phase_start`, `phase_comp
 #### Scenario: The "all" shorthand subscribes to every event
 
 - **GIVEN** a recipient whose `events` array is `["all"]`
-- **WHEN** any of the five event types is dispatched
+- **WHEN** any of the ten event types is dispatched
 - **THEN** that recipient is emailed for every event type
 
 #### Scenario: Unknown event type is rejected without sending
 
-- **GIVEN** the notifier invoked with an event type that is not one of the five supported values
+- **GIVEN** the notifier invoked with an event type that is not one of the ten supported values
 - **WHEN** the notifier processes the request
 - **THEN** a clear error is written to stderr, no email is sent, and the process exits 0
 
 #### Scenario: Event context appears in the email
 
-- **GIVEN** a `deploy` event with layer `backend`, a `git_commit` event with a commit SHA, an `issue_discovered` event with an issue summary, and a `phase_start` event with a phase name
+- **GIVEN** a `deploy` event with layer `backend`, a `git_commit` event with a commit SHA, an `issue_discovered` event with an issue summary, a `phase_start` event with a phase name, a `waiting_on_agents` / `agents_complete` event with an `--agents` roster, and a `run_complete` event with a run id / elapsed / final commit
 - **WHEN** each email is rendered
-- **THEN** the subject and body of each include the relevant context — the deploy layer, the commit SHA, the issue summary, and the phase name respectively
+- **THEN** the subject and body of each include the relevant context — the deploy layer, the commit SHA, the issue summary, the phase name, the agent roster, and the run id / elapsed / final commit respectively
 
 ### Requirement: Notifier CLI and best-effort failure isolation
 
@@ -119,17 +119,17 @@ The system SHALL expose a command-line entry point at `scripts/notify/notify.py`
 
 ### Requirement: Pipeline wiring emits notification events
 
-The `architect-team-pipeline` skill SHALL instruct the orchestrator to invoke the notifier CLI at each phase start (`phase_start`), each phase completion (`phase_complete`), each solution-requirement creation (`issue_discovered`), immediately after the Phase 8 git commit (`git_commit`), and when Phase 5 brings up a live dev instance or a deploy occurs (`deploy`). The wiring text MUST state that notifier invocations are best-effort and never gate pipeline progress.
+Every pipeline-driving skill — `architect-team-pipeline`, `bug-fix-pipeline`, `mini-architect-team-pipeline`, AND `ux-test-builder` (v3.34.0: engaging ANY architect-team task emits its notifications) — SHALL instruct the orchestrator to invoke the notifier CLI at each phase start (`phase_start`), each phase completion (`phase_complete`), each solution-requirement creation (`issue_discovered`), immediately after a pipeline-produced git commit (`git_commit`), when a live dev instance is brought up (`deploy` — deliberately excluded and documented for `ux-test-builder`, which targets an already-live site), at the run-level bookends (`run_start` / `run_complete`), and at the dispatch-wait points (`waiting_on_agents` / `agents_complete`). The wiring text MUST state that notifier invocations are best-effort and never gate pipeline progress.
 
-#### Scenario: Skill body emits every event type
+#### Scenario: Skill bodies emit every required event type
 
-- **GIVEN** the modified `skills/architect-team-pipeline/SKILL.md`
-- **WHEN** its body is inspected
-- **THEN** it contains a notifier invocation for each of the five event types — `phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, and `deploy`
+- **GIVEN** the four pipeline skills
+- **WHEN** their bodies are inspected
+- **THEN** each contains a notifier invocation for each of its required classic phase events plus `run_start` (with `--plan-file`) and `run_complete`, and names both halves of the dispatch-wait pair in its `## Notifications` section
 
 #### Scenario: Wiring declares notifications non-blocking
 
-- **GIVEN** the modified pipeline skill and the `architect-team` command
+- **GIVEN** the modified pipeline skills and the `architect-team` command
 - **WHEN** the notifier-wiring text is read
 - **THEN** it states explicitly that notifier invocations are best-effort and never block or fail a pipeline run
 
@@ -137,7 +137,49 @@ The `architect-team-pipeline` skill SHALL instruct the orchestrator to invoke th
 
 - **GIVEN** the test suite
 - **WHEN** `tests/test_notify_wiring.py` runs
-- **THEN** it asserts the five notifier invocations and the non-blocking statement are present in the pipeline skill
+- **THEN** it asserts the required notifier invocations (per-pipeline required-event map), the run-level bookends, the dispatch-wait pair, the informative-content contract, and the non-blocking statement are present in all four pipeline skills
+
+### Requirement: Run-start carries the architecture and solution plan in one email
+
+The `run_start` event SHALL fire once per run, at the moment the run's architecture + solution plan first exists (main pipeline: end of Phase 1; bug-fix: end of B3; mini: end of M3; ux-test: end of U4), and SHALL embed the plan artifacts themselves in the email body via the repeatable `--plan-file` option — each file under its own filename header, capped per file with an explicit truncation marker, capped in count with an omission note, and degrading to a one-line note (never an error) when a file is missing or unreadable.
+
+#### Scenario: The kickoff email embeds the plan artifacts
+
+- **GIVEN** a `run_start` invocation with `--plan-file proposal.md --plan-file design.md`
+- **WHEN** the email is rendered
+- **THEN** the body contains an architecture-and-solution-plan section embedding both files' content under their filename headers
+
+#### Scenario: Plan embedding is bounded and best-effort
+
+- **GIVEN** a plan file larger than the per-file cap, more plan files than the count cap, or a missing plan file
+- **WHEN** the email is rendered
+- **THEN** the oversized file is truncated with an explicit marker, the extra files are acknowledged with an omission note, the missing file degrades to a could-not-be-read note, and the notifier never raises
+
+### Requirement: Dispatch-wait visibility
+
+At every point where the orchestrator dispatches agents and enters a wait, the wiring SHALL emit `waiting_on_agents` naming each dispatched agent and its mission via `--agents`, and SHALL emit `agents_complete` with per-agent outcomes when that dispatch has fully returned — so recipients always know when the run is blocked waiting on agents and when that wait ended.
+
+#### Scenario: The dispatch-wait pair brackets a team spawn
+
+- **GIVEN** the main pipeline's Phase 2 team spawn
+- **WHEN** the teams are dispatched and later all pass the Phase 3 gate
+- **THEN** a `waiting_on_agents` email names each teammate and its mission at dispatch, and an `agents_complete` email reports each teammate's outcome when the wait ends
+
+### Requirement: Informative content contract
+
+Every notifier invocation SHALL carry meaningful content, not a bare event name: the universal options `--details` (what is about to happen / what was accomplished), `--progress` (where the run stands), and `--next-step` (what follows) SHALL render as their own body blocks on every event when provided; every `phase_start` / `phase_complete` wiring template SHALL pass `--details` and `--progress`; the FIRST `phase_start` of a run SHALL carry the requirement summary (the engagement email); and the canonical contract SHALL live in `common-pipeline-conventions` `## Notifications wiring convention`, which declares a bare status-only invocation non-compliant wiring (heartbeat excepted).
+
+#### Scenario: Universal informative blocks render on any event
+
+- **GIVEN** any event invoked with `--details`, `--progress`, and `--next-step`
+- **WHEN** the email is rendered
+- **THEN** the body carries the Details / Where-the-run-stands / Up-next blocks, and omits each block when its option is absent
+
+#### Scenario: The wiring templates demand informative content
+
+- **GIVEN** the four pipeline skills' `## Notifications` sections
+- **WHEN** they are inspected
+- **THEN** each states the "Informative, not just status" contract, passes `--details` and `--progress` in its wiring templates, and names the first-phase_start engagement-email rule
 
 ### Requirement: Test coverage for the notifier
 

@@ -16,7 +16,7 @@
     },
     {
       "email": "qa@your-domain.example",
-      "events": ["phase_complete", "issue_discovered", "deploy"]
+      "events": ["run_start", "phase_complete", "issue_discovered", "deploy", "run_complete"]
     }
   ]
 }

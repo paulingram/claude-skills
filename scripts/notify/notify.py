@@ -17,12 +17,23 @@ Design guarantees (per openspec change `project-email-notifications`):
     holding the provider secret; the value is read at send time and never
     written into the config file or any logged/printed line.
 
-Events (exactly six): phase_start, phase_complete, issue_discovered,
-git_commit, deploy, heartbeat. The v3.10.0 `heartbeat` event (R6c) carries an
+Events (exactly ten): run_start, phase_start, phase_complete,
+waiting_on_agents, agents_complete, issue_discovered, git_commit, deploy,
+run_complete, heartbeat. The v3.10.0 `heartbeat` event (R6c) carries an
 unbounded-run liveness signal — the run id, current phase, elapsed time, and
 the QA-cycle / agents-dispatched counts — emitted during long phases and at
-post-first-hour phase boundaries. It honors the identical opt-in/best-effort
-contract as the other five; it never gates, blocks, or caps a run.
+post-first-hour phase boundaries. The v3.34.0 quartet (informative run
+notifications) adds the run-level bookends and the dispatch-wait pair:
+`run_start` fires once per run at the moment the architecture + solution plan
+first exists and embeds the plan artifacts themselves (repeatable
+`--plan-file`) so stakeholders receive the plan in ONE email; `run_complete`
+is the run's final notification; `waiting_on_agents` / `agents_complete`
+bracket every dispatch-and-wait point with the agent roster (`--agents`).
+Every event additionally renders the universal informative blocks when
+provided — `--details` (what is about to happen / what was accomplished),
+`--progress` (where the run stands), `--next-step` (what happens next) — so
+an email is a meaningful update, not a bare status line. All ten honor the
+identical opt-in/best-effort contract; none gates, blocks, or caps a run.
 
 Exit:
   Always 0. main() catches every exception (including argparse SystemExit).
@@ -47,14 +58,24 @@ from typing import Iterable
 CONFIG_FILENAME = ".architect-team-notify.json"
 
 EVENT_TYPES = (
+    "run_start",  # v3.34.0 — run kickoff: architecture + solution plan in ONE email.
     "phase_start",
     "phase_complete",
+    "waiting_on_agents",  # v3.34.0 — the Lead dispatched agents and is waiting.
+    "agents_complete",  # v3.34.0 — every dispatched agent has returned.
     "issue_discovered",
     "git_commit",
     "deploy",
+    "run_complete",  # v3.34.0 — the run finished end-to-end (final notification).
     "heartbeat",  # v3.10.0 (R6c) — unbounded-run liveness signal.
 )
 ALL_EVENTS = "all"
+
+# Bounds for the run_start plan embedding (--plan-file). Each embedded artifact
+# is capped so a huge design doc cannot balloon the email; extra files beyond
+# the count cap are acknowledged with an omission note rather than embedded.
+PLAN_FILE_MAX_CHARS = 20_000
+MAX_PLAN_FILES = 8
 
 VALID_PROVIDERS = ("gmail", "sendgrid")
 
@@ -378,16 +399,88 @@ def _project_label(context: dict) -> str:
     return str(project) if project else "the project"
 
 
+def _read_plan_file(path_str: str) -> tuple[str, str]:
+    """Read one ``--plan-file`` artifact for embedding.
+
+    Returns ``(label, content)`` where content is the file text capped at
+    PLAN_FILE_MAX_CHARS (with an explicit truncation marker), or a one-line
+    could-not-be-read note. Never raises — a missing or unreadable plan file
+    degrades to the note, honoring the best-effort contract.
+    """
+    path = Path(path_str)
+    label = path.name or path_str
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return label, f"(plan file could not be read: {path_str})"
+    if len(text) > PLAN_FILE_MAX_CHARS:
+        text = text[:PLAN_FILE_MAX_CHARS] + "\n... [truncated for email]"
+    return label, text
+
+
+def render_plan_section(plan_files: Iterable[str]) -> str:
+    """Render the embedded architecture-and-solution-plan block.
+
+    Each ``--plan-file`` artifact (proposal.md / design.md / tasks.md / a fix
+    proposal / a flow catalog) is embedded under its own filename header so the
+    run_start email carries the actual plan, not a pointer to it. At most
+    MAX_PLAN_FILES files are embedded; extras are acknowledged with an
+    omission note. Returns "" when no plan files were provided.
+    """
+    paths = [str(p) for p in (plan_files or []) if p]
+    if not paths:
+        return ""
+    lines = ["", "=== Architecture & solution plan ==="]
+    for path_str in paths[:MAX_PLAN_FILES]:
+        label, content = _read_plan_file(path_str)
+        lines.append("")
+        lines.append(f"--- {label} ---")
+        lines.append(content.rstrip("\n"))
+    omitted = len(paths) - MAX_PLAN_FILES
+    if omitted > 0:
+        lines.append("")
+        lines.append(f"(... {omitted} additional plan file(s) omitted)")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _context_trailer(context: dict) -> str:
+    """Render the universal informative blocks every event body may carry.
+
+    The v3.34.0 informative-content contract: an email should be a meaningful
+    update, not a bare status line. When the orchestrator passes them, every
+    event appends ``--details`` (what is about to happen / what was
+    accomplished), ``--progress`` (where the run stands), and ``--next-step``
+    (what happens next). Each block is omitted when absent.
+    """
+    parts: list[str] = []
+    details = context.get("details")
+    progress = context.get("progress")
+    next_step = context.get("next_step")
+    if details:
+        parts.append(f"\nDetails:\n{details}\n")
+    if progress:
+        parts.append(f"\nWhere the run stands:\n{progress}\n")
+    if next_step:
+        parts.append(f"\nUp next:\n{next_step}\n")
+    return "".join(parts)
+
+
 def render_email(event: str, context: dict) -> tuple[str, str]:
     """Render the (subject, body) for an event from its context.
 
     Each event's subject and body embed the relevant context: the phase name
     for phase events, the commit SHA for git_commit, the issue summary for
-    issue_discovered, the deploy layer for deploy, and the run-id / phase /
-    elapsed / QA-cycle / agents-dispatched liveness fields for heartbeat.
+    issue_discovered, the deploy layer for deploy, the agent roster for
+    waiting_on_agents / agents_complete, the embedded plan artifacts for
+    run_start, the run-id / elapsed / final-commit fields for run_complete,
+    and the run-id / phase / elapsed / QA-cycle / agents-dispatched liveness
+    fields for heartbeat. Every event additionally appends the universal
+    informative blocks (details / progress / next-step) and the embedded plan
+    section when the corresponding context fields are provided.
 
     Raises:
-        NotifyError: the event is not one of the six recognized types.
+        NotifyError: the event is not one of the ten recognized types.
     """
     if event not in EVENT_TYPES:
         raise NotifyError(
@@ -400,8 +493,16 @@ def render_email(event: str, context: dict) -> tuple[str, str]:
     summary = context.get("summary") or "(no summary provided)"
     commit = context.get("commit") or "(unknown commit)"
     layer = context.get("layer") or "(unspecified layer)"
+    agents = context.get("agents") or "(agent roster not provided)"
+    run_id = context.get("run_id") or "(unknown run)"
 
-    if event == "phase_start":
+    if event == "run_start":
+        subject = f"[{project}] Run started — architecture & solution plan"
+        body = (
+            f"The architect-team run for {project} has kicked off.\n\n"
+            f"Run: {run_id}\n"
+        )
+    elif event == "phase_start":
         subject = f"[{project}] {phase} started"
         body = (
             f"The architect-team pipeline for {project} has started {phase}.\n"
@@ -410,6 +511,20 @@ def render_email(event: str, context: dict) -> tuple[str, str]:
         subject = f"[{project}] {phase} complete"
         body = (
             f"The architect-team pipeline for {project} has completed {phase}.\n"
+        )
+    elif event == "waiting_on_agents":
+        subject = f"[{project}] Waiting on agents — {phase}"
+        body = (
+            f"The architect-team run for {project} has dispatched agents "
+            f"during {phase} and is now waiting on their results.\n\n"
+            f"Waiting on: {agents}\n"
+        )
+    elif event == "agents_complete":
+        subject = f"[{project}] Agents complete — {phase}"
+        body = (
+            f"Every agent dispatched during {phase} of the architect-team run "
+            f"for {project} has returned.\n\n"
+            f"Agents: {agents}\n"
         )
     elif event == "issue_discovered":
         subject = f"[{project}] Issue discovered"
@@ -429,13 +544,27 @@ def render_email(event: str, context: dict) -> tuple[str, str]:
             f"A deploy occurred during the architect-team run for {project}.\n\n"
             f"Layer: {layer}\n"
         )
+    elif event == "run_complete":
+        subject = f"[{project}] Run complete"
+        body = (
+            f"The architect-team run for {project} has completed "
+            f"end-to-end.\n\n"
+            f"Run: {run_id}\n"
+        )
+        elapsed = context.get("elapsed")
+        if elapsed:
+            body += f"Elapsed: {elapsed}\n"
+        final_commit = context.get("commit")
+        if final_commit:
+            body += f"Final commit: {final_commit}\n"
     else:  # heartbeat
-        run_id = context.get("run_id") or "(unknown run)"
         elapsed = context.get("elapsed") or "(unknown elapsed)"
         qa_cycles = context.get("qa_cycles")
-        agents = context.get("agents_dispatched")
+        agents_dispatched = context.get("agents_dispatched")
         qa_cycles_text = qa_cycles if qa_cycles is not None else "(unknown)"
-        agents_text = agents if agents is not None else "(unknown)"
+        agents_text = (
+            agents_dispatched if agents_dispatched is not None else "(unknown)"
+        )
         subject = f"[{project}] Heartbeat — {phase}"
         body = (
             f"The architect-team run for {project} is alive and working.\n\n"
@@ -445,6 +574,9 @@ def render_email(event: str, context: dict) -> tuple[str, str]:
             f"QA / dev-loop cycles: {qa_cycles_text}\n"
             f"Agents dispatched: {agents_text}\n"
         )
+
+    body += _context_trailer(context)
+    body += render_plan_section(context.get("plan_files") or [])
 
     return subject, body
 
@@ -505,8 +637,39 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project", help="the project name")
     parser.add_argument("--phase", help="the pipeline phase name")
     parser.add_argument("--summary", help="an issue summary (for issue_discovered)")
-    parser.add_argument("--commit", help="a git commit SHA (for git_commit)")
+    parser.add_argument(
+        "--commit", help="a git commit SHA (for git_commit / run_complete)"
+    )
     parser.add_argument("--layer", help="a deploy layer, e.g. backend (for deploy)")
+    # Universal informative blocks (v3.34.0). Optional on every event; each is
+    # rendered as its own body block when provided and omitted when absent.
+    parser.add_argument(
+        "--details",
+        help="meaningful detail block — what is about to happen / what was "
+        "accomplished (rendered on every event)",
+    )
+    parser.add_argument(
+        "--progress",
+        help="where the run stands, e.g. '4 of 12 phases complete — ...' "
+        "(rendered on every event)",
+    )
+    parser.add_argument(
+        "--next-step",
+        help="what happens next (rendered on every event)",
+    )
+    parser.add_argument(
+        "--agents",
+        help="the dispatched-agent roster with per-agent missions/outcomes "
+        "(for waiting_on_agents / agents_complete)",
+    )
+    parser.add_argument(
+        "--plan-file",
+        action="append",
+        dest="plan_files",
+        metavar="PATH",
+        help="path to a plan artifact (proposal.md / design.md / tasks.md) "
+        "embedded verbatim in the email body; repeatable (for run_start)",
+    )
     # Heartbeat context (v3.10.0, R6c). Optional everywhere; only the heartbeat
     # event renders them, and each gracefully degrades when omitted.
     parser.add_argument("--run-id", help="the run id (for heartbeat)")
@@ -537,6 +700,12 @@ def _context_from_args(args: argparse.Namespace) -> dict:
         "elapsed": getattr(args, "elapsed", None),
         "qa_cycles": getattr(args, "qa_cycles", None),
         "agents_dispatched": getattr(args, "agents_dispatched", None),
+        # v3.34.0 — informative run notifications.
+        "details": getattr(args, "details", None),
+        "progress": getattr(args, "progress", None),
+        "next_step": getattr(args, "next_step", None),
+        "agents": getattr(args, "agents", None),
+        "plan_files": getattr(args, "plan_files", None),
     }
 
 

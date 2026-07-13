@@ -418,23 +418,28 @@ def test_provider_base_has_no_abstract_send(notify: ModuleType) -> None:
 # =============================================================================
 
 
-def test_exactly_six_event_types(notify: ModuleType) -> None:
-    """Scenario foundation: exactly the six recognized event types.
+def test_exactly_ten_event_types(notify: ModuleType) -> None:
+    """Scenario foundation: exactly the ten recognized event types.
 
-    v3.10.0 (R6c) adds the sixth event, `heartbeat` — the unbounded-run
-    liveness signal. The other five fire at fixed pipeline phases; heartbeat is
-    emitted during long phases / post-first-hour phase boundaries (CPC
-    `### Heartbeat discipline`).
+    v3.10.0 (R6c) added the `heartbeat` unbounded-run liveness signal.
+    v3.34.0 (informative run notifications) adds the run-level bookends
+    (`run_start` — the kickoff email that embeds the architecture + solution
+    plan; `run_complete` — the run's final notification) and the
+    dispatch-wait pair (`waiting_on_agents` / `agents_complete`).
     """
     assert set(notify.EVENT_TYPES) == {
+        "run_start",
         "phase_start",
         "phase_complete",
+        "waiting_on_agents",
+        "agents_complete",
         "issue_discovered",
         "git_commit",
         "deploy",
+        "run_complete",
         "heartbeat",
     }
-    assert len(notify.EVENT_TYPES) == 6
+    assert len(notify.EVENT_TYPES) == 10
 
 
 def test_event_reaches_only_subscribed_recipients(notify: ModuleType) -> None:
@@ -502,6 +507,241 @@ def test_render_email_deploy_includes_layer(notify: ModuleType) -> None:
     assert "backend" in subject or "backend" in body
 
 
+# =============================================================================
+# v3.34.0 — Informative run notifications (run bookends, dispatch-wait pair,
+# universal informative blocks, plan embedding)
+# =============================================================================
+
+
+def test_render_run_start_embeds_plan_files_in_one_email(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    """The run_start email carries the architecture + solution plan ITSELF —
+    every --plan-file artifact embedded under its own filename header, in the
+    one kickoff email."""
+    (tmp_path / "proposal.md").write_text("# Proposal\nBuild SSO login.", encoding="utf-8")
+    (tmp_path / "design.md").write_text("# Design\nHexagonal architecture.", encoding="utf-8")
+    subject, body = notify.render_email(
+        "run_start",
+        {
+            "project": "Acme",
+            "run_id": "run-42",
+            "plan_files": [str(tmp_path / "proposal.md"), str(tmp_path / "design.md")],
+        },
+    )
+    assert "Run started" in subject
+    assert "run-42" in body
+    assert "Architecture & solution plan" in body
+    assert "proposal.md" in body and "Build SSO login." in body
+    assert "design.md" in body and "Hexagonal architecture." in body
+
+
+def test_render_run_start_truncates_oversized_plan_file(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    """A plan artifact beyond PLAN_FILE_MAX_CHARS is embedded truncated, with
+    an explicit truncation marker — a huge design doc cannot balloon the email."""
+    big = tmp_path / "design.md"
+    big.write_text("x" * (notify.PLAN_FILE_MAX_CHARS + 5000), encoding="utf-8")
+    _, body = notify.render_email(
+        "run_start", {"project": "Acme", "plan_files": [str(big)]}
+    )
+    assert "[truncated for email]" in body
+    assert len(body) < notify.PLAN_FILE_MAX_CHARS + 2000
+
+
+def test_render_run_start_missing_plan_file_degrades_to_note(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    """A missing/unreadable --plan-file NEVER raises — it degrades to a
+    one-line could-not-be-read note (best-effort contract)."""
+    missing = tmp_path / "not-there.md"
+    subject, body = notify.render_email(
+        "run_start", {"project": "Acme", "plan_files": [str(missing)]}
+    )
+    assert "Run started" in subject
+    assert "could not be read" in body
+    assert str(missing) in body
+
+
+def test_render_run_start_caps_plan_file_count(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    """More than MAX_PLAN_FILES artifacts: the extras are acknowledged with an
+    omission note rather than embedded."""
+    paths = []
+    for i in range(notify.MAX_PLAN_FILES + 2):
+        p = tmp_path / f"part-{i}.md"
+        p.write_text(f"content {i}", encoding="utf-8")
+        paths.append(str(p))
+    _, body = notify.render_email("run_start", {"project": "Acme", "plan_files": paths})
+    assert f"part-{notify.MAX_PLAN_FILES - 1}.md" in body
+    assert f"content {notify.MAX_PLAN_FILES}" not in body
+    assert "additional plan file(s) omitted" in body
+
+
+def test_render_waiting_on_agents_includes_roster_and_phase(
+    notify: ModuleType,
+) -> None:
+    """waiting_on_agents names the phase and the per-agent roster so the
+    reader knows exactly WHO is being waited on and WHAT each is doing."""
+    subject, body = notify.render_email(
+        "waiting_on_agents",
+        {
+            "project": "Acme",
+            "phase": "Phase 3",
+            "agents": "backend-auth — JWT middleware; frontend-dash — dashboard UI",
+        },
+    )
+    assert "Waiting on agents" in subject
+    assert "Phase 3" in subject or "Phase 3" in body
+    assert "backend-auth" in body and "frontend-dash" in body
+
+
+def test_render_agents_complete_includes_roster(notify: ModuleType) -> None:
+    """agents_complete reports the dispatched agents (with outcomes) returned."""
+    subject, body = notify.render_email(
+        "agents_complete",
+        {
+            "project": "Acme",
+            "phase": "Phase 3",
+            "agents": "backend-auth — done (12 tests green); frontend-dash — done",
+        },
+    )
+    assert "Agents complete" in subject
+    assert "backend-auth" in body
+    assert "12 tests green" in body
+
+
+def test_render_run_complete_includes_run_elapsed_and_commit(
+    notify: ModuleType,
+) -> None:
+    """run_complete carries the run id, elapsed time, and the final commit."""
+    subject, body = notify.render_email(
+        "run_complete",
+        {"project": "Acme", "run_id": "run-42", "elapsed": "2h 14m", "commit": "abc1234"},
+    )
+    assert "Run complete" in subject
+    assert "run-42" in body
+    assert "2h 14m" in body
+    assert "abc1234" in body
+
+
+def test_render_run_complete_omits_absent_optional_lines(
+    notify: ModuleType,
+) -> None:
+    """run_complete omits the Elapsed / Final commit lines when not provided
+    (no '(unknown ...)' placeholder noise in the final email)."""
+    _, body = notify.render_email("run_complete", {"project": "Acme", "run_id": "r-1"})
+    assert "Elapsed:" not in body
+    assert "Final commit:" not in body
+
+
+@pytest.mark.parametrize("event", ["phase_start", "phase_complete", "heartbeat"])
+def test_universal_informative_blocks_render_on_any_event(
+    notify: ModuleType, event: str
+) -> None:
+    """The v3.34.0 informative-content contract: --details / --progress /
+    --next-step render as their own body blocks on EVERY event."""
+    _, body = notify.render_email(
+        event,
+        {
+            "project": "Acme",
+            "phase": "Phase 2",
+            "details": "About to spawn 2 teams against the auth slice.",
+            "progress": "4 of 12 phases complete",
+            "next_step": "Phase 3 — implementation review gates",
+        },
+    )
+    assert "Details:" in body and "About to spawn 2 teams" in body
+    assert "Where the run stands:" in body and "4 of 12 phases complete" in body
+    assert "Up next:" in body and "Phase 3" in body
+
+
+def test_universal_informative_blocks_omitted_when_absent(
+    notify: ModuleType,
+) -> None:
+    """Without the informative flags, the legacy bodies render without the
+    Details / Where-the-run-stands / Up-next blocks (backward compatible)."""
+    _, body = notify.render_email("phase_start", {"project": "Acme", "phase": "Phase 2"})
+    assert "Details:" not in body
+    assert "Where the run stands:" not in body
+    assert "Up next:" not in body
+
+
+def test_validate_config_accepts_new_event_subscriptions(notify: ModuleType) -> None:
+    """A recipient may subscribe to the four v3.34.0 events without tripping
+    the unknown-event validation guard."""
+    config = _gmail_config()
+    config["recipients"] = [
+        {
+            "email": "lead@example.com",
+            "events": ["run_start", "waiting_on_agents", "agents_complete", "run_complete"],
+        }
+    ]
+    validated = notify.validate_config(config)
+    assert validated["recipients"][0]["events"][0] == "run_start"
+
+
+def test_dispatch_run_start_sends_plan_carrying_body(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    """End-to-end dispatch of run_start: the provider receives ONE email whose
+    body embeds the plan artifact content."""
+    plan = tmp_path / "proposal.md"
+    plan.write_text("## Solution plan\nAdd SSO via OIDC.", encoding="utf-8")
+    config = notify.validate_config(_gmail_config())
+    captured: list[tuple[str, str, list[str]]] = []
+
+    class _RecordingProvider:
+        def send(self, subject, body, recipients):
+            captured.append((subject, body, list(recipients)))
+
+    with patch.object(notify, "select_provider", return_value=_RecordingProvider()):
+        sent = notify.dispatch(
+            config,
+            "run_start",
+            {"project": "Demo", "run_id": "r-9", "plan_files": [str(plan)]},
+        )
+    assert sent == 1  # only the ["all"] recipient subscribes to run_start
+    assert len(captured) == 1
+    subject, body, recipients = captured[0]
+    assert recipients == ["lead@example.com"]
+    assert "Add SSO via OIDC." in body
+
+
+def test_cli_run_start_with_plan_file_via_gmail(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    """CLI end-to-end: `notify.py run_start --plan-file ...` builds a message
+    whose payload embeds the plan content."""
+    _write_config(tmp_path, _gmail_config())
+    plan = tmp_path / "design.md"
+    plan.write_text("Component diagram: A -> B", encoding="utf-8")
+    smtp_instance = MagicMock()
+    smtp_ctx = MagicMock()
+    smtp_ctx.__enter__ = MagicMock(return_value=smtp_instance)
+    smtp_ctx.__exit__ = MagicMock(return_value=False)
+    with patch("smtplib.SMTP", return_value=smtp_ctx), \
+         patch.dict("os.environ", {"GMAIL_APP_PASSWORD": "pw"}, clear=False):
+        rc = notify.notify(
+            [
+                "run_start",
+                "--project", "Demo",
+                "--run-id", "r-7",
+                "--details", "Requirement: SSO login.",
+                "--plan-file", str(plan),
+            ],
+            cwd=tmp_path,
+        )
+    assert rc == 0
+    smtp_instance.send_message.assert_called_once()
+    message = smtp_instance.send_message.call_args[0][0]
+    content = message.get_content()
+    assert "Component diagram: A -> B" in content
+    assert "Requirement: SSO login." in content
+
+
 def test_dispatch_emails_only_matching_recipients(notify: ModuleType) -> None:
     """dispatch() sends to exactly the filtered recipient set, one provider call."""
     config = notify.validate_config(_gmail_config())  # lead=all, qa=phase_complete+deploy
@@ -555,6 +795,10 @@ def test_build_parser_accepts_all_options(notify: ModuleType) -> None:
             "--summary", "a summary",
             "--commit", "abc123",
             "--layer", "frontend",
+            "--details", "what happened",
+            "--progress", "5 of 12",
+            "--next-step", "Phase 6",
+            "--agents", "backend-auth; frontend-dash",
             "--config", "x.json",
         ]
     )
@@ -564,7 +808,25 @@ def test_build_parser_accepts_all_options(notify: ModuleType) -> None:
     assert ns.summary == "a summary"
     assert ns.commit == "abc123"
     assert ns.layer == "frontend"
+    assert ns.details == "what happened"
+    assert ns.progress == "5 of 12"
+    assert ns.next_step == "Phase 6"
+    assert ns.agents == "backend-auth; frontend-dash"
     assert ns.config == "x.json"
+
+
+def test_build_parser_plan_file_is_repeatable(notify: ModuleType) -> None:
+    """--plan-file appends: the run_start kickoff email can embed proposal +
+    design + tasks as one email."""
+    parser = notify.build_parser()
+    ns = parser.parse_args(
+        ["run_start", "--plan-file", "proposal.md", "--plan-file", "design.md"]
+    )
+    assert ns.event == "run_start"
+    assert ns.plan_files == ["proposal.md", "design.md"]
+    # Absent flag -> None (renderer treats it as no plan section).
+    ns2 = notify.build_parser().parse_args(["phase_start"])
+    assert ns2.plan_files is None
 
 
 def test_build_parser_rejects_unknown_event_choice(notify: ModuleType) -> None:
