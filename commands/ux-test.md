@@ -171,6 +171,10 @@ Invoke the `ux-test-builder` skill from this plugin (use the Skill tool with `sk
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, `AUTO_COMPACT_PROMPT`, `ALLOW_PUSH_TO_DEFAULT`, `PROPOSAL_FIRST`, `TARGET_KIND`, `TARGET_URL`, `TARGET_ENVIRONMENT`, and the credentials env-var NAME to the skill.** The skill's Phase U0 + Phase U6 read these to compose the intake record + execute against the right target.
 
+## Project email notifications (opt-in)
+
+If the target project's repository root contains a `.architect-team-notify.json` config file, the UX-test pipeline emits **opt-in, per-project email notifications** as the run progresses (v3.34.0 — parity with `/architect-team`): informative `phase_start` / `phase_complete` at every U-phase boundary, a `run_start` kickoff email at U4 embedding the distilled flow catalog (the run's test plan) in one email, `waiting_on_agents` / `agents_complete` bracketing the U3 explorer and U6 executor dispatches, `issue_discovered` per bug routed at U8, `git_commit` after the U9 report commit, and a final `run_complete` summary. Strictly best-effort — the notifier always exits 0 and never blocks, fails, or alters the run; with no `.architect-team-notify.json` present it is a silent no-op. Wiring lives in the `ux-test-builder` skill's `## Notifications` section; config schema in `README.md`.
+
 ## Default git behavior (when `AUTO_COMMIT = true` and `AUTO_PUSH = true`)
 
 At the end of Phase U9, after the final report emits **"UX test plan for persona `<persona-slug>` against `<target>` executed. ..."** and the bug-fix-pipeline dispatch references:

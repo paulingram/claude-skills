@@ -61,16 +61,22 @@ A bug-fix run is `strict` by nature: the mandate is the named symptom, and resto
 
 ## Notifications (per-project email events — opt-in, best-effort)
 
-Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the five recognized events (`phase_start`, `phase_complete`, `issue_discovered`, `git_commit`, `deploy`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
+Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the ten recognized events (`run_start`, `phase_start`, `phase_complete`, `waiting_on_agents`, `agents_complete`, `issue_discovered`, `git_commit`, `deploy`, `run_complete`, plus the tick-driven `heartbeat`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
 
-**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every B-phase.** At the **start of each phase** (Phase B−1, B0, B1, B2, B3, B4, B5, B6, B7, B8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name (e.g., `"Phase B3 — OpenSpec proposal authoring"`):
+**Informative, not just status (v3.34.0 — the content contract).** Per the canonical rule, every invocation carries meaningful content: `phase_start` passes `--details` with what the phase is about to do *for this bug*, `phase_complete` passes `--details` with what the phase actually established (reproduced or not, the proposed fix shape, the QA-replay verdict), and both pass `--progress "<N> of <M> B-phases complete — <recap>"`. The FIRST `phase_start` of the run (Phase B−1) additionally carries the bug-symptom summary in `--details` — the engagement email. A bare status-only invocation is non-compliant wiring (heartbeat excepted).
+
+**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every B-phase.** At the **start of each phase** (Phase B−1, B0, B1, B2, B3, B4, B5, B6, B7, B8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name (e.g., `"Phase B3 — OpenSpec proposal authoring"`) plus the informative flags:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication"
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication" --details "<what this phase is about to do for this bug>" --progress "<N of M B-phases complete — recap>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase B1 — Bug Replication" --details "<what this phase is about to do for this bug>" --progress "<N of M B-phases complete — recap>"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication" --details "<what the phase established>" --progress "<N of M B-phases complete — recap>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase B1 — Bug Replication" --details "<what the phase established>" --progress "<N of M B-phases complete — recap>"
 ```
 
-The remaining three events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below:
+**Run-level bookends (v3.34.0).** `run_start` fires ONCE at the end of Phase B3 — the moment the fix proposal exists — embedding the proposal itself via `--plan-file` (the kickoff email carrying the solution plan; see the inline wiring at B3). `run_complete` fires ONCE as the run's FINAL notification at the end of Phase B8 (see the inline wiring there).
+
+**Dispatch-wait pair (v3.34.0).** At EVERY dispatch-and-wait point the orchestrator emits `waiting_on_agents` (roster + missions via `--agents`) when the dispatch goes out and `agents_complete` (roster + outcomes) when it fully returns — the major named points in this pipeline are the Phase B1 `bug-replicator` dispatch (one per affected codebase), the Phase B5 fix-team dispatch, the Phase B6 `qa-replayer` dispatch, and the Phase B6b `fix-sensibility-checker` dispatch.
+
+The remaining moment events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific phase steps marked inline below:
 
 - **`issue_discovered`** — fires at **Phase B6** when the `qa-replayer` returns `bug-still-present` and the orchestrator writes a fresh solution requirement back to the loop. `--summary` carries the SR's failure-mode description (verbatim from the qa-replayer's verdict's `symptom_check.gap_if_not_gone` field).
 - **`git_commit`** — fires at **Phase B8** immediately after the bug-fix commit succeeds, with `--commit <SHA>`. Same wiring point as the main pipeline's Phase 8 commit.
@@ -116,7 +122,7 @@ The change-name convention: bug-fix changes get the same `architect-team/<bug-sl
 
 ## Phase B1 — Bug Replication
 
-The Lead creates a `bug-replicator` task in the shared list (teams mode) OR dispatches the `bug-replicator` subagent (subagents mode), one per affected codebase (usually just one). Inputs to the agent:
+The Lead creates a `bug-replicator` task in the shared list (teams mode) OR dispatches the `bug-replicator` subagent (subagents mode), one per affected codebase (usually just one). Bracket the dispatch with the v3.34.0 dispatch-wait pair per `## Notifications` — emit `waiting_on_agents` (`--agents "bug-replicator-<codebase> — reproduce: <symptom one-liner>"`) as the dispatch goes out, and `agents_complete` (`--agents "bug-replicator-<codebase> — <verdict>"`) when every replicator has returned its verdict. Inputs to the agent:
 
 - The bug description (the source prose OR the bug-report artifacts).
 - The relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP / INTERACTION_INTUITION_MAP (when present).
@@ -277,6 +283,12 @@ The gate loops until ALL seven conditions below are true. Each iteration refines
 7. **The proposed fix is *class*-scoped in the design.** `design.md`'s `## Proposed fix` section describes the *class* of bug the fix addresses, not just the specific failing input. (Note: this is the *attempt* check — the architect's Bug-Fix Generalization Audit at Phase B4 is the rigorous verdict. B3's gate confirms the proposal *tries* to reason at the class level; B4 confirms the reasoning is correct.)
 
 **Auto-mine** the validated coverage map: `mempalace --palace <palace> mine "openspec/changes/<bug-slug>/coverage-map.json" --wing <wing>`.
+
+**Run-start notification — the kickoff email carrying the fix plan (v3.34.0, best-effort, per `## Notifications`).** The moment the B3 gate exits — the fix proposal exists and validates — the orchestrator emits `run_start` ONCE, embedding the proposal artifacts themselves so stakeholders receive the root cause + solution plan in ONE email. Pass `--details` with the symptom, the named root cause, and the class-scoped fix in 2-4 plain-language sentences:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <bug-slug> --details "<symptom + root cause + class-scoped fix summary>" --next-step "Phase B4 — Bug-Fix Generalization Audit" --plan-file "openspec/changes/<bug-slug>/proposal.md" --plan-file "openspec/changes/<bug-slug>/design.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <bug-slug> --details "<symptom + root cause + class-scoped fix summary>" --next-step "Phase B4 — Bug-Fix Generalization Audit" --plan-file "openspec/changes/<bug-slug>/proposal.md" --plan-file "openspec/changes/<bug-slug>/design.md"
+```
 
 **Why not reuse Phase 1's gate?** Phase 1's loop has feature-shaped conditions like *"Any front-end requirement lacks an explicit Playwright user-flow specification (URL or route, login state, selectors, input data, expected visible assertions)"*. For a bug fix, the Playwright flow IS the replication artifact from B2 — already authored, already failing. Forcing the same loop conditions trips the bug-fix path on either (a) a literal-reading-fail (the Playwright spec doesn't exist as new authoring), or (b) a liberal-reading-pass (the orchestrator handwaves *"the replication artifact IS the criterion"*). The first burns iterations; the second is fragile. The bug-fix gate names its conditions in bug-fix terms, so the check is exact.
 
@@ -537,6 +549,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <n
 This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.
 
 **Mark the run complete (v3.30.0 — the LAST state action of B8):** after the commit + push (and auto-merge, when it applies) have landed, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete` from the workspace root. Until this runs, the run-continuity enforcement treats the bug-fix run as in-flight (Stops blocked, resumed sessions directed back into this skill). Keep `--set phase="Phase B<N>" slug=<bug-slug>` current at phase boundaries. Per `common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`.
+
+**Run-complete notification (v3.34.0 — the run's final email, best-effort, per `## Notifications`):** immediately after the run is marked complete (and after B8's own `phase_complete`), emit `run_complete` ONCE — telling recipients the bug-fix run finished end-to-end, that the symptom is gone, and what the fix was:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <bug-slug> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<bug resolved: the class fixed, QA-replay verdict bug-resolved end-to-end, iterations>" --progress "All B-phases complete — run closed" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <bug-slug> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<bug resolved: the class fixed, QA-replay verdict bug-resolved end-to-end, iterations>" --progress "All B-phases complete — run closed"
+```
 
 ## Operating rules (non-negotiable)
 
