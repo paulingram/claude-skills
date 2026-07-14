@@ -1,6 +1,6 @@
 ---
 description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), verifies prerequisite plugins (superpowers, cartographer, ralph-loop) are installed, and verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32).
-argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall]"
+argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall] [--codex] [--no-codex]"
 allowed-tools: ["Bash(python:*)", "Bash(python3:*)"]
 ---
 
@@ -30,6 +30,26 @@ If `cartographer`, `ralph-loop`, or `superpowers` are missing, instruct the user
 ```
 
 `superpowers` and `ralph-loop` are on the built-in `claude-plugins-official` marketplace, so they need only the single `/plugin install` step.
+
+## Model policy — the Codex 5.6 role split (v3.35.0)
+
+The plugin's model policy is availability-gated and managed entirely by this setup command — deploying it is ONE flag:
+
+- **Codex 5.6 available in your harness** → run `/architect-team:architect-team-setup --codex` (or set `CT6_CODEX_56_AVAILABLE=1` and run setup normally). Setup applies the role split through `scripts/setup/set_default_model.py`: **Fable stays on every architecture, control, and design agent** (system-architect + the structure analyst, the route/endpoint mappers + integration explorers + master-synthesizer + codebase-map-reviewer, triage/refinement/meta + the doc-currency writers, the oracle + design-discovery agents + the domain/diagnostic researchers — 18 agents), and **`codex-5.6-sol` takes every development, code-checking, and testing agent** (backend / frontend / integration implementers + the reconciler's hands-on merges, the task/adversarial/completeness/interaction/editability reviewers + fix-sensibility checking + the reference-closure and code-search-refutation tracers, QA replay / mini-qa / flow design + execution / bug replication / test-run watching + synthesis / visual capture + analysis — 21 agents).
+- **Codex 5.6 not available (or you say nothing)** → the current operating model stays exactly as today: uniform `fable` on all 39 agents, with the Opus fallback lever (`python3 scripts/setup/set_default_model.py --model opus`) for a harness that predates the fable alias. With NO signal setup rewrites nothing (your manual lever state is never clobbered); with an explicit `--no-codex` (or the env var set to a falsy value) it restores the uniform fable default.
+
+**Determining availability:** before running setup, check whether this harness can spawn agents on Codex 5.6 (the `codex-5.6-sol` model id). If it can, pass `--codex`; if not (or you are unsure), pass nothing — the default operating model is always safe. Availability is an input to setup, never probed by it (the same injected-availability convention as the service tier's `resolve_model`).
+
+Useful one-liners (the same lever setup drives):
+
+```
+python3 scripts/setup/set_default_model.py --check          # distribution + policy state
+python3 scripts/setup/set_default_model.py --split codex    # apply the role split directly
+python3 scripts/setup/set_default_model.py --auto           # tri-state CT6_CODEX_56_AVAILABLE: truthy=split, falsy=fable, absent=no-op
+python3 scripts/setup/set_default_model.py --model fable    # restore the uniform operating default
+```
+
+If your harness registers Codex 5.6 under a different model id, add `--codex-model <id>` to the `--split`/`--auto` forms. An agent file the classifier does not recognize (e.g. a newly scaffolded agent) defaults to the fable bucket — never to codex.
 
 ## Agent Teams Mode (v1.0.0)
 

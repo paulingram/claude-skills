@@ -31,6 +31,15 @@ Flags:
   --check-only        Report status; install nothing; never modify user files.
   --force-reinstall   Reinstall everything we manage even if present.
   --no-prompt         Skip interactive consent prompts (print suggested edits).
+  --codex             Codex 5.6 is available in this harness: apply the model
+                      role split (fable stays on architecture/control/design
+                      agents; codex-5.6-sol takes development/code-checking/
+                      testing agents). Also enabled by CT6_CODEX_56_AVAILABLE=1.
+  --no-codex          Codex 5.6 is NOT available: restore the current operating
+                      model (uniform fable; the Opus fallback stays the
+                      set_default_model.py --model opus lever). Overrides the env var.
+                      With neither flag nor env var, the model state is left
+                      untouched (the shipped default IS the operating model).
 
 Exit:
   0  Everything we control is present and ok.
@@ -767,6 +776,111 @@ def check_model_default(remediation: str | None = None) -> tuple[str, str, str |
     return name, "note", detail
 
 
+# ---- Codex 5.6 model role split (v3.35.0) ------------------------------------
+#
+# When the harness has Codex 5.6 available, the owner directive splits the agent
+# models by role: Fable keeps every architecture/control/design agent; the codex
+# model takes every development/code-checking/testing agent. Availability is an
+# INPUT (--codex / --no-codex / CT6_CODEX_56_AVAILABLE) — never probed, the same
+# injected-availability convention as service_config.resolve_model (SETUP-ADV-1:
+# a harness probe here would be false precision). With no signal at all the model
+# state is left untouched: the shipped uniform-fable default IS the operating
+# model, and a user's manual lever state is never silently clobbered.
+
+def _load_model_lever():
+    """Load the sibling set_default_model.py module (works however setup.py
+    itself was loaded — script, importlib, or frozen path)."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parent / "set_default_model.py"
+    spec = importlib.util.spec_from_file_location("ct6_set_default_model", path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load model lever at {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def resolve_codex_signal(
+    codex_flag: bool, no_codex_flag: bool, env: dict | None = None
+) -> bool | None:
+    """Resolve the Codex-5.6-availability signal: True (--codex, or a truthy
+    CT6_CODEX_56_AVAILABLE), False (--no-codex — the explicit flag overrides the
+    env var — or a SET-but-falsy env var, an explicit unavailability assertion),
+    or None (no signal at all: leave the model state untouched). The tri-state
+    env read matches set_default_model.codex_signal_from_env so setup and the
+    lever's --auto agree on what "no signal" means."""
+    if no_codex_flag:
+        return False
+    if codex_flag:
+        return True
+    env = os.environ if env is None else env
+    if "CT6_CODEX_56_AVAILABLE" not in env:
+        return None
+    return _is_truthy(env.get("CT6_CODEX_56_AVAILABLE"))
+
+
+def check_codex_option() -> tuple[str, str, str | None]:
+    """Informational note shown when NO codex signal is present: the split is
+    available but nothing is rewritten (the current operating model stays)."""
+    name = "model-policy (Codex 5.6 role split — not requested)"
+    detail = (
+        "no Codex 5.6 signal — the current operating model stays (uniform 'fable', "
+        "Opus fallback lever unchanged). If this harness has Codex 5.6, rerun with "
+        "--codex (or set CT6_CODEX_56_AVAILABLE=1) to put development/code-checking/"
+        "testing agents on codex-5.6-sol while architecture/control/design agents "
+        "stay on fable; --no-codex restores the uniform fable default."
+    )
+    return name, "note", detail
+
+
+def apply_model_policy(
+    codex_signal: bool, check_only: bool, agents_dir: Path | None = None
+) -> tuple[str, str, str | None]:
+    """Apply (or, with check_only, report) the availability-gated model policy
+    via the set_default_model lever. Never gates the run — any lever failure
+    degrades to a 'warn' row with the manual remediation."""
+    name = "model-policy (Codex 5.6 role split)"
+    manual = "python3 scripts/setup/set_default_model.py --split codex"
+    try:
+        lever = _load_model_lever()
+        agents_dir = agents_dir if agents_dir is not None else lever._default_agents_dir()
+        if not Path(agents_dir).is_dir():
+            return (
+                name,
+                "warn",
+                f"agents directory not found at {agents_dir} — model policy NOT "
+                f"applied; apply manually from the plugin root: {manual}",
+            )
+        if check_only:
+            state = lever.policy_state(agents_dir)
+            target = "codex-split" if codex_signal else "uniform-fable"
+            detail = (
+                f"check-only: current policy state is '{state}'; a normal run would "
+                f"apply '{target}'"
+                + ("" if codex_signal else " (the current operating model)")
+                + f". Manual lever: {manual}"
+            )
+            return name, "note", detail
+        policy, changed = lever.apply_policy(agents_dir, codex_signal)
+        if changed:
+            what = (
+                f"applied '{policy}': fable stays on architecture/control/design agents; "
+                f"{lever.CODEX_MODEL} now drives development/code-checking/testing agents"
+                if codex_signal
+                else f"Codex 5.6 unavailable — applied '{policy}' (the current operating "
+                f"model: uniform fable; Opus fallback lever unchanged)"
+            )
+            return name, "applied", f"{what} ({len(changed)} file(s) rewritten)."
+        detail = (
+            f"already compliant with '{'codex-split' if codex_signal else 'uniform-fable'}' "
+            f"— no files rewritten."
+        )
+        return name, "present", detail
+    except Exception as exc:  # never gate setup on the model lever
+        return name, "warn", f"model policy not applied ({exc}); apply manually: {manual}"
+
+
 def main(argv: list[str] | None = None) -> int:
     # Ensure Unicode output works on Windows consoles (cp1252 default).
     if hasattr(sys.stdout, "reconfigure"):
@@ -775,7 +889,10 @@ def main(argv: list[str] | None = None) -> int:
         except (AttributeError, io.UnsupportedOperation, OSError):
             pass
 
-    parser = argparse.ArgumentParser(description="architect-team plugin setup")
+    # allow_abbrev=False: --codex/--no-codex would otherwise make historical
+    # prefix abbreviations ("--no" for --no-prompt) ambiguous at a distance;
+    # requiring full flag names keeps invocations stable across releases.
+    parser = argparse.ArgumentParser(description="architect-team plugin setup", allow_abbrev=False)
     parser.add_argument("--check-only", action="store_true", help="Report status; install nothing.")
     parser.add_argument("--force-reinstall", action="store_true", help="Reinstall everything managed.")
     parser.add_argument(
@@ -789,6 +906,20 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Assume 'yes' to every consent prompt without reading stdin "
              "(non-interactive install). Also enabled by CT6_SETUP_ASSUME_YES=1.",
+    )
+    codex_group = parser.add_mutually_exclusive_group()
+    codex_group.add_argument(
+        "--codex",
+        action="store_true",
+        help="Codex 5.6 is available: apply the model role split (fable on "
+             "architecture/control/design agents, codex-5.6-sol on development/"
+             "code-checking/testing agents). Also enabled by CT6_CODEX_56_AVAILABLE=1.",
+    )
+    codex_group.add_argument(
+        "--no-codex",
+        action="store_true",
+        help="Codex 5.6 is NOT available: restore the current operating model "
+             "(uniform fable). Overrides CT6_CODEX_56_AVAILABLE.",
     )
     args = parser.parse_args(argv)
 
@@ -827,6 +958,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # REQ-006 / task 2.4: heuristic fable-availability note (never gates the run).
     rows.append(check_model_default())
+
+    # v3.35.0: availability-gated Codex 5.6 role split. A signal (flag or env)
+    # applies the policy through the set_default_model lever; no signal leaves
+    # the model state untouched and surfaces the option as a note.
+    codex_signal = resolve_codex_signal(args.codex, args.no_codex)
+    if codex_signal is None:
+        rows.append(check_codex_option())
+    else:
+        rows.append(apply_model_policy(codex_signal, args.check_only))
 
     # openspec-propose skill prerequisite (HARD block when missing).
     openspec_propose_row = ensure_openspec_propose_skill()
