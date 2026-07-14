@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "change": "codex-role-split",
+  "generated_at": "2026-07-14T00:00:00Z",
+  "playwright_required": false,
+  "dev_api_integration_required": false,
+  "front_to_back_integration_criterion": "N/A - self-referential plugin feature (a policy extension of the existing stdlib model lever + setup wiring + command doc + tests + docs). No runnable frontend, no backend service, no endpoint. Recorded authorizations: Playwright N/A (no UI) and dev-API integration N/A (no endpoint); Codex 5.6 availability is an injected input, never probed, so there is no live integration to exercise."
+}

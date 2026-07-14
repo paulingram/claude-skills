@@ -42,6 +42,16 @@ def setup_module(plugin_root: Path) -> ModuleType:
     return mod
 
 
+@pytest.fixture(autouse=True)
+def _scrub_codex_signal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hermeticity (v3.35.0): an ambient CT6_CODEX_56_AVAILABLE — the documented
+    codex-split deploy config — must NEVER leak into these tests. Without this
+    scrub, the two end-to-end main() tests below would route a truthy ambient
+    signal into a REAL apply_model_policy write against the repo's own tracked
+    agents/*.md. Tests that need the signal set it explicitly after this."""
+    monkeypatch.delenv("CT6_CODEX_56_AVAILABLE", raising=False)
+
+
 class _Result:
     """A minimal stand-in for subprocess.CompletedProcess."""
 
@@ -271,6 +281,7 @@ def test_yes_flag_assumes_consent_end_to_end(
          patch.dict("os.environ", {}, clear=False) as env:
         env.pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
         env.pop("CT6_SETUP_ASSUME_YES", None)
+        env.pop("CT6_CODEX_56_AVAILABLE", None)  # never write agents/*.md from a test
         rc = setup_module.main(["--yes"])
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1"
@@ -306,6 +317,7 @@ def test_env_var_assumes_consent_end_to_end(
          patch.object(setup_module, "_prompt_user_consent", side_effect=_boom), \
          patch.dict("os.environ", {"CT6_SETUP_ASSUME_YES": "1"}, clear=False) as env:
         env.pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
+        env.pop("CT6_CODEX_56_AVAILABLE", None)  # never write agents/*.md from a test
         rc = setup_module.main([])
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1"
@@ -383,3 +395,152 @@ def test_check_model_default_wired_into_main(
          patch.object(setup_module, "check_model_default", wraps=setup_module.check_model_default) as spy:
         setup_module.main(["--check-only"])
     assert spy.called, "check_model_default must be invoked by main()"
+
+
+# ---- v3.35.0: Codex 5.6 model role split (availability-gated) ----------------
+
+
+def test_resolve_codex_signal_precedence(setup_module: ModuleType) -> None:
+    """--no-codex beats the env var; --codex asserts availability; env truthy
+    counts as available; env SET-but-falsy is an explicit unavailability
+    assertion; the var absent resolves to None (leave untouched)."""
+    rs = setup_module.resolve_codex_signal
+    assert rs(False, True, {"CT6_CODEX_56_AVAILABLE": "1"}) is False
+    assert rs(True, False, {}) is True
+    assert rs(False, False, {"CT6_CODEX_56_AVAILABLE": "1"}) is True
+    assert rs(False, False, {"CT6_CODEX_56_AVAILABLE": "0"}) is False
+    assert rs(False, False, {}) is None
+
+
+def test_check_codex_option_is_an_informative_note(setup_module: ModuleType) -> None:
+    """With no signal, setup surfaces the split as an option and states that the
+    current operating model (uniform fable + the Opus fallback lever) stays."""
+    name, status, detail = setup_module.check_codex_option()
+    assert status == "note"
+    assert "--codex" in detail
+    assert "CT6_CODEX_56_AVAILABLE" in detail
+    assert "codex-5.6-sol" in detail
+    assert "fable" in detail
+
+
+def _agents_copy(tmp_path: Path) -> Path:
+    import shutil
+
+    plugin_root = Path(__file__).resolve().parents[1]
+    dst = tmp_path / "agents"
+    shutil.copytree(plugin_root / "agents", dst)
+    return dst
+
+
+def test_apply_model_policy_check_only_writes_nothing(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    agents = _agents_copy(tmp_path)
+    before = {p.name: p.read_bytes() for p in agents.glob("*.md")}
+    name, status, detail = setup_module.apply_model_policy(True, True, agents_dir=agents)
+    assert status == "note"
+    assert "codex-split" in detail
+    assert before == {p.name: p.read_bytes() for p in agents.glob("*.md")}
+
+
+def test_apply_model_policy_applies_the_split(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    agents = _agents_copy(tmp_path)
+    name, status, detail = setup_module.apply_model_policy(True, False, agents_dir=agents)
+    assert status == "applied"
+    assert "codex-5.6-sol" in detail
+    lever = setup_module._load_model_lever()
+    assert lever.policy_state(agents) == "codex-split"
+    # Second run: already compliant, nothing rewritten.
+    _, status2, _ = setup_module.apply_model_policy(True, False, agents_dir=agents)
+    assert status2 == "present"
+
+
+def test_apply_model_policy_no_codex_restores_the_operating_model(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    agents = _agents_copy(tmp_path)
+    lever = setup_module._load_model_lever()
+    lever.apply_split(agents)
+    name, status, detail = setup_module.apply_model_policy(False, False, agents_dir=agents)
+    assert status == "applied"
+    assert "uniform fable" in detail
+    assert lever.distribution(agents) == {"fable": 39}
+
+
+def test_apply_model_policy_never_gates(setup_module: ModuleType) -> None:
+    """Any lever failure degrades to a 'warn' row with the manual remediation —
+    the model policy must never block setup."""
+    def _boom() -> None:
+        raise RuntimeError("lever unavailable")
+
+    with patch.object(setup_module, "_load_model_lever", _boom):
+        name, status, detail = setup_module.apply_model_policy(True, False)
+    assert status == "warn"
+    assert "--split codex" in detail
+
+
+def test_apply_model_policy_missing_agents_dir_warns(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """A missing agents dir is a 'warn' row naming the path — never a success
+    row claiming the split is in effect with 0 files rewritten."""
+    missing = tmp_path / "nonexistent-agents"
+    name, status, detail = setup_module.apply_model_policy(True, False, agents_dir=missing)
+    assert status == "warn"
+    assert "not found" in detail
+    assert "--split codex" in detail
+
+
+def _wired_main(setup_module: ModuleType, tmp_path: Path, argv: list[str]):
+    installed = tmp_path / "installed.json"
+    installed.write_text(json.dumps({
+        "version": 2,
+        "plugins": {
+            "superpowers@claude-plugins-official": [{}],
+            "cartographer@cartographer-marketplace": [{}],
+            "ralph-loop@claude-plugins-official": [{}],
+        },
+    }), encoding="utf-8")
+    with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed), \
+         patch.object(setup_module, "check_node_version", return_value=(True, "Node 22")), \
+         patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
+         patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest", "present", None)), \
+         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
+         patch.object(setup_module, "check_teams_mode", return_value=("teams-mode", "present", None)), \
+         patch.object(setup_module, "apply_model_policy",
+                      return_value=("model-policy", "note", None)) as policy_spy, \
+         patch.object(setup_module, "check_codex_option",
+                      wraps=setup_module.check_codex_option) as option_spy:
+        setup_module.main(argv)
+    return policy_spy, option_spy
+
+
+def test_codex_flag_routes_to_apply_model_policy(
+    setup_module: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.delenv("CT6_CODEX_56_AVAILABLE", raising=False)
+    policy_spy, option_spy = _wired_main(setup_module, tmp_path, ["--check-only", "--codex"])
+    assert policy_spy.called
+    assert policy_spy.call_args[0][0] is True  # codex_signal
+    assert not option_spy.called
+
+
+def test_no_signal_routes_to_the_option_note(
+    setup_module: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.delenv("CT6_CODEX_56_AVAILABLE", raising=False)
+    policy_spy, option_spy = _wired_main(setup_module, tmp_path, ["--check-only"])
+    assert option_spy.called
+    assert not policy_spy.called
+
+
+def test_env_var_signal_routes_to_apply_model_policy(
+    setup_module: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("CT6_CODEX_56_AVAILABLE", "1")
+    policy_spy, option_spy = _wired_main(setup_module, tmp_path, ["--check-only"])
+    assert policy_spy.called
+    assert policy_spy.call_args[0][0] is True
+    assert not option_spy.called
