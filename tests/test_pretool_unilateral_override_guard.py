@@ -81,8 +81,20 @@ def test_find_workspace_walks_up(tmp_path: Path) -> None:
 
 
 def test_find_workspace_returns_none_when_no_state(tmp_path: Path) -> None:
+    """No marker in the CONTROLLED subtree => the walk never resolves to it.
+
+    Hermeticity (v3.36.0): pytest's tmp_path lives under the user profile, and
+    per-user CT6 state at ~/.architect-team/ (sanctioned since the v3.29.0
+    librarian install; also the v3.36.0 gateway) makes the profile dir a REAL
+    workspace ancestor — the walk finding IT is correct guard behavior, not a
+    failure. So assert the walk finds nothing INSIDE tmp_path; a non-None
+    result must be a genuine pre-existing marker outside the test's control."""
     found = _find_workspace(tmp_path)
-    assert found is None
+    if found is not None:
+        assert not found.is_relative_to(tmp_path.resolve())
+        assert (found / ".architect-team").is_dir()
+    else:
+        assert found is None
 
 
 # ---- helper: _read_intake_state ----

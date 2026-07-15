@@ -48,8 +48,13 @@ def _scrub_codex_signal(monkeypatch: pytest.MonkeyPatch) -> None:
     codex-split deploy config — must NEVER leak into these tests. Without this
     scrub, the two end-to-end main() tests below would route a truthy ambient
     signal into a REAL apply_model_policy write against the repo's own tracked
-    agents/*.md. Tests that need the signal set it explicitly after this."""
+    agents/*.md. Tests that need the signal set it explicitly after this.
+
+    v3.36.0 extends the same scrub to CT6_EXTERNAL_LLM — a leaked truthy signal
+    would route the non-check-only main() tests into a REAL gateway install
+    (pip install litellm + ~/.architect-team/gateway writes)."""
     monkeypatch.delenv("CT6_CODEX_56_AVAILABLE", raising=False)
+    monkeypatch.delenv("CT6_EXTERNAL_LLM", raising=False)
 
 
 class _Result:
@@ -282,6 +287,7 @@ def test_yes_flag_assumes_consent_end_to_end(
         env.pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
         env.pop("CT6_SETUP_ASSUME_YES", None)
         env.pop("CT6_CODEX_56_AVAILABLE", None)  # never write agents/*.md from a test
+        env.pop("CT6_EXTERNAL_LLM", None)  # never run a real gateway install from a test
         rc = setup_module.main(["--yes"])
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1"
@@ -318,6 +324,7 @@ def test_env_var_assumes_consent_end_to_end(
          patch.dict("os.environ", {"CT6_SETUP_ASSUME_YES": "1"}, clear=False) as env:
         env.pop("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS", None)
         env.pop("CT6_CODEX_56_AVAILABLE", None)  # never write agents/*.md from a test
+        env.pop("CT6_EXTERNAL_LLM", None)  # never run a real gateway install from a test
         rc = setup_module.main([])
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1"
