@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 36 . 0
+                        ─── C T 6 ───   v 3 . 37 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.36.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.37.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-5397%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-5408%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,13 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.36.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.37.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.37.0 — gateway auto-registration (the installer registers + starts it for you)
+
+The external-LLM toggle becomes genuinely one command: when the gateway is enabled, the installer now **executes the boot registration itself and starts the gateway immediately** — user-level on every OS (`schtasks /sc onlogon` as the current user with a **Startup-folder-shim fallback** when schtasks is denied (observed live on a real non-elevated shell) and a detached start-now that never inherits the installer's pipes, `systemctl --user enable --now` with a `default.target` unit, a `~/Library/LaunchAgents` plist), never sudo or admin. `--no-register` opts back to the printed manual hint; a registration failure degrades to a fail step carrying the hint. Uninstall is symmetric — it stops and unregisters before removing state, so `--no-external-llm` fully reverses `--external-llm`. `status` now reports `registered=`. Tests 35 → 46 in `tests/test_install_gateway.py` (per-OS command shapes, never-sudo pins, failure degradation, uninstall symmetry — all through a stubbed runner so no test ever executes a real `schtasks`/`systemctl`); suite 5397 → **5408 passing + 5 skipped**.
 
 ### v3.36.0 — the external-LLM gateway (out-of-the-box OpenAI/Codex via LiteLLM, subscription-aware)
 

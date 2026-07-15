@@ -53,7 +53,9 @@ If your harness registers Codex 5.6 under a different model id, add `--codex-mod
 
 ## External LLM usage — the LiteLLM gateway (v3.36.0)
 
-`--external-llm` gives the codex split a real backend out of the box. It runs `scripts/setup/install_gateway.py`, which installs the MIT-licensed LiteLLM proxy (`pip install "litellm[proxy]"`, through the same PEP-668-aware ladder as the other Python deps) and provisions a local gateway under `~/.architect-team/gateway/` — `config.yaml` (the model routes), `gateway.env` (the ONLY place raw keys are stored, chmod 600, never in the repo), a per-OS launcher, and a boot descriptor whose register hint is printed but never executed for you.
+`--external-llm` gives the codex split a real backend out of the box. It runs `scripts/setup/install_gateway.py`, which installs the MIT-licensed LiteLLM proxy (`pip install "litellm[proxy]"`, through the same PEP-668-aware ladder as the other Python deps) and provisions a local gateway under `~/.architect-team/gateway/` — `config.yaml` (the model routes), `gateway.env` (the ONLY place raw keys are stored, chmod 600, never in the repo), a per-OS launcher, and a boot descriptor.
+
+**Registration is automatic (v3.37.0).** When the gateway is enabled (an OpenAI key resolved), the installer registers it to start automatically AND starts it now — user-level on every OS (`schtasks /sc onlogon` as the current user / `systemctl --user enable --now` with a `default.target` unit / a `~/Library/LaunchAgents` plist), never sudo or admin. `--no-register` opts back to the printed manual hint; a registration failure degrades to a fail step carrying the hint, never a crash. Uninstall is symmetric — it stops and unregisters before removing state.
 
 The installer resolves one of two **auth modes** from key presence (never a live probe):
 
@@ -67,10 +69,11 @@ Key sourcing — the OpenAI key resolves from `OPENAI_API_KEY` (env), `--openai-
 Useful one-liners (the same installer setup drives):
 
 ```
-python3 scripts/setup/install_gateway.py status                      # mode / keys (masked) / activation / model policy
-python3 scripts/setup/install_gateway.py install --activate         # full install incl. Claude Code routing + the codex split (api-key mode)
+python3 scripts/setup/install_gateway.py status                      # mode / keys (masked) / registration / activation / model policy
+python3 scripts/setup/install_gateway.py install --activate         # full install incl. registration + Claude Code routing + the codex split (api-key mode)
 python3 scripts/setup/install_gateway.py install --openai-model <id> # override the OpenAI-side model id the codex alias maps to
-python3 scripts/setup/install_gateway.py uninstall                  # deactivate + restore uniform fable if the split is applied
+python3 scripts/setup/install_gateway.py install --no-register      # provision without the automatic boot registration
+python3 scripts/setup/install_gateway.py uninstall                  # stop + unregister + deactivate + restore uniform fable if the split is applied
 ```
 
 `--no-external-llm` (or `CT6_EXTERNAL_LLM` set falsy) runs the uninstall path; with NO signal setup installs nothing and only surfaces the option as a note. Failures never gate setup — they degrade to a `warn` row carrying the manual remediation.

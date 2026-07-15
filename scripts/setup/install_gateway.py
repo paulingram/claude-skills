@@ -36,15 +36,20 @@ masked to their last 4 chars in every report. The generated `config.yaml` carrie
 
 Subcommands:
   install (default)  Provision state + config + env file + launcher + the per-OS
-                     boot descriptor (printed register hint, NEVER loaded). Installs
-                     `litellm[proxy]` through setup.py's PEP-668-aware ladder.
-                     Enabled ONLY when an OpenAI key resolves; otherwise install-
-                     but-disabled with an explicit remediation.
+                     boot descriptor, install `litellm[proxy]` through setup.py's
+                     PEP-668-aware ladder, and (v3.37.0) REGISTER + START the
+                     gateway itself — user-level (schtasks onlogon / `systemctl
+                     --user` / LaunchAgents), never sudo/admin; `--no-register`
+                     opts back to the printed hint. Enabled ONLY when an OpenAI
+                     key resolves; otherwise install-but-disabled (registration
+                     deferred) with an explicit remediation.
   status             Report auth mode / keys (masked) / litellm presence / file
-                     layout / activation + the agents' model policy state.
+                     layout / registration / activation + the agents' model
+                     policy state.
   uninstall          Deactivate (remove OUR settings.json env keys, restore the
                      uniform-fable model state if the codex split is applied),
-                     remove the boot descriptor. With `--purge`, remove state too.
+                     stop + UNREGISTER the gateway, remove the boot descriptor.
+                     With `--purge`, remove state too.
 
 Flags:
   --base-dir PATH     State dir (default: $CT6_GATEWAY_HOME, else
@@ -61,17 +66,20 @@ Flags:
   --settings-path P   Claude settings.json location (tests inject a tmp path).
   --agents-dir P      agents/ dir for the model split (tests inject a tmp dir).
   --no-install        Skip the pip install (state-only provisioning).
+  --no-register       Skip the automatic boot registration (print the hint).
   --check-only        Report intent only; provision nothing.
   --json              Machine-readable JSON report.
   --purge             (uninstall) also remove the state dir.
 
 Exit codes: 0 success; 1 a real failure (actionable message).
 
-HONEST BOUNDARY: this provisions + configures; it never registers the boot
-descriptor, never starts the gateway for you, and never claims the gateway is
-"running". Model availability stays an INPUT (the resolve_model convention):
-activation applies the split because YOU asserted the backend exists by enabling
-external-LLM usage — nothing here probes a live API.
+HONEST BOUNDARY: registration is EXECUTED by default (v3.37.0 owner directive —
+the enable signal is the consent; user-level only, never sudo/admin; a failure
+degrades to a fail step + the manual hint). Model availability stays an INPUT
+(the resolve_model convention): activation applies the split because YOU
+asserted the backend exists by enabling external-LLM usage — nothing here
+probes a live API. The gateway is only claimed "registered", never "running" —
+`status` reports the registration, the smoke test is yours.
 """
 from __future__ import annotations
 
@@ -82,6 +90,7 @@ import os
 import platform
 import secrets
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -369,6 +378,191 @@ def claude_env_applied(settings_path: Path, port: int) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# auto-registration (v3.37.0 — the installer EXECUTES the registration)
+# --------------------------------------------------------------------------- #
+#
+# Owner directive: enabling external-LLM usage must be one command, so the
+# installer registers + starts the gateway itself (opt-out: --no-register).
+# This deliberately extends the older print-the-hint posture; the enable signal
+# is the consent, registration stays user-level (never sudo / admin), and a
+# registration failure degrades to a fail step + the manual hint — never a crash.
+
+_default_runner = subprocess.run     # injectable seam — tests stub this
+_default_spawner = subprocess.Popen  # injectable seam — the detached start-now
+
+
+def _run(cmd: list[str], runner=None):
+    runner = runner or _default_runner
+    return runner(cmd, capture_output=True, text=True, encoding="utf-8",
+                  errors="replace")
+
+
+def _spawn_detached(cmd: list[str], spawner=None) -> bool:
+    """Start a long-running process WITHOUT inheriting our pipes and WITHOUT
+    waiting (a captured-pipe `subprocess.run` would block until the gateway
+    itself exits — observed hanging a real install for its full timeout).
+    Windows gets its own minimized console so the daemon survives us."""
+    spawner = spawner or _default_spawner
+    kwargs: dict = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+    if os.name == "nt":  # pragma: no cover - exercised on the real install
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+        kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        kwargs["startupinfo"] = si
+    try:
+        spawner(cmd, **kwargs)
+        return True
+    except OSError:
+        return False
+
+
+def _windows_startup_dir(home: Optional[Path] = None) -> Path:
+    """The current user's Startup folder — a plain-file autostart mechanism
+    that needs NO privilege at all (observed: `schtasks /create` is denied
+    from a non-elevated shell on a real Windows 11 box)."""
+    if home is not None:
+        return (Path(home) / "AppData" / "Roaming" / "Microsoft" / "Windows"
+                / "Start Menu" / "Programs" / "Startup")
+    appdata = os.environ.get("APPDATA")
+    base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
+    return base / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+
+
+def register_gateway(
+    platform_key: str,
+    launcher_path: Path,
+    name: str = SERVICE_NAME,
+    home: Optional[Path] = None,
+    runner=None,
+) -> tuple[bool, str]:
+    """Register the gateway to start automatically AND start it now. User-level
+    on every OS (schtasks onlogon / Startup-folder shim / `systemctl --user` /
+    LaunchAgents) — no admin/sudo, matching a per-user gateway. Returns
+    (ok, detail)."""
+    if platform_key == "windows":
+        # First choice: a direct /tr onlogon registration (NOT the XML
+        # descriptor: its boot trigger needs admin). schtasks task creation is
+        # itself denied from a non-elevated shell on some boxes, so on failure
+        # fall back to a Startup-folder shim — a plain file write that always
+        # works and runs the launcher minimized at logon.
+        res = _run(["schtasks", "/create", "/tn", name,
+                    "/tr", f'"{launcher_path}"', "/sc", "onlogon", "/f"], runner)
+        if res.returncode == 0:
+            started = _run(["schtasks", "/run", "/tn", name], runner).returncode == 0
+            return True, ("scheduled task registered (onlogon)"
+                          + (" + started" if started
+                             else f' — start it: schtasks /run /tn "{name}"'))
+        err = (res.stderr or res.stdout or "").strip() or "schtasks /create failed"
+        startup_dir = _windows_startup_dir(home)
+        try:
+            startup_dir.mkdir(parents=True, exist_ok=True)
+            shim = startup_dir / f"{name}.cmd"
+            shim.write_text(
+                f'@start "" /min "{launcher_path}"\n', encoding="utf-8")
+        except OSError as exc:
+            return False, f"{err}; startup-folder fallback also failed: {exc}"
+        started = _spawn_detached(["cmd", "/c", str(launcher_path)])
+        return True, (f"startup-folder shim registered at {shim} "
+                      f"(schtasks denied: {err})"
+                      + (" + started" if started else " — start it by running the launcher"))
+    home = Path(home) if home else Path.home()
+    if platform_key == "linux":
+        unit_dir = home / ".config" / "systemd" / "user"
+        unit_dir.mkdir(parents=True, exist_ok=True)
+        unit = _bg.systemd_unit(name, str(launcher_path)).replace(
+            "WantedBy=multi-user.target", "WantedBy=default.target")
+        unit_path = unit_dir / f"{name}.service"
+        unit_path.write_text(unit, encoding="utf-8")
+        for cmd in (["systemctl", "--user", "daemon-reload"],
+                    ["systemctl", "--user", "enable", "--now", name]):
+            res = _run(cmd, runner)
+            if res.returncode != 0:
+                return False, (res.stderr or "").strip() or f"{' '.join(cmd)} failed"
+        return True, f"user systemd unit enabled + started ({unit_path})"
+    if platform_key == "darwin":
+        agents_dir = home / "Library" / "LaunchAgents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        plist_path = agents_dir / f"{name}.plist"
+        plist_path.write_text(_bg.launchd_plist(name, [str(launcher_path)]),
+                              encoding="utf-8")
+        res = _run(["launchctl", "load", "-w", str(plist_path)], runner)
+        if res.returncode != 0:
+            return False, (res.stderr or "").strip() or "launchctl load failed"
+        return True, f"launchd agent loaded ({plist_path})"
+    return False, f"unsupported platform {platform_key!r}"
+
+
+def unregister_gateway(
+    platform_key: str,
+    name: str = SERVICE_NAME,
+    home: Optional[Path] = None,
+    runner=None,
+) -> tuple[bool, str]:
+    """Stop + unregister the gateway (an absent registration is a no-op)."""
+    if platform_key == "windows":
+        _run(["schtasks", "/end", "/tn", name], runner)  # stop if running
+        res = _run(["schtasks", "/delete", "/tn", name, "/f"], runner)
+        shim = _windows_startup_dir(home) / f"{name}.cmd"
+        shim_removed = False
+        if shim.exists():
+            try:
+                shim.unlink()
+                shim_removed = True
+            except OSError:  # pragma: no cover
+                pass
+        if res.returncode == 0 and shim_removed:
+            return True, "scheduled task + startup-folder shim removed"
+        if res.returncode == 0:
+            return True, "scheduled task stopped + removed"
+        if shim_removed:
+            return True, "startup-folder shim removed"
+        return True, "not registered (no-op)"
+    home = Path(home) if home else Path.home()
+    if platform_key == "linux":
+        _run(["systemctl", "--user", "disable", "--now", name], runner)
+        unit_path = home / ".config" / "systemd" / "user" / f"{name}.service"
+        if unit_path.exists():
+            try:
+                unit_path.unlink()
+            except OSError:  # pragma: no cover
+                pass
+            _run(["systemctl", "--user", "daemon-reload"], runner)
+            return True, "user systemd unit disabled + removed"
+        return True, "not registered (no-op)"
+    if platform_key == "darwin":
+        plist_path = home / "Library" / "LaunchAgents" / f"{name}.plist"
+        if plist_path.exists():
+            _run(["launchctl", "unload", "-w", str(plist_path)], runner)
+            try:
+                plist_path.unlink()
+            except OSError:  # pragma: no cover
+                pass
+            return True, "launchd agent unloaded + removed"
+        return True, "not registered (no-op)"
+    return False, f"unsupported platform {platform_key!r}"
+
+
+def is_gateway_registered(
+    platform_key: str,
+    name: str = SERVICE_NAME,
+    home: Optional[Path] = None,
+    runner=None,
+) -> bool:
+    if platform_key == "windows":
+        if _run(["schtasks", "/query", "/tn", name], runner).returncode == 0:
+            return True
+        return (_windows_startup_dir(home) / f"{name}.cmd").exists()
+    home = Path(home) if home else Path.home()
+    if platform_key == "linux":
+        return (home / ".config" / "systemd" / "user" / f"{name}.service").exists()
+    if platform_key == "darwin":
+        return (home / "Library" / "LaunchAgents" / f"{name}.plist").exists()
+    return False
+
+
+# --------------------------------------------------------------------------- #
 # litellm install (through setup.py's PEP-668-aware ladder)
 # --------------------------------------------------------------------------- #
 
@@ -410,6 +604,7 @@ class Report:
     litellm_present: bool = False
     enabled: bool = False
     activated: bool = False
+    registered: bool = False
     split_applied: bool = False
     descriptor_path: Optional[str] = None
     register_hint: Optional[str] = None
@@ -536,9 +731,25 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
         report.add("enable", "skipped",
                    "no OpenAI key resolved; provisioned but NOT enabled")
     else:
-        report.add("enable", "ok",
-                   "gateway enabled; register the printed descriptor (or run the "
-                   "launcher directly) to start it")
+        report.add("enable", "ok", "gateway enabled")
+
+    # 5b. auto-registration (v3.37.0): the installer registers + starts the
+    # gateway itself (user-level; --no-register opts back to the printed hint).
+    if args.no_register:
+        report.add("register", "skipped",
+                   "--no-register — register manually with the printed hint")
+    elif not report.enabled:
+        report.add("register", "skipped",
+                   "not enabled (no OpenAI key) — registration deferred")
+    else:
+        reg_ok, reg_detail = register_gateway(
+            _platform_key(), base / launcher_name)
+        report.registered = reg_ok
+        if reg_ok:
+            report.add("register", "ok", reg_detail)
+        else:
+            report.add("register", "fail",
+                       f"{reg_detail} — register manually: {descriptor['register_hint']}")
 
     # 6. activation (api-key mode only; consent came from the explicit flag).
     if args.activate:
@@ -576,6 +787,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
         "openai_model": args.openai_model,
         "activated": report.activated,
         "enabled": report.enabled,
+        "registered": report.registered,
     })
     return report
 
@@ -599,12 +811,13 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
     policy = _lever.policy_state(agents_dir) if agents_dir.is_dir() else "unknown"
     report.split_applied = policy == "codex-split"
+    report.registered = is_gateway_registered(_platform_key())
     if not report.openai_key_present:
         report.remediation = "set OPENAI_API_KEY or re-run install --openai-key …"
     report.add("status", "ok",
                f"mode={report.auth_mode}; enabled={report.enabled}; "
-               f"activated={report.activated}; litellm={report.litellm_present}; "
-               f"model-policy={policy}; "
+               f"activated={report.activated}; registered={report.registered}; "
+               f"litellm={report.litellm_present}; model-policy={policy}; "
                f"OPENAI_API_KEY={_mask(keys.get('OPENAI_API_KEY')) or 'absent'}; "
                f"ANTHROPIC_API_KEY={_mask(keys.get('ANTHROPIC_API_KEY')) or 'absent'}")
     return report
@@ -619,8 +832,8 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
     if args.check_only:
         report.add("check-only", "skipped",
                    "would deactivate settings.json, restore uniform fable if the "
-                   "codex split is applied, and remove the boot descriptor; "
-                   "nothing touched")
+                   "codex split is applied, stop + unregister the gateway, and "
+                   "remove the boot descriptor; nothing touched")
         return report
 
     # 1. deactivate settings.json (only OUR values are ever removed).
@@ -643,23 +856,25 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
         report.add("model-restore", "skipped",
                    "model state is not codex-split (left untouched)")
 
-    # 3. descriptor removal + unregister hint (never executed for you).
+    # 3. unregistration (v3.37.0: EXECUTED, symmetric with install) +
+    #    descriptor removal.
+    unreg_ok, unreg_detail = unregister_gateway(_platform_key())
+    report.add("unregister", "ok" if unreg_ok else "fail", unreg_detail)
+    if not unreg_ok:
+        report.register_hint = {
+            "linux": f"systemctl --user disable --now {SERVICE_NAME}",
+            "darwin": f"launchctl unload -w ~/Library/LaunchAgents/{SERVICE_NAME}.plist",
+            "windows": f'schtasks /delete /tn "{SERVICE_NAME}" /f',
+        }[_platform_key()]
     desc_dir = base / DESCRIPTOR_DIRNAME
     descs = list(desc_dir.glob(f"{SERVICE_NAME}.*")) if desc_dir.exists() else []
     if descs:
-        kind = _platform_key()
-        report.register_hint = {
-            "linux": f"sudo systemctl disable --now {SERVICE_NAME}",
-            "darwin": f"launchctl unload -w ~/Library/LaunchAgents/{SERVICE_NAME}.plist",
-            "windows": f'schtasks /delete /tn "{SERVICE_NAME}" /f',
-        }[kind]
         for d in descs:
             try:
                 d.unlink()
             except OSError:  # pragma: no cover
                 pass
-        report.add("descriptor", "ok",
-                   "boot descriptor removed; run the printed unregister hint")
+        report.add("descriptor", "ok", "boot descriptor removed")
     else:
         report.add("descriptor", "skipped", "no boot descriptor present (no-op)")
 
@@ -792,6 +1007,8 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
                         help="agents/ dir for the model split (default: the repo's agents/)")
     parser.add_argument("--no-install", action="store_true",
                         help="skip the pip install (state-only provisioning)")
+    parser.add_argument("--no-register", action="store_true",
+                        help="skip the automatic boot registration (print the hint instead)")
     parser.add_argument("--force-reinstall", action="store_true",
                         help="reinstall litellm even when already importable")
     parser.add_argument("--check-only", action="store_true",
@@ -852,6 +1069,7 @@ def _emit(report: Report, as_json: bool) -> int:
             "litellm_present": report.litellm_present,
             "enabled": report.enabled,
             "activated": report.activated,
+            "registered": report.registered,
             "split_applied": report.split_applied,
             "descriptor_path": report.descriptor_path,
             "register_hint": report.register_hint,
@@ -875,9 +1093,10 @@ def _emit(report: Report, as_json: bool) -> int:
     print(f"  Auth mode:   {report.auth_mode}"
           + ("  (fable via Claude sign-in)" if report.auth_mode == AUTH_MODE_SUBSCRIPTION else ""))
     print(f"  Gateway:     {'enabled' if report.enabled else 'provisioned but NOT enabled'}"
+          f"; auto-registered: {'yes' if report.registered else 'no'}"
           f"; Claude Code activation: {'applied' if report.activated else 'not applied'}")
-    if report.register_hint:
-        print("  Register the boot descriptor yourself (NOT run for you):")
+    if report.register_hint and not report.registered:
+        print("  Manual registration hint (auto-registration was skipped or failed):")
         print(f"    {report.register_hint}")
     if report.remediation:
         print(f"  Remediation: {report.remediation}")
