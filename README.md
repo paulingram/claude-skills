@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 35 . 0
+                        ─── C T 6 ───   v 3 . 36 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.34.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.36.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-5362%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-5397%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -67,9 +67,21 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.35.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.36.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.36.0 — the external-LLM gateway (out-of-the-box OpenAI/Codex via LiteLLM, subscription-aware)
+
+The v3.35.0 codex role split gets a **real backend, out of the box**: one setup flag installs and configures the MIT-licensed **LiteLLM** proxy so `codex-5.6-sol` routes to OpenAI — and enabling it **never breaks the Anthropic side**: fable stays usable either through your **Claude subscription sign-in** (no key needed) or through an `ANTHROPIC_API_KEY`.
+
+| Capability | What it is |
+|---|---|
+| **One-flag enable, managed by setup** | `/architect-team:architect-team-setup --external-llm` (or `CT6_EXTERNAL_LLM=1`) runs the new `scripts/setup/install_gateway.py`: installs `litellm[proxy]` through the same PEP-668-aware ladder as the other Python deps, provisions `~/.architect-team/gateway/` (config, launcher, boot descriptor — register hint printed, never executed for you), and reports one setup row that **never gates** (failures degrade to `warn` + the manual remediation). `--no-external-llm` uninstalls symmetrically; NO signal touches nothing. |
+| **Two auth modes — fable via sign-in OR API key** | Resolved from key presence, never a live probe. **api-key mode**: an `ANTHROPIC_API_KEY` resolves → the gateway fronts BOTH providers (`codex-5.6-sol` → OpenAI, everything else → Anthropic); with consent (`--yes`) setup activates Claude Code routing (`ANTHROPIC_BASE_URL` + auth token in `~/.claude/settings.json`) and applies the codex role split — the full out-of-the-box state. **subscription mode**: no Anthropic key → **fable keeps your normal Claude sign-in** (`ANTHROPIC_BASE_URL` deliberately never written), the codex split stays OFF (the harness can't split-route only codex traffic through a proxy — an honest, documented boundary), and the gateway serves OpenAI models to direct callers; the printed remediation is add-a-key + re-run. |
+| **Secret hygiene** | Raw keys live ONLY in `gateway.env` (chmod 600, under your home dir, never the repo); `config.yaml` carries `os.environ/...` references; every report masks keys to their last 4 chars; the proxy always runs behind a generated master key. No OpenAI key ⇒ an honest provisioned-but-NOT-enabled state with the remediation printed. |
+| **Symmetric lifecycle** | `install_gateway.py status` (mode / masked keys / activation / the agents' model-policy state) and `uninstall` (removes only OUR settings.json entries — a user-customized base URL is never clobbered; restores uniform fable only when the on-disk state is `codex-split` — a manual Opus state is left untouched). `--check-only` on both paths touches nothing. |
+| **Counts + tests** | New `tests/test_install_gateway.py` (35 offline cases — per-mode config shape, the codex-alias cross-module pin, secret hygiene, activation both modes incl. the subscription-mode refusal, uninstall symmetry, setup routing + never-gates); the `test_setup_install_fallbacks.py` hermeticity scrub extends to `CT6_EXTERNAL_LLM`. Test files **199 → 200**; suite 5362 → **5397 passing + 5 skipped**. Skill / agent / command counts UNCHANGED (48 / 39 / 23); ship state unchanged (all 39 agents still commit `model: fable`); NO new skill / agent / command / hook / Layer-3 tool. |
 
 ### v3.35.0 — the Codex 5.6 model role split (availability-gated, one flag to deploy)
 

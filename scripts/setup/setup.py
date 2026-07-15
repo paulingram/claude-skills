@@ -881,6 +881,77 @@ def apply_model_policy(
         return name, "warn", f"model policy not applied ({exc}); apply manually: {manual}"
 
 
+# ---- External-LLM gateway (v3.36.0) -------------------------------------------
+#
+# `--external-llm` provisions the LiteLLM gateway (scripts/setup/install_gateway.py)
+# so external models (OpenAI Codex 5.6 behind the codex-5.6-sol alias) work out of
+# the box. Enable-ment is an INPUT (--external-llm / --no-external-llm /
+# CT6_EXTERNAL_LLM) — the same tri-state convention as the codex signal. The
+# gateway installer resolves the AUTH MODE itself: with an ANTHROPIC_API_KEY it
+# fronts both providers (full gateway; activation may apply the codex split);
+# without one, fable keeps Claude Code's native subscription sign-in and the
+# gateway serves OpenAI only. Never gates setup — failures degrade to warn rows.
+
+def _load_gateway_installer():
+    """Load the sibling install_gateway.py module (lazy — only when a signal
+    is present, so setup never pays the import when external-llm is unused)."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parent / "install_gateway.py"
+    spec = importlib.util.spec_from_file_location("ct6_install_gateway", path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load gateway installer at {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def resolve_external_llm_signal(
+    enable_flag: bool, disable_flag: bool, env: dict | None = None
+) -> bool | None:
+    """Resolve the external-LLM signal: True (--external-llm, or a truthy
+    CT6_EXTERNAL_LLM), False (--no-external-llm — the flag overrides the env —
+    or a SET-but-falsy env var), or None (no signal at all: nothing installed,
+    nothing touched). Matches install_gateway.resolve_external_llm_signal."""
+    if disable_flag:
+        return False
+    if enable_flag:
+        return True
+    env = os.environ if env is None else env
+    if "CT6_EXTERNAL_LLM" not in env:
+        return None
+    return _is_truthy(env.get("CT6_EXTERNAL_LLM"))
+
+
+def check_external_llm_option() -> tuple[str, str, str | None]:
+    """Informational note shown when NO external-llm signal is present."""
+    name = "external-llm (LiteLLM gateway — not requested)"
+    detail = (
+        "no external-LLM signal — nothing installed. Rerun with --external-llm "
+        "(or set CT6_EXTERNAL_LLM=1) to install the LiteLLM gateway that backs "
+        "the codex-5.6-sol → OpenAI route; --no-external-llm uninstalls. Fable "
+        "keeps working either via your Claude sign-in (no key needed) or via "
+        "ANTHROPIC_API_KEY."
+    )
+    return name, "note", detail
+
+
+def apply_external_llm_policy(
+    enable: bool, check_only: bool, assume_yes: bool
+) -> tuple[str, str, str | None]:
+    """Run the gateway installer (or uninstaller) through its setup hook. Never
+    gates the run — any failure degrades to a 'warn' row with the manual
+    remediation (the same posture as apply_model_policy)."""
+    name = "external-llm (LiteLLM gateway)"
+    manual = "python3 scripts/setup/install_gateway.py install --activate"
+    try:
+        installer = _load_gateway_installer()
+        return installer.setup_entry(
+            enable=enable, check_only=check_only, assume_yes=assume_yes)
+    except Exception as exc:  # never gate setup on the gateway installer
+        return name, "warn", f"external-llm setup not applied ({exc}); run manually: {manual}"
+
+
 def main(argv: list[str] | None = None) -> int:
     # Ensure Unicode output works on Windows consoles (cp1252 default).
     if hasattr(sys.stdout, "reconfigure"):
@@ -906,6 +977,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Assume 'yes' to every consent prompt without reading stdin "
              "(non-interactive install). Also enabled by CT6_SETUP_ASSUME_YES=1.",
+    )
+    external_llm_group = parser.add_mutually_exclusive_group()
+    external_llm_group.add_argument(
+        "--external-llm",
+        action="store_true",
+        help="Enable external-LLM usage: install + configure the local LiteLLM "
+             "gateway (codex-5.6-sol → OpenAI; Anthropic via your API key when "
+             "present, else fable keeps Claude sign-in). Also enabled by "
+             "CT6_EXTERNAL_LLM=1.",
+    )
+    external_llm_group.add_argument(
+        "--no-external-llm",
+        action="store_true",
+        help="Disable external-LLM usage: deactivate + uninstall the gateway "
+             "(restores uniform fable if the codex split is applied). Overrides "
+             "CT6_EXTERNAL_LLM.",
     )
     codex_group = parser.add_mutually_exclusive_group()
     codex_group.add_argument(
@@ -967,6 +1054,18 @@ def main(argv: list[str] | None = None) -> int:
         rows.append(check_codex_option())
     else:
         rows.append(apply_model_policy(codex_signal, args.check_only))
+
+    # v3.36.0: external-LLM gateway (LiteLLM). A signal (flag or env) installs /
+    # uninstalls through install_gateway.py's setup hook; no signal surfaces the
+    # option as a note. Activation (settings.json routing + the codex split) is
+    # consent-gated behind --yes / CT6_SETUP_ASSUME_YES.
+    external_llm_signal = resolve_external_llm_signal(
+        args.external_llm, args.no_external_llm)
+    if external_llm_signal is None:
+        rows.append(check_external_llm_option())
+    else:
+        rows.append(apply_external_llm_policy(
+            external_llm_signal, args.check_only, assume_yes))
 
     # openspec-propose skill prerequisite (HARD block when missing).
     openspec_propose_row = ensure_openspec_propose_skill()
