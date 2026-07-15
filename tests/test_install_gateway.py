@@ -10,6 +10,14 @@ subscription-mode refusal, uninstall symmetry, and the setup.py wiring.
 Every test is hermetic: pip is never invoked (injected/skipped), no network, no
 writes outside tmp_path, and ambient CT6_EXTERNAL_LLM / CT6_CODEX_56_AVAILABLE
 are scrubbed (the v3.35.0 ambient-leak lesson applied to the new signal).
+
+v3.38.0 adds the interactive key-prompt + decline-record coverage: the
+`_prompt_for_key` seam (interactive + TTY + unresolved + not-declined; hidden
+getpass entry with the unachievable->visible degrade), the `key-declines.json`
+record (blank-to-skip / the `decline` subcommand / auto-reset on resolution /
+`--re-ask-keys`), the never-prompts matrix, and the setup_entry interactivity
+pass-through. All prompt/TTY seams are injected — no test touches a real
+console or a real getpass.
 """
 from __future__ import annotations
 
@@ -751,3 +759,458 @@ def test_apply_external_llm_policy_real_loader_check_only(
         True, check_only=True, assume_yes=False)
     assert status == "note", f"real loader failed: {detail}"
     assert "would install" in (detail or "")
+
+
+# ---- interactive key prompt + decline record (v3.38.0) ---------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_real_tty(gw: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hermeticity (v3.38.0): main() opts into prompting on a real TTY, so a
+    `pytest -s` run would otherwise hang install tests on a live getpass.
+    Default every test to non-TTY; prompt tests re-stub the seams explicitly.
+    raising=False keeps this fixture inert against a pre-v3.38.0 module."""
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: False, raising=False)
+
+
+class _PromptRecorder:
+    """Injectable prompt seam: records prompt messages, returns queued answers."""
+
+    def __init__(self, answers: list[str] | None = None) -> None:
+        self._answers = list(answers or [])
+        self.messages: list[str] = []
+
+    def __call__(self, message: str) -> str:
+        self.messages.append(message)
+        return self._answers.pop(0) if self._answers else ""
+
+
+def _interactive(gw: ModuleType, monkeypatch: pytest.MonkeyPatch,
+                 answers: list[str]) -> _PromptRecorder:
+    """Stub the TTY + prompt seams for an interactive run."""
+    rec = _PromptRecorder(answers)
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)
+    return rec
+
+
+def _declines_on_disk(gw: ModuleType, base: Path) -> dict:
+    path = base / gw.DECLINES_NAME
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_prompt_for_key_contract(gw: ModuleType) -> None:
+    """The seam: non-TTY -> None without prompting; blank/whitespace -> None;
+    a value comes back stripped."""
+    def _boom(message):  # pragma: no cover - must never run
+        raise AssertionError("prompt_fn must not fire on a non-TTY stdin")
+
+    assert gw._prompt_for_key("openai", prompt_fn=_boom, isatty_fn=lambda: False) is None
+    assert gw._prompt_for_key("openai", prompt_fn=lambda m: "", isatty_fn=lambda: True) is None
+    assert gw._prompt_for_key("anthropic", prompt_fn=lambda m: "   ", isatty_fn=lambda: True) is None
+    assert gw._prompt_for_key("openai", prompt_fn=lambda m: " sk-x ", isatty_fn=lambda: True) == "sk-x"
+
+
+def test_default_prompt_seam_is_the_hidden_one(gw: ModuleType) -> None:
+    """The DEFAULT prompt seam is the hidden (getpass-backed) entry — the
+    never-echoed guarantee holds without any injection."""
+    assert gw._default_prompt_fn is gw._hidden_prompt
+
+
+def test_hidden_prompt_uses_getpass_when_achievable(
+    gw: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import getpass
+
+    monkeypatch.setattr(getpass, "getpass", lambda message: "sk-hidden")
+    monkeypatch.setattr("builtins.input", lambda message: (_ for _ in ()).throw(
+        AssertionError("visible input() must not run when hidden entry works")))
+    assert gw._hidden_prompt("K: ") == "sk-hidden"
+
+
+def test_hidden_prompt_degrades_to_visible_only_when_unachievable(
+    gw: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The degrade condition is getpass's non-console fallback (GetPassWarning),
+    NOT an import check — and the degrade carries a one-line visible-entry
+    warning before reading."""
+    import getpass
+    import warnings as _warnings
+
+    def _fallback(message):
+        _warnings.warn("Can not control echo on the terminal.", getpass.GetPassWarning)
+        return "SHOULD-NEVER-BE-RETURNED"  # pragma: no cover
+
+    monkeypatch.setattr(getpass, "getpass", _fallback)
+    monkeypatch.setattr("builtins.input", lambda message: "sk-visible")
+    assert gw._hidden_prompt("K: ") == "sk-visible"
+    out = capsys.readouterr().out
+    assert "VISIBLE" in out or "visible" in out
+
+
+def test_interactive_install_prompts_openai_then_anthropic(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Interactive + TTY + both slots absent: the seam fires per slot in D1
+    order (openai then anthropic); captured keys land ONLY in gateway.env and
+    mask to last-4 in every report line."""
+    base = tmp_path / "gw"
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY, RAW_ANTHROPIC_KEY])
+    assert _install(gw, base, "--interactive-prompts") == 0
+    assert len(rec.messages) == 2
+    assert "OPENAI_API_KEY" in rec.messages[0]
+    assert "ANTHROPIC_API_KEY" in rec.messages[1]
+    out = capsys.readouterr().out
+    assert RAW_OPENAI_KEY not in out and RAW_ANTHROPIC_KEY not in out
+    assert "…" + RAW_OPENAI_KEY[-4:] in out
+    assert "…" + RAW_ANTHROPIC_KEY[-4:] in out
+    env_vars = gw.read_env_file(base / gw.ENV_FILE_NAME)
+    assert env_vars["OPENAI_API_KEY"] == RAW_OPENAI_KEY
+    assert env_vars["ANTHROPIC_API_KEY"] == RAW_ANTHROPIC_KEY
+    for name in (gw.CONFIG_NAME, gw.STATE_NAME):
+        text = (base / name).read_text(encoding="utf-8")
+        assert RAW_OPENAI_KEY not in text and RAW_ANTHROPIC_KEY not in text
+    # both keys captured => api-key mode, enabled; no declines recorded
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["auth_mode"] == gw.AUTH_MODE_API_KEY
+    assert state["enabled"] is True
+    assert _declines_on_disk(gw, base) == {}
+
+
+def test_blank_entry_skips_and_records_prompt_skip_decline(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Blank -> None -> today's absent-key path runs verbatim + the decline is
+    recorded with via=prompt-skip."""
+    base = tmp_path / "gw"
+    rec = _interactive(gw, monkeypatch, ["", ""])
+    assert _install(gw, base, "--interactive-prompts") == 0
+    assert len(rec.messages) == 2
+    out = capsys.readouterr().out
+    assert "provisioned but NOT enabled" in out  # the honest absent-key outcome
+    declines = _declines_on_disk(gw, base)
+    assert set(declines) == {"openai", "anthropic"}
+    for slot in ("openai", "anthropic"):
+        assert declines[slot]["via"] == "prompt-skip"
+        assert declines[slot]["declined_at"]
+
+
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt, EOFError])
+def test_interrupt_at_the_prompt_skips_like_blank(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], interrupt: type,
+) -> None:
+    """Adversarial remediation (probe iv): Ctrl-C / Ctrl-D at the prompt is a
+    SKIP, not an abort — parity with the _prompt_user_consent house pattern
+    (setup.py treats an interrupt as a 'no') and the librarian seam. The
+    install completes exit 0, each interrupted slot records via=prompt-skip,
+    and no key is written."""
+    base = tmp_path / "gw"
+    calls: list[str] = []
+
+    def _interrupted(message: str) -> str:
+        calls.append(message)
+        raise interrupt()
+
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_prompt_fn", _interrupted)
+    assert _install(gw, base, "--interactive-prompts") == 0
+    assert len(calls) == 2, "exactly-as-blank: the loop continues to the next slot"
+    out = capsys.readouterr().out
+    assert "provisioned but NOT enabled" in out  # the absent-key path verbatim
+    declines = _declines_on_disk(gw, base)
+    assert set(declines) == {"openai", "anthropic"}
+    assert all(declines[slot]["via"] == "prompt-skip" for slot in declines)
+    env_vars = gw.read_env_file(base / gw.ENV_FILE_NAME)
+    assert set(env_vars) == {gw.MASTER_KEY_VAR}, "no key may be invented/written"
+
+
+def test_recorded_decline_suppresses_the_prompt(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = tmp_path / "gw"
+    assert gw.main(["decline", "openai", "--base-dir", str(base)]) == 0
+    assert gw.main(["decline", "anthropic", "--base-dir", str(base)]) == 0
+    capsys.readouterr()
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    assert _install(gw, base, "--interactive-prompts") == 0
+    assert rec.messages == [], "a declined slot must never re-prompt"
+    out = capsys.readouterr().out
+    assert "declined" in out, "the report must note the recorded decline"
+
+
+def test_decline_subcommand_records_wrapper_and_clears(
+    gw: ModuleType, tmp_path: Path
+) -> None:
+    base = tmp_path / "gw"
+    assert gw.main(["decline", "openai", "--base-dir", str(base)]) == 0
+    declines = _declines_on_disk(gw, base)
+    assert declines["openai"]["via"] == "wrapper"
+    assert declines["openai"]["declined_at"]
+    assert gw.main(["decline", "openai", "--clear", "--base-dir", str(base)]) == 0
+    assert not (base / gw.DECLINES_NAME).is_file(), "an emptied record removes the file"
+    # clearing an absent decline is a tolerated no-op, not a failure
+    assert gw.main(["decline", "openai", "--clear", "--base-dir", str(base)]) == 0
+
+
+def test_decline_subcommand_rejects_unknown_slot(gw: ModuleType, tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        gw.main(["decline", "master", "--base-dir", str(tmp_path / "gw")])
+
+
+@pytest.mark.parametrize("path_kind", ["arg", "env", "file"])
+def test_decline_auto_resets_when_key_resolves(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path_kind: str
+) -> None:
+    """A slot's decline auto-resets whenever that slot's key resolves on ANY
+    resolution path (args > env > gateway.env)."""
+    base = tmp_path / "gw"
+    if path_kind == "file":
+        _install(gw, base, "--openai-key", RAW_OPENAI_KEY)  # seed gateway.env
+    gw.main(["decline", "openai", "--base-dir", str(base)])
+    assert "openai" in _declines_on_disk(gw, base)
+    if path_kind == "arg":
+        _install(gw, base, "--openai-key", RAW_OPENAI_KEY)
+    elif path_kind == "env":
+        monkeypatch.setenv("OPENAI_API_KEY", RAW_OPENAI_KEY)
+        _install(gw, base)
+    else:
+        _install(gw, base)  # resolves from the seeded gateway.env
+    assert "openai" not in _declines_on_disk(gw, base)
+
+
+def test_re_ask_keys_clears_declines_and_reprompts(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "gw"
+    gw.main(["decline", "openai", "--base-dir", str(base)])
+    gw.main(["decline", "anthropic", "--base-dir", str(base)])
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY, ""])
+    assert _install(gw, base, "--interactive-prompts", "--re-ask-keys") == 0
+    assert len(rec.messages) == 2, "--re-ask-keys must make declined slots prompt again"
+    assert gw.read_env_file(base / gw.ENV_FILE_NAME)["OPENAI_API_KEY"] == RAW_OPENAI_KEY
+    declines = _declines_on_disk(gw, base)
+    assert set(declines) == {"anthropic"}  # the fresh blank re-records prompt-skip
+    assert declines["anthropic"]["via"] == "prompt-skip"
+
+
+def test_direct_tty_install_prompts_without_the_flag(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D1: main() itself is an interactive caller — a direct terminal run on a
+    real TTY (no --json / --check-only) prompts without needing the flag, so
+    direct install runs do not stay punt-only."""
+    rec = _interactive(gw, monkeypatch, ["", ""])
+    assert _install(gw, tmp_path / "gw") == 0
+    assert len(rec.messages) == 2
+
+
+def test_non_tty_never_prompts_even_with_the_flag(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-TTY stdin never prompts and does no decline bookkeeping — behavior
+    stays byte-equivalent to the pre-change absent-key path."""
+    base = tmp_path / "gw"
+    rec = _PromptRecorder([RAW_OPENAI_KEY])
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)  # isatty stays False (autouse)
+    assert _install(gw, base, "--interactive-prompts") == 0
+    assert rec.messages == []
+    assert not (base / gw.DECLINES_NAME).is_file()
+
+
+def test_check_only_never_prompts_on_a_tty(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "gw"
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    assert gw.main(["install", "--base-dir", str(base), "--check-only",
+                    "--interactive-prompts"]) == 0
+    assert rec.messages == []
+    assert not base.exists(), "check-only must provision nothing"
+
+
+def test_json_never_prompts_on_a_tty(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = tmp_path / "gw"
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    assert _install(gw, base, "--json", "--interactive-prompts") == 0
+    assert rec.messages == []
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["action"] == "install"
+
+
+def test_status_and_uninstall_never_prompt(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "gw"
+    _install(gw, base)
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    assert gw.main(["status", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert gw.main(["uninstall", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert rec.messages == []
+
+
+def test_status_reports_declined_slots(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """status appends declined=<slots> when entries exist — and keeps every
+    existing field verbatim (the decline suppresses the PROMPT, never the truth)."""
+    base = tmp_path / "gw"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY)
+    gw.main(["decline", "anthropic", "--base-dir", str(base)])
+    capsys.readouterr()
+    assert gw.main(["status", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    out = capsys.readouterr().out
+    assert "declined=anthropic" in out
+    assert "mode=subscription" in out
+    assert "enabled=" in out and "activated=" in out and "registered=" in out
+    assert "ANTHROPIC_API_KEY=absent" in out  # the absent state stays honest
+
+
+def test_status_without_declines_omits_the_field(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = tmp_path / "gw"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY)
+    capsys.readouterr()
+    assert gw.main(["status", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert "declined=" not in capsys.readouterr().out
+
+
+def test_plain_uninstall_keeps_the_record_purge_removes_it(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    """Uninstall symmetry: the decline record is state — it survives a plain
+    uninstall and goes with the state dir under --purge."""
+    base = tmp_path / "gw"
+    _install(gw, base)
+    gw.main(["decline", "openai", "--base-dir", str(base)])
+    assert (base / gw.DECLINES_NAME).is_file()
+    assert gw.main(["uninstall", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert (base / gw.DECLINES_NAME).is_file()
+    assert gw.main(["uninstall", "--base-dir", str(base), "--purge",
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert not base.exists()
+
+
+# ---- setup_entry interactivity pass-through (v3.38.0) ----------------------------
+
+
+def test_setup_entry_interactive_pass_through_prompts(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """setup_entry(assume_yes=False, check_only=False) on a TTY appends
+    --interactive-prompts — the interactive setup run reaches the seam."""
+    rec = _interactive(gw, monkeypatch, ["", ""])
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=False,
+            base_dir=str(tmp_path / "gw"))
+    assert status == "applied"
+    assert len(rec.messages) == 2
+
+
+def test_setup_entry_assume_yes_never_prompts(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--yes-equivalent runs never prompt (the existing assume_yes -> --activate
+    convention is unchanged)."""
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY, RAW_ANTHROPIC_KEY])
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=True,
+            base_dir=str(tmp_path / "gw"),
+            settings_path=str(tmp_path / "settings.json"),
+            agents_dir=str(tmp_agents))
+    assert rec.messages == []
+    assert status == "applied"
+
+
+def test_setup_entry_check_only_never_prompts(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    name, status, detail = gw.setup_entry(
+        enable=True, check_only=True, assume_yes=False,
+        base_dir=str(tmp_path / "gw"))
+    assert rec.messages == []
+    assert status == "note"
+    assert not (tmp_path / "gw").exists()
+
+
+def test_setup_entry_non_tty_never_prompts(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rec = _PromptRecorder([RAW_OPENAI_KEY])
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)  # isatty stays False (autouse)
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=False,
+            base_dir=str(tmp_path / "gw"))
+    assert rec.messages == []
+    assert status == "applied"
+
+
+def test_setup_entry_explicit_interactive_false_suppresses(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The explicit interactive=False override (setup.py forwards --no-prompt
+    this way) suppresses prompting even on a TTY."""
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=False,
+            base_dir=str(tmp_path / "gw"), interactive=False)
+    assert rec.messages == []
+    assert status == "applied"
+
+
+def test_setup_entry_interactive_true_still_guarded_by_assume_yes(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The NOT-assume_yes / NOT-check_only guards are unconditional — an
+    (erroneous) interactive=True cannot override them."""
+    rec = _interactive(gw, monkeypatch, [RAW_OPENAI_KEY])
+    with patch.object(gw, "litellm_installed", return_value=True):
+        gw.setup_entry(
+            enable=True, check_only=False, assume_yes=True,
+            base_dir=str(tmp_path / "gw"),
+            settings_path=str(tmp_path / "settings.json"),
+            agents_dir=str(tmp_agents), interactive=True)
+    assert rec.messages == []
+
+
+def test_setup_entry_prompt_exception_degrades_to_warn(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Posture preservation: a raising prompt seam (e.g. interrupted stdin)
+    degrades to the existing warn row — the prompt never gates setup."""
+    def _boom(message):
+        raise RuntimeError("interrupted stdin")
+
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_prompt_fn", _boom)
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=False,
+            base_dir=str(tmp_path / "gw"))
+    assert status == "warn"
+    assert "install_gateway.py" in (detail or "")

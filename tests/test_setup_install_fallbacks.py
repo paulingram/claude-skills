@@ -551,3 +551,78 @@ def test_env_var_signal_routes_to_apply_model_policy(
     assert policy_spy.called
     assert policy_spy.call_args[0][0] is True
     assert not option_spy.called
+
+
+# ---- v3.38.0: external-LLM interactivity pass-through ------------------------
+
+
+def _external_llm_main(setup_module: ModuleType, tmp_path: Path, argv: list[str]):
+    """Run setup.main with every heavy check stubbed; spy on the external-LLM
+    policy so no real gateway install can ever run."""
+    installed = tmp_path / "installed.json"
+    installed.write_text(json.dumps({
+        "version": 2,
+        "plugins": {
+            "superpowers@claude-plugins-official": [{}],
+            "cartographer@cartographer-marketplace": [{}],
+            "ralph-loop@claude-plugins-official": [{}],
+        },
+    }), encoding="utf-8")
+    with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed), \
+         patch.object(setup_module, "check_node_version", return_value=(True, "Node 22")), \
+         patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
+         patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest", "present", None)), \
+         patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
+         patch.object(setup_module, "check_teams_mode", return_value=("teams-mode", "present", None)), \
+         patch.object(setup_module, "apply_external_llm_policy",
+                      return_value=("external-llm", "note", None)) as spy:
+        setup_module.main(argv)
+    return spy
+
+
+def test_main_forwards_no_prompt_to_the_external_llm_policy(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    """--no-prompt stays prompt-free: main() forwards it to the policy as a
+    keyword (the positional triple stays three-wide for the existing pins)."""
+    spy = _external_llm_main(
+        setup_module, tmp_path, ["--check-only", "--external-llm", "--no-prompt"])
+    assert spy.called
+    assert spy.call_args.kwargs.get("no_prompt") is True
+    assert len(spy.call_args.args) == 3
+
+
+def test_main_defaults_no_prompt_false_for_external_llm(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    spy = _external_llm_main(setup_module, tmp_path, ["--check-only", "--external-llm"])
+    assert spy.called
+    assert spy.call_args.kwargs.get("no_prompt") is False
+    assert len(spy.call_args.args) == 3
+
+
+def test_apply_external_llm_policy_interactivity_forwarding(
+    setup_module: ModuleType,
+) -> None:
+    """The policy passes interactivity through to setup_entry: --no-prompt
+    forces interactive=False; otherwise interactive=None lets the installer
+    resolve TTY-ness itself (D1 — the flag is appended only by setup_entry when
+    NOT assume_yes AND NOT check_only AND stdin is a TTY). The existing
+    consent triple is forwarded unchanged."""
+    calls: list[dict] = []
+    fake = ModuleType("fake_install_gateway")
+
+    def _setup_entry(**kwargs):
+        calls.append(kwargs)
+        return ("external-llm (LiteLLM gateway)", "applied", "ok")
+
+    fake.setup_entry = _setup_entry
+    with patch.object(setup_module, "_load_gateway_installer", return_value=fake):
+        setup_module.apply_external_llm_policy(True, False, False, no_prompt=True)
+        setup_module.apply_external_llm_policy(True, False, False, no_prompt=False)
+        setup_module.apply_external_llm_policy(True, True, True)
+    assert calls[0]["interactive"] is False
+    assert calls[1]["interactive"] is None
+    assert calls[2]["interactive"] is None
+    assert all(c["enable"] is True for c in calls)
+    assert calls[2]["check_only"] is True and calls[2]["assume_yes"] is True

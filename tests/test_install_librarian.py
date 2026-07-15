@@ -503,6 +503,273 @@ def test_separation_invariant_holds_with_daemon() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# v3.38.0 — setup-key-prompting librarian parity (REQ-004): the _prompt_for_key
+# seam, the key-declines.json record, decline / --re-ask-keys, status honesty,
+# and purge symmetry. Hermetic: injected isatty/getpass seams via monkeypatched
+# module-level defaults; tmp_path state dirs; no real home, no real TTY.
+# --------------------------------------------------------------------------- #
+
+def test_prompt_fires_interactive_tty_absent_key(tmp_path: Path, monkeypatch, capsys) -> None:
+    """Interactive + TTY + absent key => the hidden seam fires once and a
+    captured key routes through the EXISTING enable path exactly as --enable
+    with a key does (descriptor written + enabled), masked in every line."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    calls: list[str] = []
+
+    def hidden(text: str) -> str:
+        calls.append(text)
+        return "sk-ant-prompt-ABCD"
+
+    monkeypatch.setattr(inst, "_default_isatty", lambda: True)
+    monkeypatch.setattr(inst, "_hidden_prompt", hidden)
+    rc = inst.main(["install", "--interactive-prompts", "--base-dir", str(base)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert len(calls) == 1  # the single anthropic slot prompted exactly once
+    # enable-path parity: descriptor written, daemon enabled, register hint shown
+    assert list((base / "descriptor").glob("ct6-librarian.*"))
+    assert "enabled" in out
+    assert "provisioned but NOT enabled" not in out
+    # never echoed: the raw key appears in NO output and NO persisted state file
+    assert "sk-ant-prompt-ABCD" not in out
+    assert "sk-ant-prompt-ABCD" not in (base / "config.json").read_text(encoding="utf-8")
+    # the report line masks to last-4
+    assert "ABCD" in out
+    # a captured key is not a decline
+    assert not (base / "key-declines.json").exists()
+
+
+def test_prompt_hidden_seam_is_getpass_by_default() -> None:
+    """The default hidden-entry seam is stdlib getpass (never-echoed entry)."""
+    import getpass as _getpass
+
+    assert inst._hidden_prompt.__module__ == inst.__name__
+    assert inst._prompt_for_key.__doc__  # the seam documents the entry contract
+    # the module wires getpass, not input, as the hidden default
+    import inspect
+
+    src = inspect.getsource(inst._hidden_prompt)
+    assert "getpass.getpass" in src
+    assert _getpass  # imported successfully (stdlib-only posture)
+
+
+def test_prompt_hidden_unachievable_falls_back_visible(capsys) -> None:
+    """Hidden entry RAISING (the non-console path) degrades to visible input
+    with a one-line warning — the fallback fires ONLY on unachievable-hidden."""
+
+    def raising_hidden(text: str) -> str:
+        raise RuntimeError("no console available for hidden entry")
+
+    got = inst._prompt_for_key(
+        "anthropic",
+        prompt_fn=raising_hidden,
+        isatty_fn=lambda: True,
+        input_fn=lambda text: "sk-ant-visible-WXYZ",
+    )
+    out = capsys.readouterr().out
+    assert got == "sk-ant-visible-WXYZ"
+    assert "VISIBLE" in out  # the explicit visible-entry warning
+
+
+def test_prompt_hidden_path_emits_no_visible_warning(capsys) -> None:
+    got = inst._prompt_for_key(
+        "anthropic",
+        prompt_fn=lambda text: "sk-ant-hidden-1234",
+        isatty_fn=lambda: True,
+    )
+    out = capsys.readouterr().out
+    assert got == "sk-ant-hidden-1234"
+    assert "VISIBLE" not in out
+
+
+def test_prompt_non_tty_returns_none_without_prompting() -> None:
+    def boom(text: str) -> str:
+        raise AssertionError("must not prompt on a non-TTY stdin")
+
+    assert inst._prompt_for_key(
+        "anthropic", prompt_fn=boom, isatty_fn=lambda: False) is None
+
+
+def test_blank_entry_skips_and_records_decline(tmp_path: Path, monkeypatch, capsys) -> None:
+    """Blank at the prompt => today's provisioned-but-NOT-enabled path verbatim
+    + the decline recorded as via=prompt-skip with an ISO-8601 UTC stamp."""
+    from datetime import datetime
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    monkeypatch.setattr(inst, "_default_isatty", lambda: True)
+    monkeypatch.setattr(inst, "_hidden_prompt", lambda text: "")
+    rc = inst.main(["install", "--interactive-prompts", "--base-dir", str(base)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "provisioned but NOT enabled" in out
+    assert "ANTHROPIC_API_KEY" in out and "--enable" in out
+    declines = json.loads((base / "key-declines.json").read_text(encoding="utf-8"))
+    assert declines["anthropic"]["via"] == "prompt-skip"
+    datetime.fromisoformat(declines["anthropic"]["declined_at"])  # parseable ISO-8601
+
+
+def test_decline_suppresses_next_prompt(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    assert inst.main(["decline", "--base-dir", str(base)]) == 0
+
+    def boom(text: str) -> str:
+        raise AssertionError("a declined slot must not re-prompt")
+
+    monkeypatch.setattr(inst, "_default_isatty", lambda: True)
+    monkeypatch.setattr(inst, "_hidden_prompt", boom)
+    capsys.readouterr()
+    rc = inst.main(["install", "--interactive-prompts", "--base-dir", str(base)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    # the report notes the recorded decline + the re-ask channel
+    assert "previously declined" in out
+    assert "--re-ask-keys" in out
+
+
+def test_auto_reset_on_key_resolution(tmp_path: Path, monkeypatch) -> None:
+    """A resolved key deletes the slot's stale decline record (D2 auto-reset) —
+    on any resolution path, including a --json (never-prompting) run."""
+    base = tmp_path / "lib"
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert inst.main(["decline", "--base-dir", str(base)]) == 0
+    assert (base / "key-declines.json").exists()
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-RSET")
+    assert inst.main(["install", "--base-dir", str(base), "--json"]) == 0
+    assert not (base / "key-declines.json").exists()
+
+
+def test_re_ask_keys_re_prompts(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    assert inst.main(["decline", "--base-dir", str(base)]) == 0
+    calls: list[str] = []
+    monkeypatch.setattr(inst, "_default_isatty", lambda: True)
+    monkeypatch.setattr(
+        inst, "_hidden_prompt",
+        lambda text: calls.append(text) or "sk-ant-reask-QRST")
+    rc = inst.main(["install", "--interactive-prompts", "--re-ask-keys",
+                    "--base-dir", str(base)])
+    assert rc == 0
+    assert len(calls) == 1  # --re-ask-keys cleared the record, so the prompt fired
+    assert not (base / "key-declines.json").exists()  # cleared + key captured
+
+
+def test_decline_subcommand_records_and_clears(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    assert inst.main(["decline", "--base-dir", str(base)]) == 0
+    declines = json.loads((base / "key-declines.json").read_text(encoding="utf-8"))
+    assert declines["anthropic"]["via"] == "wrapper"  # the wrapper record channel
+    assert inst.main(["decline", "--clear", "--base-dir", str(base)]) == 0
+    assert not (base / "key-declines.json").exists()
+    # clearing an absent record is an idempotent no-op, exit 0
+    assert inst.main(["decline", "--clear", "--base-dir", str(base)]) == 0
+
+
+def test_never_prompts_matrix(tmp_path: Path, monkeypatch) -> None:
+    """Non-TTY / non-interactive / --check-only / --json runs never invoke the
+    seam, never block, never record — byte-equivalent to the pre-change path."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def boom(text: str) -> str:
+        raise AssertionError("the prompt seam must not fire")
+
+    monkeypatch.setattr(inst, "_hidden_prompt", boom)
+
+    # (a) flag set but non-TTY
+    base_a = tmp_path / "a"
+    monkeypatch.setattr(inst, "_default_isatty", lambda: False)
+    assert inst.main(["install", "--interactive-prompts",
+                      "--base-dir", str(base_a)]) == 0
+    assert not (base_a / "key-declines.json").exists()
+
+    # (b) non-interactive: no flag + non-TTY
+    base_b = tmp_path / "b"
+    assert inst.main(["install", "--base-dir", str(base_b)]) == 0
+    assert not (base_b / "key-declines.json").exists()
+
+    # (c) --check-only never prompts, even interactive + TTY
+    base_c = tmp_path / "c"
+    monkeypatch.setattr(inst, "_default_isatty", lambda: True)
+    assert inst.main(["install", "--interactive-prompts", "--check-only",
+                      "--base-dir", str(base_c)]) == 0
+    assert not base_c.exists()  # check-only provisions nothing
+
+    # (d) --json never prompts, even interactive + TTY
+    base_d = tmp_path / "d"
+    assert inst.main(["install", "--interactive-prompts", "--json",
+                      "--base-dir", str(base_d)]) == 0
+    assert not (base_d / "key-declines.json").exists()
+
+
+def test_direct_tty_install_prompts_without_explicit_flag(tmp_path: Path, monkeypatch) -> None:
+    """D1 parity: a direct-terminal `install` on a real TTY (no --json /
+    --check-only) is interactive by default — main() sets the flag itself."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    calls: list[str] = []
+    monkeypatch.setattr(inst, "_default_isatty", lambda: True)
+    monkeypatch.setattr(inst, "_hidden_prompt", lambda text: calls.append(text) or "")
+    assert inst.main(["install", "--base-dir", str(base)]) == 0
+    assert len(calls) == 1
+
+
+def test_status_reports_declined_honestly(tmp_path: Path, monkeypatch, capsys) -> None:
+    """Status honesty: the decline suppresses the PROMPT, never the truth — the
+    absent key, the degraded state, and the remediation all stay reported."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    inst.main(["install", "--base-dir", str(base), "--json"])
+    inst.main(["decline", "--base-dir", str(base)])
+    capsys.readouterr()
+    rc = inst.main(["status", "--base-dir", str(base), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert payload["declined"] == ["anthropic"]
+    assert payload["key_present"] is False
+    assert payload["enabled"] is False
+    assert payload["remediation"]  # the absent-key remediation is NOT hidden
+
+
+def test_status_detail_names_declined_slots(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    inst.main(["install", "--base-dir", str(base), "--json"])
+    inst.main(["decline", "--base-dir", str(base)])
+    capsys.readouterr()
+    rc = inst.main(["status", "--base-dir", str(base)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "declined=anthropic" in out
+
+
+def test_uninstall_purge_removes_decline_record(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    base = tmp_path / "lib"
+    inst.main(["install", "--base-dir", str(base), "--json"])
+    inst.main(["decline", "--base-dir", str(base)])
+    assert (base / "key-declines.json").exists()
+    # uninstall WITHOUT --purge preserves state, including the decline record
+    assert inst.main(["uninstall", "--base-dir", str(base)]) == 0
+    assert (base / "key-declines.json").exists()
+    # --purge removes the record with the state dir (symmetry)
+    assert inst.main(["uninstall", "--purge", "--base-dir", str(base)]) == 0
+    assert not base.exists()
+
+
+def test_mask_last_four() -> None:
+    masked = inst._mask("sk-ant-prompt-ABCD")
+    assert masked.endswith("ABCD")
+    assert "sk-ant-prompt" not in masked
+    assert inst._mask("abc") == "set"
+    assert inst._mask(None) is None
+    assert inst._mask("") is None
+
+
+# --------------------------------------------------------------------------- #
 # check-only
 # --------------------------------------------------------------------------- #
 

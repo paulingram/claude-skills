@@ -34,6 +34,21 @@ SECRETS: keys live ONLY in `<state>/gateway.env` (chmod 0600 best-effort) and ar
 masked to their last 4 chars in every report. The generated `config.yaml` carries
 `os.environ/...` references, never raw keys. Nothing under the repo is touched.
 
+KEY PROMPTS (v3.38.0, ask-then-apply): an INTERACTIVE install prompts for a
+missing key instead of punting to a printed remediation — hidden (getpass)
+entry, degrading to visible input with a one-line warning ONLY when hidden
+entry is unachievable (getpass's non-console fallback), never on an import
+check. Interactivity is the `--interactive-prompts` flag, set only by
+interactive callers: `main()` on a real TTY without `--json`/`--check-only`,
+or `setup_entry(assume_yes=False, check_only=False)` on a TTY. A blank entry
+skips (today's absent-key path runs verbatim) and records the slot in
+`<state>/key-declines.json` (via=prompt-skip); the `decline` subcommand is the
+wrapper flow's deterministic record channel (via=wrapper). A recorded decline
+suppresses the PROMPT on re-runs — never the `status` truth — auto-resets the
+moment that slot's key resolves on any path, and `--re-ask-keys` clears it so
+prompts fire again. Non-interactive, non-TTY, `--check-only`, and `--json`
+runs never prompt, never block, never invent a key.
+
 Subcommands:
   install (default)  Provision state + config + env file + launcher + the per-OS
                      boot descriptor, install `litellm[proxy]` through setup.py's
@@ -49,7 +64,10 @@ Subcommands:
   uninstall          Deactivate (remove OUR settings.json env keys, restore the
                      uniform-fable model state if the codex split is applied),
                      stop + UNREGISTER the gateway, remove the boot descriptor.
-                     With `--purge`, remove state too.
+                     With `--purge`, remove state too (incl. key-declines.json).
+  decline            Record (or `--clear`) a per-key decline —
+                     `decline <anthropic|openai>` — the wrapper flow's
+                     deterministic channel for an explicit "don't ask again".
 
 Flags:
   --base-dir PATH     State dir (default: $CT6_GATEWAY_HOME, else
@@ -67,6 +85,9 @@ Flags:
   --agents-dir P      agents/ dir for the model split (tests inject a tmp dir).
   --no-install        Skip the pip install (state-only provisioning).
   --no-register       Skip the automatic boot registration (print the hint).
+  --interactive-prompts  Allow the interactive missing-key prompt (set only by
+                      interactive callers; never under --check-only/--json).
+  --re-ask-keys       Clear the recorded key declines so prompts fire again.
   --check-only        Report intent only; provision nothing.
   --json              Machine-readable JSON report.
   --purge             (uninstall) also remove the state dir.
@@ -93,6 +114,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -114,8 +136,12 @@ DEFAULT_OPENAI_MODEL = "gpt-5.6-sol"
 CONFIG_NAME = "config.yaml"
 ENV_FILE_NAME = "gateway.env"
 STATE_NAME = "gateway.json"
+DECLINES_NAME = "key-declines.json"
 DESCRIPTOR_DIRNAME = "descriptor"
 MASTER_KEY_VAR = "CT6_GATEWAY_MASTER_KEY"
+
+# The promptable key slots, in prompt order (v3.38.0 D1: openai then anthropic).
+KEY_SLOTS = (("openai", "OPENAI_API_KEY"), ("anthropic", "ANTHROPIC_API_KEY"))
 
 AUTH_MODE_API_KEY = "api-key"
 AUTH_MODE_SUBSCRIPTION = "subscription"
@@ -229,6 +255,129 @@ def _mask(secret: Optional[str]) -> Optional[str]:
     if not secret:
         return None
     return ("…" + secret[-4:]) if len(secret) >= 4 else "set"
+
+
+# --------------------------------------------------------------------------- #
+# interactive key prompt + per-key decline record (v3.38.0)
+# --------------------------------------------------------------------------- #
+#
+# Ask-then-apply: an interactive TTY install PROMPTS for a missing key (hidden
+# getpass entry) instead of punting to a printed remediation. A blank entry
+# skips and records the slot in key-declines.json (via=prompt-skip); the
+# wrapper flow's AskUserQuestion decline is recorded via the `decline`
+# subcommand (via=wrapper). A recorded decline suppresses the PROMPT on
+# re-runs, never the `status` truth; it auto-resets the moment the slot's key
+# resolves on any path, and --re-ask-keys clears it so prompts fire again.
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
+        "+00:00", "Z")
+
+
+def _read_declines(base: Path) -> dict[str, Any]:
+    """Read <state>/key-declines.json — slot → {declined_at, via}. Missing or
+    malformed reads as no declines (fail open: worst case we ask again)."""
+    path = base / DECLINES_NAME
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _write_declines(base: Path, declines: dict[str, Any]) -> None:
+    """Persist the decline record. An emptied record removes the file, so a
+    fully-cleared state dir and a fresh one look identical."""
+    path = base / DECLINES_NAME
+    if not declines:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return
+    base.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(declines, indent=2, sort_keys=True),
+                    encoding="utf-8")
+
+
+def _record_decline(base: Path, slot: str, via: str) -> None:
+    """Record a slot decline. `via` is 'wrapper' (the decline subcommand — the
+    slash-command flow's deterministic channel) or 'prompt-skip' (a blank entry
+    at the installer prompt)."""
+    declines = _read_declines(base)
+    declines[slot] = {"declined_at": _utc_now_iso(), "via": via}
+    _write_declines(base, declines)
+
+
+def _clear_declines(base: Path, slot: Optional[str] = None) -> bool:
+    """Clear one slot's decline, or ALL of them with slot=None (the
+    --re-ask-keys path). Returns True when something was actually cleared."""
+    declines = _read_declines(base)
+    if not declines:
+        return False
+    if slot is None:
+        _write_declines(base, {})
+        return True
+    if slot in declines:
+        declines.pop(slot)
+        _write_declines(base, declines)
+        return True
+    return False
+
+
+def _stdin_isatty() -> bool:
+    try:
+        return bool(sys.stdin.isatty())
+    except Exception:  # pragma: no cover - a closed/replaced stdin is non-TTY
+        return False
+
+
+def _hidden_prompt(message: str) -> str:
+    """Hidden (getpass) key entry. Degrades to visible input() with a one-line
+    warning ONLY when hidden entry is unachievable — getpass's non-console
+    fallback path, surfaced as GetPassWarning — never on an import check
+    (getpass always imports)."""
+    import getpass
+    import warnings
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", getpass.GetPassWarning)
+            return getpass.getpass(message)
+    except getpass.GetPassWarning:
+        print("[!] hidden entry is not available on this console -- "
+              "the key will be VISIBLE as you type")
+        return input(message)
+
+
+_default_prompt_fn = _hidden_prompt   # injectable seam — tests stub this
+_default_isatty_fn = _stdin_isatty    # injectable seam — tests stub this
+
+
+def _prompt_for_key(slot: str, *, prompt_fn=None, isatty_fn=None) -> Optional[str]:
+    """Prompt for one slot's key on an interactive TTY. Returns the entered key
+    (stripped) or None (blank entry, or stdin is not a TTY). The caller gates
+    on --interactive-prompts / --check-only / --json and the decline record;
+    this seam owns the TTY check and the hidden entry. The entered value is
+    NEVER echoed — every report line masks via _mask."""
+    prompt_fn = prompt_fn or _default_prompt_fn
+    isatty_fn = isatty_fn or _default_isatty_fn
+    if not isatty_fn():
+        return None
+    env_key = dict(KEY_SLOTS)[slot]
+    try:
+        entered = prompt_fn(f"{env_key} for the CT6 gateway (blank to skip): ")
+    except (EOFError, KeyboardInterrupt):
+        # Ctrl-C / Ctrl-D at the prompt is a SKIP, not an abort — the same
+        # semantics as the setup.py _prompt_user_consent house pattern (an
+        # interrupt reads as a "no") and the librarian seam: the absent-key
+        # path runs verbatim and a setup run never dies at a key prompt.
+        print()
+        return None
+    entered = (entered or "").strip()
+    return entered or None
 
 
 # --------------------------------------------------------------------------- #
@@ -674,6 +823,50 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                    f"would install in {would} mode; no state provisioned")
         return report
 
+    # 0a. decline bookkeeping (v3.38.0): a slot's decline auto-resets whenever
+    # that slot's key resolves on any path (args > env > gateway.env — checked
+    # here, the resolve_keys caller, so resolution stays pure); --re-ask-keys
+    # clears the whole record so prompts fire again.
+    if getattr(args, "re_ask_keys", False):
+        _clear_declines(base)
+    for slot, env_key in KEY_SLOTS:
+        if keys.get(env_key):
+            _clear_declines(base, slot)
+
+    # 0b. interactive key prompt (v3.38.0 ask-then-apply): fires ONLY for an
+    # interactive caller (--interactive-prompts) on a real TTY — never under
+    # --check-only (already returned) or --json — and per slot only when
+    # unresolved and not declined, openai then anthropic (D1 order). A captured
+    # key folds into `keys` BEFORE write_env_file, so 0600 / masking /
+    # config-reference behavior is inherited unchanged. Blank skips: today's
+    # absent-key path runs verbatim and the decline is recorded.
+    if (getattr(args, "interactive_prompts", False)
+            and not getattr(args, "json", False) and _default_isatty_fn()):
+        declines = _read_declines(base)
+        for slot, env_key in KEY_SLOTS:
+            if keys.get(env_key):
+                continue
+            if slot in declines:
+                report.add("prompt", "skipped",
+                           f"{slot}: previously declined "
+                           f"(via={declines[slot].get('via', 'unknown')}) -- not "
+                           f"re-asking; pass --re-ask-keys to prompt again")
+                continue
+            entered = _prompt_for_key(slot)
+            if entered:
+                keys[env_key] = entered
+                report.add("prompt", "ok",
+                           f"{env_key} captured interactively "
+                           f"({_mask(entered)}); raw value stored only in gateway.env")
+            else:
+                _record_decline(base, slot, via="prompt-skip")
+                report.add("prompt", "skipped",
+                           f"{slot}: blank entry -- skipped; decline recorded "
+                           f"(via=prompt-skip; --re-ask-keys re-prompts)")
+        report.openai_key_present = bool(keys.get("OPENAI_API_KEY"))
+        report.anthropic_key_present = bool(keys.get("ANTHROPIC_API_KEY"))
+        report.auth_mode = resolve_auth_mode(keys)
+
     # 1. litellm through the setup.py install ladder.
     if report.litellm_present and not args.force_reinstall:
         report.add("litellm", "ok", "already installed")
@@ -814,12 +1007,18 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     report.registered = is_gateway_registered(_platform_key())
     if not report.openai_key_present:
         report.remediation = "set OPENAI_API_KEY or re-run install --openai-key …"
-    report.add("status", "ok",
-               f"mode={report.auth_mode}; enabled={report.enabled}; "
-               f"activated={report.activated}; registered={report.registered}; "
-               f"litellm={report.litellm_present}; model-policy={policy}; "
-               f"OPENAI_API_KEY={_mask(keys.get('OPENAI_API_KEY')) or 'absent'}; "
-               f"ANTHROPIC_API_KEY={_mask(keys.get('ANTHROPIC_API_KEY')) or 'absent'}")
+    summary = (
+        f"mode={report.auth_mode}; enabled={report.enabled}; "
+        f"activated={report.activated}; registered={report.registered}; "
+        f"litellm={report.litellm_present}; model-policy={policy}; "
+        f"OPENAI_API_KEY={_mask(keys.get('OPENAI_API_KEY')) or 'absent'}; "
+        f"ANTHROPIC_API_KEY={_mask(keys.get('ANTHROPIC_API_KEY')) or 'absent'}")
+    # v3.38.0: report recorded declines — the decline suppresses the PROMPT,
+    # never the truth (the absent-key fields above stay verbatim).
+    declines = _read_declines(base)
+    if declines:
+        summary += f"; declined={','.join(sorted(declines))}"
+    report.add("status", "ok", summary)
     return report
 
 
@@ -887,10 +1086,36 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
     return report
 
 
+def _cmd_decline(args: argparse.Namespace, base: Path) -> Report:
+    """Record (or --clear) a wrapper-level key decline — the deterministic
+    channel for the slash-command flow's AskUserQuestion decline disposition
+    (v3.38.0 D3; the wrapper cannot type into a stdin prompt)."""
+    report = Report(action="decline", base_dir=str(base))
+    state = _read_state(base)
+    report.auth_mode = state.get("auth_mode", report.auth_mode)
+    report.enabled = bool(state.get("enabled", False))
+    report.registered = bool(state.get("registered", False))
+    slot = args.slot
+    if getattr(args, "clear", False):
+        if _clear_declines(base, slot):
+            report.add("decline", "ok",
+                       f"{slot}: decline cleared -- the installer may prompt again")
+        else:
+            report.add("decline", "skipped", f"{slot}: no decline recorded (no-op)")
+        return report
+    _record_decline(base, slot, via="wrapper")
+    report.add("decline", "ok",
+               f"{slot}: decline recorded (via=wrapper) -- the installer will not "
+               f"prompt for this key; undo with `decline {slot} --clear` or "
+               f"install --re-ask-keys")
+    return report
+
+
 _HANDLERS = {
     "install": _cmd_install,
     "status": _cmd_status,
     "uninstall": _cmd_uninstall,
+    "decline": _cmd_decline,
 }
 
 
@@ -921,11 +1146,19 @@ def setup_entry(
     base_dir: Optional[str] = None,
     settings_path: Optional[str] = None,
     agents_dir: Optional[str] = None,
+    interactive: Optional[bool] = None,
 ) -> tuple[str, str, Optional[str]]:
     """The setup.py hook: run install (enable=True) or uninstall (enable=False)
     and fold the result into one (name, status, detail) report row. NEVER raises
-    and never gates setup — any failure degrades to a 'warn' row with the manual
-    remediation (the same posture as apply_model_policy)."""
+    and never gates setup — any failure (including a raising prompt seam)
+    degrades to a 'warn' row with the manual remediation (the same posture as
+    apply_model_policy).
+
+    v3.38.0: passes interactivity through — `--interactive-prompts` is appended
+    ONLY when NOT assume_yes AND NOT check_only AND stdin is a TTY. `interactive`
+    is an explicit override for callers that already resolved it (setup.py
+    forwards --no-prompt as False); the assume_yes/check_only guards are
+    unconditional either way."""
     name = "external-llm (LiteLLM gateway)"
     manual = "python scripts/setup/install_gateway.py install --activate"
     try:
@@ -937,6 +1170,10 @@ def setup_entry(
             # --activate writes settings.json + the model split; consent came
             # from --yes / CT6_SETUP_ASSUME_YES (the setup consent convention).
             argv.append("--activate")
+        if enable and not assume_yes and not check_only:
+            allow = interactive if interactive is not None else _default_isatty_fn()
+            if allow:
+                argv.append("--interactive-prompts")
         if settings_path:
             argv += ["--settings-path", settings_path]
         if agents_dir:
@@ -1009,6 +1246,12 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
                         help="skip the pip install (state-only provisioning)")
     parser.add_argument("--no-register", action="store_true",
                         help="skip the automatic boot registration (print the hint instead)")
+    parser.add_argument("--interactive-prompts", action="store_true",
+                        help="allow the interactive missing-key prompt (set only by "
+                             "interactive callers: a TTY main() run or an interactive "
+                             "setup run; never under --check-only/--json)")
+    parser.add_argument("--re-ask-keys", action="store_true",
+                        help="clear the recorded key declines so prompts fire again")
     parser.add_argument("--force-reinstall", action="store_true",
                         help="reinstall litellm even when already importable")
     parser.add_argument("--check-only", action="store_true",
@@ -1029,6 +1272,11 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("install", parents=[shared], add_help=False)
     sub.add_parser("status", parents=[shared], add_help=False)
     sub.add_parser("uninstall", parents=[shared], add_help=False)
+    dec = sub.add_parser("decline", parents=[shared], add_help=False)
+    dec.add_argument("slot", choices=("anthropic", "openai"),
+                     help="the key slot to decline (anthropic|openai)")
+    dec.add_argument("--clear", action="store_true",
+                     help="clear the recorded decline for the slot instead")
     return parser
 
 
@@ -1044,6 +1292,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
     command = args.command or "install"
+    # v3.38.0 (D1): a DIRECT terminal run is an interactive caller — main()
+    # opts into prompting when stdin is a real TTY and neither --json nor
+    # --check-only is present, so a direct install never stays punt-only.
+    # setup_entry appends the flag itself; the handler never prompts without it.
+    if (command == "install" and not args.interactive_prompts
+            and not args.check_only and not getattr(args, "json", False)
+            and _default_isatty_fn()):
+        args.interactive_prompts = True
     base = resolve_base_dir(args.base_dir)
     handler = _HANDLERS[command]
     try:
