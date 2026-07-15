@@ -64,6 +64,46 @@ RAW_OPENAI_KEY = "sk-test-raw-openai-key-1234abcd"
 RAW_ANTHROPIC_KEY = "sk-ant-test-raw-key-9876wxyz"
 
 
+class _RecordingRunner:
+    """Stand-in for subprocess.run: records commands, returns queued rcs."""
+
+    def __init__(self, returncodes: list[int] | None = None) -> None:
+        self._rcs = list(returncodes or [])
+        self.calls: list[list[str]] = []
+
+    def __call__(self, cmd, **kwargs):  # noqa: ANN001
+        self.calls.append(list(cmd))
+        rc = self._rcs.pop(0) if self._rcs else 0
+
+        class _Res:
+            returncode = rc
+            stdout = ""
+            stderr = "" if rc == 0 else "simulated failure"
+
+        return _Res()
+
+
+@pytest.fixture(autouse=True)
+def _stub_registration(
+    gw: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> _RecordingRunner:
+    """Hermeticity (v3.37.0): auto-registration EXECUTES commands by default —
+    no test may ever run a real schtasks/systemctl/launchctl, write to the real
+    home, or touch the real Startup folder. Stub the runner seam, pin the
+    platform, and point the no-home Startup-folder resolution at tmp."""
+    runner = _RecordingRunner()
+    monkeypatch.setattr(gw, "_default_runner", runner)
+    monkeypatch.setattr(gw, "_default_spawner",
+                        lambda cmd, **kwargs: runner.calls.append(list(cmd)))
+    monkeypatch.setattr(gw, "_platform_key", lambda: "windows")
+    real_startup_dir = gw._windows_startup_dir
+    monkeypatch.setattr(
+        gw, "_windows_startup_dir",
+        lambda home=None: (tmp_path / "_startup") if home is None
+        else real_startup_dir(home))
+    return runner
+
+
 @pytest.fixture()
 def tmp_agents(tmp_path: Path) -> Path:
     """A tiny agents/ dir with one stem per role bucket, both on fable."""
@@ -427,6 +467,148 @@ def test_uninstall_leaves_non_split_model_state_untouched(
                     "--agents-dir", str(tmp_agents)]) == 0
     for stem in ("backend", "system-architect"):
         assert "model: opus" in (tmp_agents / f"{stem}.md").read_text(encoding="utf-8")
+
+
+# ---- auto-registration (v3.37.0) --------------------------------------------------
+
+
+def test_register_windows_shape(gw: ModuleType, tmp_path: Path) -> None:
+    runner = _RecordingRunner()
+    ok, detail = gw.register_gateway("windows", tmp_path / "run_gateway.bat",
+                                     runner=runner)
+    assert ok and "started" in detail
+    create, run = runner.calls
+    assert create[:4] == ["schtasks", "/create", "/tn", gw.SERVICE_NAME]
+    assert "/sc" in create and create[create.index("/sc") + 1] == "onlogon"
+    assert "/f" in create
+    assert str(tmp_path / "run_gateway.bat") in create[create.index("/tr") + 1]
+    assert run[:3] == ["schtasks", "/run", "/tn"]
+
+
+def test_register_linux_user_systemd(gw: ModuleType, tmp_path: Path) -> None:
+    runner = _RecordingRunner()
+    ok, _ = gw.register_gateway("linux", tmp_path / "run_gateway.sh",
+                                home=tmp_path, runner=runner)
+    assert ok
+    unit = tmp_path / ".config" / "systemd" / "user" / f"{gw.SERVICE_NAME}.service"
+    body = unit.read_text(encoding="utf-8")
+    # user-level: never sudo, never the system multi-user.target
+    assert "WantedBy=default.target" in body
+    assert "multi-user.target" not in body
+    assert ["systemctl", "--user", "daemon-reload"] in runner.calls
+    assert ["systemctl", "--user", "enable", "--now", gw.SERVICE_NAME] in runner.calls
+    assert not any("sudo" in c for call in runner.calls for c in call)
+
+
+def test_register_darwin_launch_agent(gw: ModuleType, tmp_path: Path) -> None:
+    runner = _RecordingRunner()
+    ok, _ = gw.register_gateway("darwin", tmp_path / "run_gateway.sh",
+                                home=tmp_path, runner=runner)
+    assert ok
+    plist = tmp_path / "Library" / "LaunchAgents" / f"{gw.SERVICE_NAME}.plist"
+    assert plist.is_file()
+    assert ["launchctl", "load", "-w", str(plist)] in runner.calls
+
+
+def test_register_windows_falls_back_to_startup_shim(
+    gw: ModuleType, tmp_path: Path, _stub_registration: "_RecordingRunner"
+) -> None:
+    """schtasks /create denied (observed on a real non-elevated Windows 11
+    shell) => a Startup-folder shim is written + the launcher started now."""
+    runner = _RecordingRunner([1])  # /create denied; everything after rc 0
+    launcher = tmp_path / "run.bat"
+    ok, detail = gw.register_gateway("windows", launcher, home=tmp_path,
+                                     runner=runner)
+    assert ok and "startup-folder shim" in detail
+    shim = (tmp_path / "AppData" / "Roaming" / "Microsoft" / "Windows"
+            / "Start Menu" / "Programs" / "Startup" / f"{gw.SERVICE_NAME}.cmd")
+    assert shim.is_file()
+    assert str(launcher) in shim.read_text(encoding="utf-8")
+    # start-now goes through the DETACHED spawner seam (a captured-pipe run
+    # would block until the gateway itself exits) — the autouse stub records it
+    assert ["cmd", "/c", str(launcher)] in _stub_registration.calls
+
+
+def test_register_windows_total_failure_returns_detail(
+    gw: ModuleType, tmp_path: Path
+) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file where a home dir should be", encoding="utf-8")
+    runner = _RecordingRunner([1])
+    ok, detail = gw.register_gateway("windows", tmp_path / "x.bat",
+                                     home=blocker, runner=runner)
+    assert ok is False
+    assert "fallback also failed" in detail
+
+
+def test_unregister_windows_stops_then_deletes(gw: ModuleType) -> None:
+    runner = _RecordingRunner()
+    ok, detail = gw.unregister_gateway("windows", runner=runner)
+    assert ok and "removed" in detail
+    assert runner.calls[0][:2] == ["schtasks", "/end"]
+    assert runner.calls[1][:2] == ["schtasks", "/delete"]
+    # an absent task is a tolerated no-op, not a failure (home=None resolves
+    # through the autouse-stubbed startup dir, which is fresh and empty)
+    runner2 = _RecordingRunner([0, 1])
+    ok2, detail2 = gw.unregister_gateway("windows", runner=runner2)
+    assert ok2 and "no-op" in detail2
+
+
+def test_install_auto_registers_when_enabled(
+    gw: ModuleType, tmp_path: Path, _stub_registration: "_RecordingRunner",
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert _install(gw, tmp_path / "gw", "--openai-key", RAW_OPENAI_KEY) == 0
+    out = capsys.readouterr().out
+    assert "auto-registered: yes" in out
+    creates = [c for c in _stub_registration.calls if c[:2] == ["schtasks", "/create"]]
+    assert creates, "install must register the gateway when enabled"
+    state = json.loads((tmp_path / "gw" / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["registered"] is True
+
+
+def test_install_no_register_skips(
+    gw: ModuleType, tmp_path: Path, _stub_registration: "_RecordingRunner",
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert _install(gw, tmp_path / "gw", "--openai-key", RAW_OPENAI_KEY,
+                    "--no-register") == 0
+    out = capsys.readouterr().out
+    assert "auto-registered: no" in out
+    assert not [c for c in _stub_registration.calls if c and c[0] == "schtasks"]
+
+
+def test_install_not_enabled_defers_registration(
+    gw: ModuleType, tmp_path: Path, _stub_registration: "_RecordingRunner",
+) -> None:
+    assert _install(gw, tmp_path / "gw") == 0  # no OpenAI key
+    assert not [c for c in _stub_registration.calls if c and c[0] == "schtasks"]
+
+
+def test_install_registration_failure_degrades(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(gw, "register_gateway",
+                        lambda *a, **k: (False, "simulated denial"))
+    assert _install(gw, tmp_path / "gw", "--openai-key", RAW_OPENAI_KEY) == 0
+    out = capsys.readouterr().out
+    assert "[x]" in out and "register manually" in out
+    assert "auto-registered: no" in out
+
+
+def test_uninstall_unregisters(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    _stub_registration: "_RecordingRunner",
+) -> None:
+    base = tmp_path / "gw"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY)
+    _stub_registration.calls.clear()
+    assert gw.main(["uninstall", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert ["schtasks", "/end", "/tn", gw.SERVICE_NAME] in _stub_registration.calls
+    assert ["schtasks", "/delete", "/tn", gw.SERVICE_NAME, "/f"] in _stub_registration.calls
 
 
 # ---- status ---------------------------------------------------------------------
