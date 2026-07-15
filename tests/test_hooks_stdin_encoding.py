@@ -28,6 +28,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOKS_DIR = REPO_ROOT / "hooks"
@@ -132,9 +133,7 @@ def test_read_stdin_helper_decodes_utf8(script: str, monkeypatch) -> None:
         import importlib
 
         # The hook filenames use hyphens; load via importlib from the file path.
-        spec = importlib.util.spec_from_file_location(mod_name, HOOKS_DIR / script)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = load_module(HOOKS_DIR / script, mod_name)
         assert hasattr(module, "_read_stdin_utf8"), (
             f"{script} is missing the _read_stdin_utf8 helper (A8)"
         )

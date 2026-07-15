@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tests.helpers import pins
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -117,7 +119,7 @@ def test_schema_v7_unchanged_required_fields_count() -> None:
     from hooks import review_evidence_schema as schema
 
     required = schema.REQUIRED_EVIDENCE_FIELDS
-    assert len(required) == 17  # v2.0.0 + v2.1.0 cumulative
+    assert len(required) == pins.EXPECTED_EVIDENCE_FIELD_COUNT  # v2.0.0 + v2.1.0 cumulative
 
 
 # ---- cross-reference to qa-replayer integration ----

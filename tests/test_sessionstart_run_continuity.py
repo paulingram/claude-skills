@@ -4,7 +4,7 @@ The SessionStart resume directive: an ACTIVE active-run.json marker injects
 the resume-via-Skill directive into the session context; anything else prints
 nothing. Always exit 0 — this hook never blocks.
 """
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 import os
 import subprocess
@@ -20,9 +20,7 @@ HOOK = REPO_ROOT / "hooks" / "sessionstart-run-continuity.py"
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("sessionstart_run_continuity", HOOK)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(HOOK, "sessionstart_run_continuity")
     return mod
 
 

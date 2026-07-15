@@ -26,6 +26,8 @@ from tests.test_agents import EXPECTED_AGENTS
 from tests.test_commands import EXPECTED_COMMANDS
 from tests.test_skills import EXPECTED_SKILLS
 
+from tests.helpers import pins
+
 
 def _read(plugin_root: Path, *parts: str) -> str:
     target = plugin_root.joinpath(*parts)
@@ -73,7 +75,9 @@ def test_shared_schema_has_all_seventeen_required_fields(plugin_root: Path) -> N
         plugin_root / "hooks" / "review_evidence_schema.py",
     )
     fields = module.REQUIRED_EVIDENCE_FIELDS
-    assert len(fields) == 17, f"expected 17 required evidence fields, got {len(fields)}: {sorted(fields)}"
+    assert len(fields) == pins.EXPECTED_EVIDENCE_FIELD_COUNT, (
+        f"expected {pins.EXPECTED_EVIDENCE_FIELD_COUNT} required evidence fields, got {len(fields)}: {sorted(fields)}"
+    )
     for review_field in (
         "visual_fidelity_review",
         "test_completeness_review",

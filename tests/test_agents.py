@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import frontmatter
+from tests.helpers.module_loader import load_module
 
 EXPECTED_AGENTS: set[str] = {
     "system-architect",
@@ -179,12 +180,7 @@ def test_agent_boilerplate_is_in_sync(plugin_root: Path) -> None:
     across all 34 agents (the sync tool reports zero drift)."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "sync_agent_boilerplate",
-        plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py",
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py", "sync_agent_boilerplate")
     drift = mod.find_drift(plugin_root / "agents")
     assert drift == [], f"agents out of sync with the canonical boilerplate: {drift}"
 

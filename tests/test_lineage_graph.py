@@ -24,17 +24,12 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 @pytest.fixture(scope="module")
 def lg(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "lineage_graph",
-        plugin_root / "hooks" / "lineage_graph.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "lineage_graph.py", "lineage_graph")
     return mod
 
 

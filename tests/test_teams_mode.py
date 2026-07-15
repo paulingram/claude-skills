@@ -21,6 +21,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader -----------------------------------------------------------
@@ -31,10 +32,7 @@ def teams_mode_module(plugin_root: Path) -> ModuleType:
     """Load scripts/setup/teams_mode.py via importlib (matches setup_script.py pattern)."""
     path = plugin_root / "scripts" / "setup" / "teams_mode.py"
     assert path.exists(), f"teams_mode.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("teams_mode_module", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "teams_mode_module")
     return mod
 
 

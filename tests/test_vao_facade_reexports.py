@@ -20,6 +20,7 @@ import re
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,12 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def vao_tools():
     """Load the facade the same way the rest of the VAO suite does — as a
     top-level module named ``vao_tools`` from its file path."""
-    spec = importlib.util.spec_from_file_location(
-        "vao_tools", REPO_ROOT / "hooks" / "vao_tools.py"
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(REPO_ROOT / "hooks" / "vao_tools.py", "vao_tools")
     return mod
 
 

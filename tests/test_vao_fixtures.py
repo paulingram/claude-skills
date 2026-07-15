@@ -12,7 +12,7 @@ detect and block; a v1.8.0-shaped pipeline would let it pass.
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 from pathlib import Path
 
@@ -24,37 +24,19 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures" / "vao"
 
 @pytest.fixture(scope="module")
 def vao_tools(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "vao_tools",
-        plugin_root / "hooks" / "vao_tools.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "vao_tools.py", "vao_tools")
     return mod
 
 
 @pytest.fixture(scope="module")
 def audit_module(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "skill_invocation_audit",
-        plugin_root / "hooks" / "skill_invocation_audit.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "skill_invocation_audit.py", "skill_invocation_audit")
     return mod
 
 
 @pytest.fixture(scope="module")
 def schema_module(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "review_evidence_schema",
-        plugin_root / "hooks" / "review_evidence_schema.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "review_evidence_schema.py", "review_evidence_schema")
     return mod
 
 

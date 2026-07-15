@@ -25,6 +25,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader -----------------------------------------------------------
@@ -35,10 +36,7 @@ def locks_module(plugin_root: Path) -> ModuleType:
     """Load hooks/locks.py via importlib (matches setup_script test pattern)."""
     path = plugin_root / "hooks" / "locks.py"
     assert path.exists(), f"locks.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("locks_module", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "locks_module")
     return mod
 
 

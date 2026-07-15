@@ -21,17 +21,12 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 @pytest.fixture(scope="module")
 def run_metrics(plugin_root: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "ct6_run_metrics_under_test",
-        plugin_root / "hooks" / "run_metrics.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "run_metrics.py", "ct6_run_metrics_under_test")
     return mod
 
 
@@ -257,13 +252,7 @@ def test_record_over_malformed_file_does_not_raise(run_metrics: ModuleType, tmp_
 
 def test_module_has_no_import_side_effects(plugin_root: Path, tmp_path: Path) -> None:
     """Importing the module must not create any run-metrics directory."""
-    spec = importlib.util.spec_from_file_location(
-        "ct6_run_metrics_side_effect_probe",
-        plugin_root / "hooks" / "run_metrics.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "run_metrics.py", "ct6_run_metrics_side_effect_probe")
     # No files should have been written anywhere as a side effect of import.
     assert not (plugin_root / ".architect-team" / "run-metrics").exists() or True
     # The constant is available immediately.

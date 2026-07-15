@@ -46,6 +46,17 @@ import pathlib
 import sys
 from typing import Dict, List, Mapping, Optional, Tuple
 
+# Shared agent-file I/O (the newline-preserving rewrite trio lives canonically
+# in agent_boilerplate_blocks — v3.35.1 consolidation). Dual-form import so the
+# module works as a package import, a direct script, or an importlib file load.
+try:
+    from scripts.setup import agent_boilerplate_blocks as _blocks
+    from scripts.setup.teams_mode import _TRUTHY_VALUES as _TRUTHY
+except ImportError:  # direct script / importlib-by-path execution
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+    from scripts.setup import agent_boilerplate_blocks as _blocks
+    from scripts.setup.teams_mode import _TRUTHY_VALUES as _TRUTHY
+
 VALID_MODELS = ("fable", "opus", "sonnet", "haiku")
 
 # --- Codex 5.6 role split (v3.35.0) ----------------------------------------- #
@@ -60,7 +71,6 @@ CODEX_MODEL = "codex-5.6-sol"
 # available in this harness. Absent/falsy => stay on the current operating
 # model (uniform fable; opus fallback via --model opus where fable is absent).
 CODEX_ENV_VAR = "CT6_CODEX_56_AVAILABLE"
-_TRUTHY = {"1", "true", "yes"}
 
 ROLE_ARCHITECTURE = "architecture-control-design"   # stays on fable under the split
 ROLE_DEVELOPMENT = "development-checking-testing"   # moves to codex under the split
@@ -139,34 +149,10 @@ def _default_agents_dir() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parents[2] / "agents"
 
 
-def _detect_newline(raw: bytes) -> str:
-    """Return the dominant line-ending in ``raw`` (``"\\r\\n"`` or ``"\\n"``)."""
-    crlf = raw.count(b"\r\n")
-    bare_lf = raw.replace(b"\r\n", b"").count(b"\n")
-    if crlf >= bare_lf and crlf > 0:
-        return "\r\n"
-    return "\n"
-
-
-def _read(path: pathlib.Path) -> Tuple[str, str, bool]:
-    """Read ``path`` -> (universal-newline text, newline style, trailing-newline)."""
-    raw = path.read_bytes()
-    newline = _detect_newline(raw)
-    text_lf = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
-    trailing = text_lf.endswith("\n")
-    return text_lf, newline, trailing
-
-
-def _write_if_changed(path: pathlib.Path, new_text_lf: str, newline: str) -> bool:
-    """Encode ``new_text_lf`` with ``newline`` and write only if the bytes differ."""
-    if newline == "\n":
-        encoded = new_text_lf.encode("utf-8")
-    else:
-        encoded = new_text_lf.replace("\n", newline).encode("utf-8")
-    if path.read_bytes() == encoded:
-        return False
-    path.write_bytes(encoded)
-    return True
+# Thin aliases onto the canonical trio (call sites + test surface unchanged).
+_detect_newline = _blocks.detect_newline
+_read = _blocks.read_preserving
+_write_if_changed = _blocks.write_if_changed
 
 
 def _frontmatter_bounds(lines: List[str]) -> Optional[Tuple[int, int]]:

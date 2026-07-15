@@ -84,18 +84,18 @@ PYTHON_TEST_PACKAGES = ["pytest", "pytest-asyncio", "httpx", "tiktoken"]
 # the EACCES `--prefix` retry, so the two stay in lockstep).
 OPENSPEC_NPM_PKG = "@fission-ai/openspec@latest"
 
-# Truthy string set shared by the teams-mode flag check + the CT6_SETUP_ASSUME_YES
-# consent override (previously inlined in _settings_has_flag).
-_TRUTHY_VALUES = {"1", "true", "yes"}
+# Truthy parsing lives canonically in teams_mode.py (v3.35.1 consolidation —
+# this file previously re-declared both names). Dual-form import so setup.py
+# works as a package import, a direct script, or an importlib file load.
+try:
+    from scripts.setup.teams_mode import _TRUTHY_VALUES, _is_truthy
+except ImportError:  # direct script / importlib-by-path execution
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.setup.teams_mode import _TRUTHY_VALUES, _is_truthy
 
 # Non-interactive consent: setting either --yes OR this env var makes every
 # consent prompt assume "y" WITHOUT reading stdin (CI / scripted installs).
 ASSUME_YES_ENV_VAR = "CT6_SETUP_ASSUME_YES"
-
-
-def _is_truthy(value: object) -> bool:
-    """True iff `value` is a truthy string in `_TRUTHY_VALUES` (case-insensitive)."""
-    return isinstance(value, str) and value.strip().lower() in _TRUTHY_VALUES
 
 # v1.0.0 agent-teams constants. Mirror the helper in scripts/setup/teams_mode.py
 # (we re-declare them here so the script keeps a single, obvious settings path

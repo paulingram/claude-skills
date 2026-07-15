@@ -9,7 +9,7 @@ round-trip, and the CLI subcommand exit codes.
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 import subprocess
 import sys
@@ -20,13 +20,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def vao_tools(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "vao_tools",
-        plugin_root / "hooks" / "vao_tools.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "vao_tools.py", "vao_tools")
     return mod
 
 

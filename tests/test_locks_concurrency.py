@@ -30,7 +30,7 @@ This NEW file is the home for the concurrency assertions; tests/test_locks.py
 from __future__ import annotations
 
 import hashlib
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 import os
 import threading
@@ -49,10 +49,7 @@ import pytest
 def locks_module(plugin_root: Path) -> ModuleType:
     path = plugin_root / "hooks" / "locks.py"
     assert path.exists(), f"locks.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("locks_module_concurrency", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "locks_module_concurrency")
     return mod
 
 

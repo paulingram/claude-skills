@@ -33,12 +33,14 @@ and the wired-pipeline set from three to FOUR:
   its required phase-event set excludes it (the skill's `## Notifications`
   section documents the exclusion).
 """
-import importlib.util
+from tests.helpers.module_loader import load_module
 import re
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from tests.helpers import pins
 
 # Four pipelines now wire notifications:
 #   - architect-team-pipeline (v0.9.18)
@@ -134,13 +136,7 @@ def _notifications_section(content: str) -> str:
 
 def _load_notify_module(plugin_root: Path) -> ModuleType:
     """Load scripts/notify/notify.py by path (mirrors test_run_metrics.py)."""
-    spec = importlib.util.spec_from_file_location(
-        "ct6_notify_wiring_under_test",
-        plugin_root / "scripts" / "notify" / "notify.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "scripts" / "notify" / "notify.py", "ct6_notify_wiring_under_test")
     return mod
 
 
@@ -159,7 +155,7 @@ def test_notify_module_event_types_is_the_ten_event_vocabulary(
         f"notify.EVENT_TYPES must equal {EVENT_TYPES}; got {notify.EVENT_TYPES}"
     )
     assert "heartbeat" in notify.EVENT_TYPES
-    assert len(notify.EVENT_TYPES) == 10
+    assert len(notify.EVENT_TYPES) == pins.EXPECTED_NOTIFY_EVENT_COUNT
 
 
 # --- the notifier invocations are wired into every pipeline skill -------------

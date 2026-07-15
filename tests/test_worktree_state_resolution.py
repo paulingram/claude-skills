@@ -25,6 +25,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader -----------------------------------------------------------
@@ -35,10 +36,7 @@ def worktree_paths_module(plugin_root: Path) -> ModuleType:
     """Load scripts/setup/worktree_paths.py via importlib (matches teams_mode pattern)."""
     path = plugin_root / "scripts" / "setup" / "worktree_paths.py"
     assert path.exists(), f"worktree_paths.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("worktree_paths_module", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "worktree_paths_module")
     return mod
 
 
@@ -47,10 +45,7 @@ def locks_module_for_worktrees(plugin_root: Path) -> ModuleType:
     """Load hooks/locks.py for the cross-worktree integration test."""
     path = plugin_root / "hooks" / "locks.py"
     assert path.exists(), f"locks.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("locks_module_for_worktrees", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "locks_module_for_worktrees")
     return mod
 
 

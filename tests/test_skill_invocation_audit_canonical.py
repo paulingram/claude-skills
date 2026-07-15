@@ -17,7 +17,7 @@ contract in a dedicated file.
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 from pathlib import Path
 
 import pytest
@@ -27,12 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope="module")
 def audit_module():
-    spec = importlib.util.spec_from_file_location(
-        "skill_invocation_audit_canon",
-        REPO_ROOT / "hooks" / "skill_invocation_audit.py",
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(REPO_ROOT / "hooks" / "skill_invocation_audit.py", "skill_invocation_audit_canon")
     return mod
 
 

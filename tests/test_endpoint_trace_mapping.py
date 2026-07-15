@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import frontmatter
+from tests.helpers.module_loader import load_module
 
 
 # ---------------------------------------------------------------------------
@@ -151,12 +152,7 @@ def test_agent_carries_canonical_boilerplate_blocks(agent_text: str, plugin_root
     """
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "agent_boilerplate_blocks_etm",
-        plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py",
-    )
-    blocks = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(blocks)
+    blocks = load_module(plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py", "agent_boilerplate_blocks_etm")
 
     # universal-newline form so CRLF/LF compare equal
     text_lf = agent_text.replace("\r\n", "\n").replace("\r", "\n")
@@ -175,12 +171,7 @@ def test_agent_is_registered_as_standard_in_boilerplate(plugin_root: Path) -> No
     """endpoint-tracer must be in the baked standard_agents list for all 3 blocks."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "agent_boilerplate_blocks_etm2",
-        plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py",
-    )
-    blocks = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(blocks)
+    blocks = load_module(plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py", "agent_boilerplate_blocks_etm2")
     for block_id in ("forbidden-git-operations", "checkpoint-discipline", "operating-context"):
         assert "endpoint-tracer" in blocks.BLOCKS[block_id]["standard_agents"], (
             f"endpoint-tracer not registered as standard for {block_id}"

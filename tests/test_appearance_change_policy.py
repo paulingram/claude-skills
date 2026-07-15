@@ -18,21 +18,17 @@ interactions_honored_review and v2.2.0's live_verification_review).
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 from pathlib import Path
 
 import pytest
 
+from tests.helpers import pins
+
 
 @pytest.fixture(scope="module")
 def schema_module(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "review_evidence_schema",
-        plugin_root / "hooks" / "review_evidence_schema.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "review_evidence_schema.py", "review_evidence_schema")
     return mod
 
 
@@ -364,7 +360,7 @@ def test_valid_values_set(schema_module):
 def test_required_fields_unchanged(schema_module):
     """REQUIRED_EVIDENCE_FIELDS stays at 17 -- the new field is OPTIONAL (the
     v2.1.0 / v2.2.0 backwards-compat guarantee, third application)."""
-    assert len(schema_module.REQUIRED_EVIDENCE_FIELDS) == 17
+    assert len(schema_module.REQUIRED_EVIDENCE_FIELDS) == pins.EXPECTED_EVIDENCE_FIELD_COUNT
     assert (
         "appearance_scope_review"
         not in schema_module.REQUIRED_EVIDENCE_FIELDS
