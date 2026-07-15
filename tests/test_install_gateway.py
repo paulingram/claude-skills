@@ -735,3 +735,19 @@ def test_apply_external_llm_policy_never_gates(setup_module: ModuleType) -> None
         name, status, detail = setup_module.apply_external_llm_policy(True, False, False)
     assert status == "warn"
     assert "install_gateway.py" in (detail or "")
+
+
+def test_apply_external_llm_policy_real_loader_check_only(
+    setup_module: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """REGRESSION (v3.37.1): apply_external_llm_policy through the REAL
+    _load_gateway_installer (no patching). The loader must register the module
+    in sys.modules before exec or install_gateway's @dataclass definitions die
+    under `from __future__ import annotations` — observed on a real
+    `setup --external-llm` run as a warn row ('NoneType' has no '__dict__').
+    check_only keeps it side-effect-free; a warn here means the loader broke."""
+    monkeypatch.setenv("CT6_GATEWAY_HOME", str(tmp_path / "gw"))
+    name, status, detail = setup_module.apply_external_llm_policy(
+        True, check_only=True, assume_yes=False)
+    assert status == "note", f"real loader failed: {detail}"
+    assert "would install" in (detail or "")

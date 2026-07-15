@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.37.1] — 2026-07-15 — setup --external-llm loader fix (PATCH)
+
+**PATCH — the `--external-llm` setup row actually loads.** Surfaced by the FIRST real `/architect-team:architect-team-setup --external-llm --yes` run: `setup.py`'s `_load_gateway_installer()` exec'd `install_gateway.py` WITHOUT registering it in `sys.modules`, and that module's `@dataclass` definitions under `from __future__ import annotations` resolve field types through `sys.modules.get(cls.__module__)` — so the load died with `'NoneType' object has no attribute '__dict__'` and the never-gates posture masked it as a `warn` row instead of a crash (the correct degradation, but of a bug). The wiring tests never caught it because both patched the loader; the new regression test drives `apply_external_llm_policy(check_only=True)` through the REAL loader and pins a `note` row. One-line fix (register before exec — the same rule `install_librarian.py`'s `_load` documents); `tests/test_install_gateway.py` 46 → 47. Suite **5408 → 5409 passing + 5 skipped** (200 test files), both encodings. NO other change.
+
 ## [3.37.0] — 2026-07-15 — gateway auto-registration (the installer registers + starts the gateway itself)
 
 **MINOR — the external-LLM toggle becomes genuinely one command.** The owner directive: *have the installer handle auto registration*. v3.36.0 wrote the boot descriptor and printed the register hint (the librarian posture); now `scripts/setup/install_gateway.py` EXECUTES the registration itself when the gateway is enabled — a deliberate, owner-directed extension of the older print-the-hint posture, with the enable signal as the consent.

@@ -902,6 +902,12 @@ def _load_gateway_installer():
     if spec is None or spec.loader is None:  # pragma: no cover - defensive
         raise ImportError(f"cannot load gateway installer at {path}")
     mod = importlib.util.module_from_spec(spec)
+    # Register BEFORE exec: install_gateway.py uses @dataclass under
+    # `from __future__ import annotations`, whose field-type resolution goes
+    # through sys.modules.get(cls.__module__) — without this the load dies with
+    # "'NoneType' object has no attribute '__dict__'" (observed on a real
+    # setup --external-llm run; the never-gates posture masked it as a warn).
+    sys.modules["ct6_install_gateway"] = mod
     spec.loader.exec_module(mod)
     return mod
 
