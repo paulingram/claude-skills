@@ -1,0 +1,99 @@
+{
+  "change_name": "setup-auto-key-prompts",
+  "version_target": "3.38.0",
+  "generated_at": "2026-07-15T20:55:00Z",
+  "testing_authorizations": {
+    "playwright": "N/A for every requirement — the change ships CLI installers + command-wrapper markdown in a plugin-source repo; there is no frontend, no route, no browser surface. Authorization recorded per Phase 1 rule (no frontend requirement exists).",
+    "dev_api_integration": "N/A — no API endpoint exists or is touched; the integration layer under test is process-level (argparse CLIs + file-system state), covered by hermetic pytest integration tests through the real parser/handler path with injected seams (the house convention for scripts/setup, cf. tests/test_install_gateway.py)."
+  },
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001-wrapper-ask-gateway",
+      "spec_requirement_id": "setup-key-prompting/Wrapper-level ask on absent-key states",
+      "scenarios": ["absent Anthropic key directs an in-session ask", "recorded decline suppresses the ask"],
+      "acceptance_criteria": [
+        "commands/architect-team-setup.md carries the v3.38.0 ask section: AskUserQuestion on absent-key states with capture-and-apply (--anthropic-key/--openai-key) and explicit-decline (decline subcommand) dispositions",
+        "--yes/CT6_SETUP_ASSUME_YES on the original run carries over as --activate consent on capture; no prior signal keeps activation consent-gated",
+        "the bare run-this-script remediation is never the only path; declined slots are consulted via status and not re-asked",
+        "pinned by tests/test_commands.py wrapper-text pins; instruction-compliance lint zero findings"
+      ],
+      "layer": "infra",
+      "owner": "backend-B"
+    },
+    {
+      "source_requirement_id": "REQ-002-installer-prompt-gateway",
+      "spec_requirement_id": "setup-key-prompting/Installer-level interactive key prompt",
+      "scenarios": ["interactive TTY with absent key prompts hidden", "blank entry skips", "non-interactive never prompts"],
+      "acceptance_criteria": [
+        "_prompt_for_key fires only on interactive + TTY + unresolved + not-declined; hidden getpass entry; visible-input fallback only when hidden entry unachievable, with warning",
+        "captured key lands only in gateway.env (0600 best-effort) and masks to last-4 in every report line",
+        "blank entry proceeds exactly as today's absent-key path and records the decline",
+        "--yes-equivalent, non-TTY, --check-only, --json runs never invoke the seam (byte-equivalent behavior aside from decline bookkeeping)",
+        "setup.py passes interactivity through only when NOT assume_yes/check_only and stdin is a TTY; seam exceptions degrade to the warn row"
+      ],
+      "layer": "backend",
+      "owner": "backend-A"
+    },
+    {
+      "source_requirement_id": "REQ-003-decline-record",
+      "spec_requirement_id": "setup-key-prompting/Per-key decline record with auto-reset",
+      "scenarios": ["decline suppresses the next prompt", "key resolution auto-resets", "re-ask clears the record"],
+      "acceptance_criteria": [
+        "key-declines.json in the gateway state dir records slot + declined_at + via (wrapper|prompt-skip)",
+        "decline <slot> records; decline <slot> --clear clears; --re-ask-keys clears all slots",
+        "a slot's decline auto-resets when that slot's key resolves on any path",
+        "status appends declined=<slots>; uninstall --purge removes the record"
+      ],
+      "layer": "backend",
+      "owner": "backend-A"
+    },
+    {
+      "source_requirement_id": "REQ-004-librarian-parity",
+      "spec_requirement_id": "setup-key-prompting/Librarian key-prompt parity",
+      "scenarios": ["librarian installer prompts on interactive TTY", "librarian wrapper directs the ask"],
+      "acceptance_criteria": [
+        "install_librarian.py: same seam + decline record + --re-ask-keys + decline subcommand for the anthropic slot; captured key routes through the existing enable path; blank keeps provisioned-but-NOT-enabled honestly",
+        "commands/librarian-install.md carries the equivalent ask section",
+        "pinned by tests/test_install_librarian.py + tests/test_commands.py"
+      ],
+      "layer": "backend",
+      "owner": "backend-B"
+    },
+    {
+      "source_requirement_id": "REQ-005-sweep-record",
+      "spec_requirement_id": "setup-key-prompting/Setup-surface sweep record",
+      "scenarios": ["every installer is dispositioned"],
+      "acceptance_criteria": [
+        "design.md sweep table dispositions every scripts/setup/*.py: install_gateway + install_librarian qualify; setup.py's own punts, install_mempalace.py, set_default_model.py, and the non-installer helpers examined-and-excluded with reasons",
+        "CHANGELOG entry summarizes the sweep"
+      ],
+      "layer": "infra",
+      "owner": "orchestrator+doc-updater"
+    },
+    {
+      "source_requirement_id": "REQ-006-posture-preservation",
+      "spec_requirement_id": "setup-key-prompting/Posture preservation",
+      "scenarios": ["prompt failure never gates setup", "captured key never appears raw outside the env file"],
+      "acceptance_criteria": [
+        "setup_entry warn-degrade posture holds under seam exceptions (never gates)",
+        "raw keys only in env files; last-4 masking everywhere; prompt entry hidden (never echoed by the scripts)",
+        "activation stays consent-gated with the --yes carry-over; uninstall symmetry extends to the decline record under --purge",
+        "every pre-existing test pin in test_install_gateway.py / test_install_librarian.py / test_setup_install_fallbacks.py stays green unmodified except where counts/pins legitimately extend"
+      ],
+      "layer": "backend",
+      "owner": "backend-A+backend-B"
+    },
+    {
+      "source_requirement_id": "REQ-007-ship-rituals",
+      "spec_requirement_id": "setup-key-prompting (change-level)",
+      "scenarios": ["suite green both encodings"],
+      "acceptance_criteria": [
+        "plugin.json + marketplace.json -> 3.38.0; dispatch-banner pin -> 3.38.0",
+        "CHANGELOG entry; documentation-currency inventory current (README, CLAUDE.md, map note ledgers)",
+        "full pytest suite green under Windows cp1252 AND PYTHONUTF8=1"
+      ],
+      "layer": "infra",
+      "owner": "orchestrator+doc-updater"
+    }
+  ]
+}

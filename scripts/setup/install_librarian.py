@@ -21,6 +21,9 @@ Subcommands:
                      topics, foreground (no daemon). Reports per-topic counts.
   uninstall          Remove the boot descriptor (print the unregister hint). With
                      `--purge`, also remove the state dir. Never errors if absent.
+  decline            Record an explicit decline of the Anthropic key prompt (the
+                     wrapper's AskUserQuestion channel, v3.38.0); `--clear` clears
+                     the recorded decline instead.
 
 Flags:
   --base-dir PATH    The librarian state dir (default: $CT6_LIBRARIAN_HOME, else
@@ -28,6 +31,10 @@ Flags:
   --enable           (re)enable the daemon after a key is added (re-write + hint).
   --check-only       Report intent only; do not provision.
   --json             Emit a machine-readable JSON status report.
+  --interactive-prompts  Allow the hidden stdin key prompt on an interactive TTY
+                     (v3.38.0; auto-set for a direct TTY `install` run without
+                     --json/--check-only).
+  --re-ask-keys      Clear the key-declines.json record so the prompt fires again.
 
 Exit codes:
   0  success.
@@ -41,6 +48,7 @@ ever described as "running" / "deployed" / "in production".
 from __future__ import annotations
 
 import argparse
+import getpass
 import importlib.util
 import json
 import os
@@ -48,8 +56,9 @@ import platform
 import shutil
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -87,6 +96,7 @@ ENV_HOME = "CT6_LIBRARIAN_HOME"
 DESCRIPTOR_DIRNAME = "descriptor"
 SERVICE_NAME = "ct6-librarian"
 DEFAULT_INTERVAL_SECONDS = _daemon.DEFAULT_INTERVAL_SECONDS
+DECLINES_NAME = "key-declines.json"  # v3.38.0 — the per-key decline record (D2)
 
 
 # --------------------------------------------------------------------------- #
@@ -121,6 +131,119 @@ def _daemon_command(base: Path) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# key-declines record + interactive key prompt (v3.38.0 — setup-key-prompting)
+# --------------------------------------------------------------------------- #
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _mask(secret: Optional[str]) -> Optional[str]:
+    """Mask a secret to its last 4 chars for report lines (the same shape as
+    scripts/setup/install_gateway.py — a raw key never appears in output)."""
+    if not secret:
+        return None
+    return ("…" + secret[-4:]) if len(secret) >= 4 else "set"
+
+
+def _read_declines(base: Path) -> dict[str, Any]:
+    path = base / DECLINES_NAME
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_declines(base: Path, declines: dict[str, Any]) -> None:
+    """Persist the decline record; an empty record removes the file (an absent
+    file means no declines — the pre-v3.38.0 state, per the migration note)."""
+    path = base / DECLINES_NAME
+    if not declines:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return
+    base.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(declines, indent=2, sort_keys=True),
+                    encoding="utf-8")
+
+
+def _record_decline(base: Path, slot: str = "anthropic",
+                    via: str = "prompt-skip") -> None:
+    declines = _read_declines(base)
+    declines[slot] = {"declined_at": _utc_now_iso(), "via": via}
+    _write_declines(base, declines)
+
+
+def _clear_declines(base: Path, slot: Optional[str] = None) -> None:
+    if slot is None:
+        _write_declines(base, {})
+        return
+    declines = _read_declines(base)
+    if slot in declines:
+        del declines[slot]
+        _write_declines(base, declines)
+
+
+def _default_isatty() -> bool:
+    """Module-level TTY probe so tests inject TTY-ness; never raises."""
+    try:
+        return bool(sys.stdin.isatty())
+    except Exception:
+        return False
+
+
+def _hidden_prompt(text: str) -> str:
+    """Hidden (never-echoed) key entry via stdlib getpass. Module-level so tests
+    inject it; raising here routes _prompt_for_key to the visible fallback."""
+    return getpass.getpass(text)
+
+
+def _visible_input(text: str) -> str:
+    return input(text)
+
+
+def _prompt_for_key(
+    slot: str = "anthropic",
+    *,
+    prompt_fn: Optional[Callable[[str], str]] = None,
+    isatty_fn: Optional[Callable[[], bool]] = None,
+    input_fn: Optional[Callable[[str], str]] = None,
+) -> Optional[str]:
+    """The v3.38.0 interactive key prompt — the librarian's single-slot parity
+    with install_gateway.py's seam. The caller enforces the remaining fire
+    conditions (--interactive-prompts set, key unresolved, slot not declined,
+    not --check-only/--json); this seam enforces the TTY gate and the entry
+    contract: hidden getpass entry, degrading to VISIBLE input with a one-line
+    warning ONLY when hidden entry is unachievable (the non-console path
+    raising — not an import check). A blank or interrupted entry returns None.
+    The raw value is returned to the caller and never echoed."""
+    tty = isatty_fn if isatty_fn is not None else _default_isatty
+    if not tty():
+        return None
+    text = f"Anthropic API key for the CT6 Librarian ({slot} slot; blank to skip): "
+    hidden = prompt_fn if prompt_fn is not None else _hidden_prompt
+    try:
+        raw = hidden(text)
+    except (EOFError, KeyboardInterrupt):
+        return None
+    except Exception:
+        print("[!] hidden key entry is unachievable on this stdin; "
+              "input will be VISIBLE")
+        visible = input_fn if input_fn is not None else _visible_input
+        try:
+            raw = visible(text)
+        except (EOFError, KeyboardInterrupt):
+            return None
+    value = (raw or "").strip()
+    return value or None
+
+
+# --------------------------------------------------------------------------- #
 # step / report scaffolding (mirrors install_mempalace.py)
 # --------------------------------------------------------------------------- #
 
@@ -144,6 +267,7 @@ class Report:
     remediation: Optional[str] = None
     check_only: bool = False
     topics: dict[str, Any] = field(default_factory=dict)
+    declined: list[str] = field(default_factory=list)  # v3.38.0 — declined slots
     steps: list[StepResult] = field(default_factory=list)
 
     def add(self, name: str, status: str, detail: str = "") -> None:
@@ -287,6 +411,42 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                    "reporting intent only; no state provisioned")
         return report
 
+    # v3.38.0 setup-key-prompting: decline bookkeeping + the interactive prompt.
+    if getattr(args, "re_ask_keys", False) and _read_declines(base):
+        _clear_declines(base)
+        report.add("key-declines", "ok", "decline record cleared (--re-ask-keys)")
+    if config.has_key and "anthropic" in _read_declines(base):
+        # auto-reset: a resolved key deletes the slot's stale decline record.
+        _clear_declines(base, "anthropic")
+        report.add("key-declines", "ok",
+                   "anthropic key resolved; stale decline record cleared")
+    if (not config.has_key
+            and getattr(args, "interactive_prompts", False)
+            and not getattr(args, "json", False)
+            and _default_isatty()):
+        if "anthropic" in _read_declines(base):
+            report.add("key-prompt", "skipped",
+                       "anthropic key previously declined; not re-asking "
+                       "(pass --re-ask-keys to prompt again)")
+        else:
+            captured = _prompt_for_key("anthropic")
+            if captured:
+                # route through the EXISTING enable path exactly as a key in
+                # the environment does; the raw value stays in-process
+                # (config.json persists only the mask + key source).
+                config.anthropic_key = captured
+                report.key_present = True
+                report.llm_mode = "anthropic"
+                report.add("key-prompt", "ok",
+                           f"Anthropic key captured at the hidden prompt "
+                           f"({_mask(captured)}); enabling the daemon")
+            else:
+                _record_decline(base, "anthropic", via="prompt-skip")
+                report.add("key-prompt", "skipped",
+                           "blank entry at the key prompt; decline recorded "
+                           "(via=prompt-skip) -- pass --re-ask-keys to prompt "
+                           "again")
+
     _provision_state(base, config, report)
 
     enable = bool(args.enable) or config.has_key
@@ -307,6 +467,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                    "no Anthropic key resolved; provisioned but NOT enabled "
                    "(see remediation)")
     report.topics = _read_topics(base)
+    report.declined = sorted(_read_declines(base))
     return report
 
 
@@ -349,6 +510,8 @@ def _cmd_run_once(args: argparse.Namespace, base: Path) -> Report:
     config = _resolve_config_and_mode(base)
     report.key_present = config.has_key
     report.llm_mode = "anthropic" if config.has_key else "fake"
+    if config.has_key and "anthropic" in _read_declines(base):
+        _clear_declines(base, "anthropic")  # v3.38.0 auto-reset on resolution
     topics = _read_topics(base)
     if not topics:
         report.add("run-once", "skipped", "no topics registered (nothing to do)")
@@ -375,15 +538,22 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     # written in the no-key path is provisioned-but-disabled).
     report.enabled = report.descriptor_installed and config.has_key
     report.topics = _read_topics(base)
+    if config.has_key and "anthropic" in _read_declines(base):
+        _clear_declines(base, "anthropic")  # v3.38.0 auto-reset on resolution
+    report.declined = sorted(_read_declines(base))
     if not report.key_present:
         report.remediation = (
             f"export ANTHROPIC_API_KEY=… ; librarian-install --enable "
             f"--base-dir {base}")
     state = "enabled" if report.enabled else "degraded (no key)" if not config.has_key \
         else "provisioned"
-    report.add("status", "ok",
-               f"{state}; descriptor_installed={report.descriptor_installed}; "
-               f"{len(report.topics)} topic(s)")
+    detail = (f"{state}; descriptor_installed={report.descriptor_installed}; "
+              f"{len(report.topics)} topic(s)")
+    if report.declined:
+        # honesty: the decline suppresses the PROMPT, never the truth — the
+        # absent key + remediation above stay reported alongside this.
+        detail += f"; declined={','.join(report.declined)}"
+    report.add("status", "ok", detail)
     return report
 
 
@@ -419,6 +589,28 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
     return report
 
 
+def _cmd_decline(args: argparse.Namespace, base: Path) -> Report:
+    """The wrapper's deterministic decline record/clear channel (v3.38.0, D3):
+    the slash-command flow cannot type into a prompt, so an AskUserQuestion
+    decline is recorded here (the librarian's single anthropic slot)."""
+    report = Report(action="decline", base_dir=str(base))
+    if getattr(args, "clear", False):
+        if "anthropic" in _read_declines(base):
+            _clear_declines(base, "anthropic")
+            report.add("decline", "ok", "anthropic decline record cleared")
+        else:
+            report.add("decline", "skipped",
+                       "no anthropic decline recorded (no-op)")
+    else:
+        _record_decline(base, "anthropic", via="wrapper")
+        report.add("decline", "ok",
+                   "anthropic key decline recorded (via=wrapper); install will "
+                   "not prompt for it (clear with decline --clear or "
+                   "--re-ask-keys)")
+    report.declined = sorted(_read_declines(base))
+    return report
+
+
 _HANDLERS = {
     "install": _cmd_install,
     "add-topic": _cmd_add_topic,
@@ -427,6 +619,7 @@ _HANDLERS = {
     "run-once": _cmd_run_once,
     "status": _cmd_status,
     "uninstall": _cmd_uninstall,
+    "decline": _cmd_decline,
 }
 
 
@@ -449,6 +642,13 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
                         help="emit a machine-readable JSON status report")
     parser.add_argument("--purge", action="store_true",
                         help="(uninstall) also remove the state dir")
+    parser.add_argument("--interactive-prompts", action="store_true",
+                        help="allow the hidden stdin key prompt on an "
+                             "interactive TTY (v3.38.0; auto-set for a direct "
+                             "TTY install without --json/--check-only)")
+    parser.add_argument("--re-ask-keys", action="store_true",
+                        help="clear the key-declines.json record so the key "
+                             "prompt fires again")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -472,6 +672,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_rm = sub.add_parser("remove-topic", parents=[shared], add_help=False)
     p_rm.add_argument("name")
     sub.add_parser("uninstall", parents=[shared], add_help=False)
+    p_dec = sub.add_parser("decline", parents=[shared], add_help=False)
+    p_dec.add_argument("--clear", action="store_true",
+                       help="clear the recorded decline instead of recording one")
     return parser
 
 
@@ -479,6 +682,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
     command = args.command or "install"  # default subcommand
+
+    # v3.38.0 — a direct-terminal `install` on a real TTY is interactive by
+    # default (D1 parity with install_gateway.py): the wrapper and tests pass
+    # --interactive-prompts explicitly; --json/--check-only stay prompt-free.
+    if (command == "install"
+            and not getattr(args, "interactive_prompts", False)
+            and not getattr(args, "json", False)
+            and not getattr(args, "check_only", False)
+            and _default_isatty()):
+        args.interactive_prompts = True
 
     base = resolve_base_dir(args.base_dir)
     handler = _HANDLERS[command]
@@ -509,6 +722,7 @@ def _emit(report: Report, as_json: bool) -> int:
             "remediation": report.remediation,
             "check_only": report.check_only,
             "topics": report.topics,
+            "declined": report.declined,
             "steps": [{"name": s.name, "status": s.status, "detail": s.detail}
                       for s in report.steps],
         }
@@ -528,6 +742,9 @@ def _emit(report: Report, as_json: bool) -> int:
     print(f"  Daemon:      {'enabled' if report.enabled else 'provisioned but NOT enabled'}")
     if report.topics:
         print(f"  Topics:      {sorted(report.topics)}")
+    if report.declined:
+        print(f"  Key prompts declined for: {', '.join(report.declined)} "
+              f"(re-ask with --re-ask-keys)")
     if report.register_hint:
         print("  Register the boot descriptor yourself (NOT run for you):")
         print(f"    {report.register_hint}")

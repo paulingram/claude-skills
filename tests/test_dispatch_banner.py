@@ -418,16 +418,16 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     version-bump consistency check tracks WHICHEVER version is the current
     release. The test name preserves its v1.5.0 origin (it was added in v1.5.0)
     but its semantic intent is 'plugin metadata is at the current release
-    version', which the current release (v3.37.1 — a PATCH fixing setup.py's
-    _load_gateway_installer to register the module in sys.modules before exec,
-    so the --external-llm row loads instead of degrading to a warn)
-    makes 3.37.1."""
+    version', which the current release (v3.38.0 — setup asks for missing
+    keys: the wrapper-level AskUserQuestion direction + the installer-level
+    hidden stdin prompt + the per-key decline record, ask-then-apply instead
+    of punt-to-script) makes 3.38.0."""
     plugin_json = json.loads(
         (plugin_root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.37.1"
+    assert plugin_json["version"] == "3.38.0"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.37.1"
+    assert marketplace_json["plugins"][0]["version"] == "3.38.0"

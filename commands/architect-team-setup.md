@@ -78,6 +78,19 @@ python3 scripts/setup/install_gateway.py uninstall                  # stop + unr
 
 `--no-external-llm` (or `CT6_EXTERNAL_LLM` set falsy) runs the uninstall path; with NO signal setup installs nothing and only surfaces the option as a note. Failures never gate setup — they degrade to a `warn` row carrying the manual remediation.
 
+### Ask for missing keys — never punt (v3.38.0)
+
+When the setup report (or `python3 scripts/setup/install_gateway.py status`) shows an absent-key state — `ANTHROPIC_API_KEY` absent in **subscription mode** (the `anthropic` slot), or `OPENAI_API_KEY` absent in the **provisioned-but-NOT-enabled** state (the `openai` slot) — you (the executing agent) MUST offer to capture the key in-session. NEVER present the bare run-this-script remediation as the only path.
+
+Per absent slot:
+
+1. **Consult the decline record first.** Run `status` and read its `declined=<slots>` report. Do NOT re-ask a declined slot absent an explicit re-ask signal from the user; an explicit re-ask maps to `install --re-ask-keys`, which clears the record so prompts fire again.
+2. **Ask with AskUserQuestion**, offering exactly two dispositions:
+   - **Capture the key now** — you then run the installer yourself with the captured key: `python3 scripts/setup/install_gateway.py install --anthropic-key <key>` and/or `--openai-key <key>`. A `--yes` (or `CT6_SETUP_ASSUME_YES`) on the ORIGINAL setup invocation carries over as `--activate` consent — append `--activate` to that install run (the same convention `setup_entry` already applies under `assume_yes`). With no prior consent signal, do NOT append `--activate`: activation stays consent-gated and the printed remediation line is unchanged.
+   - **Decline** — you record it so re-runs stop asking: `python3 scripts/setup/install_gateway.py decline <anthropic|openai>`. Clear a recorded decline later with `decline <slot> --clear` or `install --re-ask-keys`. A decline suppresses the PROMPT, never the truth: `status` keeps reporting the absent key honestly, and subscription mode remains a first-class deliberate outcome on an `anthropic` decline.
+
+Direct terminal runs need none of this: on a real TTY the installer itself asks, via its hidden-entry `--interactive-prompts` seam (blank entry skips and records the decline).
+
 ## Agent Teams Mode (v1.0.0)
 
 The architect-team plugin v1.0.0 defaults to Claude Code's experimental **Agent Teams** primitive — long-lived named teammates with 1M context windows + a shared task list — rather than the v0.9.36 ephemeral-subagent dispatch. Two requirements gate teams mode; without them the pipeline transparently falls back to subagents mode.

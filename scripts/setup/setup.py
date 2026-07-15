@@ -943,17 +943,25 @@ def check_external_llm_option() -> tuple[str, str, str | None]:
 
 
 def apply_external_llm_policy(
-    enable: bool, check_only: bool, assume_yes: bool
+    enable: bool, check_only: bool, assume_yes: bool, no_prompt: bool = False
 ) -> tuple[str, str, str | None]:
     """Run the gateway installer (or uninstaller) through its setup hook. Never
-    gates the run — any failure degrades to a 'warn' row with the manual
-    remediation (the same posture as apply_model_policy)."""
+    gates the run — any failure (including a raising key-prompt seam) degrades
+    to a 'warn' row with the manual remediation (the same posture as
+    apply_model_policy).
+
+    v3.38.0: passes interactivity through — an interactive setup run may let
+    the installer prompt for a missing key; `--yes` / `--no-prompt` /
+    `--check-only` runs stay prompt-free. `--no-prompt` forwards as
+    interactive=False; otherwise interactive=None lets the installer's
+    setup_entry resolve it (NOT assume_yes AND NOT check_only AND a TTY)."""
     name = "external-llm (LiteLLM gateway)"
     manual = "python3 scripts/setup/install_gateway.py install --activate"
     try:
         installer = _load_gateway_installer()
         return installer.setup_entry(
-            enable=enable, check_only=check_only, assume_yes=assume_yes)
+            enable=enable, check_only=check_only, assume_yes=assume_yes,
+            interactive=False if no_prompt else None)
     except Exception as exc:  # never gate setup on the gateway installer
         return name, "warn", f"external-llm setup not applied ({exc}); run manually: {manual}"
 
@@ -1064,14 +1072,18 @@ def main(argv: list[str] | None = None) -> int:
     # v3.36.0: external-LLM gateway (LiteLLM). A signal (flag or env) installs /
     # uninstalls through install_gateway.py's setup hook; no signal surfaces the
     # option as a note. Activation (settings.json routing + the codex split) is
-    # consent-gated behind --yes / CT6_SETUP_ASSUME_YES.
+    # consent-gated behind --yes / CT6_SETUP_ASSUME_YES. v3.38.0: interactivity
+    # passes through (an interactive run may prompt for a missing key;
+    # --yes/--no-prompt/--check-only stay prompt-free — no_prompt rides as a
+    # keyword so the positional consent triple stays stable).
     external_llm_signal = resolve_external_llm_signal(
         args.external_llm, args.no_external_llm)
     if external_llm_signal is None:
         rows.append(check_external_llm_option())
     else:
         rows.append(apply_external_llm_policy(
-            external_llm_signal, args.check_only, assume_yes))
+            external_llm_signal, args.check_only, assume_yes,
+            no_prompt=args.no_prompt))
 
     # openspec-propose skill prerequisite (HARD block when missing).
     openspec_propose_row = ensure_openspec_propose_skill()
