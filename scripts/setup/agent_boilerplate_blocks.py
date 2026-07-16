@@ -142,6 +142,44 @@ BLOCKS = {
 }
 
 
+def detect_newline(raw: bytes) -> str:
+    """Return the dominant line-ending in ``raw`` (``"\\r\\n"`` or ``"\\n"``).
+
+    Canonical home of the newline-preserving rewrite trio (v3.35.1 — formerly
+    duplicated in sync_agent_boilerplate.py and set_default_model.py)."""
+    crlf = raw.count(b"\r\n")
+    bare_lf = raw.replace(b"\r\n", b"").count(b"\n")
+    if crlf >= bare_lf and crlf > 0:
+        return "\r\n"
+    return "\n"
+
+
+def read_preserving(path) -> tuple:
+    """Read ``path`` -> (universal-newline LF text, newline style, trailing-newline)."""
+    import pathlib as _pl
+
+    raw = _pl.Path(path).read_bytes()
+    newline = detect_newline(raw)
+    text_lf = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    trailing = text_lf.endswith("\n")
+    return text_lf, newline, trailing
+
+
+def write_if_changed(path, new_text_lf: str, newline: str) -> bool:
+    """Encode ``new_text_lf`` with ``newline`` and write only if the bytes differ."""
+    import pathlib as _pl
+
+    path = _pl.Path(path)
+    if newline == "\n":
+        encoded = new_text_lf.encode("utf-8")
+    else:
+        encoded = new_text_lf.replace("\n", newline).encode("utf-8")
+    if path.read_bytes() == encoded:
+        return False
+    path.write_bytes(encoded)
+    return True
+
+
 def read_agent_text(path) -> str:
     """Read an agent markdown file with universal-newline translation.
 
@@ -238,6 +276,9 @@ __all__ = [
     "MATCH_EQUALS",
     "MATCH_PREFIX",
     "read_agent_text",
+    "detect_newline",
+    "read_preserving",
+    "write_if_changed",
     "extract_block",
     "block_matches",
     "classify_agents",

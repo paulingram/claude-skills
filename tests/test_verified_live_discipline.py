@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ===========================================================================
@@ -154,13 +155,7 @@ def test_bug_fix_pipeline_documents_routing_for_suspect_verdict(plugin_root: Pat
 @pytest.fixture(scope="module")
 def schema_module(plugin_root: Path):
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "review_evidence_schema",
-        plugin_root / "hooks" / "review_evidence_schema.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "review_evidence_schema.py", "review_evidence_schema")
     return mod
 
 

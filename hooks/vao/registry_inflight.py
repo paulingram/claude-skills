@@ -132,9 +132,9 @@ def verify_inflight_clarifications_processed(
     # `python hooks/vao_tools.py verify-inflight-clarifications-processed`
     # works under the bare-module sys.path the hook-runner uses.
     try:  # package shape: repo root on sys.path
-        from hooks.inflight_inbox import read_inbox, unprocessed_messages
+        from hooks.inflight_inbox import read_inbox
     except ImportError:  # bare-module shape: hooks/ dir on sys.path
-        from inflight_inbox import read_inbox, unprocessed_messages
+        from inflight_inbox import read_inbox
 
     workspace_path = Path(workspace)
     messages = read_inbox(workspace_path, run_id)

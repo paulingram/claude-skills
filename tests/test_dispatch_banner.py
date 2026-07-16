@@ -23,6 +23,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.helpers import frontmatter
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader (matches test_teams_mode.py pattern) ---------------------
@@ -33,10 +34,7 @@ def teams_mode_module(plugin_root: Path) -> ModuleType:
     """Load scripts/setup/teams_mode.py via importlib (matches v1.0.0 pattern)."""
     path = plugin_root / "scripts" / "setup" / "teams_mode.py"
     assert path.exists(), f"teams_mode.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("teams_mode_module_v15", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "teams_mode_module_v15")
     return mod
 
 
@@ -428,6 +426,6 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.38.0"
+    assert plugin_json["version"] == "3.38.1"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.38.0"
+    assert marketplace_json["plugins"][0]["version"] == "3.38.1"

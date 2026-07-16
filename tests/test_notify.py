@@ -23,6 +23,7 @@ from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # --- module loading -----------------------------------------------------------
@@ -33,10 +34,7 @@ def notify(plugin_root: Path) -> ModuleType:
     """Load scripts/notify/notify.py directly (it is out-of-package, like setup.py)."""
     path = plugin_root / "scripts" / "notify" / "notify.py"
     assert path.exists(), f"notify.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("notify_module", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "notify_module")
     return mod
 
 

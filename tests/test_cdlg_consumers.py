@@ -29,6 +29,7 @@ from types import ModuleType
 import pytest
 
 from tests.helpers import frontmatter
+from tests.helpers.module_loader import load_module
 
 
 # ---------------------------------------------------------------------------
@@ -47,10 +48,7 @@ def locks_module(plugin_root: Path) -> ModuleType:
     """Load hooks/locks.py via importlib (matches tests/test_locks.py)."""
     path = plugin_root / "hooks" / "locks.py"
     assert path.exists(), f"locks.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("locks_module_cdlg", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "locks_module_cdlg")
     return mod
 
 

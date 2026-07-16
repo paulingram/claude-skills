@@ -8,14 +8,12 @@ import json
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 def _load_module(plugin_root: Path):
     path = plugin_root / "scripts" / "phenotypes" / "phenotypes.py"
-    spec = importlib.util.spec_from_file_location("phenotypes_module_under_test", path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "phenotypes_module_under_test")
     return mod
 
 

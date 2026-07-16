@@ -109,11 +109,13 @@ def detect_no_teams_flag(argv: list[str]) -> bool:
 # ---- Internals ---------------------------------------------------------------
 
 
-def _is_truthy(value: str | None) -> bool:
-    """Truthy iff the value (lowercased, stripped) is in the truthy set."""
-    if value is None:
-        return False
-    return value.strip().lower() in _TRUTHY_VALUES
+def _is_truthy(value: object) -> bool:
+    """True iff `value` is a truthy string in `_TRUTHY_VALUES` (case-insensitive).
+
+    Canonical home (v3.35.1 — formerly re-declared in setup.py and, as a bare
+    set, in set_default_model.py). The isinstance guard keeps a non-string
+    settings.json value (e.g. a numeric 1) a safe False instead of a crash."""
+    return isinstance(value, str) and value.strip().lower() in _TRUTHY_VALUES
 
 
 def _flag_is_set(

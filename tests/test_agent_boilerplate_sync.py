@@ -45,6 +45,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 BLOCK_IDS = ("forbidden-git-operations", "checkpoint-discipline", "operating-context")
@@ -54,10 +55,7 @@ VARIANT_AGENTS = ("adversarial-reviewer", "interaction-observer", "oracle-derive
 def _load_module(name: str, path: Path) -> ModuleType:
     """Load a ``scripts/setup`` module via importlib (matches teams_mode pattern)."""
     assert path.exists(), f"module missing at {path}"
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, name)
     return mod
 
 

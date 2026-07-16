@@ -21,6 +21,8 @@ import pytest
 
 from tests.helpers import frontmatter
 
+from tests.helpers import pins
+
 
 def _import_schema(plugin_root: Path):
     """Import hooks/review_evidence_schema.py as a module."""
@@ -130,7 +132,7 @@ def test_keeps_all_top_level_self_review_fields(plugin_root: Path) -> None:
     baseline_clean_review, no_fake_data_review, adversarial_review,
     skill_invocation_audit), bringing the count to 17."""
     module = _import_schema(plugin_root)
-    assert len(module.REQUIRED_EVIDENCE_FIELDS) == 17, (
+    assert len(module.REQUIRED_EVIDENCE_FIELDS) == pins.EXPECTED_EVIDENCE_FIELD_COUNT, (
         f"expected 17 top-level required fields, got {sorted(module.REQUIRED_EVIDENCE_FIELDS)}"
     )
 

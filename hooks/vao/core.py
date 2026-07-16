@@ -10,9 +10,9 @@ from typing import Any
 # Import it (dual-form) and re-expose it here so the family modules' existing
 # `from hooks.vao.core import _utc_now_iso` imports keep resolving unchanged.
 try:  # package shape: repo root on sys.path
-    from hooks.shared_util import _utc_now_iso
+    from hooks.shared_util import _utc_now_iso  # noqa: F401  (re-exported for vao siblings)
 except ImportError:  # bare-module shape: hooks/ dir on sys.path
-    from shared_util import _utc_now_iso
+    from shared_util import _utc_now_iso  # noqa: F401  (re-exported for vao siblings)
 
 
 # ---------------------------------------------------------------------------

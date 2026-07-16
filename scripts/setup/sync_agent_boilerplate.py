@@ -55,39 +55,12 @@ def _default_agents_dir() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parents[2] / "agents"
 
 
-def _detect_newline(raw: bytes) -> str:
-    """Return the dominant line-ending in ``raw`` (``"\\r\\n"`` or ``"\\n"``)."""
-    crlf = raw.count(b"\r\n")
-    bare_lf = raw.replace(b"\r\n", b"").count(b"\n")
-    if crlf >= bare_lf and crlf > 0:
-        return "\r\n"
-    return "\n"
-
-
-def _read(path: pathlib.Path) -> Tuple[str, str, bool]:
-    """Read ``path`` and return (universal-newline text, newline style, trailing-newline)."""
-    raw = path.read_bytes()
-    newline = _detect_newline(raw)
-    text = raw.decode("utf-8")
-    # universal-newline normalisation to LF for splicing
-    text_lf = text.replace("\r\n", "\n").replace("\r", "\n")
-    trailing = text_lf.endswith("\n")
-    return text_lf, newline, trailing
-
-
-def _write_if_changed(path: pathlib.Path, new_text_lf: str, newline: str) -> bool:
-    """Encode ``new_text_lf`` with ``newline`` and write only if bytes differ.
-
-    Returns ``True`` if the file was rewritten.
-    """
-    if newline == "\n":
-        encoded = new_text_lf.encode("utf-8")
-    else:
-        encoded = new_text_lf.replace("\n", newline).encode("utf-8")
-    if path.read_bytes() == encoded:
-        return False
-    path.write_bytes(encoded)
-    return True
+# The newline-preserving rewrite trio lives canonically in
+# agent_boilerplate_blocks (v3.35.1 consolidation); thin aliases keep this
+# module's call sites and test surface unchanged.
+_detect_newline = blocks.detect_newline
+_read = blocks.read_preserving
+_write_if_changed = blocks.write_if_changed
 
 
 def _replace_equals_block(text_lf: str, heading: str, canonical: str) -> Optional[str]:

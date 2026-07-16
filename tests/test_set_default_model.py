@@ -17,6 +17,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,10 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _load() -> ModuleType:
     path = REPO_ROOT / "scripts" / "setup" / "set_default_model.py"
     assert path.exists(), f"set_default_model.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("set_default_model_module", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "set_default_model_module")
     return mod
 
 

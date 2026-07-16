@@ -27,6 +27,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader -----------------------------------------------------------
@@ -37,10 +38,7 @@ def agent_resume_module(plugin_root: Path) -> ModuleType:
     """Load scripts/setup/agent_resume.py via importlib (matches teams_mode pattern)."""
     path = plugin_root / "scripts" / "setup" / "agent_resume.py"
     assert path.exists(), f"agent_resume.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("agent_resume_module", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "agent_resume_module")
     return mod
 
 

@@ -24,7 +24,7 @@ from typing import Any, Callable, Optional
 _here = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_here))                       # bundle, catalog (siblings)
 sys.path.insert(0, str(_here.parent / "common"))     # handshake (substrate)
-import bundle as _bundle  # noqa: E402  (re-exported for callers)
+import bundle as _bundle  # noqa: E402,F401  (re-exported for operator callers wiring the live server)
 import catalog as _catalog  # noqa: E402
 import handshake as _handshake  # noqa: E402
 

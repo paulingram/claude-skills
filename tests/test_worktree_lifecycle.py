@@ -18,6 +18,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader -----------------------------------------------------------
@@ -28,12 +29,7 @@ def worktree_lifecycle_module(plugin_root: Path) -> ModuleType:
     """Load scripts/setup/worktree_lifecycle.py via importlib."""
     path = plugin_root / "scripts" / "setup" / "worktree_lifecycle.py"
     assert path.exists(), f"worktree_lifecycle.py missing at {path}"
-    spec = importlib.util.spec_from_file_location(
-        "worktree_lifecycle_module", path
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "worktree_lifecycle_module")
     return mod
 
 

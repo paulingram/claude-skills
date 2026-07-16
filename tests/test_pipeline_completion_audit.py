@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 @pytest.fixture()
@@ -394,10 +395,7 @@ def test_iteration_ceiling_symbols_removed(script: Path) -> None:
     """v3.8.0: ITERATION_CEILING and _audit_iteration_ceiling no longer exist."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("pipeline_completion_audit_sym", script)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(script, "pipeline_completion_audit_sym")
     assert not hasattr(mod, "ITERATION_CEILING")
     assert getattr(mod, "_audit_iteration_ceiling", None) is None
 
@@ -578,10 +576,7 @@ def test_bug_fix_could_not_reproduce_b1_does_not_block_on_execution(script: Path
 def _load_audit_module(script: Path):
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("pca_openspec_gate", script)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(script, "pca_openspec_gate")
     return mod
 
 

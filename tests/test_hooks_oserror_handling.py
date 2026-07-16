@@ -15,7 +15,7 @@ matching payload via a fake UTF-8 stdin, and assert the gate fails closed.
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 import sys
 from pathlib import Path
@@ -31,9 +31,7 @@ def _load_hook(script: str) -> ModuleType:
     mod_name = "a9_" + script[:-3].replace("-", "_")
     sys.path.insert(0, str(HOOKS_DIR))
     try:
-        spec = importlib.util.spec_from_file_location(mod_name, HOOKS_DIR / script)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = load_module(HOOKS_DIR / script, mod_name)
         return module
     finally:
         # Keep hooks/ on sys.path while the module's functions run (they import

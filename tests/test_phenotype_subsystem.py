@@ -1,6 +1,6 @@
 """Structural tests for the phenotype subsystem — dir layout, the seed record, the skill, and the
 trigger wiring across commands/skills."""
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 from pathlib import Path
 
@@ -20,9 +20,7 @@ REQUIRED_BLUEPRINT_SECTIONS = [
 
 def _load_helper(plugin_root: Path):
     path = plugin_root / "scripts" / "phenotypes" / "phenotypes.py"
-    spec = importlib.util.spec_from_file_location("phenotypes_mod_struct", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "phenotypes_mod_struct")
     return mod
 
 

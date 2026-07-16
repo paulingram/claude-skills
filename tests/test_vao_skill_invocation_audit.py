@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---------------------------------------------------------------------------
@@ -26,13 +27,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def audit_module(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "skill_invocation_audit",
-        plugin_root / "hooks" / "skill_invocation_audit.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "skill_invocation_audit.py", "skill_invocation_audit")
     return mod
 
 
@@ -508,26 +503,14 @@ def test_common_pipeline_conventions_names_both_surface_forms(plugin_root: Path)
 def test_schema_v7_includes_skill_invocation_audit_in_required(plugin_root: Path):
     """REQ-15 — REQUIRED_EVIDENCE_FIELDS includes skill_invocation_audit."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "review_evidence_schema",
-        plugin_root / "hooks" / "review_evidence_schema.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "review_evidence_schema.py", "review_evidence_schema")
     assert "skill_invocation_audit" in mod.REQUIRED_EVIDENCE_FIELDS
 
 
 def test_schema_v7_blocks_missing_skill_invocation_audit(plugin_root: Path):
     """validate_evidence rejects a dict missing skill_invocation_audit."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "review_evidence_schema",
-        plugin_root / "hooks" / "review_evidence_schema.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "review_evidence_schema.py", "review_evidence_schema")
     ev = _minimal_v7_evidence()
     del ev["skill_invocation_audit"]
     gaps = mod.validate_evidence(ev)
@@ -538,13 +521,7 @@ def test_schema_v7_blocks_missing_skill_invocation_audit(plugin_root: Path):
 def test_schema_v7_blocks_skill_invocation_audit_fail(plugin_root: Path):
     """validate_evidence rejects a v7 dict whose skill_invocation_audit value is 'fail'."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "review_evidence_schema",
-        plugin_root / "hooks" / "review_evidence_schema.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "review_evidence_schema.py", "review_evidence_schema")
     ev = _minimal_v7_evidence()
     ev["skill_invocation_audit"] = "fail"
     gaps = mod.validate_evidence(ev)

@@ -35,6 +35,9 @@ from types import ModuleType
 
 import pytest
 
+from tests.helpers import pins
+from tests.helpers.module_loader import load_module
+
 
 # ---------------------------------------------------------------------------
 # Module loaders (mirrors test_run_metrics.py)
@@ -43,25 +46,13 @@ import pytest
 
 @pytest.fixture(scope="module")
 def run_metrics(plugin_root: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "ct6_run_metrics_heartbeat_under_test",
-        plugin_root / "hooks" / "run_metrics.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "run_metrics.py", "ct6_run_metrics_heartbeat_under_test")
     return mod
 
 
 @pytest.fixture(scope="module")
 def notify(plugin_root: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(
-        "ct6_notify_heartbeat_under_test",
-        plugin_root / "scripts" / "notify" / "notify.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "scripts" / "notify" / "notify.py", "ct6_notify_heartbeat_under_test")
     return mod
 
 
@@ -303,7 +294,7 @@ def test_event_types_has_exactly_ten(notify: ModuleType) -> None:
     # v3.10.0 (R6c) took the vocabulary to six; v3.34.0 (informative run
     # notifications) takes it to ten — run_start / waiting_on_agents /
     # agents_complete / run_complete join the six.
-    assert len(notify.EVENT_TYPES) == 10, (
+    assert len(notify.EVENT_TYPES) == pins.EXPECTED_NOTIFY_EVENT_COUNT, (
         f"notify.EVENT_TYPES must have exactly 10 events; got {notify.EVENT_TYPES}"
     )
 

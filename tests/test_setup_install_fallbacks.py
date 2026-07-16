@@ -18,7 +18,7 @@ module-import fixture is not shaped for.
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 import sys
 from pathlib import Path
@@ -35,10 +35,7 @@ import pytest
 def setup_module(plugin_root: Path) -> ModuleType:
     path = plugin_root / "scripts" / "setup" / "setup.py"
     assert path.exists(), f"setup.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("setup_module_for_fallbacks", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "setup_module_for_fallbacks")
     return mod
 
 

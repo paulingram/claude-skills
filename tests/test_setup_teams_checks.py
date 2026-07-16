@@ -22,6 +22,7 @@ from types import ModuleType
 from unittest.mock import patch
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 
 # ---- Module loader -----------------------------------------------------------
@@ -32,10 +33,7 @@ def setup_module(plugin_root: Path) -> ModuleType:
     """Load scripts/setup/setup.py via importlib."""
     path = plugin_root / "scripts" / "setup" / "setup.py"
     assert path.exists(), f"setup.py missing at {path}"
-    spec = importlib.util.spec_from_file_location("setup_module_for_teams", path)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "setup_module_for_teams")
     return mod
 
 

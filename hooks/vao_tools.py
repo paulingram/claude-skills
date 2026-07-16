@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -109,8 +108,16 @@ def _ensure_leaf_modules_importable() -> None:  # pragma: no cover - import guar
         from override_markers import detect_virtue_framed_override as _dvfo  # noqa: F401
 
 
+try:  # package shape: repo root on sys.path
+    from hooks.shared_util import load_json as _shared_load_json
+except ImportError:  # bare-module shape: hooks/ dir on sys.path
+    from shared_util import load_json as _shared_load_json
+
+
 def _load_json(path: str) -> Any:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    # R1a consolidation: delegate to shared_util.load_json (fail-closed default
+    # matches this facade's original raise-on-missing/malformed contract).
+    return _shared_load_json(path)
 
 
 def main(argv: list[str] | None = None) -> int:

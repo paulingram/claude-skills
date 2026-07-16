@@ -7,7 +7,7 @@ shared config + LLM adapter (`service_config.py` — the same-Anthropic-key mode
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 from pathlib import Path
 
@@ -17,9 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load(name: str, rel: str):
-    spec = importlib.util.spec_from_file_location(name, REPO_ROOT / rel)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    mod = load_module(REPO_ROOT / rel, name)
     return mod
 
 

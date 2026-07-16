@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.helpers.module_loader import load_module
 
 LABEL = "code-wiki"
 DEEPWIKI_URL = "https://github.com/AsyncFuncAI/deepwiki-open.git"
@@ -64,10 +65,7 @@ def _record_dir(plugin_root: Path) -> Path:
 
 def _load_engine(plugin_root: Path):
     path = plugin_root / "scripts" / "phenotypes" / "phenotypes.py"
-    spec = importlib.util.spec_from_file_location("phenotypes_engine_codewiki", path)
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(path, "phenotypes_engine_codewiki")
     return mod
 
 

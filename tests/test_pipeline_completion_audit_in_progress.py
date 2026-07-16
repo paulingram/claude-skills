@@ -10,7 +10,7 @@ markers are treated as missing so abandoned runs cannot silently bypass.
 """
 from __future__ import annotations
 
-import importlib.util
+from tests.helpers.module_loader import load_module
 import json
 import os
 import subprocess
@@ -23,13 +23,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def hook_module(plugin_root: Path):
-    spec = importlib.util.spec_from_file_location(
-        "pipeline_completion_audit",
-        plugin_root / "hooks" / "pipeline-completion-audit.py",
-    )
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_module(plugin_root / "hooks" / "pipeline-completion-audit.py", "pipeline_completion_audit")
     return mod
 
 
