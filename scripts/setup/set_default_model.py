@@ -41,6 +41,7 @@ preservation, write-only-if-changed, argparse main). Stdlib-only.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import pathlib
 import sys
@@ -147,6 +148,65 @@ def codex_signal_from_env(env: Optional[Mapping[str, str]] = None) -> Optional[b
 def _default_agents_dir() -> pathlib.Path:
     """Locate the repo's ``agents/`` directory relative to this file."""
     return pathlib.Path(__file__).resolve().parents[2] / "agents"
+
+
+# --- Runtime agents-dir resolution (v3.39.0) --------------------------------- #
+#
+# The agents Claude Code actually RUNS are the installed plugin cache copy under
+# ~/.claude/plugins/cache/<marketplace>/architect-team/<version>/agents — NOT the
+# dev checkout this file may live in. A split applied to a dev checkout never
+# affects the runtime and is silently reverted by the next git operation (the
+# committed ship state is uniform fable). Install-time policy therefore targets
+# the INSTALLED copy when one exists; the repo agents/ stays the fallback for
+# repos that ARE the runtime plugin (a --plugin-dir dev install) and for tests.
+PLUGIN_REGISTRY_ENV = "CT6_PLUGIN_REGISTRY"
+PLUGIN_KEY_PREFIX = "architect-team@"
+
+
+def default_plugin_registry() -> pathlib.Path:
+    """Claude Code's installed-plugin registry (installed_plugins.json)."""
+    return pathlib.Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+
+
+def installed_plugin_agents_dir(
+    registry_path=None, env: Optional[Mapping[str, str]] = None
+) -> Optional[pathlib.Path]:
+    """The installed architect-team plugin's ``agents/`` dir, or ``None``.
+
+    Reads Claude Code's ``installed_plugins.json`` (explicit ``registry_path`` >
+    ``$CT6_PLUGIN_REGISTRY`` > the real per-user registry), finds the
+    ``architect-team@<marketplace>`` entry, and returns ``<installPath>/agents``
+    when that directory exists. Any read/shape failure returns ``None`` — the
+    caller falls back to the repo agents/ (fail-open, never raises)."""
+    env = os.environ if env is None else env
+    reg = pathlib.Path(
+        registry_path or env.get(PLUGIN_REGISTRY_ENV) or default_plugin_registry())
+    try:
+        data = json.loads(reg.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    plugins = data.get("plugins") if isinstance(data, dict) else None
+    if not isinstance(plugins, dict):
+        return None
+    for key, entries in plugins.items():
+        if not str(key).startswith(PLUGIN_KEY_PREFIX) or not isinstance(entries, list):
+            continue
+        for entry in entries:
+            install_path = entry.get("installPath") if isinstance(entry, dict) else None
+            if install_path:
+                agents = pathlib.Path(install_path) / "agents"
+                if agents.is_dir():
+                    return agents
+    return None
+
+
+def runtime_agents_dir(
+    registry_path=None, env: Optional[Mapping[str, str]] = None
+) -> pathlib.Path:
+    """The agents/ dir the RUNTIME actually loads: the installed plugin copy
+    when one exists, else the repo agents/ (the pre-v3.39.0 behavior)."""
+    installed = installed_plugin_agents_dir(registry_path, env)
+    return installed if installed is not None else _default_agents_dir()
 
 
 # Thin aliases onto the canonical trio (call sites + test surface unchanged).

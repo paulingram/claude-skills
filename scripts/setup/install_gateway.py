@@ -89,6 +89,8 @@ Flags:
                       interactive callers; never under --check-only/--json).
   --re-ask-keys       Clear the recorded key declines so prompts fire again.
   --check-only        Report intent only; provision nothing.
+  --live              (status) probe the RUNNING gateway's /v1/models and
+                      confirm it serves what the mode needs.
   --json              Machine-readable JSON report.
   --purge             (uninstall) also remove the state dir.
 
@@ -99,8 +101,15 @@ the enable signal is the consent; user-level only, never sudo/admin; a failure
 degrades to a fail step + the manual hint). Model availability stays an INPUT
 (the resolve_model convention): activation applies the split because YOU
 asserted the backend exists by enabling external-LLM usage — nothing here
-probes a live API. The gateway is only claimed "registered", never "running" —
-`status` reports the registration, the smoke test is yours.
+probes a live API to DECIDE anything. v3.39.0 adds the post-install live
+CONFIRMATION (the step the v3.38.1 field bug proved necessary): after a
+registered install the installer polls the LOCAL gateway's /v1/models and
+asserts the split's ids are actually served — verifying what was just
+installed, never deciding policy from a probe. The split targets the
+INSTALLED plugin copy (the agents Claude Code actually runs), falling back to
+the repo agents/ when none exists; `~/.architect-team/gateway/gateway.json`
+records the desired policy so the SessionStart self-heal survives plugin
+updates.
 """
 from __future__ import annotations
 
@@ -113,6 +122,9 @@ import secrets
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -789,6 +801,7 @@ class Report:
     activated: bool = False
     registered: bool = False
     split_applied: bool = False
+    split_confirmed: Optional[bool] = None  # v3.39.0: live /v1/models verdict
     descriptor_path: Optional[str] = None
     register_hint: Optional[str] = None
     remediation: Optional[str] = None
@@ -823,7 +836,112 @@ def _read_state(base: Path) -> dict[str, Any]:
 
 
 def _default_agents_dir() -> Path:
-    return _REPO_ROOT / "agents"
+    """The agents/ dir the model split targets (v3.39.0: runtime-first).
+
+    Claude Code runs the INSTALLED plugin cache copy, not the dev checkout —
+    a split applied to the repo's agents/ never reaches the runtime and is
+    reverted by the next git operation (ship state is uniform fable). Resolve
+    the installed copy via the lever; fall back to the repo agents/ when no
+    installed copy exists (a --plugin-dir dev install, or tests)."""
+    return _lever.runtime_agents_dir()
+
+
+# --------------------------------------------------------------------------- #
+# live split confirmation + gateway restart (v3.39.0)
+# --------------------------------------------------------------------------- #
+#
+# The v3.38.1 field bug proved a generated config can be broken while every
+# install step reports ok. The confirm step closes that gap: after activation
+# the installer polls the LIVE gateway's /v1/models and asserts the ids the
+# split needs are actually SERVED — codex-5.6-sol always, claude-fable-5
+# additionally in api-key mode. An already-running gateway that predates a
+# config regeneration serves the OLD config; on a failed confirm the installer
+# restarts the gateway once (through the same user-level registration
+# machinery) and re-probes before degrading to a warn. Never gates.
+FABLE_MODEL = ANTHROPIC_EXPLICIT_MODELS[0]  # "claude-fable-5"
+CONFIRM_ATTEMPTS = 15   # litellm cold-start on a real Windows box takes ~10-30s
+CONFIRM_DELAY = 2.0
+
+
+def _http_models_probe(port: int, master_key: str, timeout: float = 5.0) -> list[str]:
+    """GET the live gateway's /v1/models and return the served model ids.
+    Raises on any transport/shape failure (the caller retries)."""
+    req = urllib.request.Request(
+        gateway_url(port) + "/v1/models",
+        headers={"Authorization": f"Bearer {master_key}"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec - localhost
+        payload = json.loads(resp.read().decode("utf-8"))
+    data = payload.get("data", []) if isinstance(payload, dict) else []
+    return [m.get("id") for m in data if isinstance(m, dict) and m.get("id")]
+
+
+_default_models_prober = _http_models_probe  # injectable seam — tests stub this
+
+
+def confirm_gateway_serving(
+    port: int,
+    master_key: str,
+    expect: list[str],
+    prober=None,
+    attempts: Optional[int] = None,
+    delay: Optional[float] = None,
+    sleeper=time.sleep,
+) -> tuple[bool, str]:
+    """Poll the live gateway until every id in ``expect`` is served, or the
+    attempts run out. Returns ``(ok, detail)`` — detail names what's missing
+    or why the gateway was unreachable. Never raises. ``attempts``/``delay``
+    default to the module constants AT CALL TIME (tests monkeypatch them)."""
+    prober = prober or _default_models_prober
+    attempts = CONFIRM_ATTEMPTS if attempts is None else attempts
+    delay = CONFIRM_DELAY if delay is None else delay
+    last = "no probe attempted"
+    for i in range(max(1, attempts)):
+        try:
+            served = prober(port, master_key)
+            missing = [m for m in expect if m not in served]
+            if not missing:
+                return True, (
+                    f"gateway serving {len(served)} model(s) incl. "
+                    + ", ".join(expect))
+            last = (f"gateway up but NOT serving {', '.join(missing)} "
+                    f"(served: {', '.join(served) or 'none'})")
+        except Exception as exc:
+            last = f"gateway unreachable at {gateway_url(port)} ({exc})"
+        if i < attempts - 1:
+            sleeper(delay)
+    return False, last
+
+
+def restart_gateway(
+    platform_key: str,
+    launcher_path: Path,
+    name: str = SERVICE_NAME,
+    runner=None,
+) -> tuple[bool, str]:
+    """Restart the gateway so a regenerated config takes effect. User-level on
+    every OS (schtasks /end+/run, `systemctl --user restart`, `launchctl
+    kickstart -k`) — never sudo/admin; the Startup-folder-shim case falls back
+    to a detached launcher spawn. Returns (ok, detail)."""
+    if platform_key == "windows":
+        _run(["schtasks", "/end", "/tn", name], runner)  # stop if task-managed
+        if _run(["schtasks", "/run", "/tn", name], runner).returncode == 0:
+            return True, "scheduled task restarted"
+        ok = _spawn_detached(["cmd", "/c", str(launcher_path)])
+        return ok, ("launcher restarted (detached)" if ok
+                    else "restart failed (no schtasks task; detached spawn failed)")
+    if platform_key == "linux":
+        res = _run(["systemctl", "--user", "restart", name], runner)
+        if res.returncode == 0:
+            return True, "user systemd unit restarted"
+        return False, (res.stderr or "").strip() or "systemctl --user restart failed"
+    if platform_key == "darwin":
+        getuid = getattr(os, "getuid", None)
+        uid = getuid() if getuid else 501
+        res = _run(["launchctl", "kickstart", "-k", f"gui/{uid}/{name}"], runner)
+        if res.returncode == 0:
+            return True, "launchd agent restarted"
+        return False, (res.stderr or "").strip() or "launchctl kickstart failed"
+    return False, f"unsupported platform {platform_key!r}"
 
 
 SUBSCRIPTION_MODE_NOTE = (
@@ -993,7 +1111,8 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                 changed = _lever.apply_split(agents_dir, CODEX_ALIAS)
                 report.split_applied = True
                 report.add("codex-split", "ok",
-                           f"role split applied ({len(changed)} file(s) rewritten; "
+                           f"role split applied to {agents_dir} "
+                           f"({len(changed)} file(s) rewritten; "
                            f"dev/checking/testing agents → {CODEX_ALIAS})")
             else:
                 report.add("codex-split", "skipped",
@@ -1007,6 +1126,44 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     elif report.auth_mode == AUTH_MODE_SUBSCRIPTION:
         report.add("mode", "ok", SUBSCRIPTION_MODE_NOTE)
 
+    # 7. live confirmation (v3.39.0): assert the RUNNING gateway actually
+    # serves the ids the split needs — the step the v3.38.1 field bug proved
+    # necessary (a broken config passed every install step). Only when this
+    # run registered/started the gateway (--no-register opts out of the
+    # probe too — that pin means NO schtasks at all); a stale process serving
+    # a pre-regeneration config gets ONE restart + re-probe before the honest
+    # warn. Never gates.
+    if report.enabled and report.registered:
+        expect = [CODEX_ALIAS]
+        if report.auth_mode == AUTH_MODE_API_KEY:
+            expect.append(FABLE_MODEL)
+        ok, detail = confirm_gateway_serving(
+            args.port, keys[MASTER_KEY_VAR], expect)
+        if not ok:
+            restarted, r_detail = restart_gateway(
+                _platform_key(), base / launcher_name)
+            if restarted:
+                ok, detail = confirm_gateway_serving(
+                    args.port, keys[MASTER_KEY_VAR], expect)
+                detail = f"{detail} (after restart: {r_detail})"
+            else:
+                detail = f"{detail}; restart attempt failed: {r_detail}"
+        report.split_confirmed = ok
+        if ok:
+            report.add("confirm", "ok",
+                       ("CONFIRMED: CT6 runs the split — " if report.split_applied
+                        else "CONFIRMED: ") + detail)
+        else:
+            report.add("confirm", "fail",
+                       f"{detail} — verify keys in {base / ENV_FILE_NAME}, then "
+                       f"restart the gateway and re-check: python "
+                       f"scripts/setup/install_gateway.py status --live")
+    elif report.enabled:
+        report.add("confirm", "skipped",
+                   "gateway not started this run (registration skipped or "
+                   "failed) — start it, then verify: python "
+                   "scripts/setup/install_gateway.py status --live")
+
     _write_state(base, {
         "auth_mode": report.auth_mode,
         "port": args.port,
@@ -1015,6 +1172,9 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
         "activated": report.activated,
         "enabled": report.enabled,
         "registered": report.registered,
+        # v3.39.0: the DESIRED model policy — the sessionstart self-heal
+        # re-applies the split to an updated plugin copy from this record.
+        "model_policy": "codex-split" if report.split_applied else "uniform-fable",
     })
     return report
 
@@ -1053,6 +1213,25 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     if declines:
         summary += f"; declined={','.join(sorted(declines))}"
     report.add("status", "ok", summary)
+    report.add("agents", "ok", f"model policy read from {agents_dir}")
+    # v3.39.0: --live probes the RUNNING gateway's /v1/models and reports
+    # whether it serves what the current mode needs (one attempt burst, no
+    # restart — status observes, install repairs).
+    if getattr(args, "live", False):
+        if report.enabled:
+            expect = [CODEX_ALIAS]
+            if report.auth_mode == AUTH_MODE_API_KEY:
+                expect.append(FABLE_MODEL)
+            ok, detail = confirm_gateway_serving(
+                port, keys.get(MASTER_KEY_VAR, ""), expect, attempts=3)
+            report.split_confirmed = ok
+            report.add("confirm", "ok" if ok else "fail",
+                       (("CONFIRMED: CT6 runs the split — " if report.split_applied
+                         else "CONFIRMED: ") + detail) if ok
+                       else f"{detail} — restart the gateway or re-run install")
+        else:
+            report.add("confirm", "skipped",
+                       "gateway not enabled — nothing to probe")
     return report
 
 
@@ -1117,6 +1296,11 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
             report.add("purge", "ok", f"removed state dir {base}")
         else:
             report.add("purge", "skipped", "state dir already absent (no-op)")
+    elif state:
+        # v3.39.0: record the deactivated state so the sessionstart self-heal
+        # never re-applies a split the user uninstalled.
+        _write_state(base, {**state, "activated": False,
+                            "model_policy": "uniform-fable"})
     return report
 
 
@@ -1229,6 +1413,11 @@ def setup_entry(
             f"mode={report.auth_mode}; enabled={report.enabled}; "
             f"activated={report.activated}"
             + ("; codex split applied" if report.split_applied else "")
+            + ("; CONFIRMED live — CT6 runs the split"
+               if report.split_confirmed and report.split_applied
+               else "; CONFIRMED serving live" if report.split_confirmed
+               else "; live confirmation FAILED (see confirm step)"
+               if report.split_confirmed is False else "")
             + (f"; NOT enabled — {report.remediation}" if report.remediation else "")
         )
         if report.auth_mode == AUTH_MODE_SUBSCRIPTION:
@@ -1275,7 +1464,8 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--settings-path", default=None,
                         help="Claude settings.json path (default: ~/.claude/settings.json)")
     parser.add_argument("--agents-dir", default=None,
-                        help="agents/ dir for the model split (default: the repo's agents/)")
+                        help="agents/ dir for the model split (default: the INSTALLED "
+                             "plugin copy's agents/, else the repo's agents/)")
     parser.add_argument("--no-install", action="store_true",
                         help="skip the pip install (state-only provisioning)")
     parser.add_argument("--no-register", action="store_true",
@@ -1290,6 +1480,9 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
                         help="reinstall litellm even when already importable")
     parser.add_argument("--check-only", action="store_true",
                         help="report intent only; provision nothing")
+    parser.add_argument("--live", action="store_true",
+                        help="(status) probe the RUNNING gateway's /v1/models and "
+                             "confirm it serves what the mode needs")
     parser.add_argument("--json", action="store_true",
                         help="emit a machine-readable JSON report")
     parser.add_argument("--purge", action="store_true",
@@ -1361,6 +1554,7 @@ def _emit(report: Report, as_json: bool) -> int:
             "activated": report.activated,
             "registered": report.registered,
             "split_applied": report.split_applied,
+            "split_confirmed": report.split_confirmed,
             "descriptor_path": report.descriptor_path,
             "register_hint": report.register_hint,
             "remediation": report.remediation,

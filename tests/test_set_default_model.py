@@ -336,3 +336,87 @@ def test_uniform_codex_is_still_rejected(mod: ModuleType, tmp_agents: Path) -> N
     rc = mod.main(["--model", mod.CODEX_MODEL, "--agents-dir", str(tmp_agents)])
     assert rc == 1
     assert before == {p.name: p.read_bytes() for p in tmp_agents.glob("*.md")}
+
+
+# --------------------------------------------------------------------------- #
+# runtime agents-dir resolution (v3.39.0)
+# --------------------------------------------------------------------------- #
+#
+# The agents Claude Code RUNS are the installed plugin cache copy — the
+# resolver finds it via Claude Code's installed_plugins.json so install-time
+# policy (the codex split) lands where the runtime actually reads it.
+
+def _write_registry(tmp_path: Path, install_path: Path,
+                    key: str = "architect-team@architect-team-marketplace") -> Path:
+    reg = tmp_path / "installed_plugins.json"
+    reg.write_text(
+        '{"version": 2, "plugins": {"%s": [{"scope": "user", "installPath": %s}]}}'
+        % (key, __import__("json").dumps(str(install_path))),
+        encoding="utf-8")
+    return reg
+
+
+def test_installed_plugin_agents_dir_resolves(mod: ModuleType, tmp_path: Path) -> None:
+    install = tmp_path / "cache" / "architect-team-marketplace" / "architect-team" / "9.9.9"
+    (install / "agents").mkdir(parents=True)
+    reg = _write_registry(tmp_path, install)
+    assert mod.installed_plugin_agents_dir(reg) == install / "agents"
+
+
+def test_installed_plugin_agents_dir_missing_registry(mod: ModuleType, tmp_path: Path) -> None:
+    assert mod.installed_plugin_agents_dir(tmp_path / "nope.json") is None
+
+
+def test_installed_plugin_agents_dir_no_agents_dir(mod: ModuleType, tmp_path: Path) -> None:
+    """An installPath without an agents/ dir must NOT resolve (a half-installed
+    or purged cache entry falls back to the repo agents/)."""
+    install = tmp_path / "cache" / "architect-team" / "9.9.9"
+    install.mkdir(parents=True)  # no agents/ inside
+    reg = _write_registry(tmp_path, install)
+    assert mod.installed_plugin_agents_dir(reg) is None
+
+
+def test_installed_plugin_agents_dir_ignores_other_plugins(
+    mod: ModuleType, tmp_path: Path
+) -> None:
+    install = tmp_path / "cache" / "other" / "1.0.0"
+    (install / "agents").mkdir(parents=True)
+    reg = _write_registry(tmp_path, install, key="cartographer@cartographer-marketplace")
+    assert mod.installed_plugin_agents_dir(reg) is None
+
+
+def test_installed_plugin_agents_dir_malformed_registry(
+    mod: ModuleType, tmp_path: Path
+) -> None:
+    reg = tmp_path / "installed_plugins.json"
+    for body in ("not json", '{"plugins": "not-a-dict"}', '{"plugins": {"architect-team@m": "x"}}'):
+        reg.write_text(body, encoding="utf-8")
+        assert mod.installed_plugin_agents_dir(reg) is None
+
+
+def test_installed_plugin_agents_dir_env_var(
+    mod: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install = tmp_path / "cache" / "architect-team" / "9.9.9"
+    (install / "agents").mkdir(parents=True)
+    reg = _write_registry(tmp_path, install)
+    monkeypatch.setenv(mod.PLUGIN_REGISTRY_ENV, str(reg))
+    assert mod.installed_plugin_agents_dir() == install / "agents"
+
+
+def test_runtime_agents_dir_installed_first_repo_fallback(
+    mod: ModuleType, tmp_path: Path
+) -> None:
+    install = tmp_path / "cache" / "architect-team" / "9.9.9"
+    (install / "agents").mkdir(parents=True)
+    reg = _write_registry(tmp_path, install)
+    assert mod.runtime_agents_dir(reg) == install / "agents"
+    # no installed copy => the repo agents/ (the pre-v3.39.0 behavior)
+    assert mod.runtime_agents_dir(tmp_path / "nope.json") == mod._default_agents_dir()
+
+
+def test_runtime_agents_dir_hermetic_under_suite(mod: ModuleType) -> None:
+    """The conftest autouse scrub points CT6_PLUGIN_REGISTRY at a nonexistent
+    file, so a bare runtime_agents_dir() inside the suite ALWAYS falls back to
+    the repo agents/ — no test can reach the real installed plugin copy."""
+    assert mod.runtime_agents_dir() == mod._default_agents_dir()

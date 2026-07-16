@@ -18,11 +18,22 @@ Output contract: plain stdout on exit 0 is added to the session context (the
 documented SessionStart behaviour). No marker / inactive marker / kill-switch
 / ANY error => print nothing, exit 0. This hook never blocks anything.
 
+v3.39.0 adds the MODEL-SPLIT SELF-HEAL: a plugin update ships uniform-fable
+agent files into a fresh cache dir, silently reverting an applied codex role
+split. When the gateway state (`~/.architect-team/gateway/gateway.json`) says
+the split is the desired policy (activated + api-key + model_policy
+codex-split) and THIS hook is running from an INSTALLED plugin copy (under
+~/.claude/plugins/ — a dev checkout is never rewritten) whose agents/ has
+drifted off the split, the hook re-applies it via the model lever and notes
+the heal in the session context. Fail-open everywhere.
+
 Stdlib-only.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -99,6 +110,62 @@ def build_directive(payload: dict) -> str:
     )
 
 
+def maybe_heal_model_split(
+    plugin_root: Path | None = None,
+    plugins_base: Path | None = None,
+    gateway_state_path: Path | None = None,
+) -> str:
+    """Re-apply the codex role split to THIS installed plugin copy when the
+    gateway state says it is the desired policy (v3.39.0), returning a one-line
+    note for the session context ("" when nothing applies).
+
+    Guards, in order: the hook must be running from an INSTALLED plugin copy
+    (under ~/.claude/plugins/ — a dev checkout is NEVER rewritten); the gateway
+    state must record activated + api-key + model_policy codex-split; the
+    plugin's agents/ must exist and have drifted off the split. Every failure
+    path returns "" — this can never wedge a session start."""
+    try:
+        root = Path(plugin_root) if plugin_root \
+            else Path(__file__).resolve().parent.parent
+        base = Path(plugins_base) if plugins_base \
+            else Path.home() / ".claude" / "plugins"
+        try:
+            root.relative_to(base)
+        except ValueError:
+            return ""  # dev checkout / anywhere else — never rewritten
+        state_path = Path(gateway_state_path) if gateway_state_path else (
+            Path(os.environ.get("CT6_GATEWAY_HOME")
+                 or Path.home() / ".architect-team" / "gateway") / "gateway.json")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if not (isinstance(state, dict)
+                and state.get("activated")
+                and state.get("auth_mode") == "api-key"
+                and state.get("model_policy") == "codex-split"):
+            return ""
+        agents_dir = root / "agents"
+        lever_path = root / "scripts" / "setup" / "set_default_model.py"
+        if not agents_dir.is_dir() or not lever_path.is_file():
+            return ""
+        spec = importlib.util.spec_from_file_location("ct6_heal_lever", lever_path)
+        if spec is None or spec.loader is None:
+            return ""
+        lever = importlib.util.module_from_spec(spec)
+        sys.modules["ct6_heal_lever"] = lever
+        spec.loader.exec_module(lever)
+        codex_model = state.get("codex_alias") or lever.CODEX_MODEL
+        if lever.policy_state(agents_dir, codex_model) == "codex-split":
+            return ""
+        changed = lever.apply_split(agents_dir, codex_model)
+        return (
+            "[CT6 model-split self-heal] The installed plugin copy had drifted "
+            "off the codex role split (a plugin update ships uniform-fable "
+            f"files); re-applied it: {len(changed)} agent file(s) rewritten in "
+            f"{agents_dir} (dev/checking/testing agents -> {codex_model})."
+        )
+    except Exception:  # fail open — never wedge a session start on a bug here
+        return ""
+
+
 def main() -> int:
     try:
         raw = _read_stdin_utf8() if not sys.stdin.isatty() else ""
@@ -115,9 +182,11 @@ def main() -> int:
     try:
         directive = build_directive(payload)
     except Exception:  # fail open — never wedge a session start on a bug here
-        return 0
-    if directive:
-        print(directive)
+        directive = ""
+    heal_note = maybe_heal_model_split()
+    for line in (directive, heal_note):
+        if line:
+            print(line)
     return 0
 
 

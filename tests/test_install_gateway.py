@@ -112,6 +112,20 @@ def _stub_registration(
     return runner
 
 
+@pytest.fixture(autouse=True)
+def _stub_live_probe(gw: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hermeticity (v3.39.0): the post-install confirm step probes the LIVE
+    local gateway's /v1/models by default — no test may ever open a real
+    socket (a REAL gateway may be listening on the default port) or sleep
+    through the retry backoff. Serve the expected ids instantly; failure
+    tests override the prober and the zeroed backoff stands."""
+    monkeypatch.setattr(
+        gw, "_default_models_prober",
+        lambda port, key, timeout=5.0: [gw.CODEX_ALIAS, gw.FABLE_MODEL])
+    monkeypatch.setattr(gw, "CONFIRM_ATTEMPTS", 2)
+    monkeypatch.setattr(gw, "CONFIRM_DELAY", 0)
+
+
 @pytest.fixture()
 def tmp_agents(tmp_path: Path) -> Path:
     """A tiny agents/ dir with one stem per role bucket, both on fable."""
@@ -1236,3 +1250,292 @@ def test_setup_entry_prompt_exception_degrades_to_warn(
             base_dir=str(tmp_path / "gw"))
     assert status == "warn"
     assert "install_gateway.py" in (detail or "")
+
+
+# ---- v3.39.0: runtime split targeting + live split confirmation ----------------
+#
+# The split must land where the RUNTIME reads agents (the installed plugin
+# cache copy, via Claude Code's installed_plugins.json), and a completed
+# install must CONFIRM the live gateway actually serves the split's ids —
+# the step the v3.38.1 field bug (a broken config passing every install
+# step) proved necessary.
+
+
+def _fake_installed_plugin(tmp_path: Path) -> tuple[Path, Path]:
+    """A fake installed plugin cache copy + a registry pointing at it."""
+    install = (tmp_path / "plugins" / "cache" / "architect-team-marketplace"
+               / "architect-team" / "9.9.9")
+    agents = install / "agents"
+    agents.mkdir(parents=True)
+    for stem in ("backend", "system-architect"):
+        (agents / f"{stem}.md").write_text(
+            f"---\nname: {stem}\nmodel: fable\n---\n\nbody\n", encoding="utf-8")
+    registry = tmp_path / "installed_plugins.json"
+    registry.write_text(json.dumps({"version": 2, "plugins": {
+        "architect-team@architect-team-marketplace": [
+            {"scope": "user", "installPath": str(install)}]}}), encoding="utf-8")
+    return agents, registry
+
+
+def test_activation_targets_installed_plugin_copy(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """With NO --agents-dir, the split lands on the INSTALLED plugin copy —
+    the agents Claude Code actually runs — never the dev checkout (whose
+    committed ship state is uniform fable and would revert it)."""
+    installed_agents, registry = _fake_installed_plugin(tmp_path)
+    monkeypatch.setenv(gw._lever.PLUGIN_REGISTRY_ENV, str(registry))
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
+        "--activate", "--settings-path", str(tmp_path / "settings.json"),
+    ) == 0
+    assert f"model: {gw.CODEX_ALIAS}" in (
+        installed_agents / "backend.md").read_text(encoding="utf-8")
+    assert "model: fable" in (
+        installed_agents / "system-architect.md").read_text(encoding="utf-8")
+    # the repo's own agents/ must be untouched (committed ship state)
+    repo_backend = Path(gw._REPO_ROOT) / "agents" / "backend.md"
+    assert "model: fable" in repo_backend.read_text(encoding="utf-8")
+    out = capsys.readouterr().out
+    assert str(installed_agents) in out  # the split step NAMES its target
+
+
+def test_install_confirms_live_split(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A registered api-key install ends in the live confirmation: the gateway
+    serves codex + fable => split_confirmed True + the plain confirmation."""
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
+        "--activate", "--settings-path", str(tmp_path / "settings.json"),
+        "--agents-dir", str(tmp_agents),
+    ) == 0
+    out = capsys.readouterr().out
+    assert "CONFIRMED: CT6 runs the split" in out
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["model_policy"] == "codex-split"
+
+
+def test_confirm_failure_restarts_once_then_warns(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    monkeypatch: pytest.MonkeyPatch, _stub_registration: "_RecordingRunner",
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A gateway serving only the OLD config (missing fable) gets ONE restart
+    + re-probe; still missing => an honest fail step, exit stays 0 (never
+    gates)."""
+    monkeypatch.setattr(gw, "_default_models_prober",
+                        lambda port, key, timeout=5.0: [gw.CODEX_ALIAS])
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
+        "--activate", "--settings-path", str(tmp_path / "settings.json"),
+        "--agents-dir", str(tmp_agents),
+    ) == 0
+    out = capsys.readouterr().out
+    assert "NOT serving claude-fable-5" in out
+    assert "status --live" in out  # the remediation
+    # the restart cycle ran through the user-level machinery (never sudo)
+    ends = [c for c in _stub_registration.calls if c[:2] == ["schtasks", "/end"]]
+    assert ends, "confirm failure must attempt a gateway restart"
+    assert not [c for c in _stub_registration.calls if c and c[0] == "sudo"]
+
+
+def test_confirm_recovers_after_restart(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stale process serving the pre-regeneration config is healed by the
+    restart: probes fail before it, succeed after => confirmed ok."""
+    restarted = {"done": False}
+
+    def prober(port, key, timeout=5.0):
+        if restarted["done"]:
+            return [gw.CODEX_ALIAS, gw.FABLE_MODEL]
+        return [gw.CODEX_ALIAS]
+
+    real_restart = gw.restart_gateway
+
+    def fake_restart(platform_key, launcher, name=gw.SERVICE_NAME, runner=None):
+        restarted["done"] = True
+        return real_restart(platform_key, launcher, name, runner)
+
+    monkeypatch.setattr(gw, "_default_models_prober", prober)
+    monkeypatch.setattr(gw, "restart_gateway", fake_restart)
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
+        "--activate", "--settings-path", str(tmp_path / "settings.json"),
+        "--agents-dir", str(tmp_agents),
+    ) == 0
+    out = capsys.readouterr().out
+    assert "CONFIRMED: CT6 runs the split" in out
+    assert "after restart" in out
+
+
+def test_confirm_unreachable_names_the_url(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    def prober(port, key, timeout=5.0):
+        raise ConnectionRefusedError("connection refused")
+
+    monkeypatch.setattr(gw, "_default_models_prober", prober)
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
+        "--activate", "--settings-path", str(tmp_path / "settings.json"),
+        "--agents-dir", str(tmp_agents),
+    ) == 0
+    out = capsys.readouterr().out
+    assert "unreachable" in out
+    assert gw.gateway_url(gw.DEFAULT_PORT) in out
+
+
+def test_subscription_mode_confirm_expects_codex_only(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Subscription mode serves OpenAI only — the confirm step must NOT demand
+    fable from the gateway (fable rides Claude Code's sign-in auth)."""
+    monkeypatch.setattr(gw, "_default_models_prober",
+                        lambda port, key, timeout=5.0: [gw.CODEX_ALIAS])
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--openai-key", RAW_OPENAI_KEY,
+        "--agents-dir", str(tmp_agents),
+    ) == 0
+    out = capsys.readouterr().out
+    assert "CONFIRMED" in out
+    assert "NOT serving" not in out
+
+
+def test_check_only_never_probes(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    probes = {"n": 0}
+
+    def prober(port, key, timeout=5.0):
+        probes["n"] += 1
+        return []
+
+    monkeypatch.setattr(gw, "_default_models_prober", prober)
+    assert _install(gw, tmp_path / "gw", "--openai-key", RAW_OPENAI_KEY,
+                    "--check-only") == 0
+    assert probes["n"] == 0
+
+
+def test_no_register_skips_confirm_with_hint(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--no-register means the installer never started the gateway — the
+    confirm step skips (no probe, no schtasks) and points at status --live."""
+    probes = {"n": 0}
+
+    def prober(port, key, timeout=5.0):
+        probes["n"] += 1
+        return []
+
+    monkeypatch.setattr(gw, "_default_models_prober", prober)
+    assert _install(gw, tmp_path / "gw", "--openai-key", RAW_OPENAI_KEY,
+                    "--no-register") == 0
+    assert probes["n"] == 0
+    assert "status --live" in capsys.readouterr().out
+
+
+def test_status_live_probes_and_confirms(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = tmp_path / "gw"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key",
+             RAW_ANTHROPIC_KEY, "--activate",
+             "--settings-path", str(tmp_path / "settings.json"),
+             "--agents-dir", str(tmp_agents))
+    capsys.readouterr()
+    assert gw.main(["status", "--base-dir", str(base), "--live",
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    out = capsys.readouterr().out
+    assert "CONFIRMED: CT6 runs the split" in out
+
+
+def test_status_without_live_never_probes(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probes = {"n": 0}
+
+    def prober(port, key, timeout=5.0):
+        probes["n"] += 1
+        return []
+
+    monkeypatch.setattr(gw, "_default_models_prober", prober)
+    base = tmp_path / "gw"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY, "--no-register")
+    probes["n"] = 0
+    assert gw.main(["status", "--base-dir", str(base),
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert probes["n"] == 0
+
+
+def test_restart_gateway_per_os_never_sudo(gw: ModuleType, tmp_path: Path) -> None:
+    launcher = tmp_path / "run_gateway.sh"
+    for platform_key, expected in (
+        ("windows", ["schtasks", "/run"]),
+        ("linux", ["systemctl", "--user", "restart"]),
+        ("darwin", ["launchctl", "kickstart"]),
+    ):
+        runner = _RecordingRunner()
+        ok, detail = gw.restart_gateway(platform_key, launcher, runner=runner)
+        assert ok, f"{platform_key}: {detail}"
+        flat = list(runner.calls)
+        assert any(c[: len(expected)] == expected for c in flat), \
+            f"{platform_key} missing {expected}: {flat}"
+        assert not [c for c in flat if c and c[0] == "sudo"]
+
+
+def test_uninstall_records_deactivated_state(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    """Uninstall must flip the recorded state (activated False + uniform-fable)
+    so the SessionStart self-heal never re-applies an uninstalled split."""
+    base = tmp_path / "gw"
+    settings = tmp_path / "settings.json"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key",
+             RAW_ANTHROPIC_KEY, "--activate", "--settings-path", str(settings),
+             "--agents-dir", str(tmp_agents))
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["model_policy"] == "codex-split"
+    assert gw.main(["uninstall", "--base-dir", str(base), "--settings-path",
+                    str(settings), "--agents-dir", str(tmp_agents)]) == 0
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["activated"] is False
+    assert state["model_policy"] == "uniform-fable"
+
+
+def test_setup_entry_reports_live_confirmation(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    """The one-call promise: setup --external-llm --yes ends in a summary that
+    SAYS the split is confirmed live — no surprise follow-up steps."""
+    base = tmp_path / "gw"
+    gw.write_env_file(base / gw.ENV_FILE_NAME, {
+        "OPENAI_API_KEY": RAW_OPENAI_KEY,
+        "ANTHROPIC_API_KEY": RAW_ANTHROPIC_KEY})
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=True,
+            base_dir=str(base),
+            settings_path=str(tmp_path / "settings.json"),
+            agents_dir=str(tmp_agents))
+    assert status == "applied"
+    assert "codex split applied" in (detail or "")
+    assert "CONFIRMED live" in (detail or "")
+    assert "CT6 runs the split" in (detail or "")
