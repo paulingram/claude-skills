@@ -37,7 +37,8 @@ MemPalace ships as a first-class installable.
 5. **Manage topics + run a cycle** — `add-topic` / `list-topics` / `remove-topic`
    curate the topic→URL registry; `run-once` performs a single foreground
    fetch→extract→index→metadata cycle over all registered topics; `status` reports
-   health; `uninstall` removes the descriptor (and, with `--purge`, the state dir).
+   health; `uninstall` removes the descriptor (and, with `--purge`, the state dir);
+   `decline` records (or with `--clear`, clears) an explicit key-prompt decline.
 
 The command never auto-loads/registers the boot descriptor, never auto-enables the
 daemon without a key, and never describes the librarian as "running" / "deployed" /
@@ -73,6 +74,33 @@ fallback (the v2.9.0 bug this consolidation closes).
 - If any step shows `[x]` in the script output, surface the failure with the script's
   `detail` text and stop. Do not pretend the install succeeded.
 
+## Ask for missing keys — never punt (v3.38.0)
+
+When the install or status output shows the **provisioned-but-NOT-enabled** state (no
+`ANTHROPIC_API_KEY` resolved), you (the executing agent) MUST offer to capture the key
+in-session. NEVER present the bare run-this-script remediation as the only path.
+
+1. **Consult the decline record first.** Run `status` and read its `declined=` report.
+   Do NOT re-ask a declined slot absent an explicit re-ask signal from the user; an
+   explicit re-ask maps to `install --re-ask-keys`, which clears the record so the
+   prompt fires again.
+2. **Ask with AskUserQuestion**, offering exactly two dispositions:
+   - **Capture the key now** — you then apply it yourself through the existing enable
+     path, exactly as the printed remediation does: run
+     `ANTHROPIC_API_KEY=<key> python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_librarian.py" install --enable`
+     (the key set only in that invocation's environment). Never echo the key back in
+     conversation; the script masks it to its last 4 characters in every report line
+     and never persists it raw.
+   - **Decline** — you record it via the `decline` subcommand so re-runs stop asking:
+     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_librarian.py" decline`.
+     Clear it later with `decline --clear` or `install --re-ask-keys`. A decline
+     suppresses the PROMPT, never the truth: `status` keeps reporting the absent key
+     and the degraded state honestly.
+
+Direct terminal runs need none of this: on a real TTY the installer itself asks, via
+its hidden-entry `--interactive-prompts` seam (blank entry skips and records the
+decline as `prompt-skip`).
+
 ## Flags (forwarded to the install script)
 
 - `--base-dir <path>` — the state directory (default `$CT6_LIBRARIAN_HOME`, else
@@ -81,6 +109,10 @@ fallback (the v2.9.0 bug this consolidation closes).
 - `--check-only` — report intent only; do not provision state.
 - `--json` — emit a machine-readable JSON status report (handy for piping / tests).
 - `--purge` — (with `uninstall`) also remove the state directory.
+- `--interactive-prompts` — allow the hidden stdin key prompt on a real TTY
+  (auto-set for a direct terminal `install` run without `--json` / `--check-only`).
+- `--re-ask-keys` — clear the `key-declines.json` record so the key prompt fires again.
+- `--clear` — (with `decline`) clear the recorded decline instead of recording one.
 
 ## Safety rules (non-negotiable)
 
