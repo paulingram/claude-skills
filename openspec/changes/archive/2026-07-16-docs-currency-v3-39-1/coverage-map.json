@@ -1,0 +1,60 @@
+{
+  "change": "docs-currency-v3-39-1",
+  "authored_at": "2026-07-16T05:40:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_text": "Zero stale CURRENT-STATE assertions in the living doc set; every surviving grep hit dispositioned as historical narrative",
+      "spec_requirement_id": "documentation-currency-refresh/current-state-assertion-currency",
+      "scenarios": [
+        "stale current-state assertion is detected and fails the scan",
+        "historical narrative is exempt and dispositioned",
+        "clean docs pass the scan after a refresh"
+      ],
+      "acceptance_criteria": [
+        "python tests/bug-fix-docs-currency-v3-39-1/check_docs_current.py exits 0 with zero violations (the B1/B2 replication artifact re-run verbatim — the regression contract)",
+        "the scan's exemption report lists every historical hit with its disposition"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests/bug-fix-docs-currency-v3-39-1/check_docs_current.py"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_text": "Every stated current count matches the verified v3.39.1 state (5494 passing + 4 skipped, 200 test files, 48 skills / 39 agents / 23 commands); if the verified run diverges, docs carry the verified number",
+      "spec_requirement_id": "documentation-currency-refresh/current-state-assertion-currency",
+      "scenarios": ["clean docs pass the scan after a refresh"],
+      "acceptance_criteria": [
+        "the scan's count-verification section confirms stated counts == verified counts",
+        "plugin.json == marketplace.json == 3.39.1, README badge/banner match"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests/bug-fix-docs-currency-v3-39-1/check_docs_current.py"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_text": "The full pytest suite is green under BOTH Windows cp1252 AND PYTHONUTF8=1",
+      "spec_requirement_id": "documentation-currency-refresh/current-state-assertion-currency",
+      "scenarios": ["clean docs pass the scan after a refresh"],
+      "acceptance_criteria": [
+        "python -m pytest -q green under cp1252 (expected 5494 passing + 4 skipped)",
+        "PYTHONUTF8=1 python -m pytest -q green"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["pytest suite output (captured in review evidence)"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_text": "The commit lands on architect-team/docs-currency-v3-39-1, merges --no-ff to main, pushes to origin/main",
+      "spec_requirement_id": "documentation-currency-refresh/current-state-assertion-currency",
+      "scenarios": ["clean docs pass the scan after a refresh"],
+      "acceptance_criteria": [
+        "git log shows the --no-ff merge commit on main; origin/main updated"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["git log (Phase B8 report)"]
+    }
+  ],
+  "playwright_authorization": "N/A — no frontend surface in scope (docs-only PATCH on a plugin repo with no UI); the refined brief and this record are the explicit authorization per Phase 1's N/A convention",
+  "confirmed_stubs": [],
+  "notes": "Bug-fix change (Phase B3 slim gate). The replication artifact IS the acceptance test per bug-fix-pipeline discipline. Historical-narrative exemption and frozen-doc exclusion are user-authorized (refinement iterations 1-2)."
+}
