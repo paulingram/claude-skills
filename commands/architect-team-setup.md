@@ -59,7 +59,7 @@ If your harness registers Codex 5.6 under a different model id, add `--codex-mod
 
 The installer resolves one of two **auth modes** from key presence (never a live probe):
 
-- **api-key mode** — an `ANTHROPIC_API_KEY` resolves (env, `--anthropic-key`, or an existing `gateway.env`). The gateway fronts BOTH providers: `codex-5.6-sol` → OpenAI, everything else → Anthropic. With consent (`--yes`, or the installer's `--activate`), setup then points Claude Code at the gateway (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` in `~/.claude/settings.json`) and applies the Codex 5.6 role split — the full out-of-the-box state.
+- **api-key mode** — an `ANTHROPIC_API_KEY` resolves (env, `--anthropic-key`, or an existing `gateway.env`). The gateway fronts BOTH providers: `codex-5.6-sol` → OpenAI, everything else → Anthropic. With consent (`--yes`, or the installer's `--activate`), setup then points Claude Code at the gateway (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` in `~/.claude/settings.json`) and applies the Codex 5.6 role split — the full out-of-the-box state. **The split targets the agents the runtime actually loads (v3.39.0):** the INSTALLED plugin cache copy resolved from Claude Code's `installed_plugins.json`, falling back to the repo `agents/` when no installed copy exists — a dev checkout is never left carrying the split for git to revert.
 - **subscription mode** — no Anthropic key anywhere. **Fable keeps working through your normal Claude sign-in**: `ANTHROPIC_BASE_URL` is deliberately never written (the harness cannot route only codex traffic through a proxy while sign-in auth handles the rest), so the codex role split stays OFF and the gateway serves OpenAI models to direct callers (e.g. the service tier). The printed remediation for reaching full-gateway mode is to add an `ANTHROPIC_API_KEY` and re-run.
 
 Either way fable is usable — via the sign-in (no key needed) or via the API key; enabling external-LLM usage never breaks the Anthropic side.
@@ -70,6 +70,7 @@ Useful one-liners (the same installer setup drives):
 
 ```
 python3 scripts/setup/install_gateway.py status                      # mode / keys (masked) / registration / activation / model policy
+python3 scripts/setup/install_gateway.py status --live               # + probe the RUNNING gateway's /v1/models and confirm it serves the split
 python3 scripts/setup/install_gateway.py install --activate         # full install incl. registration + Claude Code routing + the codex split (api-key mode)
 python3 scripts/setup/install_gateway.py install --openai-model <id> # override the OpenAI-side model id the codex alias maps to
 python3 scripts/setup/install_gateway.py install --no-register      # provision without the automatic boot registration
@@ -77,6 +78,15 @@ python3 scripts/setup/install_gateway.py uninstall                  # stop + unr
 ```
 
 `--no-external-llm` (or `CT6_EXTERNAL_LLM` set falsy) runs the uninstall path; with NO signal setup installs nothing and only surfaces the option as a note. Failures never gate setup — they degrade to a `warn` row carrying the manual remediation.
+
+### One-call confirmation — CT6 runs the split (v3.39.0)
+
+A registered `--external-llm` install no longer ends at "steps reported ok" — it ends at **proof**. The installer polls the LIVE gateway's `/v1/models` and asserts the ids the mode needs are actually served (`codex-5.6-sol` always; `claude-fable-5` additionally in api-key mode — the v3.38.1 field bug, a generated config that passed every install step while rejecting fable, is exactly what this catches). A stale gateway process serving a pre-regeneration config gets one automatic restart + re-probe. The setup row then states the outcome plainly: **"CONFIRMED live — CT6 runs the split"**, or a fail row with the remediation. Report that confirmation sentence to the user verbatim — it is the answer to "is my team actually running the mixed models?".
+
+Two notes to relay when they apply:
+
+- **Claude Code restart:** a freshly WRITTEN `ANTHROPIC_BASE_URL` in `settings.json` reaches new sessions only — tell the user to restart Claude Code once when activation was applied for the first time this run.
+- **Plugin updates heal themselves:** the split lives on the installed plugin copy, so a plugin update (a fresh cache dir with uniform-fable files) would silently revert it — the SessionStart hook re-applies the split automatically from the gateway's recorded policy (`gateway.json` `model_policy`). No user action needed; `status --live` verifies any time.
 
 ### Ask for missing keys — never punt (v3.38.0)
 

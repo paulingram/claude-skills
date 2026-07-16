@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 38 . 1
+                        ─── C T 6 ───   v 3 . 39 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.38.1-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.39.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-5467%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -67,9 +67,20 @@ emits a one-line note at startup recording the choice in `intake-state.json`.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.38.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.39.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.39.0 — one-call external-LLM setup (runtime split targeting + live split confirmation + self-heal)
+
+`--external-llm --yes` is now genuinely **one call**: it asks for missing keys (v3.38.0), provisions + registers + activates the gateway, applies the codex split **where the runtime actually reads it**, and ends by **confirming against the live gateway that CT6 runs the split** — no surprise follow-up steps.
+
+| Capability | What it is |
+|---|---|
+| **Runtime split targeting** | The split used to land on the dev checkout's `agents/` — which Claude Code never loads (it runs the installed plugin cache copy) and git promptly reverts (ship state is uniform fable). New `set_default_model.installed_plugin_agents_dir()` / `runtime_agents_dir()` resolve the INSTALLED plugin's `agents/` from Claude Code's `installed_plugins.json` (`$CT6_PLUGIN_REGISTRY` override, repo fallback); the gateway installer's activate/status/uninstall AND `setup.py --codex` now target it. The split step names its target dir; the repo stays on committed ship state. |
+| **Live split confirmation** | The v3.38.1 field bug proved a generated config can be broken while every install step reports ok. A registered install now ends with a poll of the LIVE gateway's `/v1/models` asserting the mode's ids are actually SERVED (`codex-5.6-sol` always; `claude-fable-5` additionally in api-key mode), with ONE automatic user-level gateway restart + re-probe when a stale process serves a pre-regeneration config. The setup row states it plainly: **"CONFIRMED live — CT6 runs the split"** (or an honest fail row + remediation — never gates). `status --live` verifies any time. |
+| **The split survives plugin updates** | A plugin update ships uniform-fable files into a fresh cache dir — previously a silent split revert. `gateway.json` now records the desired `model_policy`, and the SessionStart hook re-applies the split to a drifted INSTALLED copy automatically (a dev checkout is never rewritten; uninstall flips the record so an uninstalled split is never resurrected). |
+| **Counts + tests** | Global `tests/conftest.py` registry scrub (no test can rewrite the real installed plugin) + the gateway tests' live-probe stub (no real sockets). Lever tests 29 → 37, gateway 79 → 92, fallbacks 34 → 35, sessionstart 8 → 13. Suite 5467 → **5494 passing + 4 skipped** (200 test files). Skill / agent / command counts UNCHANGED (48 / 39 / 23); NO new skill / agent / command / hook / Layer-3 tool; stdlib-only holds (`urllib`). |
 
 ### v3.38.0 — setup asks for missing keys (ask-then-apply, never punt-to-script)
 

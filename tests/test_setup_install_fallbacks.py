@@ -497,6 +497,28 @@ def test_apply_model_policy_missing_agents_dir_warns(
     assert "--split codex" in detail
 
 
+def test_apply_model_policy_targets_the_runtime_agents_dir(
+    setup_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v3.39.0: with NO explicit agents_dir the policy targets the agents the
+    RUNTIME loads — the installed plugin copy from installed_plugins.json —
+    never the dev checkout (whose committed ship state would revert it)."""
+    installed = _agents_copy(tmp_path)  # plays the installed copy's agents/
+    registry = tmp_path / "installed_plugins.json"
+    registry.write_text(json.dumps({"version": 2, "plugins": {
+        "architect-team@architect-team-marketplace": [
+            {"scope": "user", "installPath": str(installed.parent)}]}}),
+        encoding="utf-8")
+    monkeypatch.setenv("CT6_PLUGIN_REGISTRY", str(registry))
+    name, status, detail = setup_module.apply_model_policy(True, False)
+    assert status == "applied"
+    lever = setup_module._load_model_lever()
+    assert lever.policy_state(installed) == "codex-split"
+    # the repo's own tracked agents/ stayed on the committed ship state
+    repo_agents = Path(__file__).resolve().parents[1] / "agents"
+    assert lever.policy_state(repo_agents) == "uniform-fable"
+
+
 def _wired_main(setup_module: ModuleType, tmp_path: Path, argv: list[str]):
     installed = tmp_path / "installed.json"
     installed.write_text(json.dumps({

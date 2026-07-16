@@ -844,7 +844,10 @@ def apply_model_policy(
     manual = "python3 scripts/setup/set_default_model.py --split codex"
     try:
         lever = _load_model_lever()
-        agents_dir = agents_dir if agents_dir is not None else lever._default_agents_dir()
+        # v3.39.0: target the agents the RUNTIME loads — the installed plugin
+        # copy when one exists (a dev-checkout split never reaches the
+        # runtime and is reverted by the next git operation).
+        agents_dir = agents_dir if agents_dir is not None else lever.runtime_agents_dir()
         if not Path(agents_dir).is_dir():
             return (
                 name,

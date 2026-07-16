@@ -101,3 +101,108 @@ def test_build_directive_pure_function(tmp_path: Path) -> None:
     rc.engage_marker(tmp_path, "ux-test-builder")
     out = mod.build_directive({"cwd": str(tmp_path), "source": "resume"})
     assert 'Skill(skill="ux-test-builder")' in out
+
+
+# --------------------------------------------------------------------------- #
+# v3.39.0 — model-split self-heal
+# --------------------------------------------------------------------------- #
+#
+# A plugin update ships uniform-fable agent files into a fresh cache dir,
+# silently reverting an applied codex role split. When the gateway state says
+# the split is desired AND the hook runs from an INSTALLED plugin copy whose
+# agents/ drifted, the hook re-applies the split. A dev checkout is NEVER
+# rewritten; every failure path returns "" (fail-open).
+
+import shutil  # noqa: E402
+
+
+def _fake_installed_plugin(tmp_path: Path, model: str = "fable") -> tuple[Path, Path]:
+    """A fake installed plugin copy (under a fake plugins base) carrying the
+    REAL model lever + a two-agent agents/ dir, plus the plugins base."""
+    plugins_base = tmp_path / "plugins"
+    root = plugins_base / "cache" / "architect-team-marketplace" / "architect-team" / "9.9.9"
+    (root / "agents").mkdir(parents=True)
+    for stem in ("backend", "system-architect"):
+        (root / "agents" / f"{stem}.md").write_text(
+            f"---\nname: {stem}\nmodel: {model}\n---\n\nbody\n", encoding="utf-8")
+    (root / "scripts" / "setup").mkdir(parents=True)
+    shutil.copy(REPO_ROOT / "scripts" / "setup" / "set_default_model.py",
+                root / "scripts" / "setup" / "set_default_model.py")
+    return root, plugins_base
+
+
+def _gateway_state(tmp_path: Path, **overrides) -> Path:
+    state = {"activated": True, "auth_mode": "api-key",
+             "model_policy": "codex-split", "codex_alias": "codex-5.6-sol"}
+    state.update(overrides)
+    path = tmp_path / "gateway.json"
+    path.write_text(json.dumps(state), encoding="utf-8")
+    return path
+
+
+def test_heal_reapplies_split_to_drifted_installed_copy(tmp_path: Path) -> None:
+    mod = _load_module()
+    root, plugins_base = _fake_installed_plugin(tmp_path)  # uniform fable = drifted
+    note = mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=_gateway_state(tmp_path))
+    assert "self-heal" in note and "re-applied" in note
+    assert "model: codex-5.6-sol" in (
+        root / "agents" / "backend.md").read_text(encoding="utf-8")
+    assert "model: fable" in (
+        root / "agents" / "system-architect.md").read_text(encoding="utf-8")
+
+
+def test_heal_never_rewrites_a_dev_checkout(tmp_path: Path) -> None:
+    """The root guard: a plugin root OUTSIDE the plugins base (a dev checkout,
+    this repo itself) is never rewritten — even with a codex-split state."""
+    mod = _load_module()
+    root, _ = _fake_installed_plugin(tmp_path)
+    note = mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=tmp_path / "elsewhere",
+        gateway_state_path=_gateway_state(tmp_path))
+    assert note == ""
+    assert "model: fable" in (
+        root / "agents" / "backend.md").read_text(encoding="utf-8")
+
+
+def test_heal_noop_when_state_does_not_want_the_split(tmp_path: Path) -> None:
+    mod = _load_module()
+    root, plugins_base = _fake_installed_plugin(tmp_path)
+    for overrides in ({"model_policy": "uniform-fable"},
+                      {"activated": False},
+                      {"auth_mode": "subscription"}):
+        note = mod.maybe_heal_model_split(
+            plugin_root=root, plugins_base=plugins_base,
+            gateway_state_path=_gateway_state(tmp_path, **overrides))
+        assert note == "", overrides
+    assert "model: fable" in (
+        root / "agents" / "backend.md").read_text(encoding="utf-8")
+
+
+def test_heal_noop_when_split_already_applied_or_state_missing(tmp_path: Path) -> None:
+    mod = _load_module()
+    root, plugins_base = _fake_installed_plugin(tmp_path)
+    # missing state file => fail-open no-op
+    assert mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=tmp_path / "absent.json") == ""
+    # apply once, then the healed state is a silent no-op
+    first = mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=_gateway_state(tmp_path))
+    assert first != ""
+    again = mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=_gateway_state(tmp_path))
+    assert again == ""
+
+
+def test_heal_fail_open_on_garbage_state(tmp_path: Path) -> None:
+    mod = _load_module()
+    root, plugins_base = _fake_installed_plugin(tmp_path)
+    bad = tmp_path / "gateway.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=bad) == ""
