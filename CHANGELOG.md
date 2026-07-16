@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.39.1] — 2026-07-16 — living-docs current-state refresh (docs-only PATCH)
+
+**PATCH — the living documentation now states the shipped repository's current version, inventory, and suite totals consistently.** This docs-only sweep fixes the 12 stale current-state assertions replicated after v3.39.0: the README tests badge, development-suite summary, and STATUS timeline marker; the CODEBASE_MAP header blockquote, System Overview version and inventory, tree count, currency note, and Tests heading/body; and the INTEGRATION_MAP inventory and suite-total lines. Historical release narrative remains unchanged and is explicitly exempt from current-state comparison, as user-authorized.
+
+The generalized derive-and-compare detector at `tests/bug-fix-docs-currency-v3-39-1/check_docs_current.py` ships as the B4-audited, class-general regression artifact: it derives version, suite, and inventory facts from repository sources, scans the living-doc set, and dispositions historical hits instead of hard-coding these 12 instances. It is deliberately named `check_*` and is NOT pytest-collected. Counts are UNCHANGED (48 skills / 39 agents / 23 commands), and the suite stays **5494 passing + 4 skipped** (199 test files), green under both Windows cp1252 and `PYTHONUTF8=1`. The test-file count is corrected to the verified 199 (`git ls-files tests/test_*.py`; prior entries' 200 included conftest — the count basis is now disk-anchored in the detector). NO runtime behavior, skill, agent, command, hook, or Layer-3 tool changes.
+
 ## [3.39.0] — 2026-07-16 — one-call external-LLM setup (runtime split targeting + live split confirmation + self-heal)
 
 **MINOR — `setup --external-llm --yes` is now genuinely ONE call: it asks for missing keys (v3.38.0), provisions + registers + activates the gateway, applies the codex split WHERE THE RUNTIME ACTUALLY READS IT, and ends by CONFIRMING against the live gateway that CT6 runs the split.** The owner directive (2026-07-15): *"I want this to be singularly 1 setup call and it asks for the API keys when needed then sets up everything and confirms Claude Team 6 runs the split."* The field state that motivated it: a machine with the gateway installed, activated, and registered — yet `model-policy=uniform-fable`, because the split targeted the DEV CHECKOUT's `agents/` instead of the installed plugin cache copy Claude Code loads, and the committed ship state (uniform fable) reverted it on the next git operation.
