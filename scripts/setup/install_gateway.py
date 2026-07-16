@@ -133,6 +133,22 @@ DEFAULT_PORT = 4000
 # not probe-able from stdlib); override with --openai-model if it moves.
 DEFAULT_OPENAI_MODEL = "gpt-5.6-sol"
 
+# Anthropic model ids given EXPLICIT gateway routes in api-key mode (v3.38.1).
+# The '*' catch-all alone was observed non-functional on a real LiteLLM
+# install (SR-gateway-wildcard-route); these are the ids a real key listed via
+# /v1/models on 2026-07-16, fable first (the plugin default), opus-4-8 second
+# (the implemented fallback). Extend here when Anthropic ships new ids — the
+# catch-all remains as a best-effort tail for anything unlisted.
+ANTHROPIC_EXPLICIT_MODELS = (
+    "claude-fable-5",
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+)
+
 CONFIG_NAME = "config.yaml"
 ENV_FILE_NAME = "gateway.env"
 STATE_NAME = "gateway.json"
@@ -394,8 +410,11 @@ def build_gateway_config(
     NEVER raw values.
 
     * Always: the codex alias → OpenAI route (the v3.35.0 role-split backend).
-    * api-key mode only: a catch-all route sending every other model id to
-      Anthropic, so ANTHROPIC_BASE_URL can front the whole harness.
+    * api-key mode only: an EXPLICIT route per known Anthropic model id
+      (ANTHROPIC_EXPLICIT_MODELS — fable first) plus a catch-all tail, so
+      ANTHROPIC_BASE_URL can front the whole harness. Explicit routes are
+      REQUIRED, not decorative: the catch-all alone was field-observed broken
+      (v3.38.1, SR-gateway-wildcard-route).
     * Always: a master key, so the local proxy never runs unauthenticated.
     """
     lines = [
@@ -408,6 +427,21 @@ def build_gateway_config(
         "      api_key: os.environ/OPENAI_API_KEY",
     ]
     if auth_mode == AUTH_MODE_API_KEY:
+        # v3.38.1 (SR-gateway-wildcard-route, field-verified 2026-07-16): a
+        # config that relies ONLY on the '*' catch-all was observed broken on a
+        # real Windows LiteLLM install — the proxy exposed just the codex alias
+        # and rejected every Anthropic id with "Invalid model name ... Call
+        # /v1/models". Explicit per-model routes fixed it live (fable + opus
+        # verified through the gateway). Each known Anthropic id therefore gets
+        # its own route, emitted BEFORE the catch-all; the catch-all stays as a
+        # best-effort tail for ids that ship after this list was written.
+        for anthropic_id in ANTHROPIC_EXPLICIT_MODELS:
+            lines += [
+                f"  - model_name: {anthropic_id}",
+                "    litellm_params:",
+                f"      model: anthropic/{anthropic_id}",
+                "      api_key: os.environ/ANTHROPIC_API_KEY",
+            ]
         lines += [
             '  - model_name: "*"',
             "    litellm_params:",

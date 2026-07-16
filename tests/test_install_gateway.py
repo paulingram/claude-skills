@@ -209,6 +209,28 @@ def test_config_api_key_mode_adds_anthropic_catch_all(gw: ModuleType) -> None:
     assert "sk-" not in cfg.replace("sk-ct6", "")
 
 
+def test_config_api_key_mode_has_explicit_anthropic_routes(gw: ModuleType) -> None:
+    """v3.38.1 (SR-gateway-wildcard-route): the '*' catch-all alone was
+    field-observed broken — every known Anthropic id gets its OWN route, fable
+    first, all emitted BEFORE the catch-all tail."""
+    cfg = gw.build_gateway_config(gw.AUTH_MODE_API_KEY)
+    assert "claude-fable-5" in gw.ANTHROPIC_EXPLICIT_MODELS[0]
+    assert "claude-opus-4-8" in gw.ANTHROPIC_EXPLICIT_MODELS
+    for anthropic_id in gw.ANTHROPIC_EXPLICIT_MODELS:
+        assert f"- model_name: {anthropic_id}\n" in cfg, anthropic_id
+        assert f"model: anthropic/{anthropic_id}\n" in cfg, anthropic_id
+    # ordering: every explicit route precedes the catch-all
+    assert cfg.rindex("model: anthropic/claude-fable-5") < cfg.index('- model_name: "*"')
+
+
+def test_config_subscription_mode_has_no_explicit_anthropic_routes(gw: ModuleType) -> None:
+    """Subscription mode still writes ZERO anthropic routes — fable stays on
+    Claude Code's native sign-in auth (the v3.36.0 posture, unchanged)."""
+    cfg = gw.build_gateway_config(gw.AUTH_MODE_SUBSCRIPTION)
+    for anthropic_id in gw.ANTHROPIC_EXPLICIT_MODELS:
+        assert anthropic_id not in cfg, anthropic_id
+
+
 def test_config_codex_alias_matches_model_lever(gw: ModuleType, plugin_root: Path) -> None:
     """The alias written into agents/*.md by the v3.35.0 split and the alias the
     gateway routes MUST be the same string, or the split points at nothing."""
