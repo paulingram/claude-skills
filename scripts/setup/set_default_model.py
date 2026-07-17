@@ -6,11 +6,14 @@ available). This stdlib-only CLI is the sanctioned, deterministic lever for that
 field AND the IMPLEMENTED Opus-4.8 fallback for a harness that predates the fable
 alias: ``python scripts/setup/set_default_model.py --model opus``.
 
-v3.35.0 adds the CODEX 5.6 ROLE SPLIT: when the harness has Codex 5.6 available,
-architecture/control/design agents stay on ``fable`` while development,
-code-checking, and testing agents move to ``codex-5.6-sol``. Availability is an
-INPUT (a flag or the ``CT6_CODEX_56_AVAILABLE`` env var), never probed here — the
-same injected-availability convention as ``services/common/service_config.py``'s
+v3.35.0 added the availability-gated secondary role split: architecture/control/
+design agents stay on ``fable`` while development, code-checking, and testing
+agents move to a gateway-served alias. v3.40.0 makes that alias provider-neutral
+(``ct6-secondary``) and adds the OpenAI/Z.ai provider registry. The historical
+``CODEX_MODEL = "codex-5.6-sol"`` constant remains importable only for mixed-version
+backward compatibility and migration detection. Availability is an INPUT (a flag
+or the ``CT6_CODEX_56_AVAILABLE`` env var), never probed here — the same injected-
+availability convention as ``services/common/service_config.py``'s
 ``resolve_model``. Without the availability signal the policy resolves to the
 current operating model: uniform ``fable`` (with the existing ``--model opus``
 uniform lever remaining the Opus fallback where fable is unavailable).
@@ -19,17 +22,20 @@ Behaviour
 ---------
 * ``--model fable|opus|sonnet|haiku`` rewrites ONLY the ``model:`` line in each
   agent's YAML frontmatter (bodies stay byte-identical; the change is idempotent).
-  An unknown model is refused (exit 1) and touches nothing. The codex id is
-  deliberately NOT accepted here — codex never applies uniformly (architecture/
-  control/design agents must stay on fable); it arrives only via the split.
-* ``--split codex`` applies the role split unconditionally (the caller asserts
-  Codex 5.6 availability). ``--codex-model`` overrides the written codex id.
+  An unknown model is refused (exit 1) and touches nothing. The current and legacy
+  secondary aliases are deliberately NOT accepted here — the split never applies
+  uniformly (architecture/control/design agents must stay on fable).
+* ``--split secondary`` applies the role split unconditionally. ``--split codex``
+  remains a deprecated synonym. ``--secondary-model`` overrides the written alias;
+  ``--codex-model`` remains a backward-compatible option synonym.
 * ``--auto`` resolves the policy from ``CT6_CODEX_56_AVAILABLE``: truthy => the
-  codex split; SET-but-falsy => uniform fable (the current operating default);
+  secondary split; SET-but-falsy => uniform fable (the current operating default);
   ABSENT => no signal — the model state is left untouched (a manually applied
   lever state, e.g. the Opus fallback, is never silently clobbered).
-* ``--check`` prints the model distribution, uniformity, and the recognized
-  policy state (``uniform-fable`` / ``codex-split`` / ``uniform-<m>`` / ``mixed``).
+* ``--check`` prints the model distribution, uniformity, and the recognized policy
+  state (``uniform-fable`` / ``secondary-split`` / ``uniform-<m>`` / ``mixed``).
+  Readers may still encounter ``codex-split`` in legacy state files, but this lever
+  emits the single canonical ``secondary-split`` policy string.
 * ``--agents-dir`` overrides the target directory (default: the repo's agents/).
 
 Exit codes: 0 on a successful flip/split or a ``--check`` report; 1 on a
@@ -60,13 +66,39 @@ except ImportError:  # direct script / importlib-by-path execution
 
 VALID_MODELS = ("fable", "opus", "sonnet", "haiku")
 
-# --- Codex 5.6 role split (v3.35.0) ----------------------------------------- #
-#
-# The frontmatter model id written for development/checking/testing agents when
-# Codex 5.6 is available. If the harness registers Codex 5.6 under a different
-# id, override with --codex-model (the id is written verbatim, never validated
-# against a live registry — model availability is not probe-able from stdlib).
+# --- Secondary-provider role split (v3.35.0; provider registry v3.40.0) ------- #
+SECONDARY_ALIAS = "ct6-secondary"
+LEGACY_SECONDARY_ALIASES = ("codex-5.6-sol",)
+SECONDARY_PROVIDERS: Dict[str, Dict[str, Optional[str]]] = {
+    "openai": {
+        "model": "gpt-5.6-sol",
+        "key_env": "OPENAI_API_KEY",
+        "route_model": "openai/gpt-5.6-sol",
+        "api_base": None,
+        "label": "OpenAI — Codex 5.6 (gpt-5.6-sol)",
+    },
+    "zai": {
+        "model": "glm-5.2",
+        "key_env": "ZAI_API_KEY",
+        "route_model": "openai/glm-5.2",
+        "api_base": "https://api.z.ai/api/paas/v4",
+        "label": "Z.ai — GLM 5.2 (glm-5.2)",
+    },
+}
+
+# Deprecated back-compat constant. New writers use SECONDARY_ALIAS; this remains
+# importable for mixed-version gateway readers and legacy-alias migration only.
 CODEX_MODEL = "codex-5.6-sol"
+
+# Canonical model-policy strings (v3.40.0). The lever is the single source —
+# the gateway/setup readers import these instead of spelling the literals
+# (the SessionStart hook keeps a guarded local copy because it loads the lever
+# dynamically, and only after its cheap state check). ``codex-split`` is the
+# legacy policy string prior versions recorded: readers accept it, writers
+# emit only the canonical values.
+POLICY_SECONDARY_SPLIT = "secondary-split"
+POLICY_UNIFORM_FABLE = "uniform-fable"
+LEGACY_POLICY_CODEX_SPLIT = "codex-split"
 
 # Availability signal for --auto (and for setup.py). Truthy => Codex 5.6 is
 # available in this harness. Absent/falsy => stay on the current operating
@@ -74,7 +106,7 @@ CODEX_MODEL = "codex-5.6-sol"
 CODEX_ENV_VAR = "CT6_CODEX_56_AVAILABLE"
 
 ROLE_ARCHITECTURE = "architecture-control-design"   # stays on fable under the split
-ROLE_DEVELOPMENT = "development-checking-testing"   # moves to codex under the split
+ROLE_DEVELOPMENT = "development-checking-testing"   # moves to secondary under the split
 
 # Role classification of all 39 agents (v3.35.0). The buckets follow the owner
 # directive verbatim: architecture + control + design agents keep Fable;
@@ -82,7 +114,7 @@ ROLE_DEVELOPMENT = "development-checking-testing"   # moves to codex under the s
 # The split was adversarially re-derived by 3 independent classifiers; the
 # hard calls landed as: reconciler / reference-tracer / structure-adversary
 # (hands-on code merging / reference closure / code-search refutation) and
-# flow-explorer (test-flow design inside the testing pipeline) => codex;
+# flow-explorer (test-flow design inside the testing pipeline) => secondary;
 # diagnostic-researcher (root-cause RESEARCH feeding the architect, the
 # researcher family) and the doc-currency writers (doc-updater /
 # closeout-agent — documentation, not product code) => fable.
@@ -291,10 +323,16 @@ def distribution(agents_dir) -> Dict[str, int]:
     return dist
 
 
-# --- Codex 5.6 role split application (v3.35.0) ------------------------------ #
+# --- Secondary-provider role split application (v3.35.0 / v3.40.0) ----------- #
 
-def split_targets(agents_dir, codex_model: str = CODEX_MODEL) -> Dict[str, str]:
-    """Return ``{stem: target_model}`` for every agent file under the codex split."""
+def split_targets(
+    agents_dir, codex_model: str = SECONDARY_ALIAS
+) -> Dict[str, str]:
+    """Return ``{stem: target_model}`` for every agent under the role split.
+
+    ``codex_model`` retains its historical parameter name so mixed-version callers
+    using the positional or keyword form remain compatible. New callers should
+    treat it as the provider-neutral secondary model alias."""
     agents_dir = pathlib.Path(agents_dir)
     targets: Dict[str, str] = {}
     for path in sorted(agents_dir.glob("*.md")):
@@ -303,10 +341,12 @@ def split_targets(agents_dir, codex_model: str = CODEX_MODEL) -> Dict[str, str]:
     return targets
 
 
-def apply_split(agents_dir, codex_model: str = CODEX_MODEL) -> List[str]:
-    """Apply the codex role split: fable on architecture/control/design agents,
-    ``codex_model`` on development/checking/testing agents. Returns sorted
-    changed stems. Idempotent; only the frontmatter model line is touched."""
+def apply_split(
+    agents_dir, codex_model: str = SECONDARY_ALIAS
+) -> List[str]:
+    """Apply the role split: fable on architecture/control/design agents and the
+    secondary alias on development/checking/testing agents. Returns sorted changed
+    stems. Idempotent; only the frontmatter model line is touched."""
     agents_dir = pathlib.Path(agents_dir)
     targets = split_targets(agents_dir, codex_model)
     changed: List[str] = []
@@ -322,20 +362,44 @@ def apply_split(agents_dir, codex_model: str = CODEX_MODEL) -> List[str]:
     return sorted(changed)
 
 
+def migrate_legacy_split(agents_dir) -> List[str]:
+    """Rewrite legacy secondary aliases to ``SECONDARY_ALIAS``.
+
+    Returns sorted changed stems and is idempotent. Every legacy model occurrence
+    is migrated, including an unexpected one outside the development role bucket;
+    callers can then re-apply the role policy to repair any broader drift."""
+    agents_dir = pathlib.Path(agents_dir)
+    changed: List[str] = []
+    for path in sorted(agents_dir.glob("*.md")):
+        text_lf, newline, trailing = _read(path)
+        if read_model_value(text_lf) not in LEGACY_SECONDARY_ALIASES:
+            continue
+        new = rewrite_model_line(text_lf, SECONDARY_ALIAS)
+        if new is None:
+            continue
+        if trailing and not new.endswith("\n"):
+            new += "\n"
+        if _write_if_changed(path, new, newline):
+            changed.append(path.stem)
+    return sorted(changed)
+
+
 def apply_policy(
     agents_dir,
     codex_is_available: bool,
-    codex_model: str = CODEX_MODEL,
+    codex_model: str = SECONDARY_ALIAS,
 ) -> Tuple[str, List[str]]:
     """Apply the availability-gated model policy. Returns ``(policy, changed)``.
 
-    * Codex 5.6 available  => the role split (``codex-split``).
-    * Codex 5.6 unavailable => the current operating model: uniform fable
+    * Secondary model available => the role split (``secondary-split``).
+    * Secondary model unavailable => the current operating model: uniform fable
       (``uniform-fable``; the Opus fallback where fable itself is unavailable
-      stays the separate ``--model opus`` uniform lever)."""
+      stays the separate ``--model opus`` uniform lever).
+
+    ``codex_model`` retains its old name for keyword-call compatibility."""
     if codex_is_available:
-        return "codex-split", apply_split(agents_dir, codex_model)
-    return "uniform-fable", set_model(agents_dir, "fable")
+        return POLICY_SECONDARY_SPLIT, apply_split(agents_dir, codex_model)
+    return POLICY_UNIFORM_FABLE, set_model(agents_dir, "fable")
 
 
 def unclassified_stems(agents_dir) -> List[str]:
@@ -347,10 +411,14 @@ def unclassified_stems(agents_dir) -> List[str]:
     )
 
 
-def policy_state(agents_dir, codex_model: str = CODEX_MODEL) -> str:
-    """Classify the on-disk model state: ``uniform-<model>`` (incl. the
-    ``uniform-fable`` operating default), ``codex-split`` when every file matches
-    its split target, else ``mixed``."""
+def policy_state(agents_dir, codex_model: str = SECONDARY_ALIAS) -> str:
+    """Classify the on-disk model state.
+
+    Returns ``uniform-<model>`` (including the operating ``uniform-fable``),
+    ``secondary-split`` when every file matches either the requested/current alias
+    or any complete legacy-alias split, else ``mixed``. ``codex-split`` is the
+    legacy policy string readers elsewhere may still hold; this function emits
+    only the canonical ``secondary-split`` value."""
     agents_dir = pathlib.Path(agents_dir)
     actual: Dict[str, str] = {}
     for path in sorted(agents_dir.glob("*.md")):
@@ -361,12 +429,17 @@ def policy_state(agents_dir, codex_model: str = CODEX_MODEL) -> str:
     values = set(actual.values())
     if len(values) == 1:
         return f"uniform-{next(iter(values))}"
-    if actual == split_targets(agents_dir, codex_model):
-        return "codex-split"
+    recognized_aliases = tuple(dict.fromkeys(
+        (codex_model, SECONDARY_ALIAS, *LEGACY_SECONDARY_ALIASES)
+    ))
+    if any(actual == split_targets(agents_dir, alias) for alias in recognized_aliases):
+        return POLICY_SECONDARY_SPLIT
     return "mixed"
 
 
-def _print_distribution(agents_dir: pathlib.Path, codex_model: str = CODEX_MODEL) -> None:
+def _print_distribution(
+    agents_dir: pathlib.Path, codex_model: str = SECONDARY_ALIAS
+) -> None:
     dist = distribution(agents_dir)
     total = sum(dist.values())
     print(f"model distribution across {total} agent file(s) in {agents_dir}:")
@@ -398,7 +471,7 @@ def _report_changed(policy: str, changed: List[str]) -> None:
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Set (or report) the frontmatter model field across agents/*.md "
-        "— uniform, or the availability-gated Codex 5.6 role split."
+        "— uniform, or the availability-gated secondary-model role split."
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -406,14 +479,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=None,
         help="Rewrite every agent's model field to this value ("
         + "/".join(VALID_MODELS)
-        + "). The codex id is refused here — codex applies only via the split.",
+        + "). Secondary split aliases are refused here — they apply only via the split.",
     )
     group.add_argument(
         "--split",
-        choices=["codex"],
+        choices=["secondary", "codex"],
         default=None,
-        help="Apply the Codex 5.6 role split: fable on architecture/control/design "
-        "agents, the codex model on development/checking/testing agents.",
+        help="Apply the secondary-model role split: fable on architecture/control/"
+        "design agents and the secondary alias on development/checking/testing "
+        "agents. 'codex' is a deprecated synonym.",
     )
     group.add_argument(
         "--auto",
@@ -428,10 +502,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Report the model distribution, uniformity, and policy state (writes nothing).",
     )
     parser.add_argument(
-        "--codex-model",
-        default=CODEX_MODEL,
+        "--secondary-model", "--codex-model",
+        dest="secondary_model",
+        default=SECONDARY_ALIAS,
         help=f"Model id written for development/checking/testing agents under the "
-        f"split (default: {CODEX_MODEL}).",
+        f"split (default: {SECONDARY_ALIAS}); --codex-model is a compatibility synonym.",
     )
     parser.add_argument(
         "--agents-dir",
@@ -446,11 +521,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     if args.check:
-        _print_distribution(agents_dir, args.codex_model)
+        _print_distribution(agents_dir, args.secondary_model)
         return 0
 
-    if args.split == "codex":
-        policy, changed = apply_policy(agents_dir, True, args.codex_model)
+    if args.split in {"secondary", "codex"}:
+        if args.split == "codex":
+            print(
+                "NOTE: --split codex is deprecated; use --split secondary.",
+                file=sys.stderr,
+            )
+        policy, changed = apply_policy(agents_dir, True, args.secondary_model)
         _report_changed(policy, changed)
         return 0
 
@@ -461,10 +541,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             # manually applied lever state, e.g. the Opus fallback).
             print(
                 f"{CODEX_ENV_VAR} absent — no availability signal; leaving the "
-                f"model state untouched (current policy: {policy_state(agents_dir, args.codex_model)})."
+                f"model state untouched (current policy: {policy_state(agents_dir, args.secondary_model)})."
             )
             return 0
-        policy, changed = apply_policy(agents_dir, signal, args.codex_model)
+        policy, changed = apply_policy(agents_dir, signal, args.secondary_model)
         print(
             f"{CODEX_ENV_VAR} {'truthy — Codex 5.6 available' if signal else 'set falsy — Codex 5.6 unavailable'}; "
             f"resolved policy: {policy}"
@@ -472,6 +552,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         _report_changed(policy, changed)
         return 0
 
+    split_aliases = {SECONDARY_ALIAS, *LEGACY_SECONDARY_ALIASES}
+    if args.model in split_aliases:
+        print(
+            f"ERROR: split alias {args.model!r} cannot apply uniformly; "
+            "use --split secondary",
+            file=sys.stderr,
+        )
+        return 1
     if args.model not in VALID_MODELS:
         print(
             f"ERROR: unknown model {args.model!r} (valid: {', '.join(VALID_MODELS)})",

@@ -54,12 +54,14 @@ REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
 # v3.32.0: `fable` (Claude Fable 5) added — the new uniform default across every
 # agent; scripts/setup/set_default_model.py is the sanctioned lever (and the
 # implemented opus fallback). See the uniform-fable pin below.
-# v3.35.0: `codex-5.6-sol` added — the SANCTIONED post-`--split codex` state
-# (development/code-checking/testing agents on a Codex-5.6 harness) must be
-# VALID frontmatter, merely not the committed ship state; without this, a
-# deployed split machine would see 18 agents flagged invalid rather than
-# drifted-from-ship-state (the uniform-fable pin below still holds ship state).
-VALID_MODELS = {"opus", "sonnet", "haiku", "inherit", "fable", "codex-5.6-sol"}
+# v3.35.0: `codex-5.6-sol` added for the sanctioned post-split state.
+# v3.40.0: `ct6-secondary` replaces it as the provider-neutral split alias;
+# keep the old id legacy-valid so an installed copy can be recognized and
+# migrated instead of rejected. The uniform-fable pin below still holds ship state.
+VALID_MODELS = {
+    "opus", "sonnet", "haiku", "inherit", "fable",
+    "ct6-secondary", "codex-5.6-sol",
+}
 # v3.10.0 (R4a): the retired tokens `LS` (covered by Glob/Read/Bash),
 # `NotebookRead` (merged into Read), and `Task` (teammates do not spawn other
 # agents) are NO LONGER in the allowlist — an agent re-introducing one fails.

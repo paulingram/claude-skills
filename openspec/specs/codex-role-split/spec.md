@@ -1,8 +1,7 @@
 # codex-role-split Specification
 
 ## Purpose
-Availability-gated model role split: when the harness has Codex 5.6 available, `fable` (Fable 5) drives all architecture/control/design agents and `codex-5.6-sol` (Codex 5.6) drives all development/code-checking/testing agents; when it is unavailable, the current operating model stays (uniform `fable`, with the Opus fallback lever where fable itself is unavailable). Deployment is managed by the setup surface and is a single flag.
-
+Availability-gated model role split: when the harness has a secondary provider available, `fable` (Fable 5) drives all architecture/control/design agents and the provider-neutral alias `ct6-secondary` (backed by the chosen secondary provider — OpenAI Codex or Z.ai GLM, per the secondary-provider-registry capability; previously the OpenAI-flavored `codex-5.6-sol`) drives all development/code-checking/testing agents; when it is unavailable, the current operating model stays (uniform `fable`, with the Opus fallback lever where fable itself is unavailable). Deployment is managed by the setup surface and is a single flag.
 ## Requirements
 ### Requirement: Role classification of every agent
 
@@ -20,22 +19,32 @@ Availability-gated model role split: when the harness has Codex 5.6 available, `
 
 ### Requirement: Availability-gated policy application
 
-The lever SHALL provide `apply_policy(agents_dir, codex_is_available)`: available applies the role split (`codex-split` — fable on architecture/control/design agents, the codex model on development/code-checking/testing agents); unavailable applies the current operating model (`uniform-fable`). The rewrite SHALL touch ONLY the frontmatter `model:` line, preserve line endings, and be idempotent. The uniform `--model` lever SHALL refuse the codex id (codex never applies uniformly), and the Opus fallback SHALL remain the separate `--model opus` uniform lever.
+The lever SHALL provide `apply_policy(agents_dir, codex_is_available)`: available applies the role split (`secondary-split` — fable on architecture/control/design agents, the provider-neutral secondary alias `ct6-secondary` on development/code-checking/testing agents; previously the OpenAI-flavored `codex-5.6-sol`), independent of which registry provider backs the alias; unavailable applies the current operating model (`uniform-fable`). The rewrite SHALL touch ONLY the frontmatter `model:` line, preserve line endings, and be idempotent. Policy readers SHALL recognize both the new and the legacy alias/policy strings (`ct6-secondary`/`secondary-split` AND `codex-5.6-sol`/`codex-split`); policy writers SHALL write only the new ones. The uniform `--model` lever SHALL refuse BOTH split aliases (the split never applies uniformly), and the Opus fallback SHALL remain the separate `--model opus` uniform lever. The availability-gated semantics, the 18/21 role classification, and the fail-safe-to-fable rule are unchanged.
 
 #### Scenario: available applies the split
 
 - **WHEN** `apply_policy` runs with availability asserted on a uniform-fable agents dir
-- **THEN** every development/code-checking/testing agent's model line reads the codex id and every architecture/control/design agent's model line stays `fable`
+- **THEN** every development/code-checking/testing agent's model line reads `ct6-secondary` and every architecture/control/design agent's model line stays `fable`
 
 #### Scenario: unavailable restores the operating model
 
-- **WHEN** `apply_policy` runs with availability denied on a split agents dir
+- **WHEN** `apply_policy` runs with availability denied on a split agents dir (either alias generation)
 - **THEN** every agent's model line reads `fable`
 
-#### Scenario: uniform codex is refused
+#### Scenario: uniform split alias is refused
 
-- **WHEN** the uniform lever is invoked with the codex id (`--model codex-5.6-sol`)
+- **WHEN** the uniform lever is invoked with either split alias (`--model ct6-secondary` or the legacy `--model codex-5.6-sol`)
 - **THEN** it exits non-zero and no file changes
+
+#### Scenario: policy state recognizes both alias generations
+
+- **WHEN** the on-disk agents match the split targets under EITHER `ct6-secondary` OR the legacy `codex-5.6-sol`
+- **THEN** the policy state classifies as the split (new runs report `secondary-split`; the legacy string is accepted anywhere a prior version may have recorded it)
+
+#### Scenario: the deprecated split invocation still works
+
+- **WHEN** `--split codex` (the pre-rename form) is invoked
+- **THEN** it applies the split with the NEW neutral alias and surfaces a one-line deprecation note naming `--split secondary`
 
 ### Requirement: Availability is an input, never probed
 
@@ -83,3 +92,4 @@ The test suite SHALL be hermetic with respect to `CT6_CODEX_56_AVAILABLE`: an am
 
 - **WHEN** an agent's frontmatter model reads the codex id on a deployed machine
 - **THEN** the frontmatter validity check accepts it while the uniform-fable ship pin still identifies the drift from ship state
+

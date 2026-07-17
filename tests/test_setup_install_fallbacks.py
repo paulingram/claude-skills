@@ -52,6 +52,8 @@ def _scrub_codex_signal(monkeypatch: pytest.MonkeyPatch) -> None:
     (pip install litellm + ~/.architect-team/gateway writes)."""
     monkeypatch.delenv("CT6_CODEX_56_AVAILABLE", raising=False)
     monkeypatch.delenv("CT6_EXTERNAL_LLM", raising=False)
+    monkeypatch.delenv("CT6_SECONDARY_PROVIDER", raising=False)
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
 
 
 class _Result:
@@ -352,6 +354,25 @@ def test_yes_flag_is_parsed(setup_module: ModuleType) -> None:
     assert "--yes" in res.stdout
 
 
+def test_setup_help_is_provider_neutral_and_registry_driven(
+    setup_module: ModuleType,
+) -> None:
+    """ADV3-4: the --external-llm / --codex help must describe the neutral
+    secondary slot (ct6-secondary) routed to the CHOSEN provider — the stale
+    'codex-5.6-sol → OpenAI' phrasing is gone from every help string — and
+    the --secondary provider enumeration derives from the lever registry."""
+    import subprocess
+    res = subprocess.run(
+        [sys.executable, str(Path(setup_module.__file__).resolve()), "--help"],
+        capture_output=True, text=True, timeout=10,
+    )
+    assert res.returncode == 0
+    assert "codex-5.6-sol" not in res.stdout
+    assert "ct6-secondary" in res.stdout
+    assert "openai|zai" in res.stdout  # derived from sorted(SECONDARY_PROVIDERS)
+    assert "Z.ai" in res.stdout  # both current providers named, not OpenAI-only
+
+
 # ---- REQ-006 (task 2.4): fable-availability heuristic note -------------------
 
 
@@ -423,7 +444,7 @@ def test_check_codex_option_is_an_informative_note(setup_module: ModuleType) -> 
     assert status == "note"
     assert "--codex" in detail
     assert "CT6_CODEX_56_AVAILABLE" in detail
-    assert "codex-5.6-sol" in detail
+    assert "ct6-secondary" in detail
     assert "fable" in detail
 
 
@@ -443,7 +464,7 @@ def test_apply_model_policy_check_only_writes_nothing(
     before = {p.name: p.read_bytes() for p in agents.glob("*.md")}
     name, status, detail = setup_module.apply_model_policy(True, True, agents_dir=agents)
     assert status == "note"
-    assert "codex-split" in detail
+    assert "secondary-split" in detail
     assert before == {p.name: p.read_bytes() for p in agents.glob("*.md")}
 
 
@@ -453,9 +474,9 @@ def test_apply_model_policy_applies_the_split(
     agents = _agents_copy(tmp_path)
     name, status, detail = setup_module.apply_model_policy(True, False, agents_dir=agents)
     assert status == "applied"
-    assert "codex-5.6-sol" in detail
+    assert "ct6-secondary" in detail
     lever = setup_module._load_model_lever()
-    assert lever.policy_state(agents) == "codex-split"
+    assert lever.policy_state(agents) == "secondary-split"
     # Second run: already compliant, nothing rewritten.
     _, status2, _ = setup_module.apply_model_policy(True, False, agents_dir=agents)
     assert status2 == "present"
@@ -482,7 +503,7 @@ def test_apply_model_policy_never_gates(setup_module: ModuleType) -> None:
     with patch.object(setup_module, "_load_model_lever", _boom):
         name, status, detail = setup_module.apply_model_policy(True, False)
     assert status == "warn"
-    assert "--split codex" in detail
+    assert "--split secondary" in detail
 
 
 def test_apply_model_policy_missing_agents_dir_warns(
@@ -494,7 +515,7 @@ def test_apply_model_policy_missing_agents_dir_warns(
     name, status, detail = setup_module.apply_model_policy(True, False, agents_dir=missing)
     assert status == "warn"
     assert "not found" in detail
-    assert "--split codex" in detail
+    assert "--split secondary" in detail
 
 
 def test_apply_model_policy_targets_the_runtime_agents_dir(
@@ -513,7 +534,7 @@ def test_apply_model_policy_targets_the_runtime_agents_dir(
     name, status, detail = setup_module.apply_model_policy(True, False)
     assert status == "applied"
     lever = setup_module._load_model_lever()
-    assert lever.policy_state(installed) == "codex-split"
+    assert lever.policy_state(installed) == "secondary-split"
     # the repo's own tracked agents/ stayed on the committed ship state
     repo_agents = Path(__file__).resolve().parents[1] / "agents"
     assert lever.policy_state(repo_agents) == "uniform-fable"
@@ -620,6 +641,33 @@ def test_main_defaults_no_prompt_false_for_external_llm(
     assert len(spy.call_args.args) == 3
 
 
+def test_main_forwards_secondary_flag_and_env(
+    setup_module: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spy = _external_llm_main(
+        setup_module, tmp_path,
+        ["--check-only", "--external-llm", "--secondary", "zai"])
+    assert spy.call_args.kwargs["secondary"] == "zai"
+    monkeypatch.setenv("CT6_SECONDARY_PROVIDER", "openai")
+    spy = _external_llm_main(
+        setup_module, tmp_path, ["--check-only", "--external-llm"])
+    assert spy.call_args.kwargs["secondary"] == "openai"
+
+
+def test_unknown_secondary_degrades_to_warn_through_real_installer(
+    setup_module: ModuleType, tmp_path: Path
+) -> None:
+    with patch.object(setup_module, "_load_gateway_installer") as loader:
+        fake = ModuleType("fake_gateway")
+        fake.setup_entry = lambda **kwargs: (
+            "external-llm", "warn", "unknown secondary provider 'bogus'; valid: openai, zai")
+        loader.return_value = fake
+        _, status, detail = setup_module.apply_external_llm_policy(
+            True, True, False, secondary="bogus")
+    assert status == "warn"
+    assert "valid: openai, zai" in (detail or "")
+
+
 def test_apply_external_llm_policy_interactivity_forwarding(
     setup_module: ModuleType,
 ) -> None:
@@ -643,5 +691,6 @@ def test_apply_external_llm_policy_interactivity_forwarding(
     assert calls[0]["interactive"] is False
     assert calls[1]["interactive"] is None
     assert calls[2]["interactive"] is None
+    assert all(c["secondary"] is None for c in calls)
     assert all(c["enable"] is True for c in calls)
     assert calls[2]["check_only"] is True and calls[2]["assume_yes"] is True

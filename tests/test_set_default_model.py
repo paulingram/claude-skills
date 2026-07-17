@@ -140,6 +140,28 @@ def test_valid_models_are_the_four(mod: ModuleType) -> None:
     assert set(mod.VALID_MODELS) == {"fable", "opus", "sonnet", "haiku"}
 
 
+def test_secondary_provider_registry_shape(mod: ModuleType) -> None:
+    assert mod.SECONDARY_ALIAS == "ct6-secondary"
+    assert mod.LEGACY_SECONDARY_ALIASES == ("codex-5.6-sol",)
+    assert mod.CODEX_MODEL == "codex-5.6-sol"
+    assert mod.SECONDARY_PROVIDERS == {
+        "openai": {
+            "model": "gpt-5.6-sol",
+            "key_env": "OPENAI_API_KEY",
+            "route_model": "openai/gpt-5.6-sol",
+            "api_base": None,
+            "label": "OpenAI — Codex 5.6 (gpt-5.6-sol)",
+        },
+        "zai": {
+            "model": "glm-5.2",
+            "key_env": "ZAI_API_KEY",
+            "route_model": "openai/glm-5.2",
+            "api_base": "https://api.z.ai/api/paas/v4",
+            "label": "Z.ai — GLM 5.2 (glm-5.2)",
+        },
+    }
+
+
 def test_default_agents_dir_resolves(mod: ModuleType) -> None:
     d = mod._default_agents_dir()
     assert d.is_dir() and d.name == "agents"
@@ -169,17 +191,17 @@ def test_split_applies_the_role_models(mod: ModuleType, tmp_agents: Path) -> Non
     dist = mod.distribution(tmp_agents)
     assert dist == {
         "fable": len(mod.ARCHITECTURE_CONTROL_DESIGN_AGENTS),
-        mod.CODEX_MODEL: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
+        mod.SECONDARY_ALIAS: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
     }
 
 
 def test_split_role_spot_checks(mod: ModuleType, tmp_agents: Path) -> None:
     """The owner directive verbatim: development + code checking + testing on
-    codex; architecture + control + design on fable."""
+    the secondary alias; architecture + control + design on fable."""
     mod.apply_split(tmp_agents)
     for dev in ("backend", "frontend", "integration", "task-reviewer",
                 "adversarial-reviewer", "qa-replayer", "test-completeness-verifier"):
-        assert _model_of(tmp_agents, dev, mod) == mod.CODEX_MODEL, dev
+        assert _model_of(tmp_agents, dev, mod) == mod.SECONDARY_ALIAS, dev
     for arch in ("system-architect", "oracle-deriver", "mcp-design-agent",
                  "master-synthesizer", "prompt-refiner", "route-mapper"):
         assert _model_of(tmp_agents, arch, mod) == "fable", arch
@@ -206,9 +228,9 @@ def test_split_only_touches_the_model_line(mod: ModuleType, tmp_agents: Path) ->
 def test_apply_policy_available_applies_split(mod: ModuleType, tmp_agents: Path) -> None:
     mod.set_model(tmp_agents, "fable")  # deterministic baseline (the ship state)
     policy, changed = mod.apply_policy(tmp_agents, True)
-    assert policy == "codex-split"
+    assert policy == "secondary-split"
     assert sorted(changed) == sorted(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS)
-    assert mod.policy_state(tmp_agents) == "codex-split"
+    assert mod.policy_state(tmp_agents) == "secondary-split"
 
 
 def test_apply_policy_unavailable_restores_the_operating_model(
@@ -227,15 +249,45 @@ def test_policy_state_transitions(mod: ModuleType, tmp_agents: Path) -> None:
     mod.set_model(tmp_agents, "fable")
     assert mod.policy_state(tmp_agents) == "uniform-fable"
     mod.apply_split(tmp_agents)
-    assert mod.policy_state(tmp_agents) == "codex-split"
+    assert mod.policy_state(tmp_agents) == "secondary-split"
     one = tmp_agents / "backend.md"
     one.write_text(
-        one.read_text(encoding="utf-8").replace(f"model: {mod.CODEX_MODEL}", "model: haiku", 1),
+        one.read_text(encoding="utf-8").replace(
+            f"model: {mod.SECONDARY_ALIAS}", "model: haiku", 1
+        ),
         encoding="utf-8",
     )
     assert mod.policy_state(tmp_agents) == "mixed"
     mod.set_model(tmp_agents, "opus")
     assert mod.policy_state(tmp_agents) == "uniform-opus"
+
+
+def test_policy_state_recognizes_legacy_alias_split(
+    mod: ModuleType, tmp_agents: Path
+) -> None:
+    mod.apply_split(tmp_agents, mod.CODEX_MODEL)
+    assert mod.policy_state(tmp_agents) == "secondary-split"
+
+
+def test_policy_state_override_still_recognizes_current_alias(
+    mod: ModuleType, tmp_agents: Path
+) -> None:
+    mod.apply_split(tmp_agents)
+    assert mod.policy_state(tmp_agents, mod.CODEX_MODEL) == "secondary-split"
+
+
+def test_migrate_legacy_split_rewrites_and_is_idempotent(
+    mod: ModuleType, tmp_agents: Path
+) -> None:
+    mod.apply_split(tmp_agents, mod.CODEX_MODEL)
+    changed = mod.migrate_legacy_split(tmp_agents)
+    assert sorted(changed) == sorted(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS)
+    assert mod.distribution(tmp_agents) == {
+        "fable": len(mod.ARCHITECTURE_CONTROL_DESIGN_AGENTS),
+        mod.SECONDARY_ALIAS: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
+    }
+    assert mod.policy_state(tmp_agents) == "secondary-split"
+    assert mod.migrate_legacy_split(tmp_agents) == []
 
 
 def test_codex_available_env_parsing(mod: ModuleType) -> None:
@@ -272,12 +324,25 @@ def test_unclassified_stems_surface_in_check(mod: ModuleType, tmp_agents: Path, 
     assert "unclassified" in out and "brand-new-agent" in out
 
 
-def test_cli_split_codex(mod: ModuleType, tmp_agents: Path, capsys) -> None:
-    rc = mod.main(["--split", "codex", "--agents-dir", str(tmp_agents)])
-    out = capsys.readouterr().out
+def test_cli_split_secondary(mod: ModuleType, tmp_agents: Path, capsys) -> None:
+    rc = mod.main(["--split", "secondary", "--agents-dir", str(tmp_agents)])
+    captured = capsys.readouterr()
     assert rc == 0
-    assert "codex-split" in out
-    assert mod.policy_state(tmp_agents) == "codex-split"
+    assert "secondary-split" in captured.out
+    assert captured.err == ""
+    assert mod.policy_state(tmp_agents) == "secondary-split"
+
+
+def test_cli_split_codex_is_deprecated_synonym(
+    mod: ModuleType, tmp_agents: Path, capsys
+) -> None:
+    rc = mod.main(["--split", "codex", "--agents-dir", str(tmp_agents)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "secondary-split" in captured.out
+    assert "deprecated" in captured.err.lower()
+    assert "--split secondary" in captured.err
+    assert mod.policy_state(tmp_agents) == "secondary-split"
 
 
 def test_cli_auto_follows_the_env_signal(
@@ -285,7 +350,7 @@ def test_cli_auto_follows_the_env_signal(
 ) -> None:
     monkeypatch.setenv(mod.CODEX_ENV_VAR, "1")
     assert mod.main(["--auto", "--agents-dir", str(tmp_agents)]) == 0
-    assert mod.policy_state(tmp_agents) == "codex-split"
+    assert mod.policy_state(tmp_agents) == "secondary-split"
     monkeypatch.setenv(mod.CODEX_ENV_VAR, "0")
     assert mod.main(["--auto", "--agents-dir", str(tmp_agents)]) == 0
     out = capsys.readouterr().out
@@ -315,25 +380,40 @@ def test_cli_check_reports_policy_state(mod: ModuleType, tmp_agents: Path, capsy
     assert "policy: uniform-fable" in capsys.readouterr().out
     mod.apply_split(tmp_agents)
     mod.main(["--check", "--agents-dir", str(tmp_agents)])
-    assert "policy: codex-split" in capsys.readouterr().out
+    assert "policy: secondary-split" in capsys.readouterr().out
 
 
-def test_cli_codex_model_override(mod: ModuleType, tmp_agents: Path) -> None:
+def test_cli_secondary_model_override(mod: ModuleType, tmp_agents: Path) -> None:
     rc = mod.main([
-        "--split", "codex", "--codex-model", "codex-5.6-luna",
+        "--split", "secondary", "--secondary-model", "ct6-secondary-luna",
         "--agents-dir", str(tmp_agents),
     ])
     assert rc == 0
-    assert _model_of(tmp_agents, "backend", mod) == "codex-5.6-luna"
+    assert _model_of(tmp_agents, "backend", mod) == "ct6-secondary-luna"
     assert _model_of(tmp_agents, "system-architect", mod) == "fable"
-    assert mod.policy_state(tmp_agents, "codex-5.6-luna") == "codex-split"
+    assert mod.policy_state(tmp_agents, "ct6-secondary-luna") == "secondary-split"
 
 
-def test_uniform_codex_is_still_rejected(mod: ModuleType, tmp_agents: Path) -> None:
-    """codex NEVER applies uniformly — architecture/control/design agents must
-    stay on fable, so the uniform lever refuses the codex id."""
+def test_cli_codex_model_override_is_synonym(mod: ModuleType, tmp_agents: Path) -> None:
+    rc = mod.main([
+        "--split", "secondary", "--codex-model", "ct6-secondary-luna",
+        "--agents-dir", str(tmp_agents),
+    ])
+    assert rc == 0
+    assert _model_of(tmp_agents, "backend", mod) == "ct6-secondary-luna"
+    assert mod.policy_state(tmp_agents, "ct6-secondary-luna") == "secondary-split"
+
+
+@pytest.mark.parametrize("split_alias_attr", ["SECONDARY_ALIAS", "CODEX_MODEL"])
+def test_uniform_split_aliases_are_rejected(
+    mod: ModuleType, tmp_agents: Path, split_alias_attr: str
+) -> None:
+    """Split aliases never apply uniformly; architecture/control/design agents
+    must stay on fable, so the uniform lever refuses current and legacy aliases."""
     before = {p.name: p.read_bytes() for p in tmp_agents.glob("*.md")}
-    rc = mod.main(["--model", mod.CODEX_MODEL, "--agents-dir", str(tmp_agents)])
+    rc = mod.main([
+        "--model", getattr(mod, split_alias_attr), "--agents-dir", str(tmp_agents)
+    ])
     assert rc == 1
     assert before == {p.name: p.read_bytes() for p in tmp_agents.glob("*.md")}
 

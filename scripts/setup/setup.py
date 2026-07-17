@@ -33,8 +33,9 @@ Flags:
   --no-prompt         Skip interactive consent prompts (print suggested edits).
   --codex             Codex 5.6 is available in this harness: apply the model
                       role split (fable stays on architecture/control/design
-                      agents; codex-5.6-sol takes development/code-checking/
-                      testing agents). Also enabled by CT6_CODEX_56_AVAILABLE=1.
+                      agents; the ct6-secondary alias takes development/
+                      code-checking/testing agents). Also enabled by
+                      CT6_CODEX_56_AVAILABLE=1.
   --no-codex          Codex 5.6 is NOT available: restore the current operating
                       model (uniform fable; the Opus fallback stays the
                       set_default_model.py --model opus lever). Overrides the env var.
@@ -828,7 +829,7 @@ def check_codex_option() -> tuple[str, str, str | None]:
         "no Codex 5.6 signal — the current operating model stays (uniform 'fable', "
         "Opus fallback lever unchanged). If this harness has Codex 5.6, rerun with "
         "--codex (or set CT6_CODEX_56_AVAILABLE=1) to put development/code-checking/"
-        "testing agents on codex-5.6-sol while architecture/control/design agents "
+        "testing agents on ct6-secondary while architecture/control/design agents "
         "stay on fable; --no-codex restores the uniform fable default."
     )
     return name, "note", detail
@@ -840,8 +841,8 @@ def apply_model_policy(
     """Apply (or, with check_only, report) the availability-gated model policy
     via the set_default_model lever. Never gates the run — any lever failure
     degrades to a 'warn' row with the manual remediation."""
-    name = "model-policy (Codex 5.6 role split)"
-    manual = "python3 scripts/setup/set_default_model.py --split codex"
+    name = "model-policy (secondary role split)"
+    manual = "python3 scripts/setup/set_default_model.py --split secondary"
     try:
         lever = _load_model_lever()
         # v3.39.0: target the agents the RUNTIME loads — the installed plugin
@@ -857,7 +858,11 @@ def apply_model_policy(
             )
         if check_only:
             state = lever.policy_state(agents_dir)
-            target = "codex-split" if codex_signal else "uniform-fable"
+            # Display-only: lever-derived policy names (guarded so an odd
+            # lever build can never break the printed report text).
+            target = (getattr(lever, "POLICY_SECONDARY_SPLIT", "secondary-split")
+                      if codex_signal
+                      else getattr(lever, "POLICY_UNIFORM_FABLE", "uniform-fable"))
             detail = (
                 f"check-only: current policy state is '{state}'; a normal run would "
                 f"apply '{target}'"
@@ -869,26 +874,26 @@ def apply_model_policy(
         if changed:
             what = (
                 f"applied '{policy}': fable stays on architecture/control/design agents; "
-                f"{lever.CODEX_MODEL} now drives development/code-checking/testing agents"
+                f"{lever.SECONDARY_ALIAS} now drives development/code-checking/testing agents"
                 if codex_signal
                 else f"Codex 5.6 unavailable — applied '{policy}' (the current operating "
                 f"model: uniform fable; Opus fallback lever unchanged)"
             )
             return name, "applied", f"{what} ({len(changed)} file(s) rewritten)."
-        detail = (
-            f"already compliant with '{'codex-split' if codex_signal else 'uniform-fable'}' "
-            f"— no files rewritten."
-        )
+        # Display-only: `policy` is the lever-emitted name apply_policy just
+        # returned — identical text, never a hand-spelled literal.
+        detail = f"already compliant with '{policy}' — no files rewritten."
         return name, "present", detail
     except Exception as exc:  # never gate setup on the model lever
         return name, "warn", f"model policy not applied ({exc}); apply manually: {manual}"
 
 
-# ---- External-LLM gateway (v3.36.0) -------------------------------------------
+# ---- External-LLM gateway (v3.36.0; provider registry v3.40.0) -----------------
 #
 # `--external-llm` provisions the LiteLLM gateway (scripts/setup/install_gateway.py)
-# so external models (OpenAI Codex 5.6 behind the codex-5.6-sol alias) work out of
-# the box. Enable-ment is an INPUT (--external-llm / --no-external-llm /
+# so the secondary model slot (the neutral ct6-secondary alias) has a real
+# backend, routed to the CHOSEN registry provider (OpenAI Codex or Z.ai GLM).
+# Enable-ment is an INPUT (--external-llm / --no-external-llm /
 # CT6_EXTERNAL_LLM) — the same tri-state convention as the codex signal. The
 # gateway installer resolves the AUTH MODE itself: with an ANTHROPIC_API_KEY it
 # fronts both providers (full gateway; activation may apply the codex split);
@@ -915,6 +920,17 @@ def _load_gateway_installer():
     return mod
 
 
+def _secondary_provider_names() -> str:
+    """The registry's provider names for help text, derived from the lever so
+    a new SECONDARY_PROVIDERS entry extends the help automatically. Guarded:
+    --help must never break on a lever load failure — fall back to the
+    shipped names (fail-open)."""
+    try:
+        return "|".join(sorted(_load_model_lever().SECONDARY_PROVIDERS))
+    except Exception:
+        return "openai|zai"
+
+
 def resolve_external_llm_signal(
     enable_flag: bool, disable_flag: bool, env: dict | None = None
 ) -> bool | None:
@@ -938,7 +954,8 @@ def check_external_llm_option() -> tuple[str, str, str | None]:
     detail = (
         "no external-LLM signal — nothing installed. Rerun with --external-llm "
         "(or set CT6_EXTERNAL_LLM=1) to install the LiteLLM gateway that backs "
-        "the codex-5.6-sol → OpenAI route; --no-external-llm uninstalls. Fable "
+        "the ct6-secondary route (choose with --secondary or "
+        "CT6_SECONDARY_PROVIDER); --no-external-llm uninstalls. Fable "
         "keeps working either via your Claude sign-in (no key needed) or via "
         "ANTHROPIC_API_KEY."
     )
@@ -946,7 +963,8 @@ def check_external_llm_option() -> tuple[str, str, str | None]:
 
 
 def apply_external_llm_policy(
-    enable: bool, check_only: bool, assume_yes: bool, no_prompt: bool = False
+    enable: bool, check_only: bool, assume_yes: bool, no_prompt: bool = False,
+    secondary: str | None = None,
 ) -> tuple[str, str, str | None]:
     """Run the gateway installer (or uninstaller) through its setup hook. Never
     gates the run — any failure (including a raising key-prompt seam) degrades
@@ -964,7 +982,7 @@ def apply_external_llm_policy(
         installer = _load_gateway_installer()
         return installer.setup_entry(
             enable=enable, check_only=check_only, assume_yes=assume_yes,
-            interactive=False if no_prompt else None)
+            interactive=False if no_prompt else None, secondary=secondary)
     except Exception as exc:  # never gate setup on the gateway installer
         return name, "warn", f"external-llm setup not applied ({exc}); run manually: {manual}"
 
@@ -1000,24 +1018,33 @@ def main(argv: list[str] | None = None) -> int:
         "--external-llm",
         action="store_true",
         help="Enable external-LLM usage: install + configure the local LiteLLM "
-             "gateway (codex-5.6-sol → OpenAI; Anthropic via your API key when "
-             "present, else fable keeps Claude sign-in). Also enabled by "
-             "CT6_EXTERNAL_LLM=1.",
+             "gateway, routing the secondary model slot (ct6-secondary) to the "
+             "chosen provider - OpenAI Codex or Z.ai GLM (Anthropic rides your "
+             "API key when present, else fable keeps Claude sign-in). Also "
+             "enabled by CT6_EXTERNAL_LLM=1.",
     )
     external_llm_group.add_argument(
         "--no-external-llm",
         action="store_true",
         help="Disable external-LLM usage: deactivate + uninstall the gateway "
-             "(restores uniform fable if the codex split is applied). Overrides "
-             "CT6_EXTERNAL_LLM.",
+             "(restores uniform fable if the secondary role split is applied). "
+             "Overrides CT6_EXTERNAL_LLM.",
+    )
+    parser.add_argument(
+        "--secondary",
+        default=None,
+        help=f"Secondary provider for the external-LLM gateway "
+             f"({_secondary_provider_names()}). "
+             "CT6_SECONDARY_PROVIDER is used only when this flag is absent.",
     )
     codex_group = parser.add_mutually_exclusive_group()
     codex_group.add_argument(
         "--codex",
         action="store_true",
         help="Codex 5.6 is available: apply the model role split (fable on "
-             "architecture/control/design agents, codex-5.6-sol on development/"
-             "code-checking/testing agents). Also enabled by CT6_CODEX_56_AVAILABLE=1.",
+             "architecture/control/design agents, the secondary alias "
+             "ct6-secondary on development/code-checking/testing agents). "
+             "Also enabled by CT6_CODEX_56_AVAILABLE=1.",
     )
     codex_group.add_argument(
         "--no-codex",
@@ -1081,12 +1108,15 @@ def main(argv: list[str] | None = None) -> int:
     # keyword so the positional consent triple stays stable).
     external_llm_signal = resolve_external_llm_signal(
         args.external_llm, args.no_external_llm)
+    secondary = args.secondary
+    if secondary is None and "CT6_SECONDARY_PROVIDER" in os.environ:
+        secondary = os.environ.get("CT6_SECONDARY_PROVIDER")
     if external_llm_signal is None:
         rows.append(check_external_llm_option())
     else:
         rows.append(apply_external_llm_policy(
             external_llm_signal, args.check_only, assume_yes,
-            no_prompt=args.no_prompt))
+            no_prompt=args.no_prompt, secondary=secondary))
 
     # openspec-propose skill prerequisite (HARD block when missing).
     openspec_propose_row = ensure_openspec_propose_skill()
