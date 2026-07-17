@@ -231,6 +231,8 @@ Output: `<exploration-dir>/stage-5/DATA_SECURITY_MAP.md`.
 
 **Goal:** every transformation MUST carry data validation rules. Every record MUST be end-to-end traceable. Aggregate AND per-endpoint metrics MUST be captured. Per the user prose: *"by default any data engineering pipelines should have strong data validation components and logging to ensure every records transform and modification, in aggregate and by endpoint, should be properly traced."*
 
+Canonical home: `common-pipeline-conventions` `## Data engineering exploration discipline (v3.5.0)` — this stage operationalizes that discipline for the exploration deliverable.
+
 Output: `<exploration-dir>/stage-6/DATA_VALIDATION_LINEAGE_MAP.md`.
 
 ### Per-transformation validation rules

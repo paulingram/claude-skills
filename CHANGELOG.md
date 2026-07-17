@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.40.1] — 2026-07-17
+
+### context-token-optimization — instruction-surface token-efficiency PATCH (docs/instruction files only; zero behavior change)
+
+A measured census of every AI-facing context surface (48 SKILL.md / 39 agents / 23 commands / CLAUDE.md / frontmatter descriptions; ~2.4 MB) produced a ranked findings report (bytes/4; ALWAYS x10 / PER-INVOKE x3 / PER-SPAWN x2 load weighting) and implemented ONLY the exact-redundancy remediations. Headline: the ALWAYS-loaded stack (CLAUDE.md + descriptions, ~42k tokens/session) re-pays on every one of ~39 teammate sessions per typical pipeline run — ~85% of the ~2M-token instruction-surface load — so always-loaded cuts pay ~39x.
+
+- **CLAUDE.md 95,221 → 25,331 B (−73.4%, ~17.5k tokens/session).** `## Recent releases` (66,089 B, 37 entries, verified a strict subset of this CHANGELOG — 8-probe zero-loss check by the independent reviewer) bounded to the 3 most recent entries + the CHANGELOG pointer; `What this repo is` + `Stack` rewritten current-state (release-narrative parentheticals stripped; every operative fact retained and re-verified: 48/39/23, 5542+4, 199 test files); the Conventions `.mempalace` location claim corrected to disk truth (palace at the workspace root, sibling of `.architect-team/`).
+- **Cited-canonical digest trims (−1,789 B):** the three pipeline `## Dispatch mode` residual digests (a prior sanctioned dedup's residue) trimmed to their CPC citations — every deleted clause traced verbatim to `common-pipeline-conventions` `## Dispatch mode (v1.0.0)` by the independent reviewer; all 7 pinned anchors + mini's Mini-specific paragraph retained (`test_dispatch_mode_section.py` green).
+- **Two consistency fixes (+299 B):** `data-engineering-exploration` Stage 6 gains its missing CPC section citation; `mempalace-integration`'s stale palace-path sentence corrected against disk.
+- **New living capability spec `context-surface-efficiency`** (59 → 60 specs): bounded always-loaded CLAUDE.md, exact-duplication single-sourcing (citation test), suite/lint invariants, and the findings/deferral artifact convention for efficiency runs.
+- **Deferred (higher-risk, per-item user decision — recorded in the run findings):** pointer-form CLAUDE.md (CMD-2), description rewrites (trigger-quality risk), agent-boilerplate slimming via the sync lever (~34.5k tok/run), pipeline-family CPC restatements (~24k tok/invoke; delivery-decision first), CPC narrative sidecar, command-wrapper sync lever, test-run-monitor drift reconciliation, system-architect body split, maps provenance, and a pipeline intake CLAUDE.md-efficiency advisory.
+- **Field observation (FO-1):** the first real teammate spawn on the `ct6-secondary` alias was rejected client-side by Claude Code even though the gateway live-serves the alias — the v3.39.0 "CONFIRMED live" probe validates the gateway, not a harness spawn; candidate SR for the secondary-provider capability.
+- Suite: **5542 passing + 4 skipped, IDENTICAL to v3.40.0** (199 test files; UTF-8 spot-check 424 green). Counts UNCHANGED (48 / 39 / 23); NO new skill / agent / command / hook / engine; no test pin needed updating.
+
 ## [3.40.0] — 2026-07-17 — secondary-provider registry (a selectable secondary API + the provider-neutral `ct6-secondary` alias)
 
 **MINOR — the gateway's secondary model slot becomes SELECTABLE — OpenAI Codex (`gpt-5.6-sol`) or Z.ai GLM 5.2 (`glm-5.2`) — and the role split's written model id becomes the provider-neutral `ct6-secondary`.** The owner directive (2026-07-17, refined to grade A/98 through the proposal-refiner): the secondary API must be a CHOICE — OpenAI or Z.ai — surfaced at setup, remembered, and extensible to a future provider with ONE registry entry. Before this release the secondary slot was hardwired to OpenAI (`codex-5.6-sol` → `openai/gpt-5.6-sol`) across the lever, the gateway config, the wrapper, and the self-heal.

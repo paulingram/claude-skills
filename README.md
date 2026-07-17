@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 40 . 0
+                        ─── C T 6 ───   v 3 . 40 . 1
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.40.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.40.1-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-5542%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -1617,7 +1617,8 @@ Tests validate: plugin/marketplace JSON; all 48 skill frontmatters; all 39 agent
            v3.37.0 ─ gateway auto-registration — the installer registers + starts the gateway itself, user-level on every OS (`schtasks onlogon` + a Startup-folder-shim fallback + a detached start-now spawner / `systemctl --user` with a `default.target` unit / a LaunchAgents plist), never sudo; `--no-register` opts back to the printed hint; a failure degrades to the hint (never gates); uninstall stops + unregisters symmetrically; `status` gains `registered=` (v3.37.1 PATCH: setup's gateway loader registers the module in `sys.modules` before exec, so the `--external-llm` setup row actually loads)
            v3.38.0 ─ setup asks for missing keys — ask-then-apply, never punt-to-script: the setup + librarian-install wrappers ask in-session on an absent-key state (AskUserQuestion — capture-and-apply with the `--yes`→`--activate` carry-over, or an explicit decline recorded via the new `decline` subcommand); the gateway + librarian installers prompt themselves on a real interactive TTY (hidden getpass entry, blank-to-skip, interrupt-skips); a per-key `key-declines.json` record auto-resets on key resolution (`--re-ask-keys` clears; `status` reports `declined=`; `uninstall --purge` symmetric); all 11 `scripts/setup/*.py` dispositioned (REQ-005) — non-user-holdable remediations stay printed; +56 hermetic tests; suite → 5465 passing + 5 skipped
            v3.39.1 ─ living-docs current-state refresh — docs-only PATCH on v3.39.0: 12 stale README/map assertions corrected; the class-general derive-and-compare detector retained as a standalone regression artifact; counts unchanged at 48 skills / 39 agents / 23 commands; suite totals unchanged (docs-only, no delta; 199 test files)
-   ◆       v3.40.0 ─ secondary-provider registry — the gateway's secondary model slot becomes selectable (OpenAI Codex gpt-5.6-sol or Z.ai GLM 5.2 glm-5.2) via the SECONDARY_PROVIDERS registry single-sourced in set_default_model.py (one dict entry per future provider, extensibility test-pinned); the split's written id becomes the provider-neutral ct6-secondary under policy secondary-split (legacy codex-5.6-sol/codex-split still read, never written; --split secondary canonical); the choice is asked once (wrapper AskUserQuestion / TTY prompt / --secondary / CT6_SECONDARY_PROVIDER), remembered in gateway.json, grandfathered as openai for pre-v3.40 installs, re-opened by --re-ask-provider; --zai-key joins the key machinery with full decline parity; 3-round adversarial migration hardening (heal-to-recorded-alias; migration on every config-regenerating install with prior-state carry-forward; provider-switch key retention); suite → 5542 passing + 4 skipped (current)
+           v3.40.0 ─ secondary-provider registry — the gateway's secondary model slot becomes selectable (OpenAI Codex gpt-5.6-sol or Z.ai GLM 5.2 glm-5.2) via the SECONDARY_PROVIDERS registry single-sourced in set_default_model.py (one dict entry per future provider, extensibility test-pinned); the split's written id becomes the provider-neutral ct6-secondary under policy secondary-split (legacy codex-5.6-sol/codex-split still read, never written; --split secondary canonical); the choice is asked once (wrapper AskUserQuestion / TTY prompt / --secondary / CT6_SECONDARY_PROVIDER), remembered in gateway.json, grandfathered as openai for pre-v3.40 installs, re-opened by --re-ask-provider; --zai-key joins the key machinery with full decline parity; 3-round adversarial migration hardening (heal-to-recorded-alias; migration on every config-regenerating install with prior-state carry-forward; provider-switch key retention); suite → 5542 passing + 4 skipped
+   ◆       v3.40.1 ─ context-token-optimization — instruction-surface token-efficiency PATCH (docs/instruction files only, zero behavior change): CLAUDE.md 95,221 → 25,331 B (Recent releases bounded to the 3 most recent entries + the CHANGELOG pointer; What-this-repo-is + Stack rewritten current-state; the .mempalace location corrected to disk truth); the three pipeline dispatch-mode residual digests trimmed to their common-pipeline-conventions citations; two consistency fixes; new living spec context-surface-efficiency (59 → 60); counts unchanged 48/39/23; suite 5542 passing + 4 skipped (current)
 
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 ```

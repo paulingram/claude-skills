@@ -102,7 +102,7 @@ lineage record and any diagnostic plan / RCA that referenced it.
 
 `<workspace>/.mempalace/palace`, gitignored. The `<workspace>` is resolved at pipeline start:
 
-1. **v1.1.0 worktree-aware resolution.** When the pipeline is launched from inside a `git worktree add`-created worktree, the palace path resolves via `scripts/setup/worktree_paths.py::shared_state_dir() / '.mempalace' / 'palace'` — i.e., the MAIN worktree's `.mempalace/palace`, NOT the worktree's own. This way two concurrent `/architect-team` sessions in two worktrees share one palace and one wake-up context. See `common-pipeline-conventions/SKILL.md` `## Running in parallel sessions` for the broader 3-layer model.
+1. **v1.1.0 worktree-aware resolution.** When the pipeline is launched from inside a `git worktree add`-created worktree, the palace path resolves via the MAIN worktree's root — the parent of `scripts/setup/worktree_paths.py::shared_state_dir()`, plus `.mempalace/palace` — i.e., the MAIN worktree's `.mempalace/palace` (a repo-root sibling of `.architect-team/`, matching the location above), NOT the worktree's own. This way two concurrent `/architect-team` sessions in two worktrees share one palace and one wake-up context. See `common-pipeline-conventions/SKILL.md` `## Running in parallel sessions` for the broader 3-layer model.
 2. `git -C <cwd> rev-parse --show-toplevel` if cwd is inside a git repo and worktree resolution is unavailable (degenerate case — same path in non-worktree clones).
 3. Else `<cwd>`.
 
