@@ -1,0 +1,82 @@
+{
+  "change_name": "context-token-optimization",
+  "generated_at": "2026-07-17T20:50:00Z",
+  "source": ".architect-team/refined-prompts/excessive-context-token-usage-review-20260717T2008Z.md",
+  "testing_authorizations": {
+    "playwright": "N/A - this repo has no frontend surface (library-plugin classification, Phase -1A); authorization per design.md Testing section",
+    "dev_api_integration": "N/A - no API surface in this repo; verification is the pytest suite + the instruction-compliance lint",
+    "integration_front_to_back": "N/A - no both-layer requirement exists; all entries are layer: infra"
+  },
+  "entries": [
+    {
+      "source_requirement_id": "AC-1-census-ranked-findings",
+      "spec_requirement_id": "context-surface-efficiency/Measured census and ranked findings report",
+      "scenarios": ["Census covers every surface class", "Findings are ranked by estimated saving"],
+      "acceptance_criteria": [
+        "findings artifact exists at .architect-team/findings/context-token-optimization/ with per-class byte totals for all five surface classes",
+        "every finding carries estimated saving (bytes/4, method recorded in artifact)",
+        "findings ordered by saving weighted by load frequency",
+        "engine-reuse disposition recorded (instruction_compliance + claude_md_efficiency consulted; token_compression out of scope by contract)"
+      ],
+      "layer": "infra",
+      "owner": "analysis-lane (A1/A2/A3 + Lead merge)"
+    },
+    {
+      "source_requirement_id": "AC-2-before-after-bytes",
+      "spec_requirement_id": "context-surface-efficiency/Exact-duplication single-sourcing trims",
+      "scenarios": ["Trim removes only cited-canonical restatements"],
+      "acceptance_criteria": [
+        "every edited file has before/after byte counts in the run evidence and final report",
+        "every P2 trim passes the mechanical citation test (canonical section cited in-file for every removed restatement)"
+      ],
+      "layer": "infra",
+      "owner": "implementation-lane (I1/I2) + task-reviewer"
+    },
+    {
+      "source_requirement_id": "AC-2b-claude-md-bounded",
+      "spec_requirement_id": "context-surface-efficiency/Bounded always-loaded CLAUDE.md",
+      "scenarios": ["Recent-releases section is bounded", "Current-state framing preserved under the doc-currency gate"],
+      "acceptance_criteria": [
+        "CLAUDE.md ## Recent releases has at most 3 entries + explicit CHANGELOG.md pointer",
+        "What-this-repo-is prose is current-state (no per-release accretion)",
+        "doc-currency audit confirms every count/capability statement remains accurate",
+        "no removed narrative is lost (CHANGELOG.md canonical copy verified)"
+      ],
+      "layer": "infra",
+      "owner": "I1 + doc-currency audit"
+    },
+    {
+      "source_requirement_id": "AC-3-suite-green",
+      "spec_requirement_id": "context-surface-efficiency/Suite and lint invariants for efficiency remediations",
+      "scenarios": ["Suite green after remediations"],
+      "acceptance_criteria": [
+        "python -m pytest passes with baseline totals (5542 passed + 4 skipped) or a CHANGELOG-recorded delta",
+        "any touched pin updated only via its sanctioned lever",
+        "48/39/23 surface counts unchanged; no gate/skill/agent/command deleted"
+      ],
+      "layer": "infra",
+      "owner": "verification"
+    },
+    {
+      "source_requirement_id": "AC-4-lint-zero",
+      "spec_requirement_id": "context-surface-efficiency/Suite and lint invariants for efficiency remediations",
+      "scenarios": ["Instruction-compliance lint stays clean"],
+      "acceptance_criteria": [
+        "assess_instruction_files reports zero findings over the in-scope set after remediation"
+      ],
+      "layer": "infra",
+      "owner": "verification"
+    },
+    {
+      "source_requirement_id": "AC-5-deferral-list",
+      "spec_requirement_id": "context-surface-efficiency/Higher-risk deferral list",
+      "scenarios": ["Deferred items are enumerated, not implemented"],
+      "acceptance_criteria": [
+        "final report enumerates each higher-risk item with per-item estimated saving + remediation sketch",
+        "run git diff contains no edit implementing a deferred item"
+      ],
+      "layer": "infra",
+      "owner": "Lead + master-review audit"
+    }
+  ]
+}
