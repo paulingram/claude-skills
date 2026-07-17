@@ -115,6 +115,57 @@ def test_setup_wrapper_never_punt_sentence(plugin_root: Path) -> None:
     assert "NEVER present the bare run-this-script remediation as the only path" in content
 
 
+def test_setup_wrapper_carries_secondary_provider_choice_section(plugin_root: Path) -> None:
+    """v3.40.0: the External-LLM wrapper asks once, offers both registry
+    entries, honors grandfathering, and names every non-interactive signal."""
+    content = _read_command(plugin_root, "architect-team-setup")
+    heading = "### Choose the secondary API (v3.40.0)"
+    assert heading in content
+    setup_call = content.index('python3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py"')
+    preflight = content.index("Before running setup, perform the provider-state preflight")
+    ext = content.index("## External LLM usage")
+    choice = content.index(heading)
+    ask_keys = content.index("### Ask for missing keys")
+    teams = content.index("## Agent Teams Mode")
+    assert preflight < setup_call, "provider choice must be resolved before non-TTY setup runs"
+    assert ext < choice < ask_keys < teams
+    assert "This is a PRE-RUN gate" in content
+    assert "command preprocessing must not run setup before AskUserQuestion" in content
+    assert '```!\npython3 "${CLAUDE_PLUGIN_ROOT}/scripts/setup/setup.py"' not in content
+    assert 'status --json || python "${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_gateway.py" status --json' in content
+    assert "Use ONLY the raw-state booleans for the firing decision" in content
+    assert 'os.environ.get("CT6_GATEWAY_HOME") or pathlib.Path.home()' in content
+    assert 'except (OSError, json.JSONDecodeError)' in content
+    assert 'if not isinstance(state, dict)' in content
+    assert '"secondary_provider" in state' in content
+    assert '"secondary_provider" not in state and "openai_model" in state' in content
+    assert "missing, unreadable, malformed, or non-object state becomes `{}`" in content
+    assert "When both raw booleans are false" in content
+    assert "When a choice, grandfather inference, or signal exists, do not ask and run setup as-is" in content
+    assert "ask the wrapper question FIRST" in content
+    assert "`install --re-ask-provider --secondary <openai|zai>`" in content
+    assert "NEVER run bare `install --re-ask-provider`" in content
+    assert "append the chosen `--secondary <openai|zai>` to `$ARGUMENTS`" in content
+    assert "Which secondary API do you want for the development/checking/testing agents?" in content
+    assert "OpenAI — Codex 5.6 (gpt-5.6-sol)" in content
+    assert "Z.ai — GLM 5.2 (glm-5.2)" in content
+    assert "`--secondary <openai|zai>`" in content
+    assert "`CT6_SECONDARY_PROVIDER`" in content
+    assert "`install --re-ask-provider`" in content
+    assert "`openai_model` and no `secondary_provider` is grandfathered as `openai`" in content
+
+
+def test_setup_wrapper_documents_canonical_secondary_split(plugin_root: Path) -> None:
+    """v3.40.0: role-policy instructions use the neutral alias and canonical
+    lever flags while retaining old Codex names only as deprecated synonyms."""
+    content = _read_command(plugin_root, "architect-team-setup")
+    assert "the provider-neutral alias **`ct6-secondary`" in content
+    assert "--split secondary" in content
+    assert "`--secondary-model <id>`" in content
+    assert "--split codex        # deprecated compatibility synonym" in content
+    assert "`--codex-model <id>` remains only as a deprecated compatibility synonym" in content
+
+
 def test_setup_wrapper_directs_askuserquestion_two_dispositions(plugin_root: Path) -> None:
     """The ask is an AskUserQuestion with exactly two dispositions: capture-and-
     apply (the agent itself runs the installer with the key flags) or an
@@ -124,7 +175,8 @@ def test_setup_wrapper_directs_askuserquestion_two_dispositions(plugin_root: Pat
     assert "exactly two dispositions" in content
     assert "--anthropic-key" in content
     assert "--openai-key" in content
-    assert "decline <anthropic|openai>" in content
+    assert "--zai-key" in content
+    assert "decline <anthropic|openai|zai>" in content
 
 
 def test_setup_wrapper_yes_activate_carry_over_rule(plugin_root: Path) -> None:

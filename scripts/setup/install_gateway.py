@@ -7,28 +7,44 @@ Stdlib-only. Mirrors the `install_librarian.py` pattern: a step-summary printer,
 without a key" safety posture.
 
 WHAT THIS INSTALLS: a local LiteLLM proxy (MIT-licensed, `pip install
-"litellm[proxy]"`) configured so the v3.35.0 Codex 5.6 role split has a real
-backend — the `codex-5.6-sol` model id routes to OpenAI, while Anthropic models
-either pass through the same gateway (api-key mode) or keep Claude Code's native
-sign-in auth (subscription mode).
+"litellm[proxy]"`) configured so the secondary role split (v3.35.0; provider
+registry v3.40.0) has a real backend — the neutral `ct6-secondary` alias
+routes to the CHOSEN provider from the lever's SECONDARY_PROVIDERS registry
+(OpenAI Codex 5.6 / Z.ai GLM), while Anthropic models either pass through the
+same gateway (api-key mode) or keep Claude Code's native sign-in auth
+(subscription mode).
+
+PROVIDER SELECTION (v3.40.0): the secondary provider resolves through a
+ladder — the `--secondary` flag > `$CT6_SECONDARY_PROVIDER` > the recorded
+`gateway.json` choice > the v3.39 grandfather (an `openai_model`-only state
+reads as openai) > the interactive prompt > the openai default. An unknown
+name FAILS the run (it never falls through to a different provider);
+`--re-ask-provider` suppresses the recorded/grandfathered choice so the
+question is asked again. EVERY install — with or without `--activate` —
+migrates an on-disk LEGACY split alias (`codex-5.6-sol`) to the neutral alias
+the just-regenerated config routes, and CARRIES a prior activated/split state
+forward: a plain re-install never silently deactivates a machine (uninstall
+is the only downgrade path).
 
 AUTH MODES (resolved, never probed against a live API):
   * ``api-key``       — an `ANTHROPIC_API_KEY` resolves (process env, gateway env
                         file, or `--anthropic-key`). The gateway fronts BOTH
-                        providers: a catch-all Anthropic route + the codex →
-                        OpenAI route. `--activate` may then point Claude Code at
-                        the gateway (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`
-                        in `~/.claude/settings.json`, consent-gated) and apply the
-                        codex role split via `set_default_model.py`.
+                        providers: explicit Anthropic routes + a catch-all, plus
+                        the `ct6-secondary` → chosen-provider route. `--activate`
+                        may then point Claude Code at the gateway
+                        (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` in
+                        `~/.claude/settings.json`, consent-gated) and apply the
+                        secondary role split via `set_default_model.py`.
   * ``subscription``  — NO Anthropic key anywhere. Fable (and every Anthropic
                         model) keeps Claude Code's native subscription sign-in —
                         `ANTHROPIC_BASE_URL` is deliberately NEVER written, since
                         rerouting subscription OAuth traffic through a local proxy
                         is not supported by the harness. The gateway still runs,
-                        OpenAI-only, for the service tier and direct callers. The
-                        codex role split stays OFF (the harness cannot split-route
-                        only codex traffic); the printed remediation is to add an
-                        `ANTHROPIC_API_KEY` and re-run with `--activate`.
+                        secondary-provider-only, for the service tier and direct
+                        callers. The secondary role split stays OFF (the harness
+                        cannot split-route only secondary traffic); the printed
+                        remediation is to add an `ANTHROPIC_API_KEY` and re-run
+                        with `--activate`.
 
 SECRETS: keys live ONLY in `<state>/gateway.env` (chmod 0600 best-effort) and are
 masked to their last 4 chars in every report. The generated `config.yaml` carries
@@ -55,31 +71,43 @@ Subcommands:
                      PEP-668-aware ladder, and (v3.37.0) REGISTER + START the
                      gateway itself — user-level (schtasks onlogon / `systemctl
                      --user` / LaunchAgents), never sudo/admin; `--no-register`
-                     opts back to the printed hint. Enabled ONLY when an OpenAI
-                     key resolves; otherwise install-but-disabled (registration
-                     deferred) with an explicit remediation.
-  status             Report auth mode / keys (masked) / litellm presence / file
-                     layout / registration / activation + the agents' model
-                     policy state.
+                     opts back to the printed hint. Enabled ONLY when the chosen
+                     secondary provider's key resolves; otherwise
+                     install-but-disabled (registration deferred) with an
+                     explicit remediation.
+  status             Report auth mode / provider / keys (masked) / litellm
+                     presence / file layout / registration / activation + the
+                     agents' model policy state. With `--live`, probe the
+                     RUNNING gateway for the STATE-RECORDED alias
+                     (`secondary_alias`, falling back to the legacy
+                     `codex_alias`) — a working legacy v3.39 install probes
+                     green.
   uninstall          Deactivate (remove OUR settings.json env keys, restore the
-                     uniform-fable model state if the codex split is applied),
-                     stop + UNREGISTER the gateway, remove the boot descriptor.
-                     With `--purge`, remove state too (incl. key-declines.json).
+                     uniform-fable model state if the secondary split is
+                     applied), stop + UNREGISTER the gateway, remove the boot
+                     descriptor. With `--purge`, remove state too (incl.
+                     key-declines.json).
   decline            Record (or `--clear`) a per-key decline —
-                     `decline <anthropic|openai>` — the wrapper flow's
+                     `decline <anthropic|openai|zai>` — the wrapper flow's
                      deterministic channel for an explicit "don't ask again".
 
 Flags:
   --base-dir PATH     State dir (default: $CT6_GATEWAY_HOME, else
                       ~/.architect-team/gateway/).
-  --openai-key KEY    Store the OpenAI key in gateway.env (else env OPENAI_API_KEY,
-                      else an existing gateway.env entry).
+  --secondary NAME    Secondary provider from the SECONDARY_PROVIDERS registry
+                      (openai|zai); see the resolution ladder above.
+  --secondary-model ID  Upstream model id override for the chosen provider
+                      (default: the registry entry's model, e.g. gpt-5.6-sol).
+  --<provider>-key KEY  One flag per registry provider (--openai-key /
+                      --zai-key): store that provider's key in gateway.env
+                      (else its key_env in the process env, else an existing
+                      gateway.env entry).
   --anthropic-key KEY Store an Anthropic key in gateway.env (opts into api-key mode).
-  --openai-model ID   The OpenAI-side model id the codex alias maps to
-                      (default: gpt-5.6-sol; written as openai/<id>).
+  --openai-model ID   Deprecated synonym for `--secondary-model` with
+                      `--secondary openai`.
   --port N            Gateway port (default: 4000).
   --activate          api-key mode only: write the Claude Code env block to
-                      settings.json AND apply the codex role split. In
+                      settings.json AND apply the secondary role split. In
                       subscription mode this degrades to an honest note.
   --settings-path P   Claude settings.json location (tests inject a tmp path).
   --agents-dir P      agents/ dir for the model split (tests inject a tmp dir).
@@ -88,6 +116,8 @@ Flags:
   --interactive-prompts  Allow the interactive missing-key prompt (set only by
                       interactive callers; never under --check-only/--json).
   --re-ask-keys       Clear the recorded key declines so prompts fire again.
+  --re-ask-provider   Ignore the recorded/grandfathered provider choice and
+                      resolve it again.
   --check-only        Report intent only; provision nothing.
   --live              (status) probe the RUNNING gateway's /v1/models and
                       confirm it serves what the mode needs.
@@ -108,8 +138,10 @@ asserts the split's ids are actually served — verifying what was just
 installed, never deciding policy from a probe. The split targets the
 INSTALLED plugin copy (the agents Claude Code actually runs), falling back to
 the repo agents/ when none exists; `~/.architect-team/gateway/gateway.json`
-records the desired policy so the SessionStart self-heal survives plugin
-updates.
+records the desired policy AND the served alias (`secondary_alias`, legacy
+`codex_alias`) so the SessionStart self-heal survives plugin updates and
+re-applies the alias the recorded gateway config actually routes
+(heal-to-recorded-alias — never an alias the running gateway would 404).
 """
 from __future__ import annotations
 
@@ -136,14 +168,9 @@ ENV_HOME = "CT6_GATEWAY_HOME"
 # Tri-state enable signal read by setup.py (truthy=enable, set-falsy=disable,
 # absent=no signal) — the same convention as CT6_CODEX_56_AVAILABLE.
 ENV_SIGNAL = "CT6_EXTERNAL_LLM"
+ENV_SECONDARY_PROVIDER = "CT6_SECONDARY_PROVIDER"
 SERVICE_NAME = "ct6-llm-gateway"
 DEFAULT_PORT = 4000
-# The OpenAI-side model id the codex alias maps to — the id OpenAI's live
-# /v1/models registry serves Codex 5.6 (sol) under (verified 2026-07-15; the
-# standalone -codex line stops at gpt-5.3-codex, the 5.6 generation ships as
-# gpt-5.6-sol/terra/luna). NOT validated at install time (model availability is
-# not probe-able from stdlib); override with --openai-model if it moves.
-DEFAULT_OPENAI_MODEL = "gpt-5.6-sol"
 
 # Anthropic model ids given EXPLICIT gateway routes in api-key mode (v3.38.1).
 # The '*' catch-all alone was observed non-functional on a real LiteLLM
@@ -168,8 +195,8 @@ DECLINES_NAME = "key-declines.json"
 DESCRIPTOR_DIRNAME = "descriptor"
 MASTER_KEY_VAR = "CT6_GATEWAY_MASTER_KEY"
 
-# The promptable key slots, in prompt order (v3.38.0 D1: openai then anthropic).
-KEY_SLOTS = (("openai", "OPENAI_API_KEY"), ("anthropic", "ANTHROPIC_API_KEY"))
+# Provider-independent key slot, followed by the chosen secondary provider's slot.
+ANTHROPIC_SLOT = ("anthropic", "ANTHROPIC_API_KEY")
 
 AUTH_MODE_API_KEY = "api-key"
 AUTH_MODE_SUBSCRIPTION = "subscription"
@@ -200,7 +227,18 @@ _lever = _load("ct6_model_lever", "scripts/setup/set_default_model.py")
 _bg = _load("ct6_bg_runtime", "services/common/bg_runtime.py")
 _setup = _load("ct6_setup_module", "scripts/setup/setup.py")
 
-CODEX_ALIAS = _lever.CODEX_MODEL  # "codex-5.6-sol" — the id agents/*.md carry
+SECONDARY_ALIAS = _lever.SECONDARY_ALIAS
+SECONDARY_PROVIDERS = _lever.SECONDARY_PROVIDERS
+# Deprecated external-reader name. New code uses SECONDARY_ALIAS; CODEX_ALIAS
+# intentionally remains the historical upstream model id for one transition.
+CODEX_ALIAS = _lever.CODEX_MODEL
+DEFAULT_OPENAI_MODEL = str(SECONDARY_PROVIDERS["openai"]["model"])
+
+# Model-policy strings — single-sourced from the lever (ADV3-5): the gateway
+# never spells these literals itself, so they cannot drift from the emitter.
+POLICY_SECONDARY_SPLIT = _lever.POLICY_SECONDARY_SPLIT
+POLICY_UNIFORM_FABLE = _lever.POLICY_UNIFORM_FABLE
+LEGACY_POLICY_CODEX_SPLIT = _lever.LEGACY_POLICY_CODEX_SPLIT
 
 
 # --------------------------------------------------------------------------- #
@@ -248,24 +286,88 @@ def write_env_file(path: Path, values: dict[str, str]) -> None:
         pass
 
 
+def provider_key_slots(secondary_provider: str) -> tuple[tuple[str, str], ...]:
+    """Promptable key slots for a provider: chosen secondary first, Anthropic second."""
+    entry = SECONDARY_PROVIDERS[secondary_provider]
+    return ((secondary_provider, str(entry["key_env"])), ANTHROPIC_SLOT)
+
+
+def preserved_env_keys() -> tuple[str, ...]:
+    """gateway.env keys an install rewrite must never drop (ADV3-2): EVERY
+    registry provider's key slot — switching --secondary must not delete the
+    other provider's stored key — plus the Anthropic slot and the master key."""
+    return tuple(str(SECONDARY_PROVIDERS[name]["key_env"])
+                 for name in sorted(SECONDARY_PROVIDERS)) + (
+        "ANTHROPIC_API_KEY", MASTER_KEY_VAR)
+
+
+def resolve_secondary_provider(
+    explicit: Optional[str],
+    base: Path,
+    *,
+    env: Optional[dict[str, str]] = None,
+    re_ask: bool = False,
+    interactive: bool = False,
+    prompt_fn=None,
+    isatty_fn=None,
+) -> tuple[Optional[str], str, Optional[str]]:
+    """Resolve provider by flag > env > state > grandfather > ask > openai.
+
+    Returns ``(provider, source, error)``. Unknown inputs never fall through to a
+    different provider; callers surface the error and perform no state write.
+    ``--re-ask-provider`` suppresses both recorded and grandfathered choices.
+    """
+    env = os.environ if env is None else env
+    state = _read_state(base)
+    candidate: Optional[str] = None
+    source = ""
+    if explicit is not None:
+        candidate, source = str(explicit).strip().lower(), "flag"
+    elif ENV_SECONDARY_PROVIDER in env:
+        candidate = str(env.get(ENV_SECONDARY_PROVIDER, "")).strip().lower()
+        source = "env"
+    elif not re_ask and state.get("secondary_provider"):
+        candidate = str(state["secondary_provider"]).strip().lower()
+        source = "recorded"
+    elif not re_ask and "openai_model" in state and "secondary_provider" not in state:
+        candidate, source = "openai", "grandfather"
+    elif interactive:
+        candidate = _prompt_for_provider(prompt_fn=prompt_fn, isatty_fn=isatty_fn)
+        source = "interactive"
+    else:
+        candidate, source = "openai", "default"
+    if candidate not in SECONDARY_PROVIDERS:
+        valid = ", ".join(sorted(SECONDARY_PROVIDERS))
+        return None, source, (
+            f"unknown secondary provider {candidate!r} from {source}; valid: {valid}")
+    return candidate, source, None
+
+
 def resolve_keys(
     base: Path,
     openai_arg: Optional[str] = None,
     anthropic_arg: Optional[str] = None,
     env: Optional[dict[str, str]] = None,
+    *,
+    secondary_provider: str = "openai",
+    provider_args: Optional[dict[str, Optional[str]]] = None,
 ) -> dict[str, str]:
-    """Resolve the gateway's secret set: explicit args > process env > the existing
-    gateway.env. Returns only the keys that resolved (values are RAW — callers must
-    mask before any display)."""
+    """Resolve Anthropic + the chosen provider: args > process env > gateway.env."""
     env = os.environ if env is None else env
     existing = read_env_file(base / ENV_FILE_NAME)
-    out: dict[str, str] = {}
-    openai = openai_arg or env.get("OPENAI_API_KEY") or existing.get("OPENAI_API_KEY")
+    provider_args = dict(provider_args or {})
+    if openai_arg is not None:
+        provider_args["openai"] = openai_arg
+    entry = SECONDARY_PROVIDERS[secondary_provider]
+    provider_env = str(entry["key_env"])
+    provider_key = (provider_args.get(secondary_provider) or env.get(provider_env)
+                    or existing.get(provider_env))
     anthropic = (anthropic_arg or env.get("ANTHROPIC_API_KEY")
                  or existing.get("ANTHROPIC_API_KEY"))
     master = existing.get(MASTER_KEY_VAR)
-    if openai:
-        out["OPENAI_API_KEY"] = openai
+    out: dict[str, str] = {}
+    if provider_key:
+        out[provider_env] = provider_key
     if anthropic:
         out["ANTHROPIC_API_KEY"] = anthropic
     out[MASTER_KEY_VAR] = master or ("sk-ct6-" + secrets.token_urlsafe(24))
@@ -382,6 +484,24 @@ def _hidden_prompt(message: str) -> str:
 
 _default_prompt_fn = _hidden_prompt   # injectable seam — tests stub this
 _default_isatty_fn = _stdin_isatty    # injectable seam — tests stub this
+_default_provider_prompt_fn = input    # visible provider-choice seam
+
+
+def _prompt_for_provider(*, prompt_fn=None, isatty_fn=None) -> str:
+    """Visible provider choice prompt. Blank selects OpenAI; non-TTY also defaults."""
+    prompt_fn = prompt_fn or _default_provider_prompt_fn
+    isatty_fn = isatty_fn or _default_isatty_fn
+    if not isatty_fn():
+        return "openai"
+    choices = ", ".join(
+        f"{name} ({entry['label']})" for name, entry in SECONDARY_PROVIDERS.items())
+    try:
+        entered = prompt_fn(
+            f"Secondary provider [{choices}] (blank for openai): ")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return "openai"
+    return (entered or "").strip().lower() or "openai"
 
 
 def _prompt_for_key(slot: str, *, prompt_fn=None, isatty_fn=None) -> Optional[str]:
@@ -394,7 +514,10 @@ def _prompt_for_key(slot: str, *, prompt_fn=None, isatty_fn=None) -> Optional[st
     isatty_fn = isatty_fn or _default_isatty_fn
     if not isatty_fn():
         return None
-    env_key = dict(KEY_SLOTS)[slot]
+    if slot == "anthropic":
+        env_key = "ANTHROPIC_API_KEY"
+    else:
+        env_key = str(SECONDARY_PROVIDERS[slot]["key_env"])
     try:
         entered = prompt_fn(f"{env_key} for the CT6 gateway (blank to skip): ")
     except (EOFError, KeyboardInterrupt):
@@ -412,10 +535,16 @@ def _prompt_for_key(slot: str, *, prompt_fn=None, isatty_fn=None) -> Optional[st
 # generated artifacts: config.yaml / launcher / claude env block
 # --------------------------------------------------------------------------- #
 
+def _secondary_route_model(entry: dict[str, Optional[str]], model: str) -> str:
+    prefix = str(entry["route_model"]).rsplit("/", 1)[0]
+    return f"{prefix}/{model}"
+
+
 def build_gateway_config(
     auth_mode: str,
-    codex_alias: str = CODEX_ALIAS,
-    openai_model: str = DEFAULT_OPENAI_MODEL,
+    secondary_alias: str = SECONDARY_ALIAS,
+    secondary_model: Optional[str] = None,
+    secondary_provider: str = "openai",
 ) -> str:
     """The LiteLLM proxy config. Deterministic text (no yaml dep); secrets are
     `os.environ/...` references resolved from gateway.env by the launcher —
@@ -429,15 +558,19 @@ def build_gateway_config(
       (v3.38.1, SR-gateway-wildcard-route).
     * Always: a master key, so the local proxy never runs unauthenticated.
     """
+    entry = SECONDARY_PROVIDERS[secondary_provider]
+    model = secondary_model or str(entry["model"])
     lines = [
         "# CT6 external-LLM gateway (LiteLLM) — GENERATED by",
         "# scripts/setup/install_gateway.py; edit by re-running the installer.",
         "model_list:",
-        f"  - model_name: {codex_alias}",
+        f"  - model_name: {secondary_alias}",
         "    litellm_params:",
-        f"      model: openai/{openai_model}",
-        "      api_key: os.environ/OPENAI_API_KEY",
+        f"      model: {_secondary_route_model(entry, model)}",
+        f"      api_key: os.environ/{entry['key_env']}",
     ]
+    if entry.get("api_base"):
+        lines.append(f"      api_base: {entry['api_base']}")
     if auth_mode == AUTH_MODE_API_KEY:
         # v3.38.1 (SR-gateway-wildcard-route, field-verified 2026-07-16): a
         # config that relies ONLY on the '*' catch-all was observed broken on a
@@ -794,13 +927,23 @@ class Report:
     action: str = "install"
     base_dir: str = ""
     auth_mode: str = AUTH_MODE_SUBSCRIPTION
+    secondary_provider: str = "openai"
+    secondary_model: str = DEFAULT_OPENAI_MODEL
+    secondary_key_present: bool = False
     openai_key_present: bool = False
     anthropic_key_present: bool = False
     litellm_present: bool = False
     enabled: bool = False
     activated: bool = False
+    # v3.40.0 ADV3C-1: a plain re-install carries a prior activation forward
+    # (state honesty) — this flag lets the wording say so without claiming
+    # THIS run performed an activation.
+    activation_carried: bool = False
     registered: bool = False
     split_applied: bool = False
+    # v3.40.0 ADV3C-1: the on-disk agents policy IS the split (e.g. carried
+    # from a prior activation) even though THIS run did not apply it.
+    split_on_disk: bool = False
     split_confirmed: Optional[bool] = None  # v3.39.0: live /v1/models verdict
     descriptor_path: Optional[str] = None
     register_hint: Optional[str] = None
@@ -835,6 +978,19 @@ def _read_state(base: Path) -> dict[str, Any]:
         return {}
 
 
+def _recorded_secondary_alias(state: dict[str, Any]) -> str:
+    """The alias the RECORDED gateway config routes: `secondary_alias`, falling
+    back to the legacy `codex_alias`, else the current SECONDARY_ALIAS. Each
+    candidate is trimmed BEFORE the truthiness check (ADV3B-2) so a corrupt
+    whitespace-only value reads as absent — it never masks the legacy key and
+    never becomes a literal-whitespace probe expectation."""
+    for key in ("secondary_alias", "codex_alias"):
+        value = state.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return SECONDARY_ALIAS
+
+
 def _default_agents_dir() -> Path:
     """The agents/ dir the model split targets (v3.39.0: runtime-first).
 
@@ -851,10 +1007,13 @@ def _default_agents_dir() -> Path:
 # --------------------------------------------------------------------------- #
 #
 # The v3.38.1 field bug proved a generated config can be broken while every
-# install step reports ok. The confirm step closes that gap: after activation
-# the installer polls the LIVE gateway's /v1/models and asserts the ids the
-# split needs are actually SERVED — codex-5.6-sol always, claude-fable-5
-# additionally in api-key mode. An already-running gateway that predates a
+# install step reports ok. The confirm step closes that gap: after a
+# registered install the installer polls the LIVE gateway's /v1/models and
+# asserts the ids the split needs are actually SERVED — the neutral secondary
+# alias always (install probes the alias the just-written config routes;
+# status --live instead probes the STATE-RECORDED alias, so a working legacy
+# v3.39 config still confirms green), claude-fable-5 additionally in api-key
+# mode. An already-running gateway that predates a
 # config regeneration serves the OLD config; on a failed confirm the installer
 # restarts the gateway once (through the same user-level registration
 # machinery) and re-probes before degrading to a warn. Never gates.
@@ -947,11 +1106,11 @@ def restart_gateway(
 SUBSCRIPTION_MODE_NOTE = (
     "subscription mode — no ANTHROPIC_API_KEY resolved, so Anthropic models "
     "(fable) keep Claude Code's native sign-in auth: ANTHROPIC_BASE_URL is NOT "
-    "written and the codex role split stays OFF (the harness cannot route only "
-    "codex traffic through the gateway while sign-in auth handles the rest). "
-    "The gateway still serves OpenAI models to direct callers. For the full "
-    "gateway + the codex split: set ANTHROPIC_API_KEY and re-run install "
-    "--activate."
+    "written and the secondary role split stays OFF (the harness cannot route "
+    "only secondary traffic through the gateway while sign-in auth handles the "
+    "rest). The gateway still serves the chosen secondary provider to direct "
+    "callers. For the full gateway + secondary split: set ANTHROPIC_API_KEY and "
+    "re-run install --activate."
 )
 
 
@@ -962,7 +1121,37 @@ SUBSCRIPTION_MODE_NOTE = (
 def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     report = Report(action="install", base_dir=str(base),
                     check_only=bool(args.check_only))
-    keys = resolve_keys(base, args.openai_key, args.anthropic_key)
+    allow_provider_prompt = bool(
+        getattr(args, "interactive_prompts", False)
+        and not args.check_only and not getattr(args, "json", False))
+    provider, provider_source, provider_error = resolve_secondary_provider(
+        getattr(args, "secondary", None), base,
+        re_ask=bool(getattr(args, "re_ask_provider", False)),
+        interactive=allow_provider_prompt,
+    )
+    if provider_error or provider is None:
+        report.add("secondary", "fail", provider_error or "provider resolution failed")
+        return report
+    report.secondary_provider = provider
+    entry = SECONDARY_PROVIDERS[provider]
+    if args.openai_model is not None:
+        if provider != "openai":
+            report.add(
+                "secondary", "fail",
+                "--openai-model is scoped to --secondary openai; use --secondary-model")
+            return report
+        print("NOTE: --openai-model is deprecated; use --secondary-model.", file=sys.stderr)
+    report.secondary_model = (
+        args.secondary_model or args.openai_model or str(entry["model"]))
+    provider_args = {
+        name: getattr(args, f"{name}_key", None)
+        for name in SECONDARY_PROVIDERS
+    }
+    keys = resolve_keys(
+        base, anthropic_arg=args.anthropic_key,
+        secondary_provider=provider, provider_args=provider_args)
+    provider_env = str(entry["key_env"])
+    report.secondary_key_present = bool(keys.get(provider_env))
     report.openai_key_present = bool(keys.get("OPENAI_API_KEY"))
     report.anthropic_key_present = bool(keys.get("ANTHROPIC_API_KEY"))
     report.auth_mode = resolve_auth_mode(keys)
@@ -970,9 +1159,11 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
 
     if args.check_only:
         would = "api-key (full gateway)" if report.auth_mode == AUTH_MODE_API_KEY \
-            else "subscription (fable via sign-in; gateway OpenAI-only)"
+            else "subscription (fable via sign-in; gateway secondary-only)"
         report.add("check-only", "skipped",
-                   f"would install in {would} mode; no state provisioned")
+                   f"would install in {would} mode; "
+                   f"secondary={provider}/{report.secondary_model} ({provider_source}); "
+                   "no state provisioned")
         return report
 
     # 0a. decline bookkeeping (v3.38.0): a slot's decline auto-resets whenever
@@ -981,7 +1172,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     # clears the whole record so prompts fire again.
     if getattr(args, "re_ask_keys", False):
         _clear_declines(base)
-    for slot, env_key in KEY_SLOTS:
+    for slot, env_key in provider_key_slots(provider):
         if keys.get(env_key):
             _clear_declines(base, slot)
 
@@ -995,7 +1186,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     if (getattr(args, "interactive_prompts", False)
             and not getattr(args, "json", False) and _default_isatty_fn()):
         declines = _read_declines(base)
-        for slot, env_key in KEY_SLOTS:
+        for slot, env_key in provider_key_slots(provider):
             if keys.get(env_key):
                 continue
             if slot in declines:
@@ -1015,6 +1206,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                 report.add("prompt", "skipped",
                            f"{slot}: blank entry -- skipped; decline recorded "
                            f"(via=prompt-skip; --re-ask-keys re-prompts)")
+        report.secondary_key_present = bool(keys.get(provider_env))
         report.openai_key_present = bool(keys.get("OPENAI_API_KEY"))
         report.anthropic_key_present = bool(keys.get("ANTHROPIC_API_KEY"))
         report.auth_mode = resolve_auth_mode(keys)
@@ -1037,14 +1229,27 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                        f"pip install \"{LITELLM_PACKAGE}\" then re-run.")
 
     # 2. secrets → gateway.env (the only raw-key location; chmod 0600).
-    write_env_file(base / ENV_FILE_NAME, keys)
+    # ADV3-2: merge, never replace — a provider switch must not delete the
+    # OTHER provider's stored key. Every preserved slot (each registry
+    # provider's key_env + Anthropic + master) carries forward; the freshly
+    # resolved values win.
+    existing_env = read_env_file(base / ENV_FILE_NAME)
+    persisted = {k: v for k, v in existing_env.items()
+                 if k in preserved_env_keys()}
+    persisted.update(keys)
+    write_env_file(base / ENV_FILE_NAME, persisted)
+    # honesty: the report's openai flag reflects the FILE (a retained OpenAI
+    # key on a zai run is still present), matching what status reports.
+    report.openai_key_present = bool(persisted.get("OPENAI_API_KEY"))
     report.add("secrets", "ok",
-               f"gateway.env written (OPENAI_API_KEY: {_mask(keys.get('OPENAI_API_KEY')) or 'ABSENT'}, "
-               f"ANTHROPIC_API_KEY: {_mask(keys.get('ANTHROPIC_API_KEY')) or 'absent — subscription mode'})")
+               f"gateway.env written ({provider_env}: "
+               f"{_mask(keys.get(provider_env)) or 'ABSENT'}, ANTHROPIC_API_KEY: "
+               f"{_mask(keys.get('ANTHROPIC_API_KEY')) or 'absent — subscription mode'})")
 
     # 3. config + launcher + state.
     (base / CONFIG_NAME).write_text(
-        build_gateway_config(report.auth_mode, CODEX_ALIAS, args.openai_model),
+        build_gateway_config(
+            report.auth_mode, SECONDARY_ALIAS, report.secondary_model, provider),
         encoding="utf-8")
     launcher_name, launcher_body = build_launcher(_platform_key(), base, args.port)
     (base / launcher_name).write_text(launcher_body, encoding="utf-8")
@@ -1055,6 +1260,42 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
             pass
     report.add("config", "ok",
                f"{CONFIG_NAME} ({report.auth_mode} mode) + {launcher_name} written")
+
+    # 3b. serving-side consistency (v3.40.0 ADV3B-1): the config just written
+    # routes ONLY the neutral alias, so an on-disk LEGACY split would 404 the
+    # moment that config is (re)loaded. Migrating it to the neutral alias in
+    # the SAME run — with or without --activate — is consistency maintenance
+    # of an already-activated machine, not a new activation.
+    # migrate_legacy_split rewrites ONLY files carrying a legacy alias, so a
+    # split-neutral machine (a fresh install, a manual lever state) never has
+    # its agents touched. prior_state is read here, BEFORE this run's state
+    # write, so a non-activate install can carry forward what it does not
+    # change (only uninstall downgrades activated/model_policy).
+    prior_state = _read_state(base)
+    agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
+    migrated: list[str] = []
+    if agents_dir.is_dir():
+        migrated = _lever.migrate_legacy_split(agents_dir)
+        if migrated:
+            report.add("alias-migration", "ok",
+                       f"{len(migrated)} agent file(s) migrated from a legacy "
+                       f"secondary alias to {SECONDARY_ALIAS} in {agents_dir} "
+                       f"(the regenerated {CONFIG_NAME} routes only the "
+                       f"neutral alias)")
+        # ADV3C-1: record whether the disk policy IS the split (e.g. carried
+        # from a prior activation) so the confirm wording can be honest about
+        # a split this run did not itself apply.
+        report.split_on_disk = (
+            _lever.policy_state(agents_dir) == POLICY_SECONDARY_SPLIT)
+    elif not args.activate:
+        # ADV3C-4: never skip step 3b silently — the --activate path already
+        # surfaces a missing/typo'd agents dir (its secondary-split row); the
+        # plain path gets the symmetric row.
+        report.add("alias-migration", "skipped",
+                   f"agents dir not found at {agents_dir} — legacy-alias "
+                   f"migration not performed; check --agents-dir or apply the "
+                   f"split manually: python scripts/setup/set_default_model.py "
+                   f"--split secondary")
 
     # 4. boot descriptor (written + hint printed; NEVER registered for you).
     desc_dir = base / DESCRIPTOR_DIRNAME
@@ -1068,13 +1309,14 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     report.add("descriptor", "ok",
                f"{descriptor['kind']} descriptor written to {desc_path}")
 
-    # 5. enablement (honest: no OpenAI key => provisioned but NOT enabled).
-    report.enabled = report.openai_key_present
+    # 5. enablement: only the chosen provider's key controls the secondary route.
+    report.enabled = report.secondary_key_present
     if not report.enabled:
+        provider_flag = f"--{provider}-key"
         report.remediation = (
-            f"set OPENAI_API_KEY (env) or re-run with --openai-key …; state dir: {base}")
+            f"set {provider_env} (env) or re-run with {provider_flag} …; state dir: {base}")
         report.add("enable", "skipped",
-                   "no OpenAI key resolved; provisioned but NOT enabled")
+                   f"no {provider} key resolved; provisioned but NOT enabled")
     else:
         report.add("enable", "ok", "gateway enabled")
 
@@ -1085,7 +1327,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                    "--no-register — register manually with the printed hint")
     elif not report.enabled:
         report.add("register", "skipped",
-                   "not enabled (no OpenAI key) — registration deferred")
+                   f"not enabled (no {provider_env}) — registration deferred")
     else:
         reg_ok, reg_detail = register_gateway(
             _platform_key(), base / launcher_name)
@@ -1106,25 +1348,36 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
             report.add("activate", "ok",
                        f"ANTHROPIC_BASE_URL={gateway_url(args.port)} + auth token "
                        f"written to {settings_path}")
-            agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
+            # legacy-alias files were already migrated at step 3b (the same-run
+            # consistency pass); apply_split then repairs any remaining drift.
             if agents_dir.is_dir():
-                changed = _lever.apply_split(agents_dir, CODEX_ALIAS)
+                changed = _lever.apply_split(agents_dir)
                 report.split_applied = True
-                report.add("codex-split", "ok",
+                report.add("secondary-split", "ok",
                            f"role split applied to {agents_dir} "
-                           f"({len(changed)} file(s) rewritten; "
-                           f"dev/checking/testing agents → {CODEX_ALIAS})")
+                           f"({len(changed)} policy rewrite(s), {len(migrated)} legacy "
+                           f"alias migration(s); dev/checking/testing agents → "
+                           f"{SECONDARY_ALIAS})")
             else:
-                report.add("codex-split", "skipped",
+                report.add("secondary-split", "skipped",
                            f"agents dir not found at {agents_dir}; apply manually: "
-                           f"python scripts/setup/set_default_model.py --split codex")
+                           f"python scripts/setup/set_default_model.py --split secondary")
         elif report.auth_mode == AUTH_MODE_SUBSCRIPTION:
             report.add("activate", "skipped", SUBSCRIPTION_MODE_NOTE)
         else:
             report.add("activate", "skipped",
-                       "cannot activate: no OpenAI key (see enable remediation)")
+                       f"cannot activate: no {provider_env} (see enable remediation)")
     elif report.auth_mode == AUTH_MODE_SUBSCRIPTION:
         report.add("mode", "ok", SUBSCRIPTION_MODE_NOTE)
+    elif prior_state.get("activated"):
+        # ADV3C-1: this plain install neither activated nor deactivated —
+        # the machine's prior activation carries forward (step 8 records it),
+        # so the row must not read as "unactivated; needs consent".
+        report.activation_carried = True
+        report.add("activate", "ok",
+                   "activation carried forward from the prior install "
+                   "(settings.json untouched this run; uninstall is the only "
+                   "downgrade path)")
 
     # 7. live confirmation (v3.39.0): assert the RUNNING gateway actually
     # serves the ids the split needs — the step the v3.38.1 field bug proved
@@ -1134,7 +1387,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     # a pre-regeneration config gets ONE restart + re-probe before the honest
     # warn. Never gates.
     if report.enabled and report.registered:
-        expect = [CODEX_ALIAS]
+        expect = [SECONDARY_ALIAS]
         if report.auth_mode == AUTH_MODE_API_KEY:
             expect.append(FABLE_MODEL)
         ok, detail = confirm_gateway_serving(
@@ -1150,8 +1403,11 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                 detail = f"{detail}; restart attempt failed: {r_detail}"
         report.split_confirmed = ok
         if ok:
+            # ADV3C-1: the split phrasing also applies when the disk policy is
+            # a CARRIED split (this run confirmed it live without applying it).
             report.add("confirm", "ok",
-                       ("CONFIRMED: CT6 runs the split — " if report.split_applied
+                       ("CONFIRMED: CT6 runs the split — "
+                        if report.split_applied or report.split_on_disk
                         else "CONFIRMED: ") + detail)
         else:
             report.add("confirm", "fail",
@@ -1164,17 +1420,34 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                    "failed) — start it, then verify: python "
                    "scripts/setup/install_gateway.py status --live")
 
+    # 8. state (v3.40.0 ADV3B-1, carry-forward): a non-activate install
+    # neither activated nor deactivated anything, so the prior `activated` and
+    # a prior split `model_policy` carry FORWARD instead of downgrading —
+    # uninstall (and a future explicit deactivate) is the ONLY downgrade path.
+    # This keeps the SessionStart self-heal armed and `status --live` truthful
+    # on an already-activated machine (and closes ADV3B-5, the modern-machine
+    # heal-disarm on a plain re-install). The `{**prior_state}` merge carries
+    # every key this run does not rewrite. `secondary_alias` records what the
+    # just-regenerated config routes; step 3b migrated any on-disk legacy
+    # split to that alias in the same run, so the record mirrors the disk.
+    prior_split_desired = prior_state.get("model_policy") in (
+        POLICY_SECONDARY_SPLIT, LEGACY_POLICY_CODEX_SPLIT)
     _write_state(base, {
+        **prior_state,
         "auth_mode": report.auth_mode,
         "port": args.port,
-        "codex_alias": CODEX_ALIAS,
-        "openai_model": args.openai_model,
-        "activated": report.activated,
+        "secondary_provider": provider,
+        "secondary_model": report.secondary_model,
+        "secondary_alias": SECONDARY_ALIAS,
+        "codex_alias": SECONDARY_ALIAS,
+        # Preserve the grandfather marker for one transition version.
+        "openai_model": report.secondary_model if provider == "openai" else None,
+        "activated": bool(report.activated or prior_state.get("activated")),
         "enabled": report.enabled,
         "registered": report.registered,
-        # v3.39.0: the DESIRED model policy — the sessionstart self-heal
-        # re-applies the split to an updated plugin copy from this record.
-        "model_policy": "codex-split" if report.split_applied else "uniform-fable",
+        "model_policy": POLICY_SECONDARY_SPLIT
+        if (report.split_applied or prior_split_desired)
+        else POLICY_UNIFORM_FABLE,
     })
     return report
 
@@ -1182,13 +1455,24 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
 def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     report = Report(action="status", base_dir=str(base))
     state = _read_state(base)
+    provider, _, error = resolve_secondary_provider(
+        getattr(args, "secondary", None), base, re_ask=False, interactive=False)
+    if error or provider is None:
+        report.add("secondary", "fail", error or "provider resolution failed")
+        return report
+    entry = SECONDARY_PROVIDERS[provider]
+    provider_env = str(entry["key_env"])
+    report.secondary_provider = provider
+    report.secondary_model = str(
+        state.get("secondary_model") or state.get("openai_model") or entry["model"])
     keys = read_env_file(base / ENV_FILE_NAME)
     port = int(state.get("port", args.port))
+    report.secondary_key_present = bool(keys.get(provider_env))
     report.openai_key_present = bool(keys.get("OPENAI_API_KEY"))
     report.anthropic_key_present = bool(keys.get("ANTHROPIC_API_KEY"))
     report.auth_mode = state.get("auth_mode", resolve_auth_mode(keys))
     report.litellm_present = litellm_installed()
-    report.enabled = report.openai_key_present and (base / CONFIG_NAME).is_file()
+    report.enabled = report.secondary_key_present and (base / CONFIG_NAME).is_file()
     settings_path = Path(args.settings_path) if args.settings_path \
         else _setup.DEFAULT_USER_SETTINGS_PATH
     report.activated = claude_env_applied(settings_path, port)
@@ -1197,15 +1481,17 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     report.descriptor_path = str(descs[0]) if descs else None
     agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
     policy = _lever.policy_state(agents_dir) if agents_dir.is_dir() else "unknown"
-    report.split_applied = policy == "codex-split"
+    report.split_applied = policy == POLICY_SECONDARY_SPLIT
     report.registered = is_gateway_registered(_platform_key())
-    if not report.openai_key_present:
-        report.remediation = "set OPENAI_API_KEY or re-run install --openai-key …"
+    if not report.secondary_key_present:
+        report.remediation = (
+            f"set {provider_env} or re-run install --{provider}-key …")
     summary = (
-        f"mode={report.auth_mode}; enabled={report.enabled}; "
-        f"activated={report.activated}; registered={report.registered}; "
-        f"litellm={report.litellm_present}; model-policy={policy}; "
-        f"OPENAI_API_KEY={_mask(keys.get('OPENAI_API_KEY')) or 'absent'}; "
+        f"mode={report.auth_mode}; secondary={provider}/{report.secondary_model}; "
+        f"enabled={report.enabled}; activated={report.activated}; "
+        f"registered={report.registered}; litellm={report.litellm_present}; "
+        f"model-policy={policy}; {provider_env}="
+        f"{_mask(keys.get(provider_env)) or 'absent'}; "
         f"ANTHROPIC_API_KEY={_mask(keys.get('ANTHROPIC_API_KEY')) or 'absent'}")
     # v3.38.0: report recorded declines — the decline suppresses the PROMPT,
     # never the truth (the absent-key fields above stay verbatim).
@@ -1219,7 +1505,12 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     # restart — status observes, install repairs).
     if getattr(args, "live", False):
         if report.enabled:
-            expect = [CODEX_ALIAS]
+            # ADV3-3: expect the STATE-RECORDED alias — a working legacy
+            # (v3.39) install whose config routes only codex-5.6-sol must
+            # probe green; a hard-coded newest alias false-failed it.
+            # ADV3B-2: whitespace-trimmed via _recorded_secondary_alias, so a
+            # corrupt whitespace value never masks the legacy key.
+            expect = [_recorded_secondary_alias(state)]
             if report.auth_mode == AUTH_MODE_API_KEY:
                 expect.append(FABLE_MODEL)
             ok, detail = confirm_gateway_serving(
@@ -1258,15 +1549,21 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
         report.add("deactivate", "skipped",
                    "no gateway env entries in settings.json (no-op)")
 
-    # 2. restore the model state ONLY when the codex split is what's applied.
+    # 2. restore from current or legacy split state. policy_state recognizes a
+    # complete legacy-alias split as secondary-split; the recorded legacy policy
+    # is an additional mixed-version guard.
     agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
-    if agents_dir.is_dir() and _lever.policy_state(agents_dir) == "codex-split":
+    disk_policy = _lever.policy_state(agents_dir) if agents_dir.is_dir() else "unknown"
+    recorded_policy = state.get("model_policy")
+    wants_restore = disk_policy == POLICY_SECONDARY_SPLIT or recorded_policy in {
+        POLICY_SECONDARY_SPLIT, LEGACY_POLICY_CODEX_SPLIT}
+    if agents_dir.is_dir() and wants_restore:
         changed = _lever.set_model(agents_dir, "fable")
         report.add("model-restore", "ok",
                    f"uniform fable restored ({len(changed)} file(s) rewritten)")
     else:
         report.add("model-restore", "skipped",
-                   "model state is not codex-split (left untouched)")
+                   "model state is not a secondary split (left untouched)")
 
     # 3. unregistration (v3.37.0: EXECUTED, symmetric with install) +
     #    descriptor removal.
@@ -1300,7 +1597,7 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
         # v3.39.0: record the deactivated state so the sessionstart self-heal
         # never re-applies a split the user uninstalled.
         _write_state(base, {**state, "activated": False,
-                            "model_policy": "uniform-fable"})
+                            "model_policy": POLICY_UNIFORM_FABLE})
     return report
 
 
@@ -1365,6 +1662,7 @@ def setup_entry(
     settings_path: Optional[str] = None,
     agents_dir: Optional[str] = None,
     interactive: Optional[bool] = None,
+    secondary: Optional[str] = None,
 ) -> tuple[str, str, Optional[str]]:
     """The setup.py hook: run install (enable=True) or uninstall (enable=False)
     and fold the result into one (name, status, detail) report row. NEVER raises
@@ -1382,6 +1680,8 @@ def setup_entry(
     try:
         base = resolve_base_dir(base_dir)
         argv = ["install" if enable else "uninstall", "--base-dir", str(base)]
+        if secondary is not None:
+            argv += ["--secondary", secondary]
         if check_only:
             argv.append("--check-only")
         if enable and assume_yes:
@@ -1409,20 +1709,34 @@ def setup_entry(
                 f"{s.name}: {s.detail}" for s in report.steps) or "check-only"
         if not enable:
             return name, "applied", "gateway deactivated + descriptor removed"
+        # ADV3C-1: a carried-forward activation must not read as "unactivated"
+        # (the machine stays activated + split; this run just did not
+        # RE-activate it — no activation is claimed for this run).
+        activated_display = ("carried-forward"
+                             if report.activation_carried and not report.activated
+                             else report.activated)
         summary = (
-            f"mode={report.auth_mode}; enabled={report.enabled}; "
-            f"activated={report.activated}"
-            + ("; codex split applied" if report.split_applied else "")
+            f"mode={report.auth_mode}; secondary={report.secondary_provider}/"
+            f"{report.secondary_model}; enabled={report.enabled}; "
+            f"activated={activated_display}"
+            + ("; secondary split applied" if report.split_applied else "")
             + ("; CONFIRMED live — CT6 runs the split"
-               if report.split_confirmed and report.split_applied
+               if report.split_confirmed
+               and (report.split_applied or report.split_on_disk)
                else "; CONFIRMED serving live" if report.split_confirmed
                else "; live confirmation FAILED (see confirm step)"
                if report.split_confirmed is False else "")
             + (f"; NOT enabled — {report.remediation}" if report.remediation else "")
         )
         if report.auth_mode == AUTH_MODE_SUBSCRIPTION:
-            summary += " (fable via Claude sign-in; gateway serves OpenAI only)"
-        elif report.enabled and not report.activated:
+            # Provider-neutral: the served-provider prose is single-sourced
+            # from the lever registry entry (label carries provider + model),
+            # never a hand-written per-provider string.
+            entry = SECONDARY_PROVIDERS.get(report.secondary_provider, {})
+            served = str(entry.get("label") or report.secondary_provider)
+            summary += f" (fable via Claude sign-in; gateway serves {served} only)"
+        elif (report.enabled and not report.activated
+                and not report.activation_carried):
             summary += (
                 " (activation needs consent: rerun with --yes, or run manually: "
                 + manual + ")"
@@ -1451,16 +1765,24 @@ def check_external_llm_option() -> tuple[str, str, Optional[str]]:
 def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-dir", default=None,
                         help=f"state dir (default ${ENV_HOME} or ~/.architect-team/gateway)")
-    parser.add_argument("--openai-key", default=None,
-                        help="OpenAI API key to store in gateway.env")
+    provider_names = "|".join(sorted(SECONDARY_PROVIDERS))
+    parser.add_argument("--secondary", default=None,
+                        help=f"secondary provider name ({provider_names})")
+    parser.add_argument("--secondary-model", default=None,
+                        help="upstream model id override for the chosen secondary provider")
+    for name, entry in SECONDARY_PROVIDERS.items():
+        parser.add_argument(
+            f"--{name}-key", default=None,
+            help=f"{entry['label']} API key to store in gateway.env")
     parser.add_argument("--anthropic-key", default=None,
                         help="Anthropic API key to store in gateway.env (api-key mode)")
-    parser.add_argument("--openai-model", default=DEFAULT_OPENAI_MODEL,
-                        help=f"OpenAI-side model id for the codex alias (default: {DEFAULT_OPENAI_MODEL})")
+    parser.add_argument("--openai-model", default=None,
+                        help="deprecated synonym for --secondary-model with --secondary openai")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT,
                         help=f"gateway port (default: {DEFAULT_PORT})")
     parser.add_argument("--activate", action="store_true",
-                        help="api-key mode: write the Claude Code env block + apply the codex split")
+                        help="api-key mode: write the Claude Code env block + "
+                             "apply the secondary role split")
     parser.add_argument("--settings-path", default=None,
                         help="Claude settings.json path (default: ~/.claude/settings.json)")
     parser.add_argument("--agents-dir", default=None,
@@ -1476,6 +1798,8 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
                              "setup run; never under --check-only/--json)")
     parser.add_argument("--re-ask-keys", action="store_true",
                         help="clear the recorded key declines so prompts fire again")
+    parser.add_argument("--re-ask-provider", action="store_true",
+                        help="ignore the recorded provider and ask/select it again")
     parser.add_argument("--force-reinstall", action="store_true",
                         help="reinstall litellm even when already importable")
     parser.add_argument("--check-only", action="store_true",
@@ -1500,8 +1824,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", parents=[shared], add_help=False)
     sub.add_parser("uninstall", parents=[shared], add_help=False)
     dec = sub.add_parser("decline", parents=[shared], add_help=False)
-    dec.add_argument("slot", choices=("anthropic", "openai"),
-                     help="the key slot to decline (anthropic|openai)")
+    dec.add_argument("slot", choices=("anthropic", *SECONDARY_PROVIDERS),
+                     help="the key slot to decline (anthropic or a secondary provider)")
     dec.add_argument("--clear", action="store_true",
                      help="clear the recorded decline for the slot instead")
     return parser
@@ -1547,6 +1871,9 @@ def _emit(report: Report, as_json: bool) -> int:
             "action": report.action,
             "base_dir": report.base_dir,
             "auth_mode": report.auth_mode,
+            "secondary_provider": report.secondary_provider,
+            "secondary_model": report.secondary_model,
+            "secondary_key_present": report.secondary_key_present,
             "openai_key_present": report.openai_key_present,
             "anthropic_key_present": report.anthropic_key_present,
             "litellm_present": report.litellm_present,
@@ -1576,9 +1903,11 @@ def _emit(report: Report, as_json: bool) -> int:
     print(f"  State dir:   {report.base_dir}")
     print(f"  Auth mode:   {report.auth_mode}"
           + ("  (fable via Claude sign-in)" if report.auth_mode == AUTH_MODE_SUBSCRIPTION else ""))
+    print(f"  Secondary:   {report.secondary_provider}/{report.secondary_model}")
     print(f"  Gateway:     {'enabled' if report.enabled else 'provisioned but NOT enabled'}"
           f"; auto-registered: {'yes' if report.registered else 'no'}"
-          f"; Claude Code activation: {'applied' if report.activated else 'not applied'}")
+          f"; Claude Code activation: "
+          f"{'applied' if report.activated else 'carried forward (prior install)' if report.activation_carried else 'not applied'}")
     if report.register_hint and not report.registered:
         print("  Manual registration hint (auto-registration was skipped or failed):")
         print(f"    {report.register_hint}")

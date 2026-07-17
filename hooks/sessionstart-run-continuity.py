@@ -21,11 +21,23 @@ documented SessionStart behaviour). No marker / inactive marker / kill-switch
 v3.39.0 adds the MODEL-SPLIT SELF-HEAL: a plugin update ships uniform-fable
 agent files into a fresh cache dir, silently reverting an applied codex role
 split. When the gateway state (`~/.architect-team/gateway/gateway.json`) says
-the split is the desired policy (activated + api-key + model_policy
-codex-split) and THIS hook is running from an INSTALLED plugin copy (under
-~/.claude/plugins/ — a dev checkout is never rewritten) whose agents/ has
-drifted off the split, the hook re-applies it via the model lever and notes
-the heal in the session context. Fail-open everywhere.
+the split is the desired policy (activated + api-key + a split model_policy —
+the v3.40 `secondary-split` or the legacy `codex-split`) and THIS hook is
+running from an INSTALLED plugin copy (under ~/.claude/plugins/ — a dev
+checkout is never rewritten) whose agents/ has drifted off the split, the
+hook re-applies it via the model lever and notes the heal in the session
+context. Fail-open everywhere.
+
+v3.40.0 (ADV3-1, heal-to-recorded-alias): the heal restores the split to the
+alias the gateway STATE records as served (`secondary_alias`, falling back to
+the legacy `codex_alias`) — it never writes an alias the running gateway
+config doesn't route. A legacy install therefore keeps its working
+codex-5.6-sol split after a plugin update; migration to the neutral alias
+happens at install time (any `install`, --activate or not, migrates an
+on-disk legacy split in the same run it regenerates the config — ADV3B-1).
+No recorded alias => no-op (never guess); recorded values are
+whitespace-trimmed before the truthiness check (ADV3B-2), so a corrupt
+whitespace-only alias reads as absent.
 
 Stdlib-only.
 """
@@ -110,20 +122,31 @@ def build_directive(payload: dict) -> str:
     )
 
 
+# Model-policy strings that mean "the split is desired". These mirror the
+# lever's POLICY_SECONDARY_SPLIT / LEGACY_POLICY_CODEX_SPLIT constants; the
+# hook keeps a LOCAL copy (guarded fallback) because the lever lives in the
+# plugin copy and is loaded dynamically only AFTER this cheap state check —
+# fail-open must not depend on that load succeeding.
+_SPLIT_POLICY_STRINGS = ("secondary-split", "codex-split")
+
+
 def maybe_heal_model_split(
     plugin_root: Path | None = None,
     plugins_base: Path | None = None,
     gateway_state_path: Path | None = None,
 ) -> str:
-    """Re-apply the codex role split to THIS installed plugin copy when the
+    """Re-apply the secondary role split to THIS installed plugin copy when the
     gateway state says it is the desired policy (v3.39.0), returning a one-line
     note for the session context ("" when nothing applies).
 
     Guards, in order: the hook must be running from an INSTALLED plugin copy
     (under ~/.claude/plugins/ — a dev checkout is NEVER rewritten); the gateway
-    state must record activated + api-key + model_policy codex-split; the
-    plugin's agents/ must exist and have drifted off the split. Every failure
-    path returns "" — this can never wedge a session start."""
+    state must record activated + api-key + a split model_policy; the state
+    must RECORD a served alias (ADV3-1: the heal writes only the alias the
+    recorded config routes — `secondary_alias`, else the legacy `codex_alias`,
+    else no-op); the plugin's agents/ must exist and have drifted off that
+    alias's split. Every failure path returns "" — this can never wedge a
+    session start."""
     try:
         root = Path(plugin_root) if plugin_root \
             else Path(__file__).resolve().parent.parent
@@ -140,7 +163,25 @@ def maybe_heal_model_split(
         if not (isinstance(state, dict)
                 and state.get("activated")
                 and state.get("auth_mode") == "api-key"
-                and state.get("model_policy") == "codex-split"):
+                and state.get("model_policy") in _SPLIT_POLICY_STRINGS):
+            return ""
+        # ADV3-1 (heal-to-recorded-alias): restore the split to the alias the
+        # gateway STATE records as served — never write an alias the running
+        # config doesn't route. v3.40 installs record `secondary_alias`; a
+        # legacy (v3.39) state records only `codex_alias`, and its config.yaml
+        # routes ONLY that alias, so the heal RETAINS it (migration to the
+        # neutral alias happens at install time, which regenerates the
+        # config). No recorded alias at all => never guess: fail-open no-op.
+        # ADV3B-2: each candidate is trimmed BEFORE the truthiness check, so a
+        # corrupt whitespace-only `secondary_alias` never masks a valid legacy
+        # `codex_alias` (an all-whitespace record still reads as absent).
+        alias = ""
+        for key in ("secondary_alias", "codex_alias"):
+            value = state.get(key)
+            if isinstance(value, str) and value.strip():
+                alias = value.strip()
+                break
+        if not alias:
             return ""
         agents_dir = root / "agents"
         lever_path = root / "scripts" / "setup" / "set_default_model.py"
@@ -152,15 +193,22 @@ def maybe_heal_model_split(
         lever = importlib.util.module_from_spec(spec)
         sys.modules["ct6_heal_lever"] = lever
         spec.loader.exec_module(lever)
-        codex_model = state.get("codex_alias") or lever.CODEX_MODEL
-        if lever.policy_state(agents_dir, codex_model) == "codex-split":
-            return ""
-        changed = lever.apply_split(agents_dir, codex_model)
+        changed = lever.apply_split(agents_dir, alias)
+        if not changed:
+            return ""  # agents already match the recorded alias — silent no-op
+        neutral = getattr(lever, "SECONDARY_ALIAS", alias)
+        legacy_tail = "" if alias == neutral else (
+            " The RECORDED legacy alias was retained (the running gateway "
+            "config routes only that alias); re-run `python scripts/setup/"
+            f"install_gateway.py install --activate` to migrate to {neutral} "
+            "with a regenerated config."
+        )
         return (
             "[CT6 model-split self-heal] The installed plugin copy had drifted "
-            "off the codex role split (a plugin update ships uniform-fable "
-            f"files); re-applied it: {len(changed)} agent file(s) rewritten in "
-            f"{agents_dir} (dev/checking/testing agents -> {codex_model})."
+            "off the secondary role split; re-applied it from the recorded "
+            f"gateway state: {len(changed)} agent file(s) rewritten in "
+            f"{agents_dir} (dev/checking/testing agents -> {alias})."
+            + legacy_tail
         )
     except Exception:  # fail open — never wedge a session start on a bug here
         return ""

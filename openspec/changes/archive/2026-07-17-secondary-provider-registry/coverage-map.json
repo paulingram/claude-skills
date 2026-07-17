@@ -1,0 +1,75 @@
+{
+  "change": "secondary-provider-registry",
+  "authored_at": "2026-07-17T09:20:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_text": "Selectable secondary provider via a registry (openai gpt-5.6-sol / zai glm-5.2 first entries; future providers = one entry)",
+      "spec_requirement_id": "secondary-provider-registry/registry-driven-secondary-provider-selection",
+      "scenarios": ["choosing Z.ai routes the secondary alias to GLM 5.2", "live confirmation is provider-independent"],
+      "acceptance_criteria": [
+        "hermetic: install with --secondary zai --zai-key <fake> generates the config route openai/glm-5.2 + api_base https://api.z.ai/api/paas/v4 + os.environ/ZAI_API_KEY; raw key only in gateway.env (pinned key-free elsewhere)",
+        "hermetic: registry entries drive key slots + labels; adding a fake provider entry in-test yields a working route without code changes",
+        "live (openai path, AMENDED 2026-07-17 per the user's subscription directive — transient sandboxed run, machine left subscription-state; see .architect-team/clarifications/secondary-provider-registry-20260717T0705Z.md): sandboxed install + gateway start ends status --live CONFIRMED — serving 32 models incl. ct6-secondary + claude-fable-5"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests/test_install_gateway.py", "tests/test_set_default_model.py", "live status --live output (run ledger)"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_text": "A which-secondary-API question on three surfaces, remembered in gateway.json, re-asked only via --re-ask-provider; pre-upgrade installs grandfathered as openai",
+      "spec_requirement_id": "secondary-provider-registry/registry-driven-secondary-provider-selection",
+      "scenarios": ["the which-provider question fires only when no choice is recorded", "pre-upgrade installs are grandfathered as openai"],
+      "acceptance_criteria": [
+        "hermetic: resolution ladder pins — flag > env > recorded > grandfather > interactive > default-openai-recorded; recorded/inferred choice NEVER re-prompts absent --re-ask-provider",
+        "hermetic: a state with openai_model and no secondary_provider infers openai with no prompt call (prompt seam counter = 0)",
+        "wrapper: commands/architect-team-setup.md carries the AskUserQuestion section with the firing rule + capture-and-apply re-run (structure pinned by tests/test_commands.py conventions)"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests/test_install_gateway.py", "commands/architect-team-setup.md"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_text": "Provider-keyed key capture (ZAI_API_KEY) rides the v3.38.0 ask-then-apply machinery; missing chosen-provider key yields provisioned-but-NOT-enabled",
+      "spec_requirement_id": "secondary-provider-registry/registry-driven-secondary-provider-selection",
+      "scenarios": ["provider-keyed key capture rides the existing machinery"],
+      "acceptance_criteria": [
+        "hermetic: zai slot prompts via the injected getpass seam (interactive TTY only, blank-to-skip, decline recorded/auto-reset/--re-ask-keys), exactly mirroring the openai slot's existing pins",
+        "hermetic: zai chosen + no ZAI_API_KEY => enabled False + remediation naming the zai slot"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests/test_install_gateway.py"]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_text": "Provider-neutral alias ct6-secondary replaces codex-5.6-sol globally (one alias for both providers) with legacy recognition + migration via setup AND the SessionStart self-heal; ship state stays uniform fable",
+      "spec_requirement_id": "codex-role-split/availability-gated-policy-application",
+      "scenarios": ["the split writes the neutral alias", "legacy-alias installs migrate without wedging", "policy state recognizes both alias generations", "the deprecated split invocation still works"],
+      "acceptance_criteria": [
+        "hermetic: apply_split writes ct6-secondary (18 fable / 21 ct6-secondary on a real agents copy); policy_state classifies new AND legacy split states; --split codex synonym works with a deprecation note; uniform lever refuses both aliases",
+        "hermetic: sessionstart heal rewrites a legacy-alias installed-copy fixture to ct6-secondary; uninstall restores uniform fable from either alias",
+        "live (AMENDED 2026-07-17, transient sandboxed): a plain re-install over a scratch agents dir seeded with codex-5.6-sol migrated 2 dev agents to model: ct6-secondary (fable file untouched, honest alias-migration row); the REAL installed plugin copy deliberately stays uniform fable per the user's subscription directive",
+        "ship-state pin: all 39 committed agents remain model: fable (tests/test_agents.py)"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests/test_set_default_model.py", "tests/test_sessionstart_run_continuity.py", "tests/test_agents.py", "live lever --check output (run ledger)"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_text": "Subscription mode honors the provider choice; confirm/status/uninstall symmetric; postures verbatim; suite green both encodings; v3.40.0 + docs",
+      "spec_requirement_id": "secondary-provider-registry/registry-driven-secondary-provider-selection",
+      "scenarios": ["subscription mode honors the choice", "live confirmation is provider-independent"],
+      "acceptance_criteria": [
+        "hermetic: subscription-mode install with zai chosen serves glm-5.2 to direct callers (config shape), split stays OFF, ANTHROPIC_BASE_URL never written",
+        "full pytest suite green under BOTH Windows cp1252 AND PYTHONUTF8=1",
+        "docs current per house convention at v3.40.0 (doc-currency audit pass); never-gates/never-sudo/secrets/consent postures pinned unchanged"
+      ],
+      "layer": "infra",
+      "verification_artifacts": ["tests (all four files)", "suite output (run ledger)", "doc-currency audit verdict"]
+    }
+  ],
+  "playwright_authorization": "N/A — no frontend surface (plugin repo, no UI); recorded per Phase 1's N/A convention. The 'question that pops up' is an AskUserQuestion in a Claude session + a TTY prompt — covered by wrapper-structure pins and hermetic prompt-seam tests, not browser flows.",
+  "integration_authorization": "The zai path's LIVE end-to-end confirm requires a Z.ai API key not present on this machine — hermetic coverage + the openai path live-verified stand in; recorded honestly per design.md Dev Environment (the same provisioned-but-not-enabled boundary the gateway already documents).",
+  "confirmed_stubs": [],
+  "notes": "Feature run; layer infra throughout (setup/infra scripts + docs + tests; no product frontend/backend)."
+}

@@ -65,10 +65,13 @@ def _scrub_signals(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CT6_CODEX_56_AVAILABLE", raising=False)
     monkeypatch.delenv("CT6_GATEWAY_HOME", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("CT6_SECONDARY_PROVIDER", raising=False)
 
 
 RAW_OPENAI_KEY = "sk-test-raw-openai-key-1234abcd"
+RAW_ZAI_KEY = "zai-test-raw-key-4567efgh"
 RAW_ANTHROPIC_KEY = "sk-ant-test-raw-key-9876wxyz"
 
 
@@ -121,7 +124,7 @@ def _stub_live_probe(gw: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
     tests override the prober and the zeroed backoff stands."""
     monkeypatch.setattr(
         gw, "_default_models_prober",
-        lambda port, key, timeout=5.0: [gw.CODEX_ALIAS, gw.FABLE_MODEL])
+        lambda port, key, timeout=5.0: [gw.SECONDARY_ALIAS, gw.FABLE_MODEL])
     monkeypatch.setattr(gw, "CONFIRM_ATTEMPTS", 2)
     monkeypatch.setattr(gw, "CONFIRM_DELAY", 0)
 
@@ -160,6 +163,56 @@ def test_setup_signal_agrees_with_installer(gw: ModuleType, setup_module: Module
     for env in ({}, {"CT6_EXTERNAL_LLM": "1"}, {"CT6_EXTERNAL_LLM": "no"}):
         assert (setup_module.resolve_external_llm_signal(False, False, env)
                 == gw.resolve_external_llm_signal(False, False, env))
+
+
+def test_secondary_provider_resolution_ladder(
+    gw: ModuleType, tmp_path: Path
+) -> None:
+    base = tmp_path / "gw"
+    gw._write_state(base, {"secondary_provider": "openai"})
+    assert gw.resolve_secondary_provider(
+        "zai", base, env={gw.ENV_SECONDARY_PROVIDER: "openai"})[:2] == ("zai", "flag")
+    assert gw.resolve_secondary_provider(
+        None, base, env={gw.ENV_SECONDARY_PROVIDER: "zai"})[:2] == ("zai", "env")
+    assert gw.resolve_secondary_provider(None, base, env={})[:2] == ("openai", "recorded")
+
+
+def test_secondary_provider_grandfather_and_default(gw: ModuleType, tmp_path: Path) -> None:
+    legacy = tmp_path / "legacy"
+    gw._write_state(legacy, {"openai_model": "gpt-old"})
+    assert gw.resolve_secondary_provider(None, legacy, env={})[:2] == (
+        "openai", "grandfather")
+    fresh = tmp_path / "fresh"
+    assert gw.resolve_secondary_provider(None, fresh, env={})[:2] == (
+        "openai", "default")
+
+
+def test_secondary_provider_interactive_and_reask(gw: ModuleType, tmp_path: Path) -> None:
+    base = tmp_path / "gw"
+    gw._write_state(base, {"secondary_provider": "openai"})
+    calls: list[str] = []
+
+    def choose(message: str) -> str:
+        calls.append(message)
+        return "zai"
+
+    provider, source, error = gw.resolve_secondary_provider(
+        None, base, env={}, interactive=True, prompt_fn=choose,
+        isatty_fn=lambda: True)
+    assert (provider, source, error) == ("openai", "recorded", None)
+    assert calls == []
+    provider, source, error = gw.resolve_secondary_provider(
+        None, base, env={}, re_ask=True, interactive=True, prompt_fn=choose,
+        isatty_fn=lambda: True)
+    assert (provider, source, error) == ("zai", "interactive", None)
+    assert len(calls) == 1
+
+
+def test_secondary_provider_unknown_is_error(gw: ModuleType, tmp_path: Path) -> None:
+    provider, source, error = gw.resolve_secondary_provider(
+        "bogus", tmp_path / "gw", env={})
+    assert provider is None and source == "flag"
+    assert "openai" in (error or "") and "zai" in (error or "")
 
 
 def test_base_dir_precedence(gw: ModuleType, tmp_path: Path) -> None:
@@ -207,11 +260,32 @@ def test_auth_mode_resolution(gw: ModuleType) -> None:
 
 def test_config_subscription_mode_is_openai_only(gw: ModuleType) -> None:
     cfg = gw.build_gateway_config(gw.AUTH_MODE_SUBSCRIPTION)
-    assert f"model_name: {gw.CODEX_ALIAS}" in cfg
+    assert f"model_name: {gw.SECONDARY_ALIAS}" in cfg
     assert "os.environ/OPENAI_API_KEY" in cfg
     assert f"os.environ/{gw.MASTER_KEY_VAR}" in cfg
     # NO Anthropic route: fable stays on Claude Code's native sign-in auth
     assert "anthropic" not in cfg.lower()
+
+
+def test_zai_config_shape_and_secret_hygiene(gw: ModuleType) -> None:
+    cfg = gw.build_gateway_config(
+        gw.AUTH_MODE_SUBSCRIPTION,
+        secondary_provider="zai",
+        secondary_model="glm-5.2")
+    assert f"model_name: {gw.SECONDARY_ALIAS}" in cfg
+    assert "model: openai/glm-5.2" in cfg
+    assert "api_key: os.environ/ZAI_API_KEY" in cfg
+    assert "api_base: https://api.z.ai/api/paas/v4" in cfg
+    assert RAW_ZAI_KEY not in cfg
+
+
+def test_secondary_model_override_preserves_provider_prefix(gw: ModuleType) -> None:
+    cfg = gw.build_gateway_config(
+        gw.AUTH_MODE_SUBSCRIPTION,
+        secondary_provider="zai",
+        secondary_model="glm-custom")
+    assert "model: openai/glm-custom" in cfg
+    assert "api_base: https://api.z.ai/api/paas/v4" in cfg
 
 
 def test_config_api_key_mode_adds_anthropic_catch_all(gw: ModuleType) -> None:
@@ -245,15 +319,15 @@ def test_config_subscription_mode_has_no_explicit_anthropic_routes(gw: ModuleTyp
         assert anthropic_id not in cfg, anthropic_id
 
 
-def test_config_codex_alias_matches_model_lever(gw: ModuleType, plugin_root: Path) -> None:
-    """The alias written into agents/*.md by the v3.35.0 split and the alias the
-    gateway routes MUST be the same string, or the split points at nothing."""
+def test_config_secondary_alias_matches_model_lever(gw: ModuleType, plugin_root: Path) -> None:
+    """The alias written into agents/*.md and the gateway route must match."""
     lever_path = plugin_root / "scripts" / "setup" / "set_default_model.py"
     spec = importlib.util.spec_from_file_location("lever_for_gateway_test", lever_path)
     assert spec is not None and spec.loader is not None
     lever = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(lever)
-    assert gw.CODEX_ALIAS == lever.CODEX_MODEL
+    assert gw.SECONDARY_ALIAS == lever.SECONDARY_ALIAS
+    assert gw.CODEX_ALIAS == lever.CODEX_MODEL  # deprecated reader compatibility
 
 
 def test_launcher_per_platform(gw: ModuleType, tmp_path: Path) -> None:
@@ -337,6 +411,86 @@ def test_install_no_keys_is_provisioned_but_disabled(
     assert state["auth_mode"] == gw.AUTH_MODE_SUBSCRIPTION
 
 
+def test_install_zai_records_provider_and_keeps_raw_key_only_in_env(
+    gw: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--secondary", "zai", "--zai-key", RAW_ZAI_KEY) == 0
+    out = capsys.readouterr().out
+    assert RAW_ZAI_KEY not in out
+    assert "secondary=zai/glm-5.2" in out or "zai/glm-5.2" in out
+    env_vars = gw.read_env_file(base / gw.ENV_FILE_NAME)
+    assert env_vars["ZAI_API_KEY"] == RAW_ZAI_KEY
+    for path in (base / gw.CONFIG_NAME, base / gw.STATE_NAME):
+        assert RAW_ZAI_KEY not in path.read_text(encoding="utf-8")
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_provider"] == "zai"
+    assert state["secondary_model"] == "glm-5.2"
+    assert state["secondary_alias"] == gw.SECONDARY_ALIAS
+    assert state["codex_alias"] == gw.SECONDARY_ALIAS
+
+
+def test_secondary_model_and_deprecated_openai_model_synonym(
+    gw: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = tmp_path / "secondary"
+    _install(gw, base, "--secondary", "zai", "--zai-key", RAW_ZAI_KEY,
+             "--secondary-model", "glm-custom")
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_model"] == "glm-custom"
+    assert "model: openai/glm-custom" in (base / gw.CONFIG_NAME).read_text(encoding="utf-8")
+    legacy = tmp_path / "legacy"
+    _install(gw, legacy, "--openai-key", RAW_OPENAI_KEY,
+             "--openai-model", "gpt-custom")
+    assert "deprecated" in capsys.readouterr().err.lower()
+    state = json.loads((legacy / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_model"] == "gpt-custom"
+
+
+def test_install_unknown_provider_writes_no_state(
+    gw: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--secondary", "bogus") == 0
+    assert not (base / gw.STATE_NAME).exists()
+    out = capsys.readouterr().out
+    assert "unknown secondary provider" in out
+    assert "openai" in out and "zai" in out
+
+
+def test_fake_provider_registry_entry_is_the_whole_integration(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REQ-001 extensibility acceptance: ONE new SECONDARY_PROVIDERS dict entry
+    is a complete provider integration — the install resolves --secondary
+    <fake>, grows the per-provider key flag, generates the config route with
+    the entry's route prefix / key_env / api_base, and records the choice,
+    all WITHOUT any code change. monkeypatch.setitem mutates the SHARED lever
+    registry dict in place (installer + parser + lever see one object) and
+    removes the entry on teardown."""
+    fake_key = "fake-raw-key-0000zzzz"
+    monkeypatch.setitem(gw.SECONDARY_PROVIDERS, "fakeprov", {
+        "model": "fake-model-9",
+        "key_env": "FAKEPROV_API_KEY",
+        "route_model": "openai/fake-model-9",
+        "api_base": "https://fake.example/v1",
+        "label": "FakeProv Fake 9 (fake-model-9)",
+    })
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--secondary", "fakeprov",
+                    "--fakeprov-key", fake_key) == 0
+    config = (base / gw.CONFIG_NAME).read_text(encoding="utf-8")
+    assert "model: openai/fake-model-9" in config
+    assert "api_key: os.environ/FAKEPROV_API_KEY" in config
+    assert "api_base: https://fake.example/v1" in config
+    assert fake_key not in config, "raw keys never reach config.yaml"
+    assert gw.read_env_file(base / gw.ENV_FILE_NAME)["FAKEPROV_API_KEY"] == fake_key
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_provider"] == "fakeprov"
+    assert state["secondary_model"] == "fake-model-9"
+    assert state["enabled"] is True
+
+
 def test_install_with_openai_key_enables_and_masks(
     gw: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -377,6 +531,88 @@ def test_install_reinstall_preserves_master_key(gw: ModuleType, tmp_path: Path) 
     env_vars = gw.read_env_file(base / gw.ENV_FILE_NAME)
     assert env_vars[gw.MASTER_KEY_VAR] == master1
     assert env_vars["OPENAI_API_KEY"] == RAW_OPENAI_KEY
+
+
+def test_provider_switch_retains_the_other_providers_stored_key(
+    gw: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """ADV3-2: switching --secondary must never DELETE the other provider's
+    stored key from gateway.env (the baseline carried OPENAI_API_KEY forward
+    on every rewrite). Switch to zai: the OpenAI key stays while zai behaves
+    per its OWN resolution (provisioned but NOT enabled without a zai key);
+    switch back: enabled again with NO re-supply."""
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--openai-key", RAW_OPENAI_KEY) == 0
+    master = gw.read_env_file(base / gw.ENV_FILE_NAME)[gw.MASTER_KEY_VAR]
+    capsys.readouterr()
+    assert _install(gw, base, "--secondary", "zai") == 0
+    out = capsys.readouterr().out
+    env_vars = gw.read_env_file(base / gw.ENV_FILE_NAME)
+    assert env_vars["OPENAI_API_KEY"] == RAW_OPENAI_KEY, \
+        "a provider switch must not delete the other provider's stored key"
+    assert env_vars[gw.MASTER_KEY_VAR] == master
+    assert "provisioned but NOT enabled" in out
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_provider"] == "zai"
+    assert state["enabled"] is False
+    # switch back: the retained key re-enables without re-supplying anything
+    assert _install(gw, base, "--secondary", "openai") == 0
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_provider"] == "openai"
+    assert state["enabled"] is True
+    assert gw.read_env_file(base / gw.ENV_FILE_NAME)["OPENAI_API_KEY"] == RAW_OPENAI_KEY
+
+
+def test_policy_strings_are_single_sourced_from_the_lever(gw: ModuleType) -> None:
+    """ADV3-5 note: the canonical/legacy model-policy strings live in the lever
+    and the gateway imports them — no duplicated literals to drift."""
+    assert gw.POLICY_SECONDARY_SPLIT == gw._lever.POLICY_SECONDARY_SPLIT \
+        == "secondary-split"
+    assert gw.POLICY_UNIFORM_FABLE == gw._lever.POLICY_UNIFORM_FABLE \
+        == "uniform-fable"
+    assert gw.LEGACY_POLICY_CODEX_SPLIT == gw._lever.LEGACY_POLICY_CODEX_SPLIT \
+        == "codex-split"
+
+
+def test_secondary_help_derives_provider_names_from_the_registry(
+    gw: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADV3-6 note: the --secondary help enumeration derives from the registry
+    — a new entry extends the help automatically instead of the help lying."""
+    monkeypatch.setitem(gw.SECONDARY_PROVIDERS, "fakeprov", {
+        "model": "fake-model-9", "key_env": "FAKEPROV_API_KEY",
+        "route_model": "openai/fake-model-9", "api_base": None,
+        "label": "FakeProv Fake 9 (fake-model-9)"})
+    help_text = gw._build_parser().format_help()
+    assert "fakeprov|openai|zai" in help_text
+
+
+def test_provider_prompt_interrupt_defaults_to_openai_and_is_recorded(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADV3-7(b), pinned deliberate: Ctrl-C / Ctrl-D at the interactive
+    provider prompt selects the documented ladder's FINAL rung — default
+    openai — and the install proceeds and RECORDS the choice like any
+    default (parity with the key prompt's interrupt-means-skip pattern)."""
+    def raise_interrupt(message: str) -> str:
+        raise KeyboardInterrupt
+
+    def raise_eof(message: str) -> str:
+        raise EOFError
+
+    assert gw._prompt_for_provider(
+        prompt_fn=raise_interrupt, isatty_fn=lambda: True) == "openai"
+    assert gw._prompt_for_provider(
+        prompt_fn=raise_eof, isatty_fn=lambda: True) == "openai"
+    # end-to-end: an interactive install interrupted at the provider prompt
+    # completes and records secondary_provider=openai in gateway.json.
+    monkeypatch.setattr(gw, "_default_provider_prompt_fn", raise_interrupt)
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_prompt_fn", lambda message: "")  # keys: blank-skip
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--interactive-prompts") == 0
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["secondary_provider"] == "openai"
 
 
 def test_install_invokes_pip_ladder_when_litellm_missing(
@@ -424,7 +660,7 @@ def test_activate_api_key_mode_writes_settings_and_applies_split(
     master = gw.read_env_file(base / gw.ENV_FILE_NAME)[gw.MASTER_KEY_VAR]
     assert data["env"]["ANTHROPIC_AUTH_TOKEN"] == master
     # the split: dev bucket → codex alias, architecture bucket stays fable
-    assert f"model: {gw.CODEX_ALIAS}" in (tmp_agents / "backend.md").read_text(encoding="utf-8")
+    assert f"model: {gw.SECONDARY_ALIAS}" in (tmp_agents / "backend.md").read_text(encoding="utf-8")
     assert "model: fable" in (tmp_agents / "system-architect.md").read_text(encoding="utf-8")
     state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
     assert state["activated"] is True
@@ -450,6 +686,39 @@ def test_activate_subscription_mode_refuses_honestly(
     assert "ANTHROPIC_API_KEY" in out  # the remediation to reach full-gateway mode
 
 
+def test_setup_entry_zai_subscription_is_honest_and_provider_neutral(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    """REQ-005 symmetry: a zai install with NO Anthropic key is subscription
+    mode with the SAME guarantees as the OpenAI twin — the split stays OFF,
+    ANTHROPIC_BASE_URL is never written to settings.json — and the one-row
+    setup summary derives the served provider from the registry entry's label
+    (single-sourced), never from hand-written 'OpenAI' prose."""
+    base = tmp_path / "gw"
+    settings = tmp_path / "settings.json"
+    gw.write_env_file(base / gw.ENV_FILE_NAME, {"ZAI_API_KEY": RAW_ZAI_KEY})
+    with patch.object(gw, "litellm_installed", return_value=True):
+        name, status, detail = gw.setup_entry(
+            enable=True, check_only=False, assume_yes=True,
+            base_dir=str(base), settings_path=str(settings),
+            agents_dir=str(tmp_agents), secondary="zai")
+    assert status == "applied"
+    detail = detail or ""
+    assert not settings.exists(), \
+        "subscription mode must never write ANTHROPIC_BASE_URL to settings.json"
+    assert "model: fable" in (tmp_agents / "backend.md").read_text(encoding="utf-8"), \
+        "the secondary split must stay OFF in subscription mode"
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["auth_mode"] == gw.AUTH_MODE_SUBSCRIPTION
+    assert state["activated"] is False
+    assert state["model_policy"] == "uniform-fable"
+    assert "secondary=zai/glm-5.2" in detail
+    assert "sign-in" in detail  # the honest why
+    assert "serves OpenAI only" not in detail, \
+        "the served-provider prose must come from the registry, not a hard-coded string"
+    assert str(gw.SECONDARY_PROVIDERS["zai"]["label"]) in detail
+
+
 # ---- uninstall ------------------------------------------------------------------
 
 
@@ -470,6 +739,25 @@ def test_uninstall_reverses_activation(
         assert "model: fable" in (tmp_agents / f"{stem}.md").read_text(encoding="utf-8")
     assert not list((base / gw.DESCRIPTOR_DIRNAME).glob(f"{gw.SERVICE_NAME}.*"))
     assert base.exists(), "state dir stays unless --purge"
+
+
+def test_uninstall_restores_legacy_alias_split_from_legacy_state(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    legacy_alias = gw._lever.LEGACY_SECONDARY_ALIASES[0]
+    gw._lever.apply_split(tmp_agents, legacy_alias)
+    base = tmp_path / "gw"
+    gw._write_state(base, {
+        "port": gw.DEFAULT_PORT,
+        "model_policy": "codex-split",
+        "codex_alias": legacy_alias,
+    })
+    assert gw.main([
+        "uninstall", "--base-dir", str(base),
+        "--settings-path", str(tmp_path / "settings.json"),
+        "--agents-dir", str(tmp_agents),
+    ]) == 0
+    assert gw._lever.distribution(tmp_agents) == {"fable": 2}
 
 
 def test_uninstall_purge_removes_state_dir(gw: ModuleType, tmp_path: Path) -> None:
@@ -493,7 +781,7 @@ def test_uninstall_check_only_touches_nothing(
                     "--agents-dir", str(tmp_agents)]) == 0
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data["env"]["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:4000"
-    assert f"model: {gw.CODEX_ALIAS}" in (tmp_agents / "backend.md").read_text(encoding="utf-8")
+    assert f"model: {gw.SECONDARY_ALIAS}" in (tmp_agents / "backend.md").read_text(encoding="utf-8")
 
 
 def test_uninstall_leaves_non_split_model_state_untouched(
@@ -823,10 +1111,11 @@ class _PromptRecorder:
 
 def _interactive(gw: ModuleType, monkeypatch: pytest.MonkeyPatch,
                  answers: list[str]) -> _PromptRecorder:
-    """Stub the TTY + prompt seams for an interactive run."""
+    """Stub the TTY + key prompt seams; provider choice defaults to OpenAI."""
     rec = _PromptRecorder(answers)
     monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
     monkeypatch.setattr(gw, "_default_prompt_fn", rec)
+    monkeypatch.setattr(gw, "_default_provider_prompt_fn", lambda message: "")
     return rec
 
 
@@ -916,6 +1205,117 @@ def test_interactive_install_prompts_openai_then_anthropic(
     assert _declines_on_disk(gw, base) == {}
 
 
+def test_interactive_zai_prompts_zai_then_anthropic(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "gw"
+    rec = _PromptRecorder([RAW_ZAI_KEY, RAW_ANTHROPIC_KEY])
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_provider_prompt_fn", lambda message: "zai")
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)
+    assert _install(gw, base, "--interactive-prompts") == 0
+    assert "ZAI_API_KEY" in rec.messages[0]
+    assert "ANTHROPIC_API_KEY" in rec.messages[1]
+    assert gw.read_env_file(base / gw.ENV_FILE_NAME)["ZAI_API_KEY"] == RAW_ZAI_KEY
+
+
+def test_zai_decline_suppresses_provider_key_prompt(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = tmp_path / "gw"
+    gw.main(["decline", "zai", "--base-dir", str(base)])
+    rec = _PromptRecorder([RAW_ANTHROPIC_KEY])
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_provider_prompt_fn", lambda message: "zai")
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)
+    assert _install(gw, base, "--secondary", "zai", "--interactive-prompts") == 0
+    assert len(rec.messages) == 1 and "ANTHROPIC_API_KEY" in rec.messages[0]
+    assert _declines_on_disk(gw, base)["zai"]["via"] == "wrapper"
+
+
+def test_zai_blank_prompt_skips_and_records_zai_decline(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """REQ-003 parity (i): blank at the hidden ZAI_API_KEY prompt skips — the
+    absent-key path runs verbatim and the decline records under the 'zai' slot
+    with via=prompt-skip, exactly like the OpenAI slot."""
+    base = tmp_path / "gw"
+    rec = _PromptRecorder(["", ""])
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)
+    assert _install(gw, base, "--secondary", "zai", "--interactive-prompts") == 0
+    assert len(rec.messages) == 2
+    assert "ZAI_API_KEY" in rec.messages[0]
+    assert "ANTHROPIC_API_KEY" in rec.messages[1]
+    out = capsys.readouterr().out
+    assert "provisioned but NOT enabled" in out  # the honest absent-key outcome
+    declines = _declines_on_disk(gw, base)
+    assert set(declines) == {"zai", "anthropic"}
+    assert declines["zai"]["via"] == "prompt-skip"
+
+
+@pytest.mark.parametrize("path_kind", ["arg", "env", "file"])
+def test_zai_decline_auto_resets_when_key_resolves(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path_kind: str
+) -> None:
+    """REQ-003 parity (ii): a recorded zai decline auto-resets whenever the
+    ZAI key resolves on ANY resolution path (args > env > gateway.env)."""
+    base = tmp_path / "gw"
+    if path_kind == "file":
+        _install(gw, base, "--secondary", "zai", "--zai-key", RAW_ZAI_KEY)
+    gw.main(["decline", "zai", "--base-dir", str(base)])
+    assert "zai" in _declines_on_disk(gw, base)
+    if path_kind == "arg":
+        _install(gw, base, "--secondary", "zai", "--zai-key", RAW_ZAI_KEY)
+    elif path_kind == "env":
+        monkeypatch.setenv("ZAI_API_KEY", RAW_ZAI_KEY)
+        _install(gw, base, "--secondary", "zai")
+    else:
+        _install(gw, base)  # provider recorded in state; key from gateway.env
+    assert "zai" not in _declines_on_disk(gw, base)
+
+
+def test_re_ask_keys_clears_zai_decline_and_reprompts(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REQ-003 parity (iii): --re-ask-keys clears a recorded zai decline so the
+    ZAI_API_KEY prompt fires again."""
+    base = tmp_path / "gw"
+    gw.main(["decline", "zai", "--base-dir", str(base)])
+    rec = _PromptRecorder([RAW_ZAI_KEY, ""])
+    monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
+    monkeypatch.setattr(gw, "_default_prompt_fn", rec)
+    assert _install(gw, base, "--secondary", "zai", "--interactive-prompts",
+                    "--re-ask-keys") == 0
+    assert len(rec.messages) == 2, "--re-ask-keys must make the declined zai slot prompt again"
+    assert "ZAI_API_KEY" in rec.messages[0]
+    assert gw.read_env_file(base / gw.ENV_FILE_NAME)["ZAI_API_KEY"] == RAW_ZAI_KEY
+    assert "zai" not in _declines_on_disk(gw, base)
+
+
+def test_zai_missing_key_messages_name_zai_env_never_openai(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """REQ-003 parity (iv): on a zai install every missing-key message names
+    ZAI_API_KEY — the registry's key_env — never a hard-coded OpenAI key. The
+    api-key-mode no-secondary-key install exercises BOTH remaining sites: the
+    registration-deferred line and the cannot-activate line."""
+    base = tmp_path / "gw"
+    assert _install(
+        gw, base, "--secondary", "zai", "--anthropic-key", RAW_ANTHROPIC_KEY,
+        "--activate", "--settings-path", str(tmp_path / "settings.json"),
+        "--agents-dir", str(tmp_agents)) == 0
+    out = capsys.readouterr().out
+    assert "set ZAI_API_KEY (env) or re-run with --zai-key" in out
+    reg_line = next(l for l in out.splitlines() if "registration deferred" in l)
+    act_line = next(l for l in out.splitlines() if "cannot activate" in l)
+    assert "ZAI_API_KEY" in reg_line
+    assert "ZAI_API_KEY" in act_line
+    assert "OpenAI" not in out and "OPENAI_API_KEY" not in out
+
+
 def test_blank_entry_skips_and_records_prompt_skip_decline(
     gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -954,6 +1354,7 @@ def test_interrupt_at_the_prompt_skips_like_blank(
 
     monkeypatch.setattr(gw, "_default_isatty_fn", lambda: True)
     monkeypatch.setattr(gw, "_default_prompt_fn", _interrupted)
+    monkeypatch.setattr(gw, "_default_provider_prompt_fn", lambda message: "")
     assert _install(gw, base, "--interactive-prompts") == 0
     assert len(calls) == 2, "exactly-as-blank: the loop continues to the next slot"
     out = capsys.readouterr().out
@@ -1291,7 +1692,7 @@ def test_activation_targets_installed_plugin_copy(
         gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
         "--activate", "--settings-path", str(tmp_path / "settings.json"),
     ) == 0
-    assert f"model: {gw.CODEX_ALIAS}" in (
+    assert f"model: {gw.SECONDARY_ALIAS}" in (
         installed_agents / "backend.md").read_text(encoding="utf-8")
     assert "model: fable" in (
         installed_agents / "system-architect.md").read_text(encoding="utf-8")
@@ -1317,7 +1718,7 @@ def test_install_confirms_live_split(
     out = capsys.readouterr().out
     assert "CONFIRMED: CT6 runs the split" in out
     state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
-    assert state["model_policy"] == "codex-split"
+    assert state["model_policy"] == "secondary-split"
 
 
 def test_confirm_failure_restarts_once_then_warns(
@@ -1329,7 +1730,7 @@ def test_confirm_failure_restarts_once_then_warns(
     + re-probe; still missing => an honest fail step, exit stays 0 (never
     gates)."""
     monkeypatch.setattr(gw, "_default_models_prober",
-                        lambda port, key, timeout=5.0: [gw.CODEX_ALIAS])
+                        lambda port, key, timeout=5.0: [gw.SECONDARY_ALIAS])
     base = tmp_path / "gw"
     assert _install(
         gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key", RAW_ANTHROPIC_KEY,
@@ -1355,8 +1756,8 @@ def test_confirm_recovers_after_restart(
 
     def prober(port, key, timeout=5.0):
         if restarted["done"]:
-            return [gw.CODEX_ALIAS, gw.FABLE_MODEL]
-        return [gw.CODEX_ALIAS]
+            return [gw.SECONDARY_ALIAS, gw.FABLE_MODEL]
+        return [gw.SECONDARY_ALIAS]
 
     real_restart = gw.restart_gateway
 
@@ -1403,7 +1804,7 @@ def test_subscription_mode_confirm_expects_codex_only(
     """Subscription mode serves OpenAI only — the confirm step must NOT demand
     fable from the gateway (fable rides Claude Code's sign-in auth)."""
     monkeypatch.setattr(gw, "_default_models_prober",
-                        lambda port, key, timeout=5.0: [gw.CODEX_ALIAS])
+                        lambda port, key, timeout=5.0: [gw.SECONDARY_ALIAS])
     base = tmp_path / "gw"
     assert _install(
         gw, base, "--openai-key", RAW_OPENAI_KEY,
@@ -1465,6 +1866,36 @@ def test_status_live_probes_and_confirms(
     assert "CONFIRMED: CT6 runs the split" in out
 
 
+def test_status_live_expects_the_state_recorded_alias_for_legacy_installs(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ADV3-3: a WORKING legacy (v3.39) install — whose config routes only
+    codex-5.6-sol — must probe GREEN: the --live expectation is the
+    STATE-RECORDED alias (secondary_alias, falling back to the legacy
+    codex_alias), never a hard-coded newest alias."""
+    base = tmp_path / "gw"
+    gw.write_env_file(base / gw.ENV_FILE_NAME, {
+        "OPENAI_API_KEY": RAW_OPENAI_KEY,
+        "ANTHROPIC_API_KEY": RAW_ANTHROPIC_KEY,
+        gw.MASTER_KEY_VAR: "sk-ct6-legacy-master"})
+    (base / gw.CONFIG_NAME).write_text("# legacy v3.39 config\n", encoding="utf-8")
+    gw._write_state(base, {
+        "auth_mode": gw.AUTH_MODE_API_KEY, "port": gw.DEFAULT_PORT,
+        "activated": True, "enabled": True, "registered": True,
+        "openai_model": "gpt-5.6-sol", "codex_alias": "codex-5.6-sol",
+        "model_policy": "codex-split"})
+    monkeypatch.setattr(
+        gw, "_default_models_prober",
+        lambda port, key, timeout=5.0: ["codex-5.6-sol", gw.FABLE_MODEL])
+    assert gw.main(["status", "--base-dir", str(base), "--live",
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_path / "agents-absent")]) == 0
+    out = capsys.readouterr().out
+    assert "CONFIRMED" in out
+    assert "NOT serving" not in out
+
+
 def test_status_without_live_never_probes(
     gw: ModuleType, tmp_path: Path, tmp_agents: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1505,19 +1936,240 @@ def test_uninstall_records_deactivated_state(
     gw: ModuleType, tmp_path: Path, tmp_agents: Path
 ) -> None:
     """Uninstall must flip the recorded state (activated False + uniform-fable)
-    so the SessionStart self-heal never re-applies an uninstalled split."""
+    so the SessionStart self-heal never re-applies an uninstalled split — and
+    it is the ONLY sanctioned downgrade path (ADV3B-1): the non-activate
+    carry-forward must never resurrect the uninstalled state either."""
     base = tmp_path / "gw"
     settings = tmp_path / "settings.json"
     _install(gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key",
              RAW_ANTHROPIC_KEY, "--activate", "--settings-path", str(settings),
              "--agents-dir", str(tmp_agents))
     state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
-    assert state["model_policy"] == "codex-split"
+    assert state["model_policy"] == "secondary-split"
     assert gw.main(["uninstall", "--base-dir", str(base), "--settings-path",
                     str(settings), "--agents-dir", str(tmp_agents)]) == 0
     state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
     assert state["activated"] is False
     assert state["model_policy"] == "uniform-fable"
+    # a later plain install carries the DOWNGRADED state forward verbatim —
+    # neither resurrecting the split nor touching the restored agents
+    assert _install(gw, base, "--settings-path", str(settings),
+                    "--agents-dir", str(tmp_agents)) == 0
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["activated"] is False
+    assert state["model_policy"] == "uniform-fable"
+    for stem in ("backend", "system-architect"):
+        assert "model: fable" in (
+            tmp_agents / f"{stem}.md").read_text(encoding="utf-8")
+
+
+# ---- ADV3B — non-activate reinstall consistency (v3.40.0) ---------------------
+#
+# ADV3B-1 (MAJOR): a plain (non---activate) install regenerates config.yaml to
+# route ONLY the neutral alias. On a legacy-activated (v3.39) machine that used
+# to BREAK the working split: agents kept codex-5.6-sol (migration was
+# --activate-gated) while the regenerated config stopped routing it, and the
+# state write downgraded activated/model_policy — disarming the SessionStart
+# self-heal and making status --live false-confirm. The sanctioned fix:
+# serving-side consistency (any on-disk legacy split migrates to the neutral
+# alias in the SAME run that regenerates the config, --activate or not) +
+# state carry-forward (a non-activate install preserves the prior
+# activated/model_policy; uninstall is the ONLY downgrade path — which also
+# closes ADV3B-5, the modern-machine heal-disarm).
+
+
+def _legacy_activated_machine(
+    gw: ModuleType, base: Path, agents: Path, settings: Path
+) -> None:
+    """A WORKING v3.39 machine: legacy-alias split on disk, api-key keys in
+    gateway.env, a config routing only codex-5.6-sol, settings.json activated,
+    and a v3.39-shape state (codex_alias only, codex-split, activated)."""
+    legacy_alias = gw._lever.LEGACY_SECONDARY_ALIASES[0]
+    gw._lever.apply_split(agents, legacy_alias)
+    gw.write_env_file(base / gw.ENV_FILE_NAME, {
+        "OPENAI_API_KEY": RAW_OPENAI_KEY,
+        "ANTHROPIC_API_KEY": RAW_ANTHROPIC_KEY,
+        gw.MASTER_KEY_VAR: "sk-ct6-legacy-master"})
+    (base / gw.CONFIG_NAME).write_text(
+        f"model_list:\n  - model_name: {legacy_alias}\n", encoding="utf-8")
+    gw.apply_claude_env(settings, gw.DEFAULT_PORT, "sk-ct6-legacy-master")
+    gw._write_state(base, {
+        "auth_mode": gw.AUTH_MODE_API_KEY, "port": gw.DEFAULT_PORT,
+        "activated": True, "enabled": True, "registered": True,
+        "openai_model": "gpt-5.6-sol", "codex_alias": legacy_alias,
+        "model_policy": "codex-split"})
+
+
+def test_non_activate_reinstall_migrates_legacy_split_and_preserves_activation(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ADV3B-1: plain `install` (no --activate) over a legacy-activated machine
+    must NOT break the working split — the on-disk legacy split migrates to
+    the alias the just-regenerated config routes (serving-side consistency),
+    the state carries activated + the split policy forward (no silent
+    deactivation), and status --live stays truthful."""
+    base = tmp_path / "gw"
+    settings = tmp_path / "settings.json"
+    _legacy_activated_machine(gw, base, tmp_agents, settings)
+    assert _install(gw, base, "--settings-path", str(settings),
+                    "--agents-dir", str(tmp_agents)) == 0
+    # agents migrated to the alias the just-written config routes
+    assert f"model: {gw.SECONDARY_ALIAS}" in (
+        tmp_agents / "backend.md").read_text(encoding="utf-8")
+    assert "model: fable" in (
+        tmp_agents / "system-architect.md").read_text(encoding="utf-8")
+    assert f"model_name: {gw.SECONDARY_ALIAS}" in (
+        base / gw.CONFIG_NAME).read_text(encoding="utf-8")
+    assert "migrated" in capsys.readouterr().out  # the run SAYS it moved the alias
+    # state honesty: activated + split policy carried forward, alias recorded
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["activated"] is True, \
+        "a non-activate install must never silently deactivate"
+    assert state["model_policy"] == "secondary-split"
+    assert state["secondary_alias"] == gw.SECONDARY_ALIAS
+    # status --live is TRUTHFUL: the probed alias IS what the agents carry
+    assert gw.main(["status", "--base-dir", str(base), "--live",
+                    "--settings-path", str(settings),
+                    "--agents-dir", str(tmp_agents)]) == 0
+    assert "CONFIRMED: CT6 runs the split" in capsys.readouterr().out
+    assert f"model: {state['secondary_alias']}" in (
+        tmp_agents / "backend.md").read_text(encoding="utf-8")
+
+
+def test_non_activate_reinstall_keeps_the_self_heal_armed(
+    gw: ModuleType, tmp_path: Path
+) -> None:
+    """ADV3B-1/ADV3B-5: after a plain re-install the recorded state must still
+    ARM the SessionStart self-heal — an immediate heal is a silent no-op
+    (agents already consistent), and after a plugin update reverts the
+    installed copy to uniform fable the heal FIRES and restores the split."""
+    import shutil
+
+    from tests.helpers.module_loader import load_module
+    hook = load_module(
+        Path(gw._REPO_ROOT) / "hooks" / "sessionstart-run-continuity.py",
+        "sessionstart_hook_for_gateway_tests")
+    # a fake INSTALLED plugin copy carrying the real lever
+    plugins_base = tmp_path / "plugins"
+    root = plugins_base / "cache" / "mp" / "architect-team" / "9.9.9"
+    agents = root / "agents"
+    agents.mkdir(parents=True)
+    for stem in ("backend", "system-architect"):
+        (agents / f"{stem}.md").write_text(
+            f"---\nname: {stem}\nmodel: fable\n---\n\nbody\n", encoding="utf-8")
+    (root / "scripts" / "setup").mkdir(parents=True)
+    shutil.copy(Path(gw._REPO_ROOT) / "scripts" / "setup" / "set_default_model.py",
+                root / "scripts" / "setup" / "set_default_model.py")
+    base = tmp_path / "gw"
+    settings = tmp_path / "settings.json"
+    _legacy_activated_machine(gw, base, agents, settings)
+    assert _install(gw, base, "--settings-path", str(settings),
+                    "--agents-dir", str(agents)) == 0
+    # immediately after: armed but a silent no-op (agents already consistent)
+    assert hook.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=base / gw.STATE_NAME) == ""
+    # a plugin update reverts the installed copy to uniform fable...
+    for stem in ("backend", "system-architect"):
+        (agents / f"{stem}.md").write_text(
+            f"---\nname: {stem}\nmodel: fable\n---\n\nbody\n", encoding="utf-8")
+    note = hook.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=base / gw.STATE_NAME)
+    assert "self-heal" in note, \
+        "a non-activate re-install must not disarm the heal on an activated machine"
+    assert f"model: {gw.SECONDARY_ALIAS}" in (
+        agents / "backend.md").read_text(encoding="utf-8")
+
+
+def test_non_activate_reinstall_carries_modern_state_forward(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    """ADV3B-5: a plain re-install of an ACTIVATED modern (v3.40) machine
+    carries activated/model_policy forward untouched — no downgrade — and
+    never touches the already-neutral agents."""
+    base = tmp_path / "gw"
+    settings = tmp_path / "settings.json"
+    _install(gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key",
+             RAW_ANTHROPIC_KEY, "--activate", "--settings-path", str(settings),
+             "--agents-dir", str(tmp_agents))
+    before = {stem: (tmp_agents / f"{stem}.md").read_text(encoding="utf-8")
+              for stem in ("backend", "system-architect")}
+    assert _install(gw, base, "--settings-path", str(settings),
+                    "--agents-dir", str(tmp_agents)) == 0
+    for stem, text in before.items():
+        assert (tmp_agents / f"{stem}.md").read_text(encoding="utf-8") == text, \
+            f"{stem}: a plain re-install must not touch already-neutral agents"
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["activated"] is True
+    assert state["model_policy"] == "secondary-split"
+    assert state["secondary_alias"] == gw.SECONDARY_ALIAS
+
+
+def test_fresh_plain_install_remains_split_neutral(
+    gw: ModuleType, tmp_path: Path, tmp_agents: Path
+) -> None:
+    """The carry-forward must not invent state: a fresh plain install (no
+    prior gateway.json) keeps the baseline posture — agents untouched,
+    activated False, uniform-fable."""
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--openai-key", RAW_OPENAI_KEY, "--anthropic-key",
+                    RAW_ANTHROPIC_KEY,
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_agents)) == 0
+    for stem in ("backend", "system-architect"):
+        assert "model: fable" in (
+            tmp_agents / f"{stem}.md").read_text(encoding="utf-8")
+    state = json.loads((base / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state["activated"] is False
+    assert state["model_policy"] == "uniform-fable"
+
+
+def test_plain_install_missing_agents_dir_reports_skipped_migration(
+    gw: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ADV3C-4: a missing/typo'd --agents-dir on a PLAIN (non---activate)
+    install must surface a skipped row — the --activate path already prints
+    one for the same condition (its secondary-split row); the plain path must
+    not skip the step-3b legacy-alias migration silently."""
+    base = tmp_path / "gw"
+    assert _install(gw, base, "--openai-key", RAW_OPENAI_KEY,
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_path / "agents-absent")) == 0
+    out = capsys.readouterr().out
+    assert "alias-migration" in out
+    assert "agents dir not found" in out
+    assert "--split secondary" in out  # the row carries the manual remediation
+
+
+def test_status_live_treats_a_whitespace_alias_as_absent(
+    gw: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ADV3B-2: a corrupt whitespace-only secondary_alias must neither mask
+    the valid legacy codex_alias nor be probed as a literal — the recorded
+    values are trimmed BEFORE the truthiness check."""
+    base = tmp_path / "gw"
+    gw.write_env_file(base / gw.ENV_FILE_NAME, {
+        "OPENAI_API_KEY": RAW_OPENAI_KEY,
+        "ANTHROPIC_API_KEY": RAW_ANTHROPIC_KEY,
+        gw.MASTER_KEY_VAR: "sk-ct6-legacy-master"})
+    (base / gw.CONFIG_NAME).write_text("# legacy v3.39 config\n", encoding="utf-8")
+    gw._write_state(base, {
+        "auth_mode": gw.AUTH_MODE_API_KEY, "port": gw.DEFAULT_PORT,
+        "activated": True, "enabled": True, "registered": True,
+        "secondary_alias": "   ", "codex_alias": "codex-5.6-sol",
+        "model_policy": "codex-split"})
+    monkeypatch.setattr(
+        gw, "_default_models_prober",
+        lambda port, key, timeout=5.0: ["codex-5.6-sol", gw.FABLE_MODEL])
+    assert gw.main(["status", "--base-dir", str(base), "--live",
+                    "--settings-path", str(tmp_path / "settings.json"),
+                    "--agents-dir", str(tmp_path / "agents-absent")]) == 0
+    out = capsys.readouterr().out
+    assert "CONFIRMED" in out
+    assert "NOT serving" not in out
 
 
 def test_setup_entry_reports_live_confirmation(
@@ -1536,6 +2188,6 @@ def test_setup_entry_reports_live_confirmation(
             settings_path=str(tmp_path / "settings.json"),
             agents_dir=str(tmp_agents))
     assert status == "applied"
-    assert "codex split applied" in (detail or "")
+    assert "secondary split applied" in (detail or "")
     assert "CONFIRMED live" in (detail or "")
     assert "CT6 runs the split" in (detail or "")
