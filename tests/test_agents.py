@@ -58,9 +58,13 @@ REQUIRED_KEYS = {"name", "description", "tools", "model", "color"}
 # v3.40.0: `ct6-secondary` replaces it as the provider-neutral split alias;
 # keep the old id legacy-valid so an installed copy can be recognized and
 # migrated instead of rejected. The uniform-fable pin below still holds ship state.
+# v3.41.0: `claude-haiku-4-5` is the sanctioned post-split state — the
+# spawn-compatible impersonation alias (the harness spawn gate rejects custom
+# ids; the gateway routes this real Claude id to the secondary, disclosed).
+# The two prior aliases stay legacy-valid for recognition + migration.
 VALID_MODELS = {
     "opus", "sonnet", "haiku", "inherit", "fable",
-    "ct6-secondary", "codex-5.6-sol",
+    "claude-haiku-4-5", "ct6-secondary", "codex-5.6-sol",
 }
 # v3.10.0 (R4a): the retired tokens `LS` (covered by Glob/Read/Bash),
 # `NotebookRead` (merged into Read), and `Task` (teammates do not spawn other

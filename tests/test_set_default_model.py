@@ -144,22 +144,52 @@ def test_secondary_provider_registry_shape(mod: ModuleType) -> None:
     assert mod.SECONDARY_ALIAS == "ct6-secondary"
     assert mod.LEGACY_SECONDARY_ALIASES == ("codex-5.6-sol",)
     assert mod.CODEX_MODEL == "codex-5.6-sol"
+    # v3.41.0: the spawn-compatible impersonation alias — a REAL Claude id the
+    # Agent-Teams spawn gate accepts (it rejects custom ids client-side with
+    # zero HTTP; gateway-log verified 2026-07-17). Deliberately pinned:
+    # changing this id changes which real model id the gateway impersonates.
+    assert mod.SPAWN_ALIAS_MODEL_ID == "claude-haiku-4-5"
+    assert mod.SUPERSEDED_FRONTMATTER_ALIASES == ("codex-5.6-sol", "ct6-secondary")
+    # route_model is GONE (derive-shape, v3.41.0): the gateway route is
+    # derived as `<route_dialect>/<model>`, so an entry cannot carry a route
+    # string inconsistent with its dialect. `openai` keeps the Responses-API
+    # dialect (codex-gen requires /responses); `zai` rides the strict
+    # chat-completions `hosted_vllm` dialect (api.z.ai has no /responses —
+    # live 404 at /v4/responses).
     assert mod.SECONDARY_PROVIDERS == {
         "openai": {
             "model": "gpt-5.6-sol",
             "key_env": "OPENAI_API_KEY",
-            "route_model": "openai/gpt-5.6-sol",
+            "route_dialect": "openai",
             "api_base": None,
             "label": "OpenAI — Codex 5.6 (gpt-5.6-sol)",
         },
         "zai": {
             "model": "glm-5.2",
             "key_env": "ZAI_API_KEY",
-            "route_model": "openai/glm-5.2",
+            "route_dialect": "hosted_vllm",
             "api_base": "https://api.z.ai/api/paas/v4",
             "label": "Z.ai — GLM 5.2 (glm-5.2)",
         },
     }
+
+
+def test_registry_entries_require_a_consistent_route_dialect(mod: ModuleType) -> None:
+    """B4-note extensibility pin (glm-secondary-route-fix): every current AND
+    future SECONDARY_PROVIDERS entry MUST declare its route dialect, and the
+    derive-shape forbids a coexisting `route_model` field — a future entry can
+    therefore never carry a route string inconsistent with its dialect (the
+    class of bug that 404'd every zai call at /v4/responses)."""
+    required = {"model", "key_env", "route_dialect", "api_base", "label"}
+    for name, entry in mod.SECONDARY_PROVIDERS.items():
+        assert set(entry) == required, (
+            f"SECONDARY_PROVIDERS[{name!r}] keys {sorted(entry)} != "
+            f"{sorted(required)} — route_dialect is REQUIRED and route_model "
+            f"must NOT be reintroduced (the route derives from the dialect)")
+        dialect = entry["route_dialect"]
+        assert isinstance(dialect, str) and dialect and "/" not in dialect, (
+            f"SECONDARY_PROVIDERS[{name!r}].route_dialect={dialect!r} must be "
+            f"a bare LiteLLM provider prefix (no slash)")
 
 
 def test_default_agents_dir_resolves(mod: ModuleType) -> None:
@@ -187,21 +217,26 @@ def test_role_map_covers_exactly_the_shipped_agents(mod: ModuleType, tmp_agents:
 
 
 def test_split_applies_the_role_models(mod: ModuleType, tmp_agents: Path) -> None:
+    """v3.41.0: the split's frontmatter target is the SPAWN-COMPATIBLE
+    impersonation alias, not the raw ct6-secondary — the harness spawn gate
+    rejects custom ids client-side, so a dev-class agent left on a custom
+    alias never reaches the gateway (BUG-B)."""
     mod.apply_split(tmp_agents)
     dist = mod.distribution(tmp_agents)
     assert dist == {
         "fable": len(mod.ARCHITECTURE_CONTROL_DESIGN_AGENTS),
-        mod.SECONDARY_ALIAS: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
+        mod.SPAWN_ALIAS_MODEL_ID: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
     }
 
 
 def test_split_role_spot_checks(mod: ModuleType, tmp_agents: Path) -> None:
     """The owner directive verbatim: development + code checking + testing on
-    the secondary alias; architecture + control + design on fable."""
+    the (spawn-compatible) secondary alias; architecture + control + design on
+    fable."""
     mod.apply_split(tmp_agents)
     for dev in ("backend", "frontend", "integration", "task-reviewer",
                 "adversarial-reviewer", "qa-replayer", "test-completeness-verifier"):
-        assert _model_of(tmp_agents, dev, mod) == mod.SECONDARY_ALIAS, dev
+        assert _model_of(tmp_agents, dev, mod) == mod.SPAWN_ALIAS_MODEL_ID, dev
     for arch in ("system-architect", "oracle-deriver", "mcp-design-agent",
                  "master-synthesizer", "prompt-refiner", "route-mapper"):
         assert _model_of(tmp_agents, arch, mod) == "fable", arch
@@ -253,7 +288,7 @@ def test_policy_state_transitions(mod: ModuleType, tmp_agents: Path) -> None:
     one = tmp_agents / "backend.md"
     one.write_text(
         one.read_text(encoding="utf-8").replace(
-            f"model: {mod.SECONDARY_ALIAS}", "model: haiku", 1
+            f"model: {mod.SPAWN_ALIAS_MODEL_ID}", "model: sonnet", 1
         ),
         encoding="utf-8",
     )
@@ -269,6 +304,19 @@ def test_policy_state_recognizes_legacy_alias_split(
     assert mod.policy_state(tmp_agents) == "secondary-split"
 
 
+def test_policy_state_recognizes_every_alias_generation(
+    mod: ModuleType, tmp_agents: Path
+) -> None:
+    """All three split generations classify as secondary-split: the v3.41
+    spawn alias (the default), the v3.40 neutral ct6-secondary, and the
+    legacy provider alias — an installed copy from any era is recognized
+    instead of read as 'mixed'."""
+    for alias in (mod.SPAWN_ALIAS_MODEL_ID, mod.SECONDARY_ALIAS,
+                  *mod.LEGACY_SECONDARY_ALIASES):
+        mod.apply_split(tmp_agents, alias)
+        assert mod.policy_state(tmp_agents) == "secondary-split", alias
+
+
 def test_policy_state_override_still_recognizes_current_alias(
     mod: ModuleType, tmp_agents: Path
 ) -> None:
@@ -276,15 +324,19 @@ def test_policy_state_override_still_recognizes_current_alias(
     assert mod.policy_state(tmp_agents, mod.CODEX_MODEL) == "secondary-split"
 
 
+@pytest.mark.parametrize("superseded_attr", ["CODEX_MODEL", "SECONDARY_ALIAS"])
 def test_migrate_legacy_split_rewrites_and_is_idempotent(
-    mod: ModuleType, tmp_agents: Path
+    mod: ModuleType, tmp_agents: Path, superseded_attr: str
 ) -> None:
-    mod.apply_split(tmp_agents, mod.CODEX_MODEL)
+    """Both superseded frontmatter generations — the legacy provider alias AND
+    the v3.40 raw ct6-secondary (spawn-dead under the harness gate, BUG-B) —
+    migrate to the spawn-compatible alias, idempotently."""
+    mod.apply_split(tmp_agents, getattr(mod, superseded_attr))
     changed = mod.migrate_legacy_split(tmp_agents)
     assert sorted(changed) == sorted(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS)
     assert mod.distribution(tmp_agents) == {
         "fable": len(mod.ARCHITECTURE_CONTROL_DESIGN_AGENTS),
-        mod.SECONDARY_ALIAS: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
+        mod.SPAWN_ALIAS_MODEL_ID: len(mod.DEVELOPMENT_CHECKING_TESTING_AGENTS),
     }
     assert mod.policy_state(tmp_agents) == "secondary-split"
     assert mod.migrate_legacy_split(tmp_agents) == []
@@ -404,7 +456,8 @@ def test_cli_codex_model_override_is_synonym(mod: ModuleType, tmp_agents: Path) 
     assert mod.policy_state(tmp_agents, "ct6-secondary-luna") == "secondary-split"
 
 
-@pytest.mark.parametrize("split_alias_attr", ["SECONDARY_ALIAS", "CODEX_MODEL"])
+@pytest.mark.parametrize(
+    "split_alias_attr", ["SPAWN_ALIAS_MODEL_ID", "SECONDARY_ALIAS", "CODEX_MODEL"])
 def test_uniform_split_aliases_are_rejected(
     mod: ModuleType, tmp_agents: Path, split_alias_attr: str
 ) -> None:

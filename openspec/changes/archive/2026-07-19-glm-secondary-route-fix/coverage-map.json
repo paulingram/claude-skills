@@ -1,0 +1,178 @@
+{
+  "change_name": "glm-secondary-route-fix",
+  "generated_at": "2026-07-18T00:05:00Z",
+  "source": ".architect-team/refined-prompts/glm-secondary-route-fix-20260717T2350Z.md",
+  "testing_authorizations": {
+    "playwright": "N/A - no UI surface; infra bug in a stdlib-python plugin repo",
+    "dev_api_integration": "the machine gateway (http://127.0.0.1:4000) is the live dev environment; the upgraded /v1/messages probe is the live integration test",
+    "integration_front_to_back": "N/A - no both-layer requirement"
+  },
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001-route-dialect",
+      "spec_requirement_id": "secondary-provider-registry/Registry-driven secondary provider selection (MODIFIED)",
+      "scenarios": [
+        "zai route is generated on the chat-completions dialect",
+        "openai route keeps the Responses-API dialect",
+        "a new provider entry must declare its dialect"
+      ],
+      "acceptance_criteria": [
+        "tests/bug-fix-glm-secondary-route-fix/test_replication.py::test_registry_carries_per_provider_route_dialect passes",
+        "tests/bug-fix-glm-secondary-route-fix/test_replication.py::test_generated_zai_route_avoids_responses_api_dialect passes",
+        "extensibility pin requires route_dialect"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    },
+    {
+      "source_requirement_id": "REQ-002-spawn-alias",
+      "spec_requirement_id": "codex-role-split/Spawn-compatible impersonation alias (ADDED)",
+      "scenarios": [
+        "split writes the spawn alias",
+        "generated route precedes the catch-all",
+        "disclosure is queryable"
+      ],
+      "acceptance_criteria": [
+        "tests/bug-fix-glm-secondary-route-fix/test_replication.py::test_generated_config_emits_spawn_compatible_impersonation_route passes",
+        "split/heal/status tests updated and green; SPAWN_ALIAS_MODEL_ID test-pinned",
+        "gateway.json records spawn_alias mapping; status discloses it"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    },
+    {
+      "source_requirement_id": "REQ-003-honest-confirm",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim",
+        "hermetic under test"
+      ],
+      "acceptance_criteria": [
+        "tests/bug-fix-glm-secondary-route-fix/test_replication.py::test_confirm_probe_exercises_v1_messages passes",
+        "keyless pytest exercises the probe via the transport seam (no network)",
+        "B5 deploy-green: the upgraded probe returns a real GLM completion on this machine via /v1/messages"
+      ],
+      "layer": "backend",
+      "owner": "fix-team + B5 deploy"
+    },
+    {
+      "source_requirement_id": "REQ-004-heal-consistency",
+      "spec_requirement_id": "codex-role-split/Self-heal consistency with the spawn alias (ADDED)",
+      "scenarios": [
+        "heal restores the spawn alias after plugin update"
+      ],
+      "acceptance_criteria": [
+        "heal-consistency test green: maybe_heal_model_split targets the state-recorded spawn alias"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    },
+    {
+      "source_requirement_id": "REQ-005-docs-supersedure",
+      "spec_requirement_id": "(doc-currency inventory; no spec-level change)",
+      "scenarios": [],
+      "acceptance_criteria": [
+        "CHANGELOG new entry carries the two-bug RCA + FO-1 supersedure; archived entries byte-identical",
+        "README gateway section discloses impersonation + prisma auth-500 note; path B/C recorded as follow-ups",
+        "doc-currency audit pass"
+      ],
+      "layer": "infra",
+      "owner": "fix-team + doc-updater"
+    },
+    {
+      "source_requirement_id": "REQ-006-restart-and-upstream-witness (SR-glm-fix-iter2)",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED - extended scenarios)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim",
+        "hermetic under test"
+      ],
+      "acceptance_criteria": [
+        "config-regenerating install restarts a running gateway (or confirm detects served-config mismatch and repairs)",
+        "probe verifies upstream deployment via x-litellm-model-id + /model/info == registry dialect route; wildcard-served completions fail with the upstream named",
+        "post-redeploy: claude-haiku-4-5 resolves to hosted_vllm/glm-5.2; stale marker absent"
+      ],
+      "layer": "backend",
+      "owner": "fix-team iteration 2"
+    },
+    {
+      "source_requirement_id": "REQ-007-spawn-mandatory-served-state (SR-glm-fix-iter3)",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED - extended scenarios)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim"
+      ],
+      "acceptance_criteria": [
+        "spawn-alias-recorded => confirm verifies ON the spawn alias, no fallback green",
+        "served-state staleness detection (generated vs /model/info) triggers restart",
+        "escape-replay test (file current + process stale + spawn recorded)",
+        "machine deploy-green: haiku->hosted_vllm, marker absent, spawn probe verified"
+      ],
+      "layer": "backend",
+      "owner": "fix-team iteration 3"
+    },
+    {
+      "source_requirement_id": "REQ-008-port-holder-restart (SR-glm-fix-iter4)",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED - extended scenarios)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim"
+      ],
+      "acceptance_criteria": [
+        "stop-by-port when tracked stop leaves the port held",
+        "bind verification before 'restarted'; no doomed-instance leak",
+        "escape replay test",
+        "machine deploy-green criteria (REQ-007 #4) finally met"
+      ],
+      "layer": "backend",
+      "owner": "fix-team iteration 4"
+    },
+    {
+      "source_requirement_id": "REQ-009-exactly-one-owned-authed (SR-glm-fix-iter5, user mandate)",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED - extended scenarios)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim"
+      ],
+      "acceptance_criteria": [
+        "exactly-one-instance invariant (state-dir cmdline sweep + no blind register start)",
+        "start-ownership verification (port pid == just-launched)",
+        "auth-enforcement probe (invalid key rejected 4xx; 200/crash-500 fail) + master-key never-rotate pin",
+        "machine: one instance, spawn-alias verified, sessions unaffected"
+      ],
+      "layer": "backend",
+      "owner": "fix-team iteration 5"
+    },
+    {
+      "source_requirement_id": "REQ-010-never-dark-verify-then-swap (SR-glm-fix-iter6, user mandate 2)",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED - extended scenarios)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim"
+      ],
+      "acceptance_criteria": [
+        "staging-verified before any live stop (full ladder incl. auth/env health)",
+        "old instance keeps serving on staging failure",
+        "bounded post-cutover re-verification",
+        "run_gateway.bat port guard + masked key-presence log",
+        "recovery procedure in README + failure hints",
+        "machine deploy-green via the safe path",
+        "staging teardown on ALL exit paths (try/finally, test-pinned); bat guard keys on the launch's own port; staging uses the cutover's env-sourcing path"
+      ],
+      "layer": "backend",
+      "owner": "fix-team iteration 6"
+    },
+    {
+      "source_requirement_id": "REQ-011-tree-instances-route-staleness (SR-glm-fix-iter7 CRITICAL)",
+      "spec_requirement_id": "secondary-provider-registry/End-to-end completion confirmation (ADDED - extended scenarios)",
+      "scenarios": [
+        "completion probe gates the CONFIRMED-live claim"
+      ],
+      "acceptance_criteria": [
+        "tree-based instance identity; port-holder's tree untouchable by sweep/stop",
+        "route-aware staleness (catch-all-expanded groups routed; route-contradiction = stale)",
+        "deploy-6 forensics replayed as tests",
+        "deploy-green after moratorium lift",
+        "pin 1: sweep tree-immunity vs deliberate whole-tree stop, both directions pinned",
+        "pin 2: two-armed staleness (config->served completeness catches the missing-explicit-group escape)"
+      ],
+      "layer": "backend",
+      "owner": "fix-team iteration 7"
+    }
+  ]
+}

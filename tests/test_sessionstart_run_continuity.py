@@ -161,6 +161,20 @@ def _legacy_gateway_state(tmp_path: Path, **overrides) -> Path:
     return path
 
 
+def _spawn_gateway_state(tmp_path: Path, **overrides) -> Path:
+    """A v3.41-shape state: the spawn-compatible impersonation alias recorded
+    alongside the neutral backend alias (glm-secondary-route-fix BUG-B)."""
+    state = {"activated": True, "auth_mode": "api-key",
+             "model_policy": "secondary-split",
+             "secondary_alias": "ct6-secondary", "codex_alias": "ct6-secondary",
+             "spawn_alias": "claude-haiku-4-5",
+             "spawn_alias_maps_to": "glm-5.2"}
+    state.update(overrides)
+    path = tmp_path / "gateway.json"
+    path.write_text(json.dumps(state), encoding="utf-8")
+    return path
+
+
 def test_heal_reapplies_split_to_drifted_installed_copy(tmp_path: Path) -> None:
     mod = _load_module()
     root, plugins_base = _fake_installed_plugin(tmp_path)  # uniform fable = drifted
@@ -235,10 +249,13 @@ def test_heal_alias_always_matches_what_the_state_says_is_served(
 ) -> None:
     """Serving-side consistency (the ADV3-1 demanded pin): after ANY heal, the
     alias written into agents/*.md equals the alias the recorded state says
-    the gateway config routes (secondary_alias, else legacy codex_alias)."""
+    the gateway config routes (spawn_alias first — the only id the harness
+    accepts at teammate spawn — else secondary_alias, else legacy
+    codex_alias)."""
     mod = _load_module()
     for label, state_fn in (("legacy", _legacy_gateway_state),
-                            ("modern", _gateway_state)):
+                            ("modern", _gateway_state),
+                            ("spawn", _spawn_gateway_state)):
         case = tmp_path / label
         root, plugins_base = _fake_installed_plugin(case)
         state_path = state_fn(case)
@@ -247,9 +264,47 @@ def test_heal_alias_always_matches_what_the_state_says_is_served(
             gateway_state_path=state_path)
         assert note != "", label
         state = json.loads(state_path.read_text(encoding="utf-8"))
-        served = state.get("secondary_alias") or state.get("codex_alias")
+        served = (state.get("spawn_alias") or state.get("secondary_alias")
+                  or state.get("codex_alias"))
         assert f"model: {served}" in (
             root / "agents" / "backend.md").read_text(encoding="utf-8"), label
+
+
+def test_heal_prefers_the_recorded_spawn_alias(tmp_path: Path) -> None:
+    """v3.41.0 (glm-secondary-route-fix BUG-B): a drifted copy with a
+    spawn-alias-recording state heals dev-class frontmatter to the
+    SPAWN-COMPATIBLE id — never the raw ct6-secondary the harness spawn gate
+    rejects — and arch-class agents stay on fable."""
+    mod = _load_module()
+    root, plugins_base = _fake_installed_plugin(tmp_path)  # uniform fable = drifted
+    note = mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=_spawn_gateway_state(tmp_path))
+    assert "claude-haiku-4-5" in note
+    backend_text = (root / "agents" / "backend.md").read_text(encoding="utf-8")
+    assert "model: claude-haiku-4-5" in backend_text
+    assert "ct6-secondary" not in backend_text, \
+        "the heal must write the spawn alias, not the spawn-dead custom alias"
+    assert "model: fable" in (
+        root / "agents" / "system-architect.md").read_text(encoding="utf-8")
+    # a spawn-alias heal is the CURRENT generation — no migration remediation
+    assert "retained" not in note.lower()
+    assert "predates" not in note
+
+
+def test_heal_whitespace_spawn_alias_falls_back_to_secondary(
+    tmp_path: Path,
+) -> None:
+    """ADV3B-2 extended to the new key: a corrupt whitespace-only spawn_alias
+    never masks the recorded secondary_alias."""
+    mod = _load_module()
+    root, plugins_base = _fake_installed_plugin(tmp_path)
+    note = mod.maybe_heal_model_split(
+        plugin_root=root, plugins_base=plugins_base,
+        gateway_state_path=_spawn_gateway_state(tmp_path, spawn_alias="   "))
+    assert "ct6-secondary" in note
+    assert "model: ct6-secondary" in (
+        root / "agents" / "backend.md").read_text(encoding="utf-8")
 
 
 def test_heal_noop_without_a_recorded_alias(tmp_path: Path) -> None:
