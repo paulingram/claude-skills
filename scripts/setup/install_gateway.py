@@ -875,6 +875,20 @@ def _read_settings(settings_path: Path) -> dict[str, Any]:
     return {}
 
 
+def _settings_corrupt(settings_path: Path) -> bool:
+    """True when settings.json EXISTS but is unparseable JSON (v3.41.1
+    activation-drift). The carry-forward heal must NEVER auto-overwrite a
+    corrupt file — only an explicit `--activate` may. Missing => False (a
+    missing file is healable; the apply step creates it)."""
+    if not settings_path.is_file():
+        return False
+    try:
+        json.loads(settings_path.read_text(encoding="utf-8"))
+        return False
+    except (OSError, json.JSONDecodeError):
+        return True
+
+
 def apply_claude_env(settings_path: Path, port: int, master_key: str) -> None:
     """Merge the gateway env block into settings.json (idempotent; every other
     key preserved — the same merge posture as setup.py's teams-mode write)."""
@@ -909,6 +923,23 @@ def claude_env_applied(settings_path: Path, port: int) -> bool:
     env_block = _read_settings(settings_path).get("env")
     return isinstance(env_block, dict) and env_block.get(
         "ANTHROPIC_BASE_URL") == gateway_url(port)
+
+
+def activation_fully_applied(settings_path: Path, port: int) -> bool:
+    """The FULLY-applied predicate (v3.41.1 activation-drift): the env block
+    carries ANTHROPIC_BASE_URL equal to the gateway URL AND a present
+    ANTHROPIC_AUTH_TOKEN. A rewrite that dropped only the token (half-drift)
+    fails this predicate, so the drift is detected — `claude_env_applied()`
+    keeps its BASE_URL-only semantics for its other callers. Used by BOTH the
+    status drift computation AND the install carry-forward verification, so
+    token-only half-drift is detected (and healed) on the install path too,
+    not just at SessionStart."""
+    env_block = _read_settings(settings_path).get("env")
+    if not isinstance(env_block, dict):
+        return False
+    if env_block.get("ANTHROPIC_BASE_URL") != gateway_url(port):
+        return False
+    return bool(env_block.get("ANTHROPIC_AUTH_TOKEN"))
 
 
 # --------------------------------------------------------------------------- #
@@ -1179,6 +1210,12 @@ class Report:
     # (state honesty) — this flag lets the wording say so without claiming
     # THIS run performed an activation.
     activation_carried: bool = False
+    # v3.41.1 activation-drift: the recorded `activated` flag is truthy while
+    # the settings.json env block is NOT fully applied (BASE_URL equal to the
+    # gateway URL AND the auth token present). Status surfaces this explicitly
+    # (a recorded-consent flag must never read as ground truth for the live
+    # client-side wiring it merely remembers). Report-only on the status path.
+    activation_drift: bool = False
     registered: bool = False
     split_applied: bool = False
     # v3.40.0 ADV3C-1: the on-disk agents policy IS the split (e.g. carried
@@ -3199,14 +3236,53 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
     elif report.auth_mode == AUTH_MODE_SUBSCRIPTION:
         report.add("mode", "ok", SUBSCRIPTION_MODE_NOTE)
     elif prior_state.get("activated"):
-        # ADV3C-1: this plain install neither activated nor deactivated —
-        # the machine's prior activation carries forward (step 8 records it),
-        # so the row must not read as "unactivated; needs consent".
-        report.activation_carried = True
-        report.add("activate", "ok",
-                   "activation carried forward from the prior install "
-                   "(settings.json untouched this run; uninstall is the only "
-                   "downgrade path)")
+        # v3.41.1 activation-drift: the recorded `activated` flag is prior
+        # CONSENT, never ground truth for the live client-side wiring. A plain
+        # install (no --activate) MUST verify the env block against settings.json
+        # + the port THIS install serves (args.port — the same port step 8
+        # records; verifying against a stale prior_state port would print green
+        # "verified" against a port the new install no longer serves, B4 gap-3).
+        # Verified → carry-forward ok row naming the verification. Drifted →
+        # corrupt-settings ABORT first (B4 gap-4: only an explicit --activate may
+        # overwrite a corrupt file), else heal from the served port + the
+        # PERSISTED master key (the recorded activated=true IS the prior consent;
+        # the key is never re-derived). Unhealable → FAIL row, never green.
+        cf_settings = Path(args.settings_path) if args.settings_path \
+            else _setup.DEFAULT_USER_SETTINGS_PATH
+        if activation_fully_applied(cf_settings, args.port):
+            report.activation_carried = True
+            report.add("activate", "ok",
+                       "activation carried forward (verified against "
+                       f"settings.json for port {args.port}; settings.json "
+                       "untouched this run; uninstall is the only downgrade "
+                       "path)")
+        elif _settings_corrupt(cf_settings):
+            # NEVER auto-heal over a corrupt file — apply_claude_env's
+            # _read_settings would silently treat corrupt as {} and overwrite.
+            report.add("activate", "fail",
+                       f"settings.json at {cf_settings} is unparseable — "
+                       "refusing to auto-heal over it; repair the file or "
+                       "re-run `install --activate` (only an explicit --activate "
+                       "may overwrite a corrupt settings.json)")
+        else:
+            master_key = read_env_file(base / ENV_FILE_NAME).get(MASTER_KEY_VAR)
+            if master_key:
+                apply_claude_env(cf_settings, args.port, master_key)
+                report.activated = True
+                report.add("activate", "ok",
+                           "activation drift healed — settings.json had lost "
+                           "the gateway env block; re-applied from the served "
+                           f"port {args.port} + the persisted master key "
+                           "(recorded activated=true is the prior consent; "
+                           "settings.json was rewritten merge-preservingly)")
+            else:
+                report.add("activate", "fail",
+                           f"activation drift detected — recorded "
+                           f"activated=true but settings.json at "
+                           f"{cf_settings} lacks the gateway env block and the "
+                           f"persisted master key in {base / ENV_FILE_NAME} is "
+                           "absent/unreadable; re-run `install --activate` to "
+                           "re-apply the env block with a fresh key")
 
     # 7. live confirmation (v3.39.0): assert the RUNNING gateway actually
     # serves the ids the split needs — the step the v3.38.1 field bug proved
@@ -3395,6 +3471,15 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     settings_path = Path(args.settings_path) if args.settings_path \
         else _setup.DEFAULT_USER_SETTINGS_PATH
     report.activated = claude_env_applied(settings_path, port)
+    # v3.41.1 activation-drift: a recorded-consent flag must never read as
+    # ground truth. Status OBSERVES (never writes); it names the drift loudly
+    # when the recorded `activated` is truthy but the settings.json env block
+    # is not FULLY applied (half-drift included). A machine whose recorded
+    # `activated` is falsy keeps today's output byte-identical — drift text
+    # appears ONLY on genuine drift.
+    recorded_activated = bool(state.get("activated"))
+    report.activation_drift = (
+        recorded_activated and not activation_fully_applied(settings_path, port))
     desc_dir = base / DESCRIPTOR_DIRNAME
     descs = list(desc_dir.glob(f"{SERVICE_NAME}.*")) if desc_dir.exists() else []
     report.descriptor_path = str(descs[0]) if descs else None
@@ -3407,7 +3492,8 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
             f"set {provider_env} or re-run install --{provider}-key …")
     summary = (
         f"mode={report.auth_mode}; secondary={provider}/{report.secondary_model}; "
-        f"enabled={report.enabled}; activated={report.activated}; "
+        f"enabled={report.enabled}; activated="
+        f"{report.activated}{' (DRIFTED)' if report.activation_drift else ''}; "
         f"registered={report.registered}; litellm={report.litellm_present}; "
         f"model-policy={policy}; {provider_env}="
         f"{_mask(keys.get(provider_env)) or 'absent'}; "
@@ -3418,6 +3504,16 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
     if declines:
         summary += f"; declined={','.join(sorted(declines))}"
     report.add("status", "ok", summary)
+    # v3.41.1 activation-drift: a dedicated row naming the recorded-vs-settings
+    # contradiction and the remediation. Report-only — status observes, install
+    # repairs. Emitted ONLY on genuine drift (a clean machine is unchanged).
+    if report.activation_drift:
+        report.add(
+            "activation-drift", "fail",
+            "recorded activated=true but settings.json lacks the gateway env "
+            "block (a settings rewrite dropped it); heal: re-run "
+            "`install --activate`, or simply start a new session -- the "
+            "SessionStart self-heal re-applies it")
     # v3.41.0 impersonation disclosure: a state that records the spawn alias
     # gets its mapping printed plainly — requests labeled with that Claude id
     # through THIS gateway are served by the secondary provider's model.
@@ -3828,6 +3924,7 @@ def _emit(report: Report, as_json: bool) -> int:
             "litellm_present": report.litellm_present,
             "enabled": report.enabled,
             "activated": report.activated,
+            "activation_drift": report.activation_drift,
             "registered": report.registered,
             "split_applied": report.split_applied,
             "split_confirmed": report.split_confirmed,
@@ -3856,7 +3953,7 @@ def _emit(report: Report, as_json: bool) -> int:
     print(f"  Gateway:     {'enabled' if report.enabled else 'provisioned but NOT enabled'}"
           f"; auto-registered: {'yes' if report.registered else 'no'}"
           f"; Claude Code activation: "
-          f"{'applied' if report.activated else 'carried forward (prior install)' if report.activation_carried else 'not applied'}")
+          f"{'DRIFTED (recorded activated; env block missing)' if report.activation_drift else 'applied' if report.activated else 'carried forward (prior install)' if report.activation_carried else 'not applied'}")
     if report.register_hint and not report.registered:
         print("  Manual registration hint (auto-registration was skipped or failed):")
         print(f"    {report.register_hint}")

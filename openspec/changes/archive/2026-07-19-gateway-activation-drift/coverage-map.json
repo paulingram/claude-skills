@@ -1,0 +1,82 @@
+{
+  "change_name": "gateway-activation-drift",
+  "generated_at": "2026-07-19T14:15:00Z",
+  "source": "plain-language bug report (activation drift undetected + un-healed, observed on the owner's machine 2026-07-18..19)",
+  "testing_authorizations": {
+    "playwright": "N/A - no UI surface; logic bug in a stdlib-python plugin repo (installer CLI + SessionStart hook)",
+    "dev_api_integration": "the local machine is the live dev environment; the sandboxed end-to-end CLI subprocess tests (--base-dir/--settings-path/CT6_GATEWAY_HOME) are the live integration tests; the REAL gateway + settings.json are read-only",
+    "integration_front_to_back": "N/A - no both-layer requirement"
+  },
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001-drift-detection-status",
+      "spec_requirement_id": "gateway-activation-integrity/Activation drift is detected and named on the status surface (ADDED)",
+      "scenarios": [
+        "drifted machine is named loudly",
+        "clean not-activated machine is unchanged"
+      ],
+      "acceptance_criteria": [
+        "tests/bug-fix-gateway-activation-drift/test_replication.py::test_status_surfaces_activation_drift_explicitly passes",
+        "tests/bug-fix-gateway-activation-drift/test_replication.py::test_status_cli_subprocess_end_to_end_pins_the_report_surface passes",
+        "new unit test pins the clean not-activated surface unchanged (no drift text)",
+        "new unit tests pin the explicit activation_drift field in the --json payload + token-only half-drift detection"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    },
+    {
+      "source_requirement_id": "REQ-002-carry-forward-verify-heal",
+      "spec_requirement_id": "gateway-activation-integrity/The install carry-forward path verifies activation and heals drift from recorded consent (ADDED)",
+      "scenarios": [
+        "verified carry-forward stays green",
+        "drifted carry-forward heals and says so",
+        "unhealable drift is a fail row, never green",
+        "a corrupt settings.json is never auto-overwritten"
+      ],
+      "acceptance_criteria": [
+        "tests/bug-fix-gateway-activation-drift/test_replication.py::test_carry_forward_verifies_claude_env_against_settings passes",
+        "new unit tests pin the verified-wording, healed, and unhealable fail-row paths",
+        "setup_entry display prints carried-forward only on the verified path",
+        "new unit tests pin the served-port (args.port) verification + the corrupt-settings abort fail row"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    },
+    {
+      "source_requirement_id": "REQ-003-sessionstart-activation-heal",
+      "spec_requirement_id": "gateway-activation-integrity/SessionStart self-heals activation drift (ADDED)",
+      "scenarios": [
+        "the observed drift shape self-heals at session start",
+        "a customized base URL is never clobbered",
+        "fail-open on unreadable inputs",
+        "a dead gateway is never wired in"
+      ],
+      "acceptance_criteria": [
+        "tests/bug-fix-gateway-activation-drift/test_replication.py::test_sessionstart_has_activation_heal_seam passes",
+        "tests/bug-fix-gateway-activation-drift/test_replication.py::test_sessionstart_main_invokes_activation_heal passes",
+        "new unit tests pin the guards: installed-copy, custom-BASE_URL preserved, fail-open, merge-preservation",
+        "new unit tests pin the explicit-injection bypass + the dead-port no-op (injected port_probe)",
+        "new unit tests pin the half-drift token completion + the main() heal order (activation before split)"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    },
+    {
+      "source_requirement_id": "REQ-004-suite-machine-state-isolation",
+      "spec_requirement_id": "gateway-activation-integrity/The test suite can never mutate real machine state (ADDED)",
+      "scenarios": [
+        "a settings-path-less invocation lands in the sentinel",
+        "the tripwire converts a leak into a named failure"
+      ],
+      "acceptance_criteria": [
+        "tests/test_install_gateway.py::test_uninstall_purge_removes_state_dir gains --settings-path (the historical leaker)",
+        "autouse sentinel redirect fixture active for the whole gateway test module + probe regression test proving absorption (sentinel pre-seeded with the port-4000 env block; assert-sentinel-active BEFORE the invocation)",
+        "_scrub_signals points CT6_GATEWAY_HOME at a per-test tmp sentinel instead of deleting it (g1)",
+        "session tripwire in tests/conftest.py snapshots settings.json + gateway.json + gateway.env + key-declines.json, fails loud with the concurrent-writer triage hint (g2/g4)",
+        "tests/test_install_librarian.py:347 audited - fixture-protected, no change (recorded)"
+      ],
+      "layer": "backend",
+      "owner": "fix-team"
+    }
+  ]
+}

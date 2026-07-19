@@ -71,6 +71,70 @@ def _scrub_signals(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CT6_SECONDARY_PROVIDER", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _sandbox_default_settings_path(
+    gw: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Path:
+    """REQ-004 GLOBAL hermeticity for this module: every subcommand that does
+    not receive an explicit ``--settings-path`` falls back to
+    ``_setup.DEFAULT_USER_SETTINGS_PATH`` — the developer's REAL
+    ``~/.claude/settings.json``. ``uninstall`` then calls ``remove_claude_env``
+    on it, stripping ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN whenever the
+    recorded BASE_URL matches the port.
+
+    On CI and on never-activated machines that silently no-ops, which is
+    precisely why it survived undetected: the damage is invisible except on an
+    ACTIVATED machine, where every full suite run deactivated the gateway while
+    ``gateway.json`` still recorded ``activated: true`` — the drift this change
+    exists to fix, caused by this change's own test suite.
+
+    Redirect the fallback at a per-test sentinel so NO test in this module —
+    present or future, whether or not its author remembers ``--settings-path``
+    — can reach the real file. Tests that pass ``--settings-path`` explicitly
+    are unaffected (the argument beats the fallback); the sentinel simply
+    absorbs anything that would otherwise escape.
+    """
+    sentinel = tmp_path / "SENTINEL-default-user-settings.json"
+    monkeypatch.setattr(gw._setup, "DEFAULT_USER_SETTINGS_PATH", sentinel)
+    return sentinel
+
+
+def test_default_settings_path_fallback_is_absorbed_by_the_sentinel(
+    gw: ModuleType, tmp_path: Path,
+    _sandbox_default_settings_path: Path,
+) -> None:
+    """REQ-004 probe: prove the autouse redirect actually absorbs the fallback.
+
+    Assert-sentinel-first and side-effect-free: it stands up an ACTIVATED
+    sentinel, runs the historically-leaking invocation shape (no
+    ``--settings-path``), and asserts the strip landed on the SENTINEL. Pre-fix
+    — with no redirect in place — the strip lands on the real file and the
+    sentinel is never even created, so this fails without touching anything.
+    """
+    sentinel = _sandbox_default_settings_path
+    sentinel.write_text(json.dumps({"env": {
+        "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000",
+        "ANTHROPIC_AUTH_TOKEN": "sk-fake-master-key",
+    }}, indent=2), encoding="utf-8")
+
+    assert gw._setup.DEFAULT_USER_SETTINGS_PATH == sentinel, (
+        "the autouse redirect is not in effect — the module would resolve the "
+        "REAL ~/.claude/settings.json")
+
+    base = tmp_path / "gw"
+    _install(gw, base)
+    assert gw.main(["uninstall", "--base-dir", str(base), "--purge",
+                    "--agents-dir", str(tmp_path / "no-agents")]) == 0
+
+    # The strip landed HERE, on the sentinel — never on the real file.
+    env = json.loads(sentinel.read_text(encoding="utf-8")).get("env", {})
+    assert "ANTHROPIC_BASE_URL" not in env, (
+        "the fallback resolution did not land on the sentinel")
+    assert env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") == "1", (
+        "remove_claude_env must stay merge-preserving on unrelated keys")
+
+
 RAW_OPENAI_KEY = "sk-test-raw-openai-key-1234abcd"
 RAW_ZAI_KEY = "zai-test-raw-key-4567efgh"
 RAW_ANTHROPIC_KEY = "sk-ant-test-raw-key-9876wxyz"
@@ -855,7 +919,14 @@ def test_uninstall_restores_legacy_alias_split_from_legacy_state(
 def test_uninstall_purge_removes_state_dir(gw: ModuleType, tmp_path: Path) -> None:
     base = tmp_path / "gw"
     _install(gw, base)
+    # REQ-004: --settings-path is MANDATORY here. Without it `_cmd_uninstall`
+    # resolves the DEFAULT real ~/.claude/settings.json and `remove_claude_env`
+    # strips the gateway env block from the developer's own machine on every
+    # suite run (the root cause of both 2026-07-18/19 drift incidents). The
+    # autouse `_sandbox_default_settings_path` fixture is the backstop; naming
+    # the path explicitly is the primary guard.
     assert gw.main(["uninstall", "--base-dir", str(base), "--purge",
+                    "--settings-path", str(tmp_path / "settings.json"),
                     "--agents-dir", str(tmp_path / "no-agents")]) == 0
     assert not base.exists()
 
