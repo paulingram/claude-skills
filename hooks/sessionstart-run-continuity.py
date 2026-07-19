@@ -29,15 +29,18 @@ hook re-applies it via the model lever and notes the heal in the session
 context. Fail-open everywhere.
 
 v3.40.0 (ADV3-1, heal-to-recorded-alias): the heal restores the split to the
-alias the gateway STATE records as served (`secondary_alias`, falling back to
-the legacy `codex_alias`) — it never writes an alias the running gateway
-config doesn't route. A legacy install therefore keeps its working
-codex-5.6-sol split after a plugin update; migration to the neutral alias
-happens at install time (any `install`, --activate or not, migrates an
-on-disk legacy split in the same run it regenerates the config — ADV3B-1).
-No recorded alias => no-op (never guess); recorded values are
-whitespace-trimmed before the truthiness check (ADV3B-2), so a corrupt
-whitespace-only alias reads as absent.
+alias the gateway STATE records as served — it never writes an alias the
+running gateway config doesn't route. v3.41.0 extends the record with the
+spawn-compatible impersonation alias: the priority is `spawn_alias` (the only
+id Claude Code's Agent-Teams spawn gate accepts — it rejects custom ids
+client-side), falling back to `secondary_alias`, then the legacy
+`codex_alias`. A legacy install therefore keeps its working codex-5.6-sol
+split after a plugin update; migration to the modern alias happens at install
+time (any `install`, --activate or not, migrates an on-disk superseded split
+in the same run it regenerates the config — ADV3B-1). No recorded alias =>
+no-op (never guess); recorded values are whitespace-trimmed before the
+truthiness check (ADV3B-2), so a corrupt whitespace-only alias reads as
+absent.
 
 Stdlib-only.
 """
@@ -167,16 +170,19 @@ def maybe_heal_model_split(
             return ""
         # ADV3-1 (heal-to-recorded-alias): restore the split to the alias the
         # gateway STATE records as served — never write an alias the running
-        # config doesn't route. v3.40 installs record `secondary_alias`; a
-        # legacy (v3.39) state records only `codex_alias`, and its config.yaml
-        # routes ONLY that alias, so the heal RETAINS it (migration to the
-        # neutral alias happens at install time, which regenerates the
-        # config). No recorded alias at all => never guess: fail-open no-op.
+        # config doesn't route. v3.41 installs record `spawn_alias` (the
+        # spawn-compatible impersonation id — the ONLY id the harness accepts
+        # at teammate spawn, so it wins when recorded); v3.40 installs record
+        # `secondary_alias`; a legacy (v3.39) state records only
+        # `codex_alias`, and its config.yaml routes ONLY that alias, so the
+        # heal RETAINS it (migration to the modern alias happens at install
+        # time, which regenerates the config). No recorded alias at all =>
+        # never guess: fail-open no-op.
         # ADV3B-2: each candidate is trimmed BEFORE the truthiness check, so a
-        # corrupt whitespace-only `secondary_alias` never masks a valid legacy
-        # `codex_alias` (an all-whitespace record still reads as absent).
+        # corrupt whitespace-only `spawn_alias`/`secondary_alias` never masks
+        # a valid later key (an all-whitespace record still reads as absent).
         alias = ""
-        for key in ("secondary_alias", "codex_alias"):
+        for key in ("spawn_alias", "secondary_alias", "codex_alias"):
             value = state.get(key)
             if isinstance(value, str) and value.strip():
                 alias = value.strip()
@@ -197,12 +203,27 @@ def maybe_heal_model_split(
         if not changed:
             return ""  # agents already match the recorded alias — silent no-op
         neutral = getattr(lever, "SECONDARY_ALIAS", alias)
-        legacy_tail = "" if alias == neutral else (
-            " The RECORDED legacy alias was retained (the running gateway "
-            "config routes only that alias); re-run `python scripts/setup/"
-            f"install_gateway.py install --activate` to migrate to {neutral} "
-            "with a regenerated config."
-        )
+        spawn = getattr(lever, "SPAWN_ALIAS_MODEL_ID", None)
+        legacy_aliases = tuple(getattr(lever, "LEGACY_SECONDARY_ALIASES", ()) or ())
+        if alias in legacy_aliases:
+            legacy_tail = (
+                " The RECORDED legacy alias was retained (the running gateway "
+                "config routes only that alias); re-run `python scripts/setup/"
+                f"install_gateway.py install --activate` to migrate to {neutral} "
+                "with a regenerated config."
+            )
+        elif spawn and alias == neutral:
+            # A v3.40-era state: its config routes ct6-secondary but the
+            # harness spawn gate rejects custom ids — a re-install upgrades to
+            # the spawn-compatible alias with a regenerated config.
+            legacy_tail = (
+                " The recorded state predates the spawn-compatible alias; "
+                "re-run `python scripts/setup/install_gateway.py install "
+                f"--activate` to adopt {spawn} (harness-spawnable) with a "
+                "regenerated config."
+            )
+        else:
+            legacy_tail = ""
         return (
             "[CT6 model-split self-heal] The installed plugin copy had drifted "
             "off the secondary role split; re-applied it from the recorded "

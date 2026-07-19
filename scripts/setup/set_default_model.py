@@ -9,7 +9,11 @@ alias: ``python scripts/setup/set_default_model.py --model opus``.
 v3.35.0 added the availability-gated secondary role split: architecture/control/
 design agents stay on ``fable`` while development, code-checking, and testing
 agents move to a gateway-served alias. v3.40.0 makes that alias provider-neutral
-(``ct6-secondary``) and adds the OpenAI/Z.ai provider registry. The historical
+(``ct6-secondary``) and adds the OpenAI/Z.ai provider registry. v3.41.0 makes
+the split's FRONTMATTER target the spawn-compatible impersonation alias
+``SPAWN_ALIAS_MODEL_ID`` (the harness rejects custom ids at teammate spawn;
+the gateway rewrites the real Claude id to the chosen secondary — disclosed),
+and each registry entry carries a required ``route_dialect``. The historical
 ``CODEX_MODEL = "codex-5.6-sol"`` constant remains importable only for mixed-version
 backward compatibility and migration detection. Availability is an INPUT (a flag
 or the ``CT6_CODEX_56_AVAILABLE`` env var), never probed here — the same injected-
@@ -69,18 +73,44 @@ VALID_MODELS = ("fable", "opus", "sonnet", "haiku")
 # --- Secondary-provider role split (v3.35.0; provider registry v3.40.0) ------- #
 SECONDARY_ALIAS = "ct6-secondary"
 LEGACY_SECONDARY_ALIASES = ("codex-5.6-sol",)
+
+# v3.41.0 (glm-secondary-route-fix, BUG-B): Claude Code's Agent-Teams spawn
+# path validates teammate model ids CLIENT-SIDE — a frontmatter alias that is
+# not a known Claude model id dies before any HTTP reaches the gateway
+# (gateway-log verified 2026-07-17). The split therefore writes a REAL,
+# harness-accepted Claude id into dev-class frontmatter; the gateway rewrites
+# that id to the chosen secondary provider via the DISCLOSED impersonation
+# route install_gateway.py emits (`SPAWN_ALIAS_MODEL_ID → <dialect>/<model>`).
+# `ct6-secondary` remains the served backend alias for direct/scripted callers
+# and the state lineage. Test-pinned: changing this id is a deliberate act.
+SPAWN_ALIAS_MODEL_ID = "claude-haiku-4-5"
+
+# Frontmatter aliases superseded as SPLIT TARGETS (the gateway still serves
+# `ct6-secondary`; it is only superseded as a frontmatter value, because the
+# harness spawn gate rejects it — BUG-B above). migrate_legacy_split moves any
+# of these to the spawn alias on every config-regenerating install.
+SUPERSEDED_FRONTMATTER_ALIASES = (*LEGACY_SECONDARY_ALIASES, SECONDARY_ALIAS)
+
+# Each entry's `route_dialect` names the LiteLLM provider prefix the gateway
+# route uses; the route is DERIVED as `<route_dialect>/<model>` — no entry
+# carries a redundant route string that could drift from its dialect
+# (v3.41.0, BUG-A). The dialect must match what the provider's API actually
+# implements: LiteLLM's proxy drives Anthropic-format traffic for `openai/*`
+# models through the OpenAI Responses API (codex-gen models REQUIRE it), while
+# api.z.ai implements only /chat/completions (live 404 at /v4/responses), so
+# zai rides the strict chat-completions `hosted_vllm` dialect.
 SECONDARY_PROVIDERS: Dict[str, Dict[str, Optional[str]]] = {
     "openai": {
         "model": "gpt-5.6-sol",
         "key_env": "OPENAI_API_KEY",
-        "route_model": "openai/gpt-5.6-sol",
+        "route_dialect": "openai",
         "api_base": None,
         "label": "OpenAI — Codex 5.6 (gpt-5.6-sol)",
     },
     "zai": {
         "model": "glm-5.2",
         "key_env": "ZAI_API_KEY",
-        "route_model": "openai/glm-5.2",
+        "route_dialect": "hosted_vllm",
         "api_base": "https://api.z.ai/api/paas/v4",
         "label": "Z.ai — GLM 5.2 (glm-5.2)",
     },
@@ -326,13 +356,16 @@ def distribution(agents_dir) -> Dict[str, int]:
 # --- Secondary-provider role split application (v3.35.0 / v3.40.0) ----------- #
 
 def split_targets(
-    agents_dir, codex_model: str = SECONDARY_ALIAS
+    agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID
 ) -> Dict[str, str]:
     """Return ``{stem: target_model}`` for every agent under the role split.
 
-    ``codex_model`` retains its historical parameter name so mixed-version callers
-    using the positional or keyword form remain compatible. New callers should
-    treat it as the provider-neutral secondary model alias."""
+    The default target is the spawn-compatible impersonation alias (v3.41.0):
+    the harness rejects unknown model ids at teammate spawn, so the value
+    written into dev-class frontmatter must be a real Claude id the gateway
+    rewrites to the secondary. ``codex_model`` retains its historical parameter
+    name so mixed-version callers using the positional or keyword form remain
+    compatible."""
     agents_dir = pathlib.Path(agents_dir)
     targets: Dict[str, str] = {}
     for path in sorted(agents_dir.glob("*.md")):
@@ -342,11 +375,12 @@ def split_targets(
 
 
 def apply_split(
-    agents_dir, codex_model: str = SECONDARY_ALIAS
+    agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID
 ) -> List[str]:
     """Apply the role split: fable on architecture/control/design agents and the
-    secondary alias on development/checking/testing agents. Returns sorted changed
-    stems. Idempotent; only the frontmatter model line is touched."""
+    spawn-compatible impersonation alias on development/checking/testing agents.
+    Returns sorted changed stems. Idempotent; only the frontmatter model line is
+    touched."""
     agents_dir = pathlib.Path(agents_dir)
     targets = split_targets(agents_dir, codex_model)
     changed: List[str] = []
@@ -363,18 +397,23 @@ def apply_split(
 
 
 def migrate_legacy_split(agents_dir) -> List[str]:
-    """Rewrite legacy secondary aliases to ``SECONDARY_ALIAS``.
+    """Rewrite superseded split-target aliases to ``SPAWN_ALIAS_MODEL_ID``.
 
-    Returns sorted changed stems and is idempotent. Every legacy model occurrence
-    is migrated, including an unexpected one outside the development role bucket;
-    callers can then re-apply the role policy to repair any broader drift."""
+    Covers the legacy provider-specific aliases AND the raw ``ct6-secondary``
+    frontmatter value (v3.41.0: superseded as a SPLIT TARGET by the
+    spawn-compatible alias — the harness spawn gate rejects custom ids, so a
+    dev-class agent left on it never reaches the gateway; the backend route
+    itself stays served). Returns sorted changed stems and is idempotent.
+    Every superseded model occurrence is migrated, including an unexpected one
+    outside the development role bucket; callers can then re-apply the role
+    policy to repair any broader drift."""
     agents_dir = pathlib.Path(agents_dir)
     changed: List[str] = []
     for path in sorted(agents_dir.glob("*.md")):
         text_lf, newline, trailing = _read(path)
-        if read_model_value(text_lf) not in LEGACY_SECONDARY_ALIASES:
+        if read_model_value(text_lf) not in SUPERSEDED_FRONTMATTER_ALIASES:
             continue
-        new = rewrite_model_line(text_lf, SECONDARY_ALIAS)
+        new = rewrite_model_line(text_lf, SPAWN_ALIAS_MODEL_ID)
         if new is None:
             continue
         if trailing and not new.endswith("\n"):
@@ -387,7 +426,7 @@ def migrate_legacy_split(agents_dir) -> List[str]:
 def apply_policy(
     agents_dir,
     codex_is_available: bool,
-    codex_model: str = SECONDARY_ALIAS,
+    codex_model: str = SPAWN_ALIAS_MODEL_ID,
 ) -> Tuple[str, List[str]]:
     """Apply the availability-gated model policy. Returns ``(policy, changed)``.
 
@@ -411,14 +450,16 @@ def unclassified_stems(agents_dir) -> List[str]:
     )
 
 
-def policy_state(agents_dir, codex_model: str = SECONDARY_ALIAS) -> str:
+def policy_state(agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID) -> str:
     """Classify the on-disk model state.
 
     Returns ``uniform-<model>`` (including the operating ``uniform-fable``),
-    ``secondary-split`` when every file matches either the requested/current alias
-    or any complete legacy-alias split, else ``mixed``. ``codex-split`` is the
-    legacy policy string readers elsewhere may still hold; this function emits
-    only the canonical ``secondary-split`` value."""
+    ``secondary-split`` when every file matches either the requested/current
+    alias or any complete split on a recognized alias generation (the spawn
+    alias, the neutral ``ct6-secondary``, or a legacy provider alias), else
+    ``mixed``. ``codex-split`` is the legacy policy string readers elsewhere
+    may still hold; this function emits only the canonical ``secondary-split``
+    value."""
     agents_dir = pathlib.Path(agents_dir)
     actual: Dict[str, str] = {}
     for path in sorted(agents_dir.glob("*.md")):
@@ -430,7 +471,8 @@ def policy_state(agents_dir, codex_model: str = SECONDARY_ALIAS) -> str:
     if len(values) == 1:
         return f"uniform-{next(iter(values))}"
     recognized_aliases = tuple(dict.fromkeys(
-        (codex_model, SECONDARY_ALIAS, *LEGACY_SECONDARY_ALIASES)
+        (codex_model, SPAWN_ALIAS_MODEL_ID, SECONDARY_ALIAS,
+         *LEGACY_SECONDARY_ALIASES)
     ))
     if any(actual == split_targets(agents_dir, alias) for alias in recognized_aliases):
         return POLICY_SECONDARY_SPLIT
@@ -438,7 +480,7 @@ def policy_state(agents_dir, codex_model: str = SECONDARY_ALIAS) -> str:
 
 
 def _print_distribution(
-    agents_dir: pathlib.Path, codex_model: str = SECONDARY_ALIAS
+    agents_dir: pathlib.Path, codex_model: str = SPAWN_ALIAS_MODEL_ID
 ) -> None:
     dist = distribution(agents_dir)
     total = sum(dist.values())
@@ -504,9 +546,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--secondary-model", "--codex-model",
         dest="secondary_model",
-        default=SECONDARY_ALIAS,
+        default=SPAWN_ALIAS_MODEL_ID,
         help=f"Model id written for development/checking/testing agents under the "
-        f"split (default: {SECONDARY_ALIAS}); --codex-model is a compatibility synonym.",
+        f"split (default: {SPAWN_ALIAS_MODEL_ID}, the spawn-compatible "
+        f"impersonation alias the gateway routes to the secondary); "
+        f"--codex-model is a compatibility synonym.",
     )
     parser.add_argument(
         "--agents-dir",
@@ -552,7 +596,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         _report_changed(policy, changed)
         return 0
 
-    split_aliases = {SECONDARY_ALIAS, *LEGACY_SECONDARY_ALIASES}
+    split_aliases = {SPAWN_ALIAS_MODEL_ID, SECONDARY_ALIAS,
+                     *LEGACY_SECONDARY_ALIASES}
     if args.model in split_aliases:
         print(
             f"ERROR: split alias {args.model!r} cannot apply uniformly; "
