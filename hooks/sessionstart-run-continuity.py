@@ -49,6 +49,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import socket
 import sys
 from pathlib import Path
 
@@ -131,6 +132,48 @@ def build_directive(payload: dict) -> str:
 # plugin copy and is loaded dynamically only AFTER this cheap state check —
 # fail-open must not depend on that load succeeding.
 _SPLIT_POLICY_STRINGS = ("secondary-split", "codex-split")
+
+# v3.41.1 activation-drift: LOCAL copies of the installer's env-file shape
+# constants (the hook cannot import the installer at fail-open time — it lives
+# in the plugin copy and is loaded dynamically). Same local-copy convention as
+# _SPLIT_POLICY_STRINGS. The master-key env var + the KEY=VALUE env-file parser
+# mirror install_gateway.py's MASTER_KEY_VAR / read_env_file exactly.
+_MASTER_KEY_VAR = "CT6_GATEWAY_MASTER_KEY"
+_ENV_FILE_NAME = "gateway.env"
+_STATE_NAME = "gateway.json"
+
+
+def _read_env_file_local(path: Path) -> dict[str, str]:
+    """LOCAL copy of install_gateway.read_env_file (KEY=VALUE parser; comments
+    + blank lines ignored; first `=` splits). The hook cannot import the
+    installer at fail-open time."""
+    if not path.is_file():
+        return {}
+    out: dict[str, str] = {}
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            out[k.strip()] = v
+    except OSError:
+        return {}
+    return out
+
+
+def _default_port_probe(port: int, timeout: float = 0.25) -> bool:
+    """The default gateway-liveness probe: a short TCP connect to
+    127.0.0.1:<port>. Read-only liveness, never an HTTP request. The recorded
+    `enabled` flag is never trusted bare (B4 gap-2) — re-pointing sessions at a
+    dead gateway would convert silent drift into hard-broken sessions. Tests
+    ALWAYS inject a stub; this default is never exercised against the real
+    machine by the test suite."""
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def maybe_heal_model_split(
@@ -235,6 +278,176 @@ def maybe_heal_model_split(
         return ""
 
 
+def maybe_heal_activation(
+    plugin_root: Path | None = None,
+    plugins_base: Path | None = None,
+    gateway_state_path: Path | None = None,
+    settings_path: Path | None = None,
+    port_probe=None,
+) -> str:
+    """Re-apply the settings.json gateway env block when the gateway state
+    records activation but settings.json has lost it (v3.41.1 activation-
+    drift), returning a one-line note for the session context ("" when nothing
+    applies). Symmetric to `maybe_heal_model_split`.
+
+    The bug class: a recorded-consent flag (`gateway.json.activated`) is treated
+    as ground truth for the live client-side wiring it merely remembers. A non-
+    merge-preserving rewrite of settings.json severs the wire while the flag
+    stays green. This heal restores the wire from the recorded consent — never
+    trusts the flag bare.
+
+    Guards, in order:
+      - Installed-copy guard with EXPLICIT-INJECTION BYPASS (B4 gap-1i): the
+        hook must run from an INSTALLED plugin copy (under ~/.claude/plugins/ —
+        a dev checkout is NEVER rewritten). BUT when BOTH `gateway_state_path`
+        AND `settings_path` are explicitly passed (the programmatic/test seam),
+        the copy guard is bypassed: explicit injection of both paths is itself
+        the consent to operate on those sandbox paths, and the real main()
+        wiring never injects anything. `plugin_root`/`plugins_base` remain for
+        guard-behavior tests.
+      - State guards: gateway.json must record `activated` truthy AND `enabled`
+        truthy AND `auth_mode == "api-key"` (the env block exists only in
+        api-key mode). These are read BEFORE the liveness probe, and that
+        order is load-bearing: RECORDED CONSENT is the single suppression seam
+        for this heal. Any future path that deliberately un-points Claude Code —
+        the credit-exhaustion failover to Claude sign-in being the motivating
+        case — suppresses this heal simply by flipping recorded state (clearing
+        `activated`, or moving `auth_mode` off `api-key`), with NO change to the
+        guard logic here. A caller that stripped the env block WITHOUT flipping
+        recorded state would be fought by this heal on the next session start.
+      - Gateway-liveness guard (B4 gap-2 — the audited class must not recur
+        inside the fix): the recorded `enabled` flag is NOT trusted bare. Before
+        any write, probe 127.0.0.1:<port> via the injectable `port_probe` seam
+        (default: a real short-timeout TCP connect). Nothing listening → fail-
+        open no-op — re-pointing sessions at a dead gateway would convert
+        silent drift into hard-broken sessions.
+        SCOPE OF THE PROBE: it proves a process is ACCEPTING TCP on the port —
+        nothing more. It is explicitly NOT an upstream-health signal and in
+        particular NOT a credit/quota check: a gateway whose upstream key is out
+        of credits still binds its port and still passes this probe. Do not
+        read a green probe as "the gateway can serve". Upstream credit
+        exhaustion is handled by the separate credit-failover capability, which
+        suppresses this heal by flipping the RECORDED state (below) rather than
+        by anything the probe could observe.
+      - Settings guard (injectable `settings_path`, default
+        ~/.claude/settings.json): heal when ANTHROPIC_BASE_URL is ABSENT, or
+        when it EQUALS the recorded gateway URL but ANTHROPIC_AUTH_TOKEN is
+        absent (half-drift — the URL is provably ours, so completing the pair
+        is safe). Present-and-equal with token → no-op (healthy).
+        Present-but-DIFFERENT → no-op (a user-customized BASE_URL is never
+        clobbered — the same posture as remove_claude_env).
+      - Corrupt-existing settings.json → abort fail-open (never overwrite a
+        file we cannot parse; only an explicit `install --activate` may).
+
+    The heal: port from `state.get("port", 4000)`; master key = the PERSISTED
+    `_MASTER_KEY_VAR` parsed from `<state dir>/_ENV_FILE_NAME` (never re-
+    derived). Merge-preserving write. Every failure path (missing state, corrupt
+    JSON, absent key, dead port, corrupt settings, unwritable target) returns
+    "" — a session start can never wedge on this."""
+    try:
+        # B4 gap-1i: explicit-injection bypass. BOTH gateway_state_path AND
+        # settings_path passed => programmatic consent to sandbox paths; the
+        # installed-copy guard is skipped (the real main() wiring never injects,
+        # so it always runs the guard).
+        explicit = gateway_state_path is not None and settings_path is not None
+        if not explicit:
+            root = Path(plugin_root) if plugin_root \
+                else Path(__file__).resolve().parent.parent
+            base = Path(plugins_base) if plugins_base \
+                else Path.home() / ".claude" / "plugins"
+            try:
+                root.relative_to(base)
+            except ValueError:
+                return ""  # dev checkout / anywhere else — never rewritten
+
+        state_path = Path(gateway_state_path) if gateway_state_path else (
+            Path(os.environ.get("CT6_GATEWAY_HOME")
+                 or Path.home() / ".architect-team" / "gateway") / _STATE_NAME)
+        if not state_path.is_file():
+            return ""
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if not (isinstance(state, dict)
+                and state.get("activated")
+                and state.get("enabled")
+                and state.get("auth_mode") == "api-key"):
+            return ""
+        port = int(state.get("port", 4000))
+
+        # B4 gap-2: gateway-liveness guard — never trust the recorded `enabled`
+        # bare. The probe is read-only TCP liveness, not an HTTP request.
+        probe = port_probe or _default_port_probe
+        try:
+            live = bool(probe(port))
+        except Exception:
+            return ""
+        if not live:
+            return ""  # dead gateway — never re-point sessions at it
+
+        target = Path(settings_path) if settings_path \
+            else Path.home() / ".claude" / "settings.json"
+        gateway_url = f"http://127.0.0.1:{port}"
+
+        # Read the existing settings. Missing => {} (healable; apply creates
+        # it). Corrupt-existing => abort fail-open (never overwrite a file we
+        # cannot parse — only an explicit --activate may).
+        if target.is_file():
+            try:
+                raw_text = target.read_text(encoding="utf-8")
+                data = json.loads(raw_text)
+                if not isinstance(data, dict):
+                    return ""  # unexpected shape — fail open, do not overwrite
+            except (OSError, json.JSONDecodeError):
+                return ""  # corrupt — abort, never auto-overwrite
+        else:
+            data = {}
+
+        env_block = data.get("env")
+        if not isinstance(env_block, dict):
+            env_block = {}
+        current_base = env_block.get("ANTHROPIC_BASE_URL")
+
+        # Decide whether to heal:
+        #  - absent BASE_URL → heal (the observed drift shape)
+        #  - BASE_URL equals ours but token absent → heal (half-drift; the URL
+        #    is provably ours, completing the pair is safe)
+        #  - BASE_URL equals ours and token present → healthy, no-op
+        #  - BASE_URL present-but-different → never clobber (user-customized)
+        if current_base == gateway_url:
+            if env_block.get("ANTHROPIC_AUTH_TOKEN"):
+                return ""  # healthy — nothing to do
+            # half-drift: fall through to heal
+        elif current_base is None:
+            # absent — heal (the observed drift shape)
+            pass
+        else:
+            return ""  # present-but-different — never clobber
+
+        # The persisted master key — never re-derived.
+        env_file = state_path.parent / _ENV_FILE_NAME
+        master_key = _read_env_file_local(env_file).get(_MASTER_KEY_VAR)
+        if not master_key:
+            return ""  # unhealable — fail open, the install --activate path is
+            # the remediation
+
+        env_block["ANTHROPIC_BASE_URL"] = gateway_url
+        env_block["ANTHROPIC_AUTH_TOKEN"] = master_key
+        data["env"] = env_block
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except OSError:
+            return ""  # unwritable — fail open
+        return (
+            "[CT6 activation self-heal] settings.json had lost the gateway env "
+            "block while gateway state records activation; re-applied "
+            f"ANTHROPIC_BASE_URL={gateway_url} + the persisted auth token "
+            "(merge-preserving). New sessions route through the gateway; "
+            "restart Claude Code for this machine's other live sessions."
+        )
+    except Exception:  # fail open — never wedge a session start on a bug here
+        return ""
+
+
 def main() -> int:
     try:
         raw = _read_stdin_utf8() if not sys.stdin.isatty() else ""
@@ -252,8 +465,18 @@ def main() -> int:
         directive = build_directive(payload)
     except Exception:  # fail open — never wedge a session start on a bug here
         directive = ""
-    heal_note = maybe_heal_model_split()
-    for line in (directive, heal_note):
+    # v3.41.1 activation-drift: the wire heal runs FIRST, then the policy heal,
+    # so the notes read coherently on a machine recovering from both drifts
+    # (B4 supplement-3 — order test-pinned).
+    try:
+        activation_note = maybe_heal_activation()
+    except Exception:  # fail open — never wedge a session start on a bug here
+        activation_note = ""
+    try:
+        split_note = maybe_heal_model_split()
+    except Exception:  # fail open — never wedge a session start on a bug here
+        split_note = ""
+    for line in (directive, activation_note, split_note):
         if line:
             print(line)
     return 0
