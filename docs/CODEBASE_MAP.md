@@ -24,6 +24,14 @@ note: >-
   failover CLI subcommand (bare / --check / --force), a status credit-failover
   row + --json field, and maybe_failover_to_login() in
   hooks/sessionstart-run-continuity.py ordered BEFORE maybe_heal_activation().
+  CONTAINMENT: maybe_failover_to_login carries the SAME installed-copy guard
+  (with explicit-injection bypass) as the two heals - it initially shipped
+  WITHOUT it, and a dev-checkout SessionStart consequently failed over the
+  developer's real gateway.json on 2026-07-20; the conftest tripwire missed it
+  because the mutation happened outside a pytest run, so the guard - not the
+  tripwire - is the control for hook code. A `prober` injection seam was added
+  alongside it: without one the hook path could not be exercised hermetically,
+  which is why its split-revert step had gone untested.
   Suite 5689 -> 5710 passing + 4 skipped (203 test files); counts unchanged
   48/39/23. Prior:
   Doc-currency update 2026-07-19 for v3.41.1 (gateway-activation-drift run): a
