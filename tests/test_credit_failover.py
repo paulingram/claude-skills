@@ -10,8 +10,11 @@ and the LIVE gateway on port 4000 are NEVER touched. No network.
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
+import re
 import sys
+import urllib.error
 from pathlib import Path
 from types import ModuleType
 from typing import Optional
@@ -706,3 +709,193 @@ class TestReactivation:
         final_state = json.loads((state_dir / gw.STATE_NAME).read_text(encoding="utf-8"))
         assert final_state.get("failover") is None
         assert final_state.get("activated") is True
+
+
+# --------------------------------------------------------------------------- #
+# REGRESSION (2026-07-20 incident): the failover MUST NOT fire from a dev
+# checkout.
+#
+# maybe_failover_to_login shipped WITHOUT the installed-copy guard that both
+# maybe_heal_model_split and maybe_heal_activation carry. A dev-checkout session
+# start therefore reached the owner's REAL ~/.architect-team/gateway/gateway.json
+# and applied a failover to it. The detection was correct (the upstream really
+# was credit-exhausted) but the containment was absent — and the failover is the
+# most destructive of the three hook actions: it un-points Claude Code and
+# reverts the model split.
+#
+# The test suite's own conftest tripwire did NOT catch this, because the mutation
+# happened outside a pytest run — which is exactly why the guard, not the
+# tripwire, is the control that matters here.
+# --------------------------------------------------------------------------- #
+
+
+def test_failover_never_fires_from_a_dev_checkout(
+    hook_module: ModuleType, gw: ModuleType, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A plugin_root OUTSIDE plugins_base is a dev checkout => hard no-op.
+
+    Regression for the 2026-07-20 incident: this function shipped WITHOUT the
+    installed-copy guard that both sibling heals carry, so a dev-checkout
+    session start reached the owner's REAL gateway.json and failed it over.
+
+    Asserted by OBSERVING THE LIVENESS PROBE, not by asserting on files. The
+    probe is the first side-effecting step AFTER the copy guard, and it runs
+    BEFORE the dynamic installer load / detection / write steps. Everything
+    after the guard sits inside a blanket ``except Exception: return ""``, so an
+    outcome-based assertion here would pass vacuously whenever a downstream step
+    merely errors — which is exactly how the first version of this test fooled
+    itself. A probe that is never called is positive proof the guard fired; a
+    probe that IS called proves it did not.
+    """
+    # HERMETIC: point the UNSANDBOXED state resolution at a sandbox recording a
+    # fully activated api-key machine. Without this the resolution reaches the
+    # developer's real gateway.json and the test's verdict silently depends on
+    # that machine's current state — an earlier version of this test "passed"
+    # only because the real machine happened to be already failed-over, which
+    # would have masked the guard's removal entirely.
+    gw_home = tmp_path / "gwhome"
+    gw_home.mkdir()
+    (gw_home / gw.STATE_NAME).write_text(json.dumps({
+        "activated": True, "enabled": True, "auth_mode": "api-key",
+        "port": 4000, "secondary_provider": "zai", "secondary_model": "glm-5.2",
+    }, indent=2), encoding="utf-8")
+    monkeypatch.setenv("CT6_GATEWAY_HOME", str(gw_home))
+
+    dev_root = tmp_path / "dev-checkout"
+    dev_root.mkdir()
+    plugins_base = tmp_path / "plugins"
+    plugins_base.mkdir()
+
+    probe_calls: list[int] = []
+
+    def recording_live_probe(port: int, _timeout: float = 0.25) -> bool:
+        probe_calls.append(port)
+        return True  # a credit-dead gateway still binds its port
+
+    note = hook_module.maybe_failover_to_login(
+        plugin_root=dev_root,
+        plugins_base=plugins_base,
+        port_probe=recording_live_probe,
+    )
+
+    assert probe_calls == [], (
+        "the installed-copy guard must short-circuit BEFORE the liveness probe; "
+        f"the probe was reached with {probe_calls} — a dev checkout is "
+        "executing the failover path against whatever the unsandboxed "
+        "resolution finds, which is how the owner's real gateway.json got "
+        "failed over on 2026-07-20")
+    assert note == "", f"a dev checkout must never fail over; got note={note!r}"
+
+
+def test_failover_explicit_injection_still_bypasses_the_copy_guard(
+    hook_module: ModuleType, gw: ModuleType, tmp_path: Path,
+) -> None:
+    """Passing BOTH state and settings paths is programmatic consent to those
+    sandbox paths — the test seam keeps working, same contract as the two heals.
+    Containment must not cost testability.
+
+    Proven by OBSERVATION, not by absence of an exception: the liveness probe is
+    only reached AFTER the copy guard. So a recorded probe call is positive
+    evidence the guard was bypassed and execution continued past it. If the
+    guard had fired, the probe would never be called.
+    """
+    state_dir = _seed_state_dir(gw, tmp_path, port=4000)
+    settings = _activated_settings(gw, tmp_path, port=4000)
+    dev_root = tmp_path / "dev-checkout"
+    dev_root.mkdir()
+    plugins_base = tmp_path / "plugins"
+    plugins_base.mkdir()
+
+    probe_calls: list[int] = []
+
+    def recording_dead_probe(port: int, _timeout: float = 0.25) -> bool:
+        probe_calls.append(port)
+        return False  # dead => fail-open no-op AFTER the guard was passed
+
+    note = hook_module.maybe_failover_to_login(
+        plugin_root=dev_root,          # a dev checkout ...
+        plugins_base=plugins_base,
+        gateway_state_path=state_dir / gw.STATE_NAME,   # ... but both paths
+        settings_path=settings,                          # explicitly injected
+        agents_dir=tmp_path / "agents",
+        port_probe=recording_dead_probe,
+    )
+
+    assert probe_calls == [4000], (
+        "explicit injection must bypass the installed-copy guard and reach the "
+        f"liveness probe; probe_calls={probe_calls}")
+    assert note == "", "a dead port is still a fail-open no-op"
+
+
+def test_hook_path_reverts_the_split_end_to_end(
+    hook_module: ModuleType, gw: ModuleType, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The SessionStart hook path applies ALL FOUR failover effects, including
+    the split revert.
+
+    Closes the coverage gap the reviewer named: the spec requires four effects,
+    and effect 3 (revert the role split to uniform fable) was only ever tested
+    by calling `failover_to_login` directly. The hook's own wiring to it was
+    untested because the hook hardcoded `prober=None`, making its path
+    impossible to exercise hermetically. That is not a theoretical gap — on the
+    2026-07-20 incident the split was in fact NOT reverted, and no test would
+    have noticed.
+
+    The split-revert step sits inside the function's blanket
+    ``except Exception: return ""``, so a silent failure there is invisible from
+    the return value. This asserts on the agents/ files themselves.
+    """
+    state_dir = _seed_state_dir(gw, tmp_path, port=4000)
+    settings = _activated_settings(gw, tmp_path, port=4000)
+
+    # A split-applied agents dir: 2 dev-class agents on the secondary spawn
+    # alias, 1 architecture agent on fable.
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    for stem, model in (("backend", "claude-haiku-4-5"),
+                        ("qa-replayer", "claude-haiku-4-5"),
+                        ("system-architect", "fable")):
+        (agents_dir / f"{stem}.md").write_text(
+            f"---\nname: {stem}\nmodel: {model}\n---\n\nbody\n", encoding="utf-8")
+
+    def exhausted_prober(port, key, model, timeout=30.0, expected_upstream=None):
+        """The REAL shape observed on the owner's machine: Anthropic answers 400
+        with the credit message in the body, not 402."""
+        raise urllib.error.HTTPError(
+            url=f"http://127.0.0.1:{port}/v1/messages", code=400,
+            msg="Bad Request", hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Your credit balance is too low '
+                          b'to access the Anthropic API. Please go to Plans & '
+                          b'Billing to upgrade or purchase credits."}}'))
+
+    note = hook_module.maybe_failover_to_login(
+        gateway_state_path=state_dir / gw.STATE_NAME,   # explicit injection =>
+        settings_path=settings,                          # sandbox consent
+        agents_dir=agents_dir,
+        port_probe=lambda _p, _t=0.25: True,             # credit-dead gw still binds
+        prober=exhausted_prober,
+    )
+
+    assert note, "a credit-exhausted upstream must produce a failover note"
+
+    # effect 1 — env block stripped, unrelated keys preserved
+    env = json.loads(settings.read_text(encoding="utf-8")).get("env", {})
+    assert "ANTHROPIC_BASE_URL" not in env
+    assert env.get("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS") == "1"
+
+    # effect 2 — recorded activation cleared (the suppression seam)
+    state = json.loads((state_dir / gw.STATE_NAME).read_text(encoding="utf-8"))
+    assert state.get("activated") is False
+    assert state.get("failover")
+
+    # effect 3 — THE GAP: the split is actually reverted to uniform fable
+    models = {}
+    for f in agents_dir.glob("*.md"):
+        m = re.search(r"^model:\s*(\S+)", f.read_text(encoding="utf-8"), re.M)
+        if m:
+            models[m.group(1)] = models.get(m.group(1), 0) + 1
+    assert models == {"fable": 3}, (
+        "the hook path must revert the role split to uniform fable — login auth "
+        f"cannot serve the secondary alias; agents are still {models}")

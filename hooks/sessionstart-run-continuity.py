@@ -279,15 +279,31 @@ def maybe_heal_model_split(
 
 
 def maybe_failover_to_login(
+    plugin_root: Path | None = None,
+    plugins_base: Path | None = None,
     gateway_state_path: Path | None = None,
     settings_path: Path | None = None,
     agents_dir: Path | None = None,
     port_probe=None,
+    prober=None,
 ) -> str:
     """Detect credit exhaustion and failover to login auth (v3.42.0),
     returning a one-line note for the session context ("" when nothing applies).
 
     Guards, in order (fail-open on every path, never wedges a session start):
+      - Installed-copy guard with EXPLICIT-INJECTION BYPASS, identical in shape
+        to `maybe_heal_model_split` / `maybe_heal_activation`: the hook must run
+        from an INSTALLED plugin copy (under ~/.claude/plugins/) — a DEV
+        CHECKOUT never mutates the developer's real machine. Injecting BOTH
+        `gateway_state_path` AND `settings_path` is programmatic consent to
+        those sandbox paths and bypasses the guard; the real `main()` wiring
+        never injects.
+        THIS GUARD IS NOT OPTIONAL AND ITS ABSENCE IS NOT THEORETICAL: shipping
+        this function without it let a dev-checkout session start mutate the
+        owner's real gateway.json (2026-07-20). The failover is the most
+        destructive of the three hook actions — it un-points Claude Code and
+        reverts the model split — so it needs at least the same containment as
+        the two heals, not less.
       - State guards: gateway.json must record `activated` AND `enabled` AND
         `auth_mode == "api-key"` (the failover is only for api-key machines).
       - Gateway-liveness guard: probe 127.0.0.1:<port> via the injectable
@@ -306,6 +322,21 @@ def maybe_failover_to_login(
     Ordered BEFORE maybe_heal_activation() so a failover that fires in this
     run doesn't immediately get re-healed."""
     try:
+        # Installed-copy guard with explicit-injection bypass. BOTH
+        # gateway_state_path AND settings_path passed => programmatic consent to
+        # sandbox paths; the real main() wiring never injects, so it always runs
+        # the guard and a dev checkout can never fail over the real machine.
+        explicit = gateway_state_path is not None and settings_path is not None
+        if not explicit:
+            root = Path(plugin_root) if plugin_root \
+                else Path(__file__).resolve().parent.parent
+            base = Path(plugins_base) if plugins_base \
+                else Path.home() / ".claude" / "plugins"
+            try:
+                root.relative_to(base)
+            except ValueError:
+                return ""  # dev checkout / anywhere else — never fails over
+
         state_path = Path(gateway_state_path) if gateway_state_path else (
             Path(os.environ.get("CT6_GATEWAY_HOME")
                  or Path.home() / ".architect-team" / "gateway") / _STATE_NAME)
@@ -356,7 +387,10 @@ def maybe_failover_to_login(
         if not detect_fn:
             return ""  # function not found — fail open
 
-        detection = detect_fn(port, master_key_value, model, prober=None)
+        # `prober` is an injectable seam (mirrors `port_probe`): without it the hook
+        # path could not be exercised end-to-end hermetically, which is exactly
+        # why the split-revert step below went untested until 2026-07-20.
+        detection = detect_fn(port, master_key_value, model, prober=prober)
         if not detection.get("exhausted"):
             return ""  # not credit-exhausted — no failover needed
 
