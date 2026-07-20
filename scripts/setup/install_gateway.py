@@ -1255,6 +1255,183 @@ def _read_state(base: Path) -> dict[str, Any]:
         return {}
 
 
+def classify_upstream_error(status: int, body: Optional[str]) -> str:
+    """Classify an upstream error response. PURE function.
+
+    Returns one of:
+      * "credit-exhausted" — 402 or hard-credit body patterns (insufficient_credit, etc.)
+      * "rate-limited" — 429 (checked BEFORE body scan, so 429 with quota wording is NOT credit-exhausted)
+      * "transient" — 500+ or body matching "overloaded"
+      * "other" — everything else
+
+    Order is load-bearing: 429 check runs BEFORE body-pattern scan. A 429 whose body
+    happens to mention "quota_exceeded" must NOT be classified as credit-exhausted.
+    """
+    # 429 is checked FIRST to prevent quota wording in the body from being misread
+    if status == 429:
+        return "rate-limited"
+
+    # 402 is always credit-exhausted
+    if status == 402:
+        return "credit-exhausted"
+
+    # Check body for hard-credit patterns (case-insensitive)
+    if body:
+        body_lower = body.lower()
+        hard_credit_patterns = (
+            "insufficient_credit",
+            "insufficient credits",
+            "quota_exceeded",
+            "credit balance is too low",
+            "billing",
+            "payment required",
+        )
+        for pattern in hard_credit_patterns:
+            if pattern in body_lower:
+                return "credit-exhausted"
+
+    # 500+ are transient
+    if status >= 500:
+        return "transient"
+
+    # "overloaded" in body is transient
+    if body and "overloaded" in body.lower():
+        return "transient"
+
+    # Anything else
+    return "other"
+
+
+def detect_credit_exhaustion(
+    port: int,
+    master_key: str,
+    model: str,
+    *,
+    prober: Optional[callable] = None,
+) -> dict[str, Any]:
+    """Detect credit exhaustion by probing the live gateway.
+
+    Returns a dict with:
+      * exhausted (bool) — True only if credit-exhausted verdict
+      * class (str or None) — the classifier result (credit-exhausted, rate-limited, etc.)
+      * status (int, optional) — the HTTP status code if a probe failed
+      * excerpt (str, optional) — first ~200 chars of the response body
+
+    If prober is None, uses _http_completion_probe (default).
+    Fail-open: any probe error is classified and returned, never raised.
+    """
+    if prober is None:
+        prober = _http_completion_probe
+
+    try:
+        # Probe succeeds -> no exhaustion
+        prober(port, master_key, model)
+        return {"exhausted": False, "class": None}
+    except urllib.error.HTTPError as e:
+        # Classify the error
+        status = e.code
+        body = ""
+        try:
+            # HTTPError.fp is the file object
+            if hasattr(e, "fp") and e.fp is not None:
+                body_bytes = e.fp.read()
+                body = body_bytes.decode("utf-8", errors="replace")
+            elif hasattr(e, "read"):
+                # Some versions have read() as a method
+                body_bytes = e.read()
+                body = body_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            pass
+
+        verdict = classify_upstream_error(status, body)
+        result = {
+            "exhausted": verdict == "credit-exhausted",
+            "class": verdict,
+            "status": status,
+        }
+        if body:
+            result["excerpt"] = body[:200]
+        return result
+    except Exception as e:
+        # Other probe failures (timeout, connection error, etc.) are transient
+        return {"exhausted": False, "class": "transient"}
+
+
+def failover_to_login(
+    base: Path,
+    settings_path: Path,
+    agents_dir: Path,
+    *,
+    reason: str,
+    detail: str,
+) -> dict[str, Any]:
+    """Apply the credit-failover: strip env block, flip activation, revert split.
+
+    REUSES existing machinery:
+      1. remove_claude_env() — merge-preserving stripper
+      2. _write_state() + clear activated flag — recorded-state flip
+      3. apply_policy(..., POLICY_UNIFORM_FABLE) — revert the role split
+
+    Returns a structured report naming any partial application honestly.
+    Leaves enabled=True and stored keys INTACT so install --activate is the clean return.
+    """
+    from pathlib import Path
+    import sys
+    import os
+
+    # Need to import set_default_model for apply_policy
+    try:
+        from scripts.setup import set_default_model as _sdm_module
+    except ImportError:
+        try:
+            import set_default_model as _sdm_module  # type: ignore
+        except ImportError:
+            _sdm_module = None
+
+    report = {
+        "applied": [],
+        "failed": [],
+    }
+
+    # Step 1: Strip the env block
+    try:
+        removed = remove_claude_env(settings_path, port=_read_state(base).get("port", 4000))
+        if removed:
+            report["applied"].append("removed_env_block")
+        else:
+            report["applied"].append("env_block_not_found")
+    except Exception as e:
+        report["failed"].append(f"remove_env: {e}")
+
+    # Step 2: Flip activation flag + write failover record
+    try:
+        state_data = _read_state(base)
+        state_data["activated"] = False
+        state_data["failover"] = {
+            "at": _utc_now_iso(),
+            "reason": reason,
+            "detail": detail,
+            "provider": state_data.get("secondary_provider"),
+            "port": state_data.get("port", 4000),
+        }
+        _write_state(base, state_data)
+        report["applied"].append("flipped_activation")
+    except Exception as e:
+        report["failed"].append(f"flip_state: {e}")
+
+    # Step 3: Revert the split to uniform fable
+    if _sdm_module and agents_dir.exists():
+        try:
+            agents_dir_path = agents_dir if isinstance(agents_dir, Path) else Path(agents_dir)
+            policy, changed = _sdm_module.apply_policy(agents_dir_path, codex_is_available=False)
+            report["applied"].append("reverted_split_to_fable")
+            report["changed_agents"] = changed
+        except Exception as e:
+            report["failed"].append(f"revert_split: {e}")
+
+    return report
+
+
 def _recorded_secondary_alias(state: dict[str, Any]) -> str:
     """The alias the RECORDED gateway config routes: `secondary_alias`, falling
     back to the legacy `codex_alias`, else the current SECONDARY_ALIAS. Each
@@ -3212,6 +3389,12 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
             report.add("activate", "ok",
                        f"ANTHROPIC_BASE_URL={gateway_url(args.port)} + auth token "
                        f"written to {settings_path}")
+            # v3.42.0: clear failover record on re-activation
+            current_state = _read_state(base)
+            if current_state.get("failover"):
+                current_state.pop("failover", None)
+                _write_state(base, current_state)
+                report.add("failover", "ok", "failover record cleared on re-activation")
             # legacy-alias files were already migrated at step 3b (the same-run
             # consistency pass); apply_split then repairs any remaining drift.
             if agents_dir.is_dir():
@@ -3514,6 +3697,17 @@ def _cmd_status(args: argparse.Namespace, base: Path) -> Report:
             "block (a settings rewrite dropped it); heal: re-run "
             "`install --activate`, or simply start a new session -- the "
             "SessionStart self-heal re-applies it")
+    # v3.42.0 credit-failover: a dedicated row naming the failover event,
+    # when it occurred, why, and the remediation. Emitted ONLY when a failover
+    # record exists (a clean machine is unchanged).
+    failover_record = state.get("failover")
+    if failover_record and isinstance(failover_record, dict):
+        failover_at = failover_record.get("at", "(unknown)")
+        failover_reason = failover_record.get("reason", "(unknown)")
+        report.add(
+            "credit-failover", "alert",
+            f"Failover to login auth at {failover_at} due to {failover_reason}; "
+            f"recovery: install --activate")
     # v3.41.0 impersonation disclosure: a state that records the spawn alias
     # gets its mapping printed plainly — requests labeled with that Claude id
     # through THIS gateway are served by the secondary provider's model.
@@ -3671,11 +3865,94 @@ def _cmd_decline(args: argparse.Namespace, base: Path) -> Report:
     return report
 
 
+def _cmd_failover(args: argparse.Namespace, base: Path) -> Report:
+    """Failover from credit-exhausted upstream to login auth.
+
+    Modes:
+      * bare (default) — detect + act if credit-exhausted
+      * --check — probe + report, change nothing
+      * --force — act without probing, skip the detection step
+    """
+    report = Report(action="failover", base_dir=str(base))
+    state = _read_state(base)
+    port = int(state.get("port", args.port))
+    keys = read_env_file(base / ENV_FILE_NAME)
+    master_key = keys.get(MASTER_KEY_VAR, "")
+    model = str(state.get("secondary_model") or state.get("openai_model") or "claude-opus-4-8")
+
+    report.auth_mode = state.get("auth_mode", resolve_auth_mode(keys))
+    report.enabled = bool(state.get("enabled", False))
+    report.activated = bool(state.get("activated", False))
+
+    check_only = getattr(args, "check", False)
+    force = getattr(args, "force", False)
+
+    if force:
+        # Force failover without detection
+        report.add("failover", "ok",
+                   "Forcing failover to login auth (--force)")
+        if not check_only:
+            settings_path = Path(args.settings_path) if args.settings_path \
+                else _setup.DEFAULT_USER_SETTINGS_PATH
+            agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
+            failover_report = failover_to_login(
+                base, settings_path, agents_dir,
+                reason="forced",
+                detail="--force flag"
+            )
+            if "flipped_activation" in failover_report.get("applied", []):
+                report.add("failover", "ok", "Failover applied successfully")
+            else:
+                report.add("failover", "warn", f"Partial failover: {failover_report}")
+        return report
+
+    # Detect credit exhaustion
+    detection = detect_credit_exhaustion(
+        port, master_key, model,
+        prober=None  # Use default prober
+    )
+
+    if detection.get("exhausted"):
+        if check_only:
+            report.add("credit-exhaustion", "alert",
+                       f"Detected {detection.get('class')} (status {detection.get('status')}); "
+                       f"would failover to login auth")
+            return report
+
+        # Apply failover
+        settings_path = Path(args.settings_path) if args.settings_path \
+            else _setup.DEFAULT_USER_SETTINGS_PATH
+        agents_dir = Path(args.agents_dir) if args.agents_dir else _default_agents_dir()
+        failover_report = failover_to_login(
+            base, settings_path, agents_dir,
+            reason=detection.get("class", "unknown"),
+            detail=f"status {detection.get('status')}"
+        )
+        if "flipped_activation" in failover_report.get("applied", []):
+            report.add("failover", "ok",
+                       f"Failover applied: {detection.get('class')} (status {detection.get('status')}); "
+                       f"recovery: install --activate")
+        else:
+            report.add("failover", "warn", f"Partial failover applied: {failover_report}")
+        return report
+
+    # No credit exhaustion detected
+    verdict_class = detection.get("class", "unknown")
+    if check_only:
+        report.add("credit-exhaustion", "ok",
+                   f"Detected {verdict_class}; no failover needed")
+        return report
+
+    report.add("failover", "ok", f"Detected {verdict_class}; no failover applied")
+    return report
+
+
 _HANDLERS = {
     "install": _cmd_install,
     "status": _cmd_status,
     "uninstall": _cmd_uninstall,
     "decline": _cmd_decline,
+    "failover": _cmd_failover,
 }
 
 
@@ -3873,6 +4150,11 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="the key slot to decline (anthropic or a secondary provider)")
     dec.add_argument("--clear", action="store_true",
                      help="clear the recorded decline for the slot instead")
+    fo = sub.add_parser("failover", parents=[shared], add_help=False)
+    fo.add_argument("--check", action="store_true",
+                    help="probe and report, but change nothing")
+    fo.add_argument("--force", action="store_true",
+                    help="apply failover without probing")
     return parser
 
 
