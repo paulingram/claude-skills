@@ -1,0 +1,36 @@
+{
+  "change": "docs-currency-v3-42-1",
+  "authored_at": "2026-07-21T19:58:00Z",
+  "entries": [
+    {"source_requirement_id": "REQ-001", "source_text": "Zero stale current-state assertions across the walked surface",
+     "spec_requirement_id": "documentation-currency-refresh/widened-surface-currency-sweep-with-dispositions", "layer": "infra",
+     "scenarios": ["stale current-state fixed, history preserved"],
+     "acceptance_criteria": ["every deterministic-scan hit adjudicated: fixed (current-state) or dispositioned (historical)", "post-sweep re-scan returns zero unadjudicated current-state hits", "historical narrative byte-preserved (CHANGELOG body + frozen zones diff-clean except sanctioned cross-ref fixes)"]},
+    {"source_requirement_id": "REQ-002", "source_text": "Zero dead pointers in walked docs",
+     "spec_requirement_id": "documentation-currency-refresh/widened-surface-currency-sweep-with-dispositions", "layer": "infra",
+     "scenarios": ["dead pointers resolved"],
+     "acceptance_criteria": ["per-group dead-pointer extraction+verification run with output captured", "every cited repo path in walked docs resolves post-sweep (or the citation was removed with surrounding text corrected)"]},
+    {"source_requirement_id": "REQ-003", "source_text": "Every walked doc dispositioned; ledger refreshed",
+     "spec_requirement_id": "documentation-currency-refresh/widened-surface-currency-sweep-with-dispositions", "layer": "infra",
+     "scenarios": ["every walked doc dispositioned"],
+     "acceptance_criteria": ["merged ledger covers all walked docs (count reconciles against git ls-files minus frozen zones)", "ledger refreshed at .architect-team/doc-disposition/ledger.json"]},
+    {"source_requirement_id": "REQ-004", "source_text": "Verification battery green",
+     "spec_requirement_id": "documentation-currency-refresh/widened-surface-currency-sweep-with-dispositions", "layer": "infra",
+     "scenarios": ["every walked doc dispositioned"],
+     "acceptance_criteria": ["full suite green both encodings", "instruction-compliance lint green", "changelog_check green (3.42.1)", "capability_index --check green", "openspec validate --all --strict green"]},
+    {"source_requirement_id": "REQ-005", "source_text": "Independent widened-surface audit",
+     "spec_requirement_id": "documentation-currency-refresh/widened-surface-currency-sweep-with-dispositions", "layer": "infra",
+     "scenarios": ["every walked doc dispositioned"],
+     "acceptance_criteria": ["an independent auditor (not a sweep team) re-scans the widened surface + spot-verifies fixes + verifies history preservation; verdict overall: pass gates the commit"]},
+    {"source_requirement_id": "REQ-006", "source_text": "Release docs-only PATCH v3.42.1",
+     "spec_requirement_id": "documentation-currency-refresh/widened-surface-currency-sweep-with-dispositions", "layer": "infra",
+     "scenarios": ["every walked doc dispositioned"],
+     "acceptance_criteria": ["version manifests 3.42.1", "rubric-conforming CHANGELOG entry (no historical entry edited)", "completion audit exit 0; commit/push/auto-merge"]}
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A - docs-only run, no frontend surface; authorization recorded per Phase 1 rule.",
+    "dev_api_integration": "N/A - docs-only run, no API surface.",
+    "interaction_intuition_map": "N/A - Phase -1D no-op."
+  },
+  "confirmed_stubs": []
+}
