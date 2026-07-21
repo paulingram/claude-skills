@@ -1,0 +1,79 @@
+{
+  "change": "gstack-profile-comparison",
+  "authored_at": "2026-07-21T16:55:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_text": "gstack unpacked outside the repo; never committed; static read only",
+      "spec_requirement_id": "gstack-comparative-analysis/reference-package-staged-outside-the-repo",
+      "scenarios": ["unpack location verified", "static-read boundary held"],
+      "acceptance_criteria": [
+        "~/Downloads/gstack-main/ exists with package contents",
+        "no gstack content under the repo tree (grep/ls verification)",
+        "no gstack executable/tool/workflow executed during the run"
+      ],
+      "layer": "infra",
+      "verification_artifacts": [".architect-team/gstack-comparison/findings/staging-verification.txt"]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_text": "Full 4-tier static profile of gstack (skill format / bin tools / evals CI / architecture docs), oversized docs skimmed only",
+      "spec_requirement_id": "gstack-comparative-analysis/four-tier-profile-completeness",
+      "scenarios": ["per-tier findings exist", "oversized docs skimmed not read"],
+      "acceptance_criteria": [
+        "findings/tier-{a,b,c,d}-*.md all exist with gstack file citations on material claims",
+        "tier-d findings state CHANGELOG/TODOS were skimmed for recency/direction only"
+      ],
+      "layer": "infra",
+      "verification_artifacts": [".architect-team/gstack-comparison/findings/"]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_text": "Surface-by-surface comparison report: matrix + three questions answered with two-sided file citations; independently verified",
+      "spec_requirement_id": "gstack-comparative-analysis/two-sided-cited-comparison-report",
+      "scenarios": ["matrix + three questions answered", "independent citation verification"],
+      "acceptance_criteria": [
+        "report contains the matrix covering at least: skill format, quality/verification, tooling, docs, memory/context, agent-model config",
+        "all three narrative sections present (gstack-better / CT6-better / ideas-to-adopt)",
+        "independent reviewer (not the author) verdict: pass — citations resolve on both sides, refuted claims corrected"
+      ],
+      "layer": "infra",
+      "verification_artifacts": [
+        ".architect-team/gstack-comparison/COMPARISON_REPORT.md",
+        ".architect-team/gstack-comparison/adversarial-review-verdict.json"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_text": "Adoption backlog prioritized by value-vs-effort; SR-style actionable items; path recorded in report; nothing implemented this run",
+      "spec_requirement_id": "gstack-comparative-analysis/prioritized-adoption-backlog",
+      "scenarios": ["backlog exists and is consumable", "no implementation this run"],
+      "acceptance_criteria": [
+        "adoption-backlog.md exists alongside the report, items ordered by value/effort ratio",
+        "each item has title, why, acceptance criteria, scope, suggested route",
+        "report records the backlog path",
+        "run diff shows no source/test/doc changes beyond the OpenSpec analysis record"
+      ],
+      "layer": "infra",
+      "verification_artifacts": [".architect-team/gstack-comparison/adoption-backlog.md"]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_text": "Repo hygiene (tracked footprint = OpenSpec record only) and full in-chat delivery",
+      "spec_requirement_id": "gstack-comparative-analysis/repo-hygiene-and-in-chat-delivery",
+      "scenarios": ["working tree clean of analysis side-effects", "findings presented in-chat"],
+      "acceptance_criteria": [
+        "git status in the worktree shows only openspec/changes/gstack-profile-comparison/ (plus gitignored state)",
+        "final user-facing message contains the comparison verdicts + backlog summary in full with on-disk paths"
+      ],
+      "layer": "infra",
+      "verification_artifacts": [".architect-team/gstack-comparison/hygiene-check.txt"]
+    }
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A — analysis-only run; no frontend requirement in scope (refined brief Scope(out): no implementation, no UI surface). Authorization recorded per Phase 1 rule.",
+    "dev_api_integration": "N/A — analysis-only run; no backend requirement in scope. Authorization recorded per Phase 1 rule.",
+    "interaction_intuition_map": "N/A — no designed screens in scope; Phase -1D was a no-op."
+  },
+  "confirmed_stubs": []
+}
