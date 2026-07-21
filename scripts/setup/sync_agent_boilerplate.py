@@ -145,6 +145,39 @@ def _replace_prefix_block(text_lf: str, heading: str, canonical: str) -> Optiona
     return "\n".join(new_lines)
 
 
+def _insert_block_after(text_lf: str, anchor_heading: str, canonical: str) -> Optional[str]:
+    """Insert ``canonical`` as a new block immediately after the anchor block.
+
+    Places the canonical block (separated by a single blank line) right after the
+    ``anchor_heading`` block's last content line, preserving whatever followed it.
+    Returns the new text, or ``None`` if the anchor heading is absent (the caller
+    then leaves the file untouched rather than guessing a location).
+    """
+    lines = text_lf.split("\n")
+    start = None
+    end = None  # exclusive: index of the next "## " heading (or len(lines))
+    for i, line in enumerate(lines):
+        if start is None:
+            if line.rstrip() == anchor_heading:
+                start = i
+            continue
+        if line.startswith("## ") and line.rstrip() != anchor_heading:
+            end = i
+            break
+    if start is None:
+        return None
+    if end is None:
+        end = len(lines)
+    # Trim trailing blank lines of the anchor block so we insert right after its
+    # last content line, then re-introduce exactly one blank separator.
+    last = end
+    while last - 1 > start and lines[last - 1].strip() == "":
+        last -= 1
+    canon_lines = canonical.split("\n")
+    new_lines = lines[:last] + [""] + canon_lines + lines[last:]
+    return "\n".join(new_lines)
+
+
 def _process_file(path: pathlib.Path, dry_run: bool) -> bool:
     """Sync all standard blocks in a single (standard) agent file.
 
@@ -158,7 +191,14 @@ def _process_file(path: pathlib.Path, dry_run: bool) -> bool:
             continue  # variant or not-applicable -> never touch
         heading = spec["heading"]
         canonical = spec["canonical"]
-        if spec["match"] == blocks.MATCH_PREFIX:
+        present = blocks.extract_block(text_lf, heading) is not None
+        anchor = spec.get("insert_after_heading")
+        if not present and anchor:
+            # A standard agent that lacks an insert-mode block gets it placed after
+            # the named anchor. Once present, subsequent runs take the replace path
+            # below and find it already exact (idempotent).
+            new = _insert_block_after(text_lf, anchor, canonical)
+        elif spec["match"] == blocks.MATCH_PREFIX:
             new = _replace_prefix_block(text_lf, heading, canonical)
         else:
             new = _replace_equals_block(text_lf, heading, canonical)

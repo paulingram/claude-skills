@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","tools":["Read"]}
+this line is not json and must be skipped
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"m.py"}}]}}
+{"type":"some_future_event_kind","payload":{"anything":true,"nested":[1,2,3]}}
+{"partial json without closing brace
+{"type":"assistant","message":{"content":[{"type":"text","text":"only text here"}]}}
+{"type":"result","subtype":"error_during_execution","is_error":true,"result":"","num_turns":3}

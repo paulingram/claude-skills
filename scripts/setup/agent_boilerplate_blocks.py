@@ -62,11 +62,41 @@ CHECKPOINT_DISCIPLINE = '## Checkpoint discipline\n\nWhen your work is expected 
 
 OPERATING_CONTEXT = '## Operating context (v1.0.0)\n\nPer `skills/team-spawning-and-review-gates/SKILL.md` `## Operating context (v1.0.0) — for teammate agents`, you are a long-lived teammate in an architect-team run — not a one-shot subagent; you stay in your role across multiple tasks within this run, you receive tasks from the Lead and write a solution requirement for any follow-up that needs a different agent type, and you do NOT spawn other agents or teams yourself.'
 
+# The compact operating-principles block. This is the SINGLE CANONICAL SOURCE for
+# CT6's load-bearing principles as they are injected into every agent AND into the
+# five pipeline-driving skills: the agent sync tool inserts/refreshes it as a
+# `## Operating principles` section, and scripts/setup/compile_skills.py imports
+# this exact string to fill the `ct6:block:principles` fences in the skills. The
+# full statements (each with its named anti-pattern) live in `docs/ETHOS.md`; this
+# block is the compact, always-loaded reminder that points there.
+PRINCIPLES = (
+    "## Operating principles\n\n"
+    "CT6 work is governed by seven load-bearing principles. The full statements — "
+    "each with its named anti-pattern — live in `docs/ETHOS.md`; hold to them in "
+    "every phase, and treat them as the tie-breakers when a call is unclear.\n\n"
+    "- **Reuse before build.** Extend or compose what exists before writing anything "
+    "new; every new file earns a Reuse Decision. Anti-pattern: the greenfield reflex.\n"
+    "- **The producer is never its own checker.** Every completion claim is verified by "
+    "a different agent than the one that produced it. Anti-pattern: self-attestation.\n"
+    "- **Honest boundary.** Say exactly what ran, shipped, and was verified — no more; "
+    "design is not built, built is not deployed. Anti-pattern: the overclaim.\n"
+    "- **Unbounded solving.** Loop until the gate is green; never hand back a "
+    "half-finished run on an iteration count. Anti-pattern: the arbitrary stop.\n"
+    "- **Default to action.** Gates are opt-in; on reversible work, pick the sensible "
+    "default and proceed. Anti-pattern: permission-seeking.\n"
+    "- **Documentation currency.** Docs ship current or the run does not ship. "
+    "Anti-pattern: the stale grid.\n"
+    "- **Evidence before assertion.** State a result only after running the check and "
+    "reading its output. Anti-pattern: the unverified \"should work\".\n\n"
+    "See `docs/ETHOS.md` for the full text."
+)
+
 # --- block headings ----------------------------------------------------------
 
 FORBIDDEN_GIT_OPERATIONS_HEADING = "## Forbidden git operations"
 CHECKPOINT_DISCIPLINE_HEADING = "## Checkpoint discipline"
 OPERATING_CONTEXT_HEADING = "## Operating context (v1.0.0)"
+PRINCIPLES_HEADING = "## Operating principles"
 
 # --- the three VAO agents (R4c, v3.10.0) -------------------------------------
 # These three (adversarial-reviewer, interaction-observer, oracle-deriver) now
@@ -111,6 +141,11 @@ STANDARD_AGENTS_OPERATING_CONTEXT = [
     a for a in STANDARD_AGENTS_FORBIDDEN_GIT
     if a not in OPERATING_CONTEXT_VARIANT_AGENTS
 ]
+# Operating-principles: EVERY agent carries it — the principles are universal and
+# do not vary by role (unlike operating-context, which the 3 VAO agents omit). The
+# block is inserted after the checkpoint block (a universal anchor every agent has)
+# and thereafter kept byte-identical to the canonical text like any equals block.
+STANDARD_AGENTS_PRINCIPLES = list(STANDARD_AGENTS_FORBIDDEN_GIT)
 
 # Match modes: "equals" -> full block must equal canonical; "prefix" -> block
 # must START with canonical (extra role-specific text after it is allowed).
@@ -138,6 +173,20 @@ BLOCKS = {
         "match": MATCH_PREFIX,
         "standard_agents": list(STANDARD_AGENTS_OPERATING_CONTEXT),
         "variant_agents": list(OPERATING_CONTEXT_VARIANT_AGENTS),
+    },
+    # The principles block is unique among the boilerplate blocks in that it is
+    # INSERTED where absent (after the checkpoint anchor) rather than only
+    # replaced-in-place — every agent is a standard agent for it, so a fresh agent
+    # gets the block automatically on the next sync. `insert_after_heading` names
+    # the anchor block the sync tool places it after; once present it is a normal
+    # equals block.
+    "principles": {
+        "heading": PRINCIPLES_HEADING,
+        "canonical": PRINCIPLES,
+        "match": MATCH_EQUALS,
+        "standard_agents": list(STANDARD_AGENTS_PRINCIPLES),
+        "variant_agents": [],
+        "insert_after_heading": CHECKPOINT_DISCIPLINE_HEADING,
     },
 }
 
@@ -270,9 +319,11 @@ __all__ = [
     "FORBIDDEN_GIT_OPERATIONS",
     "CHECKPOINT_DISCIPLINE",
     "OPERATING_CONTEXT",
+    "PRINCIPLES",
     "FORBIDDEN_GIT_OPERATIONS_HEADING",
     "CHECKPOINT_DISCIPLINE_HEADING",
     "OPERATING_CONTEXT_HEADING",
+    "PRINCIPLES_HEADING",
     "MATCH_EQUALS",
     "MATCH_PREFIX",
     "read_agent_text",

@@ -83,6 +83,8 @@ _bg = _load("bg_runtime", "services/common/bg_runtime.py")
 _library_index = _load("library_index", "services/librarian/library_index.py")
 _librarian = _load("librarian", "services/librarian/librarian.py")
 _daemon = _load("librarian_daemon", "services/librarian/daemon.py")
+# The capability-gated CLAUDE.md guidance-block helper (stdlib-only sibling).
+_guidance = _load("ct6_guidance_blocks", "scripts/setup/guidance_blocks.py")
 
 # Layout constants are owned by the daemon module so the two agree.
 CONFIG_NAME = _daemon.CONFIG_NAME
@@ -97,6 +99,26 @@ DESCRIPTOR_DIRNAME = "descriptor"
 SERVICE_NAME = "ct6-librarian"
 DEFAULT_INTERVAL_SECONDS = _daemon.DEFAULT_INTERVAL_SECONDS
 DECLINES_NAME = "key-declines.json"  # v3.38.0 — the per-key decline record (D2)
+
+# Capability-gated CLAUDE.md guidance block: written to a target project's
+# CLAUDE.md (via --claude-md) only when the capability is verified, and removed
+# on uninstall / purge. The slug keys the fence pair.
+GUIDANCE_CAPABILITY = "librarian"
+GUIDANCE_ENABLED_BODY = (
+    "## Librarian topics (CT6)\n"
+    "The CT6 Librarian background research service is installed and enabled for\n"
+    "this project. It curates per-topic reference material on a schedule. Use it:\n"
+    "register topics with `librarian-install add-topic <name> <url>...`, list\n"
+    "them with `list-topics`, and read the per-topic metadata the service writes\n"
+    "for grounded, current context before researching a topic from scratch."
+)
+GUIDANCE_DISABLED_BODY = (
+    "## Librarian topics (CT6 — provisioned, not enabled)\n"
+    "The CT6 Librarian background research service is provisioned for this\n"
+    "project but NOT enabled (no API key resolved), so curated topic research is\n"
+    "not yet available. To enable it, set an API key and re-run the installer\n"
+    "with `--enable` (see the installer's printed remediation)."
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -397,6 +419,37 @@ def run_once(
 
 
 # --------------------------------------------------------------------------- #
+# CLAUDE.md guidance block (capability-gated, self-removing)
+# --------------------------------------------------------------------------- #
+
+def _upsert_guidance(args: argparse.Namespace, report: Report) -> None:
+    """On a verified install, write the guidance block to --claude-md (if given).
+    Enabled installs get the usage block; provisioned-but-disabled installs get
+    the honest disabled block naming the --enable remediation (the librarian's
+    established honesty pattern). A no-op when --claude-md was not supplied."""
+    target = getattr(args, "claude_md", None)
+    if not target:
+        return
+    body = GUIDANCE_ENABLED_BODY if report.enabled else GUIDANCE_DISABLED_BODY
+    _guidance.upsert_block(target, GUIDANCE_CAPABILITY, body, create=True)
+    report.add("guidance-block", "ok",
+               f"{'enabled' if report.enabled else 'disabled-state'} guidance "
+               f"block written to {target}")
+
+
+def _remove_guidance(args: argparse.Namespace, report: Report) -> None:
+    """On uninstall / purge, remove exactly the guidance block from --claude-md
+    (if given). A no-op when --claude-md was not supplied or no block exists."""
+    target = getattr(args, "claude_md", None)
+    if not target:
+        return
+    removed = _guidance.remove_block(target, GUIDANCE_CAPABILITY)
+    report.add("guidance-block", "ok" if removed else "skipped",
+               f"guidance block removed from {target}" if removed
+               else f"no guidance block present in {target} (no-op)")
+
+
+# --------------------------------------------------------------------------- #
 # subcommand handlers
 # --------------------------------------------------------------------------- #
 
@@ -468,6 +521,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
                    "(see remediation)")
     report.topics = _read_topics(base)
     report.declined = sorted(_read_declines(base))
+    _upsert_guidance(args, report)
     return report
 
 
@@ -586,6 +640,7 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
             report.add("purge", "ok", f"removed state dir {base}")
         else:
             report.add("purge", "skipped", "state dir already absent (no-op)")
+    _remove_guidance(args, report)
     return report
 
 
@@ -649,6 +704,10 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--re-ask-keys", action="store_true",
                         help="clear the key-declines.json record so the key "
                              "prompt fires again")
+    parser.add_argument("--claude-md", default=None,
+                        help="path to a target project's CLAUDE.md — a capability "
+                             "guidance block is written there on a verified install "
+                             "and removed on uninstall (omit to touch no CLAUDE.md)")
 
 
 def _build_parser() -> argparse.ArgumentParser:

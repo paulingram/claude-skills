@@ -1,0 +1,205 @@
+{
+  "change": "quality-upgrades-v3-42",
+  "authored_at": "2026-07-21T17:40:00Z",
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_text": "Single principles doc, auto-injected into agent + pipeline-skill surfaces, drift-pinned",
+      "spec_requirement_id": "principles-injection/*",
+      "layer": "infra",
+      "team": "A",
+      "scenarios": [
+        "principles doc exists and is complete",
+        "every agent carries the block",
+        "pipeline-driving skills carry the block"
+      ],
+      "acceptance_criteria": [
+        "docs/ETHOS.md exists with >=5 principles each with anti-pattern",
+        "all 39 agents/*.md carry the current fenced principles block (sync --check green)",
+        "the 5 pipeline-driving skills carry the block via compile",
+        "a suite test fails on drift/hand-edit",
+        "instruction-compliance lint green"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_text": "Structural data envelope on every rendered memory-recall block",
+      "spec_requirement_id": "memory-recall-hygiene/recall-data-envelope",
+      "layer": "infra",
+      "team": "B",
+      "scenarios": [
+        "rendered recall is enveloped"
+      ],
+      "acceptance_criteria": [
+        "scripts/memory/recall_hygiene.py envelope applied on the mempalace-integration render paths (contract text) AND hooks/sessionstart-run-continuity.py injected recall",
+        "a test pins the wrapper on each render path"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_text": "Generated capability index with freshness gate",
+      "spec_requirement_id": "instruction-surface-tooling/generated-capability-index",
+      "layer": "infra",
+      "team": "C",
+      "scenarios": [
+        "index is generated and fresh"
+      ],
+      "acceptance_criteria": [
+        "docs/CAPABILITY_INDEX.md generated (not hand-written), covers every skill+command+agent",
+        "regenerate-and-diff test fails on drift/hand-edit",
+        "CLAUDE.md references the index"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_text": "Recorded non-goals section",
+      "spec_requirement_id": "instruction-surface-tooling/recorded-non-goals",
+      "layer": "infra",
+      "team": "C",
+      "scenarios": [
+        "non-goals section present"
+      ],
+      "acceptance_criteria": [
+        "docs/CODEBASE_MAP.md carries the section with >=4 entries each with rationale + revisit-trigger"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_text": "On-demand reference sections shrink the largest skills",
+      "spec_requirement_id": "skill-boilerplate-compile/on-demand-reference-sections-for-the-largest-skills",
+      "layer": "infra",
+      "team": "A",
+      "scenarios": [
+        "extraction shrinks bodies and pointers resolve"
+      ],
+      "acceptance_criteria": [
+        "skills where conservative extraction was possible have reduced SKILL.md byte counts vs baseline (recorded: common-pipeline-conventions 259290->248657)",
+        "skills with no safely-extractable block recorded as no-safe-extraction with blocking pins named (architect-team-pipeline, bug-fix-pipeline - gate/discipline pins; adjudicated by independent review)",
+        "every reference pointer resolves (lint/test enforced)",
+        "pipeline behavior text preserved (review verified)"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "source_text": "Changelog rubric written + deterministic subset enforced",
+      "spec_requirement_id": "instruction-surface-tooling/enforced-changelog-rubric",
+      "layer": "infra",
+      "team": "C",
+      "scenarios": [
+        "rubric subset enforced"
+      ],
+      "acceptance_criteria": [
+        "docs/CHANGELOG_RUBRIC.md exists",
+        "deterministic check (top-entry version == plugin.json; suite-total line) wired into the suite and passing against the shipped CHANGELOG"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "source_text": "Single-source compiled skill boilerplate with freshness check",
+      "spec_requirement_id": "skill-boilerplate-compile/single-source-compiled-skill-boilerplate",
+      "layer": "infra",
+      "team": "A",
+      "scenarios": [
+        "compile is deterministic and checked",
+        "boilerplate is single-source"
+      ],
+      "acceptance_criteria": [
+        "compile_skills.py byte-stable across two runs",
+        "--check fails on hand-edit inside a generated block (suite-pinned)",
+        "boilerplate defined in exactly one canonical source",
+        "lint green over compiled files"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-008",
+      "source_text": "Capability-gated self-removing installer guidance blocks",
+      "spec_requirement_id": "installer-guidance-blocks/capability-gated-self-removing-guidance-blocks",
+      "layer": "infra",
+      "team": "D",
+      "scenarios": [
+        "install adds the block once",
+        "no flag means no CLAUDE.md side effect",
+        "uninstall or failed check removes exactly the block",
+        "degrade path is honest"
+      ],
+      "acceptance_criteria": [
+        "all three installers upsert the fenced block on verified install when --claude-md is supplied (idempotent; the sanctioned opt-in mechanism per the amended spec)",
+        "without --claude-md no CLAUDE.md is created or modified (test-pinned)",
+        "removal deletes exactly the fenced block, byte-preserving everything else",
+        "disabled state renders honest text or no block",
+        "add/remove/degrade tested per installer"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-009",
+      "source_text": "Budget-regression gate over eval runs (warn-first)",
+      "spec_requirement_id": "behavioral-evals/run-over-run-accounting-and-budget-regression-gate",
+      "layer": "infra",
+      "team": "E",
+      "depends_on": "REQ-012",
+      "scenarios": [
+        "regression is flagged"
+      ],
+      "acceptance_criteria": [
+        "a deliberate >2x tool-count regression in fixture data is flagged naming the eval",
+        "noise floors suppress small-run flags (test-pinned)",
+        "warn-first with documented promotion path"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-010",
+      "source_text": "Optional recall allowlist (default permissive)",
+      "spec_requirement_id": "memory-recall-hygiene/optional-recall-allowlist",
+      "layer": "infra",
+      "team": "B",
+      "scenarios": [
+        "allowlist filters recall"
+      ],
+      "acceptance_criteria": [
+        "configured allowlist excludes out-of-list content from rendered output (test-pinned)",
+        "no allowlist -> behavior unchanged (test-pinned)"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-011",
+      "source_text": "Budgeted TTL digest cache with fail-open staleness",
+      "spec_requirement_id": "memory-recall-hygiene/budgeted-digest-cache-with-fail-open-staleness",
+      "layer": "infra",
+      "team": "B",
+      "scenarios": [
+        "warm cache avoids live calls",
+        "budgets and invalidation hold"
+      ],
+      "acceptance_criteria": [
+        "warm start within TTL serves cached digest with zero live calls (logged, test-pinned)",
+        "byte caps + injection budget enforced (test-pinned)",
+        "mine invalidates the affected digest",
+        "palace-unreachable serves stale marked degraded"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-012",
+      "source_text": "Opt-in behavioral eval tier + one live smoke proof",
+      "spec_requirement_id": "behavioral-evals/opt-in-behavioral-eval-tier + behavioral-evals/one-time-live-harness-proof",
+      "layer": "infra",
+      "team": "E",
+      "scenarios": [
+        "default suite is unaffected",
+        "live evals execute under the flag",
+        "smoke evidence exists"
+      ],
+      "acceptance_criteria": [
+        "default suite runs key-free with no eval executed; deterministic engine logic covered in the default suite",
+        "under the env flag, routing + outcome evals execute live recording verdict+cost JSON",
+        "outcome verdict from deterministic thresholds, not judge self-claim",
+        "ONE live smoke (routing + outcome) executed this run with recorded verdict + cost artifact"
+      ]
+    }
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A - no frontend surface in scope (plugin markdown/python only); authorization recorded per Phase 1 rule.",
+    "dev_api_integration": "N/A - no API surface; the live verification for this change is the REQ-012 eval smoke against the real model CLI.",
+    "interaction_intuition_map": "N/A - Phase -1D no-op (no frontend codebase)."
+  },
+  "confirmed_stubs": []
+}

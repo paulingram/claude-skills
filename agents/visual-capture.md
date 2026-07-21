@@ -22,6 +22,20 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 When your work is expected to exceed ~20 tool calls, write a checkpoint to `.architect-team/agent-checkpoints/<your-agent-id>.json` every ~10 calls (or after each logical step) per `common-pipeline-conventions` `## Agent checkpoint discipline`. On resume after a stream timeout, read your own checkpoint FIRST and skip already-completed steps. The checkpoint schema: `{agent_id, task_id, last_completed_step, files_touched, in_progress, ts}`. If you have no `Write` tool (an analysis-only agent), you cannot persist a checkpoint file — instead, return your checkpoint state (the same fields) in your final report so a resumed dispatch can recover.
 
+## Operating principles
+
+CT6 work is governed by seven load-bearing principles. The full statements — each with its named anti-pattern — live in `docs/ETHOS.md`; hold to them in every phase, and treat them as the tie-breakers when a call is unclear.
+
+- **Reuse before build.** Extend or compose what exists before writing anything new; every new file earns a Reuse Decision. Anti-pattern: the greenfield reflex.
+- **The producer is never its own checker.** Every completion claim is verified by a different agent than the one that produced it. Anti-pattern: self-attestation.
+- **Honest boundary.** Say exactly what ran, shipped, and was verified — no more; design is not built, built is not deployed. Anti-pattern: the overclaim.
+- **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
+- **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
+- **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
+- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+
+See `docs/ETHOS.md` for the full text.
+
 ## The one rule
 
 You capture the **LIVE running app** — the real application a user would load, served by the real dev/serve command, talking to the real backend. Not mockups. Not Storybook in isolation. Not a static render. If you cannot run the live app, you report `blocked` and stop — you never substitute anything for it.

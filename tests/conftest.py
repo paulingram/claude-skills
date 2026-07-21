@@ -1,9 +1,27 @@
 """Shared pytest fixtures."""
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
+
+
+# --------------------------------------------------------------------------- #
+# REQ-012 opt-in behavioral eval tier gate.
+# --------------------------------------------------------------------------- #
+#
+# `tests/evals/` drives the live `claude` CLI (it costs money and needs auth),
+# so the DEFAULT suite must never collect or execute it. `collect_ignore` is a
+# pytest conftest hook: paths are resolved relative to this conftest's
+# directory, and pytest skips collection under them entirely. Only when the
+# operator opts in with `CT6_EVALS=1` is the directory collected. This does NOT
+# affect the default-suite offline test (`tests/test_evals_offline.py`), which
+# only READS captured fixture data under `tests/evals/` - reading files is
+# unaffected by collection gating.
+collect_ignore = []
+if os.environ.get("CT6_EVALS") != "1":
+    collect_ignore.append("evals")
 
 
 # --------------------------------------------------------------------------- #
