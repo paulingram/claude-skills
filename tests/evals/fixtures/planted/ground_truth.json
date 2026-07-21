@@ -1,0 +1,25 @@
+{
+  "module": "calc.py",
+  "defects": [
+    {
+      "id": "add-inverted-operator",
+      "description": "add(a, b) returns a - b instead of a + b (inverted arithmetic operator).",
+      "hint_regex": "return a - b"
+    },
+    {
+      "id": "average-zero-division",
+      "description": "average() divides by len(prices) with no empty-list guard, raising ZeroDivisionError on an empty input.",
+      "hint_regex": "total\\(prices\\) / len\\(prices\\)"
+    },
+    {
+      "id": "apply-discount-scaling",
+      "description": "apply_discount() computes price - price * pct, treating a percentage as a fraction; the missing /100 drives a normal percentage input to a wildly wrong (often negative) price.",
+      "hint_regex": "price - price \\* pct"
+    }
+  ],
+  "thresholds": {
+    "min_detected": 1,
+    "max_false_positives": 3,
+    "min_evidence_quality": 2
+  }
+}

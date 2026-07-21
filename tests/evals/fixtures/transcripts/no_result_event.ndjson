@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","tools":["Read","Grep"]}
+{"type":"assistant","message":{"content":[{"type":"text","text":"first thought"},{"type":"tool_use","name":"Grep","input":{"pattern":"route"}}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I would invoke /architect-team:bug-fix for this symptom."}]}}

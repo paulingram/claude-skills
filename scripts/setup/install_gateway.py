@@ -319,6 +319,26 @@ DECLINES_NAME = "key-declines.json"
 DESCRIPTOR_DIRNAME = "descriptor"
 MASTER_KEY_VAR = "CT6_GATEWAY_MASTER_KEY"
 
+# Capability-gated CLAUDE.md guidance block: written to a target project's
+# CLAUDE.md (via --claude-md) only when the gateway is verified enabled, and
+# removed on uninstall / purge. The slug keys the fence pair.
+GUIDANCE_CAPABILITY = "gateway"
+GUIDANCE_ENABLED_BODY = (
+    "## External-LLM gateway (CT6)\n"
+    "A local external-LLM gateway is installed and enabled for this project,\n"
+    "providing a secondary model route alongside the primary models. Sessions\n"
+    "and the service tier can address the secondary route through the configured\n"
+    "gateway alias. Run the installer `status` to see the active provider, port,\n"
+    "and whether Claude Code activation is applied."
+)
+GUIDANCE_DISABLED_BODY = (
+    "## External-LLM gateway (CT6 — provisioned, not enabled)\n"
+    "A local external-LLM gateway is provisioned for this project but NOT enabled\n"
+    "(no secondary-provider key resolved), so the secondary model route is not\n"
+    "available. To enable it, provide the secondary provider's key and re-run\n"
+    "the installer (see the printed remediation)."
+)
+
 # Provider-independent key slot, followed by the chosen secondary provider's slot.
 ANTHROPIC_SLOT = ("anthropic", "ANTHROPIC_API_KEY")
 
@@ -350,6 +370,8 @@ def _load(name: str, rel: str):
 _lever = _load("ct6_model_lever", "scripts/setup/set_default_model.py")
 _bg = _load("ct6_bg_runtime", "services/common/bg_runtime.py")
 _setup = _load("ct6_setup_module", "scripts/setup/setup.py")
+# The capability-gated CLAUDE.md guidance-block helper (stdlib-only sibling).
+_guidance = _load("ct6_guidance_blocks", "scripts/setup/guidance_blocks.py")
 
 SECONDARY_ALIAS = _lever.SECONDARY_ALIAS
 SECONDARY_PROVIDERS = _lever.SECONDARY_PROVIDERS
@@ -2959,6 +2981,37 @@ SUBSCRIPTION_MODE_NOTE = (
 
 
 # --------------------------------------------------------------------------- #
+# CLAUDE.md guidance block (capability-gated, self-removing)
+# --------------------------------------------------------------------------- #
+
+def _upsert_guidance(args: argparse.Namespace, report: Report) -> None:
+    """On a verified install, write the guidance block to --claude-md (if given).
+    An enabled gateway gets the usage block; a provisioned-but-disabled gateway
+    (no secondary key) gets the honest disabled block. A no-op when --claude-md
+    was not supplied."""
+    target = getattr(args, "claude_md", None)
+    if not target:
+        return
+    body = GUIDANCE_ENABLED_BODY if report.enabled else GUIDANCE_DISABLED_BODY
+    _guidance.upsert_block(target, GUIDANCE_CAPABILITY, body, create=True)
+    report.add("guidance-block", "ok",
+               f"{'enabled' if report.enabled else 'disabled-state'} guidance "
+               f"block written to {target}")
+
+
+def _remove_guidance(args: argparse.Namespace, report: Report) -> None:
+    """On uninstall / purge, remove exactly the guidance block from --claude-md
+    (if given). A no-op when --claude-md was not supplied or no block exists."""
+    target = getattr(args, "claude_md", None)
+    if not target:
+        return
+    removed = _guidance.remove_block(target, GUIDANCE_CAPABILITY)
+    report.add("guidance-block", "ok" if removed else "skipped",
+               f"guidance block removed from {target}" if removed
+               else f"no guidance block present in {target} (no-op)")
+
+
+# --------------------------------------------------------------------------- #
 # subcommand handlers
 # --------------------------------------------------------------------------- #
 
@@ -3444,6 +3497,7 @@ def _cmd_install(args: argparse.Namespace, base: Path) -> Report:
         if (report.split_applied or prior_split_desired)
         else POLICY_UNIFORM_FABLE,
     })
+    _upsert_guidance(args, report)
     return report
 
 
@@ -3643,6 +3697,7 @@ def _cmd_uninstall(args: argparse.Namespace, base: Path) -> Report:
         # never re-applies a split the user uninstalled.
         _write_state(base, {**state, "activated": False,
                             "model_policy": POLICY_UNIFORM_FABLE})
+    _remove_guidance(args, report)
     return report
 
 
@@ -3856,6 +3911,10 @@ def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
                         help="emit a machine-readable JSON report")
     parser.add_argument("--purge", action="store_true",
                         help="(uninstall) also remove the state dir")
+    parser.add_argument("--claude-md", default=None,
+                        help="path to a target project's CLAUDE.md — a capability "
+                             "guidance block is written there on a verified install "
+                             "and removed on uninstall (omit to touch no CLAUDE.md)")
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -26,6 +26,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import platform
@@ -40,6 +41,37 @@ from typing import Iterable, Optional
 # pip --user lands them outside the user's existing PATH. Keep this list
 # short and explicit: the installer never symlinks unrelated executables.
 _BRIDGED_BINARIES: tuple[str, ...] = ("mempalace", "mempalace-mcp")
+
+
+def _load_sibling(name: str, filename: str):
+    """Load a stdlib-only sibling module by file path so the installer works both
+    as a `python3 install_mempalace.py` script and when loaded by the tests via
+    spec_from_file_location (where sys.path[0] is not this dir)."""
+    spec = importlib.util.spec_from_file_location(
+        name, Path(__file__).resolve().parent / filename)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load {name} from {filename}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# The capability-gated CLAUDE.md guidance-block helper (stdlib-only sibling).
+_guidance = _load_sibling("ct6_guidance_blocks", "guidance_blocks.py")
+
+# Capability-gated CLAUDE.md guidance block: written to a target project's
+# CLAUDE.md (via --claude-md) only when mempalace is verified reachable, and
+# removed when a check finds it absent. The slug keys the fence pair.
+GUIDANCE_CAPABILITY = "mempalace"
+GUIDANCE_BODY = (
+    "## MemPalace memory (CT6)\n"
+    "This project has a MemPalace memory store installed. At the START of every\n"
+    "session, wake it up FIRST — mine prior context before doing other work —\n"
+    "then store durable findings, decisions, and maps back to it as you go.\n"
+    "Search it before re-deriving anything; the per-workspace palace lives under\n"
+    "`.mempalace/palace` in the workspace root."
+)
 
 
 @dataclass
@@ -342,6 +374,11 @@ def main(argv: list[str]) -> int:
                         help="Workspace path; used to suggest a per-workspace palace.")
     parser.add_argument("--json", action="store_true",
                         help="Emit a JSON status report at the end.")
+    parser.add_argument("--claude-md", default=None,
+                        help="Path to a target project's CLAUDE.md — a wake-up-first "
+                             "guidance block is written there when mempalace is "
+                             "reachable and removed when a check finds it absent "
+                             "(omit to touch no CLAUDE.md).")
     args = parser.parse_args(argv)
 
     report = Report()
@@ -472,6 +509,23 @@ def main(argv: list[str]) -> int:
         report.init_command = build_init_command(args.workspace, palace_path)
 
     report.mcp_command = build_mcp_command(palace_path)
+
+    # Capability-gated CLAUDE.md guidance block (opt-in via --claude-md): on a
+    # verified-reachable mempalace, upsert the wake-up-first block; when a check
+    # (or a completed run) finds mempalace absent, remove exactly that block.
+    if args.claude_md:
+        if report.mempalace_installed:
+            _guidance.upsert_block(
+                args.claude_md, GUIDANCE_CAPABILITY, GUIDANCE_BODY, create=True)
+            report.steps.append(StepResult(
+                name="guidance-block", status="ok",
+                detail=f"wake-up guidance block written to {args.claude_md}"))
+        else:
+            removed = _guidance.remove_block(args.claude_md, GUIDANCE_CAPABILITY)
+            report.steps.append(StepResult(
+                name="guidance-block", status="ok" if removed else "skipped",
+                detail=(f"guidance block removed from {args.claude_md}" if removed
+                        else f"no guidance block present in {args.claude_md} (no-op)")))
 
     if args.check_only and not report.mempalace_installed:
         return _emit(report, args.json, exit_code=1)
