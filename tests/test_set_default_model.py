@@ -1,10 +1,13 @@
 """Tests for scripts/setup/set_default_model.py — the uniform agent-model lever.
 
-The v3.32.0 Fable-5 default ships every agent as ``model: fable``; this stdlib CLI
-is the sanctioned, deterministic lever that rewrites the frontmatter ``model:``
-field uniformly (and is the implemented Opus-4.8 fallback: ``--model opus``). These
-tests exercise the lever against a throwaway copy of the real ``agents/`` directory
-so they are robust to whatever the committed model state happens to be.
+The v3.43.0 ship state is the delivery-adversarial Opus split (12 delivery +
+adversarial agents on ``model: opus``, the rest on ``fable``); this stdlib CLI is
+the sanctioned, deterministic lever that rewrites the frontmatter ``model:`` field
+— uniformly (``--model``, incl. the implemented Opus-4.8 fallback), on the gateway
+secondary role split (``--split secondary``), or on the delivery/adversarial Opus
+split (``--split delivery``). These tests exercise the lever against a throwaway
+copy of the real ``agents/`` directory so they are robust to whatever the committed
+model state happens to be.
 
 Module-load style mirrors tests/test_teams_mode.py: loaded via importlib, NOT a
 package import.
@@ -469,6 +472,106 @@ def test_uniform_split_aliases_are_rejected(
     ])
     assert rc == 1
     assert before == {p.name: p.read_bytes() for p in tmp_agents.glob("*.md")}
+
+
+# --------------------------------------------------------------------------- #
+# Delivery/adversarial Opus split (v3.43.0)
+# --------------------------------------------------------------------------- #
+
+def test_delivery_adversarial_set_is_the_twelve_shipped_stems(
+    mod: ModuleType, tmp_agents: Path
+) -> None:
+    """The canonical opus partition is exactly 12 stems, every one is a real
+    shipped agent (no typo / stale entry), and it is a SUBSET of the gateway
+    development bucket — a delivery/adversarial agent is, by construction, also a
+    development/checking/testing agent, so the two splits never disagree on a
+    stem's 'is this a doer' classification."""
+    stems = {p.stem for p in tmp_agents.glob("*.md")}
+    assert len(mod.DELIVERY_ADVERSARIAL_AGENTS) == 12
+    assert mod.DELIVERY_ADVERSARIAL_AGENTS <= stems, (
+        mod.DELIVERY_ADVERSARIAL_AGENTS - stems)
+    assert mod.DELIVERY_ADVERSARIAL_AGENTS <= mod.DEVELOPMENT_CHECKING_TESTING_AGENTS
+
+
+def test_deliver_split_applies_opus_and_fable(mod: ModuleType, tmp_agents: Path) -> None:
+    mod.apply_deliver_split(tmp_agents)
+    assert mod.distribution(tmp_agents) == {"opus": 12, "fable": 39 - 12}
+
+
+def test_deliver_split_spot_checks(mod: ModuleType, tmp_agents: Path) -> None:
+    """Owner directive verbatim: delivery + adversarial => opus; plan / validate /
+    review => fable."""
+    mod.apply_deliver_split(tmp_agents)
+    for opus in ("backend", "frontend", "integration", "reconciler",
+                 "adversarial-reviewer", "structure-adversary", "qa-replayer",
+                 "mini-qa", "visual-analyzer", "flow-executor"):
+        assert _model_of(tmp_agents, opus, mod) == "opus", opus
+    for fable in ("system-architect", "task-reviewer", "test-completeness-verifier",
+                  "flow-explorer", "visual-capture", "reference-tracer",
+                  "doc-updater", "prompt-refiner", "monitor-synthesizer"):
+        assert _model_of(tmp_agents, fable, mod) == "fable", fable
+
+
+def test_deliver_role_model_fail_safe(mod: ModuleType) -> None:
+    """A delivery/adversarial stem => opus; an unclassified (e.g. newly scaffolded)
+    stem fails safe to fable — opus is never the silent default."""
+    assert mod.deliver_role_model("backend") == "opus"
+    assert mod.deliver_role_model("some-brand-new-agent") == "fable"
+
+
+def test_deliver_split_is_idempotent(mod: ModuleType, tmp_agents: Path) -> None:
+    mod.apply_deliver_split(tmp_agents)
+    assert mod.apply_deliver_split(tmp_agents) == []
+
+
+def test_deliver_split_only_touches_the_model_line(mod: ModuleType, tmp_agents: Path) -> None:
+    mod.set_model(tmp_agents, "haiku")
+    baseline = {p.name: p.read_text(encoding="utf-8") for p in tmp_agents.glob("*.md")}
+    mod.apply_deliver_split(tmp_agents)
+    for p in sorted(tmp_agents.glob("*.md")):
+        before = baseline[p.name].splitlines()
+        after = p.read_text(encoding="utf-8").splitlines()
+        assert len(before) == len(after), f"{p.name}: line count changed"
+        diffs = [i for i, (b, a) in enumerate(zip(before, after)) if b != a]
+        assert len(diffs) == 1, f"{p.name}: expected exactly one changed line"
+        assert before[diffs[0]].lstrip().startswith("model:"), p.name
+
+
+def test_policy_state_recognizes_deliver_opus_split(mod: ModuleType, tmp_agents: Path) -> None:
+    mod.apply_deliver_split(tmp_agents)
+    assert mod.policy_state(tmp_agents) == "deliver-opus-split"
+    assert mod.policy_state(tmp_agents) == mod.POLICY_DELIVER_OPUS_SPLIT
+
+
+def test_deliver_split_distinct_from_secondary_split(mod: ModuleType, tmp_agents: Path) -> None:
+    """The two splits are different axes: the secondary split classifies as
+    secondary-split, the delivery split as deliver-opus-split — neither is read
+    as the other, and a fresh secondary split is never 'mixed'."""
+    mod.apply_split(tmp_agents)
+    assert mod.policy_state(tmp_agents) == "secondary-split"
+    mod.apply_deliver_split(tmp_agents)
+    assert mod.policy_state(tmp_agents) == "deliver-opus-split"
+
+
+def test_cli_split_delivery(mod: ModuleType, tmp_agents: Path, capsys) -> None:
+    rc = mod.main(["--split", "delivery", "--agents-dir", str(tmp_agents)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "deliver-opus-split" in captured.out
+    assert captured.err == ""
+    assert mod.policy_state(tmp_agents) == "deliver-opus-split"
+    assert mod.distribution(tmp_agents) == {"opus": 12, "fable": 27}
+
+
+def test_cli_check_reports_deliver_opus_split_policy(
+    mod: ModuleType, tmp_agents: Path, capsys
+) -> None:
+    mod.apply_deliver_split(tmp_agents)
+    mod.main(["--check", "--agents-dir", str(tmp_agents)])
+    out = capsys.readouterr().out
+    assert "policy: deliver-opus-split" in out
+    assert "opus: 12" in out
+    assert "fable: 27" in out
 
 
 # --------------------------------------------------------------------------- #

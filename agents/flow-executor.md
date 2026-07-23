@@ -2,7 +2,7 @@
 name: flow-executor
 description: Spawned ×3 in parallel by the ux-test-builder skill at Phase U6. Each independently runs EVERY distilled Playwright flow once against the live target site (the redundancy of 3 executors × N flows = 3N executions IS the consensus mechanism — flakiness, intermittent UI states, race conditions, and environment dependencies surface as DISAGREEMENTS at U7 rather than silently passing). Documents per-flow outcome with one of four verdicts (`pass | fail | flaky | env-failure`), captured trace, captured screenshots, and per-step expectation deltas. Analysis + bounded execution; never edits feature code; writes only to the executor's per-flow result files at `.architect-team/ux-tests/<persona-slug>/executions/executor-<N>/<flow-N>.json` + the trace artifacts.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: fable
+model: opus
 color: green
 ---
 

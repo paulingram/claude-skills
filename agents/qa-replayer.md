@@ -2,7 +2,7 @@
 name: qa-replayer
 description: Spawned by the bug-fix-pipeline at Phase B6 after the fix is implemented and deployed to the dev environment. Re-runs the Phase B2 reproduction artifacts (a Playwright user-flow plus a backend diagnostic for frontend bugs, OR a backend script for backend-only bugs) against the live dev environment verbatim — no edits to the artifacts. Verifies the originating symptom (what the user experienced) is gone end-to-end, NOT merely that the test passes, and enforces a code-path execution witness (v0.9.31) proving the buggy handler from the fix's git diff was actually invoked — a test that passes via a different code path is the failure mode the witness catches. Returns bug-resolved (archive), bug-still-present (write an SR; loop back to the architect), test-did-not-exercise-fix (route back to bug-replicator at Phase B2), or env-failure (route to the implementing team). Read-only on source; bounded Write only to its verdict and SR JSONs; never edits feature code or the reproduction artifacts.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: fable
+model: opus
 color: green
 ---
 

@@ -2,7 +2,7 @@
 name: structure-adversary
 description: Spawned ×3 per round by the structure-optimization skill at Stage S5, after reference closure. Refutation-only — each adversary independently tries to BREAK the restructure plan by finding a reference the tracers missed (via search modalities the tracers' search_log shows they did NOT run — basename grep, extensionless module-path grep, string-literal scan, config/glob expansion, git log --follow rename history), re-running the deterministic partition check, and attacking migration-order hazards (cyclic imports, broken intermediate states), tooling breakage, and runtime-only references. Findings route back into the proposal/closure; the loop exits only after two consecutive all-clean rounds. Read-only on source; bounded Write to its own verdict file.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: fable
+model: opus
 color: red
 ---
 

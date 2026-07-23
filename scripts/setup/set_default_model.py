@@ -32,6 +32,11 @@ Behaviour
 * ``--split secondary`` applies the role split unconditionally. ``--split codex``
   remains a deprecated synonym. ``--secondary-model`` overrides the written alias;
   ``--codex-model`` remains a backward-compatible option synonym.
+* ``--split delivery`` applies the v3.43.0 delivery-adversarial Opus split: the
+  12 delivery + adversarial agents (``DELIVERY_ADVERSARIAL_AGENTS``) take
+  ``model: opus``, every planning / validation / review agent stays on ``fable``.
+  This is the shipped default state; ``opus`` is a real Claude id (no gateway
+  impersonation). It is a DIFFERENT axis than the secondary split above.
 * ``--auto`` resolves the policy from ``CT6_CODEX_56_AVAILABLE``: truthy => the
   secondary split; SET-but-falsy => uniform fable (the current operating default);
   ABSENT => no signal — the model state is left untouched (a manually applied
@@ -186,6 +191,38 @@ def role_for(stem: str) -> str:
     An UNCLASSIFIED stem (e.g. a newly scaffolded agent) defaults to the
     architecture/control/design bucket — the fail-safe is fable, never codex."""
     return AGENT_ROLES.get(stem, ROLE_ARCHITECTURE)
+
+
+# --- Delivery/adversarial Opus split (v3.43.0) ------------------------------- #
+# A SECOND role partition, ORTHOGONAL to the gateway secondary split above and
+# independent of it (different axis, different targets). Owner directive
+# (2026-07-23): run the DELIVERY + ADVERSARIAL agents on Opus 4.8 — the
+# strongest code-gen for the agents that write/merge product code and the
+# sharpest attacker for the agents whose job is to break, refute, reproduce, or
+# execute-to-surface-failures — and keep the PLANNING / VALIDATION / REVIEW
+# agents on Fable (architects, deep planners, researchers, and the reviewers who
+# adjudicate the adversarial output). Unlike the secondary split, this writes a
+# REAL Claude id (``opus``) into frontmatter — the Agent-Teams spawn gate accepts
+# it directly, so no gateway impersonation route is involved.
+OPUS_MODEL = "opus"
+POLICY_DELIVER_OPUS_SPLIT = "deliver-opus-split"
+
+DELIVERY_ADVERSARIAL_AGENTS = frozenset({
+    # delivery — the implementer teammates + hands-on code integration / merge
+    "backend", "frontend", "integration", "reconciler",
+    # adversarial — attack / refute / reproduce / execute-to-surface-failures
+    "adversarial-reviewer", "structure-adversary", "fix-sensibility-checker",
+    "bug-replicator", "qa-replayer", "flow-executor", "visual-analyzer",
+    "mini-qa",
+})
+
+
+def deliver_role_model(stem: str) -> str:
+    """Return the delivery-split target model for an agent stem: ``opus`` for a
+    delivery/adversarial agent, else ``fable``. An unclassified (e.g. newly
+    scaffolded) stem fails safe to ``fable`` — Opus is never the silent default,
+    the same fail-safe direction as the architecture bucket in ``role_for``."""
+    return OPUS_MODEL if stem in DELIVERY_ADVERSARIAL_AGENTS else "fable"
 
 
 def codex_available(env: Optional[Mapping[str, str]] = None) -> bool:
@@ -396,6 +433,36 @@ def apply_split(
     return sorted(changed)
 
 
+def deliver_split_targets(agents_dir) -> Dict[str, str]:
+    """Return ``{stem: target_model}`` for the delivery/adversarial Opus split:
+    ``opus`` on every delivery + adversarial agent, ``fable`` on every planning /
+    validation / review agent (and any unclassified stem)."""
+    agents_dir = pathlib.Path(agents_dir)
+    return {
+        path.stem: deliver_role_model(path.stem)
+        for path in sorted(agents_dir.glob("*.md"))
+    }
+
+
+def apply_deliver_split(agents_dir) -> List[str]:
+    """Apply the delivery/adversarial Opus split: ``opus`` on delivery + adversarial
+    agents, ``fable`` on planning / validation / review agents. Returns sorted
+    changed stems. Idempotent; only the frontmatter model line is ever touched."""
+    agents_dir = pathlib.Path(agents_dir)
+    targets = deliver_split_targets(agents_dir)
+    changed: List[str] = []
+    for path in sorted(agents_dir.glob("*.md")):
+        text_lf, newline, trailing = _read(path)
+        new = rewrite_model_line(text_lf, targets[path.stem])
+        if new is None or new == text_lf:
+            continue
+        if trailing and not new.endswith("\n"):
+            new += "\n"
+        if _write_if_changed(path, new, newline):
+            changed.append(path.stem)
+    return sorted(changed)
+
+
 def migrate_legacy_split(agents_dir) -> List[str]:
     """Rewrite superseded split-target aliases to ``SPAWN_ALIAS_MODEL_ID``.
 
@@ -476,6 +543,8 @@ def policy_state(agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID) -> str:
     ))
     if any(actual == split_targets(agents_dir, alias) for alias in recognized_aliases):
         return POLICY_SECONDARY_SPLIT
+    if actual == deliver_split_targets(agents_dir):
+        return POLICY_DELIVER_OPUS_SPLIT
     return "mixed"
 
 
@@ -525,11 +594,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     group.add_argument(
         "--split",
-        choices=["secondary", "codex"],
+        choices=["secondary", "codex", "delivery"],
         default=None,
-        help="Apply the secondary-model role split: fable on architecture/control/"
-        "design agents and the secondary alias on development/checking/testing "
-        "agents. 'codex' is a deprecated synonym.",
+        help="Apply a role split. 'secondary' (canonical; 'codex' is a deprecated "
+        "synonym): fable on architecture/control/design agents, the gateway "
+        "secondary alias on development/checking/testing agents. 'delivery': opus "
+        "on delivery + adversarial agents, fable on planning/validation/review "
+        "agents (the v3.43.0 delivery-adversarial Opus split).",
     )
     group.add_argument(
         "--auto",
@@ -566,6 +637,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.check:
         _print_distribution(agents_dir, args.secondary_model)
+        return 0
+
+    if args.split == "delivery":
+        changed = apply_deliver_split(agents_dir)
+        _report_changed(POLICY_DELIVER_OPUS_SPLIT, changed)
         return 0
 
     if args.split in {"secondary", "codex"}:

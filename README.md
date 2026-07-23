@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 42 . 1
+                        ─── C T 6 ───   v 3 . 43 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.42.1-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.43.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-5891%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -102,6 +102,23 @@ A non-merge-preserving rewrite of `~/.claude/settings.json` (observed 2026-07-18
 | **The root clobberer: the test suite itself (REQ-004)** | Found mid-run, and the actual origin of both incidents. `tests/test_install_gateway.py::test_uninstall_purge_removes_state_dir` ran a REAL `uninstall` with `--base-dir`/`--agents-dir` sandboxed but **no `--settings-path`**, so `_cmd_uninstall` resolved the DEFAULT `~/.claude/settings.json` and stripped the env block. On CI and never-activated machines it silently no-ops — which is why it went unnoticed — but on an ACTIVATED machine **every full `pytest` run deactivated the gateway**, producing exactly the drift the rest of this release detects and heals. (The product was never at fault: `uninstall` touching the real settings.json is correct for a real user. The defect was a TEST invoking it unsandboxed.) Fixed in three deliberately-redundant layers: **(a)** the leaker now names `--settings-path`; **(b)** a module-wide autouse fixture redirects `DEFAULT_USER_SETTINGS_PATH` to a per-test sentinel so no test in that file — present or future — can reach the real path, with a probe test proving the redirect absorbs the fallback; **(c)** a session-scoped tripwire in `tests/conftest.py` SHA-256-digests the real `settings.json` + `gateway.json` + `gateway.env` at suite start and fails LOUDLY at suite end on any mutation, turning any future leak of this class in any test file into a named failure. The tripwire was verified to actually fire against a simulated leak. |
 | **Forward-compat: credit-exhaustion failover** | `maybe_heal_activation`'s state guards are read BEFORE the liveness probe, and that ordering is now test-pinned (parametrized, asserting the probe is never called). This makes **recorded consent** the single suppression seam: a future failover that un-points Claude Code when the upstream runs out of credits suppresses the heal by flipping recorded state, with zero guard-logic change — instead of being silently fought and undone on the next session start. TCP port-liveness is explicitly **not** a credit/upstream-health signal: a credit-dead gateway still binds its port. |
 | **Counts + tests** | +43 hermetic tests — 8 replication (5 for REQ-001…003 + 3 for REQ-004, all RED pre-fix) + 33 unit + a sentinel-absorption probe + the session tripwire. Suite 5646 → **5689 passing + 4 skipped** (202 test files incl. the pytest-collected replication artifact), green under both Windows cp1252 AND `PYTHONUTF8=1` — and the tripwire staying silent across a full run is now itself the standing evidence that the suite no longer mutates real machine state. `pytest.ini` adds `--import-mode=importlib` so the two `tests/bug-fix-*/test_replication.py` files coexist. Skill / agent / command / hook / Layer-3-tool counts UNCHANGED (48 / 39 / 23 / 7 / 20); NO new skill / agent / command / hook / Layer-3 tool; stdlib-only holds (`socket`, `hashlib`). |
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.43.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.43.0 — the strongest model where code is written and attacked (Fable where it is planned and reviewed)
+
+The shipped ship state flips from uniform Fable to a **delivery-adversarial Opus split**. Since v3.32.0 every agent ran on Fable; the owner directive is to run the agents that DELIVER and ATTACK on the strongest coding model (Opus 4.8) and keep the agents that PLAN and JUDGE on Fable. No new skill / agent / command / hook / Layer-3 tool; the inventory holds at 48 / 39 / 23 / 7 / 20.
+
+| Capability | What it is |
+|---|---|
+| **Opus on delivery + adversarial (12 agents)** | The four implementer / merge agents — `backend`, `frontend`, `integration`, `reconciler` — plus the eight that attack / refute / reproduce / execute-to-surface-failures — `adversarial-reviewer`, `structure-adversary`, `fix-sensibility-checker`, `bug-replicator`, `qa-replayer`, `flow-executor`, `visual-analyzer`, `mini-qa` — now ship `model: opus`: the strongest model where product code is written and where the pipeline tries to break it. |
+| **Fable on plan / validate / review (27 agents)** | Architects, deep planners, researchers, mappers, and the reviewers that adjudicate the adversarial output — `system-architect`, `task-reviewer`, `test-completeness-verifier`, `flow-explorer`, `visual-capture`, `reference-tracer`, `monitor-synthesizer`, `doc-updater`, and the rest — stay `model: fable`: the reasoning / judgment tier. |
+| **The lever** | New mode `scripts/setup/set_default_model.py --split delivery` — canonical partition `DELIVERY_ADVERSARIAL_AGENTS`, policy `deliver-opus-split` (recognized by `policy_state` + `--check`). It writes a **real `model: opus` id** (no gateway impersonation) — a DIFFERENT axis than the gateway secondary split — and an unclassified stem **fails safe to Fable**. Idempotent, line-ending-preserving, only the `model:` line touched. |
+| **Counts + tests** | 10 new lever tests; the master `tests/test_agents.py` pin and the per-agent model pins now assert the split off the canonical set; the gateway-install / setup pins that read the real repo `agents/` expect the new `deliver-opus-split` ship state (the gateway secondary split still targets only the installed copy). `tests/test_dispatch_banner.py`'s version pin advanced 3.42.1 → 3.43.0. Suite **5891 → 5901 passing + 16 skipped** (209 test files, macOS-without-PyYAML basis). Living specs UNCHANGED at 68; counts UNCHANGED (48 / 39 / 23 / 7 / 20). |
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

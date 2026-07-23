@@ -215,16 +215,32 @@ def test_agent_body_opens_with_role_or_h1(plugin_root: Path, agent_name: str) ->
     )
 
 
-def test_all_agents_uniform_fable(plugin_root: Path) -> None:
-    """v3.32.0: every agent ships `model: fable` — the deliberate uniform Fable-5
-    default (the prior opus/sonnet split was a cost heuristic the directive
-    overrode). The sanctioned, deterministic lever to flip this field (e.g. to the
-    `opus` fallback on a harness that predates the fable alias) is
-    scripts/setup/set_default_model.py; a drifted agent fails this pin."""
+def test_agents_follow_the_delivery_opus_split(plugin_root: Path) -> None:
+    """v3.43.0: the ship state is the delivery-adversarial Opus split — the 12
+    delivery + adversarial agents ship `model: opus` (strongest code-gen for the
+    agents that write / merge product code; sharpest attacker for the agents that
+    break / refute / reproduce / execute-to-surface-failures) and every planning /
+    validation / review agent stays `model: fable`. The canonical partition is
+    `DELIVERY_ADVERSARIAL_AGENTS` in scripts/setup/set_default_model.py; the
+    deterministic lever `--split delivery` reproduces this exact state. A drifted
+    agent fails this pin. (Superseded the v3.32.0 uniform-fable ship state.)"""
+    lever = load_module(
+        plugin_root / "scripts" / "setup" / "set_default_model.py",
+        "set_default_model_pin",
+    )
     agents_dir = plugin_root / "agents"
     models = {p.stem: frontmatter.parse(p)[0]["model"] for p in sorted(agents_dir.glob("*.md"))}
-    non_fable = {name: m for name, m in models.items() if m != "fable"}
-    assert not non_fable, f"agents not on the uniform fable default: {non_fable}"
+    expected = {
+        stem: ("opus" if stem in lever.DELIVERY_ADVERSARIAL_AGENTS else "fable")
+        for stem in models
+    }
+    drift = {name: m for name, m in models.items() if m != expected[name]}
+    assert not drift, f"agents off the delivery-opus split: {drift}"
     assert len(models) == len(EXPECTED_AGENTS), (
         f"expected {len(EXPECTED_AGENTS)} agents, found {len(models)}"
     )
+    # the opus set on disk is EXACTLY the canonical delivery/adversarial partition
+    assert {n for n, m in models.items() if m == "opus"} == set(
+        lever.DELIVERY_ADVERSARIAL_AGENTS
+    )
+    assert len(lever.DELIVERY_ADVERSARIAL_AGENTS) == 12

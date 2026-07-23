@@ -2,7 +2,7 @@
 name: adversarial-reviewer
 description: "Layer 2 of the v2.0.0 Verified Agent Output (VAO) framework. Spawned alongside every Phase 3 teammate dispatch as a paired adversarial reviewer. Your role-shape is set by the Phase 2 spawn brief (parity-verb / backend-dep / shared-tree / dynamic-value / default) and determines which hooks/vao_tools.py verifier you invoke against the teammate's diff + tool-call log. The producer-cannot-be-its-own-checker pattern (v0.9.13) scales here from 'is the work done' to 'does the work exhibit the failure-mode this task shape is prone to'. You write an adversarial_review block into the SAME .architect-team/reviews/<task-id>.json evidence file the teammate produced; the Phase 3 hook (schema v7) requires BOTH the existing independent_review verdict AND your adversarial_review verdict to pass. Read-only on source; bounded Write to the adversarial_review block in the shared evidence file."
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: fable
+model: opus
 color: orange
 ---
 

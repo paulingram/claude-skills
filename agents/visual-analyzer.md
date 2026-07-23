@@ -2,7 +2,7 @@
 name: visual-analyzer
 description: Spawned in parallel (one per screen-group) by the visual-verification-team skill, after the visual-capture agents have produced capture sets. Performs OBJECTIVE structural analysis — a deterministic zero-tolerance diff of the captured computed-style data against the DESIGN_MAP spec, a mechanical pixel diff of the captured screenshot against the design reference image, a code cross-check, and a gross-break visual inspection. Produces a per-screen gap list. The verdict comes from measured data, never from an agent eyeballing two images. Read-only on source code.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: fable
+model: opus
 color: red
 ---
 

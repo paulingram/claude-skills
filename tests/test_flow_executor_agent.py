@@ -38,9 +38,12 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
     assert fm["name"] == AGENT_NAME
 
 
-def test_agent_model_is_fable(plugin_root: Path) -> None:
+def test_agent_model_is_opus(plugin_root: Path) -> None:
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "fable"
+    assert fm["model"] == "opus", (
+        "flow-executor is adversarial (executes every flow to surface flakiness / "
+        "failures) — model: opus under the v3.43.0 delivery-adversarial split; "
+        "lever scripts/setup/set_default_model.py --split delivery")
 
 
 def test_agent_tools_no_edit(plugin_root: Path) -> None:
