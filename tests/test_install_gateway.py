@@ -1859,9 +1859,12 @@ def test_activation_targets_installed_plugin_copy(
         installed_agents / "backend.md").read_text(encoding="utf-8")
     assert "model: fable" in (
         installed_agents / "system-architect.md").read_text(encoding="utf-8")
-    # the repo's own agents/ must be untouched (committed ship state)
+    # the repo's own agents/ must be untouched by the gateway split (its committed
+    # ship state — backend is a delivery agent, model: opus under the v3.43.0
+    # delivery-adversarial split; the gateway's SECONDARY split never rewrites the
+    # dev checkout, only the installed copy)
     repo_backend = Path(gw._REPO_ROOT) / "agents" / "backend.md"
-    assert "model: fable" in repo_backend.read_text(encoding="utf-8")
+    assert "model: opus" in repo_backend.read_text(encoding="utf-8")
     out = capsys.readouterr().out
     assert str(installed_agents) in out  # the split step NAMES its target
 

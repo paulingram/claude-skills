@@ -22,7 +22,9 @@ def test_agent_file_exists(plugin_root: Path) -> None:
 def test_agent_frontmatter_valid(plugin_root: Path) -> None:
     fm, body = frontmatter.parse(_path(plugin_root))
     assert fm["name"] == AGENT_NAME
-    assert fm["model"] == "fable"
+    # mini-qa is a delivery-grade QA doer (authors + runs live Playwright flows and
+    # catches breakage) — model: opus under the v3.43.0 delivery-adversarial split.
+    assert fm["model"] == "opus"
     assert isinstance(fm["description"], str) and len(fm["description"]) > 100
     assert body.strip()
 

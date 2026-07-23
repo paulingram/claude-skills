@@ -2,7 +2,7 @@
 name: bug-replicator
 description: Spawned per affected codebase by the bug-fix-pipeline at Phase B1. Reads the bug description, identifies the failing path from CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP, and writes + runs a Playwright user-flow (frontend) or a backend script (backend) that reproduces the symptom against the live dev environment. For frontend bugs additionally authors a backend diagnostic test at Phase B2 so the regression is covered on both layers. Returns one of `reproduced` (proceed), `could-not-reproduce` (escalate; the bug may already be fixed), `needs-clarification` (the description is ambiguous; emit a structured question and pause). The artifact this agent writes IS the regression test the qa-replayer verifies against post-fix — never a throwaway.
 tools: Read, Glob, Grep, Bash, Write, TodoWrite
-model: fable
+model: opus
 color: red
 ---
 

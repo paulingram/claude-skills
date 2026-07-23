@@ -2,7 +2,7 @@
 name: integration
 description: Phase 5 cross-layer integration agent. Runs the full integration test suite locally, then against the live dev API with real dev data. For any frontend change, MUST use Playwright to author and run user-flow tests against the real running dev environment per playwright-user-flows. Routes failures back to the responsible teams.
 tools: Read, Edit, Write, Glob, Grep, Bash, TodoWrite, NotebookEdit, WebFetch
-model: fable
+model: opus
 color: pink
 ---
 

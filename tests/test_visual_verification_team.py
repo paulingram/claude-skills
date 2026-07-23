@@ -83,9 +83,12 @@ def test_capture_agent_is_fable_and_mechanical(plugin_root: Path) -> None:
     assert "live" in content.lower(), "visual-capture does not render the live app"
 
 
-def test_analyzer_agent_is_fable_and_data_first(plugin_root: Path) -> None:
+def test_analyzer_agent_is_opus_and_data_first(plugin_root: Path) -> None:
     content = _read(plugin_root, ANALYZER)
-    assert "model: fable" in content, "visual-analyzer must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
+    assert "model: opus" in content, (
+        "visual-analyzer is adversarial (the zero-tolerance data + pixel diff that "
+        "catches visual drift) — model: opus under the v3.43.0 delivery-adversarial "
+        "split; lever scripts/setup/set_default_model.py --split delivery")
     assert "data diff" in content.lower(), (
         "visual-analyzer does not establish the data diff as the verdict mechanism"
     )
