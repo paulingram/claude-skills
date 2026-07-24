@@ -16,6 +16,14 @@ from __future__ import annotations
 
 from typing import Any
 
+# The frontend-impact detector (v3.44.0). Dual-import so this module works both
+# as a sibling script (hook run as `python3 <hooks-dir>/x.py`) and as a package
+# import (`hooks.review_evidence_schema`).
+try:  # package import (tests, orchestrator)
+    from hooks.frontend_impact import changed_files_touch_frontend
+except ImportError:  # sibling-script import (hook execution)
+    from frontend_impact import changed_files_touch_frontend
+
 # Evidence schema v7 (v2.0.0 added the six required Verified Agent Output
 # fields — `oracle_match_review`, `baseline_clean_review`, `no_fake_data_review`,
 # `adversarial_review`, plus the existing `visual_fidelity_review` is now
@@ -102,6 +110,17 @@ VALID_LIVE_VERIFICATION_VALUES = {"pass", "n/a", "fail"}
 # remain valid — the same optional-ness backwards-compat guarantee as v2.1.0
 # and v2.2.0.
 VALID_APPEARANCE_SCOPE_VALUES = {"pass", "n/a", "fail"}
+
+# v3.44.0 — frontend_impact_e2e_review is CONDITIONALLY REQUIRED: absent/optional
+# when the slice's `files_changed` shows NO frontend impact, but REQUIRED and
+# must be 'pass' when frontend files were changed (signal (a) of
+# hooks/frontend_impact.py — the only signal computable from the evidence's own
+# file list; signal (b), a backend contract consumed by a frontend route, is set
+# by the orchestrator which has the maps). This is the hard gate that makes
+# "done off a unit test" structurally impossible when a change touches the
+# frontend: a passing unit test can never satisfy it — only a real-frontend
+# end-to-end verdict (or an explicitly-authorized n/a) does. 'fail' BLOCKS.
+VALID_FRONTEND_IMPACT_E2E_VALUES = {"pass", "n/a", "fail"}
 OPTIONAL_VAO_FIELDS = (
     "interactions_honored_review",
     "live_verification_review",
@@ -367,7 +386,62 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
 
     gaps += _validate_independent_review(evidence)
     gaps += _validate_vao_fields(evidence)
+    gaps += _validate_frontend_impact_gate(evidence)
 
+    return gaps
+
+
+def _validate_frontend_impact_gate(evidence: dict[str, Any]) -> list[str]:
+    """v3.44.0 — the hard end-to-end verification gate.
+
+    Compute frontend impact from the evidence's own ``files_changed`` (signal (a)
+    of hooks/frontend_impact.py — the only signal derivable from the evidence
+    alone; signal (b), a changed backend contract consumed by a frontend route,
+    is set by the orchestrator, which holds the maps). When frontend files were
+    changed, ``frontend_impact_e2e_review`` is REQUIRED and must be ``pass`` —
+    a real-frontend end-to-end verdict. A passing unit test can never open this
+    gate; that is the whole point. ``fail`` blocks; ``n/a`` is allowed ONLY with
+    an explicit ``frontend_impact_e2e_review_note`` authorization (the diff
+    touched the frontend but end-to-end genuinely does not apply — e.g. a
+    comment-only style change). With no frontend impact the field is optional; if
+    present, its shape is still validated.
+    """
+    gaps: list[str] = []
+    files = evidence.get("files_changed")
+    field_present = "frontend_impact_e2e_review" in evidence
+
+    impacted = False
+    if isinstance(files, list):
+        try:
+            impacted = bool(
+                changed_files_touch_frontend([f for f in files if isinstance(f, str)])
+            )
+        except TypeError:
+            impacted = False
+
+    if impacted and not field_present:
+        gaps.append(
+            "frontend impact detected (frontend files in files_changed) but the "
+            "evidence carries no 'frontend_impact_e2e_review' — a change with "
+            "frontend impact CANNOT be marked complete on a unit test alone. Record "
+            "a real-frontend end-to-end Playwright verdict ('pass'), or an "
+            "explicitly-authorized 'n/a' with a 'frontend_impact_e2e_review_note'. "
+            "Per the v3.44.0 end-to-end verification gate."
+        )
+        return gaps
+
+    if not field_present:
+        return gaps  # no impact + field absent → nothing to enforce
+
+    gaps += _validate_vao_field(
+        evidence,
+        "frontend_impact_e2e_review",
+        VALID_FRONTEND_IMPACT_E2E_VALUES,
+        "the change has frontend impact and the recorded real-frontend end-to-end "
+        "verdict is a fail — a passing unit test can never substitute. Re-run the "
+        "Playwright flow against the live dev environment; only mark complete on 'pass'.",
+        note_field="frontend_impact_e2e_review_note",
+    )
     return gaps
 
 

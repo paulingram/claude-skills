@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 43 . 0
+                        ─── C T 6 ───   v 3 . 44 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.43.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.44.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-5891%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -102,6 +102,24 @@ A non-merge-preserving rewrite of `~/.claude/settings.json` (observed 2026-07-18
 | **The root clobberer: the test suite itself (REQ-004)** | Found mid-run, and the actual origin of both incidents. `tests/test_install_gateway.py::test_uninstall_purge_removes_state_dir` ran a REAL `uninstall` with `--base-dir`/`--agents-dir` sandboxed but **no `--settings-path`**, so `_cmd_uninstall` resolved the DEFAULT `~/.claude/settings.json` and stripped the env block. On CI and never-activated machines it silently no-ops — which is why it went unnoticed — but on an ACTIVATED machine **every full `pytest` run deactivated the gateway**, producing exactly the drift the rest of this release detects and heals. (The product was never at fault: `uninstall` touching the real settings.json is correct for a real user. The defect was a TEST invoking it unsandboxed.) Fixed in three deliberately-redundant layers: **(a)** the leaker now names `--settings-path`; **(b)** a module-wide autouse fixture redirects `DEFAULT_USER_SETTINGS_PATH` to a per-test sentinel so no test in that file — present or future — can reach the real path, with a probe test proving the redirect absorbs the fallback; **(c)** a session-scoped tripwire in `tests/conftest.py` SHA-256-digests the real `settings.json` + `gateway.json` + `gateway.env` at suite start and fails LOUDLY at suite end on any mutation, turning any future leak of this class in any test file into a named failure. The tripwire was verified to actually fire against a simulated leak. |
 | **Forward-compat: credit-exhaustion failover** | `maybe_heal_activation`'s state guards are read BEFORE the liveness probe, and that ordering is now test-pinned (parametrized, asserting the probe is never called). This makes **recorded consent** the single suppression seam: a future failover that un-points Claude Code when the upstream runs out of credits suppresses the heal by flipping recorded state, with zero guard-logic change — instead of being silently fought and undone on the next session start. TCP port-liveness is explicitly **not** a credit/upstream-health signal: a credit-dead gateway still binds its port. |
 | **Counts + tests** | +43 hermetic tests — 8 replication (5 for REQ-001…003 + 3 for REQ-004, all RED pre-fix) + 33 unit + a sentinel-absorption probe + the session tripwire. Suite 5646 → **5689 passing + 4 skipped** (202 test files incl. the pytest-collected replication artifact), green under both Windows cp1252 AND `PYTHONUTF8=1` — and the tripwire staying silent across a full run is now itself the standing evidence that the suite no longer mutates real machine state. `pytest.ini` adds `--import-mode=importlib` so the two `tests/bug-fix-*/test_replication.py` files coexist. Skill / agent / command / hook / Layer-3-tool counts UNCHANGED (48 / 39 / 23 / 7 / 20); NO new skill / agent / command / hook / Layer-3 tool; stdlib-only holds (`socket`, `hashlib`). |
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.44.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.44.0 — never "done" off a unit test; dev → test-on-dev → prod as an agent-immutable opt-in
+
+The trigger: agents claiming "done" off a passing unit test, inventing unasked-for caution, and not verifying backend changes end-to-end when they carry frontend impact. This release makes that class of failure structurally impossible where it matters, and makes `dev → test-on-dev → prod` a real, opt-in, human-owned discipline the agent cannot route around. Additive and backward-compatible; no new skill / agent / command / hook / Layer-3 tool; the inventory holds at 48 / 39 / 23 / 7 / 20.
+
+| Capability | What it is |
+|---|---|
+| **The end-to-end gate** | New `hooks/frontend_impact.py` — the canonical frontend-file extension set + `detect_frontend_impact()`, either-signal: a change has frontend impact when EITHER the diff touches frontend files OR a changed backend endpoint is consumed by a frontend route (per ROUTE_MAP / INTEGRATION_MAP). The review-evidence schema gains a **conditionally-required** `frontend_impact_e2e_review`: when `files_changed` shows frontend impact, a real-frontend end-to-end verdict (`pass`) is MANDATORY — a passing unit test can never open the gate. Backward-compatible (optional with no impact) — **zero blast radius** across 590 evidence-touching tests. |
+| **dev → test-on-dev → prod (opt-in)** | New `hooks/deploy_config.py` + the human-authored, gitignored `.architect-team-deploy.json` (committed template `.architect-team-deploy.example.json`, mirroring the notify-config pattern). `prod_deploy.enabled` gates the discipline; `always_merge_to_prod_on_complete` auto-merges every clean run to `prod_branch` on completion; `deploy_command` (null = "prod" is just the merge) runs a real external deploy after dev is green. The reader is fail-safe — a broken config never triggers a deploy. |
+| **Immutability — the agent can never override** | Once `.architect-team-deploy.json` exists it is IMMUTABLE to agents: `pretool_unilateral_override_guard.py` BLOCKS any agent Edit / Write / NotebookEdit targeting an existing deploy config, unconditionally. Creating a fresh one is allowed (it only ADDS the prod constraint). Only a human changes a human's policy — by editing the file, or passing `--no-prod` / `CT6_NO_PROD` for a single run. |
+| **The ETHOS gains fidelity** | `docs/ETHOS.md` gains a `## Fidelity to human-configured policy` section (outside the pinned 7-principle fence — the count and every agent's compiled block untouched): a human's config is binding; the agent obeys it and never self-grants an exception, with **invented caution** — the unasked-for "PHI safeguard just in case", the silent scope-narrowing — named as the anti-pattern. |
+| **Counts + tests** | 4 new test files (38 tests, all TDD — red before green); `tests/test_dispatch_banner.py`'s version pin advanced 3.43.0 → 3.44.0. Suite **5901 → 5939 passing + 16 skipped** (213 test files, macOS-without-PyYAML basis). Skill / agent / command / hook / Layer-3-tool counts UNCHANGED (48 / 39 / 23 / 7 / 20). |
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

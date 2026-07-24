@@ -62,6 +62,12 @@ _BYPASS_ALLOWED_PATH_FRAGMENTS = (
 )
 
 
+# v3.44.0 — the deploy config is human-authored and IMMUTABLE to agents once it
+# exists. Canonical filename mirrors hooks/deploy_config.py::DEPLOY_CONFIG_FILENAME
+# (kept as a local literal so this hook carries no import dependency).
+_DEPLOY_CONFIG_FILENAME = ".architect-team-deploy.json"
+
+
 def _find_workspace(start: Path) -> Path | None:
     """Walk up from `start` looking for a directory containing `.architect-team/`.
 
@@ -136,6 +142,23 @@ def _is_allowed_path(file_path: str) -> bool:
     return any(frag.replace("\\", "/") in lower for frag in _BYPASS_ALLOWED_PATH_FRAGMENTS)
 
 
+def _targets_existing_deploy_config(file_path: str) -> bool:
+    """True iff the tool targets an EXISTING ``.architect-team-deploy.json``.
+
+    Modifying / overwriting / deleting an existing human-authored deploy config
+    is the "override" the v3.44.0 discipline forbids — only a human may edit or
+    disable it. Creating a fresh config (the file does not exist yet) is NOT a
+    violation: it only ADDS the prod constraint, never removes it.
+    """
+    if not isinstance(file_path, str) or not file_path:
+        return False
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return False
+    return p.name == _DEPLOY_CONFIG_FILENAME and p.exists()
+
+
 def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     """Inspect a PreToolUse payload and return (exit_code, stderr_message).
 
@@ -157,6 +180,31 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     )
     if not file_path:
         return 0, ""
+
+    # v3.44.0 deploy-config immutability — fires UNCONDITIONALLY (before the
+    # pipeline-state gate below), because an agent editing/disabling the deploy
+    # config is a violation whether or not a pipeline run is active. Only a human
+    # may change it once it exists.
+    if _targets_existing_deploy_config(file_path):
+        message = (
+            "CT6 v3.44.0 PreToolUse guardrail BLOCKED — deploy config immutability.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            f"'{_DEPLOY_CONFIG_FILENAME}' is a HUMAN-AUTHORED opt-in for the "
+            "dev -> test-on-dev -> prod discipline. Once it exists it is IMMUTABLE "
+            "to agents: the pipeline and every subagent may READ it but may NEVER "
+            "edit, disable, delete, or overwrite it on their own initiative.\n"
+            "\n"
+            "REQUIRED ACTION: do NOT modify this file. If the prod-deploy policy "
+            "must change, the HUMAN edits it themselves (or passes --no-prod / "
+            "'don't touch prod' for a single run). An agent deciding to disable or "
+            "skip the prod mandate is exactly the buck-the-command override this "
+            "guard forbids."
+        )
+        return 2, message
+
     if _is_allowed_path(file_path):
         return 0, ""
 

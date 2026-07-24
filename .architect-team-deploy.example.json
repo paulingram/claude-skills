@@ -1,0 +1,11 @@
+{
+  "schema": "architect-team-deploy/v1",
+  "prod_deploy": {
+    "enabled": true,
+    "prod_branch": "main",
+    "always_merge_to_prod_on_complete": true,
+    "deploy_command": null,
+    "health_check_url": null
+  },
+  "_comment": "TEMPLATE — copy to .architect-team-deploy.json (gitignored, local per checkout) to opt this project into the v3.44.0 dev -> test-on-dev -> prod discipline. Fields: prod_deploy.enabled gates the whole discipline; prod_branch is the production branch (default 'main'); always_merge_to_prod_on_complete makes every clean run auto-merge to prod_branch on completion; deploy_command (null = 'prod' is just the merge to prod_branch) is a shell command run AFTER dev is green to perform a real external deploy; health_check_url (optional) is polled after the deploy. IMMUTABLE TO AGENTS: once this file exists the pipeline and every subagent may READ it but may NEVER create, edit, disable, delete, or skip it on their own initiative -- only a HUMAN may change it (edit the file, or pass --no-prod / 'don't touch prod' for a single run). An agent overriding this is a v3.44.0 unilateral-override violation the PreToolUse guard blocks."
+}
