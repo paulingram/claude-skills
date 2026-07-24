@@ -147,6 +147,8 @@ claude_skill_lib/
 │   ├── vao/                 #   the 20 Layer-3 verification tools split per discipline family (v3.10.0 R2)
 │   ├── vao_tools.py         #   the facade over hooks/vao/ (byte-identical CLI)
 │   ├── shared_util.py       #   load_json / _utc_now_iso / unified JSONL reader (v3.10.0 R1)
+│   ├── frontend_impact.py   #   (v3.44.0) canonical frontend-file extensions + detect_frontend_impact (either-signal: frontend files OR a changed backend endpoint consumed by a frontend route); feeds the review-gate's conditionally-required frontend_impact_e2e_review
+│   ├── deploy_config.py     #   (v3.44.0) fail-safe reader for .architect-team-deploy.json (the human-authored dev→test→prod opt-in); once it exists the override guard blocks any agent edit — immutable to agents
 │   ├── closeout_check.py    #   deterministic closeout staleness engine (v3.18.0)
 │   ├── run_continuity.py    #   run-continuity substrate (v3.30.0): active-run.json lifecycle marker + progress fingerprint + engagement/teammate transcript analysis + CLI (--status / --engage / --set / --mark-complete / --stand-down)
 │   ├── locks.py             # cross-session lock layer (v1.0.0) — acquire_lock / release_lock / detect_stale / globs_intersect

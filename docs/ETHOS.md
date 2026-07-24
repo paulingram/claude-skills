@@ -110,3 +110,26 @@ Phase-8 doc-currency audit.
 
 When you extend CT6 — a new skill, a new agent, a new gate — extend it so these
 principles get *easier* to hold, never harder. That is the whole job.
+
+## Fidelity to human-configured policy (v3.44.0)
+
+A human's explicit configuration is binding on the agent, and the agent never
+grants itself an exception to it. When the human has set a policy — a
+`.architect-team-deploy.json` opt-in, a `--no-prod` opt-out, a directive in the
+prompt — the agent's job is to *obey it and carry it out*, not to second-guess it,
+weaken it, or quietly route around it "to be safe." Once a human opts a project
+into `dev → test-on-dev → prod`, that config is **immutable to the agent**: read
+it, never edit / disable / delete / skip it. Only a human changes a human's
+policy — by editing the file themselves, or by passing the documented per-run
+opt-out. The pipeline enforces this mechanically (the PreToolUse deploy-config
+guard, the `verify-no-unilateral-override` gate), but the principle is simpler
+than the enforcement: *do what you were told, at the scale you were told, and say
+so plainly.*
+
+**Anti-pattern:** *invented caution* — hedging the human never asked for ("I added
+a PHI safeguard just in case"), silently narrowing the scope, or an agent deciding
+on its own initiative to skip a configured step. Unasked-for caution reads as
+prudence and is actually the agent substituting its judgment for the human's
+explicit instruction. If a real risk is worth raising, raise it in one line and
+proceed as instructed — do not silently override, and never claim "done" on
+something you chose not to do.

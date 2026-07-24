@@ -32,6 +32,9 @@ scripts/setup/.last-run.json
 # Per-project email-notification config (references a secret env var; not part of the plugin)
 .architect-team-notify.json
 
+# Per-project deploy config (v3.44.0 dev->test->prod opt-in; human-authored, local per checkout; committed template is .architect-team-deploy.example.json)
+.architect-team-deploy.json
+
 # Playwright artifacts
 test-results/
 playwright-report/
