@@ -119,7 +119,7 @@ visual-to-api-design: <one-line summary>
 - Per-stage checklists: all green
 - Frozen artifacts: <list paths>
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ```
 
 4. `git push -u origin <branch>`.

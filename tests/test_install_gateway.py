@@ -438,6 +438,10 @@ def test_config_api_key_mode_has_explicit_anthropic_routes(gw: ModuleType) -> No
     secondary with the real Anthropic model."""
     cfg = gw.build_gateway_config(gw.AUTH_MODE_API_KEY)
     assert "claude-fable-5" in gw.ANTHROPIC_EXPLICIT_MODELS[0]
+    # v3.45.0: Opus 5 is routable, AND the superseded Opus 4.8 route is
+    # deliberately RETAINED — the tuple is an allow-list of routable ids, not a
+    # currency statement, so dropping a legacy id would strand its callers.
+    assert "claude-opus-5" in gw.ANTHROPIC_EXPLICIT_MODELS
     assert "claude-opus-4-8" in gw.ANTHROPIC_EXPLICIT_MODELS
     for anthropic_id in gw.ANTHROPIC_EXPLICIT_MODELS:
         assert f"- model_name: {anthropic_id}\n" in cfg, anthropic_id
@@ -1847,7 +1851,9 @@ def test_activation_targets_installed_plugin_copy(
 ) -> None:
     """With NO --agents-dir, the split lands on the INSTALLED plugin copy —
     the agents Claude Code actually runs — never the dev checkout (whose
-    committed ship state is uniform fable and would revert it)."""
+    committed ship state is the v3.43.0 delivery-adversarial split — 12
+    delivery + adversarial agents on ``opus``, 27 planning / validation /
+    review agents on ``fable`` — and would revert it)."""
     installed_agents, registry = _fake_installed_plugin(tmp_path)
     monkeypatch.setenv(gw._lever.PLUGIN_REGISTRY_ENV, str(registry))
     base = tmp_path / "gw"

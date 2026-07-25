@@ -149,13 +149,32 @@ def test_readme_has_theme_marker(plugin_root: Path) -> None:
 # --- the README stays current ----------------------------------------------
 
 def test_readme_banner_version_matches_plugin_json(plugin_root: Path) -> None:
-    """The banner's spaced version (e.g. 'v 0 . 9 . 8') must match plugin.json."""
+    """Every version-bearing README surface must match plugin.json.
+
+    Two surfaces, deliberately asserted in ONE test so the suite total is
+    unchanged: the ASCII banner's spaced version (e.g. 'v 0 . 9 . 8') and the
+    shields.io version badge. v3.45.0 added the badge assertion after the
+    version bump missed the badge THREE times in one run (the bump itself, the
+    remediation pass, and the first documentation-currency audit) — the banner
+    miss was caught in seconds by the assertion below it while the badge, pinned
+    by nothing in the default suite, sailed through. A convention cannot close a
+    suite gap; this assertion can.
+    """
     version = json.loads(_read(plugin_root, PLUGIN_JSON))["version"]
-    spaced = "v " + " . ".join(version.split("."))
     content = _read(plugin_root, README)
+
+    spaced = "v " + " . ".join(version.split("."))
     assert spaced in content, (
         f"README banner does not show the current version — expected {spaced!r} "
         f"(plugin.json version is {version!r})"
+    )
+
+    # The shields.io version badge is the most prominent current-state version
+    # claim in the repo (first badge, rendered in every GitHub + marketplace view).
+    badge = f"badge/version-{version}-"
+    assert badge in content, (
+        f"README shields.io version badge does not show the current version — "
+        f"expected a badge containing {badge!r} (plugin.json version is {version!r})"
     )
 
 

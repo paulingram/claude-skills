@@ -1,7 +1,7 @@
 # codex-role-split Specification
 
 ## Purpose
-Availability-gated model role split: when the harness has a secondary provider available, `fable` (Fable 5) drives all architecture/control/design agents and the provider-neutral alias `ct6-secondary` (backed by the chosen secondary provider — OpenAI Codex or Z.ai GLM, per the secondary-provider-registry capability; previously the OpenAI-flavored `codex-5.6-sol`) drives all development/code-checking/testing agents; when it is unavailable, the current operating model stays (uniform `fable`, with the Opus fallback lever where fable itself is unavailable). Deployment is managed by the setup surface and is a single flag.
+Availability-gated model role split: when the harness has a secondary provider available, `fable` (Fable 5) drives all architecture/control/design agents and the provider-neutral alias `ct6-secondary` (backed by the chosen secondary provider — OpenAI Codex or Z.ai GLM, per the secondary-provider-registry capability; previously the OpenAI-flavored `codex-5.6-sol`) drives all development/code-checking/testing agents; when it is unavailable, the lever applies the `uniform-fable` policy (uniform `fable`, with the Opus fallback lever where fable itself is unavailable), which moves OFF the shipped v3.43.0 delivery-adversarial split rather than restoring it. Deployment is managed by the setup surface and is a single flag.
 ## Requirements
 ### Requirement: Role classification of every agent
 
@@ -19,14 +19,14 @@ Availability-gated model role split: when the harness has a secondary provider a
 
 ### Requirement: Availability-gated policy application
 
-The lever SHALL provide `apply_policy(agents_dir, codex_is_available)`: available applies the role split (`secondary-split` — fable on architecture/control/design agents, the provider-neutral secondary alias `ct6-secondary` on development/code-checking/testing agents; previously the OpenAI-flavored `codex-5.6-sol`), independent of which registry provider backs the alias; unavailable applies the current operating model (`uniform-fable`). The rewrite SHALL touch ONLY the frontmatter `model:` line, preserve line endings, and be idempotent. Policy readers SHALL recognize both the new and the legacy alias/policy strings (`ct6-secondary`/`secondary-split` AND `codex-5.6-sol`/`codex-split`); policy writers SHALL write only the new ones. The uniform `--model` lever SHALL refuse BOTH split aliases (the split never applies uniformly), and the Opus fallback SHALL remain the separate `--model opus` uniform lever. The availability-gated semantics, the 18/21 role classification, and the fail-safe-to-fable rule are unchanged.
+The lever SHALL provide `apply_policy(agents_dir, codex_is_available)`: available applies the role split (`secondary-split` — fable on architecture/control/design agents, the provider-neutral secondary alias `ct6-secondary` on development/code-checking/testing agents; previously the OpenAI-flavored `codex-5.6-sol`), independent of which registry provider backs the alias; unavailable applies the `uniform-fable` policy, which moves OFF the shipped v3.43.0 delivery-adversarial split rather than restoring it. The rewrite SHALL touch ONLY the frontmatter `model:` line, preserve line endings, and be idempotent. Policy readers SHALL recognize both the new and the legacy alias/policy strings (`ct6-secondary`/`secondary-split` AND `codex-5.6-sol`/`codex-split`); policy writers SHALL write only the new ones. The uniform `--model` lever SHALL refuse BOTH split aliases (the split never applies uniformly), and the Opus fallback SHALL remain the separate `--model opus` uniform lever. The availability-gated semantics, the 18/21 role classification, and the fail-safe-to-fable rule are unchanged.
 
 #### Scenario: available applies the split
 
 - **WHEN** `apply_policy` runs with availability asserted on a uniform-fable agents dir
 - **THEN** every development/code-checking/testing agent's model line reads `ct6-secondary` and every architecture/control/design agent's model line stays `fable`
 
-#### Scenario: unavailable restores the operating model
+#### Scenario: unavailable applies uniform fable off the split
 
 - **WHEN** `apply_policy` runs with availability denied on a split agents dir (either alias generation)
 - **THEN** every agent's model line reads `fable`
@@ -81,7 +81,7 @@ Codex 5.6 availability SHALL be an input — the `--codex`/`--no-codex` setup fl
 
 ### Requirement: Suite hermeticity under the deploy variable
 
-The test suite SHALL be hermetic with respect to `CT6_CODEX_56_AVAILABLE`: an ambient value (the documented deploy configuration) MUST NOT cause any test to rewrite the repo's tracked `agents/*.md`. The committed ship state SHALL remain uniform `model: fable`, while the sanctioned post-split state SHALL be valid agent frontmatter (the codex id is a member of the frontmatter validity set, distinct from the ship-state pin).
+The test suite SHALL be hermetic with respect to `CT6_CODEX_56_AVAILABLE`: an ambient value (the documented deploy configuration) MUST NOT cause any test to rewrite the repo's tracked `agents/*.md`. The committed ship state SHALL be the state `tests/test_agents.py` pins — as of v3.43.0 the delivery-adversarial split (12 delivery + adversarial agents on `opus`, 27 planning / validation / review agents on `fable`), which superseded the v3.32.0 uniform `model: fable` state this requirement originally named — while the sanctioned post-split state SHALL be valid agent frontmatter (the codex id is a member of the frontmatter validity set, distinct from the ship-state pin).
 
 #### Scenario: ambient deploy variable cannot mutate the repo
 
@@ -91,7 +91,7 @@ The test suite SHALL be hermetic with respect to `CT6_CODEX_56_AVAILABLE`: an am
 #### Scenario: split state is valid frontmatter
 
 - **WHEN** an agent's frontmatter model reads the codex id on a deployed machine
-- **THEN** the frontmatter validity check accepts it while the uniform-fable ship pin still identifies the drift from ship state
+- **THEN** the frontmatter validity check accepts it while the ship-state pin still identifies the drift from ship state
 
 ### Requirement: Spawn-compatible impersonation alias
 

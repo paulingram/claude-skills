@@ -3,7 +3,7 @@
 
 The v3.32.0 default ships all agents as ``model: fable`` (Fable 5, wherever it is
 available). This stdlib-only CLI is the sanctioned, deterministic lever for that
-field AND the IMPLEMENTED Opus-4.8 fallback for a harness that predates the fable
+field AND the IMPLEMENTED Opus 5 fallback for a harness that predates the fable
 alias: ``python scripts/setup/set_default_model.py --model opus``.
 
 v3.35.0 added the availability-gated secondary role split: architecture/control/
@@ -18,9 +18,11 @@ and each registry entry carries a required ``route_dialect``. The historical
 backward compatibility and migration detection. Availability is an INPUT (a flag
 or the ``CT6_CODEX_56_AVAILABLE`` env var), never probed here — the same injected-
 availability convention as ``services/common/service_config.py``'s
-``resolve_model``. Without the availability signal the policy resolves to the
-current operating model: uniform ``fable`` (with the existing ``--model opus``
-uniform lever remaining the Opus fallback where fable is unavailable).
+``resolve_model``. With the signal SET-but-falsy the policy resolves to uniform
+``fable``, which moves OFF the shipped delivery split rather than restoring it;
+with the signal ABSENT the model state is left untouched (the existing
+``--model opus`` uniform lever remains the Opus fallback where fable itself is
+unavailable).
 
 Behaviour
 ---------
@@ -38,9 +40,10 @@ Behaviour
   This is the shipped default state; ``opus`` is a real Claude id (no gateway
   impersonation). It is a DIFFERENT axis than the secondary split above.
 * ``--auto`` resolves the policy from ``CT6_CODEX_56_AVAILABLE``: truthy => the
-  secondary split; SET-but-falsy => uniform fable (the current operating default);
-  ABSENT => no signal — the model state is left untouched (a manually applied
-  lever state, e.g. the Opus fallback, is never silently clobbered).
+  secondary split; SET-but-falsy => the ``uniform-fable`` policy, which moves OFF
+  the shipped delivery split above rather than restoring it; ABSENT => no signal —
+  the model state is left untouched (a manually applied lever state, e.g. the Opus
+  fallback, is never silently clobbered).
 * ``--check`` prints the model distribution, uniformity, and the recognized policy
   state (``uniform-fable`` / ``secondary-split`` / ``uniform-<m>`` / ``mixed``).
   Readers may still encounter ``codex-split`` in legacy state files, but this lever
@@ -136,8 +139,10 @@ POLICY_UNIFORM_FABLE = "uniform-fable"
 LEGACY_POLICY_CODEX_SPLIT = "codex-split"
 
 # Availability signal for --auto (and for setup.py). Truthy => Codex 5.6 is
-# available in this harness. Absent/falsy => stay on the current operating
-# model (uniform fable; opus fallback via --model opus where fable is absent).
+# available in this harness. SET-but-falsy => apply the ``uniform-fable`` policy,
+# which moves OFF the shipped delivery split rather than restoring it (opus
+# fallback via --model opus where fable itself is absent). ABSENT => no signal;
+# the model state is left untouched.
 CODEX_ENV_VAR = "CT6_CODEX_56_AVAILABLE"
 
 ROLE_ARCHITECTURE = "architecture-control-design"   # stays on fable under the split
@@ -196,7 +201,8 @@ def role_for(stem: str) -> str:
 # --- Delivery/adversarial Opus split (v3.43.0) ------------------------------- #
 # A SECOND role partition, ORTHOGONAL to the gateway secondary split above and
 # independent of it (different axis, different targets). Owner directive
-# (2026-07-23): run the DELIVERY + ADVERSARIAL agents on Opus 4.8 — the
+# (2026-07-23; model generation refreshed 2026-07-25, v3.45.0): run the
+# DELIVERY + ADVERSARIAL agents on Opus 5 — the
 # strongest code-gen for the agents that write/merge product code and the
 # sharpest attacker for the agents whose job is to break, refute, reproduce, or
 # execute-to-surface-failures — and keep the PLANNING / VALIDATION / REVIEW
@@ -255,9 +261,11 @@ def _default_agents_dir() -> pathlib.Path:
 # ~/.claude/plugins/cache/<marketplace>/architect-team/<version>/agents — NOT the
 # dev checkout this file may live in. A split applied to a dev checkout never
 # affects the runtime and is silently reverted by the next git operation (the
-# committed ship state is uniform fable). Install-time policy therefore targets
-# the INSTALLED copy when one exists; the repo agents/ stays the fallback for
-# repos that ARE the runtime plugin (a --plugin-dir dev install) and for tests.
+# committed ship state is the v3.43.0 delivery-adversarial split — 12 delivery
+# + adversarial agents on ``opus``, 27 planning / validation / review agents on
+# ``fable``). Install-time policy therefore targets the INSTALLED copy when one
+# exists; the repo agents/ stays the fallback for repos that ARE the runtime
+# plugin (a --plugin-dir dev install) and for tests.
 PLUGIN_REGISTRY_ENV = "CT6_PLUGIN_REGISTRY"
 PLUGIN_KEY_PREFIX = "architect-team@"
 
@@ -498,9 +506,10 @@ def apply_policy(
     """Apply the availability-gated model policy. Returns ``(policy, changed)``.
 
     * Secondary model available => the role split (``secondary-split``).
-    * Secondary model unavailable => the current operating model: uniform fable
-      (``uniform-fable``; the Opus fallback where fable itself is unavailable
-      stays the separate ``--model opus`` uniform lever).
+    * Secondary model unavailable => the ``uniform-fable`` policy, which moves OFF
+      the shipped v3.43.0 delivery split rather than restoring it (the Opus
+      fallback where fable itself is unavailable stays the separate
+      ``--model opus`` uniform lever).
 
     ``codex_model`` retains its old name for keyword-call compatibility."""
     if codex_is_available:
@@ -606,8 +615,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--auto",
         action="store_true",
         help=f"Resolve the policy from {CODEX_ENV_VAR}: truthy applies the codex "
-        "split; set-but-falsy applies the uniform fable operating default; "
-        "absent leaves the model state untouched.",
+        "split; set-but-falsy applies the uniform-fable policy, moving off the "
+        "shipped delivery split; absent leaves the model state untouched.",
     )
     group.add_argument(
         "--check",

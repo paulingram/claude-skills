@@ -100,7 +100,7 @@ visual-qa: fix drift to spec on <screen(s)-list>
 - Screens covered: <list>
 - Viewports: <list>
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"
    ```

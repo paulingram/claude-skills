@@ -14,7 +14,7 @@ def test_extract_returns_slug_when_present():
 Bulk export endpoint and Export button on dashboard.
 
 Mini-Run: 2026-05-26-add-bulk-export
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 """
     assert mini_run_trailer.extract(msg) == "2026-05-26-add-bulk-export"
 

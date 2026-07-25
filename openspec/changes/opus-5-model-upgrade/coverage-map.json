@@ -1,0 +1,321 @@
+{
+  "change": "opus-5-model-upgrade",
+  "authored_at": "2026-07-25T08:05:00Z",
+  "baseline": {
+    "machine": "windows-cp1252-checkout",
+    "command": "PYTHONUTF8=1 python -m pytest -q",
+    "passed": 5948,
+    "failed": 2,
+    "skipped": 5,
+    "duration_s": 170.65,
+    "pre_existing_failures": [
+      "tests/test_installer_guidance_blocks.py::test_remove_deletes_exactly_and_byte_preserves",
+      "tests/test_skill_references.py::test_target_skill_byte_count_reduced_vs_baseline[common-pipeline-conventions-data0]"
+    ],
+    "note": "Line-ending artifacts on Windows checkouts of main since the v3.42.x macOS merges; out of scope. Cross-checks exactly against the CHANGELOG macOS basis: 5948+5+2 = 5955 = 5939+16 (PyYAML present here so 14 gated tests run rather than skip, plus 2 Unix-symlink skips)."
+  },
+  "surface_contract": {
+    "sweep": "grep -rniE \"opus[- ]?4[.-][78]\" --include=*.py --include=*.md --include=*.json .",
+    "exclusions": [
+      "CHANGELOG.md",
+      "openspec/changes/archive/**",
+      "docs/superpowers/**",
+      "__pycache__",
+      ".architect-team/",
+      "openspec/changes/opus-5-model-upgrade/**"
+    ],
+    "pre_change_total": 36,
+    "post_change_expected": 14,
+    "post_change_expected_lines": [
+      "CLAUDE.md \u2014 the v3.43.0 CHANGELOG digest paragraph (frozen release history)",
+      "docs/CODEBASE_MAP.md \u2014 the per-release version ledger in frontmatter (frozen)",
+      "README.md \u2014 the v3.43.0 release section (frozen)",
+      "README.md \u2014 the v3.32.0 release section, Fable-default paragraph (frozen)",
+      "README.md \u2014 the v3.32.0 release section, service_config table row (frozen)",
+      "README.md \u2014 the version cascade / timeline block (frozen)",
+      "scripts/setup/install_gateway.py \u2014 the retained `claude-opus-4-8` member of ANTHROPIC_EXPLICIT_MODELS (a live route)",
+      "scripts/setup/install_gateway.py \u2014 the retained `claude-opus-4-7` member of ANTHROPIC_EXPLICIT_MODELS (a live route)",
+      "tests/test_install_gateway.py \u2014 the comment explaining the deliberate legacy retention",
+      "tests/test_install_gateway.py \u2014 the `claude-opus-4-8 in ANTHROPIC_EXPLICIT_MODELS` retention assertion",
+      "openspec/specs/fable-default-setup-fixes/spec.md \u2014 the constant-and-docstring-agree scenario, where the forbidden strings appear as the quoted SUBJECT of a negative assertion",
+      "README.md - the v3.45.0 release section intro (names the superseded generations it replaces)",
+      "README.md - the v3.45.0 trailers/current-state row (explains which historical lines stay byte-identical)",
+      "CLAUDE.md - the v3.45.0 Recent-releases digest (same, in digest form)"
+    ],
+    "pattern_note": "MUST be case-insensitive AND admit the hyphenated Opus-4.8 form. A case-sensitive opus|OPUS sweep demonstrably misses services/common/service_config.py:31 and tests/test_set_default_model.py:6 \u2014 both were lost twice during refinement and recovered only by adversarial re-grade.",
+    "contract_amendment": {
+      "amended_at": "2026-07-25T08:22:00Z",
+      "amended_by": "orchestrator",
+      "reason": "The Phase 1 acceptance criteria were WRONG, not the implementation. Two authoring defects in the orchestrator's own bundle: (1) criterion 4 required openspec/specs/fable-default-setup-fixes/spec.md to contain no 'claude-opus-4-8', but the MODIFIED delta authored in this same bundle introduces that string as the quoted SUBJECT of a negative assertion ('THEN no ... string remains anywhere in the module') - self-contradictory. (2) criterion 1's expected-line list omitted tests/test_install_gateway.py entirely, even though tasks.md A.5 explicitly mandated asserting BOTH claude-opus-5 AND the retained claude-opus-4-8 there. Expected count corrected 8 -> 11 with every line enumerated and justified. NOT a relaxation to accommodate the diff: no stale reference survives on any surface that asserts current state; all 11 survivors are deliberately-frozen release history, deliberately-retained routable legacy ids, or a quoted negative assertion.",
+      "superseded": {
+        "post_change_expected": 8,
+        "post_change_expected_lines": [
+          "CLAUDE.md:60",
+          "docs/CODEBASE_MAP.md:36",
+          "README.md:132",
+          "README.md:251",
+          "README.md:256",
+          "README.md:1698",
+          "scripts/setup/install_gateway.py:307",
+          "scripts/setup/install_gateway.py:309"
+        ],
+        "to_update": 30,
+        "to_freeze": 6,
+        "req_003_criterion_4_verbatim": "openspec/specs/fable-default-setup-fixes/spec.md contains no claude-opus-4-8",
+        "exclusions": [
+          "CHANGELOG.md",
+          "openspec/changes/archive/**",
+          "docs/superpowers/**",
+          "__pycache__",
+          ".architect-team/"
+        ],
+        "why_preserved_verbatim": "adversary-coverage F8: the bundle is UNTRACKED (git ls-files returns 0), so there is no git diff trail for these amendments. An amendment claiming 'criterion 4 was self-contradictory' is unauditable unless the superseded text is preserved alongside it. Recorded so a future reader can verify the claim without this conversation."
+      },
+      "second_amendment": {
+        "amended_at": "2026-07-25T08:30:00Z",
+        "reason": "reviewer-A found two further defects in the orchestrator's own contract, not in the implementation: (a) tasks.md C.1 still said 'exactly 8' and cited install_gateway.py:307,309, contradicting the already-amended map (11; 311/313 \u2014 the line numbers shifted because A's ordering comment grew by 4 lines); (b) the documented exclusion list omitted the run's own live bundle, so C.1 as written returned 45. Both fixed. Neither was an implementation defect."
+      },
+      "third_amendment": {
+        "amended_at": "2026-07-25T09:12:00Z",
+        "reason": "NF1 (adversary re-verification): fixing F1 re-broke F2/F3's line citations. Root cause was pinning the contract to line numbers inside a file the change edits. Switched the expected-line list to artifact+identity so it is stable under further edits. This is the THIRD correction to the orchestrator's own contract in this run; all three were contract defects, none was an implementation defect."
+      },
+      "fourth_amendment": {
+        "amended_at": "2026-07-25T10:05:00Z",
+        "reason": "doc-currency audit F1 (BLOCKING): Phase 8's own release notes introduced 3 more sweep-matching lines, so the prose '(+2 introduced) -> 11 post-change' no longer reconciled against the observable sweep, which returns 14. This is the FOURTH correction to the orchestrator's own contract and the second caused by the contract and the prose drifting apart. Root lesson, same as NF1: a release that documents removing a string necessarily contains that string, so the post-change count MUST be recomputed after the release notes are written, never before.",
+        "superseded": {
+          "post_change_expected": 11,
+          "introduced_by_this_change": 2
+        }
+      }
+    },
+    "exclusion_note": "The run's OWN live change bundle is excluded for the same reason the archive is: it is the document DESCRIBING the change, so it quotes the superseded ids ~34 times by construction (proposal rationale, design tables, task instructions, the MODIFIED delta, and the expected-line list itself). Omitting this exclusion makes the sweep return 45 rather than 11. Caught by reviewer-A as an orchestrator contract defect: the ad-hoc command the orchestrator actually ran included this filter, but the DOCUMENTED sweep did not, so the contract was unreproducible as written.",
+    "partition": {
+      "pre_change_total": 36,
+      "updated": 27,
+      "retained_unchanged": 3,
+      "frozen": 6,
+      "introduced_by_this_change": 5,
+      "arithmetic": "36 pre - 27 updated = 9 still-matching (6 frozen + 3 retained-unchanged); + 5 introduced = 14 post",
+      "note": "The earlier 'to_update: 30 / to_freeze: 6' was an arithmetically FALSE two-class partition of 36 - caught by adversary-coverage (F3). It had no slot for the third real class: 3 lines deliberately RETAINED UNCHANGED (the 2 live legacy routes in ANTHROPIC_EXPLICIT_MODELS plus the pre-existing test assertion on one of them). Those are working routes, not frozen history, and conflating them with either other class is what made the derived count wrong and forced the 8->11 amendment.",
+      "introduced_breakdown": [
+        "openspec/specs/fable-default-setup-fixes/spec.md - the negative-assertion scenario quoting the forbidden strings",
+        "tests/test_install_gateway.py - the comment explaining the deliberate legacy-route retention",
+        "README.md - the v3.45.0 release section (2 lines: the intro naming Opus 4.8/4.7, and the frozen-history rationale)",
+        "CLAUDE.md - the v3.45.0 Recent-releases digest (names Opus 4.8 when explaining what stays frozen)"
+      ]
+    },
+    "expected_lines_note": "Identified by ARTIFACT + IDENTITY, deliberately NOT by line number. NF1: the earlier list pinned install_gateway.py:311,313, and the F1 provenance remediation then grew that comment block by 3 lines, moving them to :314,:316 \u2014 so a remediation of one finding silently falsified the acceptance criterion of another, and nobody re-derived it. Line numbers are not stable under this change's own edits; the tuple member and the assertion are. Verify by identity, then confirm the COUNT is 11."
+  },
+  "entries": [
+    {
+      "source_requirement_id": "REQ-001",
+      "source_text": "Every version-bearing Opus reference on a non-frozen surface names Claude Opus 5 / claude-opus-5; the lever's two version-bearing narrative lines move, its versionless policy references do not",
+      "spec_requirement_id": "opus-5-model-upgrade/Claude Opus 5 is the plugin's named Opus generation",
+      "layer": "infra",
+      "team": "A",
+      "scenarios": [
+        "the lever's version-bearing prose names Opus 5",
+        "versionless policy references are not gratuitously rewritten",
+        "no invented id form is emitted"
+      ],
+      "acceptance_criteria": [
+        "scripts/setup/set_default_model.py lines 6 and 199 name Opus 5",
+        "scripts/setup/set_default_model.py contains no Opus 4.8 / Opus-4.8 string",
+        "OPUS_MODEL == 'opus' and VALID_MODELS are byte-identical",
+        "argparse help line 603 is byte-identical (versionless \u2014 nothing to refresh)",
+        "zero matches for claude-opus-5-0 / dated claude-opus-5-YYYYMMDD / anthropic.claude-opus-5-v1 anywhere in the repo"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "source_text": "Agent frontmatter keeps the floating bare alias model: opus; agents/ and tests/test_agents.py are the run's negative control",
+      "spec_requirement_id": "opus-5-model-upgrade/Agent frontmatter keeps the floating Opus alias",
+      "layer": "infra",
+      "team": "negative-control",
+      "scenarios": [
+        "agent frontmatter is byte-identical",
+        "the delivery split still holds exactly"
+      ],
+      "acceptance_criteria": [
+        "git diff --stat lists zero files under agents/",
+        "all 39 agents/*.md byte-identical to pre-run state (12 model: opus, 27 model: fable)",
+        "tests/test_agents.py passes UNMODIFIED",
+        "the on-disk opus set equals DELIVERY_ADVERSARIAL_AGENTS and its length is 12",
+        "VALID_MODELS still admits no claude-opus-* id"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "source_text": "FALLBACK_MODEL becomes claude-opus-5, the resolve_model docstring moves with it, and the living OpenSpec requirement is amended in lockstep",
+      "spec_requirement_id": "fable-default-setup-fixes/Fable 5 service-tier default with injected fallback (MODIFIED)",
+      "layer": "infra",
+      "team": "A",
+      "scenarios": [
+        "no checker prefers fable",
+        "rejecting checker falls back to opus",
+        "constant and docstring name the same generation",
+        "separation invariant holds"
+      ],
+      "acceptance_criteria": [
+        "services/common/service_config.py::FALLBACK_MODEL == 'claude-opus-5'",
+        "resolve_model(availability_checker=lambda m: False) == 'claude-opus-5'",
+        "DEFAULT_MODEL is unchanged at 'claude-fable-5'",
+        "the module contains no Opus 4.8 / Opus-4.8 / claude-opus-4-8 string (line 31 docstring prose included)",
+        "a code comment records the owner's decision and the surfaced newer-than-Fable trade-off",
+        "the neighbouring --model opus remediation scenario (~line 83) is byte-identical",
+        "npx openspec validate --all --strict exits 0",
+        "services/separation.py::check_separation() stays green",
+        "tests/test_services_common.py:284,294,304,331 assert claude-opus-5",
+        "openspec/specs/fable-default-setup-fixes/spec.md contains claude-opus-4-8 ONLY at line 103, as the quoted subject of the constant-and-docstring-agree negative assertion; the SHALL text and the rejecting-checker scenario both name claude-opus-5"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "source_text": "claude-opus-5 gains an explicit gateway route; every legacy routable id is retained",
+      "spec_requirement_id": "opus-5-model-upgrade/Gateway explicit-route coverage for Opus 5",
+      "layer": "infra",
+      "team": "A",
+      "scenarios": [
+        "Opus 5 is routable",
+        "legacy routes are retained"
+      ],
+      "acceptance_criteria": [
+        "'claude-opus-5' in scripts.setup.install_gateway.ANTHROPIC_EXPLICIT_MODELS",
+        "every pre-change id still present; tuple length grew by exactly 1",
+        "the ordering comment no longer calls claude-opus-4-8 'the implemented fallback'",
+        "tests/test_install_gateway.py:441 asserts BOTH claude-opus-5 and the retained claude-opus-4-8"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "source_text": "All 7 live Co-Authored-By Opus trailers name Claude Opus 5 (1M context), preserving the test-anchored literal prefix",
+      "spec_requirement_id": "opus-5-model-upgrade/Commit trailers attribute the current model",
+      "layer": "infra",
+      "team": "B",
+      "scenarios": [
+        "no stale trailer survives",
+        "the dispatch-banner trailer anchor still resolves",
+        "the Fable trailer is not collaterally rewritten"
+      ],
+      "acceptance_criteria": [
+        "zero occurrences of 'Co-Authored-By: Claude Opus 4.7' in commands/ or skills/",
+        "all 7 enumerated surfaces read 'Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>'",
+        "the literal prefix 'Co-Authored-By: Claude Opus ' is preserved so tests/test_dispatch_banner.py:372,392,405 still resolve",
+        "commands/optimize-structure.md:78 still reads 'Claude Fable 5' and is byte-identical",
+        "tests/test_dispatch_banner.py and tests/test_visual_to_api_command.py pass"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-006",
+      "source_text": "Six current-state doc assertions corrected; six historical per-release lines frozen byte-identical",
+      "spec_requirement_id": "opus-5-model-upgrade/Current-state documentation updated, release history frozen",
+      "layer": "infra",
+      "team": "B",
+      "scenarios": [
+        "no frozen line is touched",
+        "the map entry and its module agree",
+        "the doubly-stale integration map is corrected"
+      ],
+      "acceptance_criteria": [
+        "CLAUDE.md:9, CLAUDE.md:33, docs/CODEBASE_MAP.md:293, docs/CODEBASE_MAP.md:360, docs/INTEGRATION_MAP.md:20, README.md:1729 all name Opus 5",
+        "git diff -U0 touches none of CLAUDE.md:60, docs/CODEBASE_MAP.md:36, README.md:132, README.md:251, README.md:256, README.md:1698",
+        "docs/CODEBASE_MAP.md:360 and scripts/setup/set_default_model.py module docstring agree (lockstep pair)",
+        "docs/INTEGRATION_MAP.md:20 describes the v3.43.0 delivery-adversarial split, not uniform model: fable",
+        "python scripts/compliance/instruction_compliance.py reports zero findings",
+        "the three version-less stale ship-state claims are corrected: commands/architect-team-setup.md:41 (USER-FACING), scripts/setup/set_default_model.py:258, scripts/setup/install_gateway.py:1313 \u2014 each asserted 'uniform fable on all 39 agents' / 'ship state is uniform fable', FALSE since v3.43.0 and structurally invisible to the Opus sweep",
+        "no dated provenance clause asserts a fact about a model generation that did not exist on that date: install_gateway.py's '/v1/models on 2026-07-16' listing claim must NOT cover claude-opus-5, and set_default_model.py's 'Owner directive (2026-07-23)' must not attribute Opus 5 to a 2026-07-23 directive"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-007",
+      "source_text": "Scope is bounded by a countable, mechanically-reproducible sweep rather than reviewer judgment",
+      "spec_requirement_id": "opus-5-model-upgrade/Bounded, countable coverage",
+      "layer": "infra",
+      "team": "C",
+      "scenarios": [
+        "post-change sweep count is exact",
+        "a case-sensitive sweep is insufficient"
+      ],
+      "acceptance_criteria": [
+        "the post-change sweep returns exactly 11 lines, each matching surface_contract.post_change_expected_lines with its stated justification",
+        "no surviving hit is on a surface that asserts CURRENT state",
+        "an independent adversarial pass re-derives the 30/6 classification from the files and finds no misclassification",
+        "the adversarial pass uses at least one search modality the implementers did not run"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-008",
+      "source_text": "Ships as MINOR 3.45.0 with a rubric-satisfying CHANGELOG entry; suite reported honestly against the measured baseline",
+      "spec_requirement_id": "opus-5-model-upgrade/Release shape and suite honesty",
+      "layer": "infra",
+      "team": "D",
+      "scenarios": [
+        "version sources agree",
+        "the two pre-existing failures are reported honestly",
+        "no new failure is introduced"
+      ],
+      "acceptance_criteria": [
+        "plugin.json and marketplace.json both read 3.45.0",
+        "CHANGELOG.md top entry is [3.45.0] with a suite-total line; every prior entry byte-identical",
+        "python scripts/docs_tooling/changelog_check.py passes",
+        "python scripts/docs_tooling/capability_index.py --check passes",
+        "PYTHONUTF8=1 python -m pytest -q shows no new failures and no new skips vs 5948/2/5",
+        "the final report names both pre-existing failures and does NOT claim a fully green suite",
+        "neither pre-existing failure was 'fixed' by editing a recorded byte count",
+        "the independent system-architect Documentation Currency Audit returns overall: pass",
+        "README.md carries a NEW v3.45.0 release section above the v3.44.0 section, naming Claude Opus 5 as the current delivery/adversarial model \u2014 this is what makes the README.md:132 FREEZE correct rather than an omission: the current-state claim has to live somewhere, and the per-release-section convention puts it in the new section",
+        "the README version cascade (the ~:1698 timeline block) carries a v3.45.0 line",
+        "CLAUDE.md:9's leading 'Current shape (v3.44.0)' is bumped to v3.45.0 and its ## Recent releases gains the v3.45.0 digest, dropping the oldest of the three to hold the 3-entry bound",
+        "docs/CODEBASE_MAP.md frontmatter last_mapped is refreshed and its note ledger gains the v3.45.0 entry",
+        "the change bundle openspec/changes/opus-5-model-upgrade/** is EXPLICITLY git-added at Phase 8 \u2014 it is currently UNTRACKED (git ls-files returns 0), so a naive stage-what-changed pass would omit the entire spec/design/tasks/coverage-map package"
+      ]
+    }
+  ],
+  "testing_authorizations": {
+    "playwright": "N/A - no frontend surface in scope (plugin markdown + Python only). Authorization recorded per the Phase 1 rule.",
+    "dev_api_integration": "N/A - no service is stood up. resolve_model is a pure function verified by unit assertions; its live-availability probe is an INJECTED adapter boundary by design (REPO-4), so no network call is made or claimed. HONEST BOUNDARY: this run does NOT verify that a live Anthropic endpoint answers to claude-opus-5 from this machine, nor that the gateway's Opus 5 route works against a real LiteLLM install - both require a keyed live gateway this run does not provision. The id itself is confirmed from the platform docs (fetched 2026-07-25), not from a live call.",
+    "interaction_intuition_map": "N/A - Phase -1D no-op (no frontend codebase in scope; no ROUTE_MAP.md produced).",
+    "new_tests_per_slice": "AUTHORIZED: tests.added = 0 is correct for Team B (instruction-surface prose + commit-trailer templates). tasks.md section B assigns Team B no new test, and design.md assigns the run's single ADDED assertion to Team A (tests/test_install_gateway.py:445, the retained claude-opus-4-8 membership check alongside the new claude-opus-5 one). The slice ships no code path capable of being unit-tested; its verification is by existing suites re-pinned to the new literals plus the deterministic sweep + freeze-hunk proof. Counting the tests/test_mini_run_trailer.py fixture-string edit as an 'added test' would be dishonest inflation of the counter. Escalated by reviewer-B rather than silently resolved; decided by the orchestrator. Net suite delta for this run is +1 assertion, 0 new test functions, 0 new test files."
+  },
+  "confirmed_stubs": [],
+  "scope_extensions": [
+    {
+      "extended_at": "2026-07-25T08:40:00Z",
+      "trigger": "adversary-coverage finding F6 (semantic staleness the countable contract structurally cannot see)",
+      "files_added_to_scope": [
+        "commands/architect-team-setup.md  (-> instruction-surface-B)",
+        "scripts/setup/set_default_model.py:258 and scripts/setup/install_gateway.py:1313  (already in model-policy-A's scope)"
+      ],
+      "rationale": "Three present-tense claims that the plugin runs 'uniform fable on all 39 agents' \u2014 false since v3.43.0. They carry NO version-bearing Opus string, so no Opus sweep can find them; the adversary found them only by reading for semantic staleness. Strictly these are v3.43.0 staleness rather than Opus-generation staleness, so they sit adjacent to the original brief. Fixed rather than deferred because (a) the pipeline forbids deferring identified issues to a later run, (b) one instance is USER-FACING slash-command documentation that actively misleads, and (c) they are current-state assertions, which is exactly REQ-006's domain. Recorded here so the extension is explicit rather than silent scope creep."
+    },
+    {
+      "extended_at": "2026-07-25T08:48:00Z",
+      "trigger": "model-policy-A's F6 verification grep surfaced a larger cluster than adversary-coverage named",
+      "files_added_to_scope": [
+        "scripts/setup/setup.py  (-> model-policy-A)"
+      ],
+      "lines": [
+        "scripts/setup/set_default_model.py:41,140,504,612",
+        "scripts/setup/setup.py:40,880"
+      ],
+      "defect": "The cluster is ~13 lines across 4 files (NOT the \"six\" an earlier draft of this record claimed \u2014 corrected per master-review F-A3). Lines characterize uniform-fable as 'the current operating model' / 'the current operating default'. FALSE since v3.43.0 made deliver-opus-split the committed ship state. The BEHAVIOR they describe is accurate (a falsy CT6_CODEX_56_AVAILABLE genuinely applies uniform fable via apply_policy -> POLICY_UNIFORM_FABLE); only the characterization of it as CURRENT is stale. set_default_model.py:140's 'stay on the current operating model' is doubly wrong \u2014 applying uniform fable MOVES OFF the shipped split rather than staying put.",
+      "rationale": "FOUR of the six are inside scripts/setup/set_default_model.py \u2014 the file this run edited to say 'run the DELIVERY + ADVERSARIAL agents on Opus 5'. Leaving 'uniform fable (the current operating default)' in that same file makes it self-contradictory, and the incoherence becomes THIS run's rather than v3.43.0's. The other two are the identical phrase pattern in the installer driving the same lever. Per docs/ETHOS.md ## Documentation currency.",
+      "deliberately_not_fixed": [
+        "scripts/setup/install_gateway.py:3645,3671 \u2014 'restore uniform fable if\u2026' / 'uniform fable restored' are accurate descriptions of what the deactivation ACTION does, not claims about the ship state. Verified, left byte-identical.",
+        "scripts/setup/.last-run.json:48 \u2014 gitignored runtime state, not a source surface."
+      ],
+      "honest_note": "This is the SECOND scope extension of the run, both triggered by the adversarial pass rather than by the original brief. Strictly this cluster is v3.43.0 documentation-currency debt, not Opus-5 work. Recorded explicitly so the boundary movement is auditable and is never presented as part of the original ask.",
+      "cluster_true_extent": {
+        "corrected_per": "master-review finding F-A3",
+        "why_it_mattered": "model-policy-A's evidence file was complete and honest about the real extent, but that file is GITIGNORED \u2014 coverage-map.json is what gets committed, so an understated count here would be the only surviving public record.",
+        "files": [
+          "scripts/setup/set_default_model.py \u2014 4 lines (:41, :140, :504, :612)",
+          "scripts/setup/setup.py \u2014 3 lines (:40, :789, :880)",
+          "commands/architect-team-setup.md \u2014 1 line (:41), the user-facing instance",
+          "tests/ \u2014 3 sites (2 function renames + 1 docstring) plus openspec/specs/codex-role-split/spec.md (the 4th lockstep pair, master-review F-A2)"
+        ]
+      }
+    }
+  ],
+  "phase_8_invariant_note": "tests/test_dispatch_banner.py appears on three agents' 'byte-identical' invariant lists. That invariant was evidence for a SPECIFIC property \u2014 that the literal prefix 'Co-Authored-By: Claude Opus ' still resolves as the trailer-block anchor (find() at :372,:392,:405) after the 7 trailers moved to Opus 5. Phase 8 then legitimately edits a DIFFERENT part of the same file: the release version pin at :429,:431 (plus its docstring at :419-420), which every release must advance \u2014 v3.44.0 advanced it 3.43.0 -> 3.44.0. The anchor property is re-verified green AFTER the pin edit. Byte-identity of this file is therefore NOT an invariant of the run; the anchor is."
+}

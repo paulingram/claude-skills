@@ -654,7 +654,7 @@ If `AUTO_COMMIT = true`:
    - Phases −1 → 8 complete; openspec archive landed at <archive-path>
 
    Dispatch-Mode: <teams|subagents>
-   Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+   Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
    ```
 
    The `Dispatch-Mode:` trailer (v1.5.0) is derived from

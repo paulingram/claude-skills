@@ -188,7 +188,7 @@ At the end of Phase 8, after the final report emits "Spec `<change-name>` has be
 - Coverage map: fully green
 - Phases −1 → 8 complete; openspec archive landed at <archive-path>
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 EOF
 )"` — use the repo's local git config (no `-c user.name=` override here; that override is specific to repos with mis-configured local config).
 4. `git -C <repo-root> push -u origin <branch>` — push the branch the commit landed on (the current branch, or the `architect-team/<change-name>` branch from step 2b).

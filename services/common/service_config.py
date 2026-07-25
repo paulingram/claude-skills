@@ -18,7 +18,16 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 DEFAULT_MODEL = "claude-fable-5"    # v3.32.0 — Fable 5, preferred wherever available
-FALLBACK_MODEL = "claude-opus-4-8"  # v3.32.0 — implemented Opus 4.8 fallback (resolve_model)
+FALLBACK_MODEL = "claude-opus-5"    # v3.45.0 — implemented Opus 5 fallback (resolve_model)
+# OWNER DECISION (v3.45.0) — recorded because it was taken against surfaced advice.
+# `FALLBACK_MODEL` exists for a harness too old to resolve the `fable` alias, and
+# Opus 5 (July 2026) is NEWER than Fable 5 (GA 2026-06-09) — so this fallback is
+# strictly LESS likely to resolve on such a harness than the primary it backs.
+# That trade-off was put to the owner during refinement and the owner reaffirmed
+# the bump, so it ships as directed. Substituting a laddered tuple or leaving the
+# superseded id in place would be `invented caution` per docs/ETHOS.md
+# `## Fidelity to human-configured policy`. Keep this constant and `resolve_model`'s
+# docstring naming the SAME generation — they drift apart the moment either moves.
 STORAGE_MODES = ("mempalace", "file-folder")  # LIB-8 — vector store OR indexed file folder
 
 
@@ -28,7 +37,7 @@ def resolve_model(
     availability_checker: Optional[Callable[[str], bool]] = None,
 ) -> str:
     """Resolve the model id to use: ``preferred`` (Fable 5 by default) when it is
-    available, else ``fallback`` (Opus 4.8 by default).
+    available, else ``fallback`` (Opus 5 by default).
 
     Pure function. ``availability_checker`` is an INJECTED adapter — a callable
     ``model_id -> bool``. The live-API availability probe is an ADAPTER BOUNDARY
