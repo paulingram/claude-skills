@@ -281,7 +281,7 @@ def test_descriptor_generators_guard_injection() -> None:
 
 def test_default_model_is_fable_with_opus_fallback() -> None:
     assert cfg.DEFAULT_MODEL == "claude-fable-5"
-    assert cfg.FALLBACK_MODEL == "claude-opus-4-8"
+    assert cfg.FALLBACK_MODEL == "claude-opus-5"
 
 
 def test_resolve_model_no_checker_prefers_fable() -> None:
@@ -291,7 +291,7 @@ def test_resolve_model_no_checker_prefers_fable() -> None:
 
 
 def test_resolve_model_rejecting_checker_falls_back() -> None:
-    assert cfg.resolve_model(availability_checker=lambda m: False) == "claude-opus-4-8"
+    assert cfg.resolve_model(availability_checker=lambda m: False) == "claude-opus-5"
     # an accepting checker keeps the preferred
     assert cfg.resolve_model(availability_checker=lambda m: True) == "claude-fable-5"
 
@@ -301,7 +301,7 @@ def test_resolve_model_raising_checker_falls_back() -> None:
         raise RuntimeError("probe unavailable")
 
     # A probe failure must degrade to the known-good fallback, never crash.
-    assert cfg.resolve_model(availability_checker=boom) == "claude-opus-4-8"
+    assert cfg.resolve_model(availability_checker=boom) == "claude-opus-5"
 
 
 def test_config_default_model_now_fable() -> None:
@@ -328,7 +328,7 @@ def test_build_llm_client_routes_through_resolve_model_fake_path() -> None:
 
     # A rejecting checker makes build_llm_client hand the factory the fallback.
     cfg.build_llm_client(c, client_factory=factory, availability_checker=lambda m: False)
-    assert seen["model"] == "claude-opus-4-8"
+    assert seen["model"] == "claude-opus-5"
 
 
 def test_build_llm_client_respects_explicit_config_model() -> None:

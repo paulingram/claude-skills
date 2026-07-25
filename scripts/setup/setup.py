@@ -36,8 +36,9 @@ Flags:
                       agents; the ct6-secondary alias takes development/
                       code-checking/testing agents). Also enabled by
                       CT6_CODEX_56_AVAILABLE=1.
-  --no-codex          Codex 5.6 is NOT available: restore the current operating
-                      model (uniform fable; the Opus fallback stays the
+  --no-codex          Codex 5.6 is NOT available: apply the uniform fable policy
+                      — this moves OFF the shipped delivery split rather than
+                      restoring it (the Opus fallback stays the
                       set_default_model.py --model opus lever). Overrides the env var.
                       With neither flag nor env var, the model state is left
                       untouched (the shipped default IS the operating model).
@@ -785,8 +786,10 @@ def check_model_default(remediation: str | None = None) -> tuple[str, str, str |
 # INPUT (--codex / --no-codex / CT6_CODEX_56_AVAILABLE) — never probed, the same
 # injected-availability convention as service_config.resolve_model (SETUP-ADV-1:
 # a harness probe here would be false precision). With no signal at all the model
-# state is left untouched: the shipped uniform-fable default IS the operating
-# model, and a user's manual lever state is never silently clobbered.
+# state is left untouched: the shipped v3.43.0 delivery-adversarial split (12
+# delivery + adversarial agents on `opus`, 27 planning / validation / review
+# agents on `fable`) IS the operating model, and a user's manual lever state is
+# never silently clobbered.
 
 def _load_model_lever():
     """Load the sibling set_default_model.py module (works however setup.py
@@ -826,11 +829,14 @@ def check_codex_option() -> tuple[str, str, str | None]:
     available but nothing is rewritten (the current operating model stays)."""
     name = "model-policy (Codex 5.6 role split — not requested)"
     detail = (
-        "no Codex 5.6 signal — the current operating model stays (uniform 'fable', "
-        "Opus fallback lever unchanged). If this harness has Codex 5.6, rerun with "
-        "--codex (or set CT6_CODEX_56_AVAILABLE=1) to put development/code-checking/"
-        "testing agents on ct6-secondary while architecture/control/design agents "
-        "stay on fable; --no-codex restores the uniform fable default."
+        "no Codex 5.6 signal — the committed model state stays as shipped (the "
+        "v3.43.0 delivery-adversarial split: 12 delivery + adversarial agents on "
+        "'opus', 27 planning/validation/review agents on 'fable'; Opus fallback "
+        "lever unchanged). If this harness has Codex 5.6, rerun with --codex (or "
+        "set CT6_CODEX_56_AVAILABLE=1) to put development/code-checking/testing "
+        "agents on ct6-secondary while architecture/control/design agents stay on "
+        "fable; --no-codex applies the uniform fable policy, moving off the "
+        "shipped split."
     )
     return name, "note", detail
 
@@ -866,7 +872,7 @@ def apply_model_policy(
             detail = (
                 f"check-only: current policy state is '{state}'; a normal run would "
                 f"apply '{target}'"
-                + ("" if codex_signal else " (the current operating model)")
+                + ("" if codex_signal else " (moving off the shipped delivery split)")
                 + f". Manual lever: {manual}"
             )
             return name, "note", detail
@@ -876,8 +882,9 @@ def apply_model_policy(
                 f"applied '{policy}': fable stays on architecture/control/design agents; "
                 f"{lever.SECONDARY_ALIAS} now drives development/code-checking/testing agents"
                 if codex_signal
-                else f"Codex 5.6 unavailable — applied '{policy}' (the current operating "
-                f"model: uniform fable; Opus fallback lever unchanged)"
+                else f"Codex 5.6 unavailable — applied '{policy}': uniform fable, "
+                f"which moves OFF the shipped delivery split rather than restoring "
+                f"it; Opus fallback lever unchanged"
             )
             return name, "applied", f"{what} ({len(changed)} file(s) rewritten)."
         # Display-only: `policy` is the lever-emitted name apply_policy just
@@ -1049,8 +1056,8 @@ def main(argv: list[str] | None = None) -> int:
     codex_group.add_argument(
         "--no-codex",
         action="store_true",
-        help="Codex 5.6 is NOT available: restore the current operating model "
-             "(uniform fable). Overrides CT6_CODEX_56_AVAILABLE.",
+        help="Codex 5.6 is NOT available: apply the uniform fable policy, moving "
+             "off the shipped delivery split. Overrides CT6_CODEX_56_AVAILABLE.",
     )
     args = parser.parse_args(argv)
 

@@ -270,7 +270,7 @@ def test_run_scrubs_model_forcing_env_when_model_pinned(monkeypatch):
 
     _stub_flag_probe(monkeypatch)
     monkeypatch.setattr(runner.subprocess, "Popen", _P)
-    runner.run("x", runner.RunnerConfig(model="claude-opus-4-8"))
+    runner.run("x", runner.RunnerConfig(model="claude-opus-5"))
     env = _FakePopen.last_kwargs.get("env")
     assert env is not None and "ANTHROPIC_MODEL" not in env
 

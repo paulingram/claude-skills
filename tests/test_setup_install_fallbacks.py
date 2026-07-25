@@ -439,7 +439,8 @@ def test_resolve_codex_signal_precedence(setup_module: ModuleType) -> None:
 
 def test_check_codex_option_is_an_informative_note(setup_module: ModuleType) -> None:
     """With no signal, setup surfaces the split as an option and states that the
-    current operating model (uniform fable + the Opus fallback lever) stays."""
+    committed model state stays as shipped — the v3.43.0 delivery-adversarial
+    split, with the Opus fallback lever unchanged."""
     name, status, detail = setup_module.check_codex_option()
     assert status == "note"
     assert "--codex" in detail
@@ -482,7 +483,7 @@ def test_apply_model_policy_applies_the_split(
     assert status2 == "present"
 
 
-def test_apply_model_policy_no_codex_restores_the_operating_model(
+def test_apply_model_policy_no_codex_applies_uniform_fable_off_the_split(
     setup_module: ModuleType, tmp_path: Path
 ) -> None:
     agents = _agents_copy(tmp_path)

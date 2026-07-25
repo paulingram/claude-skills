@@ -70,7 +70,7 @@ classify-test-prod-safety: annotated <N> test files
 - Mismatch warnings: <N>
 - Report: <path to .architect-team/test-prod-safety/classification-report-<ts>.json>
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ```
 
 4. `git push -u origin <branch>`.

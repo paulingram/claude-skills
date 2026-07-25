@@ -298,12 +298,19 @@ DEFAULT_PORT = 4000
 
 # Anthropic model ids given EXPLICIT gateway routes in api-key mode (v3.38.1).
 # The '*' catch-all alone was observed non-functional on a real LiteLLM
-# install (SR-gateway-wildcard-route); these are the ids a real key listed via
-# /v1/models on 2026-07-16, fable first (the plugin default), opus-4-8 second
-# (the implemented fallback). Extend here when Anthropic ships new ids — the
+# install (SR-gateway-wildcard-route). PROVENANCE, deliberately split by
+# source: the fable / opus-4-x / sonnet / haiku ids are the ones a real key
+# listed via /v1/models on 2026-07-16; `claude-opus-5` was added in v3.45.0
+# from Anthropic's published model list, NOT from that listing — Opus 5 did
+# not exist on that date. Ordered fable first (the plugin default), opus-5
+# second (the implemented fallback). This tuple is an ALLOW-LIST of ROUTABLE
+# ids, NOT a statement of currency — every superseded id is deliberately
+# RETAINED, because dropping one removes its only working route and strands any
+# caller still naming it. Extend here when Anthropic ships new ids — the
 # catch-all remains as a best-effort tail for anything unlisted.
 ANTHROPIC_EXPLICIT_MODELS = (
     "claude-fable-5",
+    "claude-opus-5",
     "claude-opus-4-8",
     "claude-sonnet-5",
     "claude-opus-4-7",
@@ -1306,8 +1313,10 @@ def _default_agents_dir() -> Path:
 
     Claude Code runs the INSTALLED plugin cache copy, not the dev checkout —
     a split applied to the repo's agents/ never reaches the runtime and is
-    reverted by the next git operation (ship state is uniform fable). Resolve
-    the installed copy via the lever; fall back to the repo agents/ when no
+    reverted by the next git operation (the committed ship state is the v3.43.0
+    delivery-adversarial split — 12 delivery + adversarial agents on ``opus``,
+    27 planning / validation / review agents on ``fable``). Resolve the
+    installed copy via the lever; fall back to the repo agents/ when no
     installed copy exists (a --plugin-dir dev install, or tests)."""
     return _lever.runtime_agents_dir()
 

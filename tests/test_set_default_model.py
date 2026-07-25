@@ -3,7 +3,7 @@
 The v3.43.0 ship state is the delivery-adversarial Opus split (12 delivery +
 adversarial agents on ``model: opus``, the rest on ``fable``); this stdlib CLI is
 the sanctioned, deterministic lever that rewrites the frontmatter ``model:`` field
-— uniformly (``--model``, incl. the implemented Opus-4.8 fallback), on the gateway
+— uniformly (``--model``, incl. the implemented Opus 5 fallback), on the gateway
 secondary role split (``--split secondary``), or on the delivery/adversarial Opus
 split (``--split delivery``). These tests exercise the lever against a throwaway
 copy of the real ``agents/`` directory so they are robust to whatever the committed
@@ -271,11 +271,12 @@ def test_apply_policy_available_applies_split(mod: ModuleType, tmp_agents: Path)
     assert mod.policy_state(tmp_agents) == "secondary-split"
 
 
-def test_apply_policy_unavailable_restores_the_operating_model(
+def test_apply_policy_unavailable_applies_uniform_fable_off_the_split(
     mod: ModuleType, tmp_agents: Path
 ) -> None:
-    """No codex => the current operating model: uniform fable (the Opus
-    fallback where fable is unavailable stays the --model opus lever)."""
+    """No codex => the ``uniform-fable`` policy, which moves OFF the shipped
+    v3.43.0 delivery split rather than restoring it (the Opus fallback where
+    fable is unavailable stays the --model opus lever)."""
     mod.apply_split(tmp_agents)
     policy, changed = mod.apply_policy(tmp_agents, False)
     assert policy == "uniform-fable"
