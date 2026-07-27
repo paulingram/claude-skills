@@ -10,7 +10,7 @@ Every capability CLAUDE TEAM SIX ships, one line each, derived from the `name` +
 generated, never hand-edited — after adding or renaming any skill, command,
 or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py --write`.
 
-## Skills (48)
+## Skills (49)
 
 - **api-design-from-frontend** — Extracts the "backend logic from frontend" portion (Stages 5+6+7) of visual-to-api-design as a standalone reusable skill
 - **architect-team-pipeline** — Use when a feature needs to be driven end-to-end to tested, integrated, demonstrable production code
@@ -24,6 +24,7 @@ or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py -
 - **data-dictionary** — Use when a codebase consumes data tables/databases and you need a self-contextualizing data dictionary — given code and/or documentation …
 - **data-engineering-exploration** — The data-plane analog of `visual-to-api-design` — a 7-stage exploration pipeline for data engineering / data architecture asks (dbt …
 - **data-lineage-mapping** — Use when a diagnostic or feature trace reaches data and the asset-lineage layer of the Code & Data Lineage Graph (CDLG) must be produced …
+- **delivery-manifest** — Use at the END of every completed run or piece of delivered work — fired by the close-out of all four pipelines (Phase 8 / B8 / M7 / U9, …
 - **design-fidelity-mapping** — Use when authoring or refreshing a frontend codebase's UX mapping AND any design artifacts are available — Figma exports, …
 - **dev-api-integration-testing** — Use when authoring or running integration tests against a backend slice, especially during Phase 5 when verifying against a live dev API
 - **diagnostic-research-team** — Use when a failing test escalates back to the orchestrator via a solution requirement before spawning a Phase 2 fix team
