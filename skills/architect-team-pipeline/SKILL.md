@@ -736,10 +736,20 @@ Throughout the run, keep the marker's observability fields current at each phase
 
 ### Run-complete notification (v3.34.0 — the run's final email)
 
+**Delivery manifest — the bill of sale (v3.46.0).** Before emitting `run_complete`, produce the run's delivery manifest per the `delivery-manifest` skill. Assemble the manifest data (plain-speak problem statement; stakeholder-executable validation steps, EACH with an expected result; for a feature, the location + name + functionality of every new element; if the user provided a template/example document, match its vocabulary and layout), write it to `<workspace>/.architect-team/delivery/<run-id>-manifest.json`, gate on the engine's zero-error validation, and render the markdown:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --repo-root . || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --repo-root .
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --out "<workspace>/.architect-team/delivery/<run-id>-manifest.md" --email || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --out "<workspace>/.architect-team/delivery/<run-id>-manifest.md" --email
+```
+
+A blocking validation finding means the manifest is a draft — fix the data and re-validate before publishing (advisories are prose-quality pointers). The rendered manifest embeds into the final email via the `--plan-file` flag on the `run_complete` invocation below, and is presented to the user as the run's closing deliverable (copy-paste ready).
+
+
 Immediately after the run is marked complete (and after Phase 8's own `phase_complete`), emit `run_complete` ONCE — the run's final notification, telling recipients the run finished end-to-end and what it shipped (best-effort, per `## Notifications`; a notifier failure never blocks the close-out):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<run-id>-manifest.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<run-id>-manifest.md"
 ```
 
 Omit `--commit` when the run produced no commit (`--no-commit`).

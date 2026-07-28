@@ -566,10 +566,20 @@ This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters t
 
 **Mark the run complete (v3.30.0 — the LAST state action of B8):** after the commit + push (and auto-merge, when it applies) have landed, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete` from the workspace root. Until this runs, the run-continuity enforcement treats the bug-fix run as in-flight (Stops blocked, resumed sessions directed back into this skill). Keep `--set phase="Phase B<N>" slug=<bug-slug>` current at phase boundaries. Per `common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`.
 
+**Delivery manifest — the bill of sale (v3.46.0).** Before emitting `run_complete`, produce the run's delivery manifest per the `delivery-manifest` skill. Assemble the manifest data (plain-speak problem statement; stakeholder-executable validation steps, EACH with an expected result; for a feature, the location + name + functionality of every new element; if the user provided a template/example document, match its vocabulary and layout), write it to `<workspace>/.architect-team/delivery/<bug-slug>-manifest.json`, gate on the engine's zero-error validation, and render the markdown:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<bug-slug>-manifest.json" --repo-root . || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<bug-slug>-manifest.json" --repo-root .
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<bug-slug>-manifest.json" --out "<workspace>/.architect-team/delivery/<bug-slug>-manifest.md" --email || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<bug-slug>-manifest.json" --out "<workspace>/.architect-team/delivery/<bug-slug>-manifest.md" --email
+```
+
+A blocking validation finding means the manifest is a draft — fix the data and re-validate before publishing (advisories are prose-quality pointers). The rendered manifest embeds into the final email via the `--plan-file` flag on the `run_complete` invocation below, and is presented to the user as the run's closing deliverable (copy-paste ready).
+
+
 **Run-complete notification (v3.34.0 — the run's final email, best-effort, per `## Notifications`):** immediately after the run is marked complete (and after B8's own `phase_complete`), emit `run_complete` ONCE — telling recipients the bug-fix run finished end-to-end, that the symptom is gone, and what the fix was:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <bug-slug> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<bug resolved: the class fixed, QA-replay verdict bug-resolved end-to-end, iterations>" --progress "All B-phases complete — run closed" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <bug-slug> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<bug resolved: the class fixed, QA-replay verdict bug-resolved end-to-end, iterations>" --progress "All B-phases complete — run closed"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <bug-slug> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<bug resolved: the class fixed, QA-replay verdict bug-resolved end-to-end, iterations>" --progress "All B-phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<bug-slug>-manifest.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <bug-slug> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<bug resolved: the class fixed, QA-replay verdict bug-resolved end-to-end, iterations>" --progress "All B-phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<bug-slug>-manifest.md"
 ```
 
 ## Operating rules (non-negotiable)

@@ -397,10 +397,20 @@ After the merge sequence lands (or, under `--no-merge` / `--no-push`, after the 
 
 ### Run-complete notification (v3.34.0 — the run's final email)
 
+**Delivery manifest — the bill of sale (v3.46.0).** Before emitting `run_complete`, produce the run's delivery manifest per the `delivery-manifest` skill. Assemble the manifest data (plain-speak problem statement; stakeholder-executable validation steps, EACH with an expected result; for a feature, the location + name + functionality of every new element; if the user provided a template/example document, match its vocabulary and layout), write it to `<workspace>/.architect-team/delivery/<slug>-manifest.json`, gate on the engine's zero-error validation, and render the markdown:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<slug>-manifest.json" --repo-root . || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<slug>-manifest.json" --repo-root .
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<slug>-manifest.json" --out "<workspace>/.architect-team/delivery/<slug>-manifest.md" --email || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<slug>-manifest.json" --out "<workspace>/.architect-team/delivery/<slug>-manifest.md" --email
+```
+
+A blocking validation finding means the manifest is a draft — fix the data and re-validate before publishing (advisories are prose-quality pointers). The rendered manifest embeds into the final email via the `--plan-file` flag on the `run_complete` invocation below, and is presented to the user as the run's closing deliverable (copy-paste ready).
+
+
 Immediately after the run is marked complete (and after M7's own `phase_complete`), emit `run_complete` ONCE — the mini run's final notification: the change is merged to `main`, what it shipped, and the QA outcome (best-effort, per `## Notifications`; a notifier failure never blocks the close-out). Omit `--commit` under `--no-commit`; on the M8 escalation hand-off to the full pipeline do NOT emit it (the full pipeline's own `run_complete` closes the run):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <slug> --elapsed "<elapsed since run start>" --commit <merged-commit-sha> --details "<what shipped: ACs delivered, QA verdict green (cycle N), merged to main>" --progress "All M-phases complete — run closed" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <slug> --elapsed "<elapsed since run start>" --commit <merged-commit-sha> --details "<what shipped: ACs delivered, QA verdict green (cycle N), merged to main>" --progress "All M-phases complete — run closed"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <slug> --elapsed "<elapsed since run start>" --commit <merged-commit-sha> --details "<what shipped: ACs delivered, QA verdict green (cycle N), merged to main>" --progress "All M-phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<slug>-manifest.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <slug> --elapsed "<elapsed since run start>" --commit <merged-commit-sha> --details "<what shipped: ACs delivered, QA verdict green (cycle N), merged to main>" --progress "All M-phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<slug>-manifest.md"
 ```
 
 ### Compact prompt

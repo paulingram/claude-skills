@@ -49,6 +49,7 @@ EXPECTED_SKILLS: set[str] = {
     "structure-optimization",
     "data-dictionary",
     "closeout",
+    "delivery-manifest",
     "claude-md-efficiency",
     "mcp-output-contract-design",
     "helpdesk",
