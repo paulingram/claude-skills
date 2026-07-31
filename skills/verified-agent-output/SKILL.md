@@ -169,13 +169,30 @@ The schema v7's `visual_fidelity_review` field MUST cite this tool's verdict pat
 
 Module: `hooks/vao/check_integrity.py`, re-exported through the `hooks/vao_tools.py` facade with the CLI subcommand `verify-check-can-fail`. Where the other twenty ask *did the work meet the bar*, this one asks the rung below: **was the check that certified it capable of failing at all?** A check that did no work exits 0, and a guard that has never been red is a green light wired to nothing.
 
-Input: a verification artifact citing, per verification check, `{command, output_path}` (optionally `exit_code`, and optionally `tsconfig_path` to point the solution-shape predicate at a specific tsconfig); a `new_test_files` list (the diff-added test files); and, per such file, a `red_run` block `{command, output_path, observed_failure_excerpt, red_source}` naming which of the three acceptable red sources produced it (see `team-spawning-and-review-gates` `## Red-first — a new guard is not evidence until it has been shown to fail`). A cited `output_path` that does not exist, is not a file, or is 0 bytes is itself a failure — the same missing-evidence-artifact bar the other tools apply.
+Input: a verification artifact with `repo_root` (every relative cited path resolves against it; the `--repo-root` CLI flag overrides), a `checks[]` list of `{command, output_path}` (optionally `exit_code`, and optionally `tsconfig_path` to point the solution-shape predicate at a specific tsconfig), a `new_test_files` list (the diff-added test files), and `red_runs` — a DICT keyed by test-file path, each value `{command, output_path, observed_failure_excerpt?, red_source?}` naming which of the three acceptable red sources produced it (see `team-spawning-and-review-gates` `## Red-first — a new guard is not evidence until it has been shown to fail`). Keys are matched posix-normalized against `new_test_files`, so a Windows-authored artifact cannot produce a spurious never-shown-red. A cited `output_path` that does not exist, is not a file, or is 0 bytes is itself a failure — the same missing-evidence-artifact bar the other tools apply. `verify_check_can_fail`'s `signature_registry` parameter is the extensibility seam: pass a different registry tuple to add runners without touching scan logic.
+
+**The REPORTING region (the load-bearing partition).** Every signature match and every runner-detection probe consults only the output's REPORTING region — the runner's own report — via `reporting_region()`. Captured stdout/stderr, live logs, the pytest `-rA` PASSES section, echoed commands and echoed test ids are excluded, because relayed text can reproduce any reporting shape verbatim: a test that PRINTS `collected 0 items` must not be able to forge a vacuous verdict, and a passing log quoting a failure line must not be able to forge a red. `_RUNNER_OUTPUT_SHAPES` widens applicability past command naming, so a wrapper (`make test`, `npm run typecheck`) that hides the runner's name but not its output shape is still classified. Output bytes are decoded through `_decode_output_bytes`: an explicit BOM wins (`utf-8-sig` / `utf-16`), else a NUL ratio at or above one third triggers `utf-16-le` then `utf-16-be`, else UTF-8 with replacement — closing the UTF-16 evasion.
+
+**Terminal verdict wins.** `_assess_red_output` resolves a red run in three explicit modes via `_terminal_verdict()`: PRESENT — the runner's own stated result decides, full stop; AMBIGUOUS — a capture holding more than one run is REFUSED (`ambiguous-multi-run-capture`) rather than resolved by first- or last-wins; ABSENT — with no summary at all, matching degrades to the runner's framed failure sections only, never the whole region (`verdict-absent-framed-sections-only`).
 
 Three severities:
 
 - **`vacuous-check`** — a cited check's output matches a zero-work signature. The registry is DATA, not scan logic: pytest (`collected 0 items`, `no tests ran`), Playwright (`no tests found`, a `0 passed` with zero total), jest / vitest (`No test files found`, `No tests found`), plus the repo-state predicate for a `tsc --noEmit` resolved against a solution-shaped `tsconfig.json` (`"files": []` plus `"references"`), whose remediation names `tsc -b` as the required command form. Entries are ANCHORED or count-aware — never a raw bare substring — so a green log that merely echoes a zero-work phrase is not flagged, and the tsc predicate gates on typecheck INTENT (`tsc` / `typecheck` / `type-check` in the command) with `tsc -b` exempt, recording an indeterminate note rather than staying silent when no tsconfig resolves. Adding a runner is a data edit plus a fixture.
 - **`new-guard-never-shown-red`** — a diff-added test file with no cited `red_run` block, or a block whose `red_source` is an unrecognized value. The finding names the path.
-- **`red-run-not-red`** — a cited red-run output that either carries no anchored failure evidence for its runner, or identifies tests none of which correspond to the test file it claims to prove (reason code `output-does-not-reference-test`, matched posix-normalized on basename-or-path; an output identifying NO test is indeterminate for correlation and is judged on the failure signature alone). One red output cannot vouch for five new guards. The finding names the test file and the cited output path.
+- **`red-run-not-red`** — the cited red run does not establish that THIS guard went red. The gap carries a `reasons[]` array, and there are six codes — key on `reasons[]`, not on prose:
+
+  | Reason code | Fires when |
+  |---|---|
+  | `output-missing` | the cited output does not exist, is not a file, or is empty |
+  | `no-failure-signature` | the REPORTING region carries no failure evidence for its runner |
+  | `excerpt-not-in-output` | the quoted `observed_failure_excerpt` does not appear in that output |
+  | `output-does-not-reference-test` | the output names tests, none matching this file (posix-normalized, full path OR basename) |
+  | `excerpt-required-when-indeterminate` | the output names NO test, so the excerpt is mandatory and is missing |
+  | `shared-anonymous-red` | one output naming no test at all is reused across several guards |
+
+  **Sharing one capture across guards is normal and accepted when the output NAMES them** — correlation ties each guard to the output independently, so nothing is taken on trust. What is refused is the same anonymous capture reused for several guards: an excerpt cannot fix that, since one string satisfies the excerpt rule as many times as it is pasted. Fix by re-running with per-test reporting (drop `--tb=no`, add `-v`, or name the paths), or split into one capture per guard.
+
+**Stated boundaries** — recorded rather than left for a reader to find. *Same-basename correlation:* matching accepts the full posix path OR the basename, so with `tests/unit/test_guard.py` and `tests/integration/test_guard.py`, an output naming only one satisfies both — prefer captures carrying full paths. *Indeterminate correlation:* a mandatory excerpt raises the floor but does not make a citation unique; one name-free summary with an excerpt can still be cited for several guards. *Exotic encodings:* BOM-less UTF-16LE diluted below the NUL floor, a truncated odd-length UTF-16 file, and BOM-less UTF-16BE still evade the decoder; each needs a hand-rolled writer, so the residual is rated low.
 
 ```json
 {
@@ -189,10 +206,19 @@ Three severities:
      "runner": "pytest",
      "matched_signature": "collected 0 items",
      "evidence": "...",
+     "remediation": "..."},
+    {"severity": "red-run-not-red",
+     "test_file": "tests/test_new_guard.py",
+     "output_path": ".architect-team/red-runs/<run>-guard.txt",
+     "reasons": ["shared-anonymous-red"],
+     "evidence": "...",
      "remediation": "..."}
   ],
   "notes": [
-    {"kind": "typecheck-tsconfig-indeterminate", "command": "npm run typecheck", "detail": "..."}
+    {"kind": "typecheck-tsconfig-indeterminate",
+     "command": "npm run typecheck",
+     "evidence": "...",
+     "remediation": "..."}
   ],
   "checks_scanned": 2,
   "new_test_files_count": 1,

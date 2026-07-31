@@ -1072,6 +1072,128 @@ def test_scope_structural_guard_no_row_reads_off_relayed_text() -> None:
     assert len(_FAILURE_SIGNATURES) >= 8, "guard is only meaningful over the real table"
 
 
+# ---------------------------------------------------------------------------
+# Round-5 seams. Once the verdict decided the outcome, the load moved onto the
+# verdict mechanism and the region boundary. Red for this section is the grown
+# corpus (CLASS-scope-corpus.txt, S5 set: 9 of 45 cases missing pre-fix).
+# ---------------------------------------------------------------------------
+
+
+def test_seam_relayed_line_marker_owns_its_continuation_block() -> None:
+    """A relayed LINE marker owns the indented block that follows it, not just
+    its own line — the continuation is where a fake terminal summary is planted."""
+    from hooks.vao.check_integrity import _output_shows_failure
+
+    vitest_green = (
+        " RUN  v1.6.0 /workspace/app\n\n"
+        "stdout | src/report.test.ts > renders the upstream report\n"
+        "upstream CI report follows:\n"
+        "      Tests  1 failed | 42 passed (43)\n"
+    )
+    assert _output_shows_failure("npm run test:unit", vitest_green) is False
+
+
+def test_seam_verdict_tolerates_an_interleaved_detail_line() -> None:
+    """Playwright's REAL list-reporter format puts the failing test's indented
+    detail between the count lines. Stopping there dropped the failure count and
+    called a genuine red green."""
+    from hooks.vao.check_integrity import _output_shows_failure
+
+    real_playwright_red = (
+        "Running 3 tests using 2 workers\n\n"
+        "  ✘ flows/export.spec.ts:9:1 → export fails (2.4s)\n\n"
+        "  1 failed\n"
+        "    [chromium] › flows/export.spec.ts:9:1 › export fails ──────────\n"
+        "  2 passed (4.9s)\n"
+    )
+    assert _output_shows_failure("npx playwright test", real_playwright_red) is True
+
+
+def test_seam_a_blank_line_ends_the_trailing_summary_block() -> None:
+    """The counterpart: a relayed summary sitting a blank line above the real one
+    must not be merged into the same verdict. Real runners print their counts
+    contiguously — Playwright separates them with a detail line, never a blank."""
+    from hooks.vao.check_integrity import _terminal_verdict, reporting_region
+
+    green_after_relayed_red = (
+        "========================= 1 failed, 2 passed in 0.41s =========================\n"
+        "\n"
+        "============================== 1 passed in 0.31s ==============================\n"
+    )
+    v = _terminal_verdict(reporting_region(green_after_relayed_red))
+    assert v is not None and v["failing"] == 0
+
+
+def test_seam_verdict_absent_abstains_to_framed_sections() -> None:
+    """A truncated capture has no verdict. That must NOT fall back to matching
+    the whole region — the abstain basis is the runner's own framed failure
+    sections, so unmarked application text cannot supply the evidence."""
+    from hooks.vao.check_integrity import _assess_red_output, _FAILURE_SIGNATURES
+
+    truncated = (
+        "============================= test session starts =============================\n"
+        "collected 3 items\n\n"
+        "tests/test_pool.py::test_reconnects\n"
+        "FAILED to connect to replica-2, falling back to replica-1\n"
+    )
+    got = _assess_red_output("python -m pytest -q", truncated, _FAILURE_SIGNATURES)
+    assert got["is_red"] is False
+    assert got["basis"].startswith("verdict-absent")
+
+
+def test_seam_verdict_absent_still_reads_a_framed_failure_section() -> None:
+    """Abstaining must not blind the tool to an honest truncated red: evidence
+    inside a real FAILURES section still counts."""
+    from hooks.vao.check_integrity import _assess_red_output, _FAILURE_SIGNATURES
+
+    truncated_red = (
+        "============================= test session starts =============================\n"
+        "collected 3 items\n\n"
+        "================================== FAILURES ===================================\n"
+        "E       AssertionError: assert 0 == 1\n"
+    )
+    got = _assess_red_output("python -m pytest -q", truncated_red, _FAILURE_SIGNATURES)
+    assert got["is_red"] is True
+    assert got["basis"] == "verdict-absent-framed-sections-only"
+
+
+def test_seam_two_runs_in_one_capture_are_refused_with_a_basis() -> None:
+    """Which run proves the guard is undetermined, so it proves nothing. Refused
+    by a named basis rather than resolved by first- or last-wins, both arbitrary."""
+    from hooks.vao.check_integrity import _assess_red_output, _FAILURE_SIGNATURES
+
+    two_runs = (
+        "============================= test session starts =============================\n"
+        "collected 2 items\n"
+        "============================== 2 passed in 0.11s ==============================\n"
+        "\n"
+        " RUN  v1.6.0 /workspace/other\n\n"
+        "      Tests  1 failed | 42 passed (43)\n"
+    )
+    got = _assess_red_output("make test", two_runs, _FAILURE_SIGNATURES)
+    assert got["is_red"] is False
+    assert got["basis"] == "ambiguous-multi-run-capture"
+
+
+def test_seam_resume_banner_must_be_at_column_zero() -> None:
+    """A quoted terminal banner is indented by whatever quoted it (a doctest
+    expected-output block). Only a banner the runner itself emitted — at column
+    zero — may resume reporting."""
+    from hooks.vao.check_integrity import reporting_region
+
+    doctest_quote = (
+        "============================= test session starts =============================\n"
+        "tests/test_docs.py::app.report.parse PASSED                              [100%]\n\n"
+        "------------------------------ Captured stdout call ---------------------------\n"
+        "Expecting:\n"
+        "    =========================== short test summary info ===========================\n"
+        "    FAILED sample/test_demo.py::test_demo\n"
+        "    1 failed, 2 passed\n"
+    )
+    region = reporting_region(doctest_quote)
+    assert "FAILED sample" not in region, "an indented quoted banner resumed reporting"
+
+
 # ---- A5/A7: encoding-evading outputs ---------------------------------------
 
 

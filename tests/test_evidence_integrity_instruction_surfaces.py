@@ -601,9 +601,10 @@ def test_vao_verdict_example_matches_the_tools_actual_output(plugin_root: Path) 
     """Queue G4 — the documented verdict example omitted the `notes` key the tool
     ALWAYS emits, and the input contract omitted the optional per-check
     `tsconfig_path`."""
-    body = _read(plugin_root, VAO_SKILL)
-    idx = body.index("verify-check-can-fail` (the 21st tool")
-    section = body[idx: idx + 4200]
+    # Bound by the real section, not a fixed-size window: the window version
+    # broke when the section grew, which is a pin that reports on its own
+    # arithmetic rather than on the text.
+    section = _tool_section(plugin_root)
     assert '"notes"' in section, (
         "the verdict example omits the `notes` key the tool always emits"
     )
@@ -630,6 +631,140 @@ def test_spec_currency_cross_references_cite_the_full_heading(plugin_root: Path)
                 f"{parts[-2] if len(parts) > 2 else parts[-1]}: cites the spec-currency "
                 f"section without its full heading (expected {cited!r}): {line.strip()[:150]!r}"
             )
+
+
+# --- text-vs-code currency pins (the 16-item reconciliation delta) ------------
+# The tool kept evolving after the review closed. These pin the description
+# against identifiers that EXIST in hooks/vao/check_integrity.py, so the next
+# behavior change breaks a test rather than silently staling the prose.
+
+
+def _tool_section(plugin_root: Path) -> str:
+    body = _read(plugin_root, VAO_SKILL)
+    start = body.index("#### `verify-check-can-fail` (the 21st tool")
+    end = body.index("#### Two tools whose only prose home is this table")
+    return body[start:end]
+
+
+@pytest.mark.parametrize("identifier", [
+    "reporting_region", "_RUNNER_OUTPUT_SHAPES", "_decode_output_bytes",
+    "_assess_red_output", "_terminal_verdict", "signature_registry",
+])
+def test_documented_identifier_exists_in_the_module(plugin_root: Path, identifier: str) -> None:
+    """Every code identifier the skill names must be real — the B3 failure mode
+    was prose citing a locator that did not exist."""
+    src = (plugin_root / "hooks" / "vao" / "check_integrity.py").read_text(encoding="utf-8")
+    assert identifier in src, f"skill names {identifier!r} but the module does not define it"
+
+
+@pytest.mark.parametrize("reason", [
+    "output-missing", "no-failure-signature", "excerpt-not-in-output",
+    "output-does-not-reference-test", "excerpt-required-when-indeterminate",
+    "shared-anonymous-red",
+])
+def test_documented_reason_code_is_emitted_by_the_module(plugin_root: Path, reason: str) -> None:
+    """Each documented red-run-not-red reason code must be one the code emits."""
+    section = _tool_section(plugin_root)
+    src = (plugin_root / "hooks" / "vao" / "check_integrity.py").read_text(encoding="utf-8")
+    assert reason in section, f"the skill does not document the {reason!r} reason code"
+    assert f'"{reason}"' in src, f"{reason!r} is documented but not emitted by the module"
+
+
+def test_tool_section_documents_the_reporting_partition(plugin_root: Path) -> None:
+    """O1 — the region gate is the load-bearing class fix; describing only the
+    patterns leaves a reader thinking a printed string can forge a verdict."""
+    low = _tool_section(plugin_root).lower()
+    assert "reporting" in low, "the REPORTING-vs-relayed partition is undocumented"
+    assert "relayed" in low or "echoed" in low, (
+        "the text must say WHAT is excluded from the region, not just that a region exists"
+    )
+
+
+def test_tool_section_documents_terminal_verdict_modes(plugin_root: Path) -> None:
+    """O2/O3/O4 — the three resolution modes, including the refusal."""
+    low = _tool_section(plugin_root).lower()
+    assert "ambiguous-multi-run-capture" in low, "the multi-run refusal is undocumented"
+    assert "verdict-absent-framed-sections-only" in low, "the degraded-basis abstain is undocumented"
+    assert "refused" in low, "a capture holding more than one run is REFUSED, not resolved"
+
+
+def test_tool_section_corrects_the_shared_red_rule(plugin_root: Path) -> None:
+    """M2 — 'one red output cannot vouch for five new guards' is false as
+    shipped: it can, when the output NAMES them. Executed both directions."""
+    section = _tool_section(plugin_root)
+    low = section.lower()
+    assert "one red output cannot vouch for five new guards" not in low, (
+        "the stale absolute survives; sharing IS accepted when the output names the guards"
+    )
+    assert "names" in low and "shared-anonymous-red" in low, (
+        "the corrected rule must say sharing is accepted when named and refused when anonymous"
+    )
+
+
+def test_tool_section_names_the_real_artifact_keys(plugin_root: Path) -> None:
+    """M6/O9 — the top-level key is `red_runs` (a dict), and repo_root decides
+    how every relative cited path resolves."""
+    section = _tool_section(plugin_root)
+    assert "`red_runs`" in section, "the artifact's real top-level key is never named"
+    assert "repo_root" in section, "repo_root is undocumented though every cited path resolves against it"
+
+
+def test_tool_section_states_the_module_boundaries(plugin_root: Path) -> None:
+    """O6 — the module records three boundaries deliberately; the skill must not
+    present the tool as deciding more than it does."""
+    low = _tool_section(plugin_root).lower()
+    assert "boundar" in low, "the skill documents no boundary though the code records three"
+    for token in ("basename", "encoding"):
+        assert token in low, f"boundary set incomplete — {token} boundary missing"
+
+
+def test_verdict_example_uses_real_note_keys(plugin_root: Path) -> None:
+    """M3 — the example used a `detail` key that does not exist."""
+    section = _tool_section(plugin_root)
+    assert '"detail"' not in section, "the notes example still uses the non-existent `detail` key"
+    src = (plugin_root / "hooks" / "vao" / "check_integrity.py").read_text(encoding="utf-8")
+    for key in ("kind", "command", "evidence", "remediation"):
+        assert f'"{key}"' in src, f"documented note key {key!r} is not emitted"
+
+
+def test_verdict_example_shows_the_reasons_array(plugin_root: Path) -> None:
+    """M4 — reasons[] is the field a consumer keys on; it was absent from the
+    documented shape."""
+    section = _tool_section(plugin_root)
+    assert '"reasons"' in section, (
+        "the gaps[] example never shows reasons[], the field distinguishing the six modes"
+    )
+
+
+def test_vao_package_docstring_is_current(plugin_root: Path) -> None:
+    """F1 — the package docstring counted 20 tools and listed no modules."""
+    doc = (plugin_root / "hooks" / "vao" / "__init__.py").read_text(encoding="utf-8")
+    assert "20 ``verify_*`` tools" not in doc, "package docstring still says 20 tools"
+    assert "21 ``verify_*`` tools" in doc
+    for mod in ("check_integrity", "deferral_b", "mention_context"):
+        assert mod in doc, f"package docstring omits the {mod} module"
+    for helper in ("_ITEM_DISPOSITION_CITATIONS", "_boundary_pattern"):
+        assert helper in doc, f"package docstring omits the relocated helper {helper}"
+    # the count must match the package
+    import re as _re
+    names = set()
+    for p in (plugin_root / "hooks" / "vao").glob("*.py"):
+        names |= set(_re.findall(r"^def (verify_[a-z_]+)", p.read_text(encoding="utf-8"), _re.M))
+    assert len(names) == 21, f"package defines {len(names)} verify_* tools, docstring says 21"
+
+
+def test_conventions_documents_verdict_hygiene(plugin_root: Path) -> None:
+    """Every verdict in the directory must pass — there is no latest-wins, so a
+    re-run must overwrite or delete the verdict it supersedes."""
+    body = _read(plugin_root, CONVENTIONS_SKILL)
+    section = _section(body, "### Verdict hygiene — a superseded verdict still counts (v3.47.0)")
+    low = section.lower()
+    assert "every" in low and "pass" in low
+    assert "--out" in section, "the remediation must name the --out path reuse"
+    assert "delete" in low, "deleting the superseded verdict must be offered as the alternative"
+    assert "latest-wins" in low or "latest wins" in low, (
+        "the absence of latest-wins is the reason the rule exists — say it"
+    )
 
 
 # --- the two agents keep their frontmatter clean ------------------------------

@@ -243,19 +243,75 @@ def reporting_region(output_text: str) -> str:
         return ""
     kept: list[str] = []
     in_block = False
+    in_continuation = False
     for raw in output_text.splitlines():
         line = _strip_line_prefix(raw)
         if in_block:
-            if _REPORTING_RESUME_RE.match(line) or _is_banner_summary_line(line):
+            # A relayed block resumes ONLY at a TERMINAL section banner. It
+            # deliberately does NOT resume at a summary line, even a
+            # banner-framed one: relayed text quotes those verbatim, and doing
+            # so let a captured report re-enter the region and supply the run's
+            # verdict (round-5 seam S5f / S5g).
+            if _REPORTING_RESUME_RE.match(line) and not line[:1].isspace():
                 in_block = False
+                kept.append(raw)
+            continue
+        if in_continuation:
+            # A relayed LINE marker owns its indented continuation block, not
+            # just its own line — the continuation is where a fake terminal
+            # summary gets planted (round-5 seam S5a / S5b). A blank line ends
+            # it, which is how every JS runner separates console output from
+            # its own reporting.
+            if not line.strip():
+                in_continuation = False
                 kept.append(raw)
             continue
         if _RELAYED_BLOCK_START_RE.match(line.strip()):
             in_block = True
             continue
         if _RELAYED_LINE_START_RE.match(line):
+            in_continuation = True
             continue
         kept.append(raw)
+    return "\n".join(kept)
+
+
+# A capture holding more than one run cannot say which run proves the guard.
+_RUN_START_MARKERS: tuple[str, ...] = (
+    r"(?mi)^=+\s*test session starts\s*=+",
+    r"(?mi)^\s*RUN\s+v\d",
+    r"(?mi)^\s*Running \d+ tests? using",
+)
+
+
+def _count_runs(reporting_text: str) -> int:
+    return sum(len(re.findall(p, reporting_text)) for p in _RUN_START_MARKERS)
+
+
+# Sections whose framed content is the runner's own failure reporting. Used on
+# the ABSTAIN path, when no terminal verdict exists at all.
+_FAILURE_SECTION_RE = re.compile(r"^=+\s*(FAILURES|ERRORS)\s*=+\s*$", re.IGNORECASE)
+_ANY_BANNER_RE = re.compile(r"^=+.*=+\s*$")
+
+
+def _framed_failure_sections(reporting_text: str) -> str:
+    """Content inside the runner's own FAILURES / ERRORS sections, plus its
+    short-summary lines. The only basis trusted when the verdict is ABSENT."""
+    kept: list[str] = []
+    inside = False
+    for raw in reporting_text.splitlines():
+        line = _strip_line_prefix(raw).rstrip()
+        if _FAILURE_SECTION_RE.match(line.strip()):
+            inside = True
+            kept.append(raw)
+            continue
+        if inside and _ANY_BANNER_RE.match(line.strip()) and not _FAILURE_SECTION_RE.match(line.strip()):
+            inside = _REPORTING_RESUME_RE.match(line) is not None
+            if inside:
+                kept.append(raw)
+            continue
+        if inside:
+            kept.append(raw)
     return "\n".join(kept)
 
 
@@ -273,14 +329,25 @@ def _terminal_verdict(reporting_text: str) -> dict[str, int] | None:
     # (control TP5).
     block: list[str] = []
     seen = False
+    min_indent = 10**6
     for raw in reversed(lines):
+        stripped = _strip_line_prefix(raw)
         if _is_summary_line(raw):
             block.append(raw)
             seen = True
+            min_indent = min(min_indent, len(stripped) - len(stripped.lstrip()))
             continue
-        if not raw.strip():
+        if not stripped.strip():
             if seen:
                 break
+            continue
+        # Real runners interleave a DETAIL line between their count lines —
+        # Playwright's list reporter prints the failing test's id between
+        # "1 failed" and "2 passed (4.9s)". A detail line is indented deeper
+        # than the counts it belongs to; stopping at it dropped the failure
+        # count and called a genuine red green (round-5 seam S5j / S5k).
+        indent = len(stripped) - len(stripped.lstrip())
+        if seen and indent > min_indent:
             continue
         if seen:
             break
@@ -790,17 +857,58 @@ def _output_shows_failure(command: Any, output_text: str,
     text = output_text or ""
     if not text.strip():
         return False
+    return _assess_red_output(command, text, table)["is_red"]
+
+
+def _assess_red_output(command: Any, output_text: str,
+                       table: tuple[tuple[str, str], ...]) -> dict[str, Any]:
+    """Decide whether a capture shows a failing run, and say on what basis.
+
+    Three verdict modes, each with an explicit path — round 5 moved the load
+    onto this mechanism, and an undefined mode is where the next forgery lands:
+
+      PRESENT    the runner stated its result. It decides, full stop: nothing
+                 failing means green no matter what the capture relays.
+      AMBIGUOUS  the capture holds more than one run. Which one proves the
+                 guard is undetermined, so it proves nothing — refused with a
+                 reason code rather than resolved by first- or last-wins, both
+                 of which are arbitrary.
+      ABSENT     truncated capture, no summary at all. This does NOT fall back
+                 to matching the whole region — that is the very behavior the
+                 scope fix removed. It abstains to the runner's own FRAMED
+                 failure sections and records that the basis was degraded.
+    """
+    text = output_text or ""
     region = reporting_region(text)
     if not region.strip():
-        return False
-    # The runner's own verdict wins. If its terminal summary reports nothing
-    # failing, the run is green no matter what failure-shaped text the capture
-    # relays (adversarial round 4: live logs, captured stdout, console output,
-    # doctest expected-output blocks and parametrize labels can all carry it).
+        return {"is_red": False, "basis": "empty-region", "verdict": None}
+
+    if _count_runs(region) > 1:
+        return {"is_red": False, "basis": "ambiguous-multi-run-capture", "verdict": None}
+
     verdict = _terminal_verdict(region)
-    if verdict is not None and verdict["failing"] == 0:
-        return False
-    detected = _detect_runners_from_output(text)
+    if verdict is not None:
+        return {
+            "is_red": verdict["failing"] > 0,
+            "basis": "terminal-verdict",
+            "verdict": verdict,
+        }
+
+    # ABSTAIN — framed sections only, never the whole region.
+    framed = _framed_failure_sections(region)
+    if not framed.strip():
+        return {"is_red": False, "basis": "verdict-absent-no-framed-failures", "verdict": None}
+    return {
+        "is_red": _match_failure_rows(command, framed, text, table),
+        "basis": "verdict-absent-framed-sections-only",
+        "verdict": None,
+    }
+
+
+def _match_failure_rows(command: Any, haystack: str, whole_output: str,
+                        table: tuple[tuple[str, str], ...]) -> bool:
+    region = haystack
+    detected = _detect_runners_from_output(whole_output)
     for runner, pattern in table:
         if runner != "*" and runner not in detected and not _command_names_runner(command, runner):
             continue

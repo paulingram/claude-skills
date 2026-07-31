@@ -2140,6 +2140,12 @@ $(command -v python3 || command -v python) "<P>/hooks/vao_tools.py" <subcommand>
 
 A body's gate reference is one line — e.g. *"Phase 8 runs the Deploy-mandate final gate + the Unilateral-override meta-gate per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (both BLOCK)."* The gate's one-sentence operative stub (what it blocks on / that it's best-effort) stays inline at the phase; the bash form lives here.
 
+### Verdict hygiene — a superseded verdict still counts (v3.47.0)
+
+`_audit_check_integrity` requires **EVERY** `verify-check-can-fail` verdict in `.architect-team/vao-verdicts/` to pass. There is deliberately no latest-wins: a failing verdict left beside a passing one is a recorded failure the run never resolved, and picking the newest by filename or timestamp would let a re-run bury it.
+
+So when you re-run the tool after fixing a gap: **write to the SAME `--out` path** (the re-run overwrites the failing verdict it supersedes), **or delete the superseded file** before writing the new one. What you must never do is accumulate `<run>-check-can-fail-1.json`, `-2.json`, `-3.json` and expect the last to speak for the set — the audit will read the earlier failures and block, correctly. The same hygiene applies to any Layer-3 verdict a gate reads as a set rather than singly; when in doubt, one gate, one verdict path, overwritten in place.
+
 ## Appearance-change policy discipline (v3.14.0)
 
 Agents MUST NOT make unsolicited changes to frontend APPEARANCE. When the user asks for an update, an improvement, or a fix, the mandate covers the named work — it does not authorize restyling, layout tweaks, new visible elements, or "polish" the user never asked for. Backend changes needed to deliver the mandate are unrestricted by this policy ("do what you need to on the backend"); what a user SEES changes only when the user asked for it, approved it, or explicitly granted free rein.

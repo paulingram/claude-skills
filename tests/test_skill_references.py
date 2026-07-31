@@ -9,13 +9,13 @@ behavior-neutral deep procedure detail moves.
 
 Target and recorded before/after byte counts (the mission's "record before/after"):
 
-    common-pipeline-conventions : 259290 -> 255129  (-4161)  [Auto-worktree lifecycle]
+    common-pipeline-conventions : 259290 -> 256080  (-3210)  [Auto-worktree lifecycle]
 
 The recorded counts are LF-normalized (the form the index carries). The repo runs
 `core.autocrlf=true`, so a Windows working tree measures one extra byte per line
 and this pin reads red there — a known platform artifact of `read_bytes()`, not a
 regrowth. v3.47.0 grew the body by the declared-gates + spec-currency disciplines
-and the compiled principles clause, then the adversarial-batch corrections (248657 -> 255129), still under
+and the compiled principles clause, then the adversarial-batch corrections (248657 -> 256080), still under
 the baseline.
 
 HONEST DIVERGENCE — the other two of the three largest skills (architect-team-pipeline
@@ -46,7 +46,7 @@ import pytest
 # skill dir -> (reference id, pre-change baseline bytes, recorded after bytes)
 # Byte counts are LF-normalized (see the module docstring).
 EXTRACTIONS = {
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 255129),
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 256080),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...
