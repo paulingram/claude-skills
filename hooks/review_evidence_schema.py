@@ -111,6 +111,23 @@ VALID_LIVE_VERIFICATION_VALUES = {"pass", "n/a", "fail"}
 # and v2.2.0.
 VALID_APPEARANCE_SCOPE_VALUES = {"pass", "n/a", "fail"}
 
+# v3.47.0 — check_integrity_review is OPTIONAL (NOT in REQUIRED_EVIDENCE_FIELDS).
+# It cites the Layer-3 `verify-check-can-fail` verdict: proof that the checks the
+# slice leaned on could have failed — no zero-work signature in a cited output
+# (`collected 0 items`, `no tests found`, a solution-shaped `tsc --noEmit`), and
+# every diff-added test file shown red before it was trusted green. Required when
+# the slice cites verification checks or adds test files; `n/a` otherwise.
+# Pre-v3.47.0 evidence files (which lack the field entirely) remain valid — the
+# same optional-ness backwards-compat guarantee as v2.1.0 / v2.2.0 / v3.14.0.
+#
+# One addition to the shared shape: a `pass` MUST cite the verdict path, either
+# as the dict shape's `verdict_path` or the sibling
+# `check_integrity_review_verdict_path`. The whole point of this field is that a
+# check is not evidence until shown able to fail; an uncited "the checks were
+# fine" is the self-attestation it exists to refuse.
+VALID_CHECK_INTEGRITY_VALUES = {"pass", "n/a", "fail"}
+CHECK_INTEGRITY_VERDICT_PATH_FIELD = "check_integrity_review_verdict_path"
+
 # v3.44.0 — frontend_impact_e2e_review is CONDITIONALLY REQUIRED: absent/optional
 # when the slice's `files_changed` shows NO frontend impact, but REQUIRED and
 # must be 'pass' when frontend files were changed (signal (a) of
@@ -125,6 +142,7 @@ OPTIONAL_VAO_FIELDS = (
     "interactions_honored_review",
     "live_verification_review",
     "appearance_scope_review",
+    "check_integrity_review",
 )
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
@@ -140,6 +158,19 @@ REQUIRED_INDEPENDENT_REVIEW_FIELDS = {
     "reuse_compliance",
     "reviewed_at",
 }
+
+
+def _value_ok(value: Any, valid_values: set[str]) -> bool:
+    """True iff ``value`` is one of ``valid_values``, safely for ANY input type.
+
+    `value in valid_values` raises ``TypeError: unhashable type`` when value is a
+    list / dict / set. That exception escaped ``validate_evidence`` and the hook
+    process, which exited 1 — and a hook exit of 1 is a non-blocking error, so a
+    single added key with a list value silently SKIPPED the whole review gate.
+    Every value comparison in this module goes through here so the crash class
+    has one home: a non-string is simply not a valid value.
+    """
+    return isinstance(value, str) and value in valid_values
 
 
 def _detect_trigger_mode(payload: dict[str, Any]) -> str:
@@ -195,6 +226,56 @@ def safe_id(value: str) -> str | None:
     if value == "..":
         return None
     return value
+
+
+def normalize_task_id(value: Any) -> str | None:
+    """The canonical STRING form of a task id, or None when not id-shaped.
+
+    A task id reaches a hook as a string (the harness payload), but a manifest is
+    hand-authored JSON and may record the same id as a number — `"3" in [3]` is
+    False, so an integer-typed entry silently voided the evidence gate for that
+    task. Normalising both sides here gives the comparison one definition.
+
+    `bool` is excluded deliberately: it is an `int` subclass, and `True` is not an
+    id. Blank strings are not ids either.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, int):
+        return str(value)
+    return None
+
+
+def unusable_evidence_entry_reason(value: Any) -> str | None:
+    """Why an `expected_review_evidence` entry can never match a task id — or None.
+
+    A registration that cannot match is worse than no registration: the gate
+    simply never fires for that teammate and nothing says so. The three shapes
+    seen in the wild are an evidence PATH, an evidence FILE NAME, and a non-id
+    type; each is named here so the caller can report it instead of silently
+    skipping it.
+    """
+    normalized = normalize_task_id(value)
+    if normalized is None:
+        return (
+            f"{value!r} is not an id-shaped value — an entry must be a non-empty "
+            f"string or an integer task id"
+        )
+    if safe_id(normalized) is None:
+        return (
+            f"{normalized!r} can never match a task id — it carries a path "
+            f"separator, a leading '.', or is '..'; the entry is the task ID, not "
+            f"a path to its evidence"
+        )
+    if normalized.lower().endswith(".json"):
+        return (
+            f"{normalized!r} looks like an evidence FILE NAME rather than a task "
+            f"id — record the id itself; the hooks append '.json' when resolving "
+            f".architect-team/reviews/<task-id>.json"
+        )
+    return None
 
 
 def validate_evidence(evidence: dict[str, Any]) -> list[str]:
@@ -254,7 +335,7 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
     # require the verdict_path citation be present.
     if isinstance(vfr, dict):
         v_verdict = vfr.get("verdict")
-        if v_verdict not in VALID_VISUAL_FIDELITY_VALUES:
+        if not _value_ok(v_verdict, VALID_VISUAL_FIDELITY_VALUES):
             gaps.append(
                 f"visual_fidelity_review.verdict={v_verdict!r} must be one of "
                 f"{sorted(VALID_VISUAL_FIDELITY_VALUES)}"
@@ -275,7 +356,7 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
         vfr = None  # short-circuit the legacy string-shape branch below
     if vfr is None:
         pass
-    elif vfr not in VALID_VISUAL_FIDELITY_VALUES:
+    elif not _value_ok(vfr, VALID_VISUAL_FIDELITY_VALUES):
         gaps.append(
             f"visual_fidelity_review={vfr!r} must be one of "
             f"{sorted(VALID_VISUAL_FIDELITY_VALUES)}"
@@ -297,7 +378,7 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
             )
 
     tcr = evidence.get("test_completeness_review")
-    if tcr not in VALID_TEST_COMPLETENESS_VALUES:
+    if not _value_ok(tcr, VALID_TEST_COMPLETENESS_VALUES):
         gaps.append(
             f"test_completeness_review={tcr!r} must be one of "
             f"{sorted(VALID_TEST_COMPLETENESS_VALUES)}"
@@ -322,7 +403,7 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
             )
 
     itr = evidence.get("integration_testing_review")
-    if itr not in VALID_INTEGRATION_TESTING_VALUES:
+    if not _value_ok(itr, VALID_INTEGRATION_TESTING_VALUES):
         gaps.append(
             f"integration_testing_review={itr!r} must be one of "
             f"{sorted(VALID_INTEGRATION_TESTING_VALUES)}"
@@ -355,7 +436,7 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
             )
 
     uir = evidence.get("ui_interaction_review")
-    if uir not in VALID_UI_INTERACTION_VALUES:
+    if not _value_ok(uir, VALID_UI_INTERACTION_VALUES):
         gaps.append(
             f"ui_interaction_review={uir!r} must be one of "
             f"{sorted(VALID_UI_INTERACTION_VALUES)}"
@@ -470,7 +551,7 @@ def _validate_vao_field(
 
     if isinstance(value, dict):
         verdict = value.get("verdict")
-        if verdict not in valid_values:
+        if not _value_ok(verdict, valid_values):
             gaps.append(
                 f"{field}.verdict={verdict!r} must be one of {sorted(valid_values)}"
             )
@@ -485,7 +566,7 @@ def _validate_vao_field(
             gaps.append(f"{field}.verdict='fail' — {fail_explanation}")
         return gaps
 
-    if value not in valid_values:
+    if not _value_ok(value, valid_values):
         gaps.append(f"{field}={value!r} must be one of {sorted(valid_values)}")
         return gaps
 
@@ -629,7 +710,57 @@ def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
             note_field="live_verification_review_note",
         )
 
+    # v3.47.0 — check_integrity_review is OPTIONAL. Validate only when the field
+    # is present (pre-v3.47.0 evidence files lack it and remain valid). Same
+    # string/dict-shape contract as the other v7 fields, PLUS the pass-citation
+    # rule below.
+    if "check_integrity_review" in evidence:
+        gaps += _validate_vao_field(
+            evidence,
+            "check_integrity_review",
+            VALID_CHECK_INTEGRITY_VALUES,
+            "v3.47.0 `verify-check-can-fail` found a check that could not have "
+            "failed. One of the three severities fired — vacuous-check (a cited "
+            "check's output matches a zero-work signature: pytest `collected 0 "
+            "items`, Playwright `no tests found`, jest/vitest `No test files "
+            "found`, or a solution-shaped `tsc --noEmit` that examined zero "
+            "files), new-guard-never-shown-red (a diff-added test file was never "
+            "shown failing), or red-run-not-red (the cited red run's output "
+            "carries no failure signature). A green from a check that reads "
+            "nothing is not evidence. Re-run the check so it actually examines "
+            "the work, capture a real red for every new guard, and cite the "
+            "outputs; do not mark complete.",
+            note_field="check_integrity_review_note",
+        )
+        gaps += _validate_check_integrity_citation(evidence)
+
     return gaps
+
+
+def _validate_check_integrity_citation(evidence: dict[str, Any]) -> list[str]:
+    """A passing `check_integrity_review` MUST cite the verdict it derived from.
+
+    The dict shape's `verdict_path` requirement is already enforced by
+    `_validate_vao_field`, so this only closes the string shape: a bare
+    `check_integrity_review: "pass"` with no `check_integrity_review_verdict_path`
+    is an attestation, not a verdict, and this field exists precisely to refuse
+    that substitution.
+    """
+    value = evidence.get("check_integrity_review")
+    if isinstance(value, dict):
+        return []  # citation already required by the dict-shape contract
+    if value != "pass":
+        return []
+    cited = evidence.get(CHECK_INTEGRITY_VERDICT_PATH_FIELD)
+    if isinstance(cited, str) and cited.strip():
+        return []
+    return [
+        "check_integrity_review='pass' requires a citation — either the "
+        "dict-shape {'verdict': 'pass', 'verdict_path': <path>} or a non-empty "
+        f"'{CHECK_INTEGRITY_VERDICT_PATH_FIELD}' naming the verify-check-can-fail "
+        "verdict JSON. A check is not evidence until a verdict shows it could "
+        "have failed; an uncited pass is the self-attestation this field refuses."
+    ]
 
 
 def _validate_independent_review(evidence: dict[str, Any]) -> list[str]:

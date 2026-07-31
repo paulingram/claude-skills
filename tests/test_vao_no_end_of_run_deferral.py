@@ -396,6 +396,40 @@ def test_heirship_deferral_still_fires_after_v212_widening(vao_tools, fixture_da
     assert "wrap-up-with-known-bugs" in severities
 
 
+def test_heirship_deferral_still_fires_after_v3470_citation_widening(vao_tools, fixture_data):
+    """Regression — v3.47.0 widened `_ITEM_DISPOSITION_CITATIONS` with verdict
+    and review-evidence paths and added five report-claims severities. Neither
+    may weaken the v2.10.0 detection: the canonical fixture must still fire all
+    3 original severities, and the corrected artifact must still be CLEAN."""
+    bad = vao_tools.verify_no_end_of_run_deferral(fixture_data["verification_artifact"])
+    severities = {g["severity"] for g in bad["gaps"]}
+    assert "deferred-work-catalog" in severities
+    assert "followup-decision-question" in severities
+    assert "wrap-up-with-known-bugs" in severities
+
+    good = vao_tools.verify_no_end_of_run_deferral(
+        fixture_data["_corrected_verification_artifact"]
+    )
+    assert good["valid"] is True, f"v3.47.0 severities fired on the corrected fixture: {good['gaps']}"
+
+
+def test_progress_reports_do_not_reach_the_v2100_severities(vao_tools):
+    """The three v2.10.0 severities scan `final_report` only. The v3.47.0
+    OPTIONAL `progress_reports[]` input feeds the new claim families — routing
+    it into the older detectors would change behavior for existing artifacts."""
+    artifact = {
+        "progress_reports": [
+            "⏳ Deferred — 7 bugs, 4 work-items. Want me to continue? Your call.\n"
+        ],
+    }
+    severities = {
+        g["severity"] for g in vao_tools.verify_no_end_of_run_deferral(artifact)["gaps"]
+    }
+    assert "deferred-work-catalog" not in severities
+    assert "followup-decision-question" not in severities
+    assert "wrap-up-with-known-bugs" not in severities
+
+
 def test_disposition_citations_constant_includes_v211_tokens(vao_tools):
     """The v2.12.0 widening must include the persona-coverage citation tokens."""
     blob = " ".join(vao_tools._ITEM_DISPOSITION_CITATIONS).lower()

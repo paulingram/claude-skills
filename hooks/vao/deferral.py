@@ -6,12 +6,52 @@ from pathlib import Path
 from typing import Any
 
 try:  # package shape: repo root on sys.path
-    from hooks.vao.core import _looks_like_test_path, _scan_markers, _utc_now_iso, _write_verdict
+    from hooks.vao.core import (
+        _ITEM_DISPOSITION_CITATIONS, _is_enumerated_line,
+        _looks_like_test_path, _scan_markers, _utc_now_iso, _write_verdict,
+    )
 except ImportError:  # hooks/ on sys.path (vao is the package)
     try:
-        from vao.core import _looks_like_test_path, _scan_markers, _utc_now_iso, _write_verdict
+        from vao.core import (
+            _ITEM_DISPOSITION_CITATIONS, _is_enumerated_line,
+            _looks_like_test_path, _scan_markers, _utc_now_iso, _write_verdict,
+        )
     except ImportError:  # hooks/vao/ on sys.path (bare sibling)
-        from core import _looks_like_test_path, _scan_markers, _utc_now_iso, _write_verdict
+        from core import (
+            _ITEM_DISPOSITION_CITATIONS, _is_enumerated_line,
+            _looks_like_test_path, _scan_markers, _utc_now_iso, _write_verdict,
+        )
+
+
+# v3.47.0 — the claims-citation families of THIS tool, in a sibling module so
+# each stays under the package's 900-line ceiling. Composition runs one way:
+# deferral -> deferral_b -> core. `verify_no_end_of_run_deferral` below is the
+# single public entry point that runs both halves.
+try:  # package shape: repo root on sys.path
+    from hooks.vao.deferral_b import (
+        _detect_absence_claim_uncited,
+        _detect_stalled_agent_claim_uncited,
+        _detect_uncited_completion_claim,
+        _detect_uncited_deploy_claim,
+        _detect_undeclared_gate_language,
+    )
+except ImportError:  # hooks/ on sys.path (vao is the package)
+    try:
+        from vao.deferral_b import (
+            _detect_absence_claim_uncited,
+            _detect_stalled_agent_claim_uncited,
+            _detect_uncited_completion_claim,
+            _detect_uncited_deploy_claim,
+            _detect_undeclared_gate_language,
+        )
+    except ImportError:  # hooks/vao/ on sys.path (bare sibling)
+        from deferral_b import (
+            _detect_absence_claim_uncited,
+            _detect_stalled_agent_claim_uncited,
+            _detect_uncited_completion_claim,
+            _detect_uncited_deploy_claim,
+            _detect_undeclared_gate_language,
+        )
 
 
 _STANDING_RED_MARKERS: tuple[tuple[str, str], ...] = (
@@ -262,26 +302,6 @@ _FOLLOWUP_QUESTION_MARKERS: tuple[tuple[str, str], ...] = (
 )
 
 
-# An item in the final report is considered "dispositioned" when it carries
-# at least one of these citations to a sanctioned channel.
-_ITEM_DISPOSITION_CITATIONS: tuple[str, ...] = (
-    "commit-sha:",
-    "SR-",  # solution requirement id (SR-101 / SR-B23-101 / etc.)
-    "confirmed_stub",
-    "confirmed-stub",
-    "implementing_commits",
-    # v2.12.0 — v2.11.0 per-persona coverage IS a sanctioned disposition channel.
-    # Without these tokens, a legitimate v2.11.0 final report (per-persona
-    # findings + Playwright run citations) trips v2.10.0's wrap-up gate.
-    "playwright_test_runs",
-    "per_persona_findings",
-    "persona_id:",
-    "tested green",
-    "tested-green",
-    "entry_point:",
-)
-
-
 def _detect_deferred_work_catalog(
     verification_artifact: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -367,13 +387,7 @@ def _detect_wrap_up_with_known_bugs(
         stripped = line.lstrip()
         if not stripped:
             continue
-        if (
-            stripped.startswith("- ")
-            or stripped.startswith("* ")
-            or stripped.startswith("• ")
-            or (len(stripped) >= 2 and stripped[0].isdigit() and stripped[1] in ".)")
-            or (len(stripped) >= 3 and stripped[:2].isdigit() and stripped[2] in ".)")
-        ):
+        if _is_enumerated_line(stripped):
             bullet_lines += 1
 
     if bullet_lines < 3:
@@ -423,6 +437,7 @@ def _detect_wrap_up_with_known_bugs(
 def verify_no_end_of_run_deferral(
     verification_artifact: dict[str, Any] | None = None,
     out_path: Path | str | None = None,
+    declared_gates_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """v2.10.0 Layer-3 tool — verify the agent did NOT end the run by
     cataloguing in-scope work as 'Deferred' and bouncing the unfixed items
@@ -437,12 +452,31 @@ def verify_no_end_of_run_deferral(
          items AND no per-item disposition (commit-sha / SR / confirmed-stub)
          is cited
 
+    v3.47.0 adds the report-claims citation family, scanned over final_report
+    AND the optional progress_reports[] (postmortem rules R2 / R4 / R5 / R9):
+      4. uncited-completion-claim — an enumerated item asserts completion with
+         no citation from _ITEM_DISPOSITION_CITATIONS
+      5. uncited-deploy-claim — a deploy is called verified with no citation
+         naming a loaded page / screenshot / semantic assertion (a status code
+         is not a screen)
+      6. absence-claim-uncited — an absence is asserted with no executed
+         enumeration behind it (grep proves presence, never absence)
+      7. stalled-agent-claim-uncited — another agent is characterized as
+         stalled with no idle-event or handoff citation
+      8. undeclared-gate-language — release-gate language names a condition
+         with no matching declared-gates registry entry
+
     Args:
       verification_artifact: dict with final_report (str — the agent's
         verbatim user-facing run-end report), solution_requirements_created[]
         (the SRs the run routed), confirmed_stubs[] (entries with
-        user_confirmed_at), implementing_commits[] (commit SHA ranges).
+        user_confirmed_at), implementing_commits[] (commit SHA ranges), and
+        the v3.47.0 OPTIONAL progress_reports[] (mid-run report texts) /
+        declared_gates[] (the registry, inline).
       out_path: optional path to write the verdict JSON.
+      declared_gates_path: optional path to .architect-team/declared-gates.json.
+        An absent / unreadable registry fail-opens the undeclared-gate-language
+        severity ONLY; the other seven are unaffected.
 
     Returns::
 
@@ -464,6 +498,11 @@ def verify_no_end_of_run_deferral(
     gaps += _detect_deferred_work_catalog(artifact)
     gaps += _detect_followup_decision_question(artifact)
     gaps += _detect_wrap_up_with_known_bugs(artifact)
+    gaps += _detect_uncited_completion_claim(artifact)
+    gaps += _detect_uncited_deploy_claim(artifact)
+    gaps += _detect_absence_claim_uncited(artifact)
+    gaps += _detect_stalled_agent_claim_uncited(artifact)
+    gaps += _detect_undeclared_gate_language(artifact, declared_gates_path)
 
     verdict = {
         "tool": "verify-no-end-of-run-deferral",

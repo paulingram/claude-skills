@@ -313,3 +313,176 @@ def test_coverage_map_lists_seven_fixtures(plugin_root: Path):
         "tests/fixtures/vao/skill-not-invoked.json",
     ]:
         assert fixture in covered, f"REQ-10 coverage missing {fixture!r}"
+
+
+# ===========================================================================
+# v3.47.0 — the OPTIONAL `check_integrity_review` field (check-falsifiability)
+#
+# A check is not evidence until it has been shown able to fail. The field cites
+# the `verify-check-can-fail` verdict; it follows the validated-when-present
+# pattern of `interactions_honored_review` (v2.1.0) / `live_verification_review`
+# (v2.2.0) / `appearance_scope_review` (v3.14.0) — absent means an existing v7
+# evidence file stays valid, present means the value is validated and a `fail`
+# blocks. A `pass` additionally MUST cite the verdict path: an uncited "the
+# checks were fine" is exactly the self-attestation the field exists to refuse.
+# ===========================================================================
+
+
+def test_check_integrity_review_absent_stays_valid(schema_module):
+    """Scenario: absent field stays valid — zero blast on existing v7 files."""
+    ev = _minimal_v7_evidence()
+    assert "check_integrity_review" not in ev
+    gaps = schema_module.validate_evidence(ev)
+    assert gaps == [], f"absent optional field must not yield gaps; gaps={gaps}"
+
+
+def test_check_integrity_review_is_not_required(schema_module):
+    assert "check_integrity_review" not in schema_module.REQUIRED_EVIDENCE_FIELDS
+    assert len(schema_module.REQUIRED_EVIDENCE_FIELDS) == 17
+
+
+def test_check_integrity_review_in_optional_vao_fields(schema_module):
+    assert "check_integrity_review" in schema_module.OPTIONAL_VAO_FIELDS
+
+
+def test_check_integrity_valid_values_set(schema_module):
+    assert schema_module.VALID_CHECK_INTEGRITY_VALUES == {"pass", "n/a", "fail"}
+
+
+def test_check_integrity_review_fail_blocks(schema_module):
+    """Scenario: present fail blocks."""
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "fail"
+    gaps = schema_module.validate_evidence(ev)
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_dict_fail_blocks(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = {
+        "verdict": "fail",
+        "verdict_path": ".architect-team/vao-verdicts/T-1-check-can-fail.json",
+    }
+    gaps = schema_module.validate_evidence(ev)
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_invalid_value_blocks(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "probably fine"
+    gaps = schema_module.validate_evidence(ev)
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_na_requires_a_note(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "n/a"
+    gaps = schema_module.validate_evidence(ev)
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_na_with_note_passes(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "n/a"
+    ev["check_integrity_review_note"] = "no verification commands cited for this slice"
+    assert schema_module.validate_evidence(ev) == []
+
+
+def test_check_integrity_review_bare_pass_requires_a_citation(schema_module):
+    """A `pass` with no cited verdict path is refused — the citation IS the
+    difference between a verdict and an attestation."""
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "pass"
+    gaps = schema_module.validate_evidence(ev)
+    assert any("check_integrity_review" in g for g in gaps), gaps
+    assert any("verdict_path" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_dict_pass_with_verdict_path_passes(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = {
+        "verdict": "pass",
+        "verdict_path": ".architect-team/vao-verdicts/T-1-check-can-fail.json",
+    }
+    assert schema_module.validate_evidence(ev) == []
+
+
+def test_check_integrity_review_dict_pass_without_verdict_path_blocks(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = {"verdict": "pass"}
+    gaps = schema_module.validate_evidence(ev)
+    assert any("verdict_path" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_string_pass_with_sibling_citation_passes(schema_module):
+    """The string shape stays available when the verdict path is cited in the
+    sibling field — the same accommodation the other optional fields make for
+    tool-mediated verdicts surfaced inline."""
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "pass"
+    ev["check_integrity_review_verdict_path"] = (
+        ".architect-team/vao-verdicts/T-1-check-can-fail.json"
+    )
+    assert schema_module.validate_evidence(ev) == []
+
+
+def test_check_integrity_review_empty_sibling_citation_blocks(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = "pass"
+    ev["check_integrity_review_verdict_path"] = "   "
+    gaps = schema_module.validate_evidence(ev)
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+# --- B1 (adversarial hei-adversary-g2, high): an unhashable value must not crash
+# the validator. `value not in valid_values` raises TypeError for a list, the
+# exception escapes the hook's main(), the hook exits 1, and Claude Code treats
+# exit 1 as non-blocking — so ONE added key silently skipped the entire review
+# gate. A gate that cannot evaluate its evidence must fail CLOSED, never vanish.
+
+@pytest.mark.parametrize("bad_value", [[], ["pass"], {"pass"}, 7, 3.5, True, None])
+def test_unhashable_or_wrong_typed_optional_field_yields_a_gap_not_a_crash(
+    schema_module, bad_value
+):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = bad_value
+    gaps = schema_module.validate_evidence(ev)  # must not raise
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+@pytest.mark.parametrize("field", [
+    "visual_fidelity_review",
+    "test_completeness_review",
+    "integration_testing_review",
+    "ui_interaction_review",
+    "oracle_match_review",
+    "baseline_clean_review",
+    "no_fake_data_review",
+    "adversarial_review",
+    "skill_invocation_audit",
+])
+def test_unhashable_value_on_any_review_field_yields_a_gap_not_a_crash(
+    schema_module, field
+):
+    """The same crash class on every value-checked field — closed in one place."""
+    ev = _minimal_v7_evidence()
+    ev[field] = []
+    gaps = schema_module.validate_evidence(ev)  # must not raise
+    assert any(field in g for g in gaps), gaps
+
+
+def test_unhashable_value_inside_the_dict_shape_yields_a_gap_not_a_crash(schema_module):
+    ev = _minimal_v7_evidence()
+    ev["check_integrity_review"] = {"verdict": [], "verdict_path": "x.json"}
+    gaps = schema_module.validate_evidence(ev)  # must not raise
+    assert any("check_integrity_review" in g for g in gaps), gaps
+
+
+def test_check_integrity_review_does_not_disturb_the_other_optional_fields(schema_module):
+    """Regression: adding the field must not change validation of the three
+    optional fields that preceded it."""
+    ev = _minimal_v7_evidence()
+    ev["interactions_honored_review"] = "pass"
+    ev["live_verification_review"] = "pass"
+    ev["appearance_scope_review"] = "pass"
+    assert schema_module.validate_evidence(ev) == []

@@ -1,0 +1,8 @@
+{
+  // Solution-style root config: it compiles nothing itself, it only points at
+  // the project references. `tsc --noEmit` here examines zero files.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" }
+  ]
+}

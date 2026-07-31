@@ -144,6 +144,15 @@ def test_repo_path_element_resolution_is_advisory(eng: ModuleType, tmp_path: Pat
     assert len(unresolved) == 1
 
 
+def test_v3470_citation_errors_leave_the_pre_existing_manifest_valid(eng: ModuleType) -> None:
+    """Regression — v3.47.0 added `uncited-verified-claim` /
+    `uncited-element-claim` as blocking findings. A manifest that describes
+    what it delivers without CLAIMING verification is untouched by them."""
+    kinds = {f["kind"] for f in eng.validate_manifest(_feature_data())}
+    assert "uncited-verified-claim" not in kinds
+    assert "uncited-element-claim" not in kinds
+
+
 # --------------------------------------------------------------------------- #
 # build_manifest / validate_text / render_email
 # --------------------------------------------------------------------------- #

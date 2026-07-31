@@ -30,7 +30,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 
@@ -125,6 +125,27 @@ A Playwright suite can pass the Step 3 forbidden-pattern audit (no `page.request
    - No evidence either way (no backend reference, no mock pattern, ambiguous) → `backend_integration_audit: "indeterminate"` — treat as a finding, not a pass.
 4. **Cross-check the requirements opt-out.** A `mock_backed` verdict is only acceptable if the requirements folder explicitly authorizes isolated / mock-backed testing for this requirement. Grep `$REQ_DIR` (proposal.md / design.md / the source brief) for an explicit authorization; if found, quote it in the note and downgrade the finding to `n/a`. Absent that, `mock_backed` stands.
 
+### Step 3c — API read-back audit (a persistence claim proved only against the DB)
+
+A backend integration test can POST a resource, assert the DB row, pass every other audit — and the user still sees a blank field, because the serializer never returns the value the row holds. Persisted is not retrievable. Step 3c is the presence-oriented grep for that shape: a state-changing request whose ONLY confirmation is a direct database read.
+
+**Run this audit when `tests.integration` is non-empty** (skip when integration is `n/a` — no integration tests, nothing to audit).
+
+1. **For each integration test file listed in `tests.integration`, look for the DB-only shape:** the file issues a POST/PUT/PATCH request against the API under test (`.post(` / `.put(` / `.patch(`, or the verb spelled in a request line) AND asserts through direct database access — `SELECT`, an ORM query (`.query(`, `.filter(`, `.first()`, `.one()`, `session.get`, `Model.objects.get`), or a raw cursor — with NO subsequent `get(` / `GET` of the written resource anywhere in the same file.
+   ```bash
+   grep -nE "\.(post|put|patch)\(|(POST|PUT|PATCH) /" <integration-test-files>
+   grep -nE "SELECT |session\.get|\.query\(|\.objects\.get\(|\.filter\(|cursor\.execute" <integration-test-files>
+   grep -nE "\.get\(|GET /" <integration-test-files>
+   ```
+   A file that matches the first two greps and produces NO match from the third is DB-only.
+2. **Record the verdict input:**
+   - No DB-only file found → `readback_audit: "clean"`.
+   - One or more DB-only files → `readback_audit: "db_only"`, with each file named in the note. The written value's retrievability was never asserted — per `dev-api-integration-testing`'s assertion layers, the API read-back (POST-echo → GET → PUT-echo → GET-after-PUT for update endpoints) is a REQUIRED layer and the direct-DB assertion is necessary-and-not-sufficient.
+   - `tests.integration` empty or `n/a` → `readback_audit: "n/a"`.
+3. **A `db_only` finding on a persistence-bearing slice** (the slice writes a value a user later reads) is cited in the SR on `overall: fail`, with the concrete acceptance criterion: "the test asserts the written value is returned by a subsequent GET through the public API, not only that the database row exists".
+
+`readback_audit` is a finding, not by itself a kind verdict: it does not flip `integration` to `fail` on its own (a DB-only test is a real test with a real gap). It becomes an SR criterion whenever the slice fails for any reason, and it is always recorded so the gap is visible rather than silently dropped.
+
 ### Step 3d — Vacuous-flow-test audit (a navigate-and-assert masquerading as a flow)
 
 The Step 3 forbidden-pattern grep finds *present* bad patterns (`page.request` / `axios` / `fetch`-in-`evaluate`). It is blind to the opposite failure: a test that claims to be a user-flow test but contains NO genuine user interaction at all — it `page.goto`s a route, asserts some static content, and returns. There is no forbidden pattern, but there is also no real interaction: the UI was never driven as a user drives it. Step 3d catches this.
@@ -175,6 +196,35 @@ From the Step 3b audit + the coverage-map `layer` + the phase you are running in
   - Running at **Phase 3** with no deferral note, OR running at **Phase 5** (the deferral debt is now due) → `integration_testing_review: "fail"`. At Phase 5, `n/a` is NOT an acceptable verdict for a `both`-layer feature — the real-backend run was the entire point of Phase 5.
   - Requirements explicitly authorize isolated testing → `integration_testing_review: "n/a"` with the authorization quoted.
 
+### Step 3g — Flow fixture-hygiene audit (a test that asserts what it wrote)
+
+Steps 3d / 3e ask whether a flow drove the UI and whether every element has a flow. Step 3g asks a different question: could this flow have passed WITHOUT the feature working? Two shapes make that possible against a shared dev environment, and both pass every other audit in this agent.
+
+**Run this audit when the coverage-map `layer` is `frontend` or `both`** and `tests.e2e` / `tests.playwright` is non-empty.
+
+1. **Self-asserted write.** In one test file, a `fill(<literal>)` (or `selectOption` / `check` / `type` with a literal) paired with an assertion of the SAME literal — `toHaveValue(<same literal>)`, `toHaveText(<same literal>)`, `toContainText(<same literal>)`. Filling a field with the string it already holds from the PREVIOUS run fires no change event and sends no request; the assertion passes on residue.
+   ```bash
+   grep -nE "\.(fill|type|selectOption)\(\s*['\"\`]([^'\"\`]+)['\"\`]" <playwright-test-files>
+   grep -nE "(toHaveValue|toHaveText|toContainText|toHaveAttribute)\(\s*['\"\`]([^'\"\`]+)['\"\`]" <playwright-test-files>
+   ```
+   Compare the captured literals: any literal appearing in BOTH lists within one file is a self-asserted write.
+2. **Unrestored shared-fixture mutation.** A mutation verb (`fill` / `check` / `uncheck` / `selectOption` / `setInputFiles`) applied to a NON-uniquely-suffixed literal (no `uuid` / `Date.now()` / `testInfo` / `${` interpolation / run-id suffix in the written value) in a file carrying NO teardown or unique-value signal (`afterEach`, `afterAll`, `test.afterEach`, a cleanup / restore / reset helper, or a per-test unique-value generator).
+3. **Collect every finding into `fixture_hygiene_findings[]`** — each entry names the test file, the shape (`self-asserted-write` / `unrestored-shared-mutation`), the offending literal, and the line. A non-empty `fixture_hygiene_findings[]` makes **`playwright: fail`** and is cited in the SR on `overall: fail`, with the concrete criterion from `playwright-user-flows` `## Shared-state hygiene (flows against the shared dev environment)`: the flow writes a run-unique value, re-reads it from the server, and asserts on the value derived from its OWN input — and it is runnable twice in a row.
+4. **A flow that already uses a run-unique value and asserts on that derived value produces no finding**, even though it fills and asserts in the same file — the literal sets do not intersect, which is exactly the property the audit keys on.
+
+### Step 3h — Read the check output, never the exit code alone
+
+Every command you run in the steps above produces output, and the output is the evidence — the exit code is not. A run that collected zero tests exits 0. A type-check that examined zero files exits 0. A suite pointed at a path that no longer exists exits 0. If you record a kind as `pass` on the strength of an exit code you did not read the output for, you have certified that a command completed, not that a check ran.
+
+**Capture the output of every command you run** (`> <capture-path> 2>&1`, or the tool's own report file) and scan the captured text for the zero-work signatures before recording any verdict:
+
+- pytest — `collected 0 items`, `no tests ran`
+- Playwright — `no tests found`, a `0 passed` with a zero total
+- jest / vitest — `No test files found`, `No tests found`
+- `tsc --noEmit` against a solution-shaped `tsconfig.json` (`"files": []` plus a `"references"` array) — it type-checks nothing; the real command form is `tsc -b`
+
+A cited check whose output carries any of these did NOT verify the thing it was cited for. Record it as a finding with the matched signature quoted, and treat the kind it was supposed to cover as unverified. The deterministic counterpart is the Layer-3 `verify-check-can-fail` tool (`hooks/vao/check_integrity.py`), whose `vacuous-check` severity keys on this same signature registry; when a verdict from it exists for the slice, cite it rather than re-deriving the judgment.
+
 ### Step 4 — Check acceptance criteria
 
 Read the coverage-map slice for `task_id`. For each acceptance criterion listed:
@@ -199,7 +249,7 @@ Write to `<cwd>/.architect-team/test-completeness/<task_id>-<ISO-8601-UTC>.json`
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "task_id": "<the teammate's task ID>",
   "verified_at": "<ISO 8601 UTC>",
   "discovered_in": "Phase 3" | "Phase 5",
@@ -211,7 +261,10 @@ Write to `<cwd>/.architect-team/test-completeness/<task_id>-<ISO-8601-UTC>.json`
     "playwright":  { "status": "pass" | "n/a" | "fail", "count": 0, "test_ids": [], "forbidden_pattern_audit": "clean | violations_found", "violations": [], "note": "<required when n/a or fail>" }
   },
   "backend_integration_audit": "clean" | "mock_backed" | "indeterminate",
+  "readback_audit": "clean" | "db_only" | "n/a",
+  "readback_audit_findings": [],
   "vacuous_flow_findings": [],
+  "fixture_hygiene_findings": [],
   "interactivity_inventory_crosscheck": "clean" | "uncovered_elements_found" | "no_inventory",
   "uncovered_elements": [],
   "confirmed_stub_elements": [],
@@ -226,7 +279,11 @@ Write to `<cwd>/.architect-team/test-completeness/<task_id>-<ISO-8601-UTC>.json`
 
 `phase_5_integration_debt: true` means a `both`-layer slice deferred its front-to-back integration testing from Phase 3 to Phase 5; the Phase 5 verifier run MUST clear it (real-backend run → `integration_testing_review: "pass"`) or fail.
 
+`readback_audit` (Step 3c) is `clean` when no evidence-listed integration test proves a write only against the database, `db_only` when one or more do (each named in `readback_audit_findings[]` with its file and the missing GET), and `n/a` when there are no integration tests to audit. `db_only` does not by itself flip a kind verdict; it is recorded so the gap is visible, and it is cited in the SR whenever the slice fails — the API read-back is the required layer per `dev-api-integration-testing`, and the direct-DB assertion is necessary-and-not-sufficient.
+
 `vacuous_flow_findings[]` (Step 3d) lists every evidence-listed Playwright test that `page.goto`s and asserts but performs zero genuine user interaction — a navigate-and-assert masquerading as a flow. A non-empty list makes `playwright: fail`.
+
+`fixture_hygiene_findings[]` (Step 3g) lists every flow that could pass without the feature working against shared dev data — a `self-asserted-write` (a `fill(<literal>)` paired with an assertion of the SAME literal) or an `unrestored-shared-mutation` (a mutation of a non-unique literal with no teardown / unique-value signal). A non-empty list makes `playwright: fail`.
 
 `interactivity_inventory_crosscheck` (Step 3e) is `clean` when every non-stub inventory element has a covering evidence-listed Playwright test, `uncovered_elements_found` when one or more do not, and `no_inventory` when no interactivity inventory was available to cross-check. `uncovered_elements[]` names every inventory element with no covering test (a non-empty list makes `playwright: fail`); `confirmed_stub_elements[]` records the `confirmed-stub` inventory elements that were skipped, so they are visible rather than silently dropped.
 
@@ -275,6 +332,8 @@ The orchestrator picks up this SR and re-spawns the originating team with the `a
 
 **When the `playwright: fail` is driven by `vacuous_flow_findings[]` or `uncovered_elements[]`** (Steps 3d / 3e), set `origin.kind: "test-completeness-failure"` and make the `acceptance_criteria` concrete: for each vacuous flow, "the test `<file::title>` must be re-authored to genuinely drive the UI with real user-interaction calls (`page.click` / `page.fill` / `page.selectOption` / `page.check` / `page.press` / `page.setInputFiles`) — a `page.goto` + assertions with zero interaction is not a user-flow test"; for each uncovered element, "the interactive element `<identifier>` must have a genuine user-driven Playwright test, or — if it is intentionally inert — be classified `confirmed-stub` with explicit user confirmation". Cite the `vacuous_flow_findings` / `uncovered_elements` entries from the verdict JSON in `evidence`.
 
+**When the `playwright: fail` is driven by `fixture_hygiene_findings[]`** (Step 3g), set `origin.kind: "test-completeness-failure"` and make the `acceptance_criteria` concrete: "the flow `<file::title>` writes a run-unique value (uuid / timestamp / test-id suffix), re-reads it from the server, and asserts on that derived value — never on a literal the test itself wrote"; and "the flow is runnable twice in a row against the shared dev environment without failing on the second run". Cite the `fixture_hygiene_findings` entries in `evidence`. **When `readback_audit` is `db_only`** on a failing persistence-bearing slice, add the criterion: "the integration test asserts the written value is returned by a subsequent GET through the public API (POST-echo → GET, and GET-after-PUT for updates), not only that the database row exists", citing the `readback_audit_findings` entries.
+
 ## Hard rules
 
 - No editing any file. You review; you do not fix.
@@ -283,6 +342,9 @@ The orchestrator picks up this SR and re-spawns the originating team with the `a
 - No skipping the Step 3d vacuous-flow audit for any `frontend` / `both` slice with Playwright tests. A clean forbidden-pattern audit does NOT imply a test genuinely drove the UI — a navigate-and-assert with zero interaction calls has no forbidden pattern and no real interaction either.
 - No skipping the Step 3e interactivity-inventory cross-check when an inventory is available. A grep of the listed tests cannot find an element whose test was never written; the cross-check is the only mechanical catch for it.
 - No skipping the Step 3b backend-integration audit for any `frontend` / `both` slice. A clean forbidden-pattern audit does NOT imply the happy path touched the real backend — those are different checks.
+- No skipping the Step 3c read-back audit when the slice has integration tests. A green DB assertion says the write persisted; it says nothing about whether the API returns it, and a value the API never returns is a blank field to the user.
+- No skipping the Step 3g fixture-hygiene audit for any `frontend` / `both` slice with Playwright tests. A flow that fills a field with the literal it then asserts can pass on the previous run's residue with no request ever fired — genuine interaction and real backend are both clean in that case.
+- No kind verdict recorded from an exit code alone. Capture the command's output and read it: a run that collected zero tests, a Playwright run that found no tests, and a `tsc --noEmit` against a solution-shaped tsconfig all exit 0 while verifying nothing (Step 3h).
 - No `integration_testing_review: "n/a"` for a `both`-layer slice when running at Phase 5. The real-backend run is the entire point of Phase 5; `n/a` there is a `fail`.
 - No accepting a `mock_backed` audit as a pass without a quoted, explicit requirements authorization for isolated testing. Silence in the requirements means integrate, not mock.
 - No `overall: "pass"` when `acceptance_criteria_satisfied` is false OR when `integration_testing_review` is `"fail"`.

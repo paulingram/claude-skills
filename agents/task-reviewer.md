@@ -32,7 +32,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 
@@ -87,6 +87,15 @@ ruff check <changed files>
 ```
 
 Inspect the diff for quality issues a linter does not catch: dead code, copy-paste, missing error handling, transaction-boundary mistakes, log-level misuse. `quality_review` is `pass` only when the tooling is green AND the inspection finds nothing material.
+
+**Capture and scan the output — an exit code is not a result.** Redirect every check you run to a file (`> <capture-path> 2>&1`) and READ the captured text before recording anything. A green exit code is compatible with a check that did no work at all: a pytest run that collected zero tests, a Playwright run that found no tests, a jest/vitest run with no test files, and a `tsc --noEmit` against a solution-shaped `tsconfig.json` (`"files": []` plus a `"references"` array — the real form is `tsc -b`) all exit 0. Scan every captured output for those zero-work signatures:
+
+```bash
+python -m pytest -q <slice test paths> > .architect-team/checks/<task_id>-pytest.txt 2>&1
+grep -nE "collected 0 items|no tests ran|no tests found|No test files found|No tests found" .architect-team/checks/<task_id>-pytest.txt
+```
+
+**No `quality_review: pass` on a suite run whose output you did not capture and read.** A zero-work signature in a cited output means the check did not verify the thing it was cited for — record it as a `quality_review` gap naming the command and the matched signature, and do not count the run toward the teammate's claim. Put the capture paths into `checks_run` so the verdict is auditable. The deterministic counterpart is the Layer-3 `verify-check-can-fail` tool (`hooks/vao/check_integrity.py`); when a verdict from it exists for this task, cite its path rather than re-deriving the judgment.
 
 ### Step 5 — `real_not_stubbed`: grep the diff for stubs and placeholders
 
@@ -157,6 +166,7 @@ You never decide whether an unsolicited change is "an improvement" — merit is 
 - `reviewer` is always YOU (`task-reviewer`), never the teammate. `independent_review.reviewer == teammate` is the structural violation the hook rejects.
 - No `spec_review: pass` unless every coverage-map acceptance criterion is traced to `file:line` in the diff. A criterion with no cited code is unmet.
 - No `quality_review: pass` without running the repo's linters / type-checkers / the slice's tests yourself. The teammate's claimed pass count is a claim to verify.
+- No `quality_review: pass` on a suite run whose output you did not capture and read. `collected 0 items` exits 0; so does a type-check that examined zero files. An unread exit code certifies that a command finished, not that a check ran.
 - No `real_not_stubbed: true` without grepping the diff for stubs / `TODO` / `NotImplementedError` / mock returns / placeholder data.
 - No `reuse_compliance: ok` while a new file in the diff has no Reuse Decision.
 - No silent pass. Every sub-review verdict must be backed by `criteria_findings` / `checks_run` evidence or a concrete gap note. A verdict without evidence is a process failure.

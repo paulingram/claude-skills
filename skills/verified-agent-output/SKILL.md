@@ -69,7 +69,9 @@ The `adversarial-reviewer` agent is dispatched alongside the teammate, gets acce
 
 ### Layer 3 — Tool-mediated execution proof (`hooks/vao_tools.py`)
 
-Five deterministic verification tools. Each produces machine-mediated proof; the agent's prose attestation is no longer accepted.
+Deterministic verification tools — **21** as of v3.47.0. Each produces machine-mediated proof; the agent's prose attestation is no longer accepted.
+
+**Where each tool is specified.** `hooks/vao_tools.py` is the COMPLETE and authoritative inventory — every tool has a CLI subcommand there, and that file is the one place the full list is guaranteed current. The prose homes are split: the five original v2.0.0 tools are specified in full below, followed by `verify-check-can-fail` (the 21st). Of the remaining fifteen, `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` gives per-phase invocation contracts for exactly **four** of them (`verify-discipline-registry-current`, `verify-inflight-clarifications-processed`, `verify-deploy-mandate-satisfied`, `verify-no-unilateral-override`); the rest are specified in their own discipline sections — mostly in `common-pipeline-conventions`, some in the dedicated discipline skills — where they are written in the `verify_x_y` FUNCTION spelling rather than the hyphenated CLI name, so grep for both forms when locating one.
 
 #### `verify-oracle-match`
 
@@ -162,6 +164,79 @@ Output:
 The schema v7's `visual_fidelity_review` field MUST cite this tool's verdict path. An agent's "pixel parity: pass" attestation derived from reading source code is REJECTED at the hook layer — the cited verdict file is the source of truth.
 
 **Why this tool is distinct from `verify-oracle-match`.** The latter walks the SOURCE component tree; that's sufficient for schema / API / structural-data parity but BLIND to chrome-level architectural divergences where the element exists in source but at the wrong mount point. The canonical heirship failure: `heirship-app-v2`'s `TAMatterDetail.tsx` rendered `<TaCrumbs />` inside its page body; the oracle (`heirship-app-v3`) renders the same `<TaCrumbs />` inside `AppShellHeader`. Source audit says matched; rendered audit catches the divergence.
+
+#### `verify-check-can-fail` (the 21st tool — v3.47.0)
+
+Module: `hooks/vao/check_integrity.py`, re-exported through the `hooks/vao_tools.py` facade with the CLI subcommand `verify-check-can-fail`. Where the other twenty ask *did the work meet the bar*, this one asks the rung below: **was the check that certified it capable of failing at all?** A check that did no work exits 0, and a guard that has never been red is a green light wired to nothing.
+
+Input: a verification artifact with `repo_root` (every relative cited path resolves against it; the `--repo-root` CLI flag overrides), a `checks[]` list of `{command, output_path}` (optionally `exit_code`, and optionally `tsconfig_path` to point the solution-shape predicate at a specific tsconfig), a `new_test_files` list (the diff-added test files), and `red_runs` — a DICT keyed by test-file path, each value `{command, output_path, observed_failure_excerpt?, red_source?}` naming which of the three acceptable red sources produced it (see `team-spawning-and-review-gates` `## Red-first — a new guard is not evidence until it has been shown to fail`). Keys are matched posix-normalized against `new_test_files`, so a Windows-authored artifact cannot produce a spurious never-shown-red. A cited `output_path` that does not exist, is not a file, or is 0 bytes is itself a failure — the same missing-evidence-artifact bar the other tools apply. `verify_check_can_fail`'s `signature_registry` parameter is the extensibility seam: pass a different registry tuple to add runners without touching scan logic.
+
+**The REPORTING region (the load-bearing partition).** Every signature match and every runner-detection probe consults only the output's REPORTING region — the runner's own report — via `reporting_region()`. Captured stdout/stderr, live logs, the pytest `-rA` PASSES section, echoed commands and echoed test ids are excluded, because relayed text can reproduce any reporting shape verbatim: a test that PRINTS `collected 0 items` must not be able to forge a vacuous verdict, and a passing log quoting a failure line must not be able to forge a red. `_RUNNER_OUTPUT_SHAPES` widens applicability past command naming, so a wrapper (`make test`, `npm run typecheck`) that hides the runner's name but not its output shape is still classified. Output bytes are decoded through `_decode_output_bytes`: an explicit BOM wins (`utf-8-sig` / `utf-16`), else a NUL ratio at or above one third triggers `utf-16-le` then `utf-16-be`, else UTF-8 with replacement — closing the UTF-16 evasion.
+
+**Terminal verdict wins.** `_assess_red_output` resolves a red run in three explicit modes via `_terminal_verdict()`: PRESENT — the runner's own stated result decides, full stop; AMBIGUOUS — a capture holding more than one run is REFUSED (`ambiguous-multi-run-capture`) rather than resolved by first- or last-wins; ABSENT — with no summary at all, matching degrades to the runner's framed failure sections only, never the whole region (`verdict-absent-framed-sections-only`).
+
+Three severities:
+
+- **`vacuous-check`** — a cited check's output matches a zero-work signature. The registry is DATA, not scan logic: pytest (`collected 0 items`, `no tests ran`), Playwright (`no tests found`, a `0 passed` with zero total), jest / vitest (`No test files found`, `No tests found`), plus the repo-state predicate for a `tsc --noEmit` resolved against a solution-shaped `tsconfig.json` (`"files": []` plus `"references"`), whose remediation names `tsc -b` as the required command form. Entries are ANCHORED or count-aware — never a raw bare substring — so a green log that merely echoes a zero-work phrase is not flagged, and the tsc predicate gates on typecheck INTENT (`tsc` / `typecheck` / `type-check` in the command) with `tsc -b` exempt, recording an indeterminate note rather than staying silent when no tsconfig resolves. Adding a runner is a data edit plus a fixture.
+- **`new-guard-never-shown-red`** — a diff-added test file with no cited `red_run` block, or a block whose `red_source` is an unrecognized value. The finding names the path.
+- **`red-run-not-red`** — the cited red run does not establish that THIS guard went red. The gap carries a `reasons[]` array, and there are six codes — key on `reasons[]`, not on prose:
+
+  | Reason code | Fires when |
+  |---|---|
+  | `output-missing` | the cited output does not exist, is not a file, or is empty |
+  | `no-failure-signature` | the REPORTING region carries no failure evidence for its runner |
+  | `excerpt-not-in-output` | the quoted `observed_failure_excerpt` does not appear in that output |
+  | `output-does-not-reference-test` | the output names tests, none matching this file (posix-normalized, full path OR basename) |
+  | `excerpt-required-when-indeterminate` | the output names NO test, so the excerpt is mandatory and is missing |
+  | `shared-anonymous-red` | one output naming no test at all is reused across several guards |
+
+  **Sharing one capture across guards is normal and accepted when the output NAMES them** — correlation ties each guard to the output independently, so nothing is taken on trust. What is refused is the same anonymous capture reused for several guards: an excerpt cannot fix that, since one string satisfies the excerpt rule as many times as it is pasted. Fix by re-running with per-test reporting (drop `--tb=no`, add `-v`, or name the paths), or split into one capture per guard.
+
+**Stated boundaries** — recorded rather than left for a reader to find. *Same-basename correlation:* matching accepts the full posix path OR the basename, so with `tests/unit/test_guard.py` and `tests/integration/test_guard.py`, an output naming only one satisfies both — prefer captures carrying full paths. *Indeterminate correlation:* a mandatory excerpt raises the floor but does not make a citation unique; one name-free summary with an excerpt can still be cited for several guards. *Exotic encodings:* BOM-less UTF-16LE diluted below the NUL floor, a truncated odd-length UTF-16 file, and BOM-less UTF-16BE still evade the decoder; each needs a hand-rolled writer, so the residual is rated low.
+
+```json
+{
+  "tool": "verify-check-can-fail",
+  "valid": true|false,
+  "gaps": [
+    {"severity": "vacuous-check",
+     "command": "python -m pytest tests/",
+     "output_path": ".architect-team/checks/<run>-pytest.txt",
+     "exit_code": 0,
+     "runner": "pytest",
+     "matched_signature": "collected 0 items",
+     "evidence": "...",
+     "remediation": "..."},
+    {"severity": "red-run-not-red",
+     "test_file": "tests/test_new_guard.py",
+     "output_path": ".architect-team/red-runs/<run>-guard.txt",
+     "reasons": ["shared-anonymous-red"],
+     "evidence": "...",
+     "remediation": "..."}
+  ],
+  "notes": [
+    {"kind": "typecheck-tsconfig-indeterminate",
+     "command": "npm run typecheck",
+     "evidence": "...",
+     "remediation": "..."}
+  ],
+  "checks_scanned": 2,
+  "new_test_files_count": 1,
+  "red_runs_cited": 1,
+  "verdict_at": "<ISO 8601 UTC>"
+}
+```
+
+`notes[]` is ALWAYS emitted (empty when there is nothing to record) and is NON-GATING — it carries the indeterminate observations the tool refuses to convert into findings, such as typecheck intent detected with no resolvable tsconfig. A note is a thing the tool could not determine, not a thing it found wrong; treat it as a prompt to supply `tsconfig_path`, never as a pass.
+
+#### Two tools whose only prose home is this table
+
+These two carry no discipline section of their own under their CLI name; their one-line contracts live here so no shipped tool is documented nowhere:
+
+| Tool | Module / function | What it gates |
+|---|---|---|
+| `verify-affordance-coverage` | `hooks/vao_tools.py::verify_affordance_coverage` | Every detected dynamic affordance class is addressed — tested, confirmed-stub, or explicitly out-of-scope; an unaddressed class is `affordance-not-addressed`. Canonical discipline: `common-pipeline-conventions` `## Dynamic affordance discovery discipline (v2.13.0)`. |
+| `verify-per-persona-path-coverage` | `hooks/vao_tools.py::verify_per_persona_path_coverage` | Each persona's declared path is actually exercised end-to-end rather than one persona's run standing in for all of them. Canonical discipline: `common-pipeline-conventions` `## Multi-persona path-coverage discipline (v2.11.0)`. |
 
 Each tool writes its verdict JSON to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`. The schema v7 `*_review` field cites the verdict path; the hook reads the cited file at validation time.
 
@@ -266,6 +341,23 @@ Each field accepts EITHER:
 
 The hook blocks any evidence file missing any field OR carrying a `fail` verdict on any field.
 
+### The OPTIONAL tool-mediated fields (validated when present)
+
+Four fields are present-only-when-applicable. Each follows the identical contract: **absent ⇒ the evidence file is still valid v7** (no gap is attributable to the field), **present ⇒ the value MUST be `pass` / `n/a` / `fail` in either the string or the `{verdict, verdict_path}` dict shape, and a `fail` BLOCKS completion at the review gate**.
+
+| Optional field | Present when | Cites |
+|---|---|---|
+| `interactions_honored_review` | the run's oracle spec carries a non-empty `interactions[]` | the `verify-interactions-honored` verdict |
+| `live_verification_review` | the evidence claims "verified live" | the `verify-live-verification-claim` verdict |
+| `appearance_scope_review` | the slice's diff touches frontend presentation surface | the appearance-scope verdict / trace |
+| `check_integrity_review` (v3.47.0) | the slice's diff adds test files, or any verification command is cited as evidence | the `verify-check-can-fail` verdict path |
+
+`check_integrity_review` carries the same blocking semantics as the rest: absent is fine, `pass` / `n/a` are fine, and a `fail` value BLOCKS the review gate exactly as a `fail` on a required field does — the check-integrity finding is escalated and fixed, never marked complete around.
+
+It is OPTIONAL in the schema by design, not by weakness: "the diff adds a test file" is not computable from the evidence file's own content (`tests.added >= 1` is always true, and `files_changed` cannot distinguish an added file from a modified one), so the schema validates it when present and the diff-keyed REQUIREMENT lives one layer out, in the Stop-audit arm `_audit_check_integrity` (`hooks/pipeline-completion-audit.py`) which can run `git diff --diff-filter=A` against the merge base. A `pass` must cite the verdict path per the citation contract above; the cited verdict file — not the inline summary — is the source of truth.
+
+Red-first is the discipline this field enforces: every NEW test proves it can go red, from one of exactly three named sources, before its green is trusted. The canonical statement lives in `team-spawning-and-review-gates` `## Red-first — a new guard is not evidence until it has been shown to fail`; this skill owns the tool and the field that carry it.
+
 **Migration.** v6 evidence files DO NOT validate against v7. Runs not in flight at the v2.0.0 upgrade: no action needed; new runs use v7 from Phase 0.5. Runs in flight at upgrade: re-spawn the active teammates against v7.
 
 ## `--no-vao` escape hatch
@@ -292,7 +384,8 @@ Trade-off: `--no-vao` re-opens the v1.x failure modes (scope-narrowing, git-stas
 
 ## Where this skill plugs in
 
-- `hooks/vao_tools.py` — the five Layer-3 tools (verify-oracle-match, verify-baseline-clean, verify-no-fake-data, verify-every-element, verify-rendered-parity).
+- `hooks/vao_tools.py` — the Layer-3 facade + CLI (the five originals verify-oracle-match, verify-baseline-clean, verify-no-fake-data, verify-every-element, verify-rendered-parity, plus the fifteen discipline tools and the 21st, verify-check-can-fail).
+- `hooks/vao/check_integrity.py` — the 21st Layer-3 tool's module (v3.47.0).
 - `hooks/skill_invocation_audit.py` — the Layer 6 Stop-hook auditor.
 - `hooks/review_evidence_schema.py` — schema v7 declaring the five required VAO fields.
 - `hooks/pipeline-completion-audit.py` — extended to assert VAO verdicts + delegate to Layer 6.

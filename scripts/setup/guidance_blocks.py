@@ -181,8 +181,13 @@ def remove_block(claude_md_path: PathLike, capability: str) -> bool:
     after = text[span[1]:]
     # One trailing-newline normalization: drop a single newline that immediately
     # follows the end fence (the boundary newline the block sat on) so removal
-    # does not leave a dangling blank line where the block used to be.
-    if after.startswith("\n"):
+    # does not leave a dangling blank line where the block used to be. The file
+    # may carry either convention on disk (a CRLF checkout writes "\r\n"), so
+    # both forms of that single boundary newline are recognized — checking only
+    # "\n" left a dangling blank line on every Windows remove.
+    if after.startswith("\r\n"):
+        after = after[2:]
+    elif after.startswith("\n"):
         after = after[1:]
     new_text = before + after
     if new_text == text:

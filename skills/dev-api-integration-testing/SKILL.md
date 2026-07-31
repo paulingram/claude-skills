@@ -41,15 +41,17 @@ Tests read these from the design artifact — never hard-code in test files.
 
 ### Assertion phase
 
-Three layers, all required for any state-changing endpoint:
+Four layers, all required for any state-changing endpoint:
 
-1. **Response shape.** Status code + response body matches the schema in the design artifact. Use a schema validator (pydantic, marshmallow, zod-equivalent) — don't assert one field at a time.
-2. **Side-effect verification.** The action actually changed the system:
+1. **Response shape (the write echo).** Status code + response body matches the schema in the design artifact. Use a schema validator (pydantic, marshmallow, zod-equivalent) — don't assert one field at a time.
+2. **API read-back.** For any written value that is subsequently readable, GET the resource back **through the public API** and assert the written value returns. This layer is required, not optional polish: a write echo can be assembled from the request the caller just sent while the serializer, the response schema, or the read query drops the field entirely — the write succeeds, the read returns nothing, and every other layer is green. For an update endpoint the full chain is required — **POST-echo → GET → PUT-echo → GET-after-PUT** — because the create path and the update path can diverge in exactly the serializer that hides the bug. Assert the value the API RETURNS, never the value you sent.
+3. **Side-effect verification (necessary, and not sufficient).** The action actually changed the system:
    - DB row exists / updated / deleted (query directly).
    - Queue message published (consume from the queue or query the broker's API).
    - File written (read from the object store).
    - Cache entry set/invalidated.
-3. **Audit/log effect** where applicable (audit trail row, log line, metric increment).
+   This layer proves the write PERSISTED; it does not prove the value is RETRIEVABLE. **A row the API never returns is a blank field to the user.** A direct-DB assertion is never a substitute for layer 2 — it is the corroboration that layer 2's read-back reflects real stored state rather than a cache or a request echo.
+4. **Audit/log effect** where applicable (audit trail row, log line, metric increment).
 
 ### Teardown phase
 
@@ -64,7 +66,7 @@ This is non-negotiable — flaky tests rot the whole suite.
 
 ## Per-test expectations & failure handling
 
-For every integration test (local OR live-dev), write a per-step expectation file BEFORE running the test, per `root-cause-test-failures`. The expectation file (`<test-output-dir>/expectations/<test-id>.json`) captures the request payload, response assertions (status / shape / values), side-effect assertions (DB rows, queue messages, files), and audit-log assertions — all of which are mandated above. On any failure, do NOT propose a fix until the 3-pass root-cause loop has run and produced an evidence-backed `rca/<test-id>-<ts>.json` artifact. "It's probably flaky" is forbidden — either identify the race / fixture / env trigger with evidence and document the fix in-loop, OR (when the verdict is `product-bug`) escalate via the RCA handoff AND write a solution requirement to `<cwd>/.architect-team/solution-requirements/SR-<test-id>-<ts>.json` per `team-spawning-and-review-gates`'s `## Solution Requirements` section. The SR auto-spawns a fix team via the orchestrator; the loop re-enters Phase 2 with the failing integration test as the convergence check.
+For every integration test (local OR live-dev), write a per-step expectation file BEFORE running the test, per `root-cause-test-failures`. The expectation file (`<test-output-dir>/expectations/<test-id>.json`) captures the request payload, response assertions (status / shape / values), **API read-back assertions (the value a subsequent GET must return — the full POST-echo → GET → PUT-echo → GET-after-PUT chain for update endpoints)**, side-effect assertions (DB rows, queue messages, files), and audit-log assertions — all four assertion layers mandated above. The read-back leg is the one most easily dropped here, and dropping it is exactly how a green suite ships a field the API never returns: this file is written BEFORE the test runs and decides what the test asserts. On any failure, do NOT propose a fix until the 3-pass root-cause loop has run and produced an evidence-backed `rca/<test-id>-<ts>.json` artifact. "It's probably flaky" is forbidden — either identify the race / fixture / env trigger with evidence and document the fix in-loop, OR (when the verdict is `product-bug`) escalate via the RCA handoff AND write a solution requirement to `<cwd>/.architect-team/solution-requirements/SR-<test-id>-<ts>.json` per `team-spawning-and-review-gates`'s `## Solution Requirements` section. The SR auto-spawns a fix team via the orchestrator; the loop re-enters Phase 2 with the failing integration test as the convergence check.
 
 ## Test naming
 
@@ -89,6 +91,7 @@ Cover EVERY error response the endpoint can return, drawn from the OpenSpec desi
 |---|---|
 | "I'll mock the DB to make the test fast" | Mocking the DB tests your assumptions about the ORM, not your code. Use the real DB in dev. |
 | "The error responses are obvious — happy path is enough" | Error paths break production. Coverage of every documented error response is the bar. |
-| "I'll skip side-effect verification — the 200 is enough" | A 200 with no side effect is a silent data-loss bug. Verify the row, the message, the file. |
+| "I'll skip side-effect verification — the 200 is enough" | A 200 with no side effect is a silent data-loss bug. Verify the row, the message, the file — AND read the value back through the API. The side-effect layer corroborates the read-back; it never replaces it. |
+| "The DB row proves it persisted" | Persisted is not retrievable. The user reads through the API; assert there. A green DB assertion beside a serializer that drops the field is exactly the shape of a "fixed" bug the user still sees. |
 | "Test data leaks are fine — dev gets reset" | Cross-test contamination causes flaky tests. Use the prefix discipline. |
 | "I'll hard-code the dev URL" | The design artifact is the source. Read from it, so changing environments doesn't require a code edit. |

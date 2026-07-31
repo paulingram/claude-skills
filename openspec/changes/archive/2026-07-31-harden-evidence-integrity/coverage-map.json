@@ -1,0 +1,247 @@
+{
+ "change": "harden-evidence-integrity",
+ "authored_at": "2026-07-31T03:25:00Z",
+ "source": "banking-app/requirements/fix-lists-2026-07/POSTMORTEM-verification-failures.md Part 4 (rules R1-R9), backed by .architect-team/gap-analysis/postmortem-rules-vs-enforcement.md",
+ "baseline": {
+  "machine": "windows-cp1252-checkout",
+  "command": "PYTHONUTF8=1 python -m pytest -q",
+  "passed": 5979,
+  "failed": 2,
+  "skipped": 5,
+  "duration_s": 243.93,
+  "pre_existing_failures": [
+   "tests/test_installer_guidance_blocks.py::test_remove_deletes_exactly_and_byte_preserves",
+   "tests/test_skill_references.py::test_target_skill_byte_count_reduced_vs_baseline[common-pipeline-conventions-data0]"
+  ],
+  "note": "Line-ending artifacts on Windows checkouts since the v3.42.x macOS merges; out of scope. Gate: zero NEW failures vs this baseline.",
+  "measured_at_sha": "d64e95960e66a893d66441bb18e1b807cca08e14"
+ },
+ "entries": [
+  {
+   "source_requirement_id": "R1a-red-proof",
+   "source_text": "A check is not evidence until it has been shown to fail - prove a new guard can go red before trusting it green",
+   "spec_requirement_id": "check-falsifiability/Red-first is generalized to the feature pipeline with three acceptable red sources; check-falsifiability/A verify-check-can-fail Layer-3 tool exists (red-run severities)",
+   "layer": "infra",
+   "team": "1+2+4",
+   "scenarios": [
+    "new test file with no red run flagged",
+    "red run that never went red flagged",
+    "skill text names the three red sources",
+    "added tests with no verdict block completion"
+   ],
+   "acceptance_criteria": [
+    "hooks/vao/check_integrity.py emits new-guard-never-shown-red for a diff-added test path with no red_run block (fixture test)",
+    "red-run-not-red fires when cited output lacks a failure signature (fixture test)",
+    "_audit_check_integrity blocks when the run diff adds test files and no verdict exists; fail-open with no added tests (tests)",
+    "team-spawning + verified-agent-output name TDD-red / pre-change-checkout / assertion-inversion as the three red sources (structural criterion)"
+   ]
+  },
+  {
+   "source_requirement_id": "R1b-vacuous-check",
+   "source_text": "If a check returns implausibly fast, confirm it read something - zero-work checks are not evidence (tsc --noEmit zero files; collected 0 items)",
+   "spec_requirement_id": "check-falsifiability/A verify-check-can-fail Layer-3 tool exists (vacuous-check); check-falsifiability/Zero-work signatures cover the common runners; check-falsifiability/Evidence schema gains an optional check_integrity_review field",
+   "layer": "infra",
+   "team": "1+2",
+   "scenarios": [
+    "vacuous pytest run flagged",
+    "solution-file tsc flagged demanding tsc -b",
+    "registry is data-driven",
+    "absent field stays valid",
+    "present fail blocks"
+   ],
+   "acceptance_criteria": [
+    "vacuous-check fires on 'collected 0 items' fixture with exit 0 (test)",
+    "tsconfig files-empty+references predicate fires with remediation naming tsc -b (test)",
+    "registry covers pytest/playwright/jest/vitest/tsc as data entries (test asserts registry keys)",
+    "existing v7 evidence without the field validates clean; check_integrity_review fail blocks completion (tests)",
+    "missing/empty cited output_path is itself a failure (test)"
+   ]
+  },
+  {
+   "source_requirement_id": "R2-users-layer",
+   "source_text": "Verify at the layer the user experiences - status codes are not screens; a deploy is verified only after a page load with a semantic assertion",
+   "spec_requirement_id": "report-claims-citation/The deferral tool gains four uncited-claim severities (uncited-deploy-claim); evidence-integrity-ethos/ETHOS carries the evidence-integrity rules (relay rule)",
+   "layer": "infra",
+   "team": "3+4",
+   "scenarios": [
+    "deployed-and-verified off status codes flagged",
+    "cited claims pass"
+   ],
+   "acceptance_criteria": [
+    "uncited-deploy-claim fires on a fixture report claiming deploy-verified citing only status checks (test)",
+    "a post-deploy citation naming page-load/screenshot/semantic assertion passes (test)",
+    "skill text states the persisted-artifacts enforcement boundary (criterion in delivery-manifest/conventions text)"
+   ]
+  },
+  {
+   "source_requirement_id": "R3-producer-status",
+   "source_text": "Never accept a completion status from the producer - task boards and self-reports are inputs to verification, not substitutes",
+   "spec_requirement_id": "completion-status-integrity/Unmanifested-task completion is blocked during an active run; completion-status-integrity/The gate is scoped fail-open outside active CT6 runs; completion-status-integrity/The run marker records the orchestrator session",
+   "layer": "infra",
+   "team": "2",
+   "scenarios": [
+    "unregistered task completion mid-run blocked",
+    "registered board task completes without weakening evidence",
+    "manifested task with valid evidence completes",
+    "no active run fail-open",
+    "kill-switch honored",
+    "marker carries session id during a run"
+   ],
+   "acceptance_criteria": [
+    "review-gate-task blocks (exit 2) completion of a task NO manifest mentions (expected_review_evidence, shared_task_id, task_ids) when marker active + run-session match + no kill-switch, message names manifest remediation (test)",
+    "registration stand-down: a shared_task_id/task_ids-mentioned id completes; evidence enforcement for expected_review_evidence ids unchanged, pinned by test_registration_does_not_weaken_the_evidence_gate",
+    "fail-open directions tested: no marker / stale marker / session mismatch / CT6_TASK_GATE_DISABLED / no task id",
+    "run_continuity engagement records the run session id (CLAUDE_CODE_SESSION_ID primary; explicit arg override); teams-mode shared-session reality documented (test)",
+    "existing manifest-flow behavior unchanged (regression tests green)"
+   ],
+   "amended": "registration-semantics amendment after group-2 teams-mode verification (code-wins flow, second exercise)"
+  },
+  {
+   "source_requirement_id": "R4-grep-absence",
+   "source_text": "Grep proves presence, never absence - run the tests, ask the agent, don't infer",
+   "spec_requirement_id": "report-claims-citation/The deferral tool gains four uncited-claim severities (absence-claim-uncited); evidence-integrity-ethos/ETHOS carries the evidence-integrity rules",
+   "layer": "infra",
+   "team": "3+4",
+   "scenarios": [
+    "grep-based absence finding flagged",
+    "ETHOS names the three rules"
+   ],
+   "acceptance_criteria": [
+    "absence-claim-uncited fires on fixture report asserting no-test-exists citing only a grep (test)",
+    "an absence claim citing the runner's collected list passes (test)",
+    "docs/ETHOS.md carries grep-never-proves-absence with named anti-pattern; compiled principle-7 clause present in agents (ethos-injection tests green post-resync)"
+   ]
+  },
+  {
+   "source_requirement_id": "R5-silence",
+   "source_text": "Silence is not a finding - an agent that has not reported has not necessarily not worked; mid-edit suite reads are unattributable",
+   "spec_requirement_id": "report-claims-citation/The deferral tool gains four uncited-claim severities (stalled-agent-claim-uncited); evidence-integrity-ethos/Reading teammate state is a documented protocol",
+   "layer": "infra",
+   "team": "3+4",
+   "scenarios": [
+    "stalled claim with no idle/handoff citation flagged",
+    "protocol present with the mid-edit corollary"
+   ],
+   "acceptance_criteria": [
+    "stalled-agent-claim-uncited fires on fixture report characterizing an agent stalled with no idle-event/handoff citation (test)",
+    "team-spawning documents the three knowable states + citation requirement + mid-edit corollary (structural criterion)"
+   ]
+  },
+  {
+   "source_requirement_id": "R6-spec-currency",
+   "source_text": "The spec is a plan; the code is the fact - the orchestrator owns spec currency while agents read it; code wins and the spec is amended",
+   "spec_requirement_id": "spec-currency-mid-run/* (all five requirements)",
+   "layer": "infra",
+   "team": "2+4",
+   "scenarios": [
+    "fingerprint content-stable",
+    "fingerprint moves on amendment",
+    "dispatch stamps the fingerprint",
+    "amended spec with un-rebriefed teammate blocks",
+    "pre-upgrade fail-open",
+    "spec-drift SR routes direct",
+    "discipline text present and cross-referenced"
+   ],
+   "acceptance_criteria": [
+    "hooks/spec_fingerprint.py stable across recompute, distinct on any content change, platform-separator-independent (tests)",
+    "manifest schema documents spec_fingerprint additive field; _audit_spec_currency blocks stale in-flight manifest without re-brief record, clears with one, fail-open when no manifest carries the field (tests)",
+    "SR catalog carries spec-drift as direct-dispatch; spec-drift NOT in TEST_FAILURE_ORIGINS (cross-consistency test)",
+    "conventions carries the spec-currency discipline; team-spawning references it (criterion)"
+   ]
+  },
+  {
+   "source_requirement_id": "R7-api-readback",
+   "source_text": "Round-trip tests must read back through the API - POST-echo, GET, PUT-echo, GET-after-PUT; a DB row the API never returns is a blank field",
+   "spec_requirement_id": "api-readback-discipline/* (both requirements)",
+   "layer": "infra",
+   "team": "4",
+   "scenarios": [
+    "skill mandates the read-back chain",
+    "DB-only test flagged",
+    "read-back test passes the audit"
+   ],
+   "acceptance_criteria": [
+    "dev-api-integration-testing orders layers write-echo, API read-back (with GET-after-PUT), DB necessary-not-sufficient, audit; rationalization row present (criterion)",
+    "test-completeness-verifier documents readback_audit db_only detection with additive verdict field + SR citation (criterion; verifier-consistency tests green)"
+   ]
+  },
+  {
+   "source_requirement_id": "R8-fixture-hygiene",
+   "source_text": "Tests must not mutate shared fixtures without restoring them, and must never assert a hardcoded value they also write",
+   "spec_requirement_id": "flow-fixture-hygiene/* (both requirements)",
+   "layer": "infra",
+   "team": "4",
+   "scenarios": [
+    "skill mandates unique-or-restore and runnable-twice",
+    "self-asserted write flagged",
+    "unique-value flow passes"
+   ],
+   "acceptance_criteria": [
+    "playwright-user-flows shared-state section carries unique-or-restore, runnable-twice, never-assert-a-literal-you-wrote + rationalization row (criterion)",
+    "verifier documents fixture_hygiene_findings with the fill/assert-same-literal pair rule and playwright fail on findings (criterion; consistency tests green)"
+   ]
+  },
+  {
+   "source_requirement_id": "R9-declared-gates",
+   "source_text": "Do not declare a gate and then ship without it",
+   "spec_requirement_id": "declared-gates-registry/* (all three requirements); report-claims-citation/Gate language with no registry entry is flagged",
+   "layer": "infra",
+   "team": "2+3+4",
+   "scenarios": [
+    "declaring a gate records it",
+    "unsatisfied gate blocks completion",
+    "absent registry fail-open",
+    "satisfied gate passes",
+    "gate named in prose but never registered flagged",
+    "pipeline text references the registry before ship"
+   ],
+   "acceptance_criteria": [
+    "_audit_declared_gates blocks on entry without satisfied_at/evidence_path, quoting declaration_text; evidence file must exist >0 bytes; fail-open absent registry (tests)",
+    "undeclared-gate-language fires on gate-language with no registry entry (test)",
+    "conventions + pipeline Phase-8 text wire the registry check before auto-commit (criterion)"
+   ]
+  },
+  {
+   "source_requirement_id": "MANDATE-vao-inventory",
+   "source_text": "The enforcement lands as a first-class VAO tool with all pins current",
+   "spec_requirement_id": "verified-agent-output/The Layer-3 inventory includes verify-check-can-fail; verified-agent-output/The VAO citation contract includes check_integrity_review",
+   "layer": "infra",
+   "team": "1+4+5",
+   "scenarios": [
+    "facade and CLI expose the 21st tool",
+    "count pins agree",
+    "skill documents the optional field"
+   ],
+   "acceptance_criteria": [
+    "vao_tools.py dispatches verify-check-can-fail writing a verdict JSON (CLI glue test)",
+    "every count-pin surface asserts 21 (doc-consistency tests + grep sweep zero stale 20-pins in tool-enumeration contexts)",
+    "verified-agent-output skill lists the tool + optional field with blocking-on-fail semantics (criterion)"
+   ]
+  },
+  {
+   "source_requirement_id": "MANDATE-suite-integrity",
+   "source_text": "The change ships with its own evidence held to its own standard",
+   "spec_requirement_id": "(cross-cutting: tasks.md group 5)",
+   "layer": "infra",
+   "team": "5",
+   "scenarios": [
+    "full suite green vs baseline",
+    "dogfood - the tool runs against this run's own added tests",
+    "compilers byte-stable"
+   ],
+   "acceptance_criteria": [
+    "zero NEW failures vs baseline 5979/2/5 (suite run output captured)",
+    "verify-check-can-fail executed against this change's added test files with red-run citations from groups 1-3 TDD; verdict passing (dogfood artifact)",
+    "sync_agent_boilerplate --check + compile_skills --check green post-recompile",
+    "version 3.47.0 in both plugin JSONs; CHANGELOG rubric check green"
+   ]
+  }
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - authorized: the target codebase is the CT6 plugin itself (markdown instruction surfaces + stdlib Python engines); it ships no frontend, no routes, no UI. Its user-experience layer IS the hook/CLI behavior, verified by pytest behavior tests against fixtures. No requirement in scope has a UI surface.",
+  "dev_api_integration": "n/a - authorized: no API endpoints exist or are touched; the services tier is out of scope for this change. The deterministic engines' CLI surfaces are exercised directly by tests (the repo's equivalent of endpoint testing).",
+  "both_layer_integration": "n/a - no requirement spans frontend+backend; all entries are layer infra by the repo's established convention (see opus-5-model-upgrade coverage map)."
+ },
+ "confirmed_stubs": [],
+ "scope_extensions": []
+}

@@ -20,7 +20,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 <!-- ct6:block:principles:end -->
@@ -303,6 +303,8 @@ Emit a summary report at `<cwd>/.architect-team/runs/ux-test-<persona-slug>-<ts>
 - **Disagreement summary:** which flows needed re-examination + how many cycles; any flows escalated.
 - **Bug count + bug-fix-pipeline SR references:** the list of SRs queued in the bug-fix-pipeline.
 - **Final statement:** *"UX test plan for persona `<persona-slug>` against `<target>` executed. N flows attempted, M passed, K failed, B bugs documented and routed to bug-fix-pipeline."*
+
+**Declared-gates ship check (v3.47.0).** Before the commit + push below, walk `<workspace>/.architect-team/declared-gates.json`: every entry must carry `satisfied_at` and an `evidence_path` that exists and is non-empty. A UX-test run declares gates in exactly the place they are easiest to lose — "we close this out once every distilled flow has run against the live target" — so an unsatisfied entry blocks the close-out until the named check runs and its output is cited. Absent registry is fail-open. Canonical rule: `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`.
 
 Persist the report; auto-mine to MemPalace (`--room ux-test-reports`); auto-commit + push per the Phase 8 default-branch guard discipline (feature branch `architect-team/ux-test-<persona-slug>` unless `--allow-push-to-default`). **Immediately after the commit succeeds**, emit a `git_commit` notification (best-effort, per `## Notifications`) with the new commit's SHA — same wiring as the main pipeline's Phase 8 commit:
 

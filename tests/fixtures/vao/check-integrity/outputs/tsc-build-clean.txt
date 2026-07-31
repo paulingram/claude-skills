@@ -1,0 +1,7 @@
+$ npx tsc -b --pretty false
+Projects in this build:
+    * tsconfig.app.json
+    * tsconfig.node.json
+Building project 'C:/workspace/banking-app/tsconfig.app.json'...
+Building project 'C:/workspace/banking-app/tsconfig.node.json'...
+Checked 214 files, 0 errors.

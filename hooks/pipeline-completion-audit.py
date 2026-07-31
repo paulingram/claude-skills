@@ -52,6 +52,22 @@ want me to continue?" arbitrary-stop gap:
    funnels a resumed session back into the pipeline without nagging unrelated
    sessions.
 
+v3.47.0 — three WORKLIST arms join the family, each keyed on state the evidence
+files themselves cannot carry (see the per-function docstrings):
+
+- `_audit_check_integrity` — the run's diff adds test files => a passing
+  `verify-check-can-fail` verdict must exist (a new guard never shown red is not
+  yet evidence).
+- `_audit_declared_gates` — every entry in `.architect-team/declared-gates.json`
+  must carry `satisfied_at` + an evidence file with bytes in it (a gate you name
+  is a gate you keep).
+- `_audit_spec_currency` — no teammate with unfinished expected work may still
+  be carrying a superseded `spec_fingerprint` with no re-brief record.
+
+All three fail open on a missing trigger (no baseline SHA / no git answer / no
+added tests; no registry; no change dir or no stamped manifest), so they are
+silent on every workspace that predates them.
+
 SAFETY (this hook can block a session, so it is deliberately conservative):
 - Acts ONLY when `.architect-team/` holds a real run (state files present) OR
   an explicit active-run marker exists.
@@ -67,6 +83,7 @@ Exit codes: 0 = allow / not-an-architect-team-run / clean. 2 = block.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -106,6 +123,52 @@ except ImportError:  # pragma: no cover - bare-module fallback
         import run_continuity as _rc  # type: ignore[no-redef]
     except ImportError:  # pragma: no cover - substrate unavailable
         _rc = None  # type: ignore[assignment]
+
+# v3.47.0 — the spec-currency fingerprint seam (hooks/spec_fingerprint.py).
+# Same dual-form import + fail-open fallback: unavailable => `_audit_spec_currency`
+# is inert.
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.spec_fingerprint import compute_spec_fingerprint as _compute_spec_fingerprint
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        from spec_fingerprint import (  # type: ignore[no-redef]
+            compute_spec_fingerprint as _compute_spec_fingerprint,
+        )
+    except ImportError:  # pragma: no cover - helper unavailable
+        _compute_spec_fingerprint = None  # type: ignore[assignment]
+
+# v3.47.0 — the unified test-path detector (hooks/vao/core.py), so "is this a
+# test file" means the same thing in the Stop audit as in every Layer-3 tool.
+# Dual-form import across the three sys.path shapes; unavailable => the
+# check-integrity arm is inert (fail open).
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.vao.core import _is_test_path
+except ImportError:  # pragma: no cover - bare-module fallbacks
+    try:
+        from vao.core import _is_test_path  # type: ignore[no-redef]
+    except ImportError:
+        try:
+            from core import _is_test_path  # type: ignore[no-redef]
+        except ImportError:  # pragma: no cover - detector unavailable
+            _is_test_path = None  # type: ignore[assignment]
+
+# v3.47.0 — task-id semantics (normalization + the unusable-entry reason) share
+# ONE definition with the review gate, in hooks/review_evidence_schema.py. Same
+# dual-form import + fail-open fallback.
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.review_evidence_schema import (
+        normalize_task_id as _normalize_task_id,
+        unusable_evidence_entry_reason as _unusable_evidence_entry_reason,
+    )
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        from review_evidence_schema import (  # type: ignore[no-redef]
+            normalize_task_id as _normalize_task_id,
+            unusable_evidence_entry_reason as _unusable_evidence_entry_reason,
+        )
+    except ImportError:  # pragma: no cover - helpers unavailable
+        _normalize_task_id = None  # type: ignore[assignment]
+        _unusable_evidence_entry_reason = None  # type: ignore[assignment]
 
 
 def _read_stdin_utf8() -> str:
@@ -458,6 +521,702 @@ def _audit_documentation_currency(at: Path) -> list[str]:
     return violations
 
 
+#: Verdict files the check-integrity arm reads, under `.architect-team/vao-verdicts/`.
+#: The Layer-3 naming convention is `<task-id>-<tool>.json`, so every
+#: verify-check-can-fail verdict carries this stem regardless of task id. The arm
+#: deliberately reads only the FILE — the tool itself lives in
+#: `hooks/vao/check_integrity.py` and is never imported here (loose coupling: the
+#: audit asks "is there a passing verdict on disk", not "what would the tool say").
+CHECK_CAN_FAIL_VERDICT_GLOB = "*check-can-fail*.json"
+
+#: Git timeout for the added-files probe. Generous enough for a large repo,
+#: bounded so a hung git can never wedge a Stop hook.
+_GIT_TIMEOUT_SECONDS = 60
+
+DECLARED_GATES_FILENAME = "declared-gates.json"
+
+
+def _resolve_state_path(at: Path, raw: str) -> Path:
+    """Resolve a path recorded in run state: absolute as-is, relative against
+    the WORKSPACE root (the `.architect-team` parent) — the same convention
+    `_audit_solution_requirements` applies to `diagnostic_plan_path`."""
+    path = Path(raw)
+    return path if path.is_absolute() else at.parent / raw
+
+
+def _is_within_workspace(at: Path, candidate: Path) -> bool:
+    """True when ``candidate`` resolves inside the workspace (the `.architect-team`
+    parent). The same containment discipline `_safe_dir_name` applies to slugs,
+    applied to a cited evidence path."""
+    try:
+        root = at.parent.resolve()
+        return root == candidate.resolve() or root in candidate.resolve().parents
+    except (OSError, ValueError):
+        return False
+
+
+def _has_substantive_content(path: Path, probe_bytes: int = 65536) -> bool:
+    """True when the file holds at least one non-whitespace byte.
+
+    Reads a bounded prefix — a captured suite log can be large, and one
+    non-blank character anywhere in the first 64 KiB settles the question."""
+    try:
+        with open(path, "rb") as fh:
+            return bool(fh.read(probe_bytes).strip())
+    except OSError:
+        return False
+
+
+def _audit_declared_gates(at: Path) -> list[str]:
+    """v3.47.0 (rule R9) — a gate you name is a gate you record, and a recorded
+    gate must be satisfied with evidence before the run may complete.
+
+    `.architect-team/declared-gates.json` is a JSON array of
+    `{gate_id, declaration_text, check_command_or_artifact, declared_at}`
+    appended whenever the orchestrator names a condition that gates ship,
+    deploy, merge, or completion. Satisfying one appends `{satisfied_at,
+    evidence_path}`, where the evidence path names the executed check's captured
+    output or verdict file. An entry missing either — or citing an evidence file
+    that does not exist or is 0 bytes — is a declared gate the run is about to
+    ship without, and the violation quotes the gate's OWN words back.
+
+    Fail-open when the registry is absent: a run that declared nothing has
+    nothing to keep. A registry that exists but cannot be read is NOT fail-open
+    (same posture as an unreadable SR) — a gate ledger that cannot be checked
+    must surface, not silently bless the run.
+    """
+    violations: list[str] = []
+    path = at / DECLARED_GATES_FILENAME
+    if not path.exists():
+        return violations
+
+    # Read + parse directly rather than through the fail-open loader, so the
+    # message can tell "did not parse" apart from "parsed, wrong shape" (an
+    # adversarial-review observation: `null` / `123` / `"x"` were all reported as
+    # unreadable when they parsed perfectly well).
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return [
+            f"{DECLARED_GATES_FILENAME} could not be read ({e}) — the "
+            f"declared-gates ledger cannot be checked, so no declared gate can "
+            f"be shown satisfied. Repair {path}."
+        ]
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        return [
+            f"{DECLARED_GATES_FILENAME} is not valid JSON ({e}) — the "
+            f"declared-gates ledger cannot be checked, so no declared gate can "
+            f"be shown satisfied. Repair {path}."
+        ]
+    if not isinstance(data, list):
+        return [
+            f"{DECLARED_GATES_FILENAME} must be a JSON array of gate entries "
+            f"(parsed as {type(data).__name__}) — repair {path}."
+        ]
+
+    for index, entry in enumerate(data):
+        label = f"declared gate #{index + 1}"
+        if not isinstance(entry, dict):
+            violations.append(
+                f"{label} in {DECLARED_GATES_FILENAME} is not an object "
+                f"({type(entry).__name__}) — every entry must carry gate_id + "
+                f"declaration_text + check_command_or_artifact + declared_at"
+            )
+            continue
+        gate_id = str(entry.get("gate_id") or "").strip() or label
+        declaration = str(entry.get("declaration_text") or "").strip()
+        quoted = f'"{declaration}"' if declaration else "(no declaration_text recorded)"
+
+        satisfied_at = entry.get("satisfied_at")
+        if not isinstance(satisfied_at, str) or not satisfied_at.strip():
+            violations.append(
+                f"declared gate '{gate_id}' has no satisfied_at — it was "
+                f"declared and never satisfied: {quoted}. Run the gate's check, "
+                f"capture its output, then append satisfied_at + evidence_path "
+                f"to the entry. An unsatisfied declared gate blocks completion."
+            )
+            continue
+
+        evidence_path = entry.get("evidence_path")
+        if not isinstance(evidence_path, str) or not evidence_path.strip():
+            violations.append(
+                f"declared gate '{gate_id}' is marked satisfied_at="
+                f"{satisfied_at!r} but carries no evidence_path: {quoted}. A "
+                f"satisfied gate cites the executed check's captured output or "
+                f"verdict file — a timestamp alone is an assertion."
+            )
+            continue
+
+        resolved = _resolve_state_path(at, evidence_path.strip())
+        try:
+            # B3 (adversarial): the cited file must be THIS run's evidence.
+            # Without containment, '../outside-secret.txt', an absolute path to a
+            # system file, or an unrelated repo file all satisfied a gate.
+            if not _is_within_workspace(at, resolved):
+                violations.append(
+                    f"declared gate '{gate_id}' cites evidence_path "
+                    f"{evidence_path!r}, which resolves OUTSIDE the workspace "
+                    f"({resolved}): {quoted}. A gate is satisfied by this run's "
+                    f"own captured output — cite a path inside the workspace."
+                )
+            elif not resolved.is_file():
+                violations.append(
+                    f"declared gate '{gate_id}' cites evidence_path "
+                    f"{evidence_path!r} but no such file exists (looked at "
+                    f"{resolved}): {quoted}"
+                )
+            elif not _has_substantive_content(resolved):
+                # B3: size>0 accepted a one-space file. The arm's own words —
+                # "the paper version of a check that never ran" — apply just as
+                # well to a file containing only whitespace.
+                violations.append(
+                    f"declared gate '{gate_id}' cites evidence_path "
+                    f"{evidence_path!r} but that file is EMPTY (no non-whitespace "
+                    f"content): {quoted}. A blank capture is the paper version of "
+                    f"a check that never ran."
+                )
+        except OSError as e:
+            violations.append(
+                f"declared gate '{gate_id}' cites evidence_path "
+                f"{evidence_path!r} which could not be read ({e}): {quoted}"
+            )
+    return violations
+
+
+def _git_lines(root: Path, args: list[str]) -> list[str] | None:
+    """Run a read-only git command in `root`; its stdout lines, or None.
+
+    None means "could not ask" — git missing, not a repository, an unknown SHA,
+    a timeout — and every caller treats that as fail-open. Read-only by
+    construction: this hook never mutates a repository."""
+    try:
+        res = subprocess.run(
+            ["git", *args],
+            cwd=str(root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if res.returncode != 0:
+        return None
+    return [line.strip() for line in (res.stdout or "").splitlines() if line.strip()]
+
+
+def _run_baseline_sha(at: Path) -> str | None:
+    """The run's baseline SHA — intake-state first, then any teammate manifest
+    (both record it at dispatch). None when the run never recorded one."""
+    intake = _load_json(at / "intake-state.json")
+    if isinstance(intake, dict):
+        sha = intake.get("baseline_sha")
+        if isinstance(sha, str) and sha.strip():
+            return sha.strip()
+    for _, manifest in _read_manifests(at):
+        sha = manifest.get("baseline_sha")
+        if isinstance(sha, str) and sha.strip():
+            return sha.strip()
+    return None
+
+
+def _run_start_epoch(root: Path, at: Path, baseline_sha: str) -> float | None:
+    """When this run began, as a POSIX timestamp — or None when unknowable.
+
+    Preference order: the active-run marker's `started_at` (the run's own record
+    of when it engaged), then the baseline commit's timestamp (everything the
+    run did came after it). Used to decide whether an UNTRACKED file is this
+    run's work."""
+    marker = _load_json(at / "active-run.json")
+    if isinstance(marker, dict):
+        raw = str(marker.get("started_at") or "")
+        if raw:
+            try:
+                import datetime as _dt
+                ts = _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=_dt.timezone.utc)
+                return ts.timestamp()
+            except (ValueError, OverflowError):
+                pass
+    lines = _git_lines(root, ["show", "-s", "--format=%ct", baseline_sha])
+    if lines:
+        try:
+            return float(lines[0])
+        except ValueError:
+            pass
+    return None
+
+
+def _added_files_since_baseline(root: Path, at: Path, baseline_sha: str) -> list[str] | None:
+    """Files THIS RUN added, or None when the question cannot be asked.
+
+    Two sources, unioned:
+      * `git diff --diff-filter=A --name-only <baseline>` — files added and
+        already tracked (staged or committed);
+      * `git ls-files --others --exclude-standard` — files that exist but were
+        never tracked, FILTERED to those modified at or after the run started.
+
+    The untracked source is not decoration: the audit runs BEFORE the Phase 8
+    auto-commit, so a test file written minutes ago is untracked at exactly the
+    moment this arm needs to see it. But it is repo-WIDE, and unfiltered it made
+    the gate bite the innocent (B5, adversarial): a developer's pre-existing
+    untracked `tests/test_developer_scratch.py` blocked a run that never touched
+    it. The mtime filter scopes it to the run's own writes; when the run start
+    cannot be established, untracked files are excluded entirely rather than
+    guessed at — the tracked diff still covers every committed or staged add.
+
+    `--exclude-standard` honours .gitignore, so a run's own `.architect-team/`
+    scratch never counts.
+    """
+    tracked = _git_lines(
+        root, ["diff", "--diff-filter=A", "--name-only", baseline_sha]
+    )
+    if tracked is None:
+        return None  # no repo / unknown baseline — cannot establish the diff
+
+    untracked: list[str] = []
+    start = _run_start_epoch(root, at, baseline_sha)
+    if start is not None:
+        for rel in _git_lines(root, ["ls-files", "--others", "--exclude-standard"]) or []:
+            try:
+                if (root / rel).stat().st_mtime >= start:
+                    untracked.append(rel)
+            except OSError:
+                continue
+
+    seen: dict[str, None] = {}
+    for path in list(tracked) + untracked:
+        seen.setdefault(path, None)
+    return list(seen)
+
+
+def _verdict_is_passing(verdict: dict) -> bool:
+    """True only when a verdict file positively says it passed.
+
+    The Layer-3 house shape is `{"tool", "valid": bool, "gaps": [...]}`; the
+    `overall` / `verdict` string forms are accepted as alternates. A shape that
+    says NEITHER is not a pass — an unreadable verdict cannot be evidence that a
+    check could have failed."""
+    if "valid" in verdict:
+        return verdict.get("valid") is True
+    for key in ("overall", "verdict"):
+        if key in verdict:
+            return str(verdict.get(key)).strip().lower() == "pass"
+    return False
+
+
+def _report_verdict_notes(path: Path, verdict: dict) -> None:
+    """Surface a PASSING verdict's `notes[]` as information — never a violation.
+
+    W2 (group 1's adversarial review): a check-can-fail verdict can pass while
+    recording an indeterminate — a `typecheck-tsconfig-indeterminate` note says
+    the typecheck ran but its tsconfig could not be located, so the zero-work
+    question was never actually settled. Notes are non-blocking BY DESIGN (a
+    limit statement, not a defect), but this arm is their only automated
+    consumer, and `_verdict_is_passing` keys on `valid` alone — so an unstated
+    blind spot rode through silently. Printing them keeps the design intent
+    (never gate) while removing the silence.
+    """
+    notes = verdict.get("notes")
+    if not isinstance(notes, list) or not notes:
+        return
+    kinds: list[str] = []
+    for note in notes:
+        if isinstance(note, dict):
+            kind = note.get("kind") or note.get("id") or note.get("severity")
+            kinds.append(str(kind) if kind else "(unlabelled)")
+        elif isinstance(note, str):
+            kinds.append(note)
+    if not kinds:
+        return
+    print(
+        f"pipeline-completion-audit: NOTE — verify-check-can-fail verdict "
+        f"{path.name} passed while recording {len(kinds)} indeterminate "
+        f"observation(s): {', '.join(sorted(set(kinds)))}. These do not block "
+        f"(a note states a limit of the check, not a defect), but the check's "
+        f"coverage is narrower than a clean pass suggests — read the verdict's "
+        f"notes[] before treating it as full coverage.",
+        file=sys.stderr,
+    )
+
+
+def _audit_check_integrity(root: Path, at: Path) -> list[str]:
+    """v3.47.0 (rule R1b) — a check is not evidence until shown able to fail.
+
+    When the run's diff ADDS test files, a `verify-check-can-fail` verdict must
+    exist under `.architect-team/vao-verdicts/` and EVERY verdict there must pass:
+    every new guard shown red before it was trusted green, and no cited check
+    output matching a zero-work signature. This is the diff-keyed half of the
+    contract — the evidence schema's optional `check_integrity_review` cannot
+    key on it, because "the diff added a test file" is not computable from an
+    evidence file's own contents (design D2).
+
+    Fail-open in four directions: no recorded baseline SHA, no git answer (no
+    repository / unknown baseline / git absent), no added TEST files, or the
+    unified test-path detector unavailable. Each means the arm cannot establish
+    that a new guard exists, and an arm that cannot establish its trigger does
+    not block.
+    """
+    violations: list[str] = []
+    if _is_test_path is None:
+        return violations
+    baseline = _run_baseline_sha(at)
+    if not baseline:
+        return violations
+    added = _added_files_since_baseline(root, at, baseline)
+    if not added:
+        return violations
+    added_tests = sorted(p for p in added if _is_test_path(p))
+    if not added_tests:
+        return violations
+
+    named = ", ".join(added_tests[:5]) + (
+        f" (+{len(added_tests) - 5} more)" if len(added_tests) > 5 else ""
+    )
+    verdict_dir = at / "vao-verdicts"
+    verdict_paths = (
+        sorted(verdict_dir.glob(CHECK_CAN_FAIL_VERDICT_GLOB))
+        if verdict_dir.is_dir() else []
+    )
+    if not verdict_paths:
+        return [
+            f"this run adds {len(added_tests)} test file(s) — {named} — but no "
+            f"verify-check-can-fail verdict exists under "
+            f".architect-team/vao-verdicts/. A new guard that was never shown "
+            f"red is not yet evidence: run the Layer-3 tool over the run's "
+            f"cited check outputs and red runs, and only complete on a passing "
+            f"verdict."
+        ]
+
+    # EVERY verdict must pass — there is no "latest wins" here (B4, adversarial).
+    # The old ordering key was `str(verdict_at or path.name)`, comparing ISO
+    # timestamps against filenames in one sort, so a passing verdict dated
+    # 9999-12-31 — or an undated one named "zz-…" — outranked a real failure.
+    # The deeper problem was the semantic itself: this directory holds one
+    # verdict PER GROUP (hei-group1..4), so "latest wins" let a later group's
+    # pass hide an earlier group's failure. Requiring all of them to pass drops
+    # the heuristic entirely; a re-run overwrites its own --out path, so only a
+    # genuinely unresolved failure lingers.
+    for path in verdict_paths:
+        data = _load_json(path)
+        if not isinstance(data, dict):
+            violations.append(
+                f"verify-check-can-fail verdict {path.name} is unreadable / "
+                f"invalid JSON — a verdict that cannot be read cannot show a "
+                f"check could have failed"
+            )
+            continue
+        if _verdict_is_passing(data):
+            _report_verdict_notes(path, data)
+            continue
+        gaps = data.get("gaps")
+        detail = ""
+        if isinstance(gaps, list) and gaps:
+            severities = sorted({
+                str(g.get("severity")) for g in gaps
+                if isinstance(g, dict) and g.get("severity")
+            })
+            if severities:
+                detail = f" (severities: {', '.join(severities)})"
+        violations.append(
+            f"verify-check-can-fail verdict {path.name} does not pass{detail} "
+            f"while this run adds {len(added_tests)} test file(s) — {named}. "
+            f"Close the findings named in the verdict (a vacuous check re-run so "
+            f"it examines the work, a real red captured for every new guard), "
+            f"then re-run the tool. Every verdict in the directory must pass — a "
+            f"later passing verdict does not retire an open failure."
+        )
+    return violations
+
+
+def _safe_dir_name(value: Any) -> str | None:
+    """A single directory NAME (no separators, no traversal), or None.
+
+    A change slug read out of run state is used to build a path, so it is
+    validated the same way task ids are before they become filenames."""
+    if not isinstance(value, str):
+        return None
+    name = value.strip()
+    if not name or name in (".", ".."):
+        return None
+    if "/" in name or "\\" in name or name.startswith("."):
+        return None
+    return name
+
+
+def _read_manifests(at: Path) -> list[tuple[Path, dict]]:
+    """Every readable teammate manifest as (path, dict). Unreadable manifests
+    are skipped — this arm never blocks a run on a corrupt manifest (the
+    review-gate hook already surfaces that)."""
+    manifests: list[tuple[Path, dict]] = []
+    teammates_dir = at / "teammates"
+    if not teammates_dir.is_dir():
+        return manifests
+    for path in sorted(teammates_dir.glob("*.json")):
+        data = _load_json(path)
+        if isinstance(data, dict):
+            manifests.append((path, data))
+    return manifests
+
+
+def _active_change_dir(root: Path, at: Path, manifests: list[tuple[Path, dict]]) -> Path | None:
+    """`openspec/changes/<slug>/` for this run, or None when unresolvable.
+
+    Sources, in order: the active-run marker's `slug`, intake-state's
+    `change_name` / `slug`, then the `change_name` recorded on any manifest.
+    Returning None is the fail-open answer — a run with no resolvable change dir
+    has no spec state to be current with."""
+    changes = root / "openspec" / "changes"
+    if not changes.is_dir():
+        return None
+    candidates: list[Any] = []
+    marker = _load_json(at / "active-run.json")
+    if isinstance(marker, dict):
+        candidates.append(marker.get("slug"))
+    intake = _load_json(at / "intake-state.json")
+    if isinstance(intake, dict):
+        candidates += [intake.get("change_name"), intake.get("slug")]
+    candidates += [m.get("change_name") for _, m in manifests]
+    for candidate in candidates:
+        name = _safe_dir_name(candidate)
+        if name and (changes / name).is_dir():
+            return changes / name
+    return None
+
+
+def _manifest_work_complete(at: Path, manifest: dict) -> bool:
+    """True when every task in `expected_review_evidence` has a READABLE evidence file.
+
+    An empty / absent list means the manifest expects no evidence — there is no
+    in-flight work for a superseded spec to corrupt, so it is treated as
+    complete (the fail-open reading).
+
+    B2/B6 (adversarial): `.is_file()` alone accepted a 0-byte or `{not json`
+    evidence file as landed work, standing the arm down for a teammate whose
+    work has not actually landed. The file must parse to an object — the same
+    bar every other consumer of these files applies.
+    """
+    expected = manifest.get("expected_review_evidence")
+    if not isinstance(expected, list) or not expected:
+        return True
+    for task_id in expected:
+        # Normalize first: a manifest may record an id the harness reports as a
+        # string ("3") as a JSON number (3). Unusable entries are reported by
+        # `_audit_manifest_id_hygiene`, not silently turned into in-flight work.
+        normalized = _normalize_task_id(task_id) if _normalize_task_id else None
+        name = _safe_dir_name(normalized if normalized is not None else task_id)
+        if name is None:
+            continue
+        if not isinstance(_load_json(at / "reviews" / f"{name}.json"), dict):
+            return False
+    return True
+
+
+def _audit_manifest_id_hygiene(at: Path) -> list[str]:
+    """v3.47.0 (adversarial R1) — a registration that can never match is a lie.
+
+    An `expected_review_evidence` entry carrying a path, an evidence FILE NAME,
+    or a non-id type never equals any task id the harness reports, so the review
+    gate never fires for it. Nothing failed; nothing was enforced either. That
+    silence is the defect — the manifest LOOKS like it registers evidence.
+
+    Reports one violation per unusable entry, naming the manifest and the entry.
+    Fail-open when the id helpers are unavailable or the directory is absent.
+    The scan is deliberately NON-recursive: manifests retired into a
+    subdirectory (a completed run's archive) do not participate.
+    """
+    violations: list[str] = []
+    if _unusable_evidence_entry_reason is None:
+        return violations
+    for path, manifest in _read_manifests(at):
+        expected = manifest.get("expected_review_evidence")
+        if not isinstance(expected, list):
+            continue
+        who = str(manifest.get("teammate") or path.stem)
+        for entry in expected:
+            reason = _unusable_evidence_entry_reason(entry)
+            if reason is None:
+                continue
+            violations.append(
+                f"teammate '{who}' ({path.name}) has an expected_review_evidence "
+                f"entry that can never match a task id: {reason}. That entry "
+                f"registers NOTHING — the review gate silently never fires for it. "
+                f"Repair the manifest entry (or remove it if the work is not "
+                f"evidence-gated)."
+            )
+    return violations
+
+
+def _skeleton(text: str) -> str:
+    """Lowercased alphanumeric skeleton — `re-brief_backend_auth` ->
+    `rebriefbackendauth`. Used ONLY to recognize the re-brief marker word, whose
+    spelling varies (`rebrief` / `re-brief` / `re_brief`)."""
+    return re.sub(r"[^a-z0-9]", "", str(text).lower())
+
+
+def _tokens(text: str) -> list[str]:
+    """Lowercased alphanumeric tokens — `rebrief-backend-auth.md` ->
+    ['rebrief', 'backend', 'auth', 'md']. Teammate ATTRIBUTION runs on these,
+    never on the squashed skeleton: `ui` is a substring of `build`, but it is
+    not one of its tokens."""
+    return re.findall(r"[a-z0-9]+", str(text).lower())
+
+
+def _contains_token_run(haystack: list[str], needle: list[str]) -> bool:
+    """True when ``needle`` appears as a CONTIGUOUS run of whole tokens."""
+    if not needle or len(needle) > len(haystack):
+        return False
+    for i in range(len(haystack) - len(needle) + 1):
+        if haystack[i:i + len(needle)] == needle:
+            return True
+    return False
+
+
+def _explicit_rebrief_teammate(path: Path) -> str | None:
+    """The teammate a handoff names EXPLICITLY, or None.
+
+    Recognized in two shapes so an author can be unambiguous without ceremony: a
+    JSON object with a ``teammate`` key, or a ``teammate: <name>`` line in the
+    first part of a markdown handoff. An explicit name beats filename inference
+    entirely — it is the escape hatch from every name-collision below."""
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:4096]
+    except OSError:
+        return None
+    stripped = head.lstrip()
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(head)
+            if isinstance(data, dict):
+                value = data.get("teammate")
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        except json.JSONDecodeError:
+            pass
+    m = re.search(r"^\s*(?:[-*]\s*)?teammate\s*[:=]\s*(.+?)\s*$", head,
+                  re.IGNORECASE | re.MULTILINE)
+    if m:
+        name = m.group(1).strip().strip('"\'`')
+        if name:
+            return name
+    return None
+
+
+def _has_rebrief_record(at: Path, teammate: str, known_teammates: list[str]) -> bool:
+    """True when a re-brief handoff exists FOR `teammate` — and not for someone else.
+
+    The documented contract is `.architect-team/handoffs/*rebrief*<teammate>*`.
+    The marker word is matched on the punctuation-insensitive skeleton (so
+    `re-brief` counts), but the TEAMMATE is attributed on whole tokens, and where
+    several KNOWN teammate names match one filename the LONGEST wins.
+
+    That last rule is what the adversarial review (B2) forced. Raw substring
+    matching cleared the wrong teammate three provable ways: a re-brief for
+    `backend-auth` cleared `backend`; `orchestrator-to-hei-claims-2-rebrief.md`
+    cleared `hei-claims`; and `rebrief-build-guide.md` cleared a teammate named
+    `ui`, because squashing punctuation buries `ui` inside `b-ui-ld`. A stale
+    teammate silently cleared by someone else's re-brief is precisely the
+    failure this arm exists to prevent.
+
+    Residual, stated honestly: attribution resolves among the teammate names
+    this run KNOWS. A filename naming a longer identifier that is not a known
+    teammate can still clear a shorter known one — an explicit ``teammate``
+    field in the handoff removes even that.
+    """
+    handoffs = at / "handoffs"
+    if not handoffs.is_dir():
+        return False
+    target = _tokens(teammate)
+    if not target:
+        return False
+    candidates = [(name, _tokens(name)) for name in known_teammates if _tokens(name)]
+    try:
+        entries = [p for p in handoffs.iterdir() if p.is_file()]
+    except OSError:
+        return False
+
+    for path in entries:
+        if "rebrief" not in _skeleton(path.name):
+            continue
+        explicit = _explicit_rebrief_teammate(path)
+        if explicit is not None:
+            if _tokens(explicit) == target:
+                return True
+            continue  # names someone else — never falls back to the filename
+        file_tokens = _tokens(path.name)
+        matched = [
+            (name, toks) for name, toks in candidates
+            if _contains_token_run(file_tokens, toks)
+        ]
+        if not matched:
+            continue
+        # Longest known name wins: 'hei-claims-2' beats 'hei-claims'.
+        best = max(matched, key=lambda pair: (len(pair[1]), len("".join(pair[1]))))
+        if best[1] == target:
+            return True
+    return False
+
+
+def _audit_spec_currency(root: Path, at: Path) -> list[str]:
+    """v3.47.0 (rule R6) — no teammate finishes the run building against a spec
+    the orchestrator has since amended.
+
+    Each manifest is stamped at dispatch with `spec_fingerprint`, the
+    content hash of `openspec/changes/<slug>/` (hooks/spec_fingerprint.py). For
+    every manifest whose expected work is NOT all complete, the stamp must equal
+    the current fingerprint, or a re-brief record must exist. A mismatch with no
+    re-brief means an in-flight teammate is reading a superseded plan and does
+    not know it.
+
+    Fail-open in four directions: the fingerprint helper unavailable, no
+    resolvable openspec change dir, no manifest carrying a fingerprint
+    (pre-upgrade runs), and any manifest whose expected evidence is already on
+    disk (that work is landed; a stale stamp can no longer mislead it).
+    """
+    violations: list[str] = []
+    if _compute_spec_fingerprint is None:
+        return violations
+    manifests = _read_manifests(at)
+    stamped = [
+        (path, m) for path, m in manifests
+        if isinstance(m.get("spec_fingerprint"), str) and m["spec_fingerprint"].strip()
+    ]
+    if not stamped:
+        return violations  # pre-upgrade run — nothing was ever stamped
+
+    change_dir = _active_change_dir(root, at, manifests)
+    if change_dir is None:
+        return violations
+    current = _compute_spec_fingerprint(change_dir)
+    if not isinstance(current, str) or not current:
+        return violations
+
+    for path, manifest in stamped:
+        stamp = str(manifest.get("spec_fingerprint")).strip()
+        if stamp == current:
+            continue
+        if _manifest_work_complete(at, manifest):
+            continue
+        teammate = str(manifest.get("teammate") or path.stem)
+        known = [str(m.get("teammate") or p.stem) for p, m in manifests]
+        if _has_rebrief_record(at, teammate, known):
+            continue
+        violations.append(
+            f"teammate '{teammate}' has unfinished expected work and was briefed "
+            f"against a SUPERSEDED spec: its manifest ({path.name}) carries "
+            f"spec_fingerprint {stamp[:12]}… while "
+            f"{change_dir.as_posix()} now fingerprints {current[:12]}…, and no "
+            f"re-brief record exists (looked for "
+            f".architect-team/handoffs/*rebrief*{teammate}*). The orchestrator "
+            f"owns spec currency while agents read it: send the teammate a "
+            f"re-brief handoff naming what changed in its scope and update the "
+            f"manifest's spec_fingerprint — or, where code and spec disagree, "
+            f"amend the spec in this phase (the code wins; the readers did not "
+            f"misread)."
+        )
+    return violations
+
+
 def _audit_bug_fix_testing(at: Path) -> list[str]:
     """If a bug-fix run produced verdict files under .architect-team/bug-fix/,
     verify that B1 replication and B6 QA replay were actually executed — not
@@ -538,6 +1297,10 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_openspec_validation(root, at)
     violations += _audit_documentation_currency(at)
     violations += _audit_bug_fix_testing(at)
+    violations += _audit_check_integrity(root, at)
+    violations += _audit_declared_gates(at)
+    violations += _audit_spec_currency(root, at)
+    violations += _audit_manifest_id_hygiene(at)
     return True, violations
 
 
@@ -745,9 +1508,14 @@ def main(argv: list[str]) -> int:
         # scroll past the tail cap on a long run, review remediation #4), OR
         # it is the very session recorded on the marker at engagement time
         # (survives any transcript truncation). Ambiguous (None) => False.
+        # v3.47.0 — the session test is the SHARED basis
+        # (`run_continuity.is_orchestrator_session`), so this guard and the
+        # completion-status gate in review-gate-task.py cannot drift apart on
+        # what "the run's orchestrator session" means. Behaviour is unchanged:
+        # a marker with a recorded session id, a payload carrying the same id.
         session_id = str(payload.get("session_id") or "")
         engaged = continuity_on and (
-            bool(marker and session_id and marker.get("session_id") == session_id)
+            _rc.is_orchestrator_session(marker, session_id)
             or _rc.session_engaged_pipeline(
                 records, head_records=head, truncated=truncated
             ) is True

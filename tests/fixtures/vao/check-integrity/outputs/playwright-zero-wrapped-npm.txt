@@ -1,0 +1,6 @@
+> banking-app@0.1.0 test:e2e
+> playwright test --grep @smoke
+
+Running 0 tests using 0 workers
+
+  0 passed (298ms)

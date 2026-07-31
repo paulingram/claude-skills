@@ -32,11 +32,36 @@ Reads the hook payload from stdin (JSON).
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
 
-from review_evidence_schema import _detect_trigger_mode, safe_id, validate_evidence
+from review_evidence_schema import (
+    _detect_trigger_mode,
+    normalize_task_id,
+    safe_id,
+    unusable_evidence_entry_reason,
+    validate_evidence,
+)
+
+# v3.47.0 — the run-continuity substrate backs the completion-status gate below
+# (active-run marker + the shared session basis). MODULE-object import with the
+# house dual-form fallback; unavailable => the gate is inert and this hook
+# behaves exactly as pre-v3.47.0 (fail open).
+try:  # pragma: no cover - exercised by both import paths
+    from hooks import run_continuity as _rc
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        import run_continuity as _rc  # type: ignore[no-redef]
+    except ImportError:  # pragma: no cover - substrate unavailable
+        _rc = None  # type: ignore[assignment]
+
+# The kill-switch for the unmanifested-task gate. This hook fires for EVERY
+# TaskUpdate in every workflow, so the one enforcement arm that can block a task
+# no manifest claims ships with an off switch a human can set without touching
+# the plugin.
+TASK_GATE_DISABLE_ENV = "CT6_TASK_GATE_DISABLED"
 
 
 def _read_stdin_utf8() -> str:
@@ -64,6 +89,8 @@ def _is_teammate_task(task_id: str, cwd: Path) -> bool:
     teammates_dir = cwd / ".architect-team" / "teammates"
     if not teammates_dir.is_dir():
         return False
+    wanted = normalize_task_id(task_id)
+    owned = False
     for manifest_path in teammates_dir.glob("*.json"):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -76,10 +103,173 @@ def _is_teammate_task(task_id: str, cwd: Path) -> bool:
                 file=sys.stderr,
             )
             continue
+        if not isinstance(manifest, dict):
+            # A manifest that parses to a list / string / number used to crash
+            # this scan with AttributeError. A crash exits the hook 1, which the
+            # harness treats as a NON-blocking error — so one malformed file
+            # disarmed the gate for every task. Skip it loudly instead.
+            print(
+                f"review-gate-task: warning: manifest {manifest_path} is a JSON "
+                f"{type(manifest).__name__}, not an object, and was skipped while "
+                f"resolving task ownership.",
+                file=sys.stderr,
+            )
+            continue
         expected = manifest.get("expected_review_evidence") or []
-        if isinstance(expected, list) and task_id in expected:
+        if not isinstance(expected, list):
+            continue
+        who = manifest.get("teammate") or manifest_path.stem
+        for entry in expected:
+            reason = unusable_evidence_entry_reason(entry)
+            if reason is not None:
+                # A registration that can never match enforces nothing, silently.
+                print(
+                    f"review-gate-task: warning: teammate {who!r} "
+                    f"({manifest_path.name}) has an expected_review_evidence entry "
+                    f"that can never match a task id — {reason}. That registration "
+                    f"gates NOTHING; the review gate will never fire for it.",
+                    file=sys.stderr,
+                )
+                continue
+            # Compare on the normalized form so a manifest recording the id as a
+            # JSON number still owns the task the harness reports as a string.
+            if wanted is not None and normalize_task_id(entry) == wanted:
+                owned = True
+    return owned
+
+
+def _is_registered_task(task_id: str, cwd: Path) -> bool:
+    """True if ANY teammate manifest mentions ``task_id`` in any of its id fields.
+
+    Deliberately WIDER than `_is_teammate_task`, and used for a different
+    question. `_is_teammate_task` asks "does this task owe an evidence file?" and
+    reads only `expected_review_evidence`. This asks "has the run registered this
+    task to somebody at all?" and also reads `shared_task_id` (the Agent-Teams
+    board id) and `task_ids` (the tasks.md ids) — the two fields a CT6 manifest
+    uses to record the SAME work under different id spaces.
+
+    Only the completion-status gate consults it, and only to stand down: the
+    postmortem hole is an arbitrary board item flipped to `completed` that no
+    manifest mentions anywhere, not a teammate closing the board task its own
+    manifest names. Widening here cannot weaken the evidence gate, which is
+    still scoped by `_is_teammate_task` alone.
+    """
+    teammates_dir = cwd / ".architect-team" / "teammates"
+    if not teammates_dir.is_dir():
+        return False
+    for manifest_path in teammates_dir.glob("*.json"):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue  # already surfaced by _is_teammate_task's warning
+        if not isinstance(manifest, dict):
+            continue
+        wanted = normalize_task_id(task_id)
+        if wanted is None:
+            return False
+        for field in ("expected_review_evidence", "task_ids"):
+            values = manifest.get(field)
+            if isinstance(values, list) and any(
+                normalize_task_id(v) == wanted for v in values
+            ):
+                return True
+        if normalize_task_id(manifest.get("shared_task_id")) == wanted:
             return True
     return False
+
+
+def _task_gate_disabled() -> bool:
+    """True when CT6_TASK_GATE_DISABLED is set truthy (same truthiness rule as
+    the run-continuity kill-switch: anything but unset / 0 / false / no)."""
+    v = os.environ.get(TASK_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _unmanifested_task_block(task_id: str, cwd: Path, payload: dict[str, Any]) -> str | None:
+    """The block message for an orchestrator completing an UNMANIFESTED task
+    during an active run — or None to allow.
+
+    v3.47.0 (postmortem rule R3 — never accept a completion status from the
+    producer). `_is_teammate_task` scopes the evidence gate to tasks a manifest
+    claims; everything else was allowed, so an orchestrator could flip its own
+    board items to `completed` mid-run with no evidence anywhere and then relay
+    those statuses to the user as fact. This arm closes that, and ONLY that:
+
+      (a) an ACTIVE, non-stale run marker exists (`.architect-team/active-run.json`),
+      (b) the completing session belongs to the run — the same
+          `run_continuity.is_orchestrator_session` basis the Stop audit uses,
+      (c) NO teammate manifest registers the task id in any of its id fields
+          (`expected_review_evidence` / `shared_task_id` / `task_ids`),
+      (d) neither kill-switch (`CT6_TASK_GATE_DISABLED`,
+          `CT6_RUN_CONTINUITY_DISABLED`) is set.
+
+    Every other direction fails OPEN — no marker, an inactive or stale marker, a
+    null marker session (pre-upgrade markers), a payload with no session, an
+    unreadable marker, or a missing substrate. Foreign workflows and plain user
+    task tracking are left exactly as they were.
+
+    ON `Path.cwd()`. The sibling `hooks/pretool_skill_gate.py` deliberately
+    refuses to fall back to the hook process's own cwd, because ambient state
+    must not gate an unrelated payload. This hook resolves state from cwd
+    because that is how it has always scoped itself — `_is_teammate_task` reads
+    the same directory — and because the session test narrows the blast radius
+    to the run's own actors: a completion from any other session is allowed
+    regardless of what state happens to sit in cwd. Consistent within this hook,
+    deliberately different from its sibling (adversarial-review observation).
+
+    WHY (c) EXISTS. The requirement was written expecting condition (b) to
+    separate the orchestrator from its teammates. In CT6's DEFAULT dispatch mode
+    (Agent Teams) it does not: the Lead and every teammate run under ONE
+    `CLAUDE_CODE_SESSION_ID` and one transcript, so (b) is true for all of them.
+    Verified in a live run — the marker's recorded session equalled the session
+    of a teammate completing its own board task, and the gate blocked it. On (b)
+    alone every teammate's completion is blocked and the run wedges at the exact
+    moment each group finishes. (c) restores the intended target: what still
+    blocks is a task NO manifest mentions anywhere — the arbitrary board item
+    flipped to `completed`, which is what the postmortem actually described.
+    """
+    if _rc is None:
+        return None
+    try:
+        if _task_gate_disabled() or _rc.continuity_disabled():
+            return None
+        if _is_registered_task(task_id, cwd):
+            return None  # the run assigned this task to somebody; not the hole
+        marker = _rc.read_marker(cwd)
+        if not isinstance(marker, dict) or marker.get("status") != "active":
+            return None
+        if _rc.marker_is_stale(marker):
+            return None  # an abandoned run must not tax the workspace forever
+        session_id = payload.get("session_id") or payload.get("sessionId")
+        if not _rc.is_orchestrator_session(marker, session_id if isinstance(session_id, str) else None):
+            return None
+    except Exception:
+        return None  # a gate bug must never wedge an unrelated workflow
+
+    slug = marker.get("slug") or marker.get("run_id") or "(unnamed)"
+    return (
+        f"review-gate-task: blocking task completion (task_id={task_id}): the "
+        f"architect-team run '{slug}' is ACTIVE, this completion comes from the "
+        f"run's own session, and NO teammate manifest mentions {task_id!r} "
+        f"anywhere — not in expected_review_evidence, not as a shared_task_id, "
+        f"not in task_ids. A completion status inside a run is a claim until "
+        f"evidence backs it — the producer's own 'done' is an input to "
+        f"verification, not a substitute for it.\n"
+        f"Resolve it one of three ways:\n"
+        f"  1. Register the task to the teammate who owns the work: add "
+        f"{task_id!r} to that manifest's expected_review_evidence "
+        f"(.architect-team/teammates/<name>.json) and complete it through the "
+        f"evidence flow (.architect-team/reviews/{task_id}.json) — or, if the "
+        f"work is already tracked under another id, record it as that "
+        f"manifest's shared_task_id / task_ids entry.\n"
+        f"  2. If this id is a stray board item that duplicates work tracked "
+        f"elsewhere, delete it rather than marking it done — an unregistered "
+        f"'completed' is exactly the status the run cannot verify.\n"
+        f"  3. If this task is genuinely outside the run's evidence contract, "
+        f"set {TASK_GATE_DISABLE_ENV}=1 for the workflow that needs it (the "
+        f"documented kill-switch) — a deliberate, visible opt-out rather than a "
+        f"silent one."
+    )
 
 
 def _extract_task_id_and_status(
@@ -149,6 +339,13 @@ def main() -> int:
 
     # Scope: only enforce on tasks an architect-team orchestrator has assigned.
     if not _is_teammate_task(str(task_id), Path.cwd()):
+        # v3.47.0 — except when the run's own orchestrator is completing it
+        # mid-run, which is the unmanifested-task hole (see the helper's
+        # docstring for the three preconditions and the fail-open directions).
+        block = _unmanifested_task_block(str(task_id), Path.cwd(), payload)
+        if block:
+            print(block, file=sys.stderr)
+            return 2
         return 0
 
     evidence_path = Path.cwd() / ".architect-team" / "reviews" / f"{task_id}.json"
@@ -182,7 +379,37 @@ def main() -> int:
         )
         return 2
 
-    gaps = validate_evidence(evidence)
+    if not isinstance(evidence, dict):
+        # Valid JSON, wrong shape (a top-level array / string / number). The
+        # validator assumes a mapping; without this the shape error surfaced as
+        # an AttributeError below.
+        print(
+            f"review-gate-task: blocking task {task_id}: evidence at {evidence_path} "
+            f"is a JSON {type(evidence).__name__}, not an object. The review-evidence "
+            f"contract is a single JSON object; a gate that cannot evaluate its "
+            f"evidence fails closed.",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        gaps = validate_evidence(evidence)
+    except Exception as e:
+        # (B1, v3.47.0 adversarial remediation) The A9 promise above covers a
+        # gate that cannot READ its evidence; this extends it to one that cannot
+        # EVALUATE it. An exception used to escape main(), exit the hook 1, and
+        # Claude Code treats exit 1 as a non-blocking error — so one malformed
+        # field silently skipped the gate entirely. Fail CLOSED instead: an
+        # evidence file that breaks the validator is not evidence.
+        print(
+            f"review-gate-task: blocking task {task_id}: validating the evidence at "
+            f"{evidence_path} raised {type(e).__name__}: {e}. A gate that cannot "
+            f"evaluate its evidence fails closed — repair the evidence file (this "
+            f"is a bug worth reporting if the file looks well-formed).",
+            file=sys.stderr,
+        )
+        return 2
+
     if gaps:
         print(
             f"review-gate-task: blocking task {task_id}: review evidence has gaps: "
