@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -144,3 +145,41 @@ def _is_enumerated_line(stripped: str) -> bool:
         or (len(stripped) >= 2 and stripped[0].isdigit() and stripped[1] in ".)")
         or (len(stripped) >= 3 and stripped[:2].isdigit() and stripped[2] in ".)")
     )
+
+
+# ---------------------------------------------------------------------------
+# Word-boundary marker matching
+# ---------------------------------------------------------------------------
+# v3.47.0 relocated these from ``deferral_b.py`` when the mention/use subsystem
+# moved to ``mention_context.py``: both modules need them, and core is the only
+# home that keeps the composition one-directional
+# (deferral -> deferral_b -> mention_context -> core).
+
+
+_BOUNDARY_CACHE: dict[str, "re.Pattern[str]"] = {}
+
+
+def _boundary_pattern(pattern: str) -> "re.Pattern[str]":
+    """``pattern`` as a regex that will not match INSIDE a longer word.
+
+    A bare substring scan reads "unresolved" as "resolved", "abandoned" as
+    "done", and "extraction-completeness" as "complete" — the exact
+    false-positive class these families must not have. The guard is applied
+    only at an end that is alphanumeric, so tokens ending in punctuation or a
+    space (``reviews/``, ``evidence:``, ``rg ``) keep matching as written.
+    """
+    compiled = _BOUNDARY_CACHE.get(pattern)
+    if compiled is None:
+        lowered = pattern.lower()
+        prefix = r"(?<![a-z0-9])" if lowered[:1].isalnum() else ""
+        suffix = r"(?![a-z0-9])" if lowered[-1:].isalnum() else ""
+        compiled = re.compile(prefix + re.escape(lowered) + suffix)
+        _BOUNDARY_CACHE[pattern] = compiled
+    return compiled
+
+
+def _first_token_present(text_lower: str, tokens: tuple[str, ...]) -> str | None:
+    for token in tokens:
+        if _boundary_pattern(token).search(text_lower):
+            return token
+    return None

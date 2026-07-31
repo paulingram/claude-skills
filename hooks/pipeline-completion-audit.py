@@ -152,6 +152,24 @@ except ImportError:  # pragma: no cover - bare-module fallbacks
         except ImportError:  # pragma: no cover - detector unavailable
             _is_test_path = None  # type: ignore[assignment]
 
+# v3.47.0 — task-id semantics (normalization + the unusable-entry reason) share
+# ONE definition with the review gate, in hooks/review_evidence_schema.py. Same
+# dual-form import + fail-open fallback.
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.review_evidence_schema import (
+        normalize_task_id as _normalize_task_id,
+        unusable_evidence_entry_reason as _unusable_evidence_entry_reason,
+    )
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        from review_evidence_schema import (  # type: ignore[no-redef]
+            normalize_task_id as _normalize_task_id,
+            unusable_evidence_entry_reason as _unusable_evidence_entry_reason,
+        )
+    except ImportError:  # pragma: no cover - helpers unavailable
+        _normalize_task_id = None  # type: ignore[assignment]
+        _unusable_evidence_entry_reason = None  # type: ignore[assignment]
+
 
 def _read_stdin_utf8() -> str:
     """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
@@ -787,6 +805,41 @@ def _verdict_is_passing(verdict: dict) -> bool:
     return False
 
 
+def _report_verdict_notes(path: Path, verdict: dict) -> None:
+    """Surface a PASSING verdict's `notes[]` as information — never a violation.
+
+    W2 (group 1's adversarial review): a check-can-fail verdict can pass while
+    recording an indeterminate — a `typecheck-tsconfig-indeterminate` note says
+    the typecheck ran but its tsconfig could not be located, so the zero-work
+    question was never actually settled. Notes are non-blocking BY DESIGN (a
+    limit statement, not a defect), but this arm is their only automated
+    consumer, and `_verdict_is_passing` keys on `valid` alone — so an unstated
+    blind spot rode through silently. Printing them keeps the design intent
+    (never gate) while removing the silence.
+    """
+    notes = verdict.get("notes")
+    if not isinstance(notes, list) or not notes:
+        return
+    kinds: list[str] = []
+    for note in notes:
+        if isinstance(note, dict):
+            kind = note.get("kind") or note.get("id") or note.get("severity")
+            kinds.append(str(kind) if kind else "(unlabelled)")
+        elif isinstance(note, str):
+            kinds.append(note)
+    if not kinds:
+        return
+    print(
+        f"pipeline-completion-audit: NOTE — verify-check-can-fail verdict "
+        f"{path.name} passed while recording {len(kinds)} indeterminate "
+        f"observation(s): {', '.join(sorted(set(kinds)))}. These do not block "
+        f"(a note states a limit of the check, not a defect), but the check's "
+        f"coverage is narrower than a clean pass suggests — read the verdict's "
+        f"notes[] before treating it as full coverage.",
+        file=sys.stderr,
+    )
+
+
 def _audit_check_integrity(root: Path, at: Path) -> list[str]:
     """v3.47.0 (rule R1b) — a check is not evidence until shown able to fail.
 
@@ -854,6 +907,7 @@ def _audit_check_integrity(root: Path, at: Path) -> list[str]:
             )
             continue
         if _verdict_is_passing(data):
+            _report_verdict_notes(path, data)
             continue
         gaps = data.get("gaps")
         detail = ""
@@ -946,12 +1000,51 @@ def _manifest_work_complete(at: Path, manifest: dict) -> bool:
     if not isinstance(expected, list) or not expected:
         return True
     for task_id in expected:
-        name = _safe_dir_name(task_id)
+        # Normalize first: a manifest may record an id the harness reports as a
+        # string ("3") as a JSON number (3). Unusable entries are reported by
+        # `_audit_manifest_id_hygiene`, not silently turned into in-flight work.
+        normalized = _normalize_task_id(task_id) if _normalize_task_id else None
+        name = _safe_dir_name(normalized if normalized is not None else task_id)
         if name is None:
-            continue  # unusable id — cannot judge; do not manufacture in-flight work
+            continue
         if not isinstance(_load_json(at / "reviews" / f"{name}.json"), dict):
             return False
     return True
+
+
+def _audit_manifest_id_hygiene(at: Path) -> list[str]:
+    """v3.47.0 (adversarial R1) — a registration that can never match is a lie.
+
+    An `expected_review_evidence` entry carrying a path, an evidence FILE NAME,
+    or a non-id type never equals any task id the harness reports, so the review
+    gate never fires for it. Nothing failed; nothing was enforced either. That
+    silence is the defect — the manifest LOOKS like it registers evidence.
+
+    Reports one violation per unusable entry, naming the manifest and the entry.
+    Fail-open when the id helpers are unavailable or the directory is absent.
+    The scan is deliberately NON-recursive: manifests retired into a
+    subdirectory (a completed run's archive) do not participate.
+    """
+    violations: list[str] = []
+    if _unusable_evidence_entry_reason is None:
+        return violations
+    for path, manifest in _read_manifests(at):
+        expected = manifest.get("expected_review_evidence")
+        if not isinstance(expected, list):
+            continue
+        who = str(manifest.get("teammate") or path.stem)
+        for entry in expected:
+            reason = _unusable_evidence_entry_reason(entry)
+            if reason is None:
+                continue
+            violations.append(
+                f"teammate '{who}' ({path.name}) has an expected_review_evidence "
+                f"entry that can never match a task id: {reason}. That entry "
+                f"registers NOTHING — the review gate silently never fires for it. "
+                f"Repair the manifest entry (or remove it if the work is not "
+                f"evidence-gated)."
+            )
+    return violations
 
 
 def _skeleton(text: str) -> str:
@@ -1207,6 +1300,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_check_integrity(root, at)
     violations += _audit_declared_gates(at)
     violations += _audit_spec_currency(root, at)
+    violations += _audit_manifest_id_hygiene(at)
     return True, violations
 
 

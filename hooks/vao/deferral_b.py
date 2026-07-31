@@ -23,12 +23,30 @@ from pathlib import Path
 from typing import Any
 
 try:  # package shape: repo root on sys.path
-    from hooks.vao.core import _ITEM_DISPOSITION_CITATIONS, _is_enumerated_line
+    from hooks.vao.core import (
+        _ITEM_DISPOSITION_CITATIONS,
+        _boundary_pattern,
+        _first_token_present,
+        _is_enumerated_line,
+    )
+    from hooks.vao.mention_context import _is_mention_context
 except ImportError:  # hooks/ on sys.path (vao is the package)
     try:
-        from vao.core import _ITEM_DISPOSITION_CITATIONS, _is_enumerated_line
+        from vao.core import (
+            _ITEM_DISPOSITION_CITATIONS,
+            _boundary_pattern,
+            _first_token_present,
+            _is_enumerated_line,
+        )
+        from vao.mention_context import _is_mention_context
     except ImportError:  # hooks/vao/ on sys.path (bare sibling)
-        from core import _ITEM_DISPOSITION_CITATIONS, _is_enumerated_line
+        from core import (
+            _ITEM_DISPOSITION_CITATIONS,
+            _boundary_pattern,
+            _first_token_present,
+            _is_enumerated_line,
+        )
+        from mention_context import _is_mention_context
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +221,13 @@ _ENUMERATION_EVIDENCE_CITATIONS: tuple[str, ...] = (
 # A grep/search command — the basis that CANNOT establish absence.
 _GREP_BASIS_TOKENS: tuple[str, ...] = (
     "grep",
+    # Inflected forms: word-boundary matching means "grep" does not match
+    # "grepped", and a finding that mislabels its own basis is the small
+    # dishonesty this whole change is about (surfaced on hei-adversary-g3 R3,
+    # which fired correctly but reported grep_only=False).
+    "grepped",
+    "grepping",
+    "greps",
     "rg ",
     "ripgrep",
     "searched for",
@@ -256,8 +281,6 @@ _AGENT_CONTEXT_TOKENS: tuple[str, ...] = (
 # an infra noun is missed; that is the deliberate trade.
 
 
-# Words that flip a claim marker into its opposite ("not fixed yet" is not a
-# completion claim). Checked against the 3 words preceding the marker.
 # Modal auxiliaries: "will be verified once the smoke run lands" is a PLAN.
 # A next-actions section is a normal part of a run report (hei-adversary-g3 B-6).
 _MODAL_WORDS: frozenset[str] = frozenset({
@@ -266,6 +289,8 @@ _MODAL_WORDS: frozenset[str] = frozenset({
 })
 
 
+# Words that flip a claim marker into its opposite ("not fixed yet" is not a
+# completion claim). Checked against the 3 words preceding the marker.
 _NEGATION_WORDS: frozenset[str] = frozenset({
     "not", "never", "no", "isn't", "wasn't", "aren't", "cannot", "can't",
     "without", "nothing", "none", "unverified", "incomplete",
@@ -284,9 +309,12 @@ _GATE_STOPWORDS: frozenset[str] = frozenset({
     "any", "all", "its", "our", "carries", "carry",
 })
 
+
 _GATE_CONDITION_TOKEN_OVERLAP_MIN = 2
 
+
 _CLAIM_EXCERPT_MAX_CHARS = 220
+
 
 # Per-family, per-report finding cap (hei-adversary-g3 B-11).
 _MAX_GAPS_PER_FAMILY = 50
@@ -370,52 +398,27 @@ def _claim_windows(text: str) -> list[dict[str, Any]]:
     return windows
 
 
-_BOUNDARY_CACHE: dict[str, "re.Pattern[str]"] = {}
-
-
-def _boundary_pattern(pattern: str) -> "re.Pattern[str]":
-    """``pattern`` as a regex that will not match INSIDE a longer word.
-
-    A bare substring scan reads "unresolved" as "resolved", "abandoned" as
-    "done", and "extraction-completeness" as "complete" — the exact
-    false-positive class these families must not have. The guard is applied
-    only at an end that is alphanumeric, so tokens ending in punctuation or a
-    space (``reviews/``, ``evidence:``, ``rg ``) keep matching as written.
-    """
-    compiled = _BOUNDARY_CACHE.get(pattern)
-    if compiled is None:
-        lowered = pattern.lower()
-        prefix = r"(?<![a-z0-9])" if lowered[:1].isalnum() else ""
-        suffix = r"(?![a-z0-9])" if lowered[-1:].isalnum() else ""
-        compiled = re.compile(prefix + re.escape(lowered) + suffix)
-        _BOUNDARY_CACHE[pattern] = compiled
-    return compiled
-
-
 _CLAUSE_BOUNDARY_RE = re.compile(r"[;:.,—]")
 
 
 def _is_negated(text_lower: str, index: int) -> bool:
     """True when the marker is negated, or stated as a PLAN rather than a claim.
 
-    Two different scopes, deliberately:
-
-    * NEGATION reads the 3 words immediately before the marker ("not fixed
-      yet") — tight, because a negator binds to what follows it.
-    * MODALITY reads the whole CLAUSE ("must be deployed and verified" puts
-      *must* four words back, outside any tight window), bounded by the nearest
-      ``; : . ,`` or em dash. Clause scope is what keeps "the migration must run
-      first; now completed" firing while "must be deployed and verified before
-      merge" does not (hei-adversary-g3 B-6).
+    Both reads are CLAUSE-scoped, bounded by the nearest ``; : . ,`` or em dash.
+    Negation binds tightly (the 3 words before the marker) but must not reach
+    across the boundary — hei-adversary-g3 B-15 surfaced "with no citation.
+    Shipped this run." reading the previous sentence's *no* as negating
+    `shipped`. Modality reads the whole clause, because "must be deployed and
+    verified" puts *must* four words back, while "the migration must run first;
+    now completed" still fires (B-6).
     """
-    prefix = text_lower[max(0, index - 48):index]
-    words = [w for w in re.split(r"[^a-z']+", prefix) if w]
-    if any(w in _NEGATION_WORDS for w in words[-3:]):
-        return True
     clause_start = 0
     for boundary in _CLAUSE_BOUNDARY_RE.finditer(text_lower[:index]):
         clause_start = boundary.end()
-    clause_words = [w for w in re.split(r"[^a-z']+", text_lower[clause_start:index]) if w]
+    clause = text_lower[clause_start:index]
+    clause_words = [w for w in re.split(r"[^a-z']+", clause) if w]
+    if any(w in _NEGATION_WORDS for w in clause_words[-3:]):
+        return True
     return any(w in _MODAL_WORDS for w in clause_words)
 
 
@@ -423,130 +426,27 @@ def _first_claim_marker(
     text_lower: str,
     markers: tuple[tuple[str, str], ...],
     negation_guarded: bool = True,
-) -> tuple[str, str] | None:
-    """The first marker present in ``text_lower`` that is neither matched
-    inside a longer word nor negated by the words in front of it."""
+    is_mention=None,
+) -> tuple[str, str, int] | None:
+    """The first marker OCCURRENCE in ``text_lower`` that is a genuine claim —
+    not matched inside a longer word, not negated by the words in front of it,
+    and not a mention.
+
+    Every occurrence is judged on its own. hei-adversary-g3 B-15: returning the
+    first non-negated occurrence and then testing mention per WINDOW let a
+    quoted mention shadow an unquoted claim beside it — "…whose status is
+    'completed' with no citation. Shipped this run." went clean, because the
+    quoted `completed` was (correctly) a mention and the unquoted `shipped` was
+    never reached. A mention excuses itself, never its neighbours.
+    """
     for marker_id, pattern in markers:
-        regex = _boundary_pattern(pattern)
-        match = regex.search(text_lower)
-        while match is not None:
-            if not (negation_guarded and _is_negated(text_lower, match.start())):
-                return marker_id, pattern
-            match = regex.search(text_lower, match.start() + 1)
+        for match in _boundary_pattern(pattern).finditer(text_lower):
+            if negation_guarded and _is_negated(text_lower, match.start()):
+                continue
+            if is_mention is not None and is_mention(pattern, match.start(), match.end()):
+                continue
+            return marker_id, pattern, match.start()
     return None
-
-
-def _first_token_present(text_lower: str, tokens: tuple[str, ...]) -> str | None:
-    for token in tokens:
-        if _boundary_pattern(token).search(text_lower):
-            return token
-    return None
-
-
-# The severity ids this module owns. A window that NAMES one is documentation
-# ABOUT the machinery, not a claim made with it.
-_OWN_SEVERITY_IDS: tuple[str, ...] = (
-    "uncited-completion-claim",
-    "uncited-deploy-claim",
-    "absence-claim-uncited",
-    "stalled-agent-claim-uncited",
-    "undeclared-gate-language",
-)
-
-
-# Cues that mark a quoted phrase as reported speech rather than assertion.
-_MENTION_ATTRIBUTION_CUES: tuple[str, ...] = (
-    # Rule-DOCUMENTATION phrases only. hei-adversary-g3 B-12: 'records',
-    # 'documents', 'severity', 'marker' and 'detects' were cues AND ordinary
-    # domain vocabulary — "The patient records module and the documents tab
-    # both shipped" supplied two for free. A cue must be a phrase that only
-    # appears when prose is TALKING ABOUT a rule.
-    "postmortem",
-    "fires on",
-    "fires when",
-    "fires only",
-    "anti-pattern",
-    "forbids",
-    "forbidden",
-    "detected by",
-    "severity id",
-    "marker id",
-    "the rule",
-    "this rule",
-    "verbatim",
-    "quoted above",
-    "reads as mention",
-    "not a claim",
-)
-
-
-# Opening/closing quote characters. Single quotes are deliberately EXCLUDED —
-# an apostrophe would make `it's` look like an open quote.
-_QUOTED_SPAN_RE = re.compile(r'["“”`]([^"“”`\n]{1,300})["“”`]')
-
-
-def _marker_is_quote_enclosed(text_lower: str, pattern: str) -> bool:
-    """True when ANY occurrence of the marker in this window sits inside a
-    quotation.
-
-    Any-occurrence rather than first-occurrence: the marker frequently appears
-    twice in a documentation line — once inside the severity id itself
-    (``stalled``-agent-claim-uncited) and once as the quoted term under
-    discussion. Keying on the first hit read the id as an unquoted claim. The
-    quoted form appearing at all is what makes the line a mention, and the cue
-    and own-severity-id conditions carry the rest of the weight.
-    """
-    quoted_spans = [(q.start(1), q.end(1)) for q in _QUOTED_SPAN_RE.finditer(text_lower)]
-    if not quoted_spans:
-        return False
-    return any(
-        start <= match.start() and match.end() <= end
-        for match in _boundary_pattern(pattern).finditer(text_lower)
-        for start, end in quoted_spans
-    )
-
-
-def _is_mention_context(
-    window: dict[str, Any], pattern: str, severity: str | None = None,
-) -> bool:
-    """True when the marker is being MENTIONED rather than USED.
-
-    The document that documents a rule has to quote the phrases the rule
-    forbids — this change's own release notes do exactly that — so a scanner
-    with no use/mention distinction flags the text explaining it.
-
-    Mention requires ALL of:
-
-    1. the marker occurrence is QUOTE-ENCLOSED. You mention a phrase by
-       quoting it. This is non-negotiable and it is what makes the guard
-       un-typeable: no bare tag can buy an exemption.
-    2. the window carries an attribution cue (:data:`_MENTION_ATTRIBUTION_CUES`).
-    3. the window is PROSE, or — if it is an ENUMERATED item — it also names
-       THIS family's own severity id.
-
-    Condition 3's per-family scoping matters: naming ``absence-claim-uncited``
-    must not suppress the completion family in the same window.
-
-    hei-adversary-g3's B-1 killed the first version of this guard, which
-    returned True on any window merely CONTAINING a severity id, before the
-    enumerated check and across all five families. Appending ``Not an
-    uncited-completion-claim`` to every bullet made a report in which every
-    claim was uncited return ``valid=true``. A guard a claimant can satisfy by
-    typing is not a guard.
-
-    Stated residual boundary: a deliberate three-part construction — quotation
-    marks AND an attribution cue AND the exact severity id, in one enumerated
-    item — still reads as mention. That is legible and anomalous rather than
-    accidental, and closing it would require modelling intent.
-    """
-    lower = window["lower"]
-    if not _marker_is_quote_enclosed(lower, pattern):
-        return False
-    if _first_token_present(lower, _MENTION_ATTRIBUTION_CUES) is None:
-        return False
-    if not window["enumerated"]:
-        return True
-    return bool(severity) and severity in lower
 
 
 def _excerpt(window: dict[str, Any]) -> str:
@@ -556,6 +456,52 @@ def _excerpt(window: dict[str, Any]) -> str:
     return text
 
 
+# Two occurrences of the same family are DIFFERENT claims when a claim
+# separator lies between them — a sentence end or a line break. The digit
+# lookbehind keeps `v3.47.0. commit-sha:abc` from reading the version's own
+# `0. ` as a separator (hei-adversary-g3 B-17/W4).
+_CLAIM_SEPARATOR_RE = re.compile(r"(?<!\d)[.!?](?=\s)|\n")
+
+
+def _citation_scope(
+    text_lower: str, index: int, markers: tuple[tuple[str, str], ...]
+) -> str:
+    """The span in which a citation counts for the claim at ``index``.
+
+    Bounded by the claim's NEIGHBOURS, not by punctuation: it runs back to the
+    previous same-family claim (or the start of the window when this is the
+    first) and forward to the next same-family claim (or the end).
+
+    That phrasing is the whole point. hei-adversary-g3 B-16 showed a
+    window-scoped citation test silently excusing a sibling — the sharpest
+    instance being a grep-only absence claim carried by its neighbour's real
+    ``--collect-only``, the postmortem's own R4 shape. My first fix was
+    forward-only from the claim, which stopped the borrowing but created B-17:
+    ``In commit-sha:abc I completed the column config`` fired despite citing
+    itself, and a claim cited on the next line fired or passed depending on
+    whether its line ended in a full stop. A gate that turns on punctuation
+    costs exactly the credibility it exists to create.
+
+    Neighbour-bounding gives both properties at once: a citation can never be
+    borrowed ACROSS a claim in either direction, and within a claim's own span
+    it counts wherever it sits. Two markers of one claim ("delivered and
+    verified") are not neighbours — they are separated by no sentence end or
+    line break, so they do not truncate each other's scope.
+    """
+    positions = sorted({
+        match.start()
+        for _marker_id, pattern in markers
+        for match in _boundary_pattern(pattern).finditer(text_lower)
+    })
+
+    def separated(left: int, right: int) -> bool:
+        return _CLAIM_SEPARATOR_RE.search(text_lower, left, right) is not None
+
+    has_earlier = any(p < index and separated(p, index) for p in positions)
+    later = [p for p in positions if p > index and separated(index, p)]
+    return text_lower[index if has_earlier else 0:later[0] if later else len(text_lower)]
+
+
 def _claim_hits(
     verification_artifact: dict[str, Any],
     markers: tuple[tuple[str, str], ...],
@@ -563,6 +509,7 @@ def _claim_hits(
     severity: str | None = None,
     enumerated_only: bool = False,
     negation_guarded: bool = True,
+    citation_tokens: tuple[str, ...] | None = None,
 ):
     """Yield ``(source, window, marker_id, pattern)`` — at most one hit per
     window per family, so a report never emits N findings for one sentence.
@@ -577,16 +524,27 @@ def _claim_hits(
         for window in _claim_windows(text):
             if enumerated_only and not window["enumerated"]:
                 continue
-            hit = _first_claim_marker(window["lower"], markers, negation_guarded)
+            def _excused(pat: str, start: int, end: int) -> bool:
+                if _is_mention_context(window, pat, severity, (start, end)):
+                    return True  # quoted, not asserted
+                if citation_tokens is None:
+                    return False
+                # B-16: the citation must sit in the CLAIM's own clause.
+                return _first_token_present(
+                    _citation_scope(window["lower"], start, markers), citation_tokens
+                ) is not None
+
+            hit = _first_claim_marker(
+                window["lower"], markers, negation_guarded, is_mention=_excused,
+            )
             if hit is None:
-                continue
-            if _is_mention_context(window, hit[1], severity):
-                continue  # the phrase is being quoted, not asserted
+                continue  # every occurrence was negated, a plan, mention, or cited
+            located = dict(window, claim_at=hit[2])
             if emitted >= _MAX_GAPS_PER_FAMILY:
-                yield source, dict(window, truncated=True), hit[0], hit[1]
+                yield source, dict(located, truncated=True), hit[0], hit[1]
                 return
             emitted += 1
-            yield source, window, hit[0], hit[1]
+            yield source, located, hit[0], hit[1]
 
 
 def _claim_gap(
@@ -628,9 +586,8 @@ def _detect_uncited_completion_claim(
     for source, window, marker_id, marker in _claim_hits(
         verification_artifact, _COMPLETION_CLAIM_MARKERS,
         severity="uncited-completion-claim", enumerated_only=True,
+        citation_tokens=_ITEM_DISPOSITION_CITATIONS,
     ):
-        if _first_token_present(window["lower"], _ITEM_DISPOSITION_CITATIONS):
-            continue
         gaps.append(_claim_gap(
             "uncited-completion-claim", source, window, marker_id, marker,
             evidence=(
@@ -659,10 +616,12 @@ def _detect_uncited_deploy_claim(
     gaps: list[dict[str, Any]] = []
     for source, window, marker_id, marker in _claim_hits(
         verification_artifact, _DEPLOY_VERIFIED_MARKERS, severity="uncited-deploy-claim",
+        citation_tokens=_POST_DEPLOY_VERIFICATION_CITATIONS,
     ):
-        if _first_token_present(window["lower"], _POST_DEPLOY_VERIFICATION_CITATIONS):
-            continue
-        status_token = _first_token_present(window["lower"], _STATUS_CODE_ONLY_CITATIONS)
+        status_token = _first_token_present(
+            _citation_scope(window["lower"], window["claim_at"], _DEPLOY_VERIFIED_MARKERS),
+            _STATUS_CODE_ONLY_CITATIONS,
+        )
         if status_token:
             basis = (
                 f"the nearest citation is a status-code signal ({status_token!r}), "
@@ -699,18 +658,12 @@ def _detect_absence_claim_uncited(
     for source, window, marker_id, marker in _claim_hits(
         verification_artifact, _ABSENCE_CLAIM_MARKERS,
         severity="absence-claim-uncited", negation_guarded=False,
+        citation_tokens=_ENUMERATION_EVIDENCE_CITATIONS + _ITEM_DISPOSITION_CITATIONS,
     ):
-        if _first_token_present(window["lower"], _ENUMERATION_EVIDENCE_CITATIONS):
-            continue
-        if _first_token_present(window["lower"], _ITEM_DISPOSITION_CITATIONS):
-            # hei-adversary-g3 B-4: "the CHANGELOG is missing the suite-total
-            # line; added it (commit-sha:...)" is the most common sentence in a
-            # doc-currency report, and it is a DISPOSITIONED item, not an
-            # absence finding offered as evidence. The negation guard is off for
-            # this family (its markers are themselves negative), so the
-            # disposition citation is what distinguishes the two.
-            continue
-        grep_token = _first_token_present(window["lower"], _GREP_BASIS_TOKENS)
+        grep_token = _first_token_present(
+            _citation_scope(window["lower"], window["claim_at"], _ABSENCE_CLAIM_MARKERS),
+            _GREP_BASIS_TOKENS,
+        )
         if grep_token:
             basis = (
                 f"its only cited basis is a search command ({grep_token!r}) — a "
@@ -747,11 +700,10 @@ def _detect_stalled_agent_claim_uncited(
     gaps: list[dict[str, Any]] = []
     for source, window, marker_id, marker in _claim_hits(
         verification_artifact, _STALLED_AGENT_MARKERS, severity="stalled-agent-claim-uncited",
+        citation_tokens=_AGENT_STATE_CITATIONS,
     ):
         if not _first_token_present(window["lower"], _AGENT_CONTEXT_TOKENS):
             continue  # "the deploy stalled" is not a claim about an agent
-        if _first_token_present(window["lower"], _AGENT_STATE_CITATIONS):
-            continue
         gaps.append(_claim_gap(
             "stalled-agent-claim-uncited", source, window, marker_id, marker,
             evidence=(

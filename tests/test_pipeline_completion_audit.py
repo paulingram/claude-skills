@@ -1018,6 +1018,60 @@ def test_gitignored_files_are_not_added_tests(script: Path, workspace: Path) -> 
     assert r.returncode == 0, f"stderr={r.stderr!r}"
 
 
+# --- W2 (group 1's adversary, moderate): a verdict's indeterminate NOTES are
+# invisible at the only automated consumer. `_verdict_is_passing` keys on
+# `valid` alone, so a verdict can pass carrying an unstated blind spot (e.g.
+# typecheck-tsconfig-indeterminate — a typecheck whose tsconfig could not be
+# located). Notes are NON-blocking by design: they state a limit, not a defect.
+# The fix is visibility only — surface them, never gate on them.
+
+def _verdict_with_notes(workspace: Path, notes: list, *, valid: bool = True) -> Path:
+    return _write_check_verdict(workspace, body={
+        "tool": "verify-check-can-fail",
+        "valid": valid,
+        "gaps": [] if valid else [{"severity": "vacuous-check"}],
+        "notes": notes,
+        "verdict_at": "2026-07-31T05:00:00Z",
+    })
+
+
+def test_passing_verdict_with_notes_allows_but_surfaces_them(script: Path,
+                                                             workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _verdict_with_notes(workspace, [
+        {"kind": "typecheck-tsconfig-indeterminate",
+         "evidence": "no tsconfig.json resolved for `npm run typecheck`",
+         "remediation": "cite the tsconfig path"},
+    ])
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"notes must never gate; stderr={r.stderr!r}"
+    assert "typecheck-tsconfig-indeterminate" in r.stderr, r.stderr
+
+
+def test_passing_verdict_without_notes_says_nothing(script: Path,
+                                                    workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _verdict_with_notes(workspace, [])
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert "note" not in r.stderr.lower(), r.stderr
+
+
+def test_notes_on_a_failing_verdict_do_not_replace_the_violation(script: Path,
+                                                                 workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _verdict_with_notes(workspace, [{"kind": "typecheck-tsconfig-indeterminate"}],
+                        valid=False)
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
 def test_check_integrity_stop_mode_blocks_the_same_way(script: Path, workspace: Path) -> None:
     sha = _init_repo_with_baseline(workspace)
     _write_intake(workspace, baseline_sha=sha)

@@ -906,6 +906,172 @@ def test_w1_no_failure_signature_row_matches_a_bare_section_header() -> None:
     assert not matched, f"a failure signature matches a bare reporting header: {matched}"
 
 
+# ---------------------------------------------------------------------------
+# SCOPE class fix (adversarial round 4) — reporting region vs relayed text
+#
+# Red for this section is the adversary's corpus, captured pre-fix at
+# .architect-team/red-runs/hei-group1/CLASS-scope-corpus.txt: 19 of 31 cases
+# missed their bar. These tests pin the same behaviors in-repo so the guarantee
+# does not depend on that corpus surviving.
+# ---------------------------------------------------------------------------
+
+
+_GREEN_RELAYING_A_RED = (
+    "============================= test session starts =============================\n"
+    "collected 1 items\n\n"
+    "tests/test_parse.py::test_parses_report PASSED                          [100%]\n\n"
+    "------------------------------ Captured stdout call ---------------------------\n"
+    "sample report under test:\n"
+    "================================== FAILURES ===================================\n"
+    "FAILED tests/other.py::test_thing\n"
+    "========================= 1 failed, 2 passed in 0.41s =========================\n"
+    "\n"
+    "============================== 1 passed in 0.31s ==============================\n"
+)
+
+_GENUINE_RED_WITH_LIVELOG_NOISE = (
+    "============================= test session starts =============================\n"
+    "collected 3 items\n\n"
+    "tests/test_mixed.py F..                                                  [100%]\n\n"
+    "================================== FAILURES ===================================\n"
+    "-------------------------------- live log call --------------------------------\n"
+    "INFO     app.http:http.py:12 batch complete: 0 failed, 10 succeeded\n"
+    "E       AssertionError: expected 200\n"
+    "=========================== short test summary info ===========================\n"
+    "FAILED tests/test_mixed.py::test_returns_ok\n"
+    "========================= 1 failed, 2 passed in 0.22s =========================\n"
+)
+
+
+def test_scope_green_run_relaying_a_whole_red_report_is_not_red() -> None:
+    """The sharpest form: a PASSING test that parses a red report and prints it.
+    Every failure signature appears verbatim — in RELAYED text."""
+    from hooks.vao.check_integrity import _output_shows_failure
+
+    assert _output_shows_failure("python -m pytest -q", _GREEN_RELAYING_A_RED) is False
+
+
+def test_scope_genuine_red_with_livelog_noise_is_still_red() -> None:
+    """The control that stops the fix from being a blunt instrument: a REAL red
+    whose output also carries relayed live-log noise stays red."""
+    from hooks.vao.check_integrity import _output_shows_failure
+
+    assert _output_shows_failure("python -m pytest -q", _GENUINE_RED_WITH_LIVELOG_NOISE) is True
+
+
+def test_scope_relayed_block_ends_only_at_a_terminal_section() -> None:
+    """Why the partition cannot end a relayed block at the next banner: relayed
+    text can quote a FAILURES banner verbatim, and that quote is textually
+    identical to a real one. Terminal sections are the only reliable resume
+    point, because the runner emits them last."""
+    from hooks.vao.check_integrity import reporting_region
+
+    quoted = reporting_region(_GREEN_RELAYING_A_RED)
+    assert "FAILURES" not in quoted, "a quoted banner leaked into the reporting region"
+    real = reporting_region(_GENUINE_RED_WITH_LIVELOG_NOISE)
+    assert "short test summary info" in real and "FAILED tests/test_mixed.py" in real
+    assert "batch complete: 0 failed" not in real, "live-log noise leaked into reporting"
+
+
+def test_scope_terminal_verdict_reads_a_split_count_block() -> None:
+    """Playwright, vitest and jest split their counts across adjacent lines.
+    Reading only the final line would drop the failure count and call a genuine
+    red green."""
+    from hooks.vao.check_integrity import _terminal_verdict, reporting_region
+
+    playwright_red = "Running 3 tests using 2 workers\n\n  1 failed\n  2 passed (4.9s)\n"
+    v = _terminal_verdict(reporting_region(playwright_red))
+    assert v is not None and v["failing"] == 1
+
+    vitest_green = " Test Files  8 passed (8)\n      Tests  43 passed (43)\n   Duration  4.21s\n"
+    v2 = _terminal_verdict(reporting_region(vitest_green))
+    assert v2 is not None and v2["failing"] == 0
+
+
+def test_scope_ci_line_prefixes_are_stripped() -> None:
+    """A CI runner prefixes every line; the capture must stay parseable."""
+    from hooks.vao.check_integrity import _output_shows_failure
+
+    ci = "".join(
+        f"2026-07-31T02:14:0{i}.1234567Z {line}\n"
+        for i, line in enumerate([
+            "============================= test session starts ======",
+            "collected 3 items",
+            "=========================== short test summary info ====",
+            "FAILED tests/test_guard.py::test_guard_bites",
+            "========================= 1 failed, 2 passed in 0.41s ==",
+        ])
+    )
+    assert _output_shows_failure("python -m pytest -q", ci) is True
+
+
+def test_scope_zero_work_banner_in_relayed_text_is_not_vacuous() -> None:
+    """The same defect in the FALSE-POSITIVE direction: a real 57-item run whose
+    captured stdout quotes `collected 0 items` was refused as vacuous."""
+    out = (
+        "============================= test session starts =============================\n"
+        "collected 57 items\n\n"
+        "tests/test_registry.py .........................................    [100%]\n\n"
+        "------------------------------ Captured stdout call ---------------------------\n"
+        "collected 0 items\n"
+        "    ^ the pytest zero-work signature under test\n\n"
+        "============================== 57 passed in 0.31s =============================\n"
+    )
+    v = verify_check_can_fail(
+        _artifact(checks=[_check("python -m pytest -q", "outputs/g1.txt")]),
+        repo_root=FIXTURE_DIR,
+    )
+    from hooks.vao.check_integrity import _scan_zero_work, _ZERO_WORK_SIGNATURES
+
+    hits = _scan_zero_work({"command": "python -m pytest -q"}, out, None, _ZERO_WORK_SIGNATURES)
+    assert hits == [], f"a relayed zero-work banner was read as vacuous: {hits!r}"
+
+
+def test_scope_runner_detection_is_region_scoped() -> None:
+    """Relayed text spoofed runner DETECTION too: a green pytest run quoting a
+    vitest summary made vitest's rows applicable."""
+    from hooks.vao.check_integrity import _detect_runners_from_output
+
+    spoof = (
+        "============================= test session starts =============================\n"
+        "collected 1 items\n\n"
+        "tests/test_x.py::test_reads_vitest_output PASSED                        [100%]\n\n"
+        "------------------------------ Captured stdout call ---------------------------\n"
+        " Test Files  1 failed | 7 passed (8)\n\n"
+        "============================== 1 passed in 0.31s ==============================\n"
+    )
+    assert "vitest" not in _detect_runners_from_output(spoof)
+
+
+def test_scope_structural_guard_no_row_reads_off_relayed_text() -> None:
+    """Region-aware restatement of the structural guard. The earlier form asked
+    whether any row matched a bare header; the class survived that because the
+    defect was never in a pattern. This asks the load-bearing question: can ANY
+    row, applied to a capture whose runner reports zero failures, make it red?
+    """
+    from hooks.vao.check_integrity import _FAILURE_SIGNATURES, _output_shows_failure
+
+    green_relaying_everything = (
+        "============================= test session starts =============================\n"
+        "collected 1 items\n\n"
+        "tests/test_relay.py::test_relays PASSED                                 [100%]\n\n"
+        "------------------------------ Captured stdout call ---------------------------\n"
+        "Traceback (most recent call last):\n"
+        "E       AssertionError: assert 0 == 1\n"
+        "FAILED tests/other.py::test_thing\n"
+        "ERROR    app:mod.py:1 upstream unreachable\n"
+        "================================== FAILURES ===================================\n"
+        "1 failed, 2 passed in 0.41s\n"
+        "  ✘ flows/x.spec.ts:1:1 → nope\n"
+        "FAIL src/y.test.ts\n\n"
+        "============================== 1 passed in 0.31s ==============================\n"
+    )
+    assert _output_shows_failure("python -m pytest -q", green_relaying_everything) is False, (
+        "a capture relaying EVERY failure signature still forged a red"
+    )
+    assert len(_FAILURE_SIGNATURES) >= 8, "guard is only meaningful over the real table"
+
+
 # ---- A5/A7: encoding-evading outputs ---------------------------------------
 
 
@@ -1205,6 +1371,134 @@ def test_b4_output_identifying_no_test_at_all_does_not_trigger_correlation() -> 
     other_output = (FIXTURE_DIR / "outputs" / "pytest-red-for-a-different-guard.txt").read_text(encoding="utf-8")
     assert _output_identifies_any_test(make_output) is False
     assert _output_identifies_any_test(other_output) is True
+
+
+# ---- R3: an excerpt is mandatory when correlation is indeterminate ----------
+
+
+def test_r3_nameless_red_without_an_excerpt_is_rejected(tmp_path: Path) -> None:
+    """R3 — when the cited output identifies NO test, B4 correlation cannot run,
+    so the only remaining tie between the output and the guard is the quoted
+    excerpt. Without one, a single name-free summary proves nothing in
+    particular and can be pasted under any number of guards."""
+    out = tmp_path / "nameless-red.txt"
+    out.write_text("python -m pytest tests/ -q --tb=no\nF....\n\n1 failed, 4 passed in 0.31s\n",
+                   encoding="utf-8")
+    v = verify_check_can_fail(
+        _artifact(**_red_run("tests/test_guard.py", "make test", str(out))),
+        repo_root=tmp_path,
+    )
+    assert v["valid"] is False, "a name-free red with no excerpt was accepted"
+    gap = next(g for g in v["gaps"] if g["severity"] == "red-run-not-red")
+    assert "excerpt-required-when-indeterminate" in gap["reasons"]
+
+
+def test_r3_nameless_red_with_a_present_excerpt_is_still_accepted(tmp_path: Path) -> None:
+    """B3 must not re-break: A13's shape (a genuine wrapper-captured red that
+    names no test but DOES quote its failure) stays accepted."""
+    out = tmp_path / "nameless-red.txt"
+    out.write_text("python -m pytest tests/ -q --tb=no\nF....\n\n1 failed, 45 passed in 3.02s\n",
+                   encoding="utf-8")
+    v = verify_check_can_fail(
+        _artifact(**_red_run("tests/test_guard.py", "make test", str(out),
+                             observed_failure_excerpt="1 failed, 45 passed")),
+        repo_root=tmp_path,
+    )
+    assert v["valid"] is True, f"a genuine wrapper-captured red was rejected: {v['gaps']!r}"
+
+
+def test_r3_excerpt_is_not_required_when_the_output_names_the_guard() -> None:
+    """The requirement is scoped to the indeterminate case only — when the
+    output names the test, correlation already ties them together."""
+    v = verify_check_can_fail(
+        _artifact(**_red_run("tests/test_column_config.py",
+                             "python -m pytest tests/test_column_config.py -q",
+                             "outputs/pytest-red-real.txt")),
+        repo_root=FIXTURE_DIR,
+    )
+    assert v["valid"] is True, f"an excerpt was demanded of a correlated red: {v['gaps']!r}"
+
+
+def test_r3_blank_excerpt_counts_as_absent(tmp_path: Path) -> None:
+    out = tmp_path / "nameless-red.txt"
+    out.write_text("1 failed, 4 passed in 0.31s\n", encoding="utf-8")
+    v = verify_check_can_fail(
+        _artifact(**_red_run("tests/test_guard.py", "make test", str(out),
+                             observed_failure_excerpt="   ")),
+        repo_root=tmp_path,
+    )
+    gap = next(g for g in v["gaps"] if g["severity"] == "red-run-not-red")
+    assert "excerpt-required-when-indeterminate" in gap["reasons"]
+
+
+def test_r3_closed_one_anonymous_output_cannot_prove_multiple_guards(tmp_path: Path) -> None:
+    """R3 CLOSURE — the forgery the mandatory-excerpt rule did not reach.
+
+    A name-free summary is tied to no particular guard, so citing the SAME one
+    for several guards proves none of them. Supplying one excerpt satisfies the
+    excerpt rule as many times as it is pasted, which is why that rule alone
+    left the adversary's R3 artifact passing.
+    """
+    out = tmp_path / "nameless-red.txt"
+    out.write_text("python -m pytest tests/ -q --tb=no\nF....\n\n1 failed, 4 passed in 0.31s\n",
+                   encoding="utf-8")
+    files = [f"tests/test_guard_{i}.py" for i in range(1, 6)]
+    v = verify_check_can_fail(
+        _artifact(
+            new_test_files=files,
+            red_runs={f: {"command": "make test", "output_path": str(out),
+                          "observed_failure_excerpt": "1 failed, 4 passed",
+                          "red_source": "tdd-red"} for f in files},
+        ),
+        repo_root=tmp_path,
+    )
+    assert v["valid"] is False, "one anonymous red proved five guards"
+    flagged = {g["test_file"] for g in v["gaps"]
+               if g["severity"] == "red-run-not-red"
+               and "shared-anonymous-red" in g["reasons"]}
+    assert flagged == set(files), f"only {flagged} of 5 were flagged"
+
+
+def test_r3_closed_shared_output_naming_the_tests_stays_accepted(tmp_path: Path) -> None:
+    """The legitimate case: ONE run covering several guards is normal and fine
+    when its output NAMES them — correlation is determinate for each, so
+    nothing is anonymous and nothing is shared blindly."""
+    out = tmp_path / "named-red.txt"
+    out.write_text(
+        "============================= test session starts =============================\n"
+        "collected 4 items\n\n"
+        "tests/test_alpha.py F                                                    [ 50%]\n"
+        "tests/test_beta.py F                                                     [100%]\n\n"
+        "=========================== short test summary info ===========================\n"
+        "FAILED tests/test_alpha.py::test_a\n"
+        "FAILED tests/test_beta.py::test_b\n"
+        "========================= 2 failed, 2 passed in 0.20s =========================\n",
+        encoding="utf-8",
+    )
+    files = ["tests/test_alpha.py", "tests/test_beta.py"]
+    v = verify_check_can_fail(
+        _artifact(
+            new_test_files=files,
+            red_runs={f: {"command": "python -m pytest tests/ -q", "output_path": str(out),
+                          "red_source": "tdd-red"} for f in files},
+        ),
+        repo_root=tmp_path,
+    )
+    assert v["valid"] is True, f"a legitimate shared NAMED red was rejected: {v['gaps']!r}"
+
+
+def test_r3_closed_single_guard_with_an_anonymous_output_is_still_accepted(tmp_path: Path) -> None:
+    """B3 must survive the closure: A13's shape is ONE guard citing a name-free
+    wrapper-captured red with an excerpt. Nothing is shared, so it stays valid."""
+    out = tmp_path / "nameless-red.txt"
+    out.write_text("python -m pytest tests/ -q --tb=no\nF....\n\n1 failed, 45 passed in 3.02s\n",
+                   encoding="utf-8")
+    v = verify_check_can_fail(
+        _artifact(**_red_run("tests/test_guard.py", "make test", str(out),
+                             observed_failure_excerpt="1 failed, 45 passed")),
+        repo_root=tmp_path,
+    )
+    assert v["valid"] is True, f"a single-guard wrapper red was rejected: {v['gaps']!r}"
 
 
 # ---- B5 (moderate): separator-insensitive new_test_files <-> red_runs match --

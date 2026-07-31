@@ -37,7 +37,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from review_evidence_schema import _detect_trigger_mode, safe_id, validate_evidence
+from review_evidence_schema import (
+    _detect_trigger_mode,
+    normalize_task_id,
+    safe_id,
+    unusable_evidence_entry_reason,
+    validate_evidence,
+)
 
 # v3.47.0 — the run-continuity substrate backs the completion-status gate below
 # (active-run marker + the shared session basis). MODULE-object import with the
@@ -83,6 +89,8 @@ def _is_teammate_task(task_id: str, cwd: Path) -> bool:
     teammates_dir = cwd / ".architect-team" / "teammates"
     if not teammates_dir.is_dir():
         return False
+    wanted = normalize_task_id(task_id)
+    owned = False
     for manifest_path in teammates_dir.glob("*.json"):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -95,10 +103,39 @@ def _is_teammate_task(task_id: str, cwd: Path) -> bool:
                 file=sys.stderr,
             )
             continue
+        if not isinstance(manifest, dict):
+            # A manifest that parses to a list / string / number used to crash
+            # this scan with AttributeError. A crash exits the hook 1, which the
+            # harness treats as a NON-blocking error — so one malformed file
+            # disarmed the gate for every task. Skip it loudly instead.
+            print(
+                f"review-gate-task: warning: manifest {manifest_path} is a JSON "
+                f"{type(manifest).__name__}, not an object, and was skipped while "
+                f"resolving task ownership.",
+                file=sys.stderr,
+            )
+            continue
         expected = manifest.get("expected_review_evidence") or []
-        if isinstance(expected, list) and task_id in expected:
-            return True
-    return False
+        if not isinstance(expected, list):
+            continue
+        who = manifest.get("teammate") or manifest_path.stem
+        for entry in expected:
+            reason = unusable_evidence_entry_reason(entry)
+            if reason is not None:
+                # A registration that can never match enforces nothing, silently.
+                print(
+                    f"review-gate-task: warning: teammate {who!r} "
+                    f"({manifest_path.name}) has an expected_review_evidence entry "
+                    f"that can never match a task id — {reason}. That registration "
+                    f"gates NOTHING; the review gate will never fire for it.",
+                    file=sys.stderr,
+                )
+                continue
+            # Compare on the normalized form so a manifest recording the id as a
+            # JSON number still owns the task the harness reports as a string.
+            if wanted is not None and normalize_task_id(entry) == wanted:
+                owned = True
+    return owned
 
 
 def _is_registered_task(task_id: str, cwd: Path) -> bool:
@@ -127,12 +164,16 @@ def _is_registered_task(task_id: str, cwd: Path) -> bool:
             continue  # already surfaced by _is_teammate_task's warning
         if not isinstance(manifest, dict):
             continue
+        wanted = normalize_task_id(task_id)
+        if wanted is None:
+            return False
         for field in ("expected_review_evidence", "task_ids"):
             values = manifest.get(field)
-            if isinstance(values, list) and any(str(v) == task_id for v in values):
+            if isinstance(values, list) and any(
+                normalize_task_id(v) == wanted for v in values
+            ):
                 return True
-        shared = manifest.get("shared_task_id")
-        if shared is not None and str(shared) == task_id:
+        if normalize_task_id(manifest.get("shared_task_id")) == wanted:
             return True
     return False
 

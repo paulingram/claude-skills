@@ -95,10 +95,22 @@ def test_every_stop_pointer_resolves(plugin_root: Path, skill: str) -> None:
         assert (plugin_root / rel).exists(), f"{skill}: STOP pointer cites a non-existent file: {rel}"
 
 
+def _lf_byte_size(path: Path) -> int:
+    """Size in LF-normalized bytes — the form the git index carries.
+
+    The repo runs `core.autocrlf=true`, so a Windows working tree holds CRLF and a
+    raw `read_bytes()` count exceeds the index form by exactly one byte per line.
+    Counting the normalized form makes this assertion platform-independent, so the
+    pin can actually PASS on every platform and FAIL only on a real regrowth. Every
+    sibling assertion in this file already reads text rather than raw bytes.
+    """
+    return len(path.read_bytes().replace(b"\r\n", b"\n"))
+
+
 @pytest.mark.parametrize("skill,data", sorted(EXTRACTIONS.items()))
 def test_target_skill_byte_count_reduced_vs_baseline(plugin_root: Path, skill: str, data) -> None:
     ref_id, baseline, recorded_after = data
-    current = len((plugin_root / "skills" / skill / "SKILL.md").read_bytes())
+    current = _lf_byte_size(plugin_root / "skills" / skill / "SKILL.md")
     assert current < baseline, (
         f"{skill}: current {current} bytes is not reduced vs baseline {baseline}"
     )

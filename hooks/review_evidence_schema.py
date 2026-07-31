@@ -228,6 +228,56 @@ def safe_id(value: str) -> str | None:
     return value
 
 
+def normalize_task_id(value: Any) -> str | None:
+    """The canonical STRING form of a task id, or None when not id-shaped.
+
+    A task id reaches a hook as a string (the harness payload), but a manifest is
+    hand-authored JSON and may record the same id as a number — `"3" in [3]` is
+    False, so an integer-typed entry silently voided the evidence gate for that
+    task. Normalising both sides here gives the comparison one definition.
+
+    `bool` is excluded deliberately: it is an `int` subclass, and `True` is not an
+    id. Blank strings are not ids either.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, int):
+        return str(value)
+    return None
+
+
+def unusable_evidence_entry_reason(value: Any) -> str | None:
+    """Why an `expected_review_evidence` entry can never match a task id — or None.
+
+    A registration that cannot match is worse than no registration: the gate
+    simply never fires for that teammate and nothing says so. The three shapes
+    seen in the wild are an evidence PATH, an evidence FILE NAME, and a non-id
+    type; each is named here so the caller can report it instead of silently
+    skipping it.
+    """
+    normalized = normalize_task_id(value)
+    if normalized is None:
+        return (
+            f"{value!r} is not an id-shaped value — an entry must be a non-empty "
+            f"string or an integer task id"
+        )
+    if safe_id(normalized) is None:
+        return (
+            f"{normalized!r} can never match a task id — it carries a path "
+            f"separator, a leading '.', or is '..'; the entry is the task ID, not "
+            f"a path to its evidence"
+        )
+    if normalized.lower().endswith(".json"):
+        return (
+            f"{normalized!r} looks like an evidence FILE NAME rather than a task "
+            f"id — record the id itself; the hooks append '.json' when resolving "
+            f".architect-team/reviews/<task-id>.json"
+        )
+    return None
+
+
 def validate_evidence(evidence: dict[str, Any]) -> list[str]:
     """Return a list of human-readable gap descriptions for a review-evidence
     dict. An empty list means the evidence is structurally valid.

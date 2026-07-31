@@ -653,6 +653,132 @@ def test_future_tense_plans_are_not_claims(vao_tools, report, severity):
     assert severity not in _severities(v)
 
 
+@pytest.fixture(scope="module")
+def adversary_artifact(plugin_root: Path):
+    def _load(name: str) -> dict:
+        path = (plugin_root / ".architect-team" / "adversarial" / "hei-group3"
+                / "artifacts" / f"{name}.json")
+        return json.loads(path.read_text(encoding="utf-8"))
+    return _load
+
+
+def test_a_citation_before_its_claim_in_the_same_item_counts(vao_tools):
+    """B-17/W2 — forward-only citation scoping was too strict. 'In
+    commit-sha:abc I completed the column config' has no earlier claim to have
+    borrowed from; the citation is attached to the only claim there."""
+    report = "- In commit-sha:a1b2c3d I completed the column config.\n"
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" not in _severities(v)
+
+
+@pytest.mark.parametrize("terminator", [".", ""])
+def test_a_full_stop_does_not_decide_a_verification_outcome(vao_tools, terminator):
+    """B-17/W3 — the sharpest of the three: a cited claim fired or passed
+    depending on whether its line ended in a period. Nobody reasons about
+    punctuation as load-bearing, and a gate that turns on it is the B-14 shape
+    all over again. BOTH forms must read as cited."""
+    report = f"- Column config: completed{terminator}\n  evidence: reviews/fix-1.json\n"
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" not in _severities(v)
+
+
+def test_a_dotted_version_number_is_not_a_claim_boundary(vao_tools):
+    """B-17/W4 — `v3.47.0. commit-sha:abc`: the version's own `0. ` cut the
+    citation off. This repo's reports are full of dotted versions."""
+    report = "- Column config: completed in v3.47.0. commit-sha:a1b2c3d\n"
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" not in _severities(v)
+
+
+def test_a_multi_marker_claim_is_one_claim_not_two(vao_tools):
+    """B-17 control — 'delivered and verified' matches two markers of the same
+    family. Treating the second as a separate claim would truncate the first
+    claim's citation scope."""
+    report = "- Statement export: delivered and verified — commit-sha:e4f5g6h\n"
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" not in _severities(v)
+
+
+def test_a_citation_is_not_borrowed_by_an_earlier_claim(vao_tools):
+    """B-17 control, the mirror of R1 — the citation sits on the SECOND claim,
+    so the first must still fire. Widening the scope backward must not let a
+    claim reach forward past its sibling."""
+    report = "- Column config: done. Statement export: completed (commit-sha:a1b2c3d).\n"
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" in _severities(v)
+
+
+def test_a_citation_excuses_its_own_claim_not_a_sibling(vao_tools, adversary_artifact):
+    """B-16 (medium) — claim detection went per-occurrence but the citation test
+    stayed window-scoped, so a citation attached to claim 1 silently excused
+    claim 2. Unlike truncation, the second claim was never reported on ANY
+    re-run. hei-adversary-g3's R1."""
+    v = vao_tools.verify_no_end_of_run_deferral(
+        adversary_artifact("R1-cited-claim-covers-uncited-sibling"))
+    assert "uncited-completion-claim" in _severities(v)
+
+
+def test_b16_control_the_sibling_alone_still_fires(vao_tools, adversary_artifact):
+    v = vao_tools.verify_no_end_of_run_deferral(
+        adversary_artifact("R1b-control-second-item-alone"))
+    assert "uncited-completion-claim" in _severities(v)
+
+
+def test_a_continuation_line_citation_does_not_cover_a_later_claim(vao_tools, adversary_artifact):
+    """B-16 in the continuation-line shape (R2) — the `evidence:` line cites the
+    claim above it, not the one below it."""
+    v = vao_tools.verify_no_end_of_run_deferral(
+        adversary_artifact("R2-continuation-line-uncited-sibling"))
+    assert "uncited-completion-claim" in _severities(v)
+
+
+def test_a_grep_only_absence_is_not_excused_by_its_enumerated_sibling(vao_tools, adversary_artifact):
+    """B-16's sharpest instance (R3), and the Lead's first pin: two absence
+    claims in one window, the first backed by a real --collect-only and the
+    second a bare grep. The grep-only claim is the postmortem's R4 shape and
+    `grep_only` exists to mark it — being silently excused by a sibling's
+    enumeration is the failure this whole change exists to prevent."""
+    v = vao_tools.verify_no_end_of_run_deferral(
+        adversary_artifact("R3-absence-mixed-basis"))
+    assert "absence-claim-uncited" in _severities(v)
+
+
+def test_an_uncited_deploy_is_not_excused_by_a_cited_sibling(vao_tools, adversary_artifact):
+    """B-16 for the deploy family (R4) — one traced deploy silenced the rest."""
+    v = vao_tools.verify_no_end_of_run_deferral(
+        adversary_artifact("R4-deploy-mixed-citation"))
+    assert "uncited-deploy-claim" in _severities(v)
+
+
+def test_a_mention_excuses_itself_not_the_window(vao_tools):
+    """B-15 (high) — the CT6 release-notes bullet for this very feature, which
+    hei-adversary-g3 built naturally rather than constructed: it names the
+    severity to identify itself, quotes the marker to document what fires,
+    needs 'severity' as the cue, and appends the status a Phase-8 report
+    appends. `completed` is quoted and IS a genuine mention; `Shipped this run`
+    is neither quoted nor cited. Judging mention per-window let the first
+    excuse the second — a mention must excuse only its own occurrence."""
+    report = (
+        "- uncited-completion-claim: this severity fires on any enumerated item "
+        "whose status is \"completed\" with no citation. Shipped this run.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" in _severities(v), (
+        "the quoted mention shadowed the unquoted claim in the same window"
+    )
+
+
+def test_the_quoted_occurrence_itself_still_reads_as_mention(vao_tools):
+    """B-15 control — fixing the shadowing must not make quoting stop working.
+    Same bullet with the trailing claim removed stays clean."""
+    report = (
+        "- uncited-completion-claim: this severity fires on any enumerated item "
+        "whose status is \"completed\" with no citation.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
+    assert "uncited-completion-claim" not in _severities(v)
+
+
 @pytest.mark.parametrize("wrapper", ["`", '"', "'"])
 def test_a_wrapped_bullet_is_still_a_bullet(vao_tools, wrapper):
     """B-13 (high) — wrapping a status bullet in backticks or quotes demoted it

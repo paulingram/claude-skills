@@ -26,7 +26,7 @@
 - **THEN** the undeclared-gate-language matcher MAY be unable to separate them — token-overlap matching cannot do semantics; this is a STATED boundary of the gate family, mitigated by the documented guidance that ship-gating prose cite `gate_id` explicitly; closing it requires a different mechanism and its own change
 
 ### Requirement: The citation-token list is extended to verdict and evidence paths
-The disposition-citation token list SHALL be extended to accept verdict-path citations (`.architect-team/vao-verdicts/`, `verdict_path:`), review-evidence citations (`reviews/`, `evidence:`), and post-deploy verification citations, alongside the existing tokens (commit SHAs, `SR-`, `confirmed_stub`, test-run references).
+The disposition-citation token list SHALL be extended to accept verdict-path citations (`.architect-team/vao-verdicts/`, `verdict_path:`), review-evidence citations (`reviews/`, `evidence:`), and post-deploy verification citations, alongside the existing tokens (commit SHAs, `SR-`, `confirmed_stub`, test-run references). DELIBERATE ASYMMETRY, stated: on the REPORT surface a citation is satisfied by token FORM (existence is not probed — commit SHAs and run references are not paths, and the artifacts a report cites are separately existence-checked where they gate: declared-gates evidence by the completion audit, verdict citations by the evidence schema); the MANIFEST surface and the gate/verdict artifacts get shape and existence checking. Inheriting this split unknowingly is the failure; choosing it, stated here, is the design.
 
 #### Scenario: Verdict path satisfies the citation bar
 - **WHEN** a completion claim cites a `.architect-team/vao-verdicts/...` path

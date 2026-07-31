@@ -602,6 +602,110 @@ def test_registration_does_not_weaken_the_evidence_gate(script: Path,
 
 
 # --------------------------------------------------------------------------- #
+# R5 / R9b / R1 (adversarial round 3b) — where ids meet manifests
+#
+# R5: a task id arrives from the harness as a STRING, but a manifest may record
+# it as a JSON number. `"3" in [3]` is False, so an integer-typed entry silently
+# voided the evidence gate for that task — the exact "registered but unenforced"
+# shape this slice exists to close.
+#
+# R9b: a manifest that parses to a LIST crashed the ownership scan with
+# AttributeError. In hook semantics a crash is exit 1, which is fail-OPEN — one
+# malformed file in the directory disarmed the gate for every task.
+#
+# R1: an `expected_review_evidence` entry that can never match any task id (a
+# path, an evidence FILENAME, a non-id type) fails silently — the gate simply
+# never fires for that teammate and nothing says so.
+# --------------------------------------------------------------------------- #
+
+def _write_raw_manifest(workspace: Path, name: str, body) -> None:
+    (workspace / ".architect-team" / "teammates" / f"{name}.json").write_text(
+        json.dumps(body), encoding="utf-8"
+    )
+
+
+def test_integer_typed_expected_id_still_enforces_evidence(script: Path,
+                                                           workspace: Path) -> None:
+    """R5: `expected_review_evidence: [3]` must own task "3"."""
+    _write_raw_manifest(workspace, "backend-test", {
+        "schema_version": 2, "teammate": "backend-test",
+        "task_ids": [3], "files_owned": [], "expected_review_evidence": [3],
+    })
+    r = _run(script, workspace, _subagents_payload("3"))
+    assert r.returncode == 2, f"an int-typed id must not void the gate; stderr={r.stderr!r}"
+    assert "missing review evidence" in r.stderr
+
+
+def test_integer_typed_expected_id_accepts_valid_evidence(script: Path,
+                                                          workspace: Path) -> None:
+    _write_raw_manifest(workspace, "backend-test", {
+        "schema_version": 2, "teammate": "backend-test",
+        "task_ids": [3], "files_owned": [], "expected_review_evidence": [3],
+    })
+    (workspace / ".architect-team" / "reviews" / "3.json").write_text(
+        json.dumps(_valid_evidence("3")), encoding="utf-8"
+    )
+    r = _run(script, workspace, _subagents_payload("3"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+@pytest.mark.parametrize("body", [[], [{"teammate": "x"}], "a string", 123, None])
+def test_non_object_manifest_never_crashes_the_scan(script: Path, workspace: Path,
+                                                    body) -> None:
+    """R9b: a malformed manifest is skipped with a warning — never a crash, and
+    never a silent disarming of the gate for the manifests that ARE valid."""
+    _write_raw_manifest(workspace, "broken", body)
+    _write_manifest(workspace, "backend-test", ["T-20"])
+    r = _run(script, workspace, _subagents_payload("T-20"))
+    assert r.returncode == 2, f"the valid manifest must still be found; stderr={r.stderr!r}"
+    assert "missing review evidence" in r.stderr
+
+
+def test_non_object_manifest_alone_does_not_block_an_unowned_task(script: Path,
+                                                                  workspace: Path) -> None:
+    _write_raw_manifest(workspace, "broken", [])
+    r = _run(script, workspace, _subagents_payload("T-21"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+@pytest.mark.parametrize("entry", [
+    "reviews/hei-group2.json",
+    ".architect-team/reviews/x.json",
+    "hei-group2.json",
+    "..",
+    ".hidden",
+    {"task": "x"},
+    ["x"],
+    None,
+    True,
+    "",
+])
+def test_unusable_expected_entry_is_warned_about(script: Path, workspace: Path,
+                                                 entry) -> None:
+    """R1: an entry that can never match any task id must SAY so rather than
+    silently never firing."""
+    _write_raw_manifest(workspace, "backend-test", {
+        "schema_version": 2, "teammate": "backend-test",
+        "task_ids": [], "files_owned": [], "expected_review_evidence": [entry],
+    })
+    r = _run(script, workspace, _subagents_payload("T-22"))
+    assert "expected_review_evidence" in r.stderr, r.stderr
+    assert "backend-test" in r.stderr, r.stderr
+
+
+def test_usable_entries_produce_no_warning(script: Path, workspace: Path) -> None:
+    """The warning must be silent for well-formed manifests — both string and
+    integer ids are usable."""
+    _write_raw_manifest(workspace, "backend-test", {
+        "schema_version": 2, "teammate": "backend-test",
+        "task_ids": ["T-1", 3], "files_owned": [],
+        "expected_review_evidence": ["T-1", 3],
+    })
+    r = _run(script, workspace, _subagents_payload("T-99"))
+    assert "expected_review_evidence" not in r.stderr, r.stderr
+
+
+# --------------------------------------------------------------------------- #
 # the two enforcement surfaces agree on who the orchestrator is
 # --------------------------------------------------------------------------- #
 

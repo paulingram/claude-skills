@@ -282,6 +282,69 @@ def test_an_explicit_teammate_field_in_the_handoff_clears_unambiguously(
 # B6 (adversarial, low-medium): a garbage evidence file is not completed work
 # --------------------------------------------------------------------------- #
 
+# --------------------------------------------------------------------------- #
+# R5 / R1 (adversarial round 3b) at the audit surface
+# --------------------------------------------------------------------------- #
+
+def test_integer_typed_expected_id_resolves_its_evidence_file(script: Path,
+                                                              workspace: Path) -> None:
+    """R5 at the audit: an int-typed expected id must resolve reviews/3.json, so
+    a teammate whose work HAS landed is not held in-flight forever (and one whose
+    work has not is not waved through)."""
+    _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT,
+                    expected=[3])
+    assert _run_check(script, workspace).returncode == 2  # evidence absent
+    (_at(workspace) / "reviews" / "3.json").write_text(
+        json.dumps({"task_id": "3"}), encoding="utf-8"
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"int id must resolve its file; stderr={r.stderr!r}"
+
+
+@pytest.mark.parametrize("entry", [
+    "reviews/hei-group2.json",
+    "hei-group2.json",
+    "..",
+    {"task": "x"},
+    None,
+])
+def test_unusable_expected_entry_is_a_violation(script: Path, workspace: Path,
+                                                entry) -> None:
+    """R1 at the audit: an entry that can never match any task id is a REGISTRATION
+    that silently enforces nothing. The audit names the manifest and the entry."""
+    _write_manifest(workspace, "backend-auth",
+                    fingerprint=_current_fingerprint(workspace), expected=[entry])
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert "backend-auth" in r.stderr
+    assert "expected_review_evidence" in r.stderr
+
+
+def test_well_formed_entries_are_not_flagged(script: Path, workspace: Path) -> None:
+    _write_manifest(workspace, "backend-auth",
+                    fingerprint=_current_fingerprint(workspace), expected=["task-a", 3])
+    _complete_expected_work(workspace, ["task-a", "3"])
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_archived_manifests_are_not_scanned(script: Path, workspace: Path) -> None:
+    """The manifest scan is non-recursive by contract: manifests retired into a
+    subdirectory (the Lead's archive of completed runs) must not participate."""
+    archive = _at(workspace) / "teammates" / "archive-pre-hei"
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / "old-run.json").write_text(
+        json.dumps({"teammate": "old-run", "spec_fingerprint": STALE_FINGERPRINT,
+                    "expected_review_evidence": ["reviews/old.json"]}),
+        encoding="utf-8",
+    )
+    _write_manifest(workspace, "backend-auth",
+                    fingerprint=_current_fingerprint(workspace), expected=["task-a"])
+    _complete_expected_work(workspace, ["task-a"])
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"archived manifests must be inert; stderr={r.stderr!r}"
+
+
 @pytest.mark.parametrize("body", ["{not json", "", "[]", "null"])
 def test_unreadable_expected_evidence_is_not_completed_work(script: Path,
                                                             workspace: Path,

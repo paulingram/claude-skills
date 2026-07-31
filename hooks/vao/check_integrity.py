@@ -35,9 +35,55 @@ Artifact contract::
                                        "red_source": str?}}
     }
 
+``observed_failure_excerpt`` is optional ONLY when the cited output names the
+test it is proving red. When the output identifies no test at all — a
+``--tb=no`` summary behind ``make test``, say — the excerpt is REQUIRED, because
+it is then the only thing tying that output to this guard.
+
+SHARING ONE CAPTURE ACROSS GUARDS. One red run covering several new test files
+is normal and fully accepted **when its output NAMES them**: correlation ties
+each guard to the output independently, so nothing is taken on trust. The same
+capture reused for several guards while naming NONE of them is refused
+(``shared-anonymous-red``) — an anonymous summary is tied to no guard in
+particular, and an excerpt does not fix that, since one string satisfies the
+excerpt rule as many times as it is pasted. When a shared capture is anonymous,
+either re-run with per-test reporting (drop ``--tb=no``, add ``-v``, or name the
+paths) so the output identifies its tests, or split it into one captured run per
+guard. Reds whose output carries path-shaped test ids are the form that makes
+correlation, sharing, and the same-basename boundary below all moot.
+
 Originating failure: the banking-app FDS fix-list release (2026-07-30) — a
 typecheck gate that reported green having examined zero files, a jest run that
 "passed" on *No test files found*, and new guards trusted on their first green.
+
+STATED BOUNDARIES — what this tool deliberately does NOT decide. Each was
+measured during adversarial review and is recorded here rather than left for a
+reader to discover:
+
+  * **Same-basename correlation (R4).** ``_output_references_test`` matches the
+    full posix path OR the basename. When two new test files share a basename in
+    different directories (``tests/unit/test_guard.py`` and
+    ``tests/integration/test_guard.py``), output naming only one of them
+    satisfies correlation for both. Path-shaped output ids — which pytest,
+    vitest and Playwright all print by default — resolve this naturally; closing
+    it in general would require per-directory output evidence the runners do not
+    uniformly emit. Prefer citing a red run whose output carries full paths.
+
+  * **Indeterminate correlation (R3).** An output that names no test at all
+    cannot be tied to a guard by correlation, so the quoted excerpt becomes
+    mandatory instead (severity reason ``excerpt-required-when-indeterminate``).
+    That raises the floor but does not make the citation unique: one name-free
+    summary WITH an excerpt can still be cited for several guards. The honest
+    resolution is to capture reds that name their test.
+
+  * **Exotic encodings (W3).** ``_decode_output_bytes`` handles every generator
+    measured on the reference platform — PowerShell ``Out-File -Encoding
+    Unicode`` / ``BigEndianUnicode`` / ``Set-Content -Encoding Unicode`` all emit
+    a BOM, and stock ``>`` redirection emitted UTF-8-BOM — plus BOM-less UTF-16
+    via the NUL-ratio rung. Three constructed remainders still evade it:
+    BOM-less UTF-16LE diluted below the one-third NUL floor by wide characters,
+    a truncated odd-length UTF-16 file, and BOM-less UTF-16BE. Producing any of
+    them needs a hand-rolled writer, so the residual is rated low.
 
 Stdlib-only; no import-time side effects; the only write is the verdict file.
 """
@@ -103,17 +149,171 @@ _RUNNER_OUTPUT_SHAPES: tuple[tuple[str, str], ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Region awareness — the SCOPE fix (adversarial round 4)
+# ---------------------------------------------------------------------------
+# A capture contains two kinds of text and they must never be confused:
+#
+#   REPORTING — what the RUNNER says about the run: session header, progress,
+#     FAILURES / ERRORS sections, the short summary, the final count line.
+#   RELAYED   — text the runner merely carried through: live logs, captured
+#     stdout/stderr, console output, doctest expected-output blocks, echoed
+#     commands, and test ids (whose parametrize labels are author-controlled).
+#
+# Every signature and every runner-detection probe consults REPORTING only.
+# Four rounds of adversarial review showed the same guarantee breaking through
+# one pattern after another; the patterns were never the defect. Relayed text is
+# attacker- (or merely application-) controlled and can reproduce ANY reporting
+# shape verbatim, so no pattern can survive being matched against it.
+
+# A CI runner prefixes every line (timestamps, stream tags). Stripped before any
+# structural match so a wrapped capture is still parseable (control TP10).
+_LINE_PREFIX_RE = re.compile(
+    r"^(?:\d{4}-\d{2}-\d{2}T[\d:.]+Z?\s+|\[\d{2}:\d{2}:\d{2}\]\s+|\d+:\d+:\d+\s+)"
+)
+
+# pytest opens a relayed sub-block with a DASHED banner; the -rA PASSES section
+# is relayed wholesale (it exists to show captured output of passing tests).
+_RELAYED_BLOCK_START_RE = re.compile(
+    r"^-{3,}\s*(?:captured\s+(?:stdout|stderr|log)\b[^-]*|live\s+log\b[^-]*)-{3,}\s*$"
+    r"|^={3,}\s*PASSES\s*={3,}\s*$",
+    re.IGNORECASE,
+)
+
+# A relayed block ends ONLY at a TERMINAL reporting section. Ending it at the
+# next banner of any kind would be wrong: a relayed block can quote a FAILURES
+# banner verbatim (case C1), and that quote is indistinguishable from a real one
+# by text alone. The terminal sections cannot be faked into the wrong position
+# because the runner emits them last.
+_REPORTING_RESUME_RE = re.compile(
+    r"^[=\s]*(?:short test summary info|ERRORS|warnings summary)[=\s]*$", re.IGNORECASE
+)
+
+# Single-line relayed markers used by the JS runners: the marker line and the
+# indented lines that follow it are the application's output, not the runner's.
+_RELAYED_LINE_START_RE = re.compile(
+    r"^\s*(?:stdout|stderr)\s*\|"          # vitest:    stdout | src/x.test.ts > name
+    r"|^\s*console\.(?:log|error|warn|info|debug)\b"   # jest
+    r"|^\s*console\.(?:log|error|warn|info|debug)\s*:",  # playwright
+    re.IGNORECASE,
+)
+
+_RESULT_TOKEN_RE = re.compile(
+    r"(\d+)\s+(passed|failed|errors?|skipped|xfailed|xpassed|flaky|"
+    r"did not run|interrupted|total)\b",
+    re.IGNORECASE,
+)
+_FAILING_TOKENS = ("failed", "error", "errors")
+
+
+def _strip_line_prefix(line: str) -> str:
+    return _LINE_PREFIX_RE.sub("", line, count=1)
+
+
+def _is_summary_line(line: str) -> bool:
+    """True iff the line is a runner's own result-count summary.
+
+    Excludes anything carrying a node id (``::``): a parametrize label may
+    contain a whole fake summary, and the id belongs to the test, not to the
+    run's verdict (cases E1 / E2).
+    """
+    bare = _strip_line_prefix(line).strip().strip("=").strip()
+    if not bare or "::" in bare:
+        return False
+    return _RESULT_TOKEN_RE.search(bare) is not None
+
+
+def _is_banner_summary_line(line: str) -> bool:
+    """A summary line the RUNNER framed with its own banner rule (``==== ... ====``).
+
+    Only this form may resume reporting after a relayed block. A bare summary
+    line cannot: relayed text quotes those freely — a captured vitest report
+    reading ``Test Files  1 failed | 7 passed`` would otherwise re-enter the
+    region and make vitest's rows applicable to a green pytest run.
+    """
+    bare = _strip_line_prefix(line).strip()
+    if not re.match(r"^={3,}.*={3,}$", bare):
+        return False
+    return _is_summary_line(line)
+
+
+def reporting_region(output_text: str) -> str:
+    """Return only the runner's own reporting lines, with relayed text removed."""
+    if not isinstance(output_text, str) or not output_text:
+        return ""
+    kept: list[str] = []
+    in_block = False
+    for raw in output_text.splitlines():
+        line = _strip_line_prefix(raw)
+        if in_block:
+            if _REPORTING_RESUME_RE.match(line) or _is_banner_summary_line(line):
+                in_block = False
+                kept.append(raw)
+            continue
+        if _RELAYED_BLOCK_START_RE.match(line.strip()):
+            in_block = True
+            continue
+        if _RELAYED_LINE_START_RE.match(line):
+            continue
+        kept.append(raw)
+    return "\n".join(kept)
+
+
+def _terminal_verdict(reporting_text: str) -> dict[str, int] | None:
+    """Parse the LAST summary line of the reporting region into counts.
+
+    This is the runner stating its own result. When it says nothing failed, no
+    amount of failure-shaped text elsewhere makes the run red.
+    """
+    lines = reporting_text.splitlines()
+    # Walk up from the end collecting the TRAILING BLOCK of summary lines, not
+    # just the last one: Playwright, vitest and jest each split their counts
+    # across adjacent lines ("1 failed" / "2 passed (4.9s)"), so reading only
+    # the final line would drop the failure count and call a genuine red green
+    # (control TP5).
+    block: list[str] = []
+    seen = False
+    for raw in reversed(lines):
+        if _is_summary_line(raw):
+            block.append(raw)
+            seen = True
+            continue
+        if not raw.strip():
+            if seen:
+                break
+            continue
+        if seen:
+            break
+    if not block:
+        return None
+    counts: dict[str, int] = {}
+    for raw in block:
+        bare = _strip_line_prefix(raw).strip().strip("=").strip()
+        for num, word in _RESULT_TOKEN_RE.findall(bare):
+            key = "error" if word.lower().startswith("error") else word.lower()
+            counts[key] = counts.get(key, 0) + int(num)
+    if not counts:
+        return None
+    failing = sum(v for k, v in counts.items() if k in ("failed", "error"))
+    return {"failing": failing, **counts}
+
+
 def _detect_runners_from_output(output_text: str) -> frozenset[str]:
-    """Which runners the OUTPUT itself identifies, regardless of the command.
+    """Which runners the REPORTING REGION identifies, regardless of the command.
 
     This is what lets a genuine red captured through `make test` or
     `npm run test:unit` be recognized (adversarial B3) — the wrapper hides the
     runner's name from the command line, never from its output.
+
+    Region-scoped since round 4: relayed text can quote another runner's report
+    verbatim, which made that runner's rows applicable and turned a green run
+    into a red one (cases C2 / C3).
     """
     if not isinstance(output_text, str) or not output_text.strip():
         return frozenset()
+    region = reporting_region(output_text)
     found = {runner for runner, pattern in _RUNNER_OUTPUT_SHAPES
-             if re.search(pattern, output_text)}
+             if re.search(pattern, region)}
     return frozenset(found)
 
 
@@ -315,9 +515,21 @@ _ZERO_WORK_SIGNATURES: tuple[tuple[str, str, Any, str], ...] = (
 # ---------------------------------------------------------------------------
 # The failure-signature registry — what a genuinely red run looks like
 # ---------------------------------------------------------------------------
-# (runner, substring). A "*" row applies to every command; a named row applies
-# only when the red run's command names that runner. Matched case-insensitively.
-# The check-mark glyphs are written as escapes so this source stays pure ASCII.
+# (runner, regex pattern). Every row is a REGEX — anchored, count-aware, or
+# glyph-exact — never a bare substring: a row satisfiable by the mere presence
+# of reporting lets a GREEN run stand in as proof a guard can fail (adversarial
+# B1 and W1). Case-insensitivity and multiline are set per-pattern via inline
+# flags rather than globally, because some rows (`^FAILED `, `^ERROR `) must
+# stay case-SENSITIVE to avoid matching ordinary prose.
+#
+# Applicability: a "*" row applies to every command; a named row applies when
+# the command names that runner OR when `_detect_runners_from_output` finds that
+# runner's shape in the output (B3 — a real red captured through `make test` or
+# `npm run test:unit` must still be accepted).
+#
+# The failed-test glyphs are literal UTF-8, not escapes. The module never writes
+# to a console — `_write_verdict` encodes UTF-8 — so no glyph can reach a
+# cp1252 stdout, and none of them is ever copied into a verdict field.
 _FAILURE_SIGNATURES: tuple[tuple[str, str], ...] = (
     # Count-aware AND summary-shaped. [1-9]\d* excludes "0 failed"; requiring
     # "failed" to start immediately after the digits excludes "1 xfailed"; and
@@ -390,6 +602,14 @@ def _output_references_test(test_file: str, output_text: str) -> bool:
     Separator-insensitive. Basename-or-full-path only — deliberately NOT the
     stem, because a stem match would let `test_guard.py` be "proved" by output
     that only ever mentions `test_guard_2.py`.
+
+    STATED BOUNDARY (adversarial R4): the basename arm cannot separate two new
+    test files that share a basename across directories — output naming
+    `tests/integration/test_guard.py` satisfies correlation for
+    `tests/unit/test_guard.py` too. Dropping the basename arm is not the fix:
+    it would reject the common case where a runner prints a path relative to a
+    different root than the artifact used. Runners that print path-shaped ids
+    resolve it naturally; see the module docstring's STATED BOUNDARIES.
     """
     if not isinstance(test_file, str) or not isinstance(output_text, str):
         return False
@@ -468,6 +688,18 @@ def _decode_output_bytes(raw: bytes) -> str:
 
     Order: an explicit BOM wins; otherwise a high NUL ratio is the tell for
     BOM-less UTF-16; otherwise utf-8 with replacement, which never raises.
+
+    STATED BOUNDARY (adversarial W3, rated low): three constructed shapes
+    still evade this ladder — BOM-less UTF-16LE whose NUL ratio is diluted
+    below the one-third floor by wide characters, a truncated odd-length
+    UTF-16 file (both decodes raise and it falls through to utf-8), and
+    BOM-less UTF-16BE (the LE attempt yields garbage that passes the
+    NUL-count sanity check). The basis for rating it low is MEASURED, not
+    assumed: every generator available on the reference platform emits a
+    BOM — `Out-File -Encoding Unicode` / `-Encoding BigEndianUnicode` /
+    `Set-Content -Encoding Unicode` — and stock `>` redirection emitted
+    UTF-8-BOM there, so producing an evading file needs a hand-rolled
+    writer rather than an ordinary toolchain.
     """
     if not raw:
         return ""
@@ -510,7 +742,11 @@ def _scan_zero_work(
     One generic routine over the whole table — no per-runner branching, so a new
     runner is a data edit.
     """
-    text = output_text or ""
+    # Region-scoped since round 4: the zero-work registry had the SAME defect in
+    # the false-positive direction — a real 57-item run whose captured stdout
+    # quoted `collected 0 items` was refused as vacuous (cases G1 / G2 / G3).
+    # A banner the run RELAYED says nothing about what the run examined.
+    text = reporting_region(output_text or "")
     hits: list[tuple[str, str, str]] = []
     # Two runners can legitimately share a signature (`no tests found` is both
     # Playwright's and vitest's). Both entries stay in the table — each
@@ -554,12 +790,32 @@ def _output_shows_failure(command: Any, output_text: str,
     text = output_text or ""
     if not text.strip():
         return False
+    region = reporting_region(text)
+    if not region.strip():
+        return False
+    # The runner's own verdict wins. If its terminal summary reports nothing
+    # failing, the run is green no matter what failure-shaped text the capture
+    # relays (adversarial round 4: live logs, captured stdout, console output,
+    # doctest expected-output blocks and parametrize labels can all carry it).
+    verdict = _terminal_verdict(region)
+    if verdict is not None and verdict["failing"] == 0:
+        return False
     detected = _detect_runners_from_output(text)
     for runner, pattern in table:
         if runner != "*" and runner not in detected and not _command_names_runner(command, runner):
             continue
-        if re.search(pattern, text):
-            return True
+        m = re.search(pattern, region)
+        if not m:
+            continue
+        # The count-aware row states a RESULT, so it may only be read off a
+        # result line — never off prose or a node id that happens to contain a
+        # count (cases A3 / E1 / E2).
+        if "failed" in pattern and "\\d" in pattern:
+            line = next((ln for ln in region.splitlines()
+                         if re.search(pattern, ln) and _is_summary_line(ln)), None)
+            if line is None:
+                continue
+        return True
     return False
 
 
@@ -732,6 +988,17 @@ def verify_check_can_fail(
             seen_red_keys.add(key)
             ordered.append((raw_key, red_runs[raw_key]))
 
+    # R3 closure — how many guards cite each distinct output. A cited output
+    # that names no test is ANONYMOUS: nothing ties it to any particular guard,
+    # so citing the same one for several guards proves none of them. Counted
+    # across the whole artifact before the per-guard loop, because the defect is
+    # a property of the SET of citations, not of any one of them.
+    shared_output_counts: dict[str, int] = {}
+    for _tf, _blk in ordered:
+        key = _posix_key(_blk.get("output_path"))
+        if key:
+            shared_output_counts[key] = shared_output_counts.get(key, 0) + 1
+
     for test_file, block in ordered:
         command = block.get("command")
         cited = block.get("output_path")
@@ -773,13 +1040,39 @@ def verify_check_can_fail(
             # (a --tb=no summary behind a wrapper) cannot be correlated either
             # way, and penalizing it would reject the honest wrapper-captured
             # reds B3 requires be accepted.
-            if (not _output_references_test(test_file, output_text)
-                    and _output_identifies_any_test(output_text)):
+            identifies_a_test = _output_identifies_any_test(output_text)
+            if not _output_references_test(test_file, output_text) and identifies_a_test:
                 reasons.append("output-does-not-reference-test")
                 detail = (detail + "; " if detail else "") + (
                     f"the cited output names other tests but never {test_file!r}, "
                     f"so it is not evidence about THIS guard"
                 )
+            # R3 — when correlation is INDETERMINATE, the quoted excerpt is the
+            # only remaining tie between the output and the guard, so it stops
+            # being optional. Without it a single name-free summary proves
+            # nothing in particular and can be pasted under any number of
+            # guards. Scoped to the indeterminate case so B3's honest
+            # wrapper-captured reds (which do quote their failure) still pass.
+            elif not identifies_a_test:
+                if not (isinstance(excerpt, str) and excerpt.strip()):
+                    reasons.append("excerpt-required-when-indeterminate")
+                    detail = (detail + "; " if detail else "") + (
+                        "the cited output names no test at all, so nothing ties it to "
+                        f"{test_file!r} — quote the failure you observed in "
+                        "observed_failure_excerpt"
+                    )
+                # R3 closure. An excerpt raises the floor but does not make the
+                # citation unique — one string satisfies the excerpt rule as
+                # many times as it is pasted. An anonymous output cited for
+                # SEVERAL guards is the one-red-proves-anything forgery, and it
+                # is the SHARING that gives it away.
+                if shared_output_counts.get(_posix_key(cited), 0) > 1:
+                    reasons.append("shared-anonymous-red")
+                    detail = (detail + "; " if detail else "") + (
+                        f"the cited output names no test and is reused as the red "
+                        f"proof for {shared_output_counts[_posix_key(cited)]} guards, "
+                        f"so it cannot be evidence about {test_file!r} in particular"
+                    )
         if reasons:
             gaps.append({
                 "severity": "red-run-not-red",
