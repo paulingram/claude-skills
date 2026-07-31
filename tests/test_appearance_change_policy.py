@@ -277,17 +277,32 @@ def test_frontend_records_proposals_not_implements(plugin_root: Path):
 # ===========================================================================
 
 
-def test_team_spawning_documents_third_optional_field(plugin_root: Path):
+def test_team_spawning_documents_the_optional_field_count(plugin_root: Path, schema_module):
+    """The documented count is DERIVED from the schema, not hardcoded — adding a
+    fifth optional field breaks this without anyone remembering to rename a test.
+    (v3.47.0: `check_integrity_review` made the count 4; the previous form pinned
+    the literal '3' and had to be edited by hand.)"""
     body = (
         plugin_root / "skills" / "team-spawning-and-review-gates" / "SKILL.md"
     ).read_text(encoding="utf-8")
+    n = len(schema_module.OPTIONAL_VAO_FIELDS)
     assert "appearance_scope_review" in body
-    assert "3 `OPTIONAL_VAO_FIELDS`" in body
+    assert f"{n} `OPTIONAL_VAO_FIELDS`" in body, (
+        f"team-spawning must say {n} OPTIONAL_VAO_FIELDS (the schema's actual count)"
+    )
+    for field in schema_module.OPTIONAL_VAO_FIELDS:
+        assert field in body, f"team-spawning does not name the optional field {field!r}"
 
 
-def test_readme_counts_three_optional_fields(plugin_root: Path):
+def test_readme_counts_the_optional_fields(plugin_root: Path, schema_module):
+    """Same derivation for the README's count line."""
     body = (plugin_root / "README.md").read_text(encoding="utf-8")
-    assert "Plus 3 OPTIONAL VAO fields" in body
+    n = len(schema_module.OPTIONAL_VAO_FIELDS)
+    assert f"Plus {n} OPTIONAL VAO fields" in body, (
+        f"README must say {n} OPTIONAL VAO fields (the schema's actual count)"
+    )
+    for field in schema_module.OPTIONAL_VAO_FIELDS:
+        assert field in body, f"README does not name the optional field {field!r}"
 
 
 # ===========================================================================

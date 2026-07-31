@@ -844,7 +844,7 @@ def _audit_check_integrity(root: Path, at: Path) -> list[str]:
     """v3.47.0 (rule R1b) — a check is not evidence until shown able to fail.
 
     When the run's diff ADDS test files, a `verify-check-can-fail` verdict must
-    exist under `.architect-team/vao-verdicts/` and its latest result must pass:
+    exist under `.architect-team/vao-verdicts/` and EVERY verdict there must pass:
     every new guard shown red before it was trusted green, and no cited check
     output matching a zero-work signature. This is the diff-keyed half of the
     contract — the evidence schema's optional `check_integrity_review` cannot
