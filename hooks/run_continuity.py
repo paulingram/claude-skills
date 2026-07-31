@@ -97,6 +97,27 @@ DISABLE_ENV = "CT6_RUN_CONTINUITY_DISABLED"
 MAX_NO_PROGRESS_ENV = "CT6_MAX_NO_PROGRESS_STOPS"
 DEFAULT_MAX_NO_PROGRESS = 3
 
+# v3.47.0 — where the ORCHESTRATOR's session id comes from when no hook payload
+# carries it. The PostToolUse(Skill) engagement path passes the payload's
+# ``session_id`` directly; the CLI path (``--engage``, called from a skill body)
+# has no payload, so it reads these in order. Recording the session is what lets
+# the completion-status gate and the Stop audit ask the SAME question — "is the
+# session doing this the session that owns the run?" — off one field.
+#
+# ``CLAUDE_CODE_SESSION_ID`` is the PRIMARY documented source — the name the
+# harness actually exports (verified in a live Agent-Teams run: it holds the
+# session UUID that also names the transcript file). ``CT6_SESSION_ID`` is not a
+# competing source but an explicit operator OVERRIDE, and an override that the
+# ambient value could beat would not be one — hence it is read first.
+# ``CLAUDE_SESSION_ID`` is a tolerated alias (the name this constant guessed
+# before the live run corrected it); nothing is known to set it.
+#
+# TEAMS-MODE CAVEAT: in Agent Teams the Lead and every teammate share ONE
+# session id, so this value identifies the RUN, not an individual agent. Nothing
+# may treat a session match as proof that the actor is the orchestrator rather
+# than a teammate — see the registration test in ``review-gate-task.py``.
+SESSION_ID_ENV_VARS = ("CT6_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID")
+
 # Marker staleness (review remediation #3): an `active` marker with no
 # activity for this many hours is treated as ABANDONED by the non-engaged
 # surfaces (the sticky arm, the SessionStart directive, the Stop-hook resume
@@ -167,6 +188,44 @@ def marker_stale_hours() -> float:
         return h if h > 0 else DEFAULT_MARKER_STALE_HOURS
     except ValueError:
         return DEFAULT_MARKER_STALE_HOURS
+
+
+def resolve_session_id(explicit: str | None = None) -> str | None:
+    """The session id to record on the marker, or None when none is knowable.
+
+    Precedence: an explicit value (a hook payload's ``session_id``) beats the
+    environment; within the environment, CT6's own name beats the harness's.
+    Blank / whitespace values are treated as absent — a fabricated or empty
+    session id would be worse than none, since the gates that read this field
+    stand down on a null and would fire wrongly on a bogus match."""
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
+    for var in SESSION_ID_ENV_VARS:
+        value = os.environ.get(var, "")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def is_orchestrator_session(
+    marker: dict[str, Any] | None, session_id: str | None
+) -> bool:
+    """True when ``session_id`` is the session recorded on an ACTIVE-run marker.
+
+    The single shared session basis (design D5): the Stop-hook continuation
+    guard uses it to decide a session is the run's orchestrator, and the
+    completion-status gate uses it to decide a completion is the orchestrator's
+    own. Both fail open on a null marker session (pre-upgrade markers) and on a
+    missing payload session — an unknown session is never assumed to be the
+    orchestrator's."""
+    if not isinstance(marker, dict):
+        return False
+    recorded = marker.get("session_id")
+    if not isinstance(recorded, str) or not recorded.strip():
+        return False
+    if not isinstance(session_id, str) or not session_id.strip():
+        return False
+    return recorded.strip() == session_id.strip()
 
 
 def marker_is_stale(marker: dict[str, Any] | None) -> bool:
@@ -250,8 +309,13 @@ def engage_marker(
     re-engaging an ``active`` marker refreshes ``updated_at`` + ``skill`` +
     ``session_id`` while preserving run identity (``started_at`` / ``run_id`` /
     ``slug`` / ``phase``) — a resumed session re-invoking the Skill continues
-    the SAME run. Returns the written marker, or None on write failure."""
+    the SAME run. Returns the written marker, or None on write failure.
+
+    ``session_id`` falls back to :func:`resolve_session_id` (the environment) so
+    the CLI engagement path records the orchestrator session too; when nothing is
+    knowable the field stays null and every session-scoped gate fails open."""
     now = _utc_now_iso()
+    session_id = resolve_session_id(session_id)
     existing = read_marker(root)
     if existing and existing.get("status") == "active":
         marker = dict(existing)
@@ -708,6 +772,15 @@ def is_teammate_transcript(
 # ---------------------------------------------------------------------------
 
 
+def _flag_value(argv: list[str], flag: str) -> str | None:
+    """The value following ``flag`` in argv, or None when absent / value-less."""
+    if flag in argv:
+        i = argv.index(flag)
+        if i + 1 < len(argv) and not argv[i + 1].startswith("--"):
+            return argv[i + 1]
+    return None
+
+
 def _resolve_root(argv: list[str]) -> Path:
     if "--root" in argv:
         i = argv.index("--root")
@@ -738,8 +811,9 @@ def _worklist_blocks_completion(root: Path) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    """CLI: ``--status`` / ``--engage <skill>`` / ``--set k=v ...`` /
-    ``--mark-complete`` / ``--stand-down <reason>`` (all accept ``--root <p>``).
+    """CLI: ``--status`` / ``--engage <skill> [--session-id <id>]`` /
+    ``--set k=v ...`` / ``--mark-complete`` / ``--stand-down <reason>``
+    (all accept ``--root <p>``).
     Prints ASCII JSON; exit 0 on success, 1 on a failed write / unknown usage.
     """
     try:
@@ -758,7 +832,7 @@ def main(argv: list[str]) -> int:
             if not skill:
                 print("run_continuity: --engage requires a skill name", file=sys.stderr)
                 return 1
-            marker = engage_marker(root, skill)
+            marker = engage_marker(root, skill, _flag_value(argv, "--session-id"))
             print(json.dumps(marker, indent=2, sort_keys=True))
             return 0 if marker else 1
         if "--mark-complete" in argv:
@@ -813,9 +887,9 @@ def main(argv: list[str]) -> int:
                 return 1
             print(json.dumps(marker, indent=2, sort_keys=True))
             return 0
-        print("run_continuity: usage: --status | --engage <skill> | "
-              "--set k=v ... | --mark-complete | --stand-down <reason> "
-              "[--root <path>]", file=sys.stderr)
+        print("run_continuity: usage: --status | --engage <skill> "
+              "[--session-id <id>] | --set k=v ... | --mark-complete | "
+              "--stand-down <reason> [--root <path>]", file=sys.stderr)
         return 1
     except Exception as e:  # pragma: no cover - CLI belt-and-braces
         print(f"run_continuity: internal error: {e}", file=sys.stderr)

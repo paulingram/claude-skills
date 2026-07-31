@@ -20,7 +20,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 <!-- ct6:block:principles:end -->
@@ -281,7 +281,11 @@ Any of the 4 severities blocks the auto-merge. The mini loop routes the failure 
 
 ### Unilateral-override meta-gate (v3.0.0)
 
-After the deploy-mandate gate, run the 21st Layer 3 tool `verify-no-unilateral-override` as a meta-confession check across all text artifacts the mini run produced (architect's M3 self-confirm verdict, mini-qa M5 verdict notes, M6 final summary) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). Single severity `unilateral-override-with-virtue-framed-confession` blocks the auto-merge; routes to Phase M8 cycle as red. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
+After the deploy-mandate gate, run the `verify-no-unilateral-override` Layer 3 tool as a meta-confession check across all text artifacts the mini run produced (architect's M3 self-confirm verdict, mini-qa M5 verdict notes, M6 final summary) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). Single severity `unilateral-override-with-virtue-framed-confession` blocks the auto-merge; routes to Phase M8 cycle as red. See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home.
+
+### Declared-gates ship check (v3.47.0)
+
+After the override meta-gate and BEFORE the auto-merge sequence, walk `<workspace>/.architect-team/declared-gates.json`: every entry must carry `satisfied_at` and an `evidence_path` that exists and is non-empty. An unsatisfied entry blocks the merge and routes to the Phase M8 cycle as `verdict: red` with the unsatisfied gate as the explicit failure reason — the mini pipeline is the one that lands on `main` directly, so a gate the run declared and skipped would ship unreviewed. Absent registry is fail-open. Canonical rule: `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`.
 
 On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. **This is the only point in any architect-team pipeline that pushes to `main` directly.**
 

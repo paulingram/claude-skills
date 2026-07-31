@@ -61,6 +61,67 @@ _JARGON_PATTERNS = (
 # criteria someone can use to validate" — the manifest's second pillar.
 REQUIRED_COMMON_FIELDS = ("title", "delivery_type", "problem_statement", "validation_steps")
 
+# v3.47.0 — the manifest is the canonical user-facing claims artifact, so it
+# carries the same citation bar the report-claims gate applies to run reports
+# (`hooks/vao/deferral.py`): a claim that something is VERIFIED or COMPLETE is
+# a claim until the manifest says what establishes it. These findings are
+# error-severity — they block under the existing zero-error gate.
+#
+# Claim-shaped phrases, word-boundary matched: describing what an element does
+# ("a completed-statements filter") is not a claim that it was verified
+# ("implementation complete and verified").
+_VERIFIED_CLAIM_PATTERNS = tuple(re.compile(p, re.IGNORECASE) for p in (
+    r"\bverified\b",
+    r"\bconfirmed working\b",
+    r"\btested and working\b",
+    r"\bfully working\b",
+    r"\bworks end[-\s]to[-\s]end\b",
+    r"\ball green\b",
+    r"\bproven to\b",
+))
+
+_ELEMENT_CLAIM_PATTERNS = _VERIFIED_CLAIM_PATTERNS + tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\btested\b",
+        r"\bfully implemented\b",
+        r"\bimplementation complete\b",
+        r"\bfeature complete\b",
+        r"\bcomplete and working\b",
+        r"\bshipped\b",
+    )
+)
+
+# A `status` field whose whole value is one of these IS a completion claim.
+_ELEMENT_COMPLETION_STATUSES = frozenset(
+    {"complete", "completed", "done", "delivered", "verified", "shipped", "working"}
+)
+
+# What counts as saying where the evidence is. Mirrors the deferral tool's
+# citation classes (verdict paths, review evidence, commits, SRs, test runs,
+# screenshots) without importing across the hooks/scripts tiers — each engine
+# stays a self-contained stdlib contract.
+EVIDENCE_CITATION_MARKERS = (
+    ".architect-team/vao-verdicts/",
+    "verdict_path:",
+    "verdict:",
+    "reviews/",
+    "evidence:",
+    "commit-sha:",
+    "sr-",
+    "screenshot",
+    ".png",
+    "playwright",
+    ".spec.ts",
+    "test run",
+    "tested green",
+    "collected",
+    "trace.zip",
+)
+
+# Keys whose non-blank value IS an evidence source, wherever they appear.
+_EVIDENCE_KEYS = ("evidence", "evidence_path", "evidence_paths", "evidence_sources",
+                  "verdict_path", "citation", "citations")
+
 
 def _is_blank(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
@@ -76,6 +137,96 @@ def _walk_strings(value: Any):
     elif isinstance(value, (list, tuple)):
         for v in value:
             yield from _walk_strings(v)
+
+
+# Values that SAY something without NAMING anything. The bar is "which artifact
+# establishes this", so a non-blank string is not the test (hei-adversary-g3
+# B-2: `evidence: "N/A"` and `evidence: "trust me, I checked"` cleared the bar).
+_NON_CITATIONS = frozenset({
+    "n/a", "na", "none", "-", "--", "tbc", "see above", "as above", "internal",
+    "verified", "tested", "checked", "done", "yes", "ok", "confirmed",
+})
+
+# A citation NAMES an artifact: a repo path, a URL, or a commit-ish token.
+_PATH_LIKE_RE = re.compile(r"[\w./\-]+\.[A-Za-z0-9]{1,6}(?::\d+)?")
+_URL_LIKE_RE = re.compile(r"https?://\S+")
+_SHA_LIKE_RE = re.compile(r"[0-9a-f]{7,40}")
+
+
+def _nonempty(value: Any) -> bool:
+    """True for a value that actually says something (not None / blank / empty)."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict, set)):
+        return bool(value)
+    return True
+
+
+def _looks_like_a_citation(text: str) -> bool:
+    """True when ``text`` NAMES an artifact rather than merely asserting one.
+
+    HONEST BOUNDARY: this is a SHAPE check. A well-formed path or URL that does
+    not resolve still passes — the engine cannot dereference a citation, and
+    pretending otherwise would be the overclaim this gate exists to prevent.
+    What it does refuse is the class that names nothing at all.
+    """
+    stripped = (text or "").strip()
+    if not stripped or stripped.lower().strip(".!") in _NON_CITATIONS:
+        return False
+    low = stripped.lower()
+    if any(_marker_hit(low, marker) for marker in EVIDENCE_CITATION_MARKERS):
+        return True
+    return bool(
+        _URL_LIKE_RE.search(stripped)
+        or _PATH_LIKE_RE.search(stripped)
+        or _SHA_LIKE_RE.search(low)
+    )
+
+
+def _marker_hit(text_lower: str, marker: str) -> bool:
+    """Anchored marker match — an unanchored substring let the ordinary word
+    'collected' in 'the signup form collected the wrong postcode' satisfy the
+    whole manifest (hei-adversary-g3 B-3)."""
+    prefix = r"(?<![a-z0-9])" if marker[:1].isalnum() else ""
+    suffix = r"(?![a-z0-9])" if marker[-1:].isalnum() else ""
+    return re.search(prefix + re.escape(marker) + suffix, text_lower) is not None
+
+
+def _has_evidence_source(value: Any) -> bool:
+    """True when ``value`` — a validation step or an element — says WHERE the
+    evidence is: an evidence-bearing key whose value NAMES an artifact, or a
+    citation marker in one of its own strings.
+
+    Scoped per item, never whole-manifest: the spec requires an evidence source
+    FOR the claim, and whole-manifest scoping let one step's evidence satisfy
+    another's, and any unrelated field satisfy every step (B-3).
+    """
+    if isinstance(value, dict):
+        # ONLY the evidence-bearing keys. An element's `location` is its
+        # address, not proof it works — counting any path-shaped string would
+        # let every element cite itself.
+        return any(
+            _nonempty(value.get(key)) and _has_evidence_source(value.get(key))
+            for key in _EVIDENCE_KEYS
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_has_evidence_source(v) for v in value)
+    if isinstance(value, str):
+        return _looks_like_a_citation(value)
+    return False
+
+
+def _first_claim(text: Any, patterns) -> Optional[str]:
+    """The first claim-shaped phrase in ``text``, or None."""
+    if not isinstance(text, str) or not text:
+        return None
+    for pattern in patterns:
+        match = pattern.search(text)
+        if match:
+            return match.group(0)
+    return None
 
 
 def _looks_like_repo_path(location: str) -> bool:
@@ -139,6 +290,41 @@ def validate_manifest(data: Dict[str, Any], repo_root: Optional[Path] = None) ->
                         advise("element-location-unresolved",
                                f"element {i} location {loc!r} does not resolve under "
                                f"{repo_root} (fine if it names a deployed/remote artifact)")
+
+    # v3.47.0 — the citation bar. A step whose expected result claims verified
+    # or working behavior, and a delivered element claiming completion, must
+    # say what establishes the claim. Both are error-severity: the manifest is
+    # what the stakeholder validates against, so an uncited claim there is the
+    # postmortem's exact failure shape (statuses relayed as facts).
+    if isinstance(steps, list):
+        for i, step in enumerate(steps, 1):
+            if not isinstance(step, dict):
+                continue
+            claim = _first_claim(step.get("expected"), _VERIFIED_CLAIM_PATTERNS)
+            if claim is None or _has_evidence_source(step):
+                continue
+            err("uncited-verified-claim",
+                f"validation step {i} ({str(step.get('step', ''))[:50]!r}) claims "
+                f"{claim!r} behavior with no evidence source of its own — add the "
+                f"verdict path, review-evidence file, test run, or screenshot that "
+                f"establishes THIS step (a sibling step's evidence does not carry it)")
+
+    for i, el in enumerate(data.get("elements") or [], 1):
+        if not isinstance(el, dict):
+            continue
+        status = el.get("status")
+        claim = _first_claim(el.get("functionality"), _ELEMENT_CLAIM_PATTERNS) \
+            or _first_claim(el.get("name"), _ELEMENT_CLAIM_PATTERNS)
+        if claim is None and isinstance(status, str) \
+                and status.strip().lower() in _ELEMENT_COMPLETION_STATUSES:
+            claim = status.strip()
+        if claim is None or _has_evidence_source(el):
+            continue
+        err("uncited-element-claim",
+            f"element {i} ({str(el.get('name', ''))[:50]!r}) claims {claim!r} with no "
+            f"citation on the element — a completion claim names the artifact that "
+            f"establishes it (`evidence` on the element, or a cited verdict / review "
+            f"/ commit / test run in its own text)")
 
     lowered_all = [s for s in _walk_strings(data)]
     for text in lowered_all:

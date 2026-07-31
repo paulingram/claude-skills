@@ -1,0 +1,9 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.4, pytest-8.2.0, pluggy-1.5.0
+rootdir: C:\workspace\banking-app
+collected 47 items
+
+tests/test_column_config.py ...........................                  [ 57%]
+tests/test_reconcile.py ....................                             [100%]
+
+============================= 47 passed in 3.21s ==============================

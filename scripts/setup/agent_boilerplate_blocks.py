@@ -87,7 +87,8 @@ PRINCIPLES = (
     "- **Documentation currency.** Docs ship current or the run does not ship. "
     "Anti-pattern: the stale grid.\n"
     "- **Evidence before assertion.** State a result only after running the check and "
-    "reading its output. Anti-pattern: the unverified \"should work\".\n\n"
+    "reading its output. Grep proves presence, never absence; silence is not a finding; "
+    "relay claims as claims, verdicts as facts. Anti-pattern: the unverified \"should work\".\n\n"
     "See `docs/ETHOS.md` for the full text."
 )
 

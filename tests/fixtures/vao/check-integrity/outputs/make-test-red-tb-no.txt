@@ -1,0 +1,5 @@
+python -m pytest tests/ -q --tb=no
+F.............................................
+
+1 failed, 45 passed in 3.02s
+make: *** [Makefile:12: test] Error 1

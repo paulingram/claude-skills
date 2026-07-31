@@ -21,7 +21,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 <!-- ct6:block:principles:end -->
@@ -598,7 +598,7 @@ See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.
 
 ### Unilateral-override meta-gate (v3.0.0)
 
-After all per-discipline Phase 8 gates pass, run the 21st Layer 3 tool `verify-no-unilateral-override` as a META-confession check across every text artifact the run produced (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). The `--sources` input is a JSON dict at `<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json` mapping source-name → text content (e.g., `{"final_report": "...", "verification_text": "...", "qa_replayer_notes": "..."}`).
+After all per-discipline Phase 8 gates pass, run the `verify-no-unilateral-override` Layer 3 tool as a META-confession check across every text artifact the run produced (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). The `--sources` input is a JSON dict at `<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json` mapping source-name → text content (e.g., `{"final_report": "...", "verification_text": "...", "qa_replayer_notes": "..."}`).
 
 A single severity (`unilateral-override-with-virtue-framed-confession`) fires when ANY source contains a virtue-framed opener + element-of-bypass admission. The orchestrator MUST NOT commit on a fail — re-invoke the pipeline against the same user prompt and produce text without the confession ritual.
 
@@ -632,6 +632,10 @@ mempalace --palace <palace> mine "<cwd>/.architect-team/runs/<change-name>-<ts>.
 ```
 
 This makes the run's outcome semantically queryable from future runs.
+
+### Declared-gates ship check (v3.47.0)
+
+Before the auto-commit below runs, every gate this run DECLARED must be satisfied. Walk `<workspace>/.architect-team/declared-gates.json`: each entry needs a `satisfied_at` and an `evidence_path` that exists and is non-empty. An unsatisfied entry stops the ship step — run the check the entry names, capture its output, append the satisfaction fields, and only then proceed. An absent registry is fail-open (this run declared nothing). The completion audit in step 0 below enforces the same rule via `_audit_declared_gates`, quoting the gate's own `declaration_text` back; checking here first means the run fixes it before staging rather than after. Never edit or delete an entry to make the audit pass — that is the unilateral override the meta-gate catches. Canonical rule: `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`.
 
 ### Auto-commit and push at the end of a clean pass
 

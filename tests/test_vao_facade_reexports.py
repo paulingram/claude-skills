@@ -80,8 +80,8 @@ def _module_objects() -> dict[str, object]:
         name: importlib.import_module(f"hooks.vao.{name}")
         for name in (
             "core", "oracle", "fake_data", "live_verification", "persona", "scope",
-            "deferral", "prod_safety", "registry_inflight", "deploy_pipeline",
-            "deploy_pipeline_b",
+            "deferral", "deferral_b", "prod_safety", "registry_inflight", "deploy_pipeline",
+            "deploy_pipeline_b", "check_integrity",
         )
     }
 

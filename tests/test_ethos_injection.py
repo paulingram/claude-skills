@@ -80,6 +80,69 @@ def test_ethos_doc_has_at_least_five_principles_with_anti_patterns(plugin_root: 
     )
 
 
+def test_ethos_doc_carries_the_evidence_integrity_section(plugin_root: Path) -> None:
+    """v3.47.0 — the three evidence-integrity rules live in their own section
+    OUTSIDE the pinned 7-principle fence (the v3.44.0 outside-fence precedent),
+    each with its named anti-pattern."""
+    text = (plugin_root / "docs" / "ETHOS.md").read_text(encoding="utf-8")
+    marker = "## Evidence integrity"
+    assert marker in text, "ETHOS.md must carry an '## Evidence integrity' section"
+    section = text[text.index(marker):]
+    nxt = section.find("\n## ", len(marker))
+    if nxt != -1:
+        section = section[:nxt]
+    # the section sits outside the pinned principle fence
+    assert text.index(marker) > text.index("## How these show up"), (
+        "the evidence-integrity section must sit OUTSIDE '## The principles' "
+        "(the v3.44.0 outside-fence precedent), not inside the pinned fence"
+    )
+    low = section.lower()
+    # rule 1 — grep proves presence, never absence
+    assert "grep proves presence" in low and "never absence" in low
+    assert "executed enumeration" in low, (
+        "an absence claim must require an executed enumeration, not a text search"
+    )
+    for basis in ("collected", "owner", "catalog"):
+        assert basis in low, f"the executed-enumeration bases must name the {basis} form"
+    # rule 2 — silence is not a finding
+    assert "in-flight" in low and "stalled" in low
+    assert "silence" in low
+    # rule 3 — relay claims as claims, verdicts as facts
+    assert "claim as a claim" in low or "claims as claims" in low
+    assert "verdict" in low
+    # the three named anti-patterns
+    for anti in ("the grep absence", "the silence conversion", "the relayed claim"):
+        assert anti in low, f"missing the named anti-pattern {anti!r}"
+    assert section.count("**Anti-pattern:**") == 3, (
+        "each of the three rules carries exactly one named anti-pattern"
+    )
+
+
+def test_principles_block_carries_the_evidence_integrity_clause(blocks_mod) -> None:
+    """The compiled tier gets ONE clause appended to the evidence bullet — and the
+    bullet still names exactly one anti-pattern."""
+    B = blocks_mod
+    bullet = next(
+        ln for ln in B.PRINCIPLES.split("\n") if "**Evidence before assertion.**" in ln
+    )
+    assert "Grep proves presence, never absence" in bullet
+    assert "silence is not a finding" in bullet
+    assert "relay claims as claims, verdicts as facts" in bullet
+    assert bullet.count("Anti-pattern:") == 1, (
+        "the evidence bullet must keep exactly one named anti-pattern"
+    )
+
+
+def test_every_principles_bullet_names_exactly_one_anti_pattern(blocks_mod) -> None:
+    """Shape guard for the whole block — the clause extension must not add a
+    second anti-pattern naming to any bullet."""
+    B = blocks_mod
+    bullets = [ln for ln in B.PRINCIPLES.split("\n") if ln.startswith("- **")]
+    assert len(bullets) == 7, f"expected 7 principle bullets, found {len(bullets)}"
+    for bullet in bullets:
+        assert bullet.count("Anti-pattern:") == 1, f"bullet names != 1 anti-pattern: {bullet!r}"
+
+
 # --- 2. every agent carries the current principles block ----------------------
 
 
@@ -96,6 +159,26 @@ def test_all_agents_carry_current_principles_block(plugin_root: Path, blocks_mod
             drifted.append(p.stem)
     assert not missing, f"agents missing the principles block: {missing}"
     assert not drifted, f"agents with a drifted principles block: {drifted}"
+
+
+def test_every_agent_carries_the_evidence_integrity_clause(plugin_root: Path, blocks_mod) -> None:
+    """The compiled propagation actually landed — every agent's evidence bullet
+    carries the v3.47.0 clause (this is what a missed `sync_agent_boilerplate.py`
+    run looks like)."""
+    B = blocks_mod
+    clause = "Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts."
+    missing = [
+        p.stem for p in sorted((plugin_root / "agents").glob("*.md"))
+        if clause not in B.read_agent_text(p)
+    ]
+    assert not missing, f"agents missing the evidence-integrity clause: {missing}"
+
+
+@pytest.mark.parametrize("skill", PIPELINE_SKILLS)
+def test_pipeline_skill_carries_the_evidence_integrity_clause(plugin_root: Path, skill: str) -> None:
+    clause = "Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts."
+    text = (plugin_root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+    assert clause in text, f"{skill}: fenced principles block missing the evidence-integrity clause"
 
 
 def test_principles_is_standard_for_every_agent(plugin_root: Path, blocks_mod) -> None:

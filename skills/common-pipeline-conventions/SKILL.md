@@ -25,7 +25,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 <!-- ct6:block:principles:end -->
@@ -942,7 +942,7 @@ When BOTH appear in the same text, the pattern fires. When the opener appears wi
 
 v3.0.0 ships BOTH:
 
-1. **Post-hoc detection (Phase 8 gate)** — 21st Layer 3 tool `verify_no_unilateral_override` runs at Phase 8 / Phase B8 / Phase M7 against all text artifacts (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts). Single severity `unilateral-override-with-virtue-framed-confession`. Backwards-compat with all 5 prior surfaces — the existing per-discipline tools delegate to the shared marker module.
+1. **Post-hoc detection (Phase 8 gate)** — the Layer 3 tool `verify_no_unilateral_override` runs at Phase 8 / Phase B8 / Phase M7 against all text artifacts (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts). Single severity `unilateral-override-with-virtue-framed-confession`. Backwards-compat with all 5 prior surfaces — the existing per-discipline tools delegate to the shared marker module.
 2. **Pre-action runtime guardrail (PreToolUse hook)** — `hooks/pretool_unilateral_override_guard.py` fires on every `Edit` / `Write` / `NotebookEdit` BEFORE the tool call executes. When an active pipeline run exists (`intake-state.json` with `status: in_progress` and `phase < 8`) AND the target file is outside `.architect-team/` / `.mempalace/` / `openspec/changes/` AND no `Skill(architect-team-pipeline)` (or sibling) invocation appears in the run's toolcall ledger yet, the hook exits 2 and blocks the tool call with an explicit disclosure-required error message. This catches the bypass at action time — before the agent has the chance to produce confession language.
 
 ### The single severity
@@ -965,7 +965,7 @@ Single source of truth: `hooks/override_markers.py`. Exports:
 ### Cross-references
 
 - `hooks/override_markers.py` — the shared module.
-- `hooks/vao_tools.py::verify_no_unilateral_override` — the 21st Layer 3 tool.
+- `hooks/vao_tools.py::verify_no_unilateral_override` — the Layer 3 meta-gate tool.
 - `hooks/pretool_unilateral_override_guard.py` — the PreToolUse runtime guardrail.
 - `tests/fixtures/vao/unilateral-override-meta.json` — combined verbatim case across all 5 prior surfaces.
 - The 5 per-discipline sections below (v2.10 / v2.14 / v2.20 / v2.21 / v2.22) each continue to provide their structural detectors (e.g., v2.10.0's `enumerated_items_without_disposition` detector); only the marker-text portions delegate to `override_markers.py`.
@@ -2245,6 +2245,50 @@ NO new Layer 3 tool — enforcement is the schema v7 optional field (hook-blocke
 - `skills/team-spawning-and-review-gates/SKILL.md` — the evidence-file contract documents the third optional field.
 - `tests/test_appearance_change_policy.py` — structural tests for this section + the schema field + the cross-wiring.
 - Companions: the scope-fidelity family (catches under-delivery; this catches visual over-delivery) and v3.0.0 unilateral-override (implement-then-confess is its appearance-surface form).
+
+## Declared-gates discipline (v3.47.0)
+
+**A gate you name is a gate you record.** The moment the orchestrator states a condition that gates ship, deploy, merge, or completion — in a plan, in a phase decision, in a progress report, in user-facing prose ("we don't ship until the full Playwright suite passes against the live URL", "this merges after the type-check is clean") — it has made a promise the user is now relying on. An unrecorded gate is a claim, and an unverified claim about a gate is exactly what the rest of this stack forbids. Recording it costs one JSON append; forgetting it is how a run ships past its own stated bar and reports success.
+
+**The registry.** `<workspace>/.architect-team/declared-gates.json` — a JSON array, appended (never rewritten) as gates are declared:
+
+```json
+[
+  {
+    "gate_id": "full-playwright-live-url",
+    "declaration_text": "The release gates on the full Playwright suite passing against the live dev URL.",
+    "check_command_or_artifact": "npx playwright test --reporter=line  (or the verdict artifact path the check produces)",
+    "declared_at": "<ISO 8601 UTC>",
+    "satisfied_at": "<ISO 8601 UTC — appended when the check has actually run>",
+    "evidence_path": ".architect-team/checks/<run-id>-playwright.txt"
+  }
+]
+```
+
+- `gate_id` — a stable slug; `declaration_text` — the gate as STATED, verbatim, so the audit can quote the run's own words back; `check_command_or_artifact` — what will satisfy it, decided at declaration time rather than negotiated later; `declared_at` — when the promise was made.
+- **Satisfying a gate appends `satisfied_at` + `evidence_path`** to its own entry. `evidence_path` cites the executed check's captured output or its verdict file — a path that exists and is non-empty. Satisfaction is a recorded fact, not a recollection.
+
+**The audit.** `_audit_declared_gates` in `hooks/pipeline-completion-audit.py` (worklist family) walks the registry at Stop / pre-commit: every entry must carry `satisfied_at` and an `evidence_path` that exists and is >0 bytes, or the run is **blocked** with a violation quoting that gate's own `declaration_text`. **Fail-open when the registry file is absent** — a run that declared nothing has nothing to satisfy, and no foreign workflow is affected.
+
+**Cite the `gate_id` when you write ship-gating prose.** A sentence that gates ship should name the registry entry it is gating on — "gated on `full-playwright-live-url`" — rather than restating the condition in fresh words. The audit correlates prose to entries by token overlap against `declaration_text`, and that is a STATED BOUNDARY, not a guarantee: a re-worded restatement can miss its entry, and a gate the audit cannot correlate is a gate that does not block. An explicit `gate_id` removes the guess.
+
+**Before any ship step, check the registry.** Phase 8 / B8 / M7 auto-commit, auto-merge, and deploy steps read `declared-gates.json` first; an unsatisfied entry stops the ship step the same way the completion audit does, and the remediation is always the same — run the check, capture its output, append `satisfied_at` + `evidence_path`. Deleting or rewriting an entry to make the audit pass is the *unilateral override* failure mode (`## Unilateral-override discipline (v3.0.0) — META`), not a fix.
+
+## Spec currency discipline (mid-run) (v3.47.0)
+
+**The orchestrator owns spec currency WHILE agents read it.** `openspec/changes/<slug>/` is not a private drafting space once Phase 2 has dispatched — it is the contract several teammates are actively building against, and every edit to it silently re-points a document someone else already read. Two teammates implementing two readings of one amended line produce a defect no test names and no reviewer can attribute; the fix costs a phase, and the cause is invisible in every diff.
+
+**Every teammate's manifest records the spec state it was briefed against.** At Phase 2 dispatch the orchestrator stamps `spec_fingerprint` — a SHA-256 over the sorted (posix relative path, content) pairs of the active change dir, from `hooks/spec_fingerprint.py` — into each teammate manifest beside `baseline_sha` (schema documented in `team-spawning-and-review-gates` `## Baseline SHA capture`). `baseline_sha` freezes the code the teammate started from; `spec_fingerprint` freezes the spec it was told to build.
+
+**An amendment after dispatch obliges a re-brief.** When the orchestrator edits ANY artifact under the active change dir after Phase 2 has dispatched:
+
+1. The fingerprint moves — recompute it.
+2. Write a re-brief handoff to every teammate whose scope the amendment touches: `.architect-team/handoffs/orchestrator-to-<teammate>-rebrief-<ts>.md`, naming what changed and what it changes for THEM (not "the spec was updated" — the specific line, and the specific task it re-scopes).
+3. Update that teammate's manifest `spec_fingerprint` to the new value. Both halves are required: the handoff without the manifest update leaves the audit blind, and the manifest update without the handoff is the orchestrator marking its own homework.
+
+`_audit_spec_currency` in `hooks/pipeline-completion-audit.py` checks this at Stop: a manifest whose expected work is incomplete and whose `spec_fingerprint` no longer matches the current one, with no re-brief record, is a violation naming that teammate. It fails open when there is no openspec change dir and when no manifest carries a fingerprint (pre-upgrade runs).
+
+**Where code and spec disagree at review time, the code wins and the spec is amended in the same phase.** The spec is a plan; the code is the fact. When a reviewer finds the implementation and the written requirement diverge, the resolution is to (a) confirm the code delivers the user-facing outcome, (b) amend the spec artifact to describe what the code actually does, in the same phase, and (c) file a `spec-drift` SR if a second implementation was built against the superseded reading. The resolution is **never** "the readers misread" — a line two competent agents read two ways is an ambiguous line, and blaming the readers leaves the ambiguity in place for the next run. `spec-drift` SRs dispatch a fix team DIRECTLY (the diagnosis is already complete) and are deliberately NOT `TEST_FAILURE_ORIGINS` members; see `team-spawning-and-review-gates` `## Required field validity`.
 
 ## Where this skill plugs in
 

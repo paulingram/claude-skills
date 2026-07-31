@@ -1,0 +1,92 @@
+{
+  "_meta": {
+    "fixture_name": "uncited-report-claims",
+    "failure_shape": "v3.47.0 Report-claims citation gate — failure mode: the user-facing run report relays four claim kinds with no evidence behind any of them. (1) enumerated fix-list items carry `completed` / `delivered and verified` / `done` statuses copied off a task board; (2) a revision is called `deployed and verified` on the strength of HTTP 200s from a health endpoint — status codes, not a loaded screen; (3) an absence finding (`no test exists for X`) is manufactured from one narrow grep; (4) an agent that had simply not spoken yet is characterized as having `stalled` and `left the build broken`; and (5) a release gate is named in prose that was never written to the declared-gates registry.",
+    "originating_failure": "banking-app FDS fix-list release, 2026-07-30 (requirements/fix-lists-2026-07/POSTMORTEM-verification-failures.md): 2 docs, 26 items, 9 agents, 3 deploys — task-board `completed` statuses were repeated to the user while a route white-screened for every persona; a `deployed and verified` claim was made off status codes; absence findings were manufactured from narrow greps. Postmortem rules R2 / R4 / R5 / R9.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-no-end-of-run-deferral",
+    "expected_severities": [
+      "uncited-completion-claim",
+      "uncited-deploy-claim",
+      "absence-claim-uncited",
+      "stalled-agent-claim-uncited",
+      "undeclared-gate-language"
+    ]
+  },
+  "verification_artifact": {
+    "feature_kind": "bug-fix",
+    "final_report": "Fix-list release status — 26 items across 2 documents.\n\n- FDS-4 Column configuration: completed\n- FDS-9 Statement export: delivered and verified\n- FDS-17 Balance rounding: done\n\nRevision 47 deployed and verified — every endpoint responded 200 and /health returned HTTP 200.\n\nNo test exists for the reconciliation path (grep -r \"reconcile\" tests/ returned nothing).\n\nThe frontend teammate stalled after the second dispatch and left the build broken.\n\nThe full Playwright suite against the live URL gates the release, and it is green.\n",
+    "progress_reports": [
+      "Phase 5 update:\n- FDS-4 Column configuration: completed\n- FDS-9 Statement export: done\n"
+    ],
+    "declared_gates": [
+      {
+        "gate_id": "typecheck-clean",
+        "declaration_text": "The commit gates on a clean typecheck of the changed files.",
+        "check_command_or_artifact": "tsc --noEmit",
+        "declared_at": "2026-07-30T18:00:00Z"
+      }
+    ],
+    "solution_requirements_created": [],
+    "confirmed_stubs": [],
+    "implementing_commits": []
+  },
+  "expected_verdict_for_misverification": {
+    "tool": "verify-no-end-of-run-deferral",
+    "valid": false,
+    "expected_severities_min_count": 5,
+    "expected_marker_substring": "deployed and verified"
+  },
+  "_corrected_verification_artifact": {
+    "_note": "Correct shape — the SAME five claims, each carrying the evidence its kind requires: per-item citations on the enumerated statuses (commit SHA + verdict/review path), a post-deploy citation naming a loaded page + screenshot + semantic assertion (never a status code), an executed enumeration behind the absence claim (pytest --collect-only inventory), an idle-event + handoff record behind the stalled-agent characterization, and a declared-gates registry entry for the named release gate.",
+    "feature_kind": "bug-fix",
+    "final_report": "Fix-list release status — 26 items across 2 documents, every item dispositioned.\n\nFixed in this change (3):\n- FDS-4 Column configuration: completed — commit-sha:a1b2c3d (verdict_path: .architect-team/vao-verdicts/fds-4-check-can-fail.json)\n- FDS-9 Statement export: delivered — commit-sha:e4f5g6h (evidence: reviews/fds-9.json)\n- FDS-17 Balance rounding: done — commit-sha:i7j8k9l (evidence: reviews/fds-17.json)\n\nRevision 47 deployed and verified: the accounts page loaded at the dev URL and the statement table rendered 24 rows for the client persona (screenshot .architect-team/evidence/accounts-r47.png; Playwright accounts.spec.ts asserted getByText('Statement ready') on the deployed page).\n\nNo test exists for the reconciliation path: pytest --collect-only over tests/ collected 5979 items and the enumeration carries no reconciliation node (evidence: .architect-team/vao-verdicts/collect-only-inventory.txt).\n\nThe frontend teammate went idle at 03:14Z — TeammateIdle fired with no TaskUpdate since 02:51Z, and its last handoff record is handoffs/frontend-2026-07-30T0251Z.json.\n\nThe full Playwright suite against the live URL gates the release (declared-gates entry playwright-suite-live-url), and it is green.\n",
+    "progress_reports": [
+      "Phase 5 update:\n- FDS-4 Column configuration: completed — commit-sha:a1b2c3d\n"
+    ],
+    "declared_gates": [
+      {
+        "gate_id": "playwright-suite-live-url",
+        "declaration_text": "The release gates on the full Playwright suite run against the live URL.",
+        "check_command_or_artifact": "npx playwright test --reporter=line",
+        "declared_at": "2026-07-30T18:00:00Z",
+        "satisfied_at": "2026-07-30T21:14:00Z",
+        "evidence_path": ".architect-team/vao-verdicts/playwright-suite-live-url.txt"
+      }
+    ],
+    "solution_requirements_created": [],
+    "confirmed_stubs": [],
+    "implementing_commits": [
+      "a1b2c3d",
+      "e4f5g6h",
+      "i7j8k9l"
+    ]
+  },
+  "_documentation_narrative_artifact": {
+    "_note": "USE-vs-MENTION. Every forbidden phrase below is being MENTIONED (quoted or named as the thing a severity detects), not USED to claim anything. This is THIS change's own Phase 8 / CHANGELOG prose: the document that documents the rule must quote the phrases the rule forbids. Before the mention-context guard this artifact self-flagged with three of the five claim families. The pre-existing v2.10.0 wrap-up-with-known-bugs severity is DELIBERATELY still expected to fire here - it is out of the guard's scope and stays byte-identical; a real Phase 8 report satisfies it by carrying real citations on its bullets. v2 after hei-adversary-g3's B-1: mention now ALWAYS requires the phrase to be QUOTED, so the bullets below quote the term they discuss — which is how documentation should read anyway. A bare severity-id tag no longer exempts anything.",
+    "final_report": "v3.47.0 harden-evidence-integrity closes the banking-app postmortem's nine rules.\n\nThe postmortem records a \"deployed and verified\" claim made off status codes: the\nrun reported HTTP 200 from a health endpoint as if it were a loaded screen.\n\nNew severities in verify-no-end-of-run-deferral:\n- absence-claim-uncited: fires on absence markers such as \"no test exists\" or\n  \"was never implemented\" whose only cited basis is a grep.\n- stalled-agent-claim-uncited: fires when the report says an agent \"stalled\" with\n  nothing cited at all.\n- uncited-completion-claim: fires on an enumerated item marked \"completed\" with no\n  citation token.\n",
+    "expected_claim_family_severities": [],
+    "expected_still_fires": [
+      "wrap-up-with-known-bugs"
+    ]
+  },
+  "_mention_gaming_attempt": {
+    "_note": "A claim in mention clothing: quotation marks plus an attribution cue wrapped around a genuine per-item completion claim. The enumerated-item hardening exists for exactly this - quoting alone must never buy an enumerated item its way out, or the gate is evadable by typing two characters.",
+    "final_report": "Fix list:\n- Item 4 was \"completed\" per the postmortem\n- Item 5 was \"delivered\" as the postmortem records\n",
+    "expected_claim_family_severities": [
+      "uncited-completion-claim"
+    ]
+  },
+  "_severity_tag_evasion": {
+    "_note": "hei-adversary-g3 artifact H6-full-evasion, adopted verbatim as a regression fixture. Every claim is uncited and every bullet carries a bare 'Not an <severity-id>' tag. Against the first mention guard this returned valid=true with gaps=[] — a one-token universal bypass of all five families. All five MUST fire.",
+    "final_report": "Final status (evidence: see above):\n- Revision 00008 deployed and verified (http 200). Not an uncited-deploy-claim.\n- Column config: completed. Not an uncited-completion-claim.\n- No test exists for reconcile (grep). Not an absence-claim-uncited.\n- The parser agent stalled. Not a stalled-agent-claim-uncited.\n- The live-URL suite gates the release. Not undeclared-gate-language.\n",
+    "declared_gates": [],
+    "expected_claim_family_severities": [
+      "uncited-completion-claim",
+      "uncited-deploy-claim",
+      "absence-claim-uncited",
+      "stalled-agent-claim-uncited",
+      "undeclared-gate-language"
+    ]
+  }
+}

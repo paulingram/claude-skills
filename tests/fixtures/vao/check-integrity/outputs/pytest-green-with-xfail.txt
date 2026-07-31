@@ -1,0 +1,8 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.4, pytest-8.2.0, pluggy-1.5.0
+rootdir: C:\workspace\banking-app
+collected 12 items
+
+tests/test_statement_export.py ...........x                              [100%]
+
+======================== 11 passed, 1 xfailed in 1.09s ========================

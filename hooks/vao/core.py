@@ -92,3 +92,55 @@ def _scan_markers(text: str, markers: tuple[tuple[str, str], ...]) -> list[tuple
         if pattern.lower() in lower:
             hits.append((marker_id, pattern))
     return hits
+
+
+# ---------------------------------------------------------------------------
+# Report-scanning shared helpers
+# ---------------------------------------------------------------------------
+# v3.47.0 relocated these two from ``deferral.py``. They are the shared
+# vocabulary of report scanning: ``deferral.py`` (the v2.10.0 severities) and
+# ``deferral_b.py`` (the v3.47.0 claims-citation families) both need them, and
+# one tool composes both modules — so core.py, the established shared-helpers
+# home, is the only placement that does not create an import cycle. Behavior is
+# unchanged; every prior ``from ...deferral import`` name still resolves,
+# because deferral.py imports them straight back out of here.
+
+
+# An item in the final report is considered "dispositioned" when it carries
+# at least one of these citations to a sanctioned channel.
+_ITEM_DISPOSITION_CITATIONS: tuple[str, ...] = (
+    "commit-sha:",
+    "SR-",  # solution requirement id (SR-101 / SR-B23-101 / etc.)
+    "confirmed_stub",
+    "confirmed-stub",
+    "implementing_commits",
+    # v2.12.0 — v2.11.0 per-persona coverage IS a sanctioned disposition channel.
+    # Without these tokens, a legitimate v2.11.0 final report (per-persona
+    # findings + Playwright run citations) trips v2.10.0's wrap-up gate.
+    "playwright_test_runs",
+    "per_persona_findings",
+    "persona_id:",
+    "tested green",
+    "tested-green",
+    "entry_point:",
+    # v3.47.0 — a Layer-3 verdict file and a review-evidence file are the two
+    # artifacts the framework itself produces; citing either is citing a
+    # machine-written record, which is a STRONGER disposition than prose.
+    ".architect-team/vao-verdicts/",
+    "verdict_path:",
+    "reviews/",
+    "evidence:",
+)
+
+
+def _is_enumerated_line(stripped: str) -> bool:
+    """True for a bullet / numbered report line (leading whitespace already
+    stripped). The v2.10.0 wrap-up heuristic, lifted verbatim so the v3.47.0
+    claim families enumerate items exactly the way this tool always has."""
+    return (
+        stripped.startswith("- ")
+        or stripped.startswith("* ")
+        or stripped.startswith("• ")
+        or (len(stripped) >= 2 and stripped[0].isdigit() and stripped[1] in ".)")
+        or (len(stripped) >= 3 and stripped[:2].isdigit() and stripped[2] in ".)")
+    )

@@ -1,0 +1,10 @@
+============================= test session starts =============================
+collected 2 items
+
+tests/test_guard.py F.                                                   [100%]
+
+================================== FAILURES ===================================
+E       AssertionError: assert 0 == 1
+=========================== short test summary info ===========================
+FAILED tests/test_guard.py::test_guard_bites
+========================= 1 failed, 1 passed in 0.11s =========================

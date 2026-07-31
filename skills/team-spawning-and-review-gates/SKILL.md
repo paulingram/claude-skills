@@ -155,6 +155,20 @@ When two teammates need to coordinate (e.g., backend defines a contract, fronten
 - Every cross-team message MUST be written to `.architect-team/handoffs/<from>-to-<to>-<timestamp>.md` — this is the primary coordination primitive and survives across sessions.
 - If the harness exposes a teammate-messaging mechanism (e.g., `SendMessage`), use it as an optional shortcut in ADDITION to (not in place of) the handoff file. The orchestrator does NOT proxy.
 
+## Reading teammate state
+
+An orchestrator coordinating parallel teammates is constantly tempted to convert *absence of a report* into *a finding about the teammate*. It is not one. A teammate is in exactly one of three KNOWABLE states, and only two of them support a conclusion:
+
+| State | How you know it | What it supports |
+|---|---|---|
+| **(a) Reported** | A handoff file under `.architect-team/handoffs/`, a review-evidence file under `.architect-team/reviews/`, or the teammate's own dispatch report is on disk | Any claim the artifact substantiates — including "it left this broken", quoting the artifact |
+| **(b) Idle-event fired** | The `SubagentStop` / teammate-idle hook ran for that teammate (its output is the record) | "It went idle with work outstanding", quoting the hook's structured gap list |
+| **(c) In-flight** | Neither (a) nor (b) has happened yet | **Nothing.** Not "stalled", not "failed", not "stuck", not "did no work" |
+
+**A claim that a teammate stalled, failed, went idle, or left work broken MUST cite (a) or (b); state (c) supports no conclusion.** In-flight is indistinguishable from a teammate that is mid-edit, mid-tool-call, or whose report crossed yours in flight — silence is not a finding. If you need to know, ASK the teammate directly (`SendMessage`) and wait for the answer; the answer is then evidence of kind (a). Reporting a state-(c) teammate as stalled to the user is the *silence conversion* anti-pattern in `docs/ETHOS.md` `## Evidence integrity`.
+
+**Corollary — the mid-edit read.** A suite run on the SHARED working tree while any teammate is in-flight on intersecting scope is a MID-EDIT READ: it samples a tree that is half-way between one teammate's implementation change and its test/expectation update. Red from such a run is **unattributable** until the owner reports — it may be the owner's transient state, not a defect, and it is never attributable to a DIFFERENT teammate whose files the run also swept. Options, in order: scope the run to files no in-flight teammate owns (`git diff $BASELINE_SHA -- <files>` tells you who owns what); wait for the owner's state-(a) report; or run and record the result as *provisional, pending the owner's report* — never as a finding against a named teammate. The non-overlapping file-scope rule at the top of this skill is what makes the scoped option available; the baseline-SHA discipline is what makes it cheap.
+
 ## Review-gate evidence file
 
 Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
@@ -230,6 +244,24 @@ Required field validity:
 
 Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry. A failing `independent_review` means re-engage on the reviewer's notes; once fixed, the `task-reviewer` re-reviews and re-writes the block.
 
+**Gates the orchestrator names during the run are recorded, not remembered.** Any condition stated as gating ship / deploy / merge / completion — in a spawn brief, a phase decision, or user-facing prose — is appended to `<workspace>/.architect-team/declared-gates.json` when it is declared and carries `satisfied_at` + an existing non-empty `evidence_path` before the run may complete, per `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`. The Phase-8 / B8 / M7 ship step reads the registry first, and the `_audit_declared_gates` Stop arm blocks on an unsatisfied entry quoting the gate's own words.
+
+## Red-first — a new guard is not evidence until it has been shown to fail
+
+`tests.added` and `tests.passing` say a test exists and is green. Neither says the test can ever be anything else. A test that asserts something already true, targets a path the runner never collects, or exercises a code path the change did not touch is green on day one and green after the feature is deleted — it is a green light wired to nothing. This is the same rule the bug-fix pipeline has always enforced (the reproduction artifact must reproduce BEFORE it regresses); it applies to every NEW test in every pipeline, not only to bug reproductions.
+
+**For every new test, capture its failure before you trust its pass.** There are exactly three acceptable sources of that red run — name which one you used:
+
+1. **TDD red** (`red_source: "tdd-red"`). The test was written and run BEFORE the implementation existed, and its failure output was captured. This is the default and the cheapest; it is also the only one available for a genuinely new capability whose pre-state cannot be built.
+2. **Pre-change checkout** (`red_source: "pre-change-checkout"`). The test was run against the run's baseline — `git stash`-free, via the orchestrator-provided `baseline_sha` (a `git worktree add` at that SHA, or a `git show $BASELINE_SHA:<path>` reconstruction) — and failed there. Use this when the test was authored after the implementation landed.
+3. **Assertion inversion / mutation** (`red_source: "assertion-inversion"`). The assertion was deliberately inverted, or the line under test deliberately broken, the test was run and observed to FAIL, and the mutation was reverted. Use this when the pre-change state cannot build or the test cannot run against it — it is the fallback that keeps the rule satisfiable, not a shortcut around 1 and 2.
+
+Those three quoted tokens are the only values `verify-check-can-fail` recognizes in a `red_run` block's `red_source`. The field is OPTIONAL — omitting it leaves a minimal artifact valid — but an UNRECOGNIZED value is itself a finding (`new-guard-never-shown-red`), because a red source the tool cannot name is a red source nobody can audit. Name yours.
+
+**Cite the captured failure output in the review evidence** — the artifact path plus which of the three sources produced it. A red run you ran but did not capture is indistinguishable from one you did not run. The deterministic gate is the Layer-3 `verify-check-can-fail` tool (see `verified-agent-output`): a diff-added test file with no cited red run is `new-guard-never-shown-red`, and a cited red-run output containing no failure signature is `red-run-not-red`. Both name the exact test file, so the fix is always concrete.
+
+The same discipline runs one level up, at the CHECK: capture the output of every verification command and read it. `collected 0 items`, `no tests found`, `No test files found`, and a `tsc --noEmit` against a solution-shaped `tsconfig.json` all exit 0 while verifying nothing — a `vacuous-check`. An exit code is not a result.
+
 ## Teammate manifest
 
 Path: `<cwd>/.architect-team/teammates/<teammate-name>.json`.
@@ -282,7 +314,7 @@ The orchestrator records the SHA in two places:
 1. **`<workspace>/.architect-team/intake-state.json`** as the `baseline_sha` field — the same file that already holds the `dispatch_mode` decision (v1.0.0) and the run's other startup metadata.
 2. **Every teammate's spawn brief** at `<workspace>/.architect-team/teammates/<teammate>.json` (the v0.9.13 teammate manifest schema). The brief gains a `baseline_sha` field carrying the same value verbatim.
 
-The teammate manifest schema (from `## Teammate manifest` above) is extended to carry the `baseline_sha`:
+The teammate manifest schema (from `## Teammate manifest` above) is extended to carry the `baseline_sha` — and, beside it, the `spec_fingerprint` recording the SPEC state the teammate was briefed against:
 
 ```json
 {
@@ -292,11 +324,14 @@ The teammate manifest schema (from `## Teammate manifest` above) is extended to 
   "task_ids": ["T-10", "T-11", "T-12"],
   "files_owned": ["src/auth/login.py", "tests/auth/test_login.py", "..."],
   "expected_review_evidence": ["T-10", "T-11", "T-12"],
-  "baseline_sha": "0a21702abc...def"
+  "baseline_sha": "0a21702abc...def",
+  "spec_fingerprint": "3def77ec62e2...cda0"
 }
 ```
 
 The teammate reads `baseline_sha` from its manifest at spawn and uses it for all baseline-diff verification within its tasks.
+
+**`spec_fingerprint` (additive).** The two fields are the same idea one axis apart: `baseline_sha` freezes the CODE the teammate started from; `spec_fingerprint` freezes the SPEC it was briefed against — a SHA-256 over the sorted (posix relative path, content) pairs of `openspec/changes/<active-slug>/`, computed by `hooks/spec_fingerprint.py` and written by the orchestrator at Phase 2 dispatch. The field is purely additive: a pre-upgrade manifest without it stays valid, and the `_audit_spec_currency` arm fails open when no manifest carries one. When the orchestrator amends an openspec artifact after dispatch, the fingerprint moves — and every teammate whose scope the amendment touches is owed a re-brief handoff plus an updated manifest fingerprint, per `common-pipeline-conventions` `## Spec currency discipline (mid-run) (v3.47.0)`. A teammate still working against a superseded fingerprint with no re-brief record is the failure that discipline exists to catch: two implementations built to two different readings of one line.
 
 ### How teammates use it
 
@@ -344,7 +379,7 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
   "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
   "created_at": "<ISO 8601 UTC>",
   "origin": {
-    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap" | "unwired-control" | "placeholder-page" | "hardcoded-dynamic-value" | "missing-api-for-frontend-element" | "security-finding" | "a11y-gap" | "cross-layer-backend-required" | "cross-layer-frontend-required" | "incomplete-implementation-scope-required" | "live-data-wiring-gap" | "affordance-coverage-gap",
+    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap" | "unwired-control" | "placeholder-page" | "hardcoded-dynamic-value" | "missing-api-for-frontend-element" | "security-finding" | "a11y-gap" | "spec-drift" | "cross-layer-backend-required" | "cross-layer-frontend-required" | "incomplete-implementation-scope-required" | "live-data-wiring-gap" | "affordance-coverage-gap",
     "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
     "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
     "test_id": "<failing test ID, if applicable>",
@@ -383,9 +418,10 @@ where `<short-id>` is derived from the originating test ID, drifted screen+eleme
 - `solution_id` must be unique and `_safe_id()`-compatible.
 - `origin.kind` must be one of the **canonical catalog** values. This is the OPEN canonical catalog (an `origin.kind` is added here when a new discipline introduces one — agents do NOT invent ad-hoc kinds, but the catalog itself grows with the framework):
   - **Test-failure origins** (route through `diagnostic-research-team` first): `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`.
-  - **Converged-map / known-shape origins** (spawn a fix team DIRECTLY): `editability-gap`, `unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`, `missing-api-for-frontend-element`, `live-data-wiring-gap`, `affordance-coverage-gap`, `a11y-gap`, `security-finding`.
+  - **Converged-map / known-shape origins** (spawn a fix team DIRECTLY): `editability-gap`, `unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`, `missing-api-for-frontend-element`, `live-data-wiring-gap`, `affordance-coverage-gap`, `a11y-gap`, `security-finding`, `spec-drift`.
   - **Cross-layer / scope origins** (dispatched to the named layer/team): `cross-layer-backend-required`, `cross-layer-frontend-required`, `incomplete-implementation-scope-required`.
   - **`security-finding` (v3.10.0)** is produced by the `security-hunter` adversarial shape (NOT a Layer 3 `verify_*` severity — it is a code-review finding routed as an SR). It spawns the owning team (backend for an authz / injection / deserialization / secret finding; the dependency-adding team for an unjustified dependency) DIRECTLY; the diagnosis is already complete in the finding's `{class, file, line, evidence, remediation}`.
+  - **`spec-drift`** is written when implementations disagree because the SPEC they read differed — one teammate briefed before an amendment and one after — or when code and spec disagree at review time. It spawns a fix team **DIRECTLY**: the diagnosis ("the spec line changed, and here is which fingerprint each side was briefed against") is already complete, so there is nothing for `diagnostic-research-team` to research. `spec-drift` is deliberately **NOT** a member of `TEST_FAILURE_ORIGINS` (`hooks/shared_rule_constants.py`) — adding it would attach a diagnostic-plan requirement to a diagnosis that is already written, and dilute the test-failure taxonomy with a non-test-failure. The SR's `evidence` cites both manifests' `spec_fingerprint` values and the amended artifact; its `acceptance_criteria` name the reading that wins. Where code and spec disagree, the code wins and the spec is amended in the same phase, per `common-pipeline-conventions` `## Spec currency discipline (mid-run) (v3.47.0)` — never "the readers misread".
   - **`a11y-gap` (v3.10.0)** is produced by the `interaction-completeness` accessibility axis (sub-kinds `keyboard-unreachable` / `missing-accessible-name` / `axe-violation`); it spawns the owning frontend team DIRECTLY.
 - `editability-gap` SRs — and the three interaction-gap kinds (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) — spawn a fix team DIRECTLY; they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged editable-surface map, and the `interaction-completeness` team's converged interaction map, each already name the exact attribute / control / page / value, the exact trace stage or gap kind, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-drift` — DO route through `diagnostic-research-team` first; the converged-map-origin kinds do not. These spellings are canonical across the catalog, the runtime constant `hooks/shared_rule_constants.py::TEST_FAILURE_ORIGINS`, and the pipeline routing lists.)
 - **`missing-api-for-frontend-element` SRs (v1.7.0)** also spawn a fix team DIRECTLY — they do NOT route through `diagnostic-research-team` because this is not a test failure; it is a known-shape backend requirement. The frontend agent that authored the SR has already named the endpoint contract (method, path, request shape, response shape, error responses) in the `acceptance_criteria`. Routing: **the orchestrator dispatches the BACKEND agent FIRST** with the SR as input — the backend implements the endpoint per the SR's `acceptance_criteria`, surfaces the actual endpoint shape in its dispatch report, and marks the SR `resolved`. On backend completion, the orchestrator **re-dispatches the FRONTEND agent** with the SR marked `resolved` so the frontend can read the backend's dispatch report, confirm the shape matches its SR (or reconcile against a documented schema diff), and wire up the originally-paused UI element. The element's `interaction-completeness` classification flips from `pending-backend` to `endpoint-backed` once the wire-up lands. The pause-and-return cycle is the v1.7.0 alternative to faking / mocking / hardcoding / silently stubbing — see `common-pipeline-conventions` `## Frontend missing-API discipline` for the canonical rule.

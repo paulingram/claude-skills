@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "fixture_name": "vacuous-and-unproven-checks",
+    "failure_shape": "v3.47.0 check-falsifiability — the FAILING artifact: a check that examined nothing plus a new guard that was never shown red",
+    "originating_failure": "banking-app FDS fix-list release (2026-07-30): a typecheck gate reported green having examined zero files (`tsc --noEmit` against a solution-shaped tsconfig whose `files` array is empty), a jest run reported success on 'No test files found', and every new test file was trusted on its first green without anyone proving it could fail. The postmortem rule: a check is not evidence until it has been shown able to fail.",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-check-can-fail",
+    "expected_severities": ["vacuous-check", "new-guard-never-shown-red", "red-run-not-red"],
+    "repo_root_note": "output_path / tsconfig_path values are relative to this fixture directory; the caller passes repo_root=<this dir> (CLI: --repo-root)."
+  },
+  "checks": [
+    {
+      "command": "python -m pytest tests/test_column_config.py -q",
+      "output_path": "outputs/pytest-collected-0.txt",
+      "exit_code": 0
+    },
+    {
+      "command": "npx jest src/columns",
+      "output_path": "outputs/jest-no-test-files.txt",
+      "exit_code": 0
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "output_path": "outputs/tsc-noemit-silent.txt",
+      "exit_code": 0,
+      "tsconfig_path": "tsconfig-solution/tsconfig.json"
+    },
+    {
+      "command": "python -m pytest tests/test_reconcile.py -q",
+      "output_path": "outputs/does-not-exist.txt",
+      "exit_code": 0
+    }
+  ],
+  "new_test_files": [
+    "tests/test_column_config.py",
+    "tests/test_reconcile.py",
+    "tests/test_statement_export.py"
+  ],
+  "red_runs": {
+    "tests/test_column_config.py": {
+      "command": "python -m pytest tests/test_column_config.py -q",
+      "output_path": "outputs/pytest-green-real.txt",
+      "observed_failure_excerpt": "AssertionError: assert [] == ['date', 'amount']",
+      "red_source": "tdd-red"
+    },
+    "tests/test_reconcile.py": {
+      "command": "python -m pytest tests/test_reconcile.py -q",
+      "output_path": "outputs/pytest-red-reconcile.txt",
+      "observed_failure_excerpt": "ModuleNotFoundError: No module named 'banking.reconcile'",
+      "red_source": "assertion-inversion"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+RUN  v1.6.0 /workspace/banking-app/frontend
+
+No tests found, exiting with code 0
+filter:  column-config

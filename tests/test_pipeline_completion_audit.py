@@ -695,3 +695,333 @@ def test_openspec_gate_blocks_on_nonzero_unparseable_output(
     violations = mod._audit_openspec_validation(workspace, workspace / ".architect-team")
     assert len(violations) == 1
     assert "failed at the Phase 7" in violations[0]
+
+
+# ===========================================================================
+# v3.47.0 — `_audit_check_integrity` (rule R1b: a check is not evidence until
+# it has been shown able to fail).
+#
+# The run's diff adding test files is the trigger the evidence file cannot see:
+# `tests.added >= 1` is true for every slice, and `files_changed` cannot tell an
+# added file from a modified one. The audit CAN see it — it diffs the working
+# tree against the run's baseline SHA — so added test files demand a
+# verify-check-can-fail verdict on disk, and that verdict must pass.
+#
+# Untracked files count as added. The audit runs BEFORE the Phase 8 auto-commit,
+# which is exactly when a freshly-written test file is still untracked; keying on
+# the tracked diff alone would leave the arm silent in the one situation it
+# exists for.
+# ===========================================================================
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        text=True, capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+
+
+def _init_repo_with_baseline(workspace: Path) -> str:
+    """A real git repo with one commit; returns the baseline SHA."""
+    _git(workspace, "init", "--initial-branch=main")
+    _git(workspace, "config", "user.email", "test@example.com")
+    _git(workspace, "config", "user.name", "Test User")
+    (workspace / "README.md").write_text("baseline\n", encoding="utf-8")
+    (workspace / ".gitignore").write_text(".architect-team/\n", encoding="utf-8")
+    _git(workspace, "add", "-A")
+    _git(workspace, "commit", "-m", "baseline")
+    return _git(workspace, "rev-parse", "HEAD").stdout.strip()
+
+
+def _write_intake(workspace: Path, **fields) -> None:
+    body = {"run_id": "r-1"}
+    body.update(fields)
+    (_at(workspace) / "intake-state.json").write_text(json.dumps(body), encoding="utf-8")
+
+
+def _add_file(workspace: Path, relpath: str, *, commit: bool = False) -> Path:
+    path = workspace / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("def test_x():\n    assert True\n", encoding="utf-8")
+    if commit:
+        _git(workspace, "add", relpath)
+        _git(workspace, "commit", "-m", f"add {relpath}")
+    return path
+
+
+def _write_check_verdict(workspace: Path, *, valid: bool = True,
+                         name: str = "task-a-check-can-fail.json",
+                         verdict_at: str = "2026-07-30T12:00:00Z",
+                         body: dict | None = None) -> Path:
+    vd = _at(workspace) / "vao-verdicts"
+    vd.mkdir(parents=True, exist_ok=True)
+    path = vd / name
+    payload = body if body is not None else {
+        "tool": "verify-check-can-fail",
+        "valid": valid,
+        "gaps": [] if valid else [{"severity": "vacuous-check"}],
+        "verdict_at": verdict_at,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def test_added_test_file_without_a_verdict_blocks(script: Path, workspace: Path) -> None:
+    """Scenario: added tests with no verdict block completion."""
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert "tests/test_new_guard.py" in r.stderr.replace("\\", "/")
+    assert "verify-check-can-fail" in r.stderr
+
+
+def test_committed_added_test_file_also_counts(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_committed_guard.py", commit=True)
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert "test_committed_guard.py" in r.stderr
+
+
+def test_added_test_file_with_a_passing_verdict_allows(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, valid=True)
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_added_test_file_with_a_failing_verdict_blocks(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, valid=False)
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert "check-can-fail" in r.stderr
+
+
+# --- B4 (adversarial, medium): EVERY verdict must pass, not just the "latest".
+#
+# The original arm picked a latest verdict via `str(verdict_at or path.name)`,
+# comparing ISO timestamps against filenames in one ordering — so a passing
+# verdict dated 9999-12-31, or an undated one named "zz-…", outranked a real
+# failure. Worse, the directory legitimately holds one verdict PER GROUP
+# (hei-group1..4), so "latest wins" let a later group's pass hide an earlier
+# group's failure. Requiring every verdict to pass removes the ordering
+# heuristic entirely; a re-run overwrites its own --out path, so only a
+# genuinely unresolved failure lingers.
+
+def test_a_failing_verdict_is_not_buried_by_a_future_dated_passing_one(
+    script: Path, workspace: Path
+) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, valid=False, name="a-check-can-fail.json",
+                         verdict_at="2026-07-31T04:00:00Z")
+    _write_check_verdict(workspace, valid=True, name="b-check-can-fail.json",
+                         verdict_at="9999-12-31T23:59:59Z")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_a_failing_verdict_is_not_buried_by_an_undated_passing_one(
+    script: Path, workspace: Path
+) -> None:
+    """'zz' sorts above '2026' when a filename is compared against a timestamp."""
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, valid=False, name="a-check-can-fail.json",
+                         verdict_at="2026-07-31T04:00:00Z")
+    _write_check_verdict(workspace, name="zz-check-can-fail.json",
+                         body={"tool": "verify-check-can-fail", "valid": True})
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_one_groups_failure_is_not_hidden_by_another_groups_pass(
+    script: Path, workspace: Path
+) -> None:
+    """The real shape: one verdict per group in the same directory."""
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, valid=False, name="hei-group3-check-can-fail.json",
+                         verdict_at="2026-07-31T03:00:00Z")
+    _write_check_verdict(workspace, valid=True, name="hei-group4-check-can-fail.json",
+                         verdict_at="2026-07-31T05:00:00Z")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert "hei-group3" in r.stderr
+
+
+def test_all_passing_verdicts_allow(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, valid=True, name="hei-group3-check-can-fail.json",
+                         verdict_at="2026-07-31T03:00:00Z")
+    _write_check_verdict(workspace, valid=True, name="hei-group4-check-can-fail.json",
+                         verdict_at="2026-07-31T05:00:00Z")
+    assert _run_check(script, workspace).returncode == 0
+
+
+# --- B5 (adversarial, medium): the arm must bite the RUN's files, not a
+# developer's pre-existing scratch. `git ls-files --others` is repo-wide, so an
+# untracked tests/test_developer_scratch.py that predates the run blocked a run
+# that never touched it. Untracked files now count only when they are newer than
+# the run's start (the active-run marker's started_at, else the baseline commit).
+
+def _age_file(path: Path, seconds_before: float) -> None:
+    import time as _t
+    stamp = _t.time() - seconds_before
+    os.utime(path, (stamp, stamp))
+
+
+def test_untracked_file_predating_the_run_does_not_arm_the_gate(
+    script: Path, workspace: Path
+) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    scratch = _add_file(workspace, "tests/test_developer_scratch.py")
+    _age_file(scratch, 60 * 60 * 24 * 30)  # a month old — long before this run
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_untracked_file_written_during_the_run_still_arms_the_gate(
+    script: Path, workspace: Path
+) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")  # written now
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_marker_started_at_is_the_preferred_run_start(script: Path,
+                                                      workspace: Path) -> None:
+    """With a marker present, its started_at defines the run — an untracked file
+    older than the marker is not this run's work even if it postdates the
+    baseline commit."""
+    import datetime as _dt
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    scratch = _add_file(workspace, "tests/test_older_than_the_run.py")
+    _age_file(scratch, 3600)  # an hour old
+    started = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=5)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    (_at(workspace) / "active-run.json").write_text(
+        json.dumps({"schema": 1, "status": "active", "slug": "s",
+                    "session_id": None, "started_at": started,
+                    "updated_at": started}),
+        encoding="utf-8",
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_unreadable_check_verdict_blocks(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    vd = _at(workspace) / "vao-verdicts"
+    vd.mkdir(parents=True, exist_ok=True)
+    (vd / "task-a-check-can-fail.json").write_text("{not json", encoding="utf-8")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_check_verdict_of_unknown_shape_blocks(script: Path, workspace: Path) -> None:
+    """A verdict whose passing-ness cannot be read is not a pass."""
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    _write_check_verdict(workspace, body={"tool": "verify-check-can-fail", "notes": "fine"})
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_no_added_test_files_is_fail_open(script: Path, workspace: Path) -> None:
+    """Scenario: no added tests is fail-open."""
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "src/feature.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_modified_test_file_is_not_an_added_test_file(script: Path, workspace: Path) -> None:
+    _init_repo_with_baseline(workspace)
+    _add_file(workspace, "tests/test_existing.py", commit=True)
+    sha = _git(workspace, "rev-parse", "HEAD").stdout.strip()
+    _write_intake(workspace, baseline_sha=sha)
+    (workspace / "tests" / "test_existing.py").write_text(
+        "def test_x():\n    assert 1 == 1\n", encoding="utf-8"
+    )
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_no_baseline_sha_is_fail_open(script: Path, workspace: Path) -> None:
+    _init_repo_with_baseline(workspace)
+    _write_intake(workspace)  # no baseline_sha recorded
+    _add_file(workspace, "tests/test_new_guard.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_unknown_baseline_sha_is_fail_open(script: Path, workspace: Path) -> None:
+    _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha="0" * 40)
+    _add_file(workspace, "tests/test_new_guard.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_not_a_git_repo_is_fail_open(script: Path, workspace: Path) -> None:
+    _write_intake(workspace, baseline_sha="deadbeef")
+    _add_file(workspace, "tests/test_new_guard.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_baseline_sha_falls_back_to_a_teammate_manifest(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace)  # intake has none
+    teammates = _at(workspace) / "teammates"
+    teammates.mkdir(parents=True, exist_ok=True)
+    (teammates / "backend.json").write_text(
+        json.dumps({"teammate": "backend", "baseline_sha": sha,
+                    "expected_review_evidence": []}),
+        encoding="utf-8",
+    )
+    _add_file(workspace, "tests/test_new_guard.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_gitignored_files_are_not_added_tests(script: Path, workspace: Path) -> None:
+    """The `.architect-team/` fixtures a run writes for itself are not new guards."""
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, ".architect-team/fixtures/test_scratch.py")
+    r = _run_check(script, workspace)
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_check_integrity_stop_mode_blocks_the_same_way(script: Path, workspace: Path) -> None:
+    sha = _init_repo_with_baseline(workspace)
+    _write_intake(workspace, baseline_sha=sha)
+    _add_file(workspace, "tests/test_new_guard.py")
+    r = _run_stop(script, workspace, {})
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert "verify-check-can-fail" in r.stderr

@@ -1,0 +1,18 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.4, pytest-8.2.0, pluggy-1.5.0
+rootdir: C:\workspace\banking-app
+collected 2 items
+
+tests/test_reconcile.py FF                                               [100%]
+
+================================== FAILURES ===================================
+______________________ test_reconcile_matches_by_amount _______________________
+
+>       from banking.reconcile import reconcile_batch
+E       ModuleNotFoundError: No module named 'banking.reconcile'
+
+tests/test_reconcile.py:6: ModuleNotFoundError
+=========================== short test summary info ===========================
+FAILED tests/test_reconcile.py::test_reconcile_matches_by_amount
+FAILED tests/test_reconcile.py::test_reconcile_reports_unmatched
+============================ 2 failed in 0.19s ================================

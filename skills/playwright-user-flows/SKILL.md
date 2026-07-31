@@ -329,6 +329,37 @@ Any one of these means STOP — the happy path is not really integration-tested:
 - The backend team's endpoints have integration tests, the frontend team's UI has Playwright tests, and NO test loads the frontend in a browser AND hits the real backend in the same run.
 - The review-gate evidence claims "tested with Playwright" but `integration_testing_review` is `pass` while no real backend is referenced anywhere in the test config or the demo artifact.
 
+### Shared-state hygiene (flows against the shared dev environment)
+
+The dev environment's data is SHARED — with the other flows in this suite, with the other teammates on this run, and with the previous run of this same test. A mutating flow that does not think about that is a flow that can pass without doing anything. This section imports the `dev-api-integration-testing` fixture discipline into the Playwright layer, where it has been missing.
+
+**Every mutating flow uses per-test unique values OR restores what it changed.** Pick one:
+
+- **Unique values (preferred).** Derive the value the test writes from a run-unique suffix — `` `QA Flow ${testInfo.testId}-${Date.now()}` ``, a uuid fragment, the `it-<test-name>-<uuid>` prefix convention from `dev-api-integration-testing`. Nothing the test writes can collide with anything already there.
+- **Teardown restore.** Capture the pre-existing value in the setup step and put it back in `afterEach` / a cleanup step, so the environment ends the run in the state it started.
+
+**Every flow is runnable twice in a row without failing on the second run.** This is the same non-negotiable as the backend idempotency rule, and it is the cheapest way to find the defect: run the flow, run it again immediately, and watch. A flow that only passes against a clean fixture is a flow that has already broken itself for the next run — and for the next teammate.
+
+**Never assert a hardcoded literal the test itself wrote.** Assert on a value DERIVED from the test's own unique input:
+
+```typescript
+// NO — a residue of run N satisfies run N+1; the Edit never had to work
+await page.getByTestId('display-name').fill('Updated Name');
+await page.getByRole('button', { name: 'Save' }).click();
+await expect(page.getByTestId('display-name')).toHaveValue('Updated Name');
+
+// YES — only THIS run's write can satisfy THIS run's assertion
+const unique = `Updated Name ${testInfo.testId}-${Date.now()}`;
+await page.getByTestId('display-name').fill(unique);
+await page.getByRole('button', { name: 'Save' }).click();
+await page.reload();
+await expect(page.getByTestId('display-name')).toHaveValue(unique);
+```
+
+The failure this closes is silent and total: run 1 genuinely saves `Updated Name`; run 2 opens a field that ALREADY reads `Updated Name`, fills it with the same string, fires no change event, sends no request — and the assertion passes. The test is now green forever and verifies nothing. Reload (or re-navigate) before the assertion too, so the value being read came back from the server rather than from the input you just typed into.
+
+`test-completeness-verifier` Step 3g audits this mechanically — a `fill(<literal>)` paired with an assertion of the SAME literal in one file, and mutation actions on non-unique literals with no teardown or unique-value signal, land in `fixture_hygiene_findings[]` and make the playwright kind `fail`.
+
 ### Selector hierarchy (use the highest available)
 
 1. `page.getByRole(...)` — accessible role + name.
@@ -550,6 +581,8 @@ This skill is the test-AUTHORING discipline. It is trust-based Markdown — noth
 | "It's faster / less flaky to mock the backend in the frontend tests" | Speed and flake are real, but a green suite that never integrated the layers is a false signal — the most expensive kind. Run the happy path against the real backend; use `page.route` only to inject the specific error responses that are genuinely hard to trigger. If real-backend tests are flaky, that flake IS a finding (race, fixture, env) — root-cause it per `root-cause-test-failures`, do not mock it away. |
 | "The greenfield backend isn't wired up yet, so I'll mock it and call the frontend done" | Legitimate ONLY at the Phase 3 per-team gate, and ONLY if you set `integration_testing_review: "n/a"` with a note that says the integration is DEFERRED TO PHASE 5. That `n/a` is a debt Phase 5 must settle against the real backend. It is never a substitute for the real thing — and it is never valid at Phase 5. |
 | "The requirements didn't say to integration-test, so mocking is fine" | Backwards. Front-to-back integration testing is the DEFAULT for every `both`-layer feature. Mock-backed testing requires the requirements to *explicitly* authorize it for that requirement — and you quote that authorization in `integration_testing_review_note`. Silence means integrate, not mock. |
+| "the field held the value, so Edit works" | The field held YOUR previous run's value; nothing was dirty, no request fired. Filling an input with the string it already contains is a no-op — no change event, no PUT, no serializer, no round trip. Use a run-unique value and reload before asserting, per the "Shared-state hygiene" section. |
+| "I'll clean up the dev data later / the dev env gets reset" | The next run is minutes away, not after the reset. A mutating flow either writes unique values or restores in teardown — an unrestored mutation is a landmine for the next flow, the next teammate, and the second run of this same test. |
 | "The interactivity inventory is overkill for a small feature" | If it's small, the inventory is small. Either way, you cannot author tests without it. |
 | "I'll skip the conditional_ui ones — they're rare" | Conditional UI is exactly what breaks silently. Test it. |
 | "Selectors are too brittle" | That's why the hierarchy goes role → testid → text → css. If you're reaching for CSS, the answer is usually to ADD a testid to the component. |

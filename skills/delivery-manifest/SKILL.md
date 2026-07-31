@@ -90,6 +90,46 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate -
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json <data.json> --out <manifest.md> --email || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json <data.json> --out <manifest.md> --email
 ```
 
+## The citation bar (every claim names its evidence)
+
+The manifest is the document the user acts on. A validation step they cannot
+run, or an element row describing something that was never verified to work,
+costs more trust than the whole document earns. So every claim in it cites
+where it came from:
+
+- **Each validation step cites its evidence source** — the acceptance criterion
+  it came from, the passing test id, the QA-replay verdict, the captured check
+  output, or the live URL it was actually executed against. A step derived from
+  a criterion nobody ran is written as what it is (a check the reader should
+  run), never as a check that passed.
+- **Each delivered element cites what proves it works** — the test that
+  exercises it, the verdict file, or the live path where the reader can see it.
+- **Deploy notes cite the post-deploy verification**, not the deploy command.
+  A 200 from a health endpoint is not a page a user loaded; say which was done.
+
+**What blocks, and where.** Two different tools enforce this bar over two
+different artifacts, and it is worth knowing which is which:
+
+| Claim class | Enforced by | Over which artifact |
+|---|---|---|
+| A validation step asserting verified / working behavior with no evidence of its OWN | `validate` in `scripts/delivery/delivery_manifest.py` (`uncited-verified-claim`, error severity) | this manifest's `validation_steps[].expected` |
+| A delivered element claiming completion with no citation | the same `validate` (`uncited-element-claim`, error severity) | this manifest's `elements[]` |
+| An uncited completion / deploy / absence / stalled-agent claim | the `verify-no-end-of-run-deferral` tool's claims-citation severities — detectors in `hooks/vao/deferral_b.py`, composed by `verify_no_end_of_run_deferral` in `hooks/vao/deferral.py` | the run's FINAL REPORT |
+
+Zero error findings from `validate` is the publishing bar for this manifest — the
+same gate that already blocks placeholders and steps with no expected result, and
+it is per-step: a sibling step's citation does not carry yours. The deploy and
+absence classes are enforced in this release too, but by the deferral tool over
+the final report, NOT by `validate` over `deploy_notes` (which it does not scan
+for claims at all). Write deploy notes and absence statements to the same
+standard anyway — the manifest is what the stakeholder reads.
+
+Relay discipline applies inside the manifest as much as outside it: a producing
+agent's report is a **claim** and is relayed as one; a verdict file's result is
+a **fact** and is relayed as one, naming the verdict. "The backend team reports
+the endpoint returns the new field" and "the `verify-live-data-wiring` verdict
+at `<path>` is clean" are different sentences, and the manifest never blurs them.
+
 ## Output + email wiring
 
 - Write the manifest to `.architect-team/delivery/<run-slug>-manifest.md`
@@ -112,3 +152,15 @@ criteria; when the run had no live environment, say so in the steps rather
 than inventing a URL. The manifest documents what SHIPPED — it never
 substitutes for the doc-currency close-out (`closeout` /
 `documentation-currency`), which still runs.
+
+**Where the citation bar is enforced, and where it is not.** The deterministic
+gate binds PERSISTED artifacts — this manifest and the run's final report,
+which `validate` and the `verify-no-end-of-run-deferral` claims-citation
+severities actually read. It does NOT bind the orchestrator's mid-run
+conversational text: chat is not a tool surface, nothing scans it, and any
+claim otherwise would be the overclaim this skill exists to prevent. Mid-run
+chat is governed by instruction only — by the same rule, held voluntarily:
+**relay claims as claims, verdicts as facts**, naming the verdict whenever you
+assert something is complete. The honest statement of
+the boundary is that the artifact is gated and the conversation is disciplined,
+and those are not the same strength of guarantee.

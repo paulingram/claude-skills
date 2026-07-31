@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "fixture_name": "proven-checks-clean",
+    "failure_shape": "v3.47.0 check-falsifiability — the PASSING artifact: what the same release looks like when every check is shown to have read something and every new guard is shown able to fail",
+    "vao_layer_caught_at": 3,
+    "tool_targeted": "verify-check-can-fail",
+    "expected_severities": [],
+    "repo_root_note": "output_path / tsconfig_path values are relative to this fixture directory; the caller passes repo_root=<this dir> (CLI: --repo-root)."
+  },
+  "checks": [
+    {
+      "command": "python -m pytest tests/ -q",
+      "output_path": "outputs/pytest-green-real.txt",
+      "exit_code": 0
+    },
+    {
+      "command": "npx tsc -b --pretty false",
+      "output_path": "outputs/tsc-build-clean.txt",
+      "exit_code": 0,
+      "tsconfig_path": "tsconfig-normal/tsconfig.json"
+    }
+  ],
+  "new_test_files": [
+    "tests/test_column_config.py",
+    "tests/test_reconcile.py"
+  ],
+  "red_runs": {
+    "tests/test_column_config.py": {
+      "command": "python -m pytest tests/test_column_config.py -q",
+      "output_path": "outputs/pytest-red-real.txt",
+      "observed_failure_excerpt": "AssertionError: assert [] == ['date', 'amount']",
+      "red_source": "tdd-red"
+    },
+    "tests/test_reconcile.py": {
+      "command": "python -m pytest tests/test_reconcile.py -q",
+      "output_path": "outputs/pytest-red-reconcile.txt",
+      "observed_failure_excerpt": "ModuleNotFoundError: No module named 'banking.reconcile'",
+      "red_source": "pre-change-checkout"
+    }
+  }
+}

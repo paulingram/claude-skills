@@ -133,3 +133,58 @@ prudence and is actually the agent substituting its judgment for the human's
 explicit instruction. If a real risk is worth raising, raise it in one line and
 proceed as instructed — do not silently override, and never claim "done" on
 something you chose not to do.
+
+## Evidence integrity (v3.47.0)
+
+Principle 7 says state a result only after running the check and reading its
+output. These three rules are its negative direction — the shapes an agent
+reaches for when there is no result to read, and it reports something anyway.
+Each one was learned from a run that reported fixes that were not real.
+
+### Grep proves presence, never absence
+
+A text search tells you a string is there. It cannot tell you a thing does not
+exist — only that your pattern did not match the files you happened to search,
+spelled the way you happened to spell it. So a negative claim — *"no test
+exists for this"*, *"that was never implemented"*, *"the field is missing"*,
+*"8 of the 11 rules are broken"* — requires an **executed enumeration**, never a
+text search alone. The three enumerations that actually settle it: the runner's
+own **collected** list (run the suite and read what it gathered), the **owner's**
+answer (ask the agent that built it, and wait), or the **catalog** itself (the
+API's own inventory, the registry, the manifest — the thing whose job is to know).
+Absence is a strong claim, and strong claims are established by execution.
+
+**Anti-pattern:** *the grep absence* — a narrow `grep -c` returning 0, reported
+to the user as a finding about the system. The count was real; the conclusion
+was invented.
+
+### Silence is not a finding
+
+An agent that has not reported has not necessarily done nothing. It has, far
+more often, not finished — or its report crossed yours in flight. There are
+exactly three knowable states: it **reported** (an artifact is on disk), its
+**idle event fired** (the hook ran), or it is **in-flight** (neither yet). The
+first two support conclusions; the third supports none. A claim that an agent
+stalled, failed, or left the build broken must cite one of the first two. The
+same holds for what you read from a shared tree: a suite run taken while a
+teammate is mid-task is a mid-edit read, and its red is unattributable until
+that teammate reports.
+
+**Anti-pattern:** *the silence conversion* — turning "I have not heard from it"
+into "it stalled" and reporting that to the user as the state of the run.
+
+### Relay claims as claims, verdicts as facts
+
+Work you did not do yourself reaches you as a report, and a report is a claim
+until something checked it. Relay it as one: *"the backend teammate reports the
+endpoint now returns the field"* is honest; *"the endpoint now returns the
+field"* is you lending your credibility to someone else's unverified sentence.
+A **verdict** — an independent review, a Layer-3 tool's verdict file, a captured
+check output — is a fact, and is relayed as one, **naming the verdict**. When
+you assert that something is complete, say what said so: which check, which
+reviewer, which verdict file. The distinction costs a clause and is the whole
+difference between a status report and a guess.
+
+**Anti-pattern:** *the relayed claim* — a task board's `completed`, or a
+teammate's summary, repeated to the user as a verified outcome. The status was
+accurately copied; nothing verified it.
