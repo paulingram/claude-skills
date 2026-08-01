@@ -1,0 +1,98 @@
+{
+ "change": "compact-readme-release-history",
+ "authored_at": "2026-08-01T03:39:16Z",
+ "source": ".architect-team/refined-prompts/compact-readme-release-history-20260731.md (user-ratified: option-A extraction; complete-history convention)",
+ "baseline": {
+  "command": "PYTHONUTF8=1 python -m pytest -q",
+  "passed": 6522,
+  "failed": 2,
+  "skipped": 6,
+  "known_reds_on_checkout": [
+   "tests/test_readme_styling.py::test_readme_banner_version_matches_plugin_json (inherited banner staleness - closed by this run)",
+   "tests/test_dispatch_banner.py::test_plugin_metadata_at_1_5_0 (pin 3.46.0 vs plugin.json 3.47.0 - shipped red IN 13f7a6b: the v3.47.0 suite ran pre-bump, nothing re-ran post-bump; closed by this run at the 3.47.1 bump with pin lockstep + post-bump re-verification)"
+  ],
+  "measured_at_sha": "13f7a6b",
+  "correction": "Lead-authored 6524/0/6 was the PRE-BUMP measurement; teammate re-measured the shipped tree: 6522+2f+6s. Reconciles: 6522+1 (banner) +10 (added) = 6533 current.",
+  "lesson": "version bump must be followed by the dispatch-banner pin move in lockstep AND a post-bump verification run - queued into task 2.3"
+ },
+ "entries": [
+  {
+   "source_requirement_id": "CR-1-history-file",
+   "spec_requirement_id": "compact-readme/The release history lives complete in docs/RELEASE_HISTORY.md",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "byte-identical move verified mechanically",
+    "complete history including current"
+   ],
+   "acceptance_criteria": [
+    "per-region SHA-256 verification artifact on disk showing every moved region byte-identical + present exactly once",
+    "v3.47.0 present in RELEASE_HISTORY.md; zero releases lost (pre-move enumeration == post-move enumeration)"
+   ]
+  },
+  {
+   "source_requirement_id": "CR-2-compact-readme",
+   "spec_requirement_id": "compact-readme/The README is compact with exactly one release section and a pointer",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "one release section plus pointer"
+   ],
+   "acceptance_criteria": [
+    "NEW-IN spotlight count in README == 1",
+    "pointer string to docs/RELEASE_HISTORY.md present near top",
+    "durable content intact (gateway troubleshooting moved WITH its section per option A)"
+   ]
+  },
+  {
+   "source_requirement_id": "CR-3-banner-and-pins",
+   "spec_requirement_id": "compact-readme/The README banner is current and every pin family stays green",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "banner pin flips from red to green",
+    "all pin families pass"
+   ],
+   "acceptance_criteria": [
+    "test_readme_banner_version_matches_plugin_json passes (captured red exists from pre-change tree)",
+    "full suite zero failures; any pin retarget flagged explicitly in evidence"
+   ]
+  },
+  {
+   "source_requirement_id": "CR-4-structural-pin",
+   "spec_requirement_id": "compact-readme/The compact convention is structurally enforced",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "convention pin bites"
+   ],
+   "acceptance_criteria": [
+    "tests/test_release_history.py red-first against pre-change tree (captured)",
+    "check-can-fail verdict covers the added test file (valid)",
+    "pin fails on: second spotlight / missing pointer / missing history file (tested)"
+   ]
+  },
+  {
+   "source_requirement_id": "CR-5-crossrefs-palace",
+   "spec_requirement_id": "compact-readme/Cross-references and the palace are updated",
+   "layer": "infra",
+   "team": "1+2",
+   "scenarios": [
+    "docs lists name the new file",
+    "palace mined"
+   ],
+   "acceptance_criteria": [
+    "CLAUDE.md + CODEBASE_MAP docs lists name RELEASE_HISTORY.md",
+    "mine commands executed with output captured for README + RELEASE_HISTORY",
+    "CHANGELOG.md untouched (git diff clean on it until the Phase 8 entry)"
+   ]
+  }
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - docs-only change in a UI-less plugin repo; pytest structural pins are the verification surface",
+  "dev_api_integration": "n/a - no API surface",
+  "both_layer_integration": "n/a - all entries infra"
+ },
+ "confirmed_stubs": [],
+ "scope_extensions": []
+}
