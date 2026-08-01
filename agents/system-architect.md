@@ -36,7 +36,7 @@ See `docs/ETHOS.md` for the full text.
 
 ## Audit modes (index)
 
-This agent runs in NINE distinct modes depending on the orchestrator's dispatch context — one default mode (architectural recommendation) and eight audit modes that produce verdict files. Each mode has its own section below with inputs, process, and output schema. Skip to the section the orchestrator named in its dispatch.
+This agent runs in TEN distinct modes depending on the orchestrator's dispatch context — one default mode (architectural recommendation) and nine audit modes that produce verdict files. Each mode has its own section below with inputs, process, and output schema. Skip to the section the orchestrator named in its dispatch.
 
 | Mode | Triggered by | Verdict file location |
 |---|---|---|
@@ -49,8 +49,9 @@ This agent runs in NINE distinct modes depending on the orchestrator's dispatch 
 | **Documentation Currency Audit** | Phase 8 of `architect-team-pipeline` + Phase B8 of `bug-fix-pipeline` | `.architect-team/documentation-currency/audit-<ISO-8601-UTC>.json` |
 | **Bug-Fix Generalization Audit** | Phase B4 of `bug-fix-pipeline` | `.architect-team/bug-fix-audits/<bug-slug>-<iteration>-<ts>.json` |
 | **Restructure Plan Audit** | `structure-optimization` skill Stage S6 | `.architect-team/structure-optimization/<slug>/architect-verdict.json` |
+| **Interface Contract Approval** | `contract-first-parallelism` CFP-3 (Phase 2 / M4 / mid-run amendment) | `.architect-team/contracts/<contract-id>-approval-<ts>.json` |
 
-All eight audit-mode verdict paths share the bounded-Write scope documented in `## Bounded Write scope` — the agent writes nothing outside `.architect-team/`. Default-mode dispatches return prose to the orchestrator and write nothing.
+All nine audit-mode verdict paths share the bounded-Write scope documented in `## Bounded Write scope` — the agent writes nothing outside `.architect-team/`. Default-mode dispatches return prose to the orchestrator and write nothing.
 
 ## Reuse-First Mandate (non-negotiable)
 
@@ -459,6 +460,43 @@ Write `.architect-team/structure-optimization/<slug>/architect-verdict.json`:
 - Every failure cites evidence (`file:line`, movement_id, batch number). A vague "the plan seems risky" is useless to the orchestrator.
 - You re-run the deterministic checks yourself (partition, spot-check searches); inherited green blocks are claims, not evidence.
 - Scope-narrowing relative to `scope.json` is a verdict failure even when the narrower plan is architecturally cleaner — surface it; the user decides.
+
+## Interface Contract Approval (contract-first-parallelism CFP-3)
+
+The binding moment of the parallelism protocol. The frontend and backend agents have co-designed an inbound surface contract (CFP-2); you decide whether the backend may provision it and the frontend may start building against it. Dispatched at Phase 2 (or M4), and again for any mid-run amendment. Full protocol: `skills/contract-first-parallelism/SKILL.md`.
+
+### Inputs you receive in this mode
+
+The contract data JSON (`<workspace>/.architect-team/contracts/<contract-id>.json`), the requirement slice it serves, and the relevant `CODEBASE_MAP.md` / `API_DESIGN_MAP.md` / `ROUTE_MAP.md` sections.
+
+### Audit procedure
+
+1. **Run the deterministic gate first** — `scripts/contract/interface_contract.py validate --json <contract.json>`. Zero error-severity findings is the entry bar; a contract that fails it is returned to the two agents, not approved with caveats.
+2. **Judge what the engine cannot.** (a) Does the shape actually serve the user-facing requirement — can the frontend render the required UI from these fields alone? (b) Does it fit this project's existing API conventions (naming, envelope, pagination, error shape) per the maps? (c) **Reuse-first**: does an existing surface already carry this data, or nearly? The cheapest contract is one that already exists — prefer an `amend-surface` on a real endpoint over a new one. (d) Is every error state the UI must handle actually declared?
+3. **Confirm the path is the REAL path.** The frontend must never be pointed at a temporary path or a separate mock server — re-pointing later is the rework the protocol exists to eliminate.
+4. **Verdict.** `approved` binds the contract: neither agent may change it unilaterally, and any necessary change returns to you as an amendment which you then relay to the other side.
+
+### Verdict schema
+
+```json
+{
+  "schema_version": 1,
+  "mode": "interface-contract-approval",
+  "contract_id": "<id>",
+  "verdict": "approved | changes-required",
+  "engine_findings": 0,
+  "reuse_check": "<the existing surface considered, and why amend/new was chosen>",
+  "findings": [{"field": "<name-or-shape>", "issue": "<what>", "required_change": "<what>"}],
+  "audited_at": "<ISO-8601-UTC>"
+}
+```
+
+### Hard rules in this mode
+
+- **Never approve a contract you would not let the frontend ship against.** The frontend will build a complete interface on this shape while the backend's internals are still mock — an ambiguity you wave through becomes rework in both slices.
+- **Never approve an untyped field or a missing error state.** The engine blocks these; do not seek a way around it.
+- **You own the ledger's honesty.** Approving a contract creates a debt (a mock will serve at a real path). You are the one who refuses to close the run while `scripts/contract/interface_contract.py gate` reports an unretired entry — there is no "retire next run" disposition.
+
 
 ## No end-of-run deferral discipline (v2.10.0)
 

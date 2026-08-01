@@ -437,6 +437,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <na
 
 1. From `tasks.md` and the coverage map, classify each task by layer (`backend`, `frontend`, `both`, `infra`).
 2. Build a parallel-execution graph: which task groups have no dependencies on each other and can run simultaneously.
+
+**Contract-first parallelism (v3.48.0) — run BEFORE the teams are spawned.** For every `both`-layer slice where the backend must add or change a surface AND the frontend needs that surface to visualize data (a full-stack build from scratch, or an integration where the frontend needs inbound surfaces), engage `contract-first-parallelism` NOW rather than letting the frontend discover the gap mid-slice and block on it:
+
+- **CFP-2** — have the frontend and backend teammates co-design each inbound surface contract (what the UI must render vs what the source can authoritatively produce, with the error states).
+- **CFP-3** — dispatch `system-architect` in `## Interface Contract Approval` mode; approval binds the contract (neither side changes it unilaterally afterward — amendments come back through the architect, who relays them). Gate: `scripts/contract/interface_contract.py validate --json <contract.json>` must report zero blocking findings.
+- **CFP-4** — the backend teammate's FIRST action with the approved contract is to provision the endpoint AT ITS REAL PATH serving a contract-conforming provisional payload, register it in `<workspace>/.architect-team/contracts/ledger.json` as `mock-serving`, and announce it. The frontend is unblocked from that moment and builds its complete integration against the live surface while the backend builds the real internals underneath.
+
+This decision belongs in the Phase 2 architect brief alongside the existing ordering check: for each `both`-layer slice, record either (a) contract-first (the default when the frontend needs surfaces that do not yet exist or lack attributes), or (b) the `missing-api-for-frontend-element` SR fallback. The approved contracts are inputs to the spawn briefs of BOTH teammates. Every contract created here carries a debt the run must repay before Phase 8 closes — see the retirement gate there.
 3. For each parallel group, spawn a Superpowers-driven teammate per `team-spawning-and-review-gates`. Each implementing teammate applies `superpowers:test-driven-development` — write the failing test before the implementation code, per `## Plugin prerequisites (v3.9.0)`. Use **plan approval mode** for any teammate touching auth, schemas, contracts, or external integrations. Spawn instructions must include:
    - The exact `<change-name>` and the task IDs the teammate owns (so it can run `openspec instructions apply --change <change-name> --json` and self-orient).
    - The layer.
@@ -613,6 +621,21 @@ Emit a final report containing:
 - Appearance proposals per the run's `appearance_mode` (v3.14.0): under `strict`, a READ-ONLY "Appearance proposals (not implemented — strict mode)" listing citing `<workspace>/.architect-team/appearance-proposals/<run-id>.json` and stating how to act on them in a future invocation (imperative, never interrogative — no v2.10.0 follow-up-question phrasings); under `propose`, the per-proposal gate decisions with citations; under `innovate`, every `implemented-innovate` visual delta enumerated
 - Each teammate spawned, its task group, and outcome
 - Final statement: **"Spec `<change-name>` has been implemented."** Followed by the archive path.
+
+### Mock-retirement gate (v3.48.0 — contract-first parallelism CFP-6)
+
+If this run created ANY interface contract at Phase 2 (`contract-first-parallelism`), the parallelism it bought was borrowed against server-side mocks. Closing the run repays it. Run the gate BEFORE the documentation-currency gate and the commit:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --ledger "<workspace>/.architect-team/contracts/ledger.json" || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --ledger "<workspace>/.architect-team/contracts/ledger.json"
+```
+
+**Any surface still `mock-serving` (or earlier) is a BLOCKING finding: the run does not close.** Route it back to the owning backend teammate to flip the surface to real data and verify end-to-end through the same live path the frontend already calls, then transition the ledger entry to `live` with its `verified_by` evidence. "Retire it next run" is not a disposition — it is exactly the deferral `## No end-of-run deferral discipline` forbids, and a mock that outlives its run is the debt the no-fake-data disciplines exist to prevent.
+
+Also confirm no contract drifted while the internals were being built (`... drift --json <contract.json> --observed <observed-payload.json>` against a payload actually captured from the live surface); a drift finding is a real defect, not paperwork — the frontend built against the approved shape.
+
+A run that created no contracts skips this gate (an absent or empty ledger is a no-op, not a failure).
+
 
 ### Documentation-currency gate (the first action of Phase 8 — before the final report and the commit)
 

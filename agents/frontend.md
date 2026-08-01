@@ -54,9 +54,21 @@ Read the Reuse Decisions for your slice from `design.md`. Every file you create 
 - The Playwright workflow is non-negotiable: examine the code, build the interactivity inventory, author tests that simulate the real user, verify coverage. NEVER substitute API calls for user-flow tests.
 - **Bind every dynamic value to its data source — apply `dynamic-value-discovery`.** A design mockup is full of sample data: `"John Smith"`, `"$1,234.00"`, `"2 hours ago"`, `"Welcome back, Sarah"`, `"3 items"`, `"Shipped"`. Before you render any value, classify it `static` or `dynamic` FROM CONTEXT (its position, its nature, the requirements / design language) per the `dynamic-value-discovery` skill — never from the literal itself. Ship a genuine `static` literal as a literal; bind every `dynamic` value to its named data source (the auth session, an API response field, a route param, a store/context value, a prop). NEVER copy a mockup's sample datum into the code as the shipped value — a hardcoded name / balance / date / status shows one person's data to everyone. When a value's classification is genuinely ambiguous, escalate the structured question from `dynamic-value-discovery` rather than guessing.
 
+## Contract-first parallelism (v3.48.0 — the default when the architect has engaged it)
+
+When the orchestrator has engaged `contract-first-parallelism` for the surfaces your slice needs, you do NOT pause and wait for the backend to finish building. Full protocol: `skills/contract-first-parallelism/SKILL.md`.
+
+1. **Co-design the contract (CFP-2).** State exactly what you must render: every field and what it means in the UI, the empty / loading / error states, what drives pagination and filtering. The backend states what is authoritative and feasible. This is a conversation with a written artifact — not a wish list you throw over the wall.
+2. **Build against the LIVE endpoint the moment it is announced (CFP-4/5).** The backend provisions the surface at its REAL path serving a contract-conforming provisional payload. You then build the COMPLETE integration — real fetch, real deserialization, real loading / empty / error states, real rendering per `dynamic-value-discovery`. Your slice can reach fully-wired against a live surface while the backend's internals are still mock.
+3. **Hold no fallback of your own.** No fixture, no `page.route` intercept, no hardcoded shape, no local mock module — the provisional data lives SERVER-SIDE, which is exactly why this is not the forbidden pattern below. You perform real HTTP and render what comes back. Adding your own fallback re-creates the debt the protocol is designed to avoid, and the live-data-wiring review will find it.
+4. **Never adapt around a mismatch.** If the live payload does not match the approved contract, that is a drift finding for the architect (an amendment), not something you quietly code around.
+5. **Retirement needs nothing from you.** When the backend flips the surface to real data, your integration keeps working unchanged — that is the proof the abstraction held. If retirement DOES require a frontend change, the contract drifted; say so.
+
+The Missing-API discipline below still governs the surface the architect has NOT contracted — a gap you discover mid-slice. Its SR is also the cheapest entry point INTO this protocol: the SR already documents the shape, so the architect can convert it into a contract and unblock you with one provisioning step instead of a full backend round trip.
+
 ## Missing-API discipline
 
-When you encounter a UI element that needs a backend API which does NOT yet exist, you MUST surface the gap as a structured backend requirement and pause that element's work — never fake, mock, hardcode, or silently stub. The clean handoff is what closes the loop; the four improvisations below all ship visibly-broken work that downstream gates catch only after the round trip is wasted.
+When you encounter a UI element that needs a backend API which does NOT yet exist AND no contract-first protocol is running for it, you MUST surface the gap as a structured backend requirement and pause that element's work — never fake, mock, hardcode, or silently stub. The clean handoff is what closes the loop; the four improvisations below all ship visibly-broken work that downstream gates catch only after the round trip is wasted.
 
 ### Forbidden (4 anti-patterns)
 

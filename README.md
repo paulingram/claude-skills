@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 47 . 1
+                        ─── C T 6 ───   v 3 . 48 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.47.1-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.48.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-6537%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -77,20 +77,24 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.47.1  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.48.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.47.1 — compact-readme-release-history: the README goes compact; the complete narrative moves to docs/RELEASE_HISTORY.md
+### v3.48.0 — contract-first parallelism: the frontend stops waiting on the backend's build
 
-A docs-only PATCH. The README had accumulated ~610 lines of per-release NEW-IN narrative — 55 distinct release identities — above its durable content, reaching 1785 lines. That narrative now lives in `docs/RELEASE_HISTORY.md`, moved byte-identical, and the README is compact, carrying exactly ONE release spotlight (this one) plus a visible pointer block where the narrative used to begin. The convention is APPEND-AND-SWAP: each release appends its section to the history and swaps the README spotlight — the current release therefore appears in both places, and the history is complete.
+The frontend never needed the backend's *implementation* — only its *interface*, and those two become available at very different times. Treating them as one is what serialized full-stack runs: the frontend hit a missing endpoint, filed an SR, **paused that element**, and waited a whole backend round trip before it could wire anything.
+
+Now the architect settles the interface first and makes it **real immediately**. Both sides co-design the inbound surface contract, the architect approves it (binding — neither side moves it unilaterally), and the backend's first action is to provision the endpoint **at its real path** serving a contract-conforming payload. The frontend builds a fully integrated interface against that **live** endpoint — real HTTP, real error paths — while the backend replaces the internals underneath. Neither waits.
 
 | What shipped | Detail |
 |---|---|
-| **`docs/RELEASE_HISTORY.md` (NEW)** | The complete per-release narrative, moved out of the README byte-identical and verified by a three-verdict extraction check with negative controls — 55 release identities named by the pre-change README, 55 reachable after the move (README + history), NONE lost. Complete-history convention: every release including the current one. |
-| **The compact README** | 1785 → 1182 lines. One swapped-per-release spotlight (never accumulated), the house-style RELEASE HISTORY pointer block above it, every durable region untouched (inventory grids, install, usage, logic maps, loops, on-demand commands, conventions, notifications, UI-interaction fidelity, development), the ASCII banner fixed. `### Bumping versions` gains step 5 documenting append-and-swap. |
-| **The convention, pinned — NEW `tests/test_release_history.py` (13 tests)** | Exactly-one-spotlight; the spotlight version DERIVED from `plugin.json` (a bump that misses the swap goes red, not stale); the pointer pin anchored to the block's STRUCTURE, so a stray path mention elsewhere cannot satisfy it; a 55-release-identity completeness floor across all three naming grammars; and standing mutation tests proving each pin bites — a second spotlight, a deleted pointer block, and a history gutted from 157 KB to ~6 KB are each REJECTED. Adversarially hardened: the first implementation's pins passed against content that had genuinely lost the property; a 4-break review loop made them falsifiable. |
-| **Counts + tests** | 1 new test file (+13 tests). Suite **6524 → 6537 passing + 6 skipped, 0 failed** (222 test files, Windows-measured basis; the macOS basis unmeasured since v3.46.0). Skill / agent / command / hook / Layer-3-tool counts UNCHANGED (49 / 39 / 23 / 7 / 21). The 3.47.1 bump moved `tests/test_dispatch_banner.py`'s version pin in lockstep with the plugin JSONs. |
+| **The protocol (50th skill)** | `contract-first-parallelism` — CFP-1 detect (both `new-surface` and the equally-blocking `amend-surface`, where an existing endpoint lacks attributes the UI must render) → CFP-2 co-design → CFP-3 architect approval (binding) → CFP-4 immediate provisioning at the REAL path → CFP-5 parallel build → CFP-6 mandatory retirement. |
+| **Why it is not fake data** | The provisional payload lives **server-side behind the real path**. The frontend holds no fixture, no `page.route` intercept, no hardcoded shape — it performs real HTTP and renders what comes back, which is strictly *more* live-wired than the alternative. The forbidden frontend-side patterns are unchanged. |
+| **The debt is always repaid** | Every provisioned mock is tracked in a forward-only ledger (`proposed → approved → mock-serving → live`). `scripts/contract/interface_contract.py gate` makes the run **non-closable** while any surface is still `mock-serving` — "retire it next run" is the end-of-run deferral the disciplines already forbid. |
+| **The engine** | `scripts/contract/interface_contract.py` (stdlib) — `validate_contract` (the approval gate: untyped fields, missing error states, and un-rooted paths all block), `build_contract_doc`, `transition` (backward transitions refused), `retirement_gate`, `contract_drift` (approved shape vs an observed payload). It never performs HTTP: the observed payload is supplied by the agent that hit the endpoint. |
+| **Wiring** | Phase 2 engages the protocol **before** teams spawn; Phase 8 runs the retirement gate before the commit; mini M4/M7 mirror it. `system-architect` gains a tenth mode (**Interface Contract Approval**, reuse-first); `backend` owns provisioning + retirement; `frontend` builds against live and holds no fallback of its own. The missing-API SR path is narrowed to surfaces the architect has *not* contracted — and is the cheapest entry point into the protocol. |
+| **Counts + tests** | New `tests/test_contract_first_parallelism.py` (41). Skills **49 → 50**; agents / commands / hooks unchanged (39 / 23 / 7); Layer-3 tools unchanged (21). |
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -99,7 +103,7 @@ A docs-only PATCH. The README had accumulated ~610 lines of per-release NEW-IN n
 ```
 
 ```
-┌─ SKILLS (49) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
+┌─ SKILLS (50) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (fable)            │
 │ ◇ intake-and-mapping                │ ◆ frontend (fable)                    │
 │ ◇ reuse-first-design                │ ◆ backend (fable)                     │
