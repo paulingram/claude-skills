@@ -8,9 +8,24 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.47.1  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.48.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.48.0 — contract-first parallelism: the frontend stops waiting on the backend's build
+
+The frontend never needed the backend's *implementation* — only its *interface*, and those two become available at very different times. Treating them as one is what serialized full-stack runs: the frontend hit a missing endpoint, filed an SR, **paused that element**, and waited a whole backend round trip before it could wire anything.
+
+Now the architect settles the interface first and makes it **real immediately**. Both sides co-design the inbound surface contract, the architect approves it (binding — neither side moves it unilaterally), and the backend's first action is to provision the endpoint **at its real path** serving a contract-conforming payload. The frontend builds a fully integrated interface against that **live** endpoint — real HTTP, real error paths — while the backend replaces the internals underneath. Neither waits.
+
+| What shipped | Detail |
+|---|---|
+| **The protocol (50th skill)** | `contract-first-parallelism` — CFP-1 detect (both `new-surface` and the equally-blocking `amend-surface`, where an existing endpoint lacks attributes the UI must render) → CFP-2 co-design → CFP-3 architect approval (binding) → CFP-4 immediate provisioning at the REAL path → CFP-5 parallel build → CFP-6 mandatory retirement. |
+| **Why it is not fake data** | The provisional payload lives **server-side behind the real path**. The frontend holds no fixture, no `page.route` intercept, no hardcoded shape — it performs real HTTP and renders what comes back, which is strictly *more* live-wired than the alternative. The forbidden frontend-side patterns are unchanged. |
+| **The debt is always repaid** | Every provisioned mock is tracked in a forward-only ledger (`proposed → approved → mock-serving → live`). `scripts/contract/interface_contract.py gate` makes the run **non-closable** while any surface is still `mock-serving` — "retire it next run" is the end-of-run deferral the disciplines already forbid. |
+| **The engine** | `scripts/contract/interface_contract.py` (stdlib) — `validate_contract` (the approval gate: untyped fields, missing error states, and un-rooted paths all block), `build_contract_doc`, `transition` (backward transitions refused), `retirement_gate`, `contract_drift` (approved shape vs an observed payload). It never performs HTTP: the observed payload is supplied by the agent that hit the endpoint. |
+| **Wiring** | Phase 2 engages the protocol **before** teams spawn; Phase 8 runs the retirement gate before the commit; mini M4/M7 mirror it. `system-architect` gains a tenth mode (**Interface Contract Approval**, reuse-first); `backend` owns provisioning + retirement; `frontend` builds against live and holds no fallback of its own. The missing-API SR path is narrowed to surfaces the architect has *not* contracted — and is the cheapest entry point into the protocol. |
+| **Counts + tests** | New `tests/test_contract_first_parallelism.py` (41). Skills **49 → 50**; agents / commands / hooks unchanged (39 / 23 / 7); Layer-3 tools unchanged (21). |
 
 ### v3.47.1 — compact-readme-release-history: the README goes compact; the complete narrative moves to docs/RELEASE_HISTORY.md
 

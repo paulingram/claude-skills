@@ -10,7 +10,7 @@ Every capability CLAUDE TEAM SIX ships, one line each, derived from the `name` +
 generated, never hand-edited — after adding or renaming any skill, command,
 or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py --write`.
 
-## Skills (49)
+## Skills (50)
 
 - **api-design-from-frontend** — Extracts the "backend logic from frontend" portion (Stages 5+6+7) of visual-to-api-design as a standalone reusable skill
 - **architect-team-pipeline** — Use when a feature needs to be driven end-to-end to tested, integrated, demonstrable production code
@@ -20,6 +20,7 @@ or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py -
 - **claude-md-efficiency** — Use when MemPalace is installed and you are authoring or auditing a project's CLAUDE.md (or AGENTS.md)
 - **closeout** — Use at the END of a work session — before compacting context, before declaring work done, or when invoked via /architect-team:closeout
 - **common-pipeline-conventions** — Use as the canonical home for cross-cutting conventions shared by every architect-team pipeline (architect-team-pipeline, …
+- **contract-first-parallelism** — Use whenever a run needs BOTH backend surface work AND a frontend that visualizes that data — a full-stack build from scratch, or an …
 - **coverage-mapping** — Use when building the Phase 1 coverage map, when verifying a team's slice in Phase 3, or when running the Phase 7 master review
 - **data-dictionary** — Use when a codebase consumes data tables/databases and you need a self-contextualizing data dictionary — given code and/or documentation …
 - **data-engineering-exploration** — The data-plane analog of `visual-to-api-design` — a 7-stage exploration pipeline for data engineering / data architecture asks (dbt …

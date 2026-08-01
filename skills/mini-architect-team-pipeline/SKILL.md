@@ -218,6 +218,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <na
 
 ## Phase M4 — Parallel dev dispatch (backend + frontend, cross-review)
 
+**Contract-first parallelism (v3.48.0) — before the dispatch.** If the slice needs backend surfaces the frontend must visualize (a new endpoint, or new attributes on an existing one), engage `contract-first-parallelism` first: the two agents co-design the inbound surface contract, the Lead approves it (the mini variant's Lead absorbs the `system-architect` `## Interface Contract Approval` role), and the backend provisions the endpoint AT ITS REAL PATH with a contract-conforming provisional payload registered in `<workspace>/.architect-team/contracts/ledger.json`. The frontend then builds its complete integration against the live surface instead of waiting on the backend's internals. The mock-retirement gate runs at M7 — see there.
+
 The Lead creates `backend` + `frontend` tasks **in parallel** in the shared list (teams mode) OR dispatches the `backend` and `frontend` subagents **in parallel** via a single Agent-tool call carrying multiple invocations (subagents mode) — mirrors `architect-team-pipeline` Phase 2. Bracket the dispatch with the v3.34.0 dispatch-wait pair per `## Notifications` — emit `waiting_on_agents` (`--agents "backend-dev — <backend slice>; frontend-dev — <frontend slice>"`) as the parallel dispatch goes out, and `agents_complete` (per-dev outcomes incl. the cross-review verdicts) when both devs have returned. The same pair brackets the Phase M5 `mini-qa` dispatch. Each dev applies `superpowers:test-driven-development` — write the failing test before the implementation code, per `## Plugin prerequisites (v3.9.0)`. Each receives:
 
 - `tasks.md` from M2/M3 — with the file-scope partition.
@@ -272,6 +274,14 @@ Read `.architect-team/mini/<slug>/qa-verdict-cycle-<N>.json`:
 - `verdict: env-failure` → halt. Write `.architect-team/mini/<slug>/env-failure.md` summarizing the env issue and surface to user. Do NOT increment the M8 cycle counter — env failures are not the fix's fault.
 
 ## Phase M7 — Auto-merge to main
+
+**Mock-retirement gate (v3.48.0 — CFP-6).** If M4 created any interface contract, run the gate BEFORE the merge — a run does not close on a surface still serving a provisional payload:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --ledger "<workspace>/.architect-team/contracts/ledger.json" || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --ledger "<workspace>/.architect-team/contracts/ledger.json"
+```
+
+Any blocking finding routes back to the backend agent to flip the surface to real data, verify end-to-end through the same live path, and transition the entry to `live`. A run with no contracts skips this (an absent ledger is a no-op).
 
 ### Deploy mandate final gate (v2.20.0)
 

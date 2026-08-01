@@ -50,6 +50,7 @@ EXPECTED_SKILLS: set[str] = {
     "data-dictionary",
     "closeout",
     "delivery-manifest",
+    "contract-first-parallelism",
     "claude-md-efficiency",
     "mcp-output-contract-design",
     "helpdesk",
