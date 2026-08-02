@@ -421,14 +421,23 @@ def test_pipeline_body_checks_declared_gates_before_ship(plugin_root: Path, skil
         "`## Declared-gates discipline` section in common-pipeline-conventions "
         "rather than re-explaining the rule"
     )
-    idx = body.index("declared-gates.json")
-    window = body[max(0, idx - 1500): idx + 1500].lower()
+    # Scan EVERY mention, not just the first. A pipeline may legitimately name the
+    # registry more than once — v3.48.0's contract-first parallelism DECLARES a
+    # retirement gate at provisioning time, which is the registry's own rule ("a
+    # gate you name is a gate you record") and necessarily precedes the ship step.
+    # The property under test is that SOME mention is the ship-adjacent one; that
+    # the earliest happens to be is a formatting accident, not the requirement.
     verbs = SHIP_STEP_PIPELINES[skill]
-    assert any(v in window for v in verbs), (
-        f"{skill}: the declared-gates reference is not in the ship-adjacent text "
-        f"(expected one of {verbs} nearby)"
+    windows = []
+    start = 0
+    while (idx := body.find("declared-gates.json", start)) != -1:
+        windows.append(body[max(0, idx - 1500): idx + 1500].lower())
+        start = idx + 1
+    assert any(any(v in w for v in verbs) for w in windows), (
+        f"{skill}: no declared-gates reference sits in the ship-adjacent text "
+        f"(expected one of {verbs} within 1500 chars of a mention)"
     )
-    assert "satisf" in window, (
+    assert any(any(v in w for v in verbs) and "satisf" in w for w in windows), (
         f"{skill}: the ship text must require the registry to be SATISFIED, not merely mention it"
     )
 

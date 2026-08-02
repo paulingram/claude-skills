@@ -474,7 +474,8 @@ The contract data JSON (`<workspace>/.architect-team/contracts/<contract-id>.jso
 1. **Run the deterministic gate first** — `scripts/contract/interface_contract.py validate --json <contract.json>`. Zero error-severity findings is the entry bar; a contract that fails it is returned to the two agents, not approved with caveats.
 2. **Judge what the engine cannot.** (a) Does the shape actually serve the user-facing requirement — can the frontend render the required UI from these fields alone? (b) Does it fit this project's existing API conventions (naming, envelope, pagination, error shape) per the maps? (c) **Reuse-first**: does an existing surface already carry this data, or nearly? The cheapest contract is one that already exists — prefer an `amend-surface` on a real endpoint over a new one. (d) Is every error state the UI must handle actually declared?
 3. **Confirm the path is the REAL path.** The frontend must never be pointed at a temporary path or a separate mock server — re-pointing later is the rework the protocol exists to eliminate.
-4. **Verdict.** `approved` binds the contract: neither agent may change it unilaterally, and any necessary change returns to you as an amendment which you then relay to the other side.
+4. **Check the containers are shaped.** An `array` or `object` response field that declares no `items` / `fields` shape validates only as an advisory, and it is one you should usually refuse: the element shape of a collection is the part most likely to move while the backend swaps its internals, and the frontend is being asked to build a complete integration against it.
+5. **Verdict.** `approved` binds the contract: neither agent may change it unilaterally, and any necessary change returns to you as an amendment which you then relay to the other side. On approval, confirm the backend registered the retirement gate (`declare-gate` writes `cfp-retirement-<contract-id>` into `<workspace>/.architect-team/declared-gates.json`) — an unregistered contract is a debt nothing will stop the run from shipping.
 
 ### Verdict schema
 
@@ -495,8 +496,7 @@ The contract data JSON (`<workspace>/.architect-team/contracts/<contract-id>.jso
 
 - **Never approve a contract you would not let the frontend ship against.** The frontend will build a complete interface on this shape while the backend's internals are still mock — an ambiguity you wave through becomes rework in both slices.
 - **Never approve an untyped field or a missing error state.** The engine blocks these; do not seek a way around it.
-- **You own the ledger's honesty.** Approving a contract creates a debt (a mock will serve at a real path). You are the one who refuses to close the run while `scripts/contract/interface_contract.py gate` reports an unretired entry — there is no "retire next run" disposition.
-
+- **You own the ledger's honesty.** Approving a contract creates a debt (a mock will serve at a real path). You are the one who refuses to close the run while `scripts/contract/interface_contract.py gate` reports an unretired entry — or an entry it could not read, which the gate blocks on for the same reason — and there is no "retire next run" disposition.
 
 ## No end-of-run deferral discipline (v2.10.0)
 

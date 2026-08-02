@@ -64,6 +64,20 @@ The output is the contract data (`contract_id`, `shape`, `method`, `path`,
 `consumer`, `owner`, `purpose`, `response_fields` — each with a name, a type,
 and its meaning — `error_states`, and for `amend-surface` the `added_fields`).
 
+**Shape the containers, not just the top level.** A field typed `array` declares
+its element shape under `items`; a field typed `object` declares its members
+under `fields` — both taking the same list-of-declarations form as
+`response_fields`, so the contract binds all the way down and the drift check
+adjudicates nested fields by their payload path (`items[].total`, `meta.count`).
+This matters most for the commonest REST shape of all: a collection response
+whose element shape is the thing most likely to move while the backend swaps its
+internals. A container left unshaped still validates, but as an ADVISORY that
+says so out loud — the architect is told the contract does not constrain its
+contents, rather than the gap passing silently. Model a collection as a declared
+`array` field on the response object; the drift check adjudicates named fields,
+so a bare top-level JSON array is reported as a payload it cannot bind rather
+than being crashed on or waved through.
+
 ### CFP-3 — Architect approval (the binding moment)
 
 The architect (`system-architect`, `## Interface Contract Approval`) reviews and
@@ -100,15 +114,41 @@ logic, as the first thing it does with the approved contract:
    or a "mock server" it will later have to be re-pointed away from. Re-pointing
    is exactly the rework this protocol exists to avoid.
 2. **Serving a contract-conforming payload.** Every declared field present, with
-   the declared type, carrying plausible representative values. Every declared
-   error state reachable (a documented trigger — a query flag, a known id — so
-   the frontend can build and test its error paths on day one).
-3. **Marked as mock, in the response and in the ledger.** The payload carries an
-   explicit provisional marker the retirement check can see (e.g. a
-   `"_mock": true` envelope field or the documented project equivalent), and the
-   surface is recorded in
-   `<workspace>/.architect-team/contracts/ledger.json` with state
-   `mock-serving`, its owner, and its consumer.
+   the declared type, carrying plausible representative values drawn from the
+   project's own domain vocabulary. Every declared error state reachable (a
+   documented trigger — a query flag, a known id — so the frontend can build and
+   test its error paths on day one). The handler is production backend code, so
+   the `verify-no-fake-data` sweep applies to it in full: see
+   `## Relationship to the no-fake-data disciplines` for the values to avoid.
+3. **Marked as mock — in the payload, in the ledger, and in the gate registry.**
+   Three records, because three different things read them:
+
+   - **The payload** carries an explicit provisional marker: `"_mock": true`, or
+     the contract's own `provisional_marker`. This is a MACHINE check, not a
+     convention — the CFP-6 retirement drift check (`drift --retirement`) blocks
+     on that marker at any depth, so a surface cannot be called retired while it
+     still serves its envelope. Never DECLARE the marker in `response_fields`;
+     the approval gate refuses that, because a declared marker would be a
+     permanently legitimate one.
+   - **The ledger** at `<workspace>/.architect-team/contracts/ledger.json`
+     records the surface with state `mock-serving`, its owner, and its consumer.
+     The file is either a bare JSON array of entries or an object wrapping that
+     array under `"contracts"` — nothing else. The gate reads it and FAILS
+     CLOSED: an unrecognized state, an entry that is not an object, and an
+     unrecognized wrapper each block with a named reason rather than reading as
+     an empty ledger. A gate that reports the all-clear on input it could not
+     parse is worse than no gate at all.
+   - **The declared-gates registry** takes one entry per contract, so retirement
+     is enforced by machinery rather than by memory:
+
+     ```
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" declare-gate --json <contract.json> --registry "<workspace>/.architect-team/declared-gates.json" || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" declare-gate --json <contract.json> --registry "<workspace>/.architect-team/declared-gates.json"
+     ```
+
+     That records `cfp-retirement-<contract-id>`, and the v3.47.0 Stop-hook
+     completion audit then refuses to let the run finish until that entry carries
+     a `satisfied_at` and an evidence file with bytes in it. Re-declaring is a
+     no-op, and gates other disciplines recorded are left untouched.
 4. **Announced.** The backend tells the frontend the surface is live. The
    frontend starts integrating in the same phase — this is the moment the
    parallelism is won.
@@ -144,10 +184,11 @@ the frontend needs no change at retirement, which is the proof the abstraction
 held. Record `verified_by` (the evidence: the integration test, the Playwright
 flow, the observed payload) and transition the entry to `live`.
 
-Confirm the delivered shape still matches what was approved:
+Confirm the delivered shape still matches what was approved, in the retirement
+reading — which additionally requires the provisional marker to be GONE:
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" drift --json <contract.json> --observed <observed-payload.json> || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" drift --json <contract.json> --observed <observed-payload.json>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" drift --json <contract.json> --observed <observed-payload.json> --retirement || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" drift --json <contract.json> --observed <observed-payload.json> --retirement
 ```
 
 Then the gate itself, which the pipeline runs at close-out:
@@ -157,10 +198,23 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --le
 ```
 
 **Any surface still `mock-serving` (or earlier) is a blocking finding and the run
-does not close.** A mock that outlives its run is exactly the technical debt the
+does not close** — and so is any entry the gate cannot read (see CFP-4's ledger
+rules). A mock that outlives its run is exactly the technical debt the
 no-fake-data disciplines exist to prevent — the ledger is what makes the
 temporary genuinely temporary. There is no "retire it next run" disposition;
 that is the end-of-run deferral the `no-end-of-run-deferral` discipline forbids.
+A run that recorded no contracts has no ledger file, and the gate says so and
+exits clean — an absent ledger is a no-op, not a failure.
+
+Capture the gate's output, then close the declared gate each contract opened:
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" satisfy-gate --gate-id cfp-retirement-<contract-id> --evidence <captured-gate-output.txt> --registry "<workspace>/.architect-team/declared-gates.json" || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" satisfy-gate --gate-id cfp-retirement-<contract-id> --evidence <captured-gate-output.txt> --registry "<workspace>/.architect-team/declared-gates.json"
+```
+
+Until that lands, the Stop-hook completion audit blocks the run and quotes the
+gate's own declaration back. Never edit or delete a registry entry to get past
+it — that is the unilateral override the meta-gate catches.
 
 The ledger state machine is forward-only: `proposed → approved → mock-serving →
 live`. A live surface never reverts to serving its mock.
@@ -176,6 +230,25 @@ while staying parallel. The distinction is WHERE the provisional data lives:
 | Frontend intercepts the network (`page.route`) and calls it tested. | No interception; real HTTP to the real path. |
 | Frontend hardcodes the response shape in a component. | Shape comes from the wire, per the approved contract. |
 | A mock with no owner and no expiry becomes permanent debt. | Every mock is ledger-tracked and gate-enforced to `live` before close. |
+| Placeholder values sitting in production code. | The mock handler is production code and is swept like any other — see below. |
+
+**The backend handler is production code, and the sweep applies to it.** The
+Layer-3 `verify-no-fake-data` verifier (`hooks/vao/fake_data.py`) exempts test
+paths, not backend handlers, so a provisioned mock at a real path is swept in
+full — and the adversarial reviewer paired with the backend teammate will flag
+it, correctly, if it trips. The protocol does not carve out an exemption: an
+exemption would have to outlive the mock to be useful, which is exactly the
+permanence the ledger exists to prevent. Instead, CFP-4's "plausible
+representative values" means values from the project's own domain vocabulary,
+which are more useful to the frontend anyway. Concretely, the mock must avoid the
+verifier's forbidden vocabulary: `placeholder-name` (`Jane Doe`, `John Smith`),
+`placeholder-email` (`jane.doe@example.com` and friends), `lorem-ipsum`, and
+`placeholder-money` (`$1,234`) — and the frontend-side handler patterns
+(`page.route(...).fulfill`, `rest.get(` / `http.get(`) remain forbidden
+everywhere, since the whole point is that the provisional data lives server-side
+behind the real path. A mock that passes the sweep is a better mock; one that
+trips it is telling you it was written from a placeholder template rather than
+from the domain.
 
 `agents/frontend.md` `## Missing-API discipline` still governs the case where NO
 contract-first protocol is running: the frontend authors the SR and pauses that
@@ -197,14 +270,25 @@ backend round trip.
 3. **Refusing a contract that cannot be built against** — an untyped field, a
    missing error state, a surface that duplicates an existing one.
 4. **Owning the ledger** as run state, and refusing to close the run while it
-   carries an unretired entry.
+   carries an unretired entry — or an entry the gate reports it could not read,
+   which is the same refusal for the same reason.
+5. **Confirming every approved contract was registered** with `declare-gate`, so
+   the close-out refusal is the machinery's and not only the architect's memory.
 
 ## Honest boundary
 
 The engine adjudicates SHAPE — contract completeness, ledger state, drift
 against an observed payload — and never performs HTTP: the observed payload is
-supplied by the agent that actually hit the endpoint. "Plausible representative
-values" in a mock payload is LLM judgment, not a machine check. And the
+supplied by the agent that actually hit the endpoint. So the marker check and
+the drift check are only as honest as the payload someone captured: the engine
+can prove a captured payload still carries its scaffold, it cannot prove the
+captured payload came from the endpoint. "Plausible representative values" in a
+mock payload is LLM judgment, not a machine check — the sweep above rules out a
+known-bad vocabulary, which is a floor, not a guarantee of plausibility.
+Enforcement of the retirement gate is real but INDIRECT: the declared-gates
+entry is what the Stop-hook audit blocks on, so a contract provisioned without
+`declare-gate` is a gate nothing enforces. Registering it at provisioning time —
+the same action that creates the debt — is what closes that gap. And the
 protocol's benefit is real but bounded: it removes the frontend's wait on
 backend BUILD time; it does not remove the need for the real implementation,
 and the retirement gate is what keeps that honest.

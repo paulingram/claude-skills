@@ -8,6 +8,28 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.48.1  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.48.1 — review-and-harden: the foreign contract-first release held to house standards
+
+v3.48.0 (contract-first parallelism) merged from a foreign, non-CT6 session — and **FAILED its first CT6 paired review**. The adversary and the independent reviewer converged first-hand on the same central defect: the retirement ledger's reader was fail-OPEN. A hand-typed `mock_serving`, a `{"entries": [...]}` wrapper, or any unrecognized entry shape read as an EMPTY ledger — the close-out gate reported green, with an all-zero summary indistinguishable from a clean run, while the ledger carried an unretired mock. And the "non-closable" claim repeated across four docs was enforced by nothing.
+
+This PATCH closes all **13 findings** (9 adversarial breaks + 4 independent) fix-forward — nothing reverted, no finding resolved by weakening its claim — and both fix-pass review verdicts are **PASS**.
+
+| What was closed | Detail |
+|---|---|
+| **Fail-open → fail-CLOSED (2 CRITICAL)** | `normalize_ledger` makes unreadability a module invariant: an unrecognized state, a non-mapping entry, and an unknown container shape each BLOCK with a named reason (`unknown-ledger-state` / `unrecognized-ledger-shape`) instead of reading as empty; the summary gains an `unknown` bucket so its counts always sum to the ledger, and an unreadable ledger reports `ledger: UNREADABLE`, never zeros. An absent ledger stays a clean no-op (`no contracts recorded`, exit 0). |
+| **The "non-closable" claim made TRUE** | `declare-gate` / `satisfy-gate` write one `cfp-retirement-<contract-id>` entry per contract into the REAL v3.47.0 `.architect-team/declared-gates.json` registry, so the EXISTING Stop-hook `_audit_declared_gates` arm is what blocks the run — `hooks/pipeline-completion-audit.py` byte-UNCHANGED, verified by driving the declare → audit-blocks → satisfy → audit-clean loop through the real arm. Wired at backend provisioning (CFP-4), Phase 2 / Phase 8, and mini M4 / M7. |
+| **The advertised marker check made real** | The skill claimed a provisional-marker check no code performed. `drift --retirement` (the CFP-6 reading) now REFUSES a payload still carrying its provisional marker at ANY depth (`items[]._mock`, named by path); without `--retirement` it stays advisory, preserving the CFP-5 reading. `validate_contract` additionally refuses a contract that DECLARES its own marker as a response field. |
+| **Correctness + nested binding** | A top-level JSON-array payload draws a clean named error (`observed-payload-not-an-object`) instead of a `TypeError` traceback; `array` / `object` fields declare element / member shapes under `items` / `fields`, validated recursively and drift-adjudicated by payload path (`items[].total`); an unshaped container is a spoken advisory the architect is told to usually refuse. |
+| **Tests that could not fail, fixed** | Three adversary mutations SURVIVED the foreign release's 41 greens (`REQUIRED_CONTRACT_FIELDS` gutted 8 → 1, `_HTTP_METHODS` narrowed, the contract doc's New column inverted) — all three now killed. The file grew **41 → 149 cases** (red-first, green under both encodings), and a valid `verify-check-can-fail` verdict now covers the release's test file — the foreign branch shipped none. |
+| **The CFP mock vs `verify-no-fake-data`** | Reconciled in the STRICTER direction — no exemption: the provisional handler is production backend code, so `Jane Doe` / lorem-ipsum / `$1,234` are correctly flagged in a backend diff; the skill now names the verifier's REAL categories, test-pinned against `_FAKE_DATA_PATTERNS` — `hooks/vao/fake_data.py` byte-unchanged. |
+| **Counts + tests** | Suite **6582 → 6690 passing + 6 skipped, 0 failed** (+108; 223 test files, Windows-measured under both default cp1252 and `PYTHONUTF8=1`; re-verified post-bump). Counts UNCHANGED (50 / 39 / 23 / 7 / 21); NO new skill / agent / command / hook / Layer-3 tool. The 3.48.1 bump moved `tests/test_dispatch_banner.py`'s pin in lockstep. |
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.48.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
