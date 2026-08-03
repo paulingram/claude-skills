@@ -65,14 +65,15 @@ def _discover_canonical_commands() -> tuple[str, ...]:
         names = []
     if names:
         return tuple(names)
-    # Frozen fallback — the 22 commands shipped as of v3.21.0 (+closeout, +logit).
+    # Frozen fallback — the 24 commands shipped as of v3.49.0 (+closeout v3.18.0,
+    # +logit v3.21.0, +librarian-install v3.29.0, +knowledge-install v3.49.0).
     return (
         "absorb-phenotype", "architect-team", "architect-team-setup", "bug-fix",
         "classify-test-prod-safety", "cleanup-worktrees", "closeout",
-        "discipline-status", "editability-audit", "inject", "logit", "memory",
-        "mempalace-install", "mini", "mini-review-sweep", "monitor-tests",
-        "optimize-structure", "refine-prompt", "status", "ux-test", "visual-qa",
-        "visual-to-api",
+        "discipline-status", "editability-audit", "inject", "knowledge-install",
+        "librarian-install", "logit", "memory", "mempalace-install", "mini",
+        "mini-review-sweep", "monitor-tests", "optimize-structure", "refine-prompt",
+        "status", "ux-test", "visual-qa", "visual-to-api",
     )
 
 

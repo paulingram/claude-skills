@@ -323,8 +323,16 @@ def test_pin_bites_on_a_truncated_history(plugin_root: Path) -> None:
     body = _read(plugin_root, HISTORY)
     version = json.loads(_read(plugin_root, PLUGIN_JSON))["version"]
 
-    cut = body.find("█▓▒░  ◆  NEW IN v3.41.0")
-    assert cut > 0, "fixture precondition: the history's second section moved"
+    # Cut at the SECOND spotlight divider so only the header + the current-release
+    # section survive — the purest form of the docstring's truncation. Deriving the
+    # cut (rather than a fixed deep anchor) keeps this fixture from silently creeping
+    # toward the 10% line as the history grows: a hardcoded early anchor kept an
+    # ever-larger recent slice and eventually broke on a normal release; the derived
+    # second-divider cut keeps break B1 pinned at a stable ~3% without a per-release bump.
+    dividers = [m.start() for m in re.finditer(
+        r"█▓▒░  ◆  (?:NEW IN|CARRIED FROM) v\d", body)]
+    assert len(dividers) >= 2, "fixture precondition: need >= 2 history sections"
+    cut = dividers[1]
     truncated = body[:cut] + f"\n{EARLIEST_RELEASE_ANCHOR} — see git history\n"
 
     assert f"v{version}" in truncated, "the current-version pin would still pass"

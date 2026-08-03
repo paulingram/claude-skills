@@ -1,0 +1,10 @@
+{
+  "author": "analyst",
+  "annotations": [
+    {"anchor": "customers", "note": "canonical customer master; joins fan out here",
+     "quality_flag": "TRUSTED"},
+    {"anchor": "customers.signup_zip", "note": "sparse before 2024; do not trust for cohorts",
+     "quality_flag": "INCOMPLETE"},
+    {"anchor": "orders.total_cents", "deprecation": "use total_minor_units in the v2 schema"}
+  ]
+}

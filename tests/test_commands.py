@@ -29,6 +29,7 @@ EXPECTED_COMMANDS: set[str] = {
     "closeout",
     "logit",
     "librarian-install",
+    "knowledge-install",
 }
 
 REQUIRED_KEYS = {"description"}

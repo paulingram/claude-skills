@@ -1,0 +1,161 @@
+{
+ "change": "knowledge-server-foundation",
+ "authored_at": "2026-08-03T03:20:54Z",
+ "source": "Run A of docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md \u00a75/\u00a77.1",
+ "baseline": {
+  "command": "PYTHONUTF8=1 python -m pytest -q",
+  "passed": 6690,
+  "failed": 0,
+  "skipped": 6,
+  "measured_at_sha": "e63f67f",
+  "note": "zero NEW failures is the gate; +N added tests expected"
+ },
+ "entries": [
+  {
+   "source_requirement_id": "KS-1-stdio-server",
+   "spec_requirement_id": "knowledge-server/A stdlib-only MCP knowledge server exists",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "stdio loop answers tools/list",
+    "check_separation stays green",
+    "entry point exercised by a test"
+   ],
+   "acceptance_criteria": [
+    "services/knowledge_server/ ships a JSON-RPC-over-stdio server (initialize/tools/list/tools/call) hand-implemented, no mcp SDK import (grep)",
+    "check_separation() passes over the new package (test)",
+    "a test drives the stdio loop end-to-end initialize->tools/list->tools/call (the deng launch-dead-main refusal)",
+    "no LLM/network call in the package (grep + separation)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-2-adapter-seam",
+   "spec_requirement_id": "knowledge-server/A pluggable read-only source-adapter seam",
+   "layer": "infra",
+   "team": "1+2",
+   "scenarios": [
+    "DictionarySource registers dictionary tools",
+    "MapSource registers map tools",
+    "adapters do not write"
+   ],
+   "acceptance_criteria": [
+    "a source-adapter interface exists; DictionarySource mounts search_dictionary/get_table_details/find_relations/get_dictionary_status from a data-dictionary.json fixture",
+    "MapSource mounts search_map/get_route_details/find_call_paths/get_map_status from a lineage+frontmatter fixture",
+    "a test asserts no source artifact file is written by any tool call"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-3-find-call-paths",
+   "spec_requirement_id": "knowledge-server/find_call_paths generalizes deng's join-path query over the lineage edge vocabulary",
+   "layer": "infra",
+   "team": "2",
+   "scenarios": [
+    "a call path is returned from the real graph"
+   ],
+   "acceptance_criteria": [
+    "find_call_paths walks only edges present in lineage-graph.json (calls/reads/writes/modifies/serves/originates/serves_route); a fixture with outbound edges returns the reachable path; invented edges are impossible (test over a fixture)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-4-freshness",
+   "spec_requirement_id": "knowledge-server/Every tool response carries a freshness verdict",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "stale map subtree reported stale",
+    "DB currency unknowable without connection",
+    "current artifact reports current"
+   ],
+   "acceptance_criteria": [
+    "every tool response (not only status tools) carries {verdict in current|stale|unknowable, basis[]}",
+    "map staleness computed by hooks/lineage_graph.py::transitive_stale_nodes over paths changed since the stamp + map_invalidated (test with a stale fixture -> stale)",
+    "dictionary DB currency reported unknowable without a live connection; never a fabricated current; never a bare wall clock (test)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-5-ranked-search",
+   "spec_requirement_id": "knowledge-server/Ranked search composes the Librarian index",
+   "layer": "infra",
+   "team": "1+2",
+   "scenarios": [
+    "search returns ranked results via the shared index"
+   ],
+   "acceptance_criteria": [
+    "search_dictionary/search_map compose services/librarian/library_index.py::LibraryIndex (verifiable by import, not re-implemented); results ranked by its weighting (test)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-6-output-contracts",
+   "spec_requirement_id": "knowledge-server/Tool outputs are closed contracts",
+   "layer": "infra",
+   "team": "1",
+   "scenarios": [
+    "responses validate against their contract"
+   ],
+   "acceptance_criteria": [
+    "each tool's response shape built + validated with scripts/mcp_design/output_contract.py build_output_contract/validate_against_contract; a test asserts a malformed response FAILS validation (the check is falsifiable)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-7-reindex",
+   "spec_requirement_id": "knowledge-server/Re-index on source change",
+   "layer": "infra",
+   "team": "2",
+   "scenarios": [
+    "a changed sidecar triggers re-index"
+   ],
+   "acceptance_criteria": [
+    "a bg_runtime.Scheduler tick re-indexes when a sidecar mtime/hash changes; a test shows subsequent tool calls reflect the new content"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-8-installer",
+   "spec_requirement_id": "knowledge-server/An installer provisions and live-confirms the server",
+   "layer": "infra",
+   "team": "3",
+   "scenarios": [
+    "install prints registration never auto-edits MCP config",
+    "serving confirmed by a live round-trip"
+   ],
+   "acceptance_criteria": [
+    "install_knowledge_server.py provisions ~/.architect-team/knowledge/, PRINTS the MCP registration (never auto-edits user MCP config - test), --check-only/--json/status/uninstall --purge parity",
+    "'serving' is printed ONLY after a real live tools/call round-trip against the started server (confirm_gateway_serving bar); described 'serving on this machine' never 'deployed' (test)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-9-command",
+   "spec_requirement_id": "knowledge-server/The install command is registered",
+   "layer": "infra",
+   "team": "3",
+   "scenarios": [
+    "command count moves in lockstep"
+   ],
+   "acceptance_criteria": [
+    "commands/knowledge-install.md exists (librarian-install shape); canonical-command pin tests/test_skill_invocation_audit_canonical.py 23->24; COMMAND_TO_SKILLS carries it; CAPABILITY_INDEX fresh; instruction-compliance zero findings (no ': ' in description)"
+   ]
+  },
+  {
+   "source_requirement_id": "KS-MANDATE-release",
+   "spec_requirement_id": "(cross-cutting: tasks group 4)",
+   "layer": "infra",
+   "team": "4",
+   "scenarios": [
+    "suite zero-new-failures",
+    "live serving demo",
+    "v3.49.0 released"
+   ],
+   "acceptance_criteria": [
+    "full suite zero NEW failures vs baseline 6690/0/6 both encodings; check_separation green (captured)",
+    "a live tools/call round-trip captured as the serving demo",
+    "version 3.49.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG rubric entry; doc-currency audit PASS; completion audit exit 0"
+   ]
+  }
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - authorized: the target is the CT6 plugin (stdlib services + CLI); the knowledge server has NO web UI. Its user-experience layer IS its stdio/JSON-RPC tool behavior + the installer's live round-trip, verified by pytest driving the stdio loop end-to-end + the confirm-serving round-trip (the equivalent of a real-backend integration test).",
+  "dev_api_integration": "n/a - authorized: no HTTP API; the MCP stdio server is exercised in-process by the entry-point tests and by the installer's live tools/call confirmation (the real-serving check).",
+  "both_layer_integration": "n/a - all entries layer infra by the repo convention."
+ },
+ "confirmed_stubs": [],
+ "scope_extensions": []
+}
