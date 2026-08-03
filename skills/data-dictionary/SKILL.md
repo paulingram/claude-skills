@@ -27,8 +27,9 @@ whether it already exists:
 - `docs/data-dictionary.json` — the machine sidecar (`schema: data-dictionary/v1`).
 
 The artifact contains: the DB name (when known), the schema name (when
-inferable), every table with its inferred **grain**, every field with a
-**definition + type + provenance + confidence + corroboration**, an **extensive
+inferable), every table with its inferred **grain** (and, when a live engine
+exposes usage statistics, a measured **usage** block — R4 below), every field with
+a **definition + type + provenance + confidence + corroboration**, an **extensive
 by-field / by-table reference map** (which code calls which tables/fields), and a
 **relational / blend map** — including non-DB relations expressed only in code
 (e.g. census data merged onto individuals on zip code).
@@ -108,6 +109,50 @@ available**, mine the artifact into it per `mempalace-integration`
 (`mempalace --palace <palace> mine docs/DATA_DICTIONARY_MAP.md --wing <wing>`),
 and include it in the documentation set. MemPalace-absent → the on-disk artifact
 is the deliverable; persistence is best-effort.
+
+### Step 6 — Usage-grounded importance (R4, optional)
+
+Where a live engine exposes usage statistics, importance is **measured, not
+guessed**. `build_from_sqlite(...)` accepts an optional injected `usage_stats`
+adapter — a `UsageStatsSource` whose `table_usage(table)` returns
+`{read_recency, write_recency, row_volume}` for a table, or `None` when it has no
+stats. A non-None result attaches a per-table **`usage` block at provenance
+`live-data`** (it IS measured); a `None` **OMITS the block entirely — never
+zero-filled**. An unmeasured table and an idle table are not the same thing, and a
+fabricated zero would rank a live table as dead — so absent stats are silent, not
+zero.
+
+The engine shapes are **described, not bundled** (the plugin ships no DB drivers):
+SQL Server reads recency from `sys.dm_db_index_usage_stats` and row volume from
+`sys.dm_db_partition_stats`; Postgres reads `pg_stat_user_tables`. SQLite has no
+such catalog, so `SqliteUsageStats` honestly returns `None` for every table (the
+block is omitted). A dictionary built with **no** usage source is byte-unchanged.
+The provenance vocabulary is UNCHANGED — `usage` rides the existing `live-data`.
+
+## Offline stakeholder review round-trip (R5)
+
+The fields that most need a human — `confidence == "low"` OR a corroboration
+conflict (⚠) — are sent to a stakeholder as a CSV, edited offline, and read back
+**through the corroboration gate** (a human claim is corroborated like any other,
+never transcribed).
+
+- **`generate-review`** (`data_dictionary.py generate-review --dictionary <json>
+  --out <csv>`) writes a CSV (stdlib `csv`) of those fields, columns `table, field,
+  current_definition, confidence, conflict, usage_volume, proposed_definition` (the
+  last blank for the stakeholder). Rows sort by R4 `usage.row_volume` (descending;
+  fields without usage last). Every row is redacted through
+  `scripts/helpdesk/logit.py::redact_evidence` — the reused privacy engine, never
+  re-implemented — at the default `summary` level, which drops the sample-derived
+  conflict detail (the ⚠ fact survives); `--privacy full` keeps the detail.
+- **`apply-review`** (`data_dictionary.py apply-review --dictionary <json> --review
+  <csv> [--db <sqlite>]`) reads the edited CSV and takes each **non-blank**
+  `proposed_definition` as a `direct-user-input` correction on its **exact**
+  `table.field`, routed through `corroborate_definition` against the table's
+  sampled rows. A correction that conflicts with the data is flagged ⚠ and
+  confidence-downgraded, **not** accepted as truth; with no reachable rows the
+  correction is applied but stays honestly uncorroborated (`needs_corroboration`).
+  The CSV round-trips by the fixed column names, so a returned correction lands on
+  the field it was written from — no column drift.
 
 ## Maintenance discipline (DD-17, DD-18)
 

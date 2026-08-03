@@ -8,6 +8,26 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.53.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.53.0 — usage-stats-review-roundtrip: the catalog gets importance-aware + human-correctable (measured usage, an offline review round-trip, corroboration hardening)
+
+Run E of `docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md` §7.5 (R4 + R5, "small enough to pair") — the standing catalog stops guessing importance and gains a human-in-the-loop correction channel, and the two same-class corroboration follow-ups logged in Runs C/D are closed on the same surface. Additive within `scripts/data_dictionary/data_dictionary.py`; NO new services module / skill / command / agent — `check_separation` unaffected (26).
+
+| What shipped | Detail |
+|---|---|
+| **R4 — usage MEASURED-or-OMITTED** | An optional injected `UsageStatsSource` seam (following `build_from_sqlite`'s adapter shape) attaches a per-table `usage` block (read/write recency, row volume) at provenance `live-data` — because it IS measured. SQL Server (`dm_*`) + Postgres (`pg_stat_*`) shapes described; `SqliteUsageStats` honest-none. **Absent stats OMIT the block — never zeros, never `{}`** (the deng silently-single-target anti-pattern, refused). `PROVENANCE_TYPES` unchanged; a no-source build is byte-identical. |
+| **R5 — the review round-trip (with the pinned test deng lacks)** | `generate-review` / `apply-review` subcommands (stdlib `csv`): generate the low-confidence OR ⚠-conflict fields, sorted by R4 usage, redacted through `logit.redact_evidence` (default `summary`; `--privacy full` opt-in); apply-review ingests each non-blank correction as a `provided_defs` entry **through `corroborate_definition`** (a conflict is ⚠/downgraded, NOT blessed). The PINNED round-trip test (edit one cell → apply → the correction lands on the EXACT `table.field`, no column drift) is the test deng's column-drifted sheets prove the need for. |
+| **Corroboration hardening** | The two logged follow-ups closed on the same surface: (1) `sql_mining.py::corroborate_mined_claim` is now PER-FIELD (a candidate absent from `corroborated_defs` with `rows=None` stays `inference`/not-accepted — the Run C R1 residual); (2) `annotations.py` closes the Run D F-A5 residual — on the `--db` rows path, `non_null_sampled == 0` (an all-NULL or absent-from-sample column) is treated as not-checked, so a TEXT-family claim on a ghost column is not corroborated (higher-evidence types keep flagging). Both red-first; Run D's 44 + Run C's 29 tests stay green. |
+| **The paired review earned its keep** | Independent + adversarial, producer != checker. The independent reviewer mutation-probed the OMIT path itself (zero-filling reds the tests), verified the redaction genuinely reuses `logit`, and caught a report-claims over-claim in the draft changelog (an `anchor_in_dictionary` clause the code doesn't implement) — corrected before ship. |
+| **Counts + tests** | Suite **6926 → 6952 passing + 6 skipped, 0 failed** (+26; 235 test files, both encodings — the teammate's full run 6952/6/0 under both cp1252 and PYTHONUTF8=1); `check_separation` clean (26, unaffected — additive within `scripts/`). `skills/data-dictionary/SKILL.md` gains the usage + round-trip contract (no skill-count change). Skills / agents / commands / hooks / Layer-3 tools UNCHANGED (53 / 39 / 25 / 7 / 21). |
+
+HONEST BOUNDARY: Run E ships the usage ADAPTER + the review round-trip + the corroboration hardening. The live `dm_*` / `pg_stat_*` reads are an adapter boundary (SQLite has none; a `FakeUsageStatsSource` drives the tests) — the engine never fabricates `live-data` usage. This closes R1–R5 of the proposal; the JSON-LD emitter (R6) is Run F — the proposal marks it conditional on a named external consumer (D7), and it ships next with an explicit "no consumer wired yet" boundary per the run directive.
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.52.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```

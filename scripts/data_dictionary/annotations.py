@@ -262,10 +262,32 @@ def corroborate_annotation_claim(
         dd = _data_dictionary()
         corro = dd.corroborate_definition(
             rows, table, column, claimed_type=expected_type, claims_key=claims_key)
-        checked = True  # corroborate_definition actually inspected THIS column's data
-        if not corro.get("agrees", True):
-            flagged = True
-            conflict = corro.get("conflict")
+        # F-A5 (complete) — the --db ROWS path must never serve a factual claim as
+        # corroborated TRUTH when nothing actually confirmed it. There is ZERO
+        # evidence for THIS column when it is ABSENT from the sampled table (a ghost
+        # column) OR every sampled value is NULL (non_null_sampled == 0). On zero
+        # evidence a TEXT-family claim reads actual_type 'unknown' and vacuously
+        # "agrees" — that vacuous agreement is NOT corroboration, so it is treated as
+        # not-checked (served 'uncorroborated', never 'corroborated'). A claim that
+        # genuinely DISAGREES on zero evidence (boolean/integer/date vs 'unknown', or
+        # a claims_key that is not unique) is a real contradiction and stays FLAGGED
+        # — those already behaved correctly and MUST keep working. (A key claim's
+        # verdict carries no non_null_sampled key; it disagrees on zero evidence, so
+        # `agrees` False keeps it flagged regardless.)
+        column_present = any(column in r for r in rows)
+        # F3 on the --db path: the anchor-existence signal from the sampled row keys,
+        # so a claim on a non-existent column is marked honestly here too (not only
+        # on the --dictionary path). A supplied dictionary below overrides this.
+        out["anchor_in_dictionary"] = column_present
+        zero_evidence = (corro.get("non_null_sampled") == 0) or (not column_present)
+        vacuous_agreement = zero_evidence and corro.get("agrees", True) and not claims_key
+        if vacuous_agreement:
+            pass  # not-checked: a claim that "agrees" with zero evidence is uncorroborated
+        else:
+            checked = True  # corroborate_definition genuinely inspected THIS column's data
+            if not corro.get("agrees", True):
+                flagged = True
+                conflict = corro.get("conflict")
 
     if corroborated_defs is not None and column is not None:
         # F3: an anchor absent from the supplied dictionary is marked honestly, so
