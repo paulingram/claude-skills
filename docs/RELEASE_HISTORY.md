@@ -8,6 +8,27 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.51.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.51.0 — warehouse-sql-mining: the standing warm catalog gets evidence (join/metric/relationship mining, corroboration-gated)
+
+Run C of `docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md` §3b(R2)/§7.3 — the largest independent engine. It extracts the join / filter / aggregate-ratio metric shapes and table read/write relationships latent in a warehouse's stored procedures / views, so the lane's D0 exploration and the data-dictionary have EVIDENCE, not guesses — everything corroboration-gated (the CT6 inversion of deng's fidelity problem). Decision D6: a vendored minimal stdlib T-SQL/ANSI extractor, NOT `sqlglot`.
+
+| What shipped | Detail |
+|---|---|
+| **NEW `scripts/sql_mining/sql_mining.py`** | A deterministic stdlib engine — the vendored T-SQL/ANSI shape extractor (joins, filters, aggregate/ratio metrics, table read/write relationships). Import-clean (an AST scan pins no-sqlglot; `check_separation` clean at 26); CLI-driven like `data_dictionary.py`. |
+| **Parse-coverage honesty** | The artifact carries `{parsed, skipped:[{object,reason}], failed:[{object,reason}]}`; a dialect-specific / malformed / undecodable object lands in skipped/failed WITH a reason — never silently dropped, never mis-parsed, and the run NEVER crashes (a UTF-16 SSMS-export file lands in `failed`, not a traceback). |
+| **Corroboration is the gate** | Mined field/metric candidates enter the dictionary at provenance `inference` (never stronger) and pass `data_dictionary.py::corroborate_definition` — a conflict is flagged ⚠ + downgraded, NOT accepted (a mutation proof reds a test when the gate is bypassed); uncorroborated no-context candidates are machine-marked `not-accepted`. Mined relationships use ONLY existing lineage kinds (`data_asset` node + `reads`/`writes` edges; `validate_lineage_graph == []`). |
+| **NEW `warehouse-sql-mining` skill + lane wiring** | The engine's contract → skills 51 → **52**; `skills/data-eng-pipeline` D0 additively invokes the miner when SQL objects are in scope + feeds evidence to `data-engineering-exploration` Stages 2–3 (a no-SQL run is unchanged). |
+| **The paired review earned its keep** | First review = FAIL from BOTH reviewers, FIVE findings (two blocking: a UTF-16 crash falsifying the "never crashes" claim; a nested-comment mask leaking a phantom table into an UNGATED lineage edge) + a ratio substring false-positive + a corroboration over-claim + a stale demo. All five closed fix-forward (TDD red-first: comment-DEPTH tracking, `(OSError, UnicodeDecodeError)` catch + `utf-8-sig`, word-boundary aggregate regex, machine not-accepted markers + corrected claim); both reviewers re-verified to PASS, confirming each fix bites by reverting it. |
+| **Counts + tests** | Suite **6845 → 6878 passing + 6 skipped, 0 failed** (+33; 234 test files, both encodings); `check_separation` clean (26, unaffected — scripts-tier stdlib). Skills 51 → **52**; agents / commands / hooks / Layer-3 tools UNCHANGED (39 / 25 / 7 / 21). |
+
+HONEST BOUNDARY: Run C ships the ENGINE. It mines SQL TEXT (stored-procedure / view definitions) — it does NOT connect to a live warehouse (execution-stats mining, R4, is Run E). Nothing mined is stronger than `inference` until corroborated. A logged non-blocking follow-up (R1): a narrow `corroborate_mined_claim` edge (rows=None + not-in-map) — not a provenance bypass, not CLI-reachable. Annotations (R3) are Run D; usage-stats + review (R4/R5) Run E; the JSON-LD emitter (R6) Run F (deferred per D7).
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.50.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```

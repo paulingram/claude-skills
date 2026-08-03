@@ -1,0 +1,41 @@
+{
+ "change": "warehouse-sql-mining",
+ "source": "Run C of docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md §3b(R2)/§7.3; decision D6 (vendored stdlib extractor, not sqlglot)",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 6845, "failed": 0, "skipped": 6,
+   "note": "zero NEW failures is the gate; +N added tests expected; check_separation unaffected (scripts-tier stdlib engine, no services module)"},
+ "entries": [
+  {"source_requirement_id": "C-engine", "spec_requirement_id": "warehouse-sql-mining/A deterministic stdlib SQL-object mining engine exists", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "scripts/sql_mining/sql_mining.py extracts joins (table.col=table.col), filters, aggregate/ratio metric shapes, and table read/write relationships from fixture .sql objects (tests)",
+     "stdlib-only: no sqlglot / no 3rd-party parser import (grep + import-clean); lives in scripts/ tier",
+     "CLI-driven like data_dictionary.py (mine <dir-or-files> -> artifact); no new agent"]},
+  {"source_requirement_id": "C-coverage-honesty", "spec_requirement_id": "warehouse-sql-mining/Parse-coverage stats are surfaced honestly", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "the artifact carries {parsed, skipped:[{object,reason}], failed:[{object,reason}]} coverage stats",
+     "a deliberately-unparseable / exotic-dialect fixture object lands in skipped/failed WITH a reason — never silently dropped, never silently mis-parsed; the run does not crash (test)",
+     "the coverage counts are accurate over a mixed parseable/unparseable directory (test)"]},
+  {"source_requirement_id": "C-corroboration-gate", "spec_requirement_id": "warehouse-sql-mining/Every mined claim is corroboration-gated", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "mined field/metric candidates enter the dictionary at provenance inference (never stronger) via scripts/data_dictionary/data_dictionary.py::corroborate_definition — a mined claim conflicting with a corroborated definition is flagged warn + confidence-downgraded, NOT accepted (test)",
+     "mined read/write relationships are emitted as hooks/lineage_graph.py data_asset node + reads/writes edge evidence using ONLY existing kinds — no invented node/edge kinds (test)"]},
+  {"source_requirement_id": "C-skill-contract", "spec_requirement_id": "warehouse-sql-mining/A warehouse-sql-mining skill is the engine's contract", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "skills/warehouse-sql-mining/SKILL.md exists; documents the extraction surface + the corroboration-gating rule + the parse-coverage-honesty rule + the CLI + the mining->dictionary/lineage/exploration wiring",
+     "compiled boilerplate/principles blocks present; valid frontmatter (no ': ' hazard); instruction-compliance zero findings; skills 51 -> 52 pins moved (test_skills, CAPABILITY_INDEX)"]},
+  {"source_requirement_id": "C-lane-wiring", "spec_requirement_id": "warehouse-sql-mining/The lane's D0 wires the mining engine", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "skills/data-eng-pipeline/SKILL.md D0 additively invokes the miner + feeds mined evidence to data-engineering-exploration Stages 2-3 when SQL objects are in scope",
+     "a data-eng run WITHOUT SQL objects is unchanged (additive; grep/test the existing D0 flow is preserved)"]},
+  {"source_requirement_id": "C-MANDATE-release", "spec_requirement_id": "(cross-cutting: tasks group 3)", "layer": "infra", "team": "orch",
+   "acceptance_criteria": [
+     "full suite zero NEW failures vs baseline 6845/0/6 both encodings; check_separation green (unchanged)",
+     "version 3.51.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG rubric entry; README spotlight-swap + RELEASE_HISTORY append; doc-currency audit PASS; check-can-fail verdict for the new test file(s)",
+     "a mining demo captured (fixtures -> artifact with coverage stats + a corroboration-downgrade example); completion audit exit 0"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - the deliverable is a stdlib SQL-mining engine + its skill contract; no web UI. Behavior verified by pytest over fixture .sql objects (extraction correctness, coverage-stat accuracy, corroboration-downgrade) + a captured mining demo.",
+  "dev_api_integration": "n/a - the engine mines SQL TEXT (stored-procedure/view definitions); it does not connect to a live warehouse (execution-stats mining is Run E).",
+  "both_layer_integration": "n/a - all entries layer infra."
+ },
+ "confirmed_stubs": [], "scope_extensions": []
+}

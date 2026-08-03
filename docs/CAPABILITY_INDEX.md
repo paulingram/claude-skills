@@ -10,7 +10,7 @@ Every capability CLAUDE TEAM SIX ships, one line each, derived from the `name` +
 generated, never hand-edited — after adding or renaming any skill, command,
 or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py --write`.
 
-## Skills (51)
+## Skills (52)
 
 - **api-design-from-frontend** — Extracts the "backend logic from frontend" portion (Stages 5+6+7) of visual-to-api-design as a standalone reusable skill
 - **architect-team-pipeline** — Use when a feature needs to be driven end-to-end to tested, integrated, demonstrable production code
@@ -63,6 +63,7 @@ or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py -
 - **visual-fidelity-reconciliation** — Use when QA-reviewing frontend work post-development against a codebase that has a DESIGN_MAP.md — any commit touching frontend files …
 - **visual-to-api-design** — Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE …
 - **visual-verification-team** — Use when visual-fidelity reconciliation needs to be independently verified against the live running app — at Phase 5, or via the visual-qa …
+- **warehouse-sql-mining** — Use when a data-engineering ask includes SQL objects — stored procedures, views, or functions — and you need the join, filter, and metric …
 
 ## Commands (25)
 
