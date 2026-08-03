@@ -10,8 +10,15 @@ from tests.helpers import frontmatter
 
 AGENT_NAME = "bug-classifier"
 
-VERDICT_KINDS = ("bug", "feature", "mixed", "unclear")
-VERDICT_FIELDS = ("kind", "bug_portion", "feature_portion", "confidence", "reasoning")
+VERDICT_KINDS = ("bug", "feature", "mixed", "unclear", "data-eng")
+VERDICT_FIELDS = (
+    "kind",
+    "bug_portion",
+    "feature_portion",
+    "data_eng_portion",
+    "confidence",
+    "reasoning",
+)
 
 
 def _agent_path(plugin_root: Path) -> Path:
@@ -86,3 +93,32 @@ def test_explicit_flag_overrides_documented(plugin_root: Path) -> None:
     _, body = _read(plugin_root)
     assert "--bug-fix" in body, "agent must document the --bug-fix flag override"
     assert "--feature-only" in body, "agent must document the --feature-only flag override"
+
+
+def test_data_eng_flag_override_documented(plugin_root: Path) -> None:
+    """v3.50.0 — the classifier must honor the --data-eng flag override."""
+    _, body = _read(plugin_root)
+    assert "--data-eng" in body, "agent must document the --data-eng flag override"
+
+
+def test_count_pins_moved_to_five_kinds_six_fields_in_lockstep(plugin_root: Path) -> None:
+    """v3.50.0 — the classifier's own 'exactly four kinds / five output fields'
+    pins MUST move to five/six in lockstep. A half-moved contract (a surviving
+    four-kinds / five-fields assertion alongside the new fifth kind) is the top
+    adversarial target — this guard fails if ANY old-count phrasing survives."""
+    _, body = _read(plugin_root)
+    low = body.lower()
+    # No surviving old-count pins.
+    for stale in (
+        "one of four kinds",
+        "one of exactly four values",
+        "exactly four values",
+        "exactly the five fields",
+        "the five fields named",
+        "has exactly the five",
+    ):
+        assert stale not in low, f"stale count pin still present in classifier body: {stale!r}"
+    # The moved-to counts are present.
+    assert "five kinds" in low, "classifier body must state 'five kinds'"
+    assert "one of exactly five values" in low, "classifier body must state 'one of exactly five values'"
+    assert "exactly the six fields" in low, "classifier body must state 'exactly the six fields'"

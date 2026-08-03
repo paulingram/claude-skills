@@ -121,16 +121,19 @@ Before Phase −1's intake-and-mapping runs, the orchestrator classifies the inc
 
 - `--bug-fix` (or natural-language phrasings: *"this is a bug"* / *"just fix the bug"* / *"hotfix"*) → forces `kind: bug`, skips the classifier.
 - `--feature-only` (or *"this is a feature"* / *"build this as a feature"*) → forces `kind: feature`, skips the classifier.
+- `--data-eng` (or *"this is a data pipeline"* / *"data-eng"* / *"build the warehouse"* / *"design the dbt models"*) → forces `kind: data-eng`, skips the classifier; routes to the `data-eng-pipeline` lane (the first-class data-engineering sibling lane, v3.50.0).
 - Invocation via `/architect-team:bug-fix` → forced `kind: bug`, classifier skipped.
+- Invocation via `/architect-team:data-eng` → forced `kind: data-eng`, classifier skipped.
 
 When no flag forces the verdict, proceed to step 1.
 
 1. **Dispatch the `bug-classifier` agent** with the source description (the prose from `$REQ_DIR`, OR the contents of the requirements folder). The classifier is lightweight (sonnet, analysis-only, no Bash) and returns a structured verdict:
 
    ```json
-   { "kind": "bug" | "feature" | "mixed" | "unclear",
+   { "kind": "bug" | "feature" | "data-eng" | "mixed" | "unclear",
      "bug_portion": "<the bug-portion of the requirement, or null>",
      "feature_portion": "<the feature-portion of the requirement, or null>",
+     "data_eng_portion": "<the data-engineering portion of the requirement, or null>",
      "confidence": "high" | "medium" | "low",
      "reasoning": "<one-line citation of the language signals>" }
    ```
@@ -144,6 +147,10 @@ When no flag forces the verdict, proceed to step 1.
      If `confidence: low` on a `bug` verdict, the orchestrator emits a soft-route confirmation to the user — *"classified as bug with low confidence; if this is actually a feature, reply `--feature-only` and I'll re-route. Proceeding with bug-fix pipeline."* — and waits one beat for the user to override; if no override comes in the next user message, proceeds with the bug-fix route.
 
    - **`kind: feature`** — proceed to Phase −1 — Intake & Mapping. No behavior change for feature runs.
+
+   - **`kind: data-eng`** — invoke the `data-eng-pipeline` skill against the requirement. Do NOT continue to Phase −1 or any subsequent main-pipeline phase — in particular a data-eng-primary run NEVER reaches Phase 0c (the front-door lane wins; see `## Data-eng lane precedence — front door vs. Phase 0c (v3.50.0)` below). The lane handles intake-and-mapping itself (it reuses this skill's Phase −1 flow via `intake-and-mapping`) and adds its own D−1 warm-catalog-first check + D7 catalog-refresh disciplines. The MemPalace wake-up has already run; the lane's own wake-up section is a no-op here.
+
+     If `confidence: low` on a `data-eng` verdict, the orchestrator emits a soft-route confirmation to the user — *"classified as data-eng with low confidence; if this is actually a plain feature, reply `--feature-only` and I'll re-route. Proceeding with the data-eng lane."* — and waits one beat for the user to override; if no override comes in the next user message, proceeds with the lane route.
 
    - **`kind: mixed`** — spawn TWO subagents IN PARALLEL in a single message:
      - One running the `bug-fix-pipeline` skill against `bug_portion` (the bug-specific scope).
@@ -377,6 +384,18 @@ When the dispatched skill completes:
 When Branch B or D applies (no dispatch), Phase 0 proceeds unchanged. Branch B is the path where phenotype seeding alone (e.g., `config-management` for OpenTofu data infra) carries the structure.
 
 This step is the explicit pre-action half of the Phase 0c contract; the post-action half (Stage 6 validation rules binding into Phase 1's coverage map) is enforced by Phase 1's standard validation against the produced openspec change.
+
+## Data-eng lane precedence — front door vs. Phase 0c (v3.50.0)
+
+The data-engineering surface is reachable from two places — the front-door lane (Phase −2 → `data-eng-pipeline`, v3.50.0) and the mid-flow dispatch (Phase 0c → `data-engineering-exploration`, v3.5.0). The precedence between them is unambiguous and additive — **no existing routing behavior changes for a non-data-eng run**:
+
+- **The lane WINS at the front door.** When the Phase −2 classifier returns `kind: data-eng` (a data-eng-primary ask — *"build the warehouse dbt models"*, *"mine the stored procedures into a data dictionary"*), the run routes to `data-eng-pipeline` at Phase −2 and **never reaches Phase 0c** (nor Phase 0a / 0b / 0 in the main pipeline). The lane owns the whole run — it drives its own D−1…D8, dispatching `data-engineering-exploration` verbatim at its Phase D0. Phase 0c is not consulted, because the classifier routed the run away from the main pipeline before Phase 0 ever begins.
+
+- **Phase 0c KEEPS winning mid-flow.** When the classifier returns `kind: feature` (a feature-primary ask) and the run proceeds down the main pipeline, a data-engineering *surface* discovered mid-flow keeps today's behavior EXACTLY — Phase 0c's detection ladder fires and dispatches `data-engineering-exploration` unchanged, including its mixed-mode branch (Phase 0a/0b fired first, upstream API contract passed as Stage 1 input) and its pure-greenfield phenotype-seeding branch. A feature-primary run with a data-eng surface is NOT re-routed to the lane; the lane is the front door, Phase 0c is the mid-flow surface, and neither steps on the other.
+
+- **A `mixed` ask with a data-eng portion parallel-spawns.** When the classifier returns `kind: mixed` and `data_eng_portion` is non-null, the orchestrator parallel-spawns the `data-eng-pipeline` lane for the data-eng portion alongside the relevant pipeline(s) for the rest (the `bug-fix-pipeline` for `bug_portion`, the `architect-team-pipeline` for `feature_portion`), each spawned **with `triage_done: true` set in its context**. This bounds the recursion at **depth 1** exactly as the existing `mixed` bug+feature spawn does — a spawned lane / pipeline sees `triage_done: true` and does NOT re-classify or re-spawn. The lane carries `triage_done` harmlessly (it begins at D−1 and has no Phase −2 of its own, so it never re-triages); the depth-1 bound holds because no spawned child triages. On a `scope-conflict` (the portions touch overlapping files), the orchestrator sequences instead of parallel-spawning, integrating the commit ranges in the final report — the same fallback as the existing `mixed` handling.
+
+The net effect: a data-eng-primary ask gets the purpose-built lane (with its warm-catalog-first + catalog-refresh disciplines), a feature-primary ask with a data surface keeps the lighter mid-flow exploration dispatch, and a genuinely mixed ask gets both — with no change to how any non-data-eng run is classified or routed.
 
 ## Phase 0 — Detection & Normalization
 
