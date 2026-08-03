@@ -52,6 +52,7 @@ EXPECTED_SKILLS: set[str] = {
     "delivery-manifest",
     "contract-first-parallelism",
     "data-eng-pipeline",
+    "warehouse-sql-mining",
     "claude-md-efficiency",
     "mcp-output-contract-design",
     "helpdesk",
