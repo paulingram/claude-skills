@@ -48,6 +48,7 @@ EXPECTED_SKILLS: set[str] = {
     "data-lineage-mapping",
     "structure-optimization",
     "data-dictionary",
+    "data-annotations",
     "closeout",
     "delivery-manifest",
     "contract-first-parallelism",

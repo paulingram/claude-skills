@@ -1,0 +1,21 @@
+{
+  "author": "analyst",
+  "annotations": [
+    {"anchor": "orders", "note": "reporting reads this hourly; watch the nightly reload",
+     "quality_flag": "TRUSTED"},
+    {"anchor": "orders.total_cents", "quality_flag": "STALE",
+     "note": "superseded by total_minor_units in the v2 schema"},
+    {"anchor": "orders.total_cents", "deprecation": "use total_minor_units in the v2 schema"},
+    {"anchor": "orders.total_cents", "claim": {
+      "expected_type": "boolean", "claims_key": false,
+      "definition": "a paid / unpaid flag",
+      "provenance": "inference",
+      "corroboration": {"checked": true, "claimed_type": "boolean", "agrees": false,
+                        "actual_type": "integer", "non_null_sampled": 3,
+                        "conflict": "claimed type 'boolean' for orders.total_cents does not match the sampled data (actual type looks like 'integer')"},
+      "corroborated": true, "accepted": false, "needs_corroboration": false,
+      "flag": "⚠",
+      "conflict": "claimed type 'boolean' for orders.total_cents does not match the sampled data (actual type looks like 'integer')",
+      "confidence": "low"}}
+  ]
+}

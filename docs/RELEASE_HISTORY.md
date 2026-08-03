@@ -8,6 +8,28 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.52.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.52.0 — data-annotations: the warm catalog gets a team memory (per-user annotations, corroborated on ingest, merged at query)
+
+Run D of `docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md` §3b(R3)/§7.4 — the lane's team-shared memory on data objects. deng-toolkit's genuinely good pattern (per-user, git-shared annotation files that never merge-conflict) is adopted for its INTERFACE while CT6's SEMANTICS keep it honest: a factual annotation is a CLAIM that must be corroborated, never transcribed as truth, and served annotation memory INFORMS a per-run gate, never skips or auto-satisfies one. Decision D5: data objects first; persisting bulk-verify confirmations as annotations is a documented, deferred second step.
+
+| What shipped | Detail |
+|---|---|
+| **NEW `scripts/data_dictionary/annotations.py`** | A deterministic stdlib engine managing per-user `docs/data-annotations/<user>.json` files anchored to `table` / `table.field` ids, typed `note` / `quality_flag ∈ {TRUSTED, STALE, INCOMPLETE, EXPERIMENTAL}` / `deprecation`. Validate-on-write + atomic (the house pattern); CLI-driven like `data_dictionary.py`; NO new services module. Per-user = never-merge-conflict; usernames validated (injective username→file mapping — collision-prone / unsafe names refused). |
+| **Corroborate-on-ingest, PER FIELD** | A factual claim (`claims_key` / `expected_type` / a definition) routes through `data_dictionary.py::corroborate_definition`; it is accepted as corroborated truth ONLY when its EXACT `table.field` was actually inspected (rows sampled for that column, OR a corroborated definition for that field compared). A field absent from every corroboration source is served `uncorroborated` / not-accepted / `needs_corroboration=true` — never as established truth. Opinions (`note`/`quality_flag`/`deprecation`) are stored as-authored; a `quality_flag` travels with the served field. |
+| **Gate integrity** | `inform_gate` re-derives a gate's `satisfied` from the gate's OWN evidence only — an adversarial annotation carrying `satisfied=true` or an accepted claim cannot flip it (the guard mutated → a test reds). Served/recalled annotation memory INFORMS a per-run gate, it never skips or auto-satisfies one (the D5 load-bearing invariant). |
+| **ADDITIVE server merge-at-query** | `services/knowledge_server/dictionary_source.py` `get_table_details` (+ `search_dictionary`) merge per-user annotations into the response with each field's `corroboration_status` + `quality_flag`, the existing `{verdict, basis}` freshness envelope still applied. A no-annotations repo response is BYTE-UNCHANGED (additive; the closed output contract gains no new top-level field); `check_separation` unaffected (no new module). |
+| **NEW `data-annotations` skill** | The engine's contract (store shape + vocabulary, the corroborate-on-ingest inversion, the server merge-at-query, the mine-to-MemPalace recall path, the GATE-INTEGRITY rule) → skills 52 → **53**. The deferred second D5 step is documented as a hook. |
+| **The paired review earned its keep — again** | First review = FAIL from the adversary with ONE blocking corroboration-integrity finding (F1): a factual claim on a field in NO corroboration source (`rows=None`) was stamped `accepted`/`corroborated` WITHOUT `corroborate_definition` running for that field — CLI-reachable (`annotate --anchor ghost.col --dictionary <dict>` without `--db`). Root cause: a not-per-field `ran = rows is not None or bool(corroborated_defs)`. Closed fix-forward (TDD red-first): per-field `checked` + username validation (F2) + anchor-existence (F3). Both reviewers re-verified to PASS, each confirming the fix bites. Same class as Run C's F-findings — caught in every code-heavy run. |
+| **Counts + tests** | Suite **6878 → 6926 passing + 6 skipped, 0 failed** (+48; both encodings) via 1 new file (`test_data_annotations.py`, 44 tests); `check_separation` clean (26, unaffected). Skills 52 → **53**; agents / commands / hooks / Layer-3 tools UNCHANGED (39 / 25 / 7 / 21). |
+
+HONEST BOUNDARY: Run D ships the annotation ENGINE + corroborate-on-ingest + the additive server merge + the skill, on DATA OBJECTS. It does NOT connect to a live warehouse; persisting bulk-verify domain-gate confirmations as annotations is the deferred D5 second step (documented, not built). Two same-class corroboration follow-ups fold into Run E (which touches the dictionary engine): sql-mining's narrow `corroborate_mined_claim` R1 residual, and treating `corroboration.non_null_sampled==0` as not-checked at the annotations layer (a reviewer-flagged, non-blocking, non-CLI-reachable text-family-on-all-NULL-column edge rooted in the composed `corroborate_definition`'s pre-existing DD-14 semantic). Usage-stats + review round-trip (R4/R5) are Run E; the JSON-LD emitter (R6) is Run F (deferred per D7 pending a named external consumer).
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.51.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```

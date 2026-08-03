@@ -400,10 +400,10 @@ ENFORCE_ZERO_COMPLIANCE_FINDINGS = True
 
 def test_engine_runs_over_the_real_in_scope_set() -> None:
     result = ic.assess_instruction_files(REPO_ROOT)
-    # 52 SKILL.md + 39 agents + 25 commands + CLAUDE.md + 2 maps = 119. The Run C
-    # warehouse-sql-mining slice is +1 over the 118 data-eng-lane baseline: the new
-    # SQL-object mining skill (the engine itself is scripts/-tier, out of scope).
-    assert result["files_checked"] == 119, result["files_checked"]
+    # 53 SKILL.md + 39 agents + 25 commands + CLAUDE.md + 2 maps = 120. The Run D
+    # data-annotations slice is +1 over the 119 baseline: the new data-annotations
+    # skill (the engine itself is scripts/-tier, out of scope).
+    assert result["files_checked"] == 120, result["files_checked"]
     assert isinstance(result["findings"], list)
 
 
