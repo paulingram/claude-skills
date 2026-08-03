@@ -1,0 +1,38 @@
+{
+ "change": "data-annotations",
+ "source": "Run D of docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md §3b(R3)/§7.4; decision D5 (data objects first, confirmations deferred)",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 6878, "failed": 0, "skipped": 6,
+   "note": "zero NEW failures is the gate; +N added tests expected; check_separation unaffected (additive within DictionarySource, no new services module)"},
+ "entries": [
+  {"source_requirement_id": "D-store", "spec_requirement_id": "data-annotations/A per-user, git-shared annotation store on data objects exists", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "scripts/data_dictionary/annotations.py manages docs/data-annotations/<user>.json — per-user, anchored to table/table.field ids, typed note/quality_flag{TRUSTED,STALE,INCOMPLETE,EXPERIMENTAL}/deprecation; validate-on-write + atomic (tests)",
+     "per-user files never merge-conflict (two users' files independent; a git merge of both does not conflict) — test",
+     "CLI-driven like data_dictionary.py; no new services module (check_separation unaffected)"]},
+  {"source_requirement_id": "D-corroborate-on-ingest", "spec_requirement_id": "data-annotations/Factual annotation claims are corroborated on ingest, not transcribed", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "a factual annotation (claims_key/expected_type/definition) routes through data_dictionary.py::corroborate_definition on ingest — a conflict with a corroborated definition is flagged warn + downgraded, NOT accepted (test)",
+     "non-factual annotations (note/quality_flag/deprecation) stored as-authored (opinions); a quality_flag travels with the served field (test)"]},
+  {"source_requirement_id": "D-merge-at-query", "spec_requirement_id": "data-annotations/The knowledge server merges annotations at query time", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "services/knowledge_server/dictionary_source.py get_table_details (+ search_dictionary where relevant) MERGE per-user annotations at query time — merged note/quality_flag/deprecation + corroboration status, freshness envelope still applied (test)",
+     "a no-annotations repo response is BYTE-UNCHANGED (additive) — test"]},
+  {"source_requirement_id": "D-skill-gate-integrity", "spec_requirement_id": "data-annotations/A data-annotations skill is the engine's contract, and served memory informs the gate", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "skills/data-annotations/SKILL.md exists; states the store shape + vocabulary + corroborate-on-ingest + server merge + mine-to-MemPalace + the GATE-INTEGRITY rule (memory INFORMS, never skips/auto-satisfies a gate); documents the deferred second D5 step as a hook (not built)",
+     "gate-integrity test: an annotation cannot flip a per-run gate to satisfied",
+     "compiled boilerplate/principles; valid frontmatter (no ': '); instruction-compliance zero findings; skills 52 -> 53 pins (test_skills, CAPABILITY_INDEX)",
+     "annotations mined to MemPalace alongside the dictionary artifact (grep/test the mine wiring)"]},
+  {"source_requirement_id": "D-MANDATE-release", "spec_requirement_id": "(cross-cutting: tasks group 3)", "layer": "infra", "team": "orch",
+   "acceptance_criteria": [
+     "full suite zero NEW failures vs baseline 6878/0/6 both encodings; check_separation green (unchanged)",
+     "version 3.52.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG rubric entry; README spotlight-swap + RELEASE_HISTORY append; doc-currency audit PASS; check-can-fail verdict for the new test file(s)",
+     "a demo captured (write annotations -> get_table_details surfaces them merged + corroboration status; a conflicting factual claim flagged warn); completion audit exit 0"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - the deliverable is a stdlib annotation-store engine + its skill + an additive server merge; no web UI. Behavior verified by pytest (store write/validate/atomic, corroborate-on-ingest downgrade, merge-at-query, per-user no-conflict, gate-integrity) + a captured demo.",
+  "dev_api_integration": "n/a - the annotation store is git-shared JSON files + an in-process server merge; no HTTP API.",
+  "both_layer_integration": "n/a - all entries layer infra."
+ },
+ "confirmed_stubs": [], "scope_extensions": []
+}

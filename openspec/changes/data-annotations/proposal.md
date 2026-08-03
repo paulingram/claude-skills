@@ -1,0 +1,32 @@
+# Proposal: data-annotations (Run D)
+
+## Why
+
+Run D of `docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md` §3b(R3)/§7.4 — the persistent annotation channel on data objects, and the first step of the leg-2 generalization (durable structured memory for what CT6 already collects in-run). Run A shipped the knowledge server (which already READS `docs/data-annotations/` and merges it into DictionarySource); Run C shipped the SQL-mining engine (whose mined claims are corroboration-gated). Run D adds the annotation STORE + the corroborate-on-ingest inversion + the server's merge-at-query so that team knowledge about tables/fields — `note`s, `quality_flag`s, `deprecation`s, and (the CT6 inversion) factual claims that get CORROBORATED not transcribed — gains a durable, structured, queryable, git-shared home instead of only prose recall. Decision D5 (user-delegated): data objects first (this run), interaction/bulk-verify confirmations as a later increment — keeping the gate-integrity question (served memory must INFORM, never SKIP, the per-run gate) reviewable in isolation.
+
+## What Changes
+
+- **NEW `scripts/data_dictionary/annotations.py`** — the annotation-store engine, composing with `data_dictionary.py`. Per-user annotation files `docs/data-annotations/<user>.json` in the TARGET repo (team-shared via git; per-user files never merge-conflict — deng's genuinely good pattern). Typed with deng's vocabulary taken as-is: `note` / `quality_flag ∈ {TRUSTED, STALE, INCOMPLETE, EXPERIMENTAL}` / `deprecation`, anchored to `table` / `table.field` ids from `docs/data-dictionary.json`. Validate-on-write + atomic write (the house pattern). CLI-driven (no new agent).
+- **The CT6 inversion — corroborate-on-ingest.** An annotation carrying a FACTUAL claim (`claims_key`, `expected_type`, a definition) routes through `scripts/data_dictionary/data_dictionary.py::corroborate_definition` on ingest — flagged ⚠ and confidence-downgraded on conflict, exactly like a provided definition. So the store never accumulates confidently-wrong tribal knowledge the way deng's can. Non-factual annotations (`note`, `quality_flag`, `deprecation`) are stored as-authored (opinions, not claims) — but a `quality_flag` still travels with the served data so a consumer sees "STALE"/"EXPERIMENTAL".
+- **Server merge-at-query.** `services/knowledge_server/`'s `get_table_details` (and where relevant `search_dictionary`) MERGE the annotations at query time (deng's merge-at-read pattern) — the DictionarySource already reads `docs/data-annotations/`; Run D makes the per-tool response surface the merged annotations WITH their corroboration status + `quality_flag`, and the freshness envelope still applies.
+- **Recall.** Annotations are mined to MemPalace alongside the dictionary artifact (`skills/data-dictionary/SKILL.md` mine path), so the durable structured memory is recallable across runs — but served memory INFORMS the gate, never skips it (the D5 gate-integrity rule, test-pinned).
+- Version 3.51.0 → **3.52.0** (MINOR — additive: a new engine module + the server merge; no existing behavior changes; scripts-tier stdlib so `check_separation` is unaffected — the knowledge-server change is additive within the existing DictionarySource).
+
+## Capabilities
+
+### New Capabilities
+
+- `data-annotations`: the persistent, git-shared, per-user annotation store on data objects — typed `note`/`quality_flag`/`deprecation` + corroborate-on-ingest for factual claims (the CT6 inversion), served merged-at-query by the knowledge server with corroboration status, and mined to MemPalace for durable structured recall (informing, never skipping, the per-run gate).
+
+### Modified Capabilities
+
+- `knowledge-server` (get_table_details / search_dictionary MERGE annotations at query time, surfacing quality_flag + corroboration status) — additive; a repo with no annotations behaves exactly as before.
+
+## Impact
+
+- **New**: `scripts/data_dictionary/annotations.py`, the openspec change, `tests/test_data_annotations.py` (+ fixtures: a per-user annotations file with a `note`, a `quality_flag`, a `deprecation`, and a factual claim that CONFLICTS with a corroborated definition — proving the ⚠ downgrade). Possibly a new `data-annotations` skill OR a section in `skills/data-dictionary/SKILL.md` (decide at design: a full skill vs. an engine sub-contract — lean to a section unless the surface warrants a skill).
+- **Modified (composed/wired)**: `services/knowledge_server/dictionary_source.py` (merge annotations into get_table_details/search_dictionary responses — additive), `skills/data-dictionary/SKILL.md` (the annotation channel + the mine path), possibly `skills/data-eng-pipeline/SKILL.md` (D7 note that bulk-verify resolutions MAY persist as annotations — the D5 second-step hook, documented not built).
+- **Reuse (composed, not modified)**: `scripts/data_dictionary/data_dictionary.py` (`corroborate_definition`, the reference/relation maps, the `docs/data-dictionary.json` anchor), `services/knowledge_server/` (the DictionarySource already reads `docs/data-annotations/`; Run A shipped the fixture `tests/fixtures/knowledge_server/data-annotations/analyst.json`), `skills/mempalace-integration` (the mine path), `scripts/helpdesk/logit.py` (redaction IF annotations ever leave the machine — likely N/A this run).
+- **Lockstep pins**: `docs/CAPABILITY_INDEX.md` regen (if a skill is added, skills 52→53), README/`CLAUDE.md`/`docs/CODEBASE_MAP.md` count lines, plugin/marketplace version JSONs, `tests/test_dispatch_banner.py` pin.
+- **Tests**: annotation write/validate/atomic; the corroborate-on-ingest downgrade (a conflicting factual claim is flagged ⚠, not accepted); the server merge-at-query surfaces annotations + quality_flag + corroboration status; per-user files don't merge-conflict; the gate-integrity rule (served memory informs, doesn't skip); suite baseline 6878/0/6 → adds tests, zero NEW failures; `check_separation` unaffected.
+- **Honest boundary**: Run D ships the DATA-OBJECT annotation store + corroborate-on-ingest + the server merge (D5 step 1). The SECOND step — persisting interaction/bulk-verify domain-gate confirmations as annotations — is deliberately deferred (documented as a hook, not built), keeping the gate-integrity question reviewable in isolation. Annotations are git-shared TEXT files; nothing is "deployed". A factual annotation is never presented as established truth until corroborated.

@@ -120,6 +120,34 @@ class DictionarySource(adapter_base.SourceAdapter):
             changed_paths=changed, built_at=self.built_at,
             reference_files=self._reference_files())
 
+    @staticmethod
+    def _corroboration_status(entry: dict) -> str:
+        """Surface, at query time, WHAT a merged annotation is: a `corroborated`
+        fact, a `conflicting` (flagged) factual claim, an as-yet `uncorroborated`
+        claim, or a plain `opinion` (note / quality_flag / deprecation). The status
+        is READ from the claim the annotation engine corroborated on INGEST — the
+        server never re-corroborates (no data-dictionary import here, so
+        `check_separation` stays clean). This is the D-D2 line surfaced to the
+        consumer: a factual annotation is never presented as established truth
+        until it has been corroborated."""
+        claim = entry.get("claim")
+        if not isinstance(claim, dict):
+            return "opinion"  # note / quality_flag / deprecation are opinions
+        if claim.get("flag") not in (None, "ok") or claim.get("conflict"):
+            return "conflicting"
+        if claim.get("needs_corroboration") or not claim.get("corroborated"):
+            return "uncorroborated"
+        return "corroborated" if claim.get("accepted") else "uncorroborated"
+
+    def _merge_annotation(self, entry: dict, author: str) -> dict:
+        """Merge ONE stored annotation for query-time serving: carry it through
+        as-authored (opinions travel unchanged; a quality_flag rides with the
+        field) and attach its author + explicit `corroboration_status`."""
+        merged = dict(entry)
+        merged.setdefault("author", author)
+        merged["corroboration_status"] = self._corroboration_status(entry)
+        return merged
+
     def _annotations_for(self, table: str) -> list:
         if not self.annotations_dir:
             return []
@@ -133,10 +161,11 @@ class DictionarySource(adapter_base.SourceAdapter):
                 doc = json.loads(annotation_file.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
+            author = doc.get("author", annotation_file.stem)
             for entry in doc.get("annotations", []) or []:
                 anchor = str(entry.get("anchor", ""))
                 if anchor == table or anchor.startswith(prefix):
-                    merged.append(entry)
+                    merged.append(self._merge_annotation(entry, author))
         return merged
 
     # -- tool handlers --------------------------------------------------------- #
@@ -145,7 +174,16 @@ class DictionarySource(adapter_base.SourceAdapter):
         query = str(args.get("query", ""))
         top_k = int(args.get("top_k", 10) or 10)
         results = self.index.conceptual_search(query, top_k=top_k)
-        return {"query": query, "results": results, "count": len(results),
+        # ADDITIVE (Run D): a matched table that carries annotations surfaces them
+        # ON its hit (merged note/quality_flag/deprecation + corroboration status),
+        # so a search result warns you when the table you found is STALE / flagged.
+        # A repo with NO annotations attaches nothing — every hit is left exactly
+        # as the index produced it, so the response is byte-unchanged.
+        enriched: list = []
+        for r in results:
+            anns = self._annotations_for(str(r.get("doc_id", "")))
+            enriched.append({**r, "annotations": anns} if anns else r)
+        return {"query": query, "results": enriched, "count": len(enriched),
                 "freshness": self._dictionary_freshness()}
 
     def _table_details(self, args: dict) -> dict:
