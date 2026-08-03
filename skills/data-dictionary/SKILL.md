@@ -154,6 +154,42 @@ never transcribed).
   The CSV round-trips by the fixed column names, so a returned correction lands on
   the field it was written from — no column drift.
 
+## JSON-LD export (R6)
+
+The dictionary + lineage sidecars are machine-complete, so they can be emitted as
+**JSON-LD** for the external catalog / lineage ecosystems Stage 6 of
+`data-engineering-exploration` names (OpenLineage / Marquez / DataHub / dbt). The
+emitter is `scripts/data_dictionary/jsonld_export.py` — **stdlib-only** (`json`;
+NO `rdflib`, NO `pyld`). JSON-LD is just JSON with an `@context`.
+
+- **`export_dictionary_jsonld`** maps each dictionary table to a `schema:Dataset`
+  (a `dcat:Catalog` wraps them); each field becomes a `schema:variableMeasured`
+  `schema:PropertyValue` carrying `schema:propertyID` (the field), `schema:description`
+  (the definition), and `ct6:provenance` / `ct6:confidence` — definition,
+  provenance, and confidence **preserved verbatim**. A table's measured `usage`
+  block (R4) rides its Dataset node as `ct6:usage` (a table-level measure attached
+  once, never duplicated per field).
+- **`export_lineage_jsonld`** maps the lineage graph to **PROV-O**: a `data_asset`
+  node → `prov:Entity`, a `function` / `endpoint` node → `prov:Activity`, a `reads`
+  edge → the activity `prov:used` the entity, a `writes` edge → the entity
+  `prov:wasGeneratedBy` the activity; `calls` / `serves` / `serves_route` /
+  `modifies` / `originates` ride documented `prov` / `ct6` relations. Only edges
+  **present** in the graph are emitted; an unknown edge kind is skipped-with-note,
+  never invented (the node/edge vocabulary is single-sourced from
+  `hooks/lineage_graph.py`).
+- **`export_combined`** emits one JSON-LD document (`@context` binding the real
+  vocabulary URLs + `@graph`). **`validate_jsonld`** checks a resolvable `@context`,
+  every node an `@id` + `@type`, unique `@id`s, and referential closure; a
+  round-trip (`roundtrip`) proves no loss / no fabrication. The `export-jsonld` CLI
+  writes the document (an absent sidecar → an empty but valid `@graph`, never a
+  fabricated triple).
+
+**Honest boundary.** The emitter is verified against the schema.org / DCAT /
+PROV-O **shapes** — structural validation + round-trip. **No live external-consumer
+ingestion (OpenLineage / Marquez / DataHub) is verified, and none is wired.** A
+downstream consumer, when one is adopted, points at this output; the emitter emits
+only what the sidecars contain (no fabricated triples, provenance preserved).
+
 ## Maintenance discipline (DD-17, DD-18)
 
 Whenever an agent does **database development** — any operation that adds/modifies
@@ -181,6 +217,7 @@ distinct values in N rows is not proof of a key.
 ## Cross-references
 
 - `scripts/data_dictionary/data_dictionary.py` — the deterministic engine (the machine).
+- `scripts/data_dictionary/jsonld_export.py` — the stdlib JSON-LD emitter (R6): the sidecars as schema.org/DCAT + PROV-O (shapes validated + round-trip; no live consumer wired).
 - `skills/data-lineage-mapping` — the CDLG asset-lineage layer (functions ↔ data assets); complementary: this skill defines the FIELDS, that one traces who reads/writes them.
 - `skills/intake-and-mapping` — Phase −1 sequencing (codebase → integration → data dictionary).
 - `skills/mempalace-integration` — the persistence hook (DD-15).

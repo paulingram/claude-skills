@@ -1,0 +1,24 @@
+{
+  "schema": "data-dictionary/v1",
+  "db_name": "shop",
+  "schema_name": null,
+  "built_at": "2026-08-03T00:00:00Z",
+  "tables": {
+    "orders": {
+      "grain": {"grain": "one row per order", "inferred_key": ["order_id"], "declared_pk": ["order_id"]},
+      "fields": [
+        {"field": "order_id", "type": "integer", "definition": "Surrogate key identifying each order", "provenance": "live-data", "confidence": "high"},
+        {"field": "status", "type": "text", "definition": "Order lifecycle status (shipped/pending/cancelled)", "provenance": "inference", "confidence": "medium"}
+      ],
+      "usage": {"read_recency": "2026-08-01", "write_recency": "2026-07-30", "row_volume": 120345, "provenance": "live-data"}
+    },
+    "customers": {
+      "grain": {"grain": "one row per customer", "inferred_key": ["id"], "declared_pk": ["id"]},
+      "fields": [
+        {"field": "id", "type": "integer", "definition": "Customer identifier", "provenance": "live-data", "confidence": "high"},
+        {"field": "email", "type": "text", "definition": "Customer contact email address", "provenance": "direct-code-comment", "confidence": "medium"}
+      ]
+    }
+  },
+  "provenance_vocabulary": ["direct-user-input", "direct-code-comment", "inference", "live-data"]
+}

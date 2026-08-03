@@ -1,0 +1,33 @@
+{
+ "change": "jsonld-emitter",
+ "source": "Run F of docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md §7.6 (R6, D7-conditional built-with-boundary) + the two folded Run E corroboration fast-follows (F1 usage-block all-None, F2 sql-mining rows-path non_null_sampled==0)",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 6955, "failed": 0, "skipped": 6,
+   "note": "zero NEW failures is the gate; +N added tests expected; check_separation unaffected (additive within scripts/, no new services module)"},
+ "entries": [
+  {"source_requirement_id": "R6-emitter", "spec_requirement_id": "jsonld-emitter/A stdlib JSON-LD emitter serializes the dictionary + lineage sidecars", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "scripts/data_dictionary/jsonld_export.py (stdlib json only, NO rdflib/pyld) maps dictionary tables -> schema:Dataset with variableMeasured per field (definition/provenance/confidence preserved) — test",
+     "lineage reads -> prov:used, writes -> prov:wasGeneratedBy (data_asset -> prov:Entity, function/endpoint -> prov:Activity); only edges PRESENT in the graph emitted; an unknown edge kind skipped not invented (test)",
+     "@context binds the real vocabulary URLs (schema.org/dcat/prov/ct6); export_combined emits @context + @graph; CLI export-jsonld; NO new services module (check_separation 26 unaffected)"]},
+  {"source_requirement_id": "R6-valid-roundtrip", "spec_requirement_id": "jsonld-emitter/The emitted JSON-LD is structurally valid and round-trips without fabrication", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "validate_jsonld asserts resolvable @context + every node @id+@type + unique @ids + referential closure (dangling @id ref fails) — test",
+     "emit only what the sidecars contain: an empty/absent input -> empty but VALID @graph, no fabricated triples (test)",
+     "round-trip: serialize -> parse -> the same tables/fields/lineage facts recovered (no loss/fabrication) — test"]},
+  {"source_requirement_id": "hardening-fastfollows", "spec_requirement_id": "jsonld-emitter/The corroboration gate accepts a claim only when its exact field was checked (folded fast-follows)", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "F1: data_dictionary.py::_usage_block returns None when all usage sub-values are None -> block OMITTED (red-first proof a non-None empty mapping attached an all-None block pre-fix); Run E usage tests green",
+     "F2: sql_mining.py::corroborate_mined_claim rows-path treats non_null_sampled==0 as not-checked (red-first proof pre-fix accepted); Run C 29 sql-mining tests green"]},
+  {"source_requirement_id": "MANDATE-release", "spec_requirement_id": "(cross-cutting: tasks group 3)", "layer": "infra", "team": "orch",
+   "acceptance_criteria": [
+     "full suite zero NEW failures vs baseline 6955/0/6 both encodings; check_separation green (unchanged, 26); check-can-fail verdict for the new test file",
+     "skills/data-dictionary/SKILL.md gains the JSON-LD-export note with the no-consumer boundary; instruction-compliance zero findings; no skill/command/agent count change",
+     "version 3.54.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG rubric entry; README spotlight-swap + RELEASE_HISTORY append + timeline; CLAUDE/CODEBASE_MAP/INTEGRATION_MAP/CAPABILITY_INDEX current; a demo captured; completion audit exit 0; FINAL run report (A–F shipped, D7 boundary stated)"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - the deliverable is a stdlib JSON-LD serializer + two corroboration hardening fixes; no web UI. Behavior verified by pytest (dataset/prov mapping, validate_jsonld, round-trip, empty-input, no-fabrication, the two hardening reds) + a captured demo.",
+  "dev_api_integration": "n/a - the emitter reads local JSON sidecars and writes JSON-LD; no HTTP API. NO live external-consumer (OpenLineage/Marquez/DataHub) ingestion is exercised — that is the stated honest boundary.",
+  "both_layer_integration": "n/a - all entries layer infra."
+ },
+ "confirmed_stubs": [], "scope_extensions": []
+}

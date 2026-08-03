@@ -462,3 +462,61 @@ def test_candidates_are_corroborated_when_context_is_supplied(tmp_path):
     assert c.get("needs_corroboration") is False
     assert c["accepted"] is True  # numeric claim agrees with numeric sampled data
     assert c["provenance"] == "inference"
+
+
+# --------------------------------------------------------------------------- #
+# Run F fast-follow F2 — corroborate_mined_claim rows-path treats
+# non_null_sampled == 0 as NOT-checked (red-first). Mirrors annotations' F-A5 and
+# data_dictionary._corroborate_correction: a TEXT-family claim that vacuously
+# "agrees" against zero non-null evidence is uncorroborated, never accepted.
+# --------------------------------------------------------------------------- #
+def test_corroborate_rows_all_null_not_checked():
+    # F2: a text candidate on an all-NULL sampled column WITH rows supplied was
+    # accepted pre-fix (checked=True set unconditionally); it must be treated as
+    # not-checked — non_null_sampled == 0 corroborates nothing.
+    candidate = {"table": "T", "column": "notes", "claimed_type": "text",
+                 "confidence": "medium", "provenance": "inference", "kind": "field"}
+    all_null = [{"notes": None}, {"notes": None}, {"notes": None}]
+    result = sm.corroborate_mined_claim(candidate, rows=all_null)
+    assert result["corroboration"]["non_null_sampled"] == 0   # composed engine confirms zero
+    assert result["accepted"] is False                        # NOT accepted on zero evidence
+    assert result["corroborated"] is False
+    assert result["needs_corroboration"] is True
+    assert result["provenance"] == "inference"                # never promoted
+
+
+def test_corroborate_rows_text_on_ghost_column_not_accepted():
+    # F2 (complete) — a TEXT claim on a column ABSENT from the sampled rows (a
+    # ghost column) is also zero-evidence and must not be accepted.
+    candidate = {"table": "T", "column": "ghost", "claimed_type": "text",
+                 "confidence": "medium", "provenance": "inference", "kind": "field"}
+    rows = [{"id": 1, "total": 5}, {"id": 2, "total": 9}]  # no 'ghost' column
+    result = sm.corroborate_mined_claim(candidate, rows=rows)
+    assert result["accepted"] is False
+    assert result["corroborated"] is False
+    assert result["needs_corroboration"] is True
+
+
+def test_corroborate_rows_populated_text_still_accepted():
+    # keep-green counterpart — a genuinely-populated text column IS checked and
+    # accepted (the fix must not over-correct a real sample).
+    candidate = {"table": "T", "column": "notes", "claimed_type": "text",
+                 "confidence": "medium", "provenance": "inference", "kind": "field"}
+    rows = [{"notes": "hello"}, {"notes": "world"}]
+    result = sm.corroborate_mined_claim(candidate, rows=rows)
+    assert result["corroboration"]["non_null_sampled"] == 2
+    assert result["corroborated"] is True and result["accepted"] is True
+
+
+def test_corroborate_rows_boolean_on_all_null_still_flagged():
+    # keep-working guard — a boolean claim on an all-NULL column genuinely
+    # DISAGREES (vs actual_type 'unknown'), so it stays FLAGGED, not swept to
+    # uncorroborated by an over-broad non_null==0 gate.
+    candidate = {"table": "T", "column": "flag", "claimed_type": "boolean",
+                 "confidence": "medium", "provenance": "inference", "kind": "field"}
+    all_null = [{"flag": None}, {"flag": None}]
+    result = sm.corroborate_mined_claim(candidate, rows=all_null)
+    assert result["flagged"] is True          # genuinely contradicted -> flagged
+    assert result["accepted"] is False
+    assert result["corroborated"] is True     # it WAS checked (a real disagreement)
+    assert result["confidence"] == "low"
