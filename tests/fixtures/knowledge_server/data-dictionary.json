@@ -1,0 +1,70 @@
+{
+  "schema": "data-dictionary/v1",
+  "db_name": "shop",
+  "schema_name": null,
+  "built_at": "2026-08-01T09:00:00Z",
+  "tables": {
+    "customers": {
+      "grain": {
+        "grain": "one row per customer",
+        "inferred_key": ["id"],
+        "declared_pk": ["id"],
+        "uniqueness_ratios": {"id": 1.0, "email": 1.0},
+        "sampled_rows": 100,
+        "small_sample_key": false
+      },
+      "fields": [
+        {"field": "id", "type": "integer", "definition": "customer primary key",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "email", "type": "string", "definition": "customer email address",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null},
+        {"field": "signup_zip", "type": "string", "definition": "postal code at signup",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null}
+      ]
+    },
+    "orders": {
+      "grain": {
+        "grain": "one row per order",
+        "inferred_key": ["id"],
+        "declared_pk": ["id"],
+        "uniqueness_ratios": {"id": 1.0},
+        "sampled_rows": 100,
+        "small_sample_key": false
+      },
+      "fields": [
+        {"field": "id", "type": "integer", "definition": "order primary key",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "customer_id", "type": "integer", "definition": "the customer who placed the order",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "total_cents", "type": "integer", "definition": "order total in cents",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null}
+      ]
+    }
+  },
+  "reference_map": {
+    "by_table": {
+      "customers": [
+        {"file": "src/models/customer.py", "line": 12, "field": "id"},
+        {"file": "src/models/customer.py", "line": 14, "field": "email"}
+      ],
+      "orders": [
+        {"file": "src/models/order.py", "line": 8, "field": "id"},
+        {"file": "src/services/orders.py", "line": 40, "field": "customer_id"}
+      ]
+    },
+    "by_field": {
+      "customers.id": [{"file": "src/models/customer.py", "line": 12}],
+      "customers.email": [{"file": "src/models/customer.py", "line": 14}],
+      "orders.customer_id": [{"file": "src/services/orders.py", "line": 40}]
+    }
+  },
+  "relational_map": [
+    {"from_table": "orders", "from_col": "customer_id", "to_table": "customers", "to_col": "id", "kind": "db-fk"},
+    {"from_table": "orders", "from_col": "signup_zip", "to_table": "customers", "to_col": "signup_zip",
+     "kind": "code-join", "note": "orders enriched with customer zip in the reporting job"}
+  ],
+  "provenance_vocabulary": ["direct-user-input", "direct-code-comment", "inference", "live-data"],
+  "live_inspection": {
+    "ran": true, "engine": "sqlite", "tables_sampled": 2, "rows_sampled_total": 200, "sample_limit": 100
+  }
+}

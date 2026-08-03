@@ -8,6 +8,27 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.49.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.49.0 — knowledge-server-foundation: the generic staleness-aware MCP knowledge server both legs ride on
+
+Run A of the data-engineering lane proposal (`docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md`) — the shared foundation both legs depend on: ONE generic stdlib MCP server (JSON-RPC 2.0 over stdio, no `mcp` SDK) pointed at two source families (the data-dictionary and the codebase-map), built once. It adopts deng-toolkit's warm, structured, one-tool-call INTERFACE while keeping CT6's change-driven-freshness SEMANTICS.
+
+| What shipped | Detail |
+|---|---|
+| **NEW `services/knowledge_server/`** | A stdlib-only MCP server (`initialize` / `tools/list` / `tools/call` hand-implemented), import-clean so `check_separation` stays green (checked 26), no LLM anywhere. A pluggable READ-ONLY source-adapter seam registers tools from one or more sources; a tool sweep mutates no source sidecar. |
+| **Two adapters — no scope cut** | `DictionarySource` (search_dictionary / get_table_details / find_relations / get_dictionary_status) + `MapSource` (search_map / get_route_details / find_call_paths / get_map_status). `find_call_paths` generalizes deng's `find_join_paths` over the lineage edge vocabulary (calls / reads / writes / modifies / serves / originates / serves_route), walking ONLY edges present in the graph — invented edges are impossible. |
+| **Freshness on EVERY response** | `{verdict: current \| stale \| unknowable, basis:[]}` on every tool (not just status tools) — map staleness via `hooks/lineage_graph.py::transitive_stale_nodes`, dictionary via reference-file git-drift since `built_at`, DB currency honestly `unknowable` without a live connection. Never a fabricated `current`, never a bare wall clock (deng's anti-pattern). |
+| **Composition over greenfield** | Ranked search composes the Librarian's `LibraryIndex` (verified by module identity, NOT a fork); re-index on a `bg_runtime.Scheduler` tick when a sidecar hash changes; closed output contracts per tool via `scripts/mcp_design/output_contract.py` (a malformed response FAILS validation through the real dispatch). |
+| **Installer + portable registration** | NEW `scripts/setup/install_knowledge_server.py` on the `install_librarian.py` template + the `confirm_gateway_serving` live-round-trip bar: provisions `~/.architect-team/knowledge/`, PRINTS a portable `server.py --repo-root <repo>` registration (`discover_sidecars` auto-finds the conventional CT6 sidecars; never auto-edits MCP config), and prints "serving on this machine" ONLY after a real `tools/call` round-trip — never "deployed". The launch-dead-server class is refused at THREE layers (in-process `main()`, a suite subprocess co-exercise against the real server, and the reviewers' paste-simulation); the probe argv is DERIVED from the registration argv, so probe == ship by construction. NEW `commands/knowledge-install.md` (`/architect-team:knowledge-install`). |
+| **Counts + tests** | Suite **6690 → 6795 passing + 6 skipped, 0 failed** (+105; 231 test files, Windows-measured under both default cp1252 and `PYTHONUTF8=1`); `check_separation` {clean:true, checked:26}. Commands 23 → **24**; NEW `services/knowledge_server/` server-tier member; skills / agents / hooks / Layer-3 tools UNCHANGED (50 / 39 / 7 / 21). Both slices passed the v7 paired review (producer != checker, 0 gaps) + an independent Phase-7 master review. |
+
+HONEST BOUNDARY: the installer confirms live serving on THIS machine via a real `tools/call`; nothing is "deployed". A bare `install` in a repo without generated sidecars (the CT6 repo itself is such a repo) yields an accurate green whose registration is DORMANT until sidecars exist — not a false serving claim (only `confirm-serving` claims serving, and it reports NOT-serving there); a static discoverability WARN is a LOGGED fast-follow. Runs B–F of the proposal remain future runs.
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.48.1  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```

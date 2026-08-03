@@ -63,7 +63,7 @@ or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py -
 - **visual-to-api-design** — Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE …
 - **visual-verification-team** — Use when visual-fidelity reconciliation needs to be independently verified against the live running app — at Phase 5, or via the visual-qa …
 
-## Commands (23)
+## Commands (24)
 
 - **absorb-phenotype** — Absorb any arbitrary codebase into a new labeled phenotype — analyze it (read-only), generalize a blueprint + a parameterized scaffold, …
 - **architect-team** — Spec-to-production multi-agent coding pipeline
@@ -75,6 +75,7 @@ or agent, regenerate it with `python3 scripts/docs_tooling/capability_index.py -
 - **discipline-status** — Report which CT6 codebase disciplines have been applied to the current codebase (the v2.18.0 codebase discipline registry)
 - **editability-audit** — Run an on-demand editability-completeness audit against one or all codebases
 - **inject** — Inject an in-flight clarification, scope amendment, or separable parallel problem into the currently running architect-team pipeline
+- **knowledge-install** — Full-lifecycle installer for the CT6 knowledge server — the standing, staleness-aware, MCP-queryable knowledge service over a repo's …
 - **librarian-install** — Full-lifecycle installer for the CT6 Librarian — the background topic-research curation service
 - **logit** — Run the Logit / Helpdesk manual triage report after a session that went badly (HD-1…3)
 - **memory** — Ad-hoc interaction with the architect-team plugin's MemPalace store

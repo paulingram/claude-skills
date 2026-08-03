@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {"id": "endpoint://GET/api/orders", "kind": "endpoint",
+     "path": "src/api/orders_route.py", "name": "GET /api/orders"},
+    {"id": "func://shop/src/services/orders.py#list_orders", "kind": "function",
+     "path": "src/services/orders.py", "name": "list_orders"},
+    {"id": "func://shop/src/repo/order_repo.py#OrderRepo.fetch", "kind": "function",
+     "path": "src/repo/order_repo.py", "name": "OrderRepo.fetch"},
+    {"id": "asset://pg/public/orders", "kind": "data_asset",
+     "path": "db/public/orders", "name": "orders"}
+  ],
+  "edges": [
+    {"src": "endpoint://GET/api/orders", "dst": "func://shop/src/services/orders.py#list_orders",
+     "kind": "serves", "executed": true},
+    {"src": "func://shop/src/services/orders.py#list_orders", "dst": "func://shop/src/repo/order_repo.py#OrderRepo.fetch",
+     "kind": "calls", "executed": true},
+    {"src": "func://shop/src/repo/order_repo.py#OrderRepo.fetch", "dst": "asset://pg/public/orders",
+     "kind": "reads", "executed": true}
+  ]
+}
