@@ -168,10 +168,19 @@ def _usage_block(source: UsageStatsSource | None, table: str) -> dict[str, Any] 
     stats = source.table_usage(table)
     if stats is None:
         return None
+    read_recency = stats.get("read_recency")
+    write_recency = stats.get("write_recency")
+    row_volume = stats.get("row_volume")
+    # F1 — a NON-None but empty (or all-None) stats mapping carries no measurement.
+    # OMIT the block rather than attach an all-None `usage` at provenance
+    # `live-data` (a fabricated "measured" block with nothing measured), so a
+    # misbehaving adapter returning `{}` behaves exactly as if it returned `None`.
+    if read_recency is None and write_recency is None and row_volume is None:
+        return None
     return {
-        "read_recency": stats.get("read_recency"),
-        "write_recency": stats.get("write_recency"),
-        "row_volume": stats.get("row_volume"),
+        "read_recency": read_recency,
+        "write_recency": write_recency,
+        "row_volume": row_volume,
         "provenance": "live-data",  # MEASURED — rides the existing vocabulary
     }
 

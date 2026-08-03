@@ -10,7 +10,7 @@
     {
       "name": "architect-team",
       "description": "Spec-to-production multi-agent coding pipeline.",
-      "version": "3.53.0",
+      "version": "3.54.0",
       "source": "./",
       "author": {
         "name": "Paul Ingram",

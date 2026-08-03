@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {"id": "func://etl/load_orders", "kind": "function", "path": "etl/load.py", "name": "load_orders"},
+    {"id": "asset://raw/orders_csv", "kind": "data_asset", "path": "s3://raw/orders.csv", "name": "orders_csv"},
+    {"id": "asset://db/orders", "kind": "data_asset", "path": "shop.orders", "name": "orders"},
+    {"id": "endpoint://api/GET/orders", "kind": "endpoint", "path": "api/orders.py", "name": "GET /orders"}
+  ],
+  "edges": [
+    {"src": "func://etl/load_orders", "dst": "asset://raw/orders_csv", "kind": "reads"},
+    {"src": "func://etl/load_orders", "dst": "asset://db/orders", "kind": "writes"},
+    {"src": "endpoint://api/GET/orders", "dst": "func://etl/load_orders", "kind": "calls", "executed": true},
+    {"src": "endpoint://api/GET/orders", "dst": "asset://db/orders", "kind": "serves", "match_basis": "route-table"}
+  ]
+}

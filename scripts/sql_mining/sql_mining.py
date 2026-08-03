@@ -521,15 +521,28 @@ def corroborate_mined_claim(
     conflict: Optional[str] = None
 
     if rows is not None:
+        claims_key = bool(candidate.get("claims_key"))
         corro = dd.corroborate_definition(
             rows, table, column,
             claimed_type=claimed_type,
-            claims_key=bool(candidate.get("claims_key")),
+            claims_key=claims_key,
         )
-        checked = True  # corroborate_definition actually inspected THIS column's data
-        if not corro.get("agrees", True):
-            flagged = True
-            conflict = corro.get("conflict")
+        # F2 — mirror annotations' F-A5 and data_dictionary._corroborate_correction:
+        # a rows check with ZERO non-null evidence for THIS column (an all-NULL
+        # column, or a ghost column absent from the sampled rows) inspected nothing.
+        # A TEXT-family claim reads actual_type 'unknown' and vacuously "agrees" on
+        # that zero evidence — that vacuous agreement is NOT corroboration, so it is
+        # treated as not-checked (stays uncorroborated, never accepted). A genuine
+        # DISAGREEMENT (boolean/integer/date vs 'unknown') or a key claim (whose
+        # verdict carries no non_null_sampled) is a real signal and keeps working.
+        column_present = any(isinstance(r, dict) and column in r for r in rows)
+        zero_evidence = (corro.get("non_null_sampled") == 0) or (not column_present)
+        vacuous_agreement = zero_evidence and corro.get("agrees", True) and not claims_key
+        if not vacuous_agreement:
+            checked = True  # corroborate_definition genuinely inspected THIS column's data
+            if not corro.get("agrees", True):
+                flagged = True
+                conflict = corro.get("conflict")
 
     if corroborated_defs:
         existing = corroborated_defs.get(f"{table}.{column}")
