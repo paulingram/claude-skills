@@ -65,11 +65,12 @@ def _discover_canonical_commands() -> tuple[str, ...]:
         names = []
     if names:
         return tuple(names)
-    # Frozen fallback — the 24 commands shipped as of v3.49.0 (+closeout v3.18.0,
-    # +logit v3.21.0, +librarian-install v3.29.0, +knowledge-install v3.49.0).
+    # Frozen fallback — the 25 commands shipped as of v3.50.0 (+closeout v3.18.0,
+    # +logit v3.21.0, +librarian-install v3.29.0, +knowledge-install v3.49.0,
+    # +data-eng v3.50.0).
     return (
         "absorb-phenotype", "architect-team", "architect-team-setup", "bug-fix",
-        "classify-test-prod-safety", "cleanup-worktrees", "closeout",
+        "classify-test-prod-safety", "cleanup-worktrees", "closeout", "data-eng",
         "discipline-status", "editability-audit", "inject", "knowledge-install",
         "librarian-install", "logit", "memory", "mempalace-install", "mini",
         "mini-review-sweep", "monitor-tests", "optimize-structure", "refine-prompt",
@@ -104,6 +105,11 @@ _PIPELINE_COMMAND_SKILLS: dict[str, tuple[str, ...]] = {
     "ux-test": ("ux-test", "ux-test-builder"),
     "mini": ("mini", "mini-architect-team-pipeline"),
     "refine-prompt": ("refine-prompt", "proposal-refiner"),
+    # v3.50.0 — the data-engineering lane command routes to the data-eng-pipeline
+    # skill (mirrors bug-fix -> bug-fix-pipeline). The command file may not yet be
+    # on disk when the frozen fallback is in force, so the mapping is declared here
+    # explicitly rather than relying on directory derivation alone.
+    "data-eng": ("data-eng", "data-eng-pipeline"),
 }
 
 

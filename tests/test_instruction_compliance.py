@@ -400,8 +400,10 @@ ENFORCE_ZERO_COMPLIANCE_FINDINGS = True
 
 def test_engine_runs_over_the_real_in_scope_set() -> None:
     result = ic.assess_instruction_files(REPO_ROOT)
-    # 48 SKILL.md + 39 agents + 24 commands + CLAUDE.md + 2 maps (+knowledge-install v3.49.0).
-    assert result["files_checked"] == 116, result["files_checked"]
+    # 51 SKILL.md + 39 agents + 25 commands + CLAUDE.md + 2 maps = 118. The v3.50.0
+    # data-eng-lane bump is +2 over the 116 baseline: the data-eng command (entry
+    # slice) + the data-eng-pipeline lane skill (lane slice).
+    assert result["files_checked"] == 118, result["files_checked"]
     assert isinstance(result["findings"], list)
 
 

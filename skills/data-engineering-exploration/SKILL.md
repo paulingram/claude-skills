@@ -9,11 +9,13 @@ You are the **Data Engineering Exploration orchestrator**. Drive the 7-stage flo
 
 ## When this skill runs
 
-Two callers as of v3.5.0:
+Three callers as of v3.50.0:
 
 1. **`architect-team-pipeline` Phase 0c — Data-engineering dispatch check** — the new Phase 0c heuristic detector matched (per `common-pipeline-conventions/SKILL.md` `## Data engineering exploration discipline (v3.5.0)`). The orchestrator dispatches this skill BEFORE Phase 0 (Detection & Normalization).
 
 2. **`architect-team-pipeline` mixed-mode** — when both a frontend / API surface (Phase 0a or 0b) AND a data-engineering surface (Phase 0c) are detected (e.g., *"build the analytics warehouse AND the dashboard UI on top"*). Phase 0a or 0b runs first; this skill runs after, using the upstream API contract as Stage 1 domain context input.
+
+3. **`data-eng-pipeline` Phase D0 — the data-engineering lane (v3.50.0)** — the third caller. When a data-eng-primary ask routes to the `data-eng-pipeline` lane at the front door (Phase −2 returns `kind: data-eng`, or `/architect-team:data-eng` / `--data-eng`), the lane dispatches this skill VERBATIM at its Phase D0 — no fork, no duplication of the 7-stage flow. The lane wraps this exploration with its own D−1 warm-catalog-first check and D7 catalog-refresh disciplines, but the exploration itself is unchanged.
 
 ## Inputs
 

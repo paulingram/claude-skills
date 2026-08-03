@@ -8,6 +8,27 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.50.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.50.0 — data-eng-lane: data-engineering becomes a first-class sibling lane at the front door
+
+Run B of `docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md` §3/§7.2. Run A shipped the generic knowledge server (v3.49.0); Run B gives data-engineering the exact shape the `bug-fix` lane already has — a purpose-built lane a data-eng-primary ask routes to at Phase −2, not a generic feature. The lane COMPOSES what exists (`data-engineering-exploration` verbatim, `intake-and-mapping`, the Run A knowledge server, the `data_dictionary` engine) and adds exactly two new disciplines. Additive: a non-data-eng ask behaves EXACTLY as before.
+
+| What shipped | Detail |
+|---|---|
+| **A fifth classifier verdict, moved honestly** | `agents/bug-classifier.md` gains `kind: data-eng` + `data_eng_portion`; the "four kinds / five fields" pins move to five / six in LOCKSTEP (enum, all six examples, hard rules, + a test guard forbidding every stale four/five phrasing). A non-data-eng ask classifies exactly as before — the fifth kind fires only on a data-eng-PRIMARY signal. |
+| **`--data-eng` flag + `/architect-team:data-eng`** | A third override alongside `--bug-fix` / `--feature-only` + a NEW `commands/data-eng.md` on the bug-fix.md template invoking the lane by bare name → commands 24 → **25** (canonical pin + `COMMAND_TO_SKILLS` + the frozen fallback + `CAPABILITY_INDEX` in lockstep; instruction-compliance zero findings). |
+| **NEW `skills/data-eng-pipeline/SKILL.md` — the lane (D−1…D8)** | Reuse over duplication: **D0 dispatches `data-engineering-exploration` VERBATIM** (the lane becomes its THIRD documented caller — verified compose-not-fork: none of the exploration's seven `## Stage N` bodies appear in the lane); D1 / D2–D6 / D8 reuse Phases 1 / 2–6 / 8; the full evidence stack + the data bar (≥1 blocker-severity validation rule + lineage emission per transformation). |
+| **Two new disciplines, wired to Run A infra** | **D−1 warm-catalog-first**: query the knowledge server's `get_dictionary_status` for the dictionary + its `{verdict, basis}` freshness BEFORE a rebuild — the server INFORMS, the per-run gate DECIDES, DB currency honestly `unknowable` without a connection. **D7 catalog-refresh**: rebuild via `scripts/data_dictionary/data_dictionary.py` → re-index the knowledge server → mine to MemPalace, leaving the catalog warm for the next run. |
+| **Front-door-vs-mid-flow precedence, additive** | The lane WINS at the front door (a data-eng-primary run routes to `data-eng-pipeline` at Phase −2 and NEVER reaches Phase 0c); Phase 0c KEEPS winning mid-flow (its `## Phase 0c` heading byte-preserved); `mixed` with a data-eng portion parallel-spawns with `triage_done: true` bounding recursion at depth 1. No existing routing bullet's semantics change for a non-data-eng run. |
+| **Counts + tests** | Suite **6795 → 6845 passing + 6 skipped, 0 failed** (+50; 233 test files, Windows-measured under both default cp1252 and `PYTHONUTF8=1`); no `services/` module, so `check_separation` is unaffected. Skills 50 → **51**; commands 24 → **25**; agents / hooks / Layer-3 tools UNCHANGED (39 / 7 / 21). Both slices passed the evidence-schema-v7 paired review (producer != checker, 0 gaps). |
+
+HONEST BOUNDARY: Run B ships the LANE (entry + orchestration + the two disciplines wired to Run A's server) — the SQL-mining engine (R2) is Run C, annotations (R3) Run D, usage-stats + review round-trip (R4/R5) Run E, the JSON-LD emitter (R6) Run F. The lane is a documentation/orchestration surface (a skill + wiring), not a running data service — nothing is described as "deployed".
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.49.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```

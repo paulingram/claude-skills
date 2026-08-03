@@ -1,0 +1,47 @@
+{
+ "change": "data-eng-lane",
+ "source": "Run B of docs/proposals/DATA_ENG_LANE_AND_CROSS_POLLINATION.md §3/§7.2",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 6795, "failed": 0, "skipped": 6,
+   "note": "zero NEW failures is the gate; +N added tests expected; check_separation unaffected (no services module in Run B)"},
+ "entries": [
+  {"source_requirement_id": "B-classifier-verdict", "spec_requirement_id": "data-eng-lane/A data-eng verdict routes to a dedicated lane at the front door", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "agents/bug-classifier.md verdict enum includes data-eng + a data_eng_portion field (grep)",
+     "the agent's 'exactly four kinds / five fields' pins are MOVED to five/six in lockstep — NO surviving four-kinds assertion in the agent file or its structural test (grep + test)",
+     "a non-data-eng ask still yields exactly the prior verdict set (the fifth kind is additive) — a test asserts bug/feature/mixed/unclear paths unchanged",
+     "the codebase-markers arm re-anchors to a filesystem glob at -2 OR documents deferral to 0c (prose present)"]},
+  {"source_requirement_id": "B-flag-command", "spec_requirement_id": "data-eng-lane/The --data-eng flag and /architect-team:data-eng command force the lane", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "--data-eng flag documented in commands/architect-team.md + skills/architect-team-pipeline/SKILL.md flag list (a third override bullet)",
+     "commands/data-eng.md exists on the commands/bug-fix.md shape; /architect-team:data-eng invokes data-eng-pipeline",
+     "canonical-command pin tests/test_skill_invocation_audit_canonical.py 24->25; COMMAND_TO_SKILLS carries data-eng; hooks/skill_invocation_audit.py frozen fallback includes data-eng",
+     "docs/CAPABILITY_INDEX.md fresh; instruction-compliance zero findings (no ': ' in the command description)"]},
+  {"source_requirement_id": "B-lane-orchestrator", "spec_requirement_id": "data-eng-lane/The data-eng-pipeline lane orchestrates D-1..D8 reusing existing structure", "layer": "infra", "team": "2",
+   "acceptance_criteria": [
+     "skills/data-eng-pipeline/SKILL.md exists; phases D-1..D8 present; MemPalace wake-up precedes everything",
+     "D0 dispatches data-engineering-exploration VERBATIM (the skill is named/invoked, not duplicated); D1/D2-D6/D8 reuse Phase 1/2-6/8 semantics by reference",
+     "skills/data-engineering-exploration/SKILL.md documents data-eng-pipeline as its third caller (bullet present)",
+     "the skill carries the compiled boilerplate/principles blocks; valid frontmatter (no ': ' hazard); instruction-compliance zero findings"]},
+  {"source_requirement_id": "B-two-disciplines", "spec_requirement_id": "data-eng-lane/The lane adds the warm-catalog-first (D-1) and catalog-refresh (D7) disciplines", "layer": "infra", "team": "2",
+   "acceptance_criteria": [
+     "D-1 queries the Run A knowledge server (get_dictionary_status) for the dictionary + freshness verdict before a rebuild; the per-run gate DECIDES (server verdict INFORMS) — prose explicit",
+     "D7 rebuilds affected tables via scripts/data_dictionary/data_dictionary.py, re-corroborates, re-indexes the knowledge server, mines to MemPalace — leaving the catalog warm",
+     "both disciplines state the no-connection honesty (DB currency unknowable without a live connection, carried from Run A)"]},
+  {"source_requirement_id": "B-precedence", "spec_requirement_id": "data-eng-lane/Front-door-vs-mid-flow precedence is unambiguous", "layer": "infra", "team": "2",
+   "acceptance_criteria": [
+     "skills/architect-team-pipeline/SKILL.md states: lane WINS at the front door (data-eng-primary -> data-eng-pipeline at -2, never 0c); Phase 0c KEEPS winning mid-flow (feature-primary with a data-eng surface unchanged)",
+     "mixed with a data-eng portion parallel-spawns (lane for the portion, pipeline for the rest) with triage_done depth-1 bound",
+     "the addition is additive prose — a test/grep confirms no existing routing bullet's semantics changed for a non-data-eng run"]},
+  {"source_requirement_id": "B-MANDATE-release", "spec_requirement_id": "(cross-cutting: tasks group 3)", "layer": "infra", "team": "3",
+   "acceptance_criteria": [
+     "full suite zero NEW failures vs baseline 6795/0/6 both encodings; check_separation green (unchanged)",
+     "version 3.50.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG rubric entry; README spotlight-swap + RELEASE_HISTORY append; doc-currency audit PASS",
+     "completion audit exit 0"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - the deliverable is the CT6 plugin's lane surface (a skill + classifier/command/routing edits); no web UI. The lane's behavior is verified by structural tests (the skill parses + declares D-1..D8 + third-caller) + a routing dry-run (a data-eng verdict reaches the lane).",
+  "dev_api_integration": "n/a - no HTTP API in Run B; the lane orchestration is documentation/wiring.",
+  "both_layer_integration": "n/a - all entries layer infra."
+ },
+ "confirmed_stubs": [], "scope_extensions": []
+}
