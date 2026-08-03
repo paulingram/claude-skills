@@ -29,14 +29,52 @@ CLI:
 from __future__ import annotations
 
 import argparse
+import csv
+import importlib.util
 import json
 import re
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 ARTIFACT_NAME = "DATA_DICTIONARY_MAP.md"
 SIDECAR_NAME = "data-dictionary.json"
+
+# The conflict glyph, matching sql_mining.py / annotations.py. A utf-8 source
+# literal (PEP 3120 — Python 3 decodes source as utf-8 regardless of the OS locale),
+# green under both Windows cp1252 and PYTHONUTF8=1; every file this engine writes is
+# always utf-8.
+WARN_MARKER = "⚠"
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_LOADED: dict[str, Any] = {}
+
+
+def _load(mod_name: str, rel_path: str) -> Any:
+    """Load an in-repo stdlib leaf module by file path (cached).
+
+    `scripts/` carries no `__init__.py`, so a normal package import is unavailable;
+    this is the same `spec_from_file_location` idiom `scripts/sql_mining/sql_mining.py`
+    and `scripts/data_dictionary/annotations.py` use. The reuse target
+    (`scripts/helpdesk/logit.py`) is a pure-stdlib leaf with no import-time side
+    effects, so the load is safe and repeatable — and it keeps THIS engine
+    stdlib-only (the privacy engine is REUSED, never top-level imported / re-built).
+    """
+    cached = _LOADED.get(mod_name)
+    if cached is not None:
+        return cached
+    path = _REPO_ROOT / rel_path
+    spec = importlib.util.spec_from_file_location(mod_name, path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load {mod_name} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _LOADED[mod_name] = module
+    return module
+
+
+def _logit() -> Any:
+    return _load("ct6_dd_logit", "scripts/helpdesk/logit.py")
 
 # DD-13 — the FIXED provenance vocabulary. A field's value is sourced as exactly
 # one of these. Extend HERE (nowhere else) if a new source type is ever needed.
@@ -57,6 +95,85 @@ MIN_KEY_SAMPLE = 20
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 _ZIP5_RE = re.compile(r"^\d{5}$")
+
+
+# --------------------------------------------------------------------------- #
+# Usage-grounded importance (R4) — an injected per-engine usage-stats adapter
+# --------------------------------------------------------------------------- #
+
+@runtime_checkable
+class UsageStatsSource(Protocol):
+    """Injected seam for per-table LIVE usage statistics (R4). Mirrors how the DB
+    adapter is injected — the engine never reaches a live engine's catalog itself.
+
+    `table_usage(table)` returns a mapping `{read_recency, write_recency,
+    row_volume}` when the engine exposes usage stats for that table, or `None` when
+    it does not. A `None` return OMITS the usage block ENTIRELY — absent stats are
+    NEVER zero-filled: an unmeasured table and an idle table are not the same thing,
+    and a fabricated zero would rank a live table as dead. Attached stats ride
+    provenance `live-data` because they are MEASURED, not inferred.
+
+    Concrete engine shapes (DESCRIBED, not bundled — the plugin ships no DB drivers;
+    SQLite honestly has none):
+
+    * SQL Server: read/write recency from ``sys.dm_db_index_usage_stats``
+      (``last_user_seek`` / ``last_user_scan`` / ``last_user_lookup`` for reads,
+      ``last_user_update`` for writes), row volume from
+      ``sys.dm_db_partition_stats.row_count``. The ``dm_*`` views RESET on service
+      restart, so a table missing from them is honestly ``None`` (unknown), never
+      zero.
+    * Postgres: ``pg_stat_user_tables`` — ``last_seq_scan`` / ``last_idx_scan``
+      (or ``last_autoanalyze``) for read recency, ``last_autovacuum`` /
+      ``n_tup_ins + n_tup_upd + n_tup_del`` for writes, ``n_live_tup`` for row
+      volume.
+    """
+
+    def table_usage(self, table: str) -> dict[str, Any] | None:
+        ...
+
+
+class SqliteUsageStats:
+    """The honest SQLite usage source: SQLite exposes NO usage catalog (no
+    ``dm_*`` / ``pg_stat_*`` equivalent), so every table's usage is unknowable and
+    this returns ``None`` for every table — which OMITS the usage block. It exists
+    so the SQLite adapter has a same-shaped source; a real engine supplies its own.
+    """
+
+    def table_usage(self, table: str) -> dict[str, Any] | None:
+        return None
+
+
+class FakeUsageStatsSource:
+    """An offline/test usage source: returns the per-table stats it was handed, and
+    ``None`` for any table it has no stats for — so an absent table OMITS the block,
+    the same honest posture a real engine takes for a table missing from its usage
+    catalog. Drives the R4 tests without a live engine."""
+
+    def __init__(self, stats: dict[str, dict[str, Any]] | None = None) -> None:
+        self._stats = dict(stats or {})
+
+    def table_usage(self, table: str) -> dict[str, Any] | None:
+        return self._stats.get(table)
+
+
+def _usage_block(source: UsageStatsSource | None, table: str) -> dict[str, Any] | None:
+    """Return the per-table `usage` block to attach, or `None` to OMIT it.
+
+    A non-None mapping from the source attaches exactly the three documented fields
+    (missing sub-keys become `None`, never fabricated) plus provenance `live-data`.
+    A `None` from the source — or no source at all — returns `None`, and the caller
+    attaches NOTHING (never zeros, never `{}`)."""
+    if source is None:
+        return None
+    stats = source.table_usage(table)
+    if stats is None:
+        return None
+    return {
+        "read_recency": stats.get("read_recency"),
+        "write_recency": stats.get("write_recency"),
+        "row_volume": stats.get("row_volume"),
+        "provenance": "live-data",  # MEASURED — rides the existing vocabulary
+    }
 
 
 def _q(identifier: str) -> str:
@@ -320,6 +437,7 @@ def build_from_sqlite(
     provided_defs: dict[str, dict[str, Any]] | None = None,
     sample_limit: int = 100,
     built_at: str | None = None,
+    usage_stats: UsageStatsSource | None = None,
 ) -> dict[str, Any]:
     """Build the full data dictionary from a SQLite DB.
 
@@ -327,6 +445,11 @@ def build_from_sqlite(
     "table.field" -> {definition, provenance, claims_key?}. Provided definitions
     win over inference but are corroborated against the data (DD-14); a claimed
     key that the data contradicts is flagged and downgraded to low confidence.
+
+    `usage_stats` (R4) is an optional injected `UsageStatsSource`; when it returns
+    stats for a table, a per-table `usage` block (read/write recency + row volume)
+    is attached at provenance `live-data`. Absent stats OMIT the block entirely —
+    a build with NO source is byte-unchanged.
     """
     info = introspect_sqlite(db_path)
     provided_defs = provided_defs or {}
@@ -378,7 +501,14 @@ def build_from_sqlite(
                     "provenance": provenance, "confidence": confidence,
                     "inference_evidence": inf["evidence"], "corroboration": corro,
                 })
-            tables_out[table] = {"grain": grain, "fields": fields}
+            table_entry: dict[str, Any] = {"grain": grain, "fields": fields}
+            # R4 — attach measured usage ONLY when the source has stats for this
+            # table; OMIT the block entirely otherwise (never zero-fill). With no
+            # source, `_usage_block` returns None and the entry is byte-unchanged.
+            usage = _usage_block(usage_stats, table)
+            if usage is not None:
+                table_entry["usage"] = usage
+            tables_out[table] = table_entry
         return {
             "schema": "data-dictionary/v1",
             "db_name": info["db_name"],
@@ -492,12 +622,21 @@ def serialize_markdown(dd: dict[str, Any]) -> str:
     for table, tinfo in dd["tables"].items():
         out.append(f"## Table: `{table}`")
         out.append(f"- **Grain:** {tinfo['grain']['grain']}")
+        # R4 — a measured usage line renders ONLY when a usage block is present
+        # (absent -> no line, so a no-usage-source artifact is byte-unchanged).
+        usage = tinfo.get("usage")
+        if usage:
+            out.append(
+                f"- **Usage (live-data):** row_volume={usage.get('row_volume')}, "
+                f"read_recency={usage.get('read_recency')}, "
+                f"write_recency={usage.get('write_recency')}"
+            )
         out.append("")
         out.append("| Field | Type | Definition | Provenance | Confidence | Corroboration |")
         out.append("|---|---|---|---|---|---|")
         for f in tinfo["fields"]:
             corro = f.get("corroboration")
-            corro_s = "ok" if (corro is None or corro.get("agrees")) else f"⚠ {corro.get('conflict')}"
+            corro_s = "ok" if (corro is None or corro.get("agrees")) else f"{WARN_MARKER} {corro.get('conflict')}"
             out.append(
                 f"| `{f['field']}` | {f['type']} | {f['definition']} | "
                 f"{f['provenance']} | {f['confidence']} | {corro_s} |"
@@ -537,6 +676,213 @@ def write_artifact(dd: dict[str, Any], out_dir: str | Path) -> tuple[Path, Path]
     return md_path, js_path
 
 
+# --------------------------------------------------------------------------- #
+# Offline stakeholder review round-trip (R5) — generate-review / apply-review
+# --------------------------------------------------------------------------- #
+
+# The FIXED review-CSV columns. `proposed_definition` is blank at generate time —
+# the stakeholder fills it, and apply-review reads it back by these exact names
+# (stdlib csv.DictWriter/DictReader), so a returned correction lands on the field
+# it was written from — no column drift (the deng round-trip's pinned failure).
+REVIEW_COLUMNS: tuple[str, ...] = (
+    "table", "field", "current_definition", "confidence",
+    "conflict", "usage_volume", "proposed_definition",
+)
+
+
+def _field_needs_review(field: dict[str, Any]) -> bool:
+    """A field needs human eyes when its confidence is `low` OR its corroboration
+    carries a conflict (⚠) — exactly the fields a stakeholder should adjudicate."""
+    corro = field.get("corroboration")
+    has_conflict = bool(corro) and not corro.get("agrees", True)
+    return field.get("confidence") == "low" or has_conflict
+
+
+def _redact_conflict_detail(detail: str, privacy_level: str) -> str | None:
+    """Reuse `scripts/helpdesk/logit.py::redact_evidence` (the done privacy engine,
+    HD-2 / EVAL-16 — NOT re-implemented) to decide whether the sample-derived
+    conflict detail may ride along. Offered under the NON-allowlisted `data_sample`
+    key: `full` keeps it, `summary` (the default) drops it via the allow-list."""
+    kept = _logit().redact_evidence([{"data_sample": detail}], privacy_level)
+    item = kept[0] if kept else {}
+    return item.get("data_sample")
+
+
+def _review_sort_key(row: dict[str, Any]) -> tuple[int, int]:
+    """Sort key: rows WITH usage first, descending by row_volume; rows WITHOUT usage
+    strictly last (stable among themselves — Python's sort is stable, so equal keys
+    preserve insertion order)."""
+    vol = row.get("usage_volume")
+    if vol == "" or vol is None:
+        return (1, 0)
+    try:
+        return (0, -int(vol))
+    except (TypeError, ValueError):
+        return (1, 0)
+
+
+def generate_review(
+    dictionary: dict[str, Any],
+    out_csv_path: str | Path,
+    *,
+    privacy_level: str = "summary",
+) -> list[dict[str, Any]]:
+    """Write a CSV (stdlib `csv`) of the fields most needing human review —
+    `confidence == "low"` OR a corroboration conflict — sorted by R4
+    `usage.row_volume` (desc; no-usage rows last), redacted through the reused
+    `logit.redact_evidence` (default `summary`; `full` keeps sample-derived detail).
+    Returns the written rows (also used by callers/tests). `proposed_definition` is
+    blank for the stakeholder to fill; `apply_review` reads it back."""
+    if privacy_level not in ("summary", "full"):
+        raise ValueError(f"invalid privacy_level {privacy_level!r} (allowed: summary, full)")
+    rows: list[dict[str, Any]] = []
+    for table, tinfo in (dictionary.get("tables") or {}).items():
+        usage = tinfo.get("usage") or {}
+        vol = usage.get("row_volume")
+        for field in tinfo.get("fields") or []:
+            if not _field_needs_review(field):
+                continue
+            corro = field.get("corroboration")
+            conflict_cell = ""
+            if corro and not corro.get("agrees", True):
+                detail = corro.get("conflict") or "corroboration conflict"
+                shown = _redact_conflict_detail(detail, privacy_level)
+                # the ⚠ FACT of a conflict always survives; only the sample-derived
+                # DETAIL is dropped under `summary` (EVAL-16 privacy).
+                conflict_cell = f"{WARN_MARKER} {shown}" if shown else WARN_MARKER
+            rows.append({
+                "table": table,
+                "field": field.get("field"),
+                "current_definition": field.get("definition", ""),
+                "confidence": field.get("confidence", ""),
+                "conflict": conflict_cell,
+                "usage_volume": "" if vol is None else vol,
+                "proposed_definition": "",  # blank — the stakeholder fills it
+            })
+    rows.sort(key=_review_sort_key)
+    out = Path(out_csv_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(REVIEW_COLUMNS))
+        writer.writeheader()
+        writer.writerows(rows)
+    return rows
+
+
+def _recover_claim(field: dict[str, Any]) -> tuple[str | None, bool]:
+    """Recover the `(claimed_type, claims_key)` a corrected field was under, from its
+    existing corroboration record, so a correction is re-checked on the SAME
+    dimension the review surfaced. A field with no prior claim (a plain inferred
+    field) yields `(None, False)` — the correction is corroborated as a plain
+    definition (checked, not contradicted)."""
+    corro = field.get("corroboration")
+    if not isinstance(corro, dict):
+        return None, False
+    if "claimed_key" in corro:  # the corroborate_key_claim shape -> a key claim
+        return None, True
+    return corro.get("claimed_type"), False
+
+
+def _corroborate_correction(
+    rows: list[dict[str, Any]], table: str, column: str,
+    claimed_type: str | None, claims_key: bool,
+) -> tuple[dict[str, Any], bool]:
+    """`corroborate_definition` + the all-NULL non_null gate (the same discipline
+    the annotations F-A5 hardening establishes): only a VACUOUS agreement on zero
+    evidence — a TYPE claim that "agrees" with actual_type 'unknown' when
+    non_null_sampled == 0 — is treated as not-checked. A genuine disagreement stays
+    a real conflict (kept flagged), and a plain definition (no claimed_type) has
+    nothing to be vacuous about. Returns `(corroboration, checked)`."""
+    corro = corroborate_definition(rows, table, column,
+                                   claimed_type=claimed_type, claims_key=claims_key)
+    non_null = corro.get("non_null_sampled")
+    vacuous_agreement = (bool(claimed_type) and not claims_key
+                         and non_null == 0 and corro.get("agrees", True))
+    return corro, not vacuous_agreement
+
+
+def _sample_rows_for(db_path: str | Path, table: str, limit: int = 100) -> list[dict[str, Any]] | None:
+    """Sample rows for `table` from a reachable SQLite DB (reusing `sample_table`),
+    or `None` on any failure — so a bad DB never crashes apply-review."""
+    try:
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.row_factory = sqlite3.Row
+            return sample_table(conn, table, limit)
+        finally:
+            conn.close()
+    except Exception:  # pragma: no cover - defensive: a bad DB never crashes apply
+        return None
+
+
+def apply_review(
+    dictionary: dict[str, Any],
+    csv_path: str | Path,
+    *,
+    rows_by_table: dict[str, list[dict[str, Any]]] | None = None,
+    db_path: str | Path | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Ingest an edited review CSV. Each NON-blank `proposed_definition` becomes a
+    provided-def-style correction `{definition, provenance: 'direct-user-input'}` on
+    its EXACT `table.field` and is routed through `corroborate_definition` — a human
+    correction is corroborated exactly like any other provided definition (⚠ +
+    downgrade on conflict), NEVER transcribed as truth. The correction is re-checked
+    on the dimension the review surfaced (a field flagged for a key/type conflict is
+    re-corroborated under that claim; a plain field is corroborated as a plain
+    definition). Mutates `dictionary` in place and returns `(dictionary, applied[])`.
+
+    Corroboration rows come from `rows_by_table` (injected) or by sampling `db_path`
+    per corrected table; with NEITHER, a correction is applied but stays honestly
+    uncorroborated (`needs_corroboration`), never blindly accepted."""
+    field_index: dict[tuple[str | None, str | None], dict[str, Any]] = {}
+    for table, tinfo in (dictionary.get("tables") or {}).items():
+        for f in tinfo.get("fields") or []:
+            field_index[(table, f.get("field"))] = f
+
+    rows_cache = dict(rows_by_table or {})
+    applied: list[dict[str, Any]] = []
+    with Path(csv_path).open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            proposed = (row.get("proposed_definition") or "").strip()
+            if not proposed:
+                continue  # a blank cell is not a correction
+            table = row.get("table")
+            column = row.get("field")
+            target = field_index.get((table, column))
+            if target is None:
+                continue  # a correction for a field not in the dictionary is ignored
+
+            rows = rows_cache.get(table)
+            if rows is None and db_path is not None:
+                rows = _sample_rows_for(db_path, table)
+                rows_cache[table] = rows  # cache the sample for the table
+
+            claimed_type, claims_key = _recover_claim(target)
+            if rows is not None:
+                corro, checked = _corroborate_correction(rows, table, column,
+                                                         claimed_type, claims_key)
+                flagged = checked and not corro.get("agrees", True)
+            else:
+                corro, checked, flagged = None, False, False
+            accepted = checked and not flagged
+
+            target["definition"] = proposed
+            target["provenance"] = "direct-user-input"
+            target["corroboration"] = corro
+            target["confidence"] = "high" if accepted else "low"
+            target["flag"] = WARN_MARKER if flagged else "ok"
+            target["accepted"] = accepted
+            target["needs_corroboration"] = not checked
+            target["review_source"] = "apply-review"
+            applied.append({
+                "table": table, "field": column, "definition": proposed,
+                "provenance": "direct-user-input", "corroboration": corro,
+                "flag": target["flag"], "accepted": accepted,
+                "confidence": target["confidence"], "needs_corroboration": not checked,
+            })
+    return dictionary, applied
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Data Dictionary engine (DD-1..18).")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -544,6 +890,22 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("db", help="Path to the SQLite database file.")
     b.add_argument("--out", default="docs", help="Output directory (default: docs).")
     b.add_argument("--sample", type=int, default=100, help="Rows to sample per table (default 100).")
+
+    gr = sub.add_parser("generate-review",
+                        help="Emit a CSV of the fields most needing human review (R5).")
+    gr.add_argument("--dictionary", required=True, help="path to data-dictionary.json")
+    gr.add_argument("--out", required=True, help="output review CSV path")
+    gr.add_argument("--privacy", default="summary", choices=["summary", "full"],
+                    help="redaction level (default summary; full keeps sample-derived detail)")
+
+    ar = sub.add_parser("apply-review",
+                        help="Ingest an edited review CSV through the corroboration gate (R5).")
+    ar.add_argument("--dictionary", required=True, help="path to data-dictionary.json")
+    ar.add_argument("--review", required=True, help="the edited review CSV")
+    ar.add_argument("--db", default=None, help="a reachable SQLite DB to sample for corroboration")
+    ar.add_argument("--out", default=None,
+                    help="output updated dictionary JSON (default: overwrite --dictionary)")
+
     args = parser.parse_args(argv)
     if args.cmd == "build-sqlite":
         from datetime import datetime, timezone
@@ -552,6 +914,22 @@ def main(argv: list[str] | None = None) -> int:
         md, js = write_artifact(dd, args.out)
         print(f"wrote {md} + {js} ({len(dd['tables'])} tables)")
         return 0
+
+    if args.cmd == "generate-review":
+        dictionary = json.loads(Path(args.dictionary).read_text(encoding="utf-8"))
+        rows = generate_review(dictionary, args.out, privacy_level=args.privacy)
+        print(f"wrote {args.out} ({len(rows)} field(s) needing review, privacy={args.privacy})")
+        return 0
+
+    if args.cmd == "apply-review":
+        dictionary = json.loads(Path(args.dictionary).read_text(encoding="utf-8"))
+        updated, applied = apply_review(dictionary, args.review, db_path=args.db)
+        out_path = args.out or args.dictionary
+        Path(out_path).write_text(json.dumps(updated, indent=2, sort_keys=True), encoding="utf-8")
+        n_acc = sum(1 for a in applied if a["accepted"])
+        print(f"applied {len(applied)} correction(s) ({n_acc} accepted) -> {out_path}")
+        return 0
+
     return 1
 
 

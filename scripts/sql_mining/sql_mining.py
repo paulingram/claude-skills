@@ -493,8 +493,11 @@ def corroborate_mined_claim(
     re-implementation); a disagreement flags the claim, downgrades its confidence
     to `low`, and marks it NOT accepted. An optional `corroborated_defs` map
     (`{"table.col": {type/definition, corroborated: True}}`) additionally flags a
-    mined claim that conflicts with an already-corroborated definition. With no
-    corroboration context the candidate is returned unflagged, still `inference`.
+    mined claim that conflicts with an already-corroborated definition. Acceptance
+    is PER-FIELD: a candidate is corroborated/accepted ONLY when rows checked its
+    exact column OR a corroborated def for that exact field was compared — a field
+    merely absent from (or un-corroborated in) the supplied map, with no rows,
+    stays uncorroborated + not-accepted, still `inference`.
     """
     dd = _data_dictionary()
     table = candidate.get("table")
@@ -503,10 +506,16 @@ def corroborate_mined_claim(
 
     out = dict(candidate)
     out["provenance"] = MINED_PROVENANCE  # hard invariant — never stronger
-    # Whether corroboration ACTUALLY ran — a call with neither rows nor a
-    # corroborated-defs map has nothing to check against, and must stay honestly
-    # uncorroborated rather than claim it passed the gate.
-    ran = rows is not None or bool(corroborated_defs)
+    # `checked` is PER-FIELD, not "was some context supplied": a mined claim counts
+    # as corroborated ONLY when rows actually inspected THIS candidate's column, OR
+    # a CORROBORATED def for THIS EXACT field was compared against it. Merely
+    # PASSING a corroborated_defs map that lacks the field — or holds it
+    # un-corroborated — is NOT corroboration; the candidate stays uncorroborated +
+    # not-accepted (the R1 residual, closed the same per-field way annotations.py's
+    # F1 fix established). The old `ran = rows is not None or bool(corroborated_defs)`
+    # was the bypass: it stamped a candidate whose field was absent from the map as
+    # accepted/corroborated though nothing checked it.
+    checked = False
     corro: Optional[dict[str, Any]] = None
     flagged = False
     conflict: Optional[str] = None
@@ -517,19 +526,22 @@ def corroborate_mined_claim(
             claimed_type=claimed_type,
             claims_key=bool(candidate.get("claims_key")),
         )
+        checked = True  # corroborate_definition actually inspected THIS column's data
         if not corro.get("agrees", True):
             flagged = True
             conflict = corro.get("conflict")
 
     if corroborated_defs:
         existing = corroborated_defs.get(f"{table}.{column}")
-        if existing and existing.get("corroborated") and _definition_conflict(candidate, existing):
-            flagged = True
-            conflict = conflict or (
-                f"mined definition of {table}.{column} conflicts with the corroborated "
-                f"definition (mined type {claimed_type!r} vs corroborated "
-                f"{existing.get('type') or existing.get('claimed_type')!r})"
-            )
+        if existing and existing.get("corroborated"):
+            checked = True  # a CORROBORATED def for THIS EXACT field to compare against
+            if _definition_conflict(candidate, existing):
+                flagged = True
+                conflict = conflict or (
+                    f"mined definition of {table}.{column} conflicts with the corroborated "
+                    f"definition (mined type {claimed_type!r} vs corroborated "
+                    f"{existing.get('type') or existing.get('claimed_type')!r})"
+                )
 
     base_conf = candidate.get("confidence", "medium")
     out["corroboration"] = corro
@@ -537,12 +549,13 @@ def corroborate_mined_claim(
     out["flag"] = WARN_MARKER if flagged else "ok"
     out["conflict"] = conflict
     out["confidence"] = "low" if flagged else base_conf
-    # A claim is ACCEPTED only when corroboration ran AND found no conflict. An
-    # uncorroborated call (no context) stays not-accepted + needs_corroboration —
-    # the same honest marker the raw candidates carry.
-    out["corroborated"] = ran
-    out["needs_corroboration"] = not ran
-    out["accepted"] = (not flagged) if ran else False
+    # A claim is corroborated/accepted ONLY when its exact field was checked — rows
+    # inspected it, OR a corroborated def for THIS field was compared. An unchecked
+    # call stays not-accepted + needs_corroboration — the same honest marker the raw
+    # candidates carry.
+    out["corroborated"] = checked
+    out["needs_corroboration"] = not checked
+    out["accepted"] = checked and not flagged
     return out
 
 
