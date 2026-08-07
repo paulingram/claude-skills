@@ -473,7 +473,7 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
 
 
 def _validate_frontend_impact_gate(evidence: dict[str, Any]) -> list[str]:
-    """v3.44.0 — the hard end-to-end verification gate.
+    """v3.44.0 — the hard end-to-end verification gate (v3.55.0 escape-hardened).
 
     Compute frontend impact from the evidence's own ``files_changed`` (signal (a)
     of hooks/frontend_impact.py — the only signal derivable from the evidence
@@ -481,11 +481,21 @@ def _validate_frontend_impact_gate(evidence: dict[str, Any]) -> list[str]:
     is set by the orchestrator, which holds the maps). When frontend files were
     changed, ``frontend_impact_e2e_review`` is REQUIRED and must be ``pass`` —
     a real-frontend end-to-end verdict. A passing unit test can never open this
-    gate; that is the whole point. ``fail`` blocks; ``n/a`` is allowed ONLY with
-    an explicit ``frontend_impact_e2e_review_note`` authorization (the diff
-    touched the frontend but end-to-end genuinely does not apply — e.g. a
-    comment-only style change). With no frontend impact the field is optional; if
-    present, its shape is still validated.
+    gate; that is the whole point. ``fail`` blocks.
+
+    ``n/a`` + a ``frontend_impact_e2e_review_note`` is a PER-TASK escape, and it
+    is legitimate ONLY for a change with **no runnable UI surface** — a
+    type-only ``.ts``/``.js`` edit OUTSIDE any frontend-dir hint (a ``.ts`` UNDER
+    a frontend dir is safely OVER-BLOCKED as frontend by the arm and needs the
+    E2E verdict), a comment-only or pure-refactor change in a non-UI file, a
+    ``.py``/``.md``/config file that renders no user-facing control. It is NOT a way to self-authorize away testing a change that ships a
+    real UI surface. That is why the note is not the last word: the run-level
+    ``_audit_frontend_e2e`` arm (hooks/pipeline-completion-audit.py) is the
+    BACKSTOP — for any slice whose files touched a real frontend UI file it
+    requires the EXECUTED E2E verdict artifact at completion regardless of any
+    note, so a producer cannot note its way past a genuine UI change. With no
+    frontend impact the field is optional; if present, its shape is still
+    validated.
     """
     gaps: list[str] = []
     files = evidence.get("files_changed")

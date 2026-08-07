@@ -8,6 +8,25 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.55.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.55.0 — frontend-e2e-loop-exit-gate: click-driven, as-the-user, full E2E Playwright becomes a HARD run-level loop-exit criterion
+
+Commits were landing from CT6 runs that touched the frontend but were never Playwright-tested as a real user. The v3.44.0 machinery existed (`detect_frontend_impact` + the conditionally-required `frontend_impact_e2e_review` field) but had two escapes: the gate was **per-task** (never at the completion audit that blocks the commit) and its skip was a **self-authored note**. This run makes genuine click-driven, as-the-user, full end-to-end Playwright a **run-level, non-bypassable loop-exit criterion**. Additive within `hooks/` (stdlib-only); NO new services module / skill / command / agent — `check_separation` unaffected (26).
+
+| What shipped | Detail |
+|---|---|
+| **The run-level loop-exit gate** | A NEW `_audit_frontend_e2e` arm in `hooks/pipeline-completion-audit.py` (registered in `audit()`, on the `_audit_bug_fix_testing` template): it aggregates `files_changed` across the run's `.architect-team/reviews/*.json`, runs the EXISTING `changed_files_touch_frontend`, and for a frontend-impacting run REQUIRES a genuine passing E2E verdict at `.architect-team/frontend-e2e/<slice>-verdict.json` (`verdict==passed`, `executed_against_live_env`, ≥1 `user_driven_actions`, an existing `trace_path`, ≥1 `visible_state_assertions`). A missing / non-passing verdict — or a slice that touched a real frontend UI file but produced only a review-gate note — **BLOCKS the run's completion**. Kill-switch `CT6_FRONTEND_E2E_GATE_DISABLED`; no-op for a no-frontend run; fail-open outside a run. |
+| **The genuineness verifier (Layer-3 tool #22)** | `verify-frontend-e2e-loop-exit` (`hooks/vao/frontend_e2e.py`, through the `hooks/vao_tools.py` facade — Layer-3 tools **21 → 22**) validates that E2E evidence is GENUINE and bites on the four escape modes: `e2e-described-not-executed`, `e2e-api-only-no-user-actions` (only `page.request`/`fetch`, no `page.click`/`fill`/`getByRole`), `e2e-vacuous-navigate-assert` (no visible-state assertion), `e2e-trace-claimed-but-absent`. A real click-driven artifact returns `valid:true`, 0 gaps; each escape has a red fixture proving the bite. |
+| **Escape-hardening + wiring** | `hooks/review_evidence_schema.py` keeps `frontend_impact_e2e_review` conditionally required on a frontend diff and documents the `n/a`/note escape as no-runnable-UI-surface-only — the run-level arm is the backstop no per-task note can escape (a producer can no longer self-authorize away the gate). Wired into `skills/architect-team-pipeline` (Phase 3/5/8), `skills/playwright-user-flows`, and `docs/ETHOS.md` (the loop-exit principle: a frontend change is not done until a real user clicked through it). |
+| **Counts + tests** | Suite **6982 → 7019 passing + 6 skipped, 0 failed** (+37; both encodings) via `test_frontend_e2e_loop_exit.py` + 5 fixtures (genuine + four escapes); `check_separation` clean (26, unaffected — hooks tier). **Layer-3 tools 21 → 22**; skills / agents / commands UNCHANGED (53 / 39 / 25). |
+
+HONEST BOUNDARY: this ships the ENFORCEMENT — it does not itself run a browser. It makes the ABSENCE of a real, executed, click-driven, live-environment E2E test a hard blocker on the commit for any frontend-impacting run; the actual Playwright execution + the verdict artifact are the frontend/integration agent's job downstream. Behavior is verified over fixture verdict artifacts + the arm's block/no-op/kill-switch paths + a captured demo.
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.54.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```

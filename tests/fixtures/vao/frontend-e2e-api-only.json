@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "slice": "frontend",
+  "verdict": "passed",
+  "executed_against_live_env": true,
+  "live_url": "http://localhost:5173",
+  "user_driven_actions": [
+    {"action": "page.request.post", "selector": "/api/login"},
+    {"action": "page.request.get", "selector": "/api/dashboard"},
+    {"action": "fetch", "selector": "/api/session"}
+  ],
+  "trace_path": "tests/fixtures/vao/frontend-e2e-traces/trace.zip",
+  "visible_state_assertions": [
+    "expect(page.getByText('Welcome back')).toBeVisible()"
+  ],
+  "test_files": ["e2e/login.spec.ts"],
+  "_fixture_note": "api-only: every user_driven_actions entry is a page.request.* / fetch direct-API call — none is a click/fill/getByRole/check/selectOption. Executed against a live env with an existing trace and a genuine visible-state assertion, so it isolates the e2e-api-only-no-user-actions severity."
+}

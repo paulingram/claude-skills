@@ -1,0 +1,20 @@
+# Proposal: frontend-e2e-loop-exit-gate
+
+## Why
+
+Commits are landing from CT6 runs that touched the frontend but were **never tested on Playwright as a real user**. The v3.44.0 machinery exists — `hooks/frontend_impact.py::detect_frontend_impact` detects a frontend-touching diff, and `frontend_impact_e2e_review` is a *conditionally-required* evidence field — but two gaps let commits slip through untested:
+
+1. **The gate is per-task, not run-level.** `frontend_impact_e2e_review` is checked only at the Phase 3 review gate (`hooks/review-gate-task.py`, per teammate task). There is **NO frontend-E2E arm in `hooks/pipeline-completion-audit.py`** — the Stop-hook completion audit that actually blocks the commit. So a run can reach Phase 8 and commit even when a frontend slice never produced genuine E2E evidence.
+2. **The escape is a self-authored note.** The schema lets a teammate set `frontend_impact_e2e_review` absent/`n/a` with a `frontend_impact_e2e_review_note` — a producer self-authorizing away the most important gate. And nothing verifies that a *claimed* `pass` is genuine click-driven testing (as opposed to a `page.request.*` API call, a vacuous navigate-and-assert, or "I verified by reading the code").
+
+The user's mandate: **click-driven, as-the-user, full end-to-end Playwright testing MUST be a hard loop-exit / completion-gate criterion for any frontend-impacting change.** A run that touched the frontend does not close until a real user-flow test — clicking, filling, navigating against a live environment — has passed for it.
+
+## What Changes
+
+- **REQ-1 — the run-level loop-exit gate.** A new `_audit_frontend_e2e` arm in `hooks/pipeline-completion-audit.py`, registered in `audit()`. It aggregates `files_changed` across the run's `.architect-team/reviews/*.json`, runs the EXISTING `changed_files_touch_frontend`, and — for a frontend-impacting run — REQUIRES a genuine passing E2E verdict at `.architect-team/frontend-e2e/<slice>-verdict.json` per frontend slice (mirroring the `_audit_bug_fix_testing` shape). A missing verdict, a non-passing verdict, or a slice that escaped E2E with only a note **blocks the run's completion** — the loop-exit criteria. Kill-switch `CT6_FRONTEND_E2E_GATE_DISABLED`; fail-open outside an active run.
+- **REQ-2 — the genuineness verifier (the 22nd Layer-3 tool).** `verify-frontend-e2e-loop-exit` in `hooks/vao/` (dispatched through the `hooks/vao_tools.py` facade). It validates an E2E evidence artifact is GENUINE as-the-user testing: ≥1 user-driven action (`page.click` / `page.fill` / `page.getByRole(...).click` / `.check` / `.selectOption` — NOT `page.request.*` / `fetch` / direct-API-only), a captured trace file that EXISTS on disk, and ≥1 assertion on VISIBLE end-to-end state (`toBeVisible` / `toHaveText` / `toHaveURL`) — not a vacuous navigate-and-assert-title. It bites on the four escape modes: described-not-executed, API-only, vacuous-navigate-assert, and trace-claimed-but-absent.
+- **REQ-3 — escape-hardening + wiring.** Harden `review_evidence_schema.py` so a slice whose `files_changed` genuinely touches a frontend UI file cannot self-authorize `frontend_impact_e2e_review` away with only a note — the `n/a`+note path is legitimate ONLY for a frontend-adjacent change with no runnable UI surface, and the completion-audit arm is the run-level backstop. Wire the loop-exit gate into `skills/architect-team-pipeline` (Phase 3 / Phase 5 / Phase 8), `skills/playwright-user-flows`, and `docs/ETHOS.md`.
+
+## Impact
+
+- Additive within `hooks/` (stdlib-only); the 22nd Layer-3 tool (21 → 22); a new completion-audit arm; a schema hardening. `check_separation` unaffected (hooks tier, not services). Suite: zero NEW failures vs the 6982/0/6 baseline; +N tests (the new arm's bite + the verifier's four-escape reds + the schema hardening). A run that touches NO frontend behaves exactly as before (the arm is a no-op). HONEST BOUNDARY: this strengthens the ENFORCEMENT that a frontend run produces genuine E2E evidence — it does not itself run Playwright; it makes the absence of a real, executed, click-driven, live-environment E2E test a hard blocker on the commit.

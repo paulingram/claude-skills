@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "slice": "frontend",
+  "verdict": "passed",
+  "executed_against_live_env": false,
+  "live_url": "",
+  "user_driven_actions": [
+    {"action": "page.getByRole('button', { name: 'Save' }).click", "selector": "getByRole('button', { name: 'Save' })"}
+  ],
+  "visible_state_assertions": [
+    "expect(page.getByText('Saved')).toBeVisible()"
+  ],
+  "test_files": ["e2e/save.spec.ts"],
+  "_fixture_note": "described-not-executed: executed_against_live_env is false AND no trace_path — the flow was written/described, never run against a live env. Isolates the e2e-described-not-executed severity (has genuine user actions + a visible-state assertion, so it does not also trip api-only / vacuous; no trace_path is set, so it does not trip trace-claimed-but-absent)."
+}

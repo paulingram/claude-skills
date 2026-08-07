@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "slice": "frontend",
+  "verdict": "passed",
+  "executed_against_live_env": true,
+  "live_url": "http://localhost:5173",
+  "user_driven_actions": [
+    {"action": "page.getByRole('link', { name: 'Reports' }).click", "selector": "getByRole('link', { name: 'Reports' })"}
+  ],
+  "trace_path": "tests/fixtures/vao/frontend-e2e-traces/trace.zip",
+  "visible_state_assertions": [
+    "expect(page).toHaveTitle('Acme App')",
+    "await page.goto('/reports')"
+  ],
+  "test_files": ["e2e/reports.spec.ts"],
+  "_fixture_note": "vacuous-navigate-assert: the only assertions are a page title and a navigation — neither asserts VISIBLE end-to-end state (toBeVisible / toHaveText / toHaveURL). It has a genuine click action + an existing trace + a live env, so it isolates the e2e-vacuous-navigate-assert severity."
+}

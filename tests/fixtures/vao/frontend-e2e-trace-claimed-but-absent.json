@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "slice": "frontend",
+  "verdict": "passed",
+  "executed_against_live_env": true,
+  "live_url": "http://localhost:5173",
+  "user_driven_actions": [
+    {"action": "page.getByLabel('Search').fill", "selector": "getByLabel('Search')"},
+    {"action": "page.getByRole('button', { name: 'Go' }).click", "selector": "getByRole('button', { name: 'Go' })"}
+  ],
+  "trace_path": "tests/fixtures/vao/frontend-e2e-traces/DOES-NOT-EXIST-trace.zip",
+  "visible_state_assertions": [
+    "expect(page.getByText('3 results')).toBeVisible()"
+  ],
+  "test_files": ["e2e/search.spec.ts"],
+  "_fixture_note": "trace-claimed-but-absent: trace_path is set but names a file that does not exist on disk. Everything else is genuine (live env, real user actions, a visible-state assertion), so it isolates the e2e-trace-claimed-but-absent severity."
+}

@@ -1,0 +1,32 @@
+{
+ "change": "frontend-e2e-loop-exit-gate",
+ "source": "User mandate (2026-08-07): click-driven, as-the-user, full end-to-end Playwright testing MUST be a hard loop-exit / completion-gate criterion for any frontend-impacting change; commits are landing untested because the v3.44.0 frontend_impact_e2e_review is per-task + escapable via a self-authored note, with no run-level completion-audit backstop.",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 6982, "failed": 0, "skipped": 6,
+   "note": "zero NEW failures is the gate; +N added tests expected; check_separation unaffected (hooks tier, no new services module)"},
+ "entries": [
+  {"source_requirement_id": "REQ-1-loop-exit-gate", "spec_requirement_id": "frontend-e2e-loop-exit-gate/A frontend-impacting run cannot complete without genuine passing E2E evidence", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "_audit_frontend_e2e in pipeline-completion-audit.py aggregates files_changed across .architect-team/reviews/*.json + runs changed_files_touch_frontend; a frontend slice with no passing .architect-team/frontend-e2e/<slice>-verdict.json BLOCKS (test)",
+     "a passing verdict (verdict=passed, executed_against_live_env, >=1 user_driven_actions, existing trace_path, >=1 visible_state_assertions) -> zero violations (test)",
+     "a run touching no frontend -> no-op; CT6_FRONTEND_E2E_GATE_DISABLED -> no-op; fail-open outside an active run (test); registered in audit()"]},
+  {"source_requirement_id": "REQ-2-genuineness-verifier", "spec_requirement_id": "frontend-e2e-loop-exit-gate/A Layer-3 verifier validates that E2E evidence is genuine as-the-user testing", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "verify-frontend-e2e-loop-exit in hooks/vao/ + re-exported through hooks/vao_tools.py (CLI byte-stable, --artifact/--out); Layer-3 tool count 21 -> 22 (pins moved)",
+     "bites on the four escape modes with distinct gaps: e2e-described-not-executed, e2e-api-only-no-user-actions, e2e-vacuous-navigate-assert, e2e-trace-claimed-but-absent (red fixture each)",
+     "a genuine click-driven artifact (real user actions + existing trace + visible-state assertion) -> valid:true, 0 gaps (green fixture); deterministic + stdlib-only"]},
+  {"source_requirement_id": "REQ-3-escape-hardening-wiring", "spec_requirement_id": "frontend-e2e-loop-exit-gate/A frontend UI change cannot self-authorize away the E2E gate", "layer": "infra", "team": "1",
+   "acceptance_criteria": [
+     "review_evidence_schema.py keeps frontend_impact_e2e_review conditionally required on frontend-touching files_changed; the note-escape documented as no-runnable-UI-surface-only; the run-level arm is the backstop (test the conditional still fires)",
+     "wired into skills/architect-team-pipeline (Phase 3/5/8), skills/playwright-user-flows, docs/ETHOS.md; compiled boilerplate in sync; instruction-compliance 0 findings; no ': ' in frontmatter"]},
+  {"source_requirement_id": "MANDATE-release", "spec_requirement_id": "(cross-cutting: tasks group 3)", "layer": "infra", "team": "orch",
+   "acceptance_criteria": [
+     "full suite zero NEW failures vs baseline 6982/0/6 both encodings; check_separation green (unchanged, 26); check-can-fail verdict for the new test file(s); a demo captured",
+     "version 3.55.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG rubric entry; README spotlight-swap + RELEASE_HISTORY append + timeline; CLAUDE/CODEBASE_MAP/INTEGRATION_MAP/CAPABILITY_INDEX current (Layer-3 tools 21->22); completion audit exit 0"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - the deliverable is the ENFORCEMENT machinery (a completion-audit arm + a Layer-3 verifier + a schema hardening) that gates on the EXISTENCE + GENUINENESS of an E2E verdict artifact; it does not itself run a browser. Behavior verified by pytest over fixture verdict artifacts (genuine + each of the four escape modes) + the arm's block/no-op/kill-switch paths + a captured demo. The actual Playwright execution is the frontend/integration agent's job downstream; this run makes its absence a hard blocker.",
+  "dev_api_integration": "n/a - the arm + verifier read local JSON verdict artifacts; no HTTP API.",
+  "both_layer_integration": "n/a - all entries layer infra (the plugin's own discipline stack)."
+ },
+ "confirmed_stubs": [], "scope_extensions": []
+}
