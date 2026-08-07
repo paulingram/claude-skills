@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "slice": "frontend",
+  "verdict": "passed",
+  "executed_against_live_env": true,
+  "live_url": "http://localhost:5173",
+  "user_driven_actions": [
+    {"action": "page.getByRole('textbox', { name: 'Email' }).fill", "selector": "getByRole('textbox', { name: 'Email' })"},
+    {"action": "page.getByRole('button', { name: 'Sign in' }).click", "selector": "getByRole('button', { name: 'Sign in' })"}
+  ],
+  "trace_path": "tests/fixtures/vao/frontend-e2e-traces/trace.zip",
+  "visible_state_assertions": [
+    "expect(page.getByText('Welcome back, Ada')).toBeVisible()",
+    "expect(page).toHaveURL(/.*\\/dashboard/)"
+  ],
+  "test_files": ["e2e/login.spec.ts"]
+}

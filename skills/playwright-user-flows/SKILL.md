@@ -561,6 +561,27 @@ This skill is the test-AUTHORING discipline. It is trust-based Markdown — noth
 - **The confirmed-stub mechanism.** An interactive element OR a page that is intentionally inert / a placeholder is classified `confirmed-stub` ONLY with explicit user confirmation — the reviewer escalates a structured question, the user confirms, and the confirmed stub is recorded in the converged interaction map and the change's `coverage-map.json` `confirmed_stubs[]`. A `confirmed-stub` does NOT require a user-flow test (testing an intentionally-inert control is meaningless) but is tracked, not silently ignored. An unconfirmed inert control or unconfirmed placeholder page is a gap (`unwired-control` / `placeholder-page`), never a silent pass.
 - **The `ui_interaction_review` review-gate evidence field** (added at evidence schema v6; the current schema is v7) surfaces this verification, exactly as `integration_testing_review` surfaces the real-backend axis — and it gates a genuinely orthogonal axis: a test can be real-backend + fake-interaction, or mock-backed + real-interaction. Set it honestly: `"pass"` when every interactive element in the slice is genuinely UI-tested with a real user-interaction call and correctly wired, every page is the real live page, and every displayed value is correctly static or dynamically bound — or a confirmed stub; `"n/a"` (with a required `ui_interaction_review_note`) when the slice has no UI/frontend interactive surface; `"fail"` when an `unwired-control`, a `placeholder-page`, or a `hardcoded-dynamic-value` gap was found — the hook blocks `"fail"`, and the gap routes through a solution requirement, not a mark-complete.
 
+### The frontend-E2E loop-exit verdict artifact — the deliverable of a frontend flow run (v3.55.0)
+
+A frontend-impacting change is not done until a real user clicked through it against a live environment. So the deliverable of running this skill for a frontend slice is not just a green test log — it is a machine-checkable verdict artifact at `<workspace>/.architect-team/frontend-e2e/<slice>-verdict.json`, written when the flow runs against the live dev environment (Phase 5 step 3b of `architect-team-pipeline`). Its shape:
+
+```json
+{
+  "slice": "<review-evidence filename stem>",
+  "verdict": "passed",
+  "executed_against_live_env": true,
+  "live_url": "http://localhost:5173",
+  "user_driven_actions": [{"action": "page.getByRole('button', { name: 'Sign in' }).click", "selector": "getByRole('button')"}],
+  "trace_path": "traces/<slice>-trace.zip",
+  "visible_state_assertions": ["expect(page.getByText('Welcome')).toBeVisible()", "expect(page).toHaveURL(/dashboard/)"],
+  "test_files": ["e2e/login.spec.ts"]
+}
+```
+
+The `trace_path` is the captured Playwright trace (`trace: 'on'`) and MUST name a file that exists. `user_driven_actions` are the real click/fill/getByRole/check/selectOption calls — never `page.request`/`fetch`. `visible_state_assertions` assert visible end-to-end state (`toBeVisible`/`toHaveText`/`toHaveURL`) — never a bare navigate-and-assert-title.
+
+The 22nd Layer-3 tool `verify-frontend-e2e-loop-exit --artifact <verdict.json> --repo-root <workspace> --out <verdict>` checks this artifact is genuine, biting on four escape modes: `e2e-described-not-executed` (not run against a live env / no trace), `e2e-api-only-no-user-actions` (every action is a direct-API call), `e2e-vacuous-navigate-assert` (no assertion on visible state), and `e2e-trace-claimed-but-absent` (a trace path that names no file). The run-level `_audit_frontend_e2e` arm in `pipeline-completion-audit.py` is the loop-exit backstop: a frontend slice with no genuine passing verdict here BLOCKS the Phase 8 commit, and no per-task `frontend_impact_e2e_review` note escapes it.
+
 ## Anti-pattern rationalizations to reject
 
 | Rationalization | Rebuttal |

@@ -83,6 +83,7 @@ Exit codes: 0 = allow / not-an-architect-team-run / clean. 2 = block.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -169,6 +170,47 @@ except ImportError:  # pragma: no cover - bare-module fallback
     except ImportError:  # pragma: no cover - helpers unavailable
         _normalize_task_id = None  # type: ignore[assignment]
         _unusable_evidence_entry_reason = None  # type: ignore[assignment]
+
+# v3.55.0 — the frontend-impact detector (hooks/frontend_impact.py), REUSED as
+# the "did this slice touch a real frontend UI file" signal for the run-level
+# frontend-E2E loop-exit arm. Same dual-form import + fail-open fallback:
+# unavailable => `_audit_frontend_e2e` is inert (an arm that cannot establish
+# its trigger does not block).
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.frontend_impact import changed_files_touch_frontend as _changed_files_touch_frontend
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        from frontend_impact import (  # type: ignore[no-redef]
+            changed_files_touch_frontend as _changed_files_touch_frontend,
+        )
+    except ImportError:  # pragma: no cover - detector unavailable
+        _changed_files_touch_frontend = None  # type: ignore[assignment]
+
+# v3.55.0 — the DEEP genuineness verifier (hooks/vao/frontend_e2e.py), the 22nd
+# Layer-3 tool. The run-level arm REUSES it so a populated-but-fake verdict
+# (api-only actions, vacuous title/navigate assertions, a claimed-but-absent
+# trace) is BLOCKED by the arm, not merely by the unwired tool — a shallow
+# len()>=1 count is exactly what the adversarial B1 finding showed slips through.
+# Three sys.path shapes (repo-root / hooks-on-path / hooks-vao-on-path); fail-open
+# to the degraded shallow structural checks when the tool cannot be imported.
+try:  # pragma: no cover - exercised by both import paths
+    from hooks.vao.frontend_e2e import verify_frontend_e2e_loop_exit as _verify_frontend_e2e_loop_exit
+except ImportError:  # pragma: no cover - bare-module fallbacks
+    try:
+        from vao.frontend_e2e import (  # type: ignore[no-redef]
+            verify_frontend_e2e_loop_exit as _verify_frontend_e2e_loop_exit,
+        )
+    except ImportError:
+        try:
+            from frontend_e2e import (  # type: ignore[no-redef]
+                verify_frontend_e2e_loop_exit as _verify_frontend_e2e_loop_exit,
+            )
+        except ImportError:  # pragma: no cover - verifier unavailable
+            _verify_frontend_e2e_loop_exit = None  # type: ignore[assignment]
+
+# v3.55.0 — the frontend-E2E loop-exit kill-switch (operator escape if the gate
+# ever misfires). Same truthiness rule as the other CT6 kill-switches.
+FRONTEND_E2E_GATE_DISABLE_ENV = "CT6_FRONTEND_E2E_GATE_DISABLED"
 
 
 def _read_stdin_utf8() -> str:
@@ -1283,6 +1325,189 @@ def _audit_bug_fix_testing(at: Path) -> list[str]:
     return violations
 
 
+def _frontend_e2e_gate_disabled() -> bool:
+    """True when CT6_FRONTEND_E2E_GATE_DISABLED is set truthy (same rule as the
+    other CT6 kill-switches: anything but unset / 0 / false / no)."""
+    v = os.environ.get(FRONTEND_E2E_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _review_files_changed(review: Any) -> list[str]:
+    """The changed-file list from a review-evidence dict — top-level
+    ``files_changed`` (the flat self_review shape), falling back to a nested
+    ``self_review.files_changed``. Non-string entries are dropped."""
+    if not isinstance(review, dict):
+        return []
+    files = review.get("files_changed")
+    if not isinstance(files, list):
+        sr = review.get("self_review")
+        files = sr.get("files_changed") if isinstance(sr, dict) else None
+    if not isinstance(files, list):
+        return []
+    return [f for f in files if isinstance(f, str)]
+
+
+def _frontend_e2e_trace_exists(trace_path: Any, root: Path, at: Path) -> bool:
+    """True iff a recorded ``trace_path`` names a file that exists — tried as
+    absolute, then relative to the workspace root, then relative to
+    ``.architect-team/``, so a genuine trace is found regardless of the root the
+    agent recorded it against."""
+    if not isinstance(trace_path, str) or not trace_path.strip():
+        return False
+    raw = trace_path.strip().replace("\\", "/")
+    candidate = Path(raw)
+    tried: list[Path] = []
+    if candidate.is_absolute():
+        tried.append(candidate)
+    else:
+        tried.append(root / raw)
+        tried.append(at / raw)
+        tried.append(candidate)
+    for t in tried:
+        try:
+            if t.is_file():
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _audit_frontend_e2e(root: Path, at: Path) -> list[str]:
+    """v3.55.0 — a frontend-impacting run cannot complete without genuine
+    passing E2E evidence (the run-level loop-exit backstop).
+
+    Aggregates ``files_changed`` across ``.architect-team/reviews/*.json`` and
+    runs the v3.44.0 ``frontend_impact.changed_files_touch_frontend`` detector.
+    Each review file is a SLICE; a slice is a "frontend slice" when its own
+    changed files touch a real frontend UI file. For every frontend slice the
+    arm REQUIRES a genuine passing E2E verdict at
+    ``.architect-team/frontend-e2e/<slice>-verdict.json``: ``verdict == "passed"``
+    AND DEEP genuineness. A missing, non-passing, or non-genuine verdict — OR a
+    slice that touched a real frontend UI file but produced only a review-gate
+    note — is a BLOCKING violation. The per-task ``frontend_impact_e2e_review``
+    note cannot escape this run-level check: the arm requires the EXECUTED,
+    genuine artifact, never the note.
+
+    DEEP genuineness (v3.55.0 adversarial B1 fix): the per-slice check is NOT a
+    shallow ``len(...) >= 1`` count — it REUSES the 22nd Layer-3 tool
+    ``verify_frontend_e2e_loop_exit``, so a populated-but-fake verdict (api-only
+    ``page.request`` actions, vacuous title/navigate assertions, a
+    claimed-but-absent trace, or a not-executed-against-a-live-env flow) is
+    BLOCKED by the arm and named by its escape severity. The verdict/pass axis is
+    the arm's own (the tool checks whether the flow was REAL, not whether it
+    passed). If the tool cannot be imported the arm degrades to the shallow
+    structural checks rather than fail-open-to-nothing.
+
+    Fail-open in three directions: the frontend detector unavailable, the
+    kill-switch ``CT6_FRONTEND_E2E_GATE_DISABLED`` set, or no frontend slice in
+    the run. An arm that cannot establish its trigger does not block. The
+    ``audit()`` ``_is_real_run`` gate keeps it inert outside an actual run.
+
+    Known safe-direction over-block (advisory A1): a type-only ``.ts`` under a
+    frontend dir is flagged frontend by the reused v3.44.0 detector, so this arm
+    asks it for an E2E verdict too. That is the conservative direction — it never
+    under-blocks a real UI change; a genuinely-no-UI slice carries a
+    trivially-satisfiable burden, and the per-task ``frontend_impact_e2e_review``
+    ``n/a`` + note documents the no-runnable-UI-surface case at the review gate."""
+    violations: list[str] = []
+    if _changed_files_touch_frontend is None:
+        return violations  # detector unavailable — fail open
+    if _frontend_e2e_gate_disabled():
+        return violations  # operator kill-switch
+    reviews_dir = at / "reviews"
+    if not reviews_dir.is_dir():
+        return violations
+
+    frontend_slices: list[str] = []
+    for path in sorted(reviews_dir.glob("*.json")):
+        files = _review_files_changed(_load_json(path))
+        if not files:
+            continue
+        try:
+            touched = _changed_files_touch_frontend(files)
+        except TypeError:
+            touched = []
+        if touched:
+            frontend_slices.append(path.stem)
+    if not frontend_slices:
+        return violations  # no frontend touched — no-op
+
+    e2e_dir = at / "frontend-e2e"
+    for slice_name in frontend_slices:
+        verdict_path = e2e_dir / f"{slice_name}-verdict.json"
+        if not verdict_path.exists():
+            violations.append(
+                f"frontend slice '{slice_name}' touched a real frontend UI file "
+                f"but produced NO executed E2E verdict at "
+                f".architect-team/frontend-e2e/{slice_name}-verdict.json — a "
+                f"frontend-impacting change cannot complete on a unit test or a "
+                f"review-gate note alone. Run the Playwright user-flow as a real "
+                f"user (click/fill) against the live dev environment, capture the "
+                f"trace, and write the passing verdict "
+                f"(verify-frontend-e2e-loop-exit is the genuineness check)."
+            )
+            continue
+        v = _load_json(verdict_path)
+        if not isinstance(v, dict):
+            violations.append(
+                f"frontend slice '{slice_name}' E2E verdict ({verdict_path.name}) "
+                f"is unreadable / invalid JSON — a verdict that cannot be read is "
+                f"not evidence the flow ran"
+            )
+            continue
+        deficiencies: list[str] = []
+        # The verdict/pass axis is the arm's own — the genuineness tool checks
+        # whether the flow was REAL, not whether it passed, so a 'failed' (or
+        # missing) verdict must still block here.
+        if v.get("verdict") != "passed":
+            deficiencies.append(f"verdict is {v.get('verdict')!r}, not 'passed'")
+        if _verify_frontend_e2e_loop_exit is not None:
+            # DEEP genuineness (B1 fix): a populated-but-fake verdict — api-only
+            # actions, vacuous title/navigate assertions, a claimed-but-absent
+            # trace, or not-executed-against-a-live-env — is caught here, not by
+            # a shallow len()>=1 count. The tool names the exact escape severity.
+            try:
+                tool_verdict = _verify_frontend_e2e_loop_exit(v, repo_root=root)
+            except Exception:  # a verifier crash never breaks the audit
+                tool_verdict = None
+            if isinstance(tool_verdict, dict) and not tool_verdict.get("valid", False):
+                for gap in tool_verdict.get("gaps") or []:
+                    if not isinstance(gap, dict):
+                        continue
+                    sev = gap.get("severity") or "(unlabelled)"
+                    ev = gap.get("evidence") or ""
+                    deficiencies.append(f"{sev}: {ev}".strip().rstrip(":").strip())
+        else:
+            # Degraded fallback (verifier unavailable): the shallow structural
+            # checks — better than nothing, but the tool above is the real gate.
+            if v.get("executed_against_live_env") is not True:
+                deficiencies.append(
+                    "executed_against_live_env is not true (not run against a live environment)"
+                )
+            actions = v.get("user_driven_actions")
+            if not isinstance(actions, list) or len(actions) < 1:
+                deficiencies.append("no user_driven_actions (no click/fill as a real user)")
+            assertions = v.get("visible_state_assertions")
+            if not isinstance(assertions, list) or len(assertions) < 1:
+                deficiencies.append(
+                    "no visible_state_assertions (nothing asserted on visible end-to-end state)"
+                )
+            if not _frontend_e2e_trace_exists(v.get("trace_path"), root, at):
+                deficiencies.append(
+                    f"trace_path {v.get('trace_path')!r} names no file that exists on disk"
+                )
+        if deficiencies:
+            violations.append(
+                f"frontend slice '{slice_name}' E2E verdict is not a genuine "
+                f"passing as-the-user flow: " + "; ".join(deficiencies) + ". "
+                f"Re-run the Playwright flow against the live dev environment as a "
+                f"real user (click/fill, assert visible state, capture the trace) and "
+                f"only complete on a passing verdict (verify-frontend-e2e-loop-exit "
+                f"must return valid)."
+            )
+    return violations
+
+
 def audit(root: Path) -> tuple[bool, list[str]]:
     """Audit a workspace. Returns (is_real_run, violations)."""
     at = root / ".architect-team"
@@ -1301,6 +1526,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_declared_gates(at)
     violations += _audit_spec_currency(root, at)
     violations += _audit_manifest_id_hygiene(at)
+    violations += _audit_frontend_e2e(root, at)
     return True, violations
 
 

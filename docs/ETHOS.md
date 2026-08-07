@@ -134,6 +134,27 @@ explicit instruction. If a real risk is worth raising, raise it in one line and
 proceed as instructed — do not silently override, and never claim "done" on
 something you chose not to do.
 
+## Frontend is not done until a real user clicked through it (v3.55.0)
+
+A change that touched the frontend does not close until a real user-flow test —
+clicking, filling, navigating against a live environment — has PASSED for it. This
+is a hard loop-exit criterion, not a per-task nicety: a passing unit test can never
+substitute for it, and a producer cannot self-authorize past it with a note. "I
+verified by reading the code", an API call standing in for a click, a
+navigate-and-assert-title that never looks at what the user sees, a trace claimed
+but never captured — each is the *described-not-done* shape wearing the clothes of a
+test. The pipeline enforces this mechanically: the run-level `_audit_frontend_e2e`
+completion-audit arm requires a genuine passing E2E verdict artifact for every
+frontend slice, and the 22nd Layer-3 tool `verify-frontend-e2e-loop-exit` bites the
+four escape modes (described-not-executed, API-only, vacuous-navigate-assert,
+trace-claimed-but-absent). But the principle is simpler than the enforcement: *if
+you changed what the user sees, be the user before you call it done.*
+
+**Anti-pattern:** *the described E2E* — a slice that touched a real UI surface,
+reported "frontend tested", and shipped on a unit test, an API-only check, or a
+review-gate note. The absence of a real, executed, click-driven, live-environment
+flow is not a smaller version of done; it is not done.
+
 ## Evidence integrity (v3.47.0)
 
 Principle 7 says state a result only after running the check and reading its

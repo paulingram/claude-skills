@@ -81,7 +81,7 @@ def _module_objects() -> dict[str, object]:
         for name in (
             "core", "oracle", "fake_data", "live_verification", "persona", "scope",
             "deferral", "deferral_b", "mention_context", "prod_safety", "registry_inflight", "deploy_pipeline",
-            "deploy_pipeline_b", "check_integrity",
+            "deploy_pipeline_b", "check_integrity", "frontend_e2e",
         )
     }
 
