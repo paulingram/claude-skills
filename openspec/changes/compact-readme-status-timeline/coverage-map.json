@@ -1,0 +1,26 @@
+{
+ "change": "compact-readme-status-timeline",
+ "source": "User mandate (2026-08-07): update documentation and mempalace; a more compact README — the updates/changes stored in their own file in docs, the README containing only the most recent release changes plus a direction to see full history in the docs folder.",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 7019, "failed": 0, "skipped": 6,
+   "note": "docs-only PATCH; zero NEW failures + zero count change is the gate; existing test_release_history / test_readme_styling / test_dispatch_banner pins re-derive from plugin.json and stay green after the lockstep bump; check_separation unaffected (docs tier)"},
+ "entries": [
+  {"source_requirement_id": "REQ-1-readme-no-timeline", "spec_requirement_id": "compact-readme-status-timeline/The README carries no accumulated release timeline", "layer": "docs", "team": "lead",
+   "acceptance_criteria": [
+     "README.md STATUS section no longer embeds the v0.1.0->current one-line timeline; it names only the current release + a pointer to docs/RELEASE_HISTORY.md",
+     "README keeps exactly one NEW IN spotlight == plugin.json version, the RELEASE HISTORY pointer block above it, and the house aesthetic (banner/dividers/inventory grid/logic maps + gate glyph/theme marker) — test_readme_styling.py + test_release_history.py green"]},
+  {"source_requirement_id": "REQ-2-timeline-in-docs", "spec_requirement_id": "compact-readme-status-timeline/The full release timeline lives in the docs history file", "layer": "docs", "team": "lead",
+   "acceptance_criteria": [
+     "docs/RELEASE_HISTORY.md carries the relocated one-line timeline index + the complete narrative; no release line lost in the move (independent audit diff)",
+     "RELEASE_HISTORY stays complete: carries current v3.55.1, reaches CARRIED FROM v2.3.0, names >=55 release identities (test_release_history.py)"]},
+  {"source_requirement_id": "REQ-3-ship-patch-currency-mempalace", "spec_requirement_id": "(cross-cutting: tasks groups 3-5)", "layer": "docs", "team": "lead",
+   "acceptance_criteria": [
+     "version 3.55.0 -> 3.55.1 across plugin + marketplace JSONs + dispatch-banner pin + README surfaces + CHANGELOG + CLAUDE.md; MemPalace updated with the latest changes",
+     "doc-sweep currency fixes applied (CODEBASE_MAP Currency note -> v3.55.1 live inventory) + 3 doc-tooling checks pass; independent system-architect Documentation Currency Audit PASS (producer!=checker); full suite 7019/0/6 both encodings; openspec validate --all --strict clean; completion audit exit 0"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - docs-only change; no runnable UI surface. Verified by the README/RELEASE_HISTORY structural pins (test_readme_styling.py, test_release_history.py, test_dispatch_banner.py) + the independent Documentation Currency Audit.",
+  "dev_api_integration": "n/a - no code, no API.",
+  "frontend_impact": "n/a - no frontend UI file touched (README.md + docs/*.md are documentation, not a runnable UI surface)."
+ },
+ "confirmed_stubs": [], "scope_extensions": []
+}

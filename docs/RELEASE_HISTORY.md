@@ -6,6 +6,158 @@ The complete per-release narrative for the CLAUDE TEAM SIX plugin (internal slug
 
 The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is the narrative the README used to carry.
 
+## Release timeline at a glance
+
+Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
+
+- `v3.55.1` — compact-readme-status-timeline
+- `v3.55.0` — frontend-e2e-loop-exit-gate
+- `v3.54.0` — jsonld-emitter
+- `v3.53.0` — usage-stats-review-roundtrip
+- `v3.52.0` — data-annotations
+- `v3.51.0` — warehouse-sql-mining
+- `v3.50.0` — data-eng-lane
+- `v3.49.0` — knowledge-server-foundation
+- `v3.48.1` — review-and-harden
+- `v3.48.0` — contract-first parallelism
+- `v3.47.1` — compact-readme-release-history
+- `v3.47.0` — harden-evidence-integrity
+- `v3.46.0` — delivery-manifest
+- `v3.45.0` — opus-5-model-upgrade
+- `v3.44.0` — harden-verification-dev-test-prod
+- `v3.43.0` — deliver-adversarial-opus-split
+- `v3.42.1` — docs-currency-v3-42-1
+- `v3.42.0` — quality-upgrades-v3-42
+- `v3.41.1` — gateway-activation-drift
+- `v3.41.0` — glm-secondary-route-fix
+- `v3.40.1` — context-token-optimization
+- `v3.40.0` — secondary-provider registry
+- `v3.39.1` — living-docs current-state refresh
+- `v3.38.0` — setup asks for missing keys
+- `v3.37.0` — gateway auto-registration
+- `v3.36.0` — external-LLM gateway
+- `v3.35.1` — doc-currency + code/test-hygiene sweep
+- `v3.35.0` — Codex 5.6 model role split
+- `v3.34.0` — informative run notifications
+- `v3.33.0` — claude-design-import
+- `v3.32.0` — Fable 5 default + first-install setup hardening
+- `v3.16.0` — responsive + parallel `/architect-team:inject`
+- `v3.15.1` — skill-gate narrowing fix
+- `v3.15.0` — skill-invocation hard-gate
+- `v3.14.0` — appearance-change policy
+- `v3.13.0` — code-wiki phenotype
+- `v3.12.0` — structure-optimization performance + review remediation
+- `v3.11.0` — structure-optimization pipeline
+- `v3.10.0` — second-tier review improvements (R1–R7)
+- `v3.9.3` — review-remediation
+- `v3.9.2` — deterministic openspec gate at the master-review Stop hook (`_audit_openspec_validation` re-runs `openspec...
+- `v3.9.1` — VAO review-evidence precedence fix (`(A or B) and ".json"`) + 5 orphaned openspec change folders archived i...
+- `v3.9.0` — uniform plugin usage
+- `v3.8.0` — unbounded solving (all run/iteration limits removed; completion-audit becomes a non-halting worklist) + Cod...
+- `v3.7.0` — auto-merge-to-main + prune by default
+- `v3.6.0` — worktree end-of-run merge check (`finalize_run_worktree`) + hidden per-project container layout `<parent>/....
+- `v3.5.0` — data engineering exploration pipeline (Phase 0c)
+- `v3.4.0` — backend-from-frontend modularization (Phase 0b)
+- `v3.3.1` — visual-to-API dispatch symmetry (Phase 0a)
+- `v3.3.0` — test-run monitor team
+- `v3.2.0` — Exploration Pipeline
+- `v3.1.0` — rule-source consolidation (single source of truth + drift guards) + Windows test portability
+- `v3.0.0` — unified Unilateral-Override discipline (META) + PreToolUse runtime guardrail
+- `v2.22.0` — no pipeline-bypass discipline
+- `v2.21.0` — no proxy-element verification
+- `v2.20.0` — deploy mandate discipline
+- `v2.19.0` — in-flight clarification injection mechanism
+- `v2.18.0` — codebase discipline registry + Phase 0.1 auto-update
+- `v2.17.0` — prod-safe test classification
+- `v2.16.0` — Stop-hook duplicate-output fix + `.architect-team/in-progress.md` 4th disposition
+- `v2.15.0` — dedicated `/architect-team:visual-to-api <codebase-path>` slash command (4-stage subset entry point)
+- `v2.14.0` — no implementation-time scope cut discipline
+- `v2.13.0` — dynamic affordance discovery + UX env-sequencing + visual-to-api-design skill (3 disciplines in one release)
+- `v2.12.0` — cross-discipline gate consistency hotfix
+- `v2.11.0` — multi-persona path-coverage discipline
+- `v2.10.0` — no end-of-run deferral discipline
+- `v2.9.0` — MemPalace installer self-heal + polyglot Python in commands
+- `v2.8.0` — no standing-red discipline
+- `v2.7.0` — pattern propagation mandate
+- `v2.6.0` — live-data wiring discipline
+- `v2.5.0` — in-flight clarification discipline
+- `v2.4.0` — external-state assertion + evidence-artifact citation
+- `v2.3.0` — phenotype subsystem
+- `v2.2.0` — verified-live discipline
+- `v2.1.0` — interactive-mockup discovery
+- `v2.0.0` — verified-agent-output (VAO) framework
+- `v1.8.0` — agent-resume discipline
+- `v1.7.0` — frontend missing-API discipline
+- `v1.6.0` — teammate git discipline
+- `v1.5.0` — dispatch-mode observability
+- `v1.4.0` — scope discipline
+- `v1.3.0` — auto-cleanup of merged worktrees
+- `v1.2.0` — auto-worktree lifecycle
+- `v1.1.0` — worktree-aware state resolution
+- `v1.0.0` — Agent Teams as default dispatch mode
+- `v0.10.0` — mini pipeline
+- `v0.9.36` — bug-fix testing enforcement (verdict file mandates + completion-audit hook) + anti-deferral discipline (bot...
+- `v0.9.35` — email-testing audit
+- `v0.9.34` — email-testing
+- `v0.9.33` — proposal-refiner
+- `v0.9.32` — wrong-code-path witness generalized across all 3 Playwright sites: B2 selector / Phase 5 feature / U6 flow-...
+- `v0.9.31` — Phase B6 code-path execution witness
+- `v0.9.30` — cross-platform Python hook invocation
+- `v0.9.29` — UX test builder + bug-fix Phase B6b post-deploy sensibility check
+- `v0.9.28` — cohesion-review close-out: confirmed-stubs cross-reference + polish
+- `v0.9.27` — bug-fix-pipeline gets full notification wiring
+- `v0.9.26` — system-architect agent gets bounded Write for its 7 audit verdicts
+- `v0.9.25` — bug-fix-pipeline gets its own planning-validation gate at Phase B3
+- `v0.9.24` — MemPalace wake-up runs at the earliest phase, before any subagent dispatch
+- `v0.9.23` — automatic documentation currency via a dedicated doc-updater agent
+- `v0.9.22` — bug-fix pipeline
+- `v0.9.21` — interaction intuition at Phase −1
+- `v0.9.20` — gates are opt-in
+- `v0.9.19` — UI interaction fidelity
+- `v0.9.18` — project email notifications
+- `v0.9.17` — plain-language requirements are a first-class input
+- `v0.9.16` — readme-styling: centering + color + themes
+- `v0.9.15` — documentation-currency gate
+- `v0.9.14` — MemPalace `mine` syntax fix
+- `v0.9.13` — independent review
+- `v0.9.12` — visual verification team
+- `v0.9.11` — live-app visual verification (single verifier)
+- `v0.9.10` — design-baseline-migration awareness
+- `v0.9.9` — logic-implementation review
+- `v0.9.8` — readme-styling skill + README refresh
+- `v0.9.7` — editability-completeness review
+- `v0.9.6` — expensive-verification-debugging
+- `v0.9.5` — real backend by default for full-stack tests
+- `v0.9.4` — MemPalace integration
+- `v0.9.3` — diagnostic-research-team (3 researchers + architect)
+- `v0.9.2` — forbid arbitrary wall-clock wakeups / timers
+- `v0.9.1` — auto-compact prompt at end of pipeline
+- `v0.9.0` — test-completeness verification
+- `v0.8.1` — frontend + backend implementers on opus
+- `v0.8.0` — auto-commit + push on clean pass
+- `v0.7.0` — solution-requirement auto-spawn
+- `v0.6.0` — link inference for un-annotated UI
+- `v0.5.0` — visual-fidelity-reconciliation + /visual-qa command
+- `v0.4.0` — design-fidelity-mapping + visual-fidelity tests
+- `v0.3.0` — root-cause-test-failures + playwright hardening
+- `v0.2.4` — python3 portability
+- `v0.2.3` — path-traversal hardening + escalation policy
+- `v0.2.0` — orchestrator skill rename (command/skill collision)
+- `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.55.1  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.55.1 — compact-readme-status-timeline: the README carries only the current release, the full timeline moves to docs
+
+A docs-only PATCH finishing the README compaction v3.47.1 began. v3.47.1 moved the accumulated per-release narrative into this file and kept a swapped-per-release spotlight, but it left the README's `STATUS` section carrying a one-line-per-release timeline (`v0.1.0 → v3.55.0` — ~135 lines that grew by one every release). v3.55.1 relocates that timeline here as the scannable **Release timeline at a glance** index above the detailed narrative, and the README's `STATUS` section now names only the current release plus a house-style pointer to this file — so the README shows only the most recent release's changes and directs readers here for the full history. The README compacts **1193 → 1066 lines**. The run also refreshed the MemPalace with the latest changes (the data-engineering lane Runs A–F v3.49.0–v3.54.0, the v3.55.0 frontend-E2E loop-exit gate, and this compaction) and ran a comprehensive documentation-currency sweep — the `docs/CODEBASE_MAP.md` "Currency note" that still pinned the v3.49.0 inventory (50 skills / 24 commands / 21 Layer-3 tools / 6878 tests) was brought current to v3.55.1 (53 / 25 / 22 / 7019).
+
+HONEST BOUNDARY: docs-only — no runtime behavior change, no new skill / agent / command / hook / Layer-3 tool, inventory unchanged (53 skills / 39 agents / 25 commands / 7 hook scripts / 22 Layer-3 tools). Suite unchanged at **7019 passing + 6 skipped, 0 failed** (both encodings); the `test_release_history.py` / `test_readme_styling.py` / `test_dispatch_banner.py` pins re-derive the version from `plugin.json` and stay green after the lockstep bump.
+
+
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 █▓▒░  ◆  NEW IN v3.55.0  ◆  ░▒▓█
