@@ -126,15 +126,19 @@ except ImportError:  # pragma: no cover - bare-module shape
 
 # Pipeline-DRIVING skills. A request is GATED only when its expected skills
 # include one of these — scoping the hard-gate to the heavyweight pipeline
-# commands (/architect-team, /bug-fix, /ux-test, /mini, /refine-prompt) whose
-# command body mandates a Skill invocation. Read-only plugin commands (/status,
-# /memory, ...) and built-in REPL commands (/effort, /model, /login) are NEVER
-# gated. This list is plugin-level (skill names), not codebase-specific.
+# commands (/architect-team, /bug-fix, /ux-test, /mini, /data-eng, /refine-prompt)
+# whose command body mandates a Skill invocation. Read-only plugin commands
+# (/status, /memory, ...) and built-in REPL commands (/effort, /model, /login) are
+# NEVER gated. This list is plugin-level (skill names), not codebase-specific.
+# `data-eng-pipeline` (v3.50.0) was wired into the Stop-time skill-invocation
+# auditor but omitted here until v3.55.2 — the data-eng lane is a pipeline driver
+# and must be real-time gated exactly like the other five.
 _PIPELINE_SKILLS: frozenset[str] = frozenset({
     "architect-team-pipeline",
     "bug-fix-pipeline",
     "ux-test-builder",
     "mini-architect-team-pipeline",
+    "data-eng-pipeline",
     "proposal-refiner",
 })
 
