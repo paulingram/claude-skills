@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.55.2` — data-eng-realtime-gate-fix
 - `v3.55.1` — compact-readme-status-timeline
 - `v3.55.0` — frontend-e2e-loop-exit-gate
 - `v3.54.0` — jsonld-emitter
@@ -144,6 +145,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.55.2  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.55.2 — data-eng-realtime-gate-fix: the data-eng lane joins the real-time skill-gate
+
+A PATCH bug fix closing a v3.50.0 gap. The data-eng lane's command `/architect-team:data-eng` was wired into the Layer-6 Stop-time skill-invocation auditor (`hooks/skill_invocation_audit.py`'s `_PIPELINE_COMMAND_SKILLS`) but omitted from the real-time PreToolUse hard-gate — a `/architect-team:data-eng` request could reach build/dispatch tools (Edit / Write / NotebookEdit / Agent / Task*) without the `data-eng-pipeline` Skill ever being engaged, with only the after-the-fact Stop-time audit to notice. v3.55.2 adds `data-eng-pipeline` to `hooks/pretool_skill_gate.py`'s `_PIPELINE_SKILLS` (**5 → 6 members**: the 4 run-driving playbooks + `data-eng-pipeline` + `proposal-refiner`), so the data-eng lane is now real-time gated — build/dispatch tools blocked until the Skill is engaged — exactly like the other five pipeline commands: prevention, not just detection. Shipped with the red-first regression test `test_data_eng_command_gated_and_satisfied_by_dataeng_skill` in the existing `tests/test_pretool_skill_gate.py`. Suite **7019 → 7020 passing + 6 skipped, 0 failed** (239 top-level test files, both encodings; +1 test in an existing file); inventory unchanged (53 skills / 39 agents / 25 commands / 7 hook scripts / 22 Layer-3 tools).
+
+HONEST BOUNDARY / KNOWN FOLLOW-UP: the run-continuity constants (`hooks/run_continuity.py`'s `RUN_DRIVING_SKILLS` / `ENGAGEMENT_SKILLS`) STILL omit `data-eng-pipeline` — `_PIPELINE_SKILLS` (6) now deliberately differs from `ENGAGEMENT_SKILLS` (5) by exactly `data-eng-pipeline`, so a `/architect-team:data-eng` run is real-time gated but NOT yet tracked by the `active-run.json` marker / continuation guard / sticky arm. Documented in `docs/INTEGRATION_MAP.md`'s three-constants paragraph, not hidden.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

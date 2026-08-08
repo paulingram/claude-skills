@@ -307,6 +307,24 @@ def test_bug_fix_command_gated_and_satisfied_by_bugfix_skill(tmp_path: Path) -> 
     assert check_payload(_payload(ok, tool="Read"))[0] == 0
 
 
+def test_data_eng_command_gated_and_satisfied_by_dataeng_skill(tmp_path: Path) -> None:
+    # v3.55.2 — the data-eng lane is a pipeline-DRIVING command (v3.50.0) and so
+    # MUST be real-time gated exactly like the other five: build/dispatch tools are
+    # blocked until the data-eng-pipeline Skill is engaged. Regression guard for the
+    # v3.50.0 gap where data-eng was wired into the Stop-time skill-invocation
+    # auditor (skill_invocation_audit._PIPELINE_COMMAND_SKILLS) but NOT into this
+    # real-time PreToolUse gate's _PIPELINE_SKILLS.
+    pend = _write(tmp_path, [
+        _user(_command_text("architect-team:data-eng"), "2026-06-16T10:00:00Z"),
+    ], name="de_pend.jsonl")
+    assert check_payload(_payload(pend, tool="Edit"))[0] == 2
+    ok = _write(tmp_path, [
+        _user(_command_text("architect-team:data-eng"), "2026-06-16T10:00:00Z"),
+        _skill_call("data-eng-pipeline", "2026-06-16T10:00:03Z"),
+    ], name="de_ok.jsonl")
+    assert check_payload(_payload(ok, tool="Read"))[0] == 0
+
+
 # --------------------------------------------------------------------------- #
 # fail-open safety
 # --------------------------------------------------------------------------- #
