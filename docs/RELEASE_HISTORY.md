@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.55.3` — debug-3cycle-fix
 - `v3.55.2` — data-eng-realtime-gate-fix
 - `v3.55.1` — compact-readme-status-timeline
 - `v3.55.0` — frontend-e2e-loop-exit-gate
@@ -145,6 +146,25 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.55.3  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.55.3 — debug-3cycle-fix: the bounded-at-3-cycles cap swept from every agent body; the debugging-skill review recorded
+
+A docs-and-discipline PATCH born from the user's "review how we handle debugging as a skill" request (2026-08-08). The review found the single-bug debugging discipline genuinely strong — and a real consistency defect-CLASS: the `bounded at 3 cycles` loop cap survived in THREE agent bodies / FOUR locations, each directly contradicting its OWN skill's unbounded loop — `agents/diagnostic-researcher.md` (the re-dispatch loop vs the `diagnostic-research-team` skill), `agents/system-architect.md` ×2 (the editability + interaction Round-3 review loops vs `editability-completeness` / `interaction-completeness`), and `agents/oracle-deriver.md` (the user-confirmation gate, which even cited a NON-EXISTENT `common-pipeline-conventions` domain-gate cycle cap while its own skill `verified-agent-output` says "no fixed cycle cap … until the user accepts"). The v3.9.3 residue sweep had cleared the skills tier — the agent bodies were the missed residue. NO new skill / agent / command / hook / Layer-3 tool — `check_separation` unaffected (26).
+
+| What changed | Detail |
+|---|---|
+| **The sweep (3 files / 4 locations)** | Every capped loop now documents the unbounded framing (per `common-pipeline-conventions` `## Unbounded solving discipline`): the diagnostic-researcher re-dispatch loop and both system-architect Round-3 review loops run until the architect converges — cycle count never halts them, the ONLY interruption a genuine missing-required-input pause, surfaced loudly and resumed once supplied; the oracle-deriver confirmation gate repeats until the user accepts — the user's own confirmation IS the deliverable. |
+| **The regression pins** | TWO red-first tests in the existing `tests/test_diagnostic_research_team.py`: `test_researcher_agent_re_dispatch_loop_is_unbounded` (the per-file pin) + the repo-wide, case-INSENSITIVE `test_no_bounded_at_3_cycles_loop_cap_in_any_agent` (scans every `agents/*.md` body; forbids the anti-pattern's re-introduction anywhere). Detection honesty: the review found diagnostic-researcher, the paired audit found the two system-architect locations, and the case-insensitive pin caught the capital-B oracle-deriver instance a case-sensitive grep + the audit had both missed. |
+| **The review recorded** | NEW `docs/proposals/DEBUGGING_MULTI_BUG_ENHANCEMENT.md` — an 11-point coverage table of current CT6 vs the debugging spec (7/11 covered), prioritized gaps (P1 — the multi-bug session layer: per-bug parallel confirm/research, a pooled session research index, architect bug-grouping, per-group release gates), and the reuse-first E1–E9 enhancement plan. |
+| **Counts + tests** | PATCH — no new skill / agent / command / hook / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22). Suite **7020 → 7022 passing + 6 skipped, 0 failed** (239 top-level test files, both encodings; +2 tests in an existing file). |
+
+HONEST BOUNDARY: this release sweeps the defect class and RECORDS the review — it does NOT build the multi-bug orchestration (E1–E5); that build is QUEUED as a fresh, focused `/architect-team` run per the user's decision.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

@@ -186,7 +186,7 @@ or "no prior context found" if zero hits cleared the cosine 0.40 floor>
 
 After all three researchers report, the system-architect agent reviews the set for robustness. If your draft has a gap (per the seven-criterion rubric in the `diagnostic-research-team` skill), the orchestrator re-dispatches you with a specific gap directive (e.g., "Researcher 2: consider `upstream-contract-change` against the auth service's POST /api/auth/login contract; the auth team merged commit abc1234 inside the recent-change window and no hypothesis in any of the three drafts references this contract surface").
 
-When re-dispatched, update your draft (`-v2`, `-v3` ...) addressing the specific gap. Do NOT re-do the full trace; do the focused additional pass the architect asked for. Loop is bounded at 3 cycles total — after that, surface to the human user via the orchestrator that the diagnostic plan cannot converge automatically.
+When re-dispatched, update your draft (`-v2`, `-v3` ...) addressing the specific gap. Do NOT re-do the full trace; do the focused additional pass the architect asked for. The re-dispatch loop runs until the architect converges — there is **NO fixed cycle cap** (per `common-pipeline-conventions` `## Unbounded solving discipline`, matching the `diagnostic-research-team` skill's Phase B loop). It never halts on cycle count; the ONLY interruption is a genuine missing-required-input pause — a stale CODEBASE_MAP that needs refreshing, an absent expectation file, a redacted log, something only the owner can supply — which the architect surfaces loudly via the orchestrator while the rest of the run continues, then resumes once it is provided.
 
 ## Tools posture
 

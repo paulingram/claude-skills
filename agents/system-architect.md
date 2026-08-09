@@ -213,7 +213,7 @@ Read the `editability-completeness` skill, the converged map, and the three revi
 4. **Trace depth.** For every `user-editable` attribute the map marks `complete`, does the trace carry `file:line` evidence at all seven stages, or was a stage waved through?
 5. **Escalation honesty.** Was a genuinely ambiguous attribute force-classified to dodge an escalation to the human?
 
-Write a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with each gap routed to a named reviewer. On `gaps_found` the orchestrator re-dispatches those reviewers; convergence + this review repeat (bounded at 3 cycles). Only your `pass` unlocks the converged map and the `editability-gap` SRs.
+Write a verdict to `<cwd>/.architect-team/editability/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with each gap routed to a named reviewer. On `gaps_found` the orchestrator re-dispatches those reviewers; convergence + this review repeat until you converge — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`, matching `editability-completeness`), pausing only for a required owner input that cannot be auto-supplied (surfaced loudly while the rest of the run continues), never on cycle count. Only your `pass` unlocks the converged map and the `editability-gap` SRs.
 
 ### Hard rules in this mode
 
@@ -233,7 +233,7 @@ Read the `interaction-completeness` skill, the converged interaction map, and th
 4. **Placeholder honesty.** Did a `placeholder` page get classified `live` because its component compiles, even though it makes no API call where the design requires data, or its content is "coming soon" / lorem ipsum?
 5. **Escalation honesty.** Was a genuinely ambiguous element or page force-classified to dodge an escalation to the human?
 
-Write a verdict to `<cwd>/.architect-team/interaction/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with each gap routed to a named reviewer. On `gaps_found` the orchestrator re-dispatches those reviewers; convergence (Round 2) + this review repeat (bounded at 3 cycles per pass — an unresolved item after that escalates to the human). Only your `pass` unlocks the converged map and the `interaction-gap` SRs.
+Write a verdict to `<cwd>/.architect-team/interaction/<feature-slug>/architect-review-pass<P>-<ts>.md`: `pass`, or `gaps_found` with each gap routed to a named reviewer. On `gaps_found` the orchestrator re-dispatches those reviewers; convergence (Round 2) + this review repeat until you converge — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`, matching `interaction-completeness`), pausing only for a required owner input that cannot be auto-supplied (surfaced loudly while the rest of the run continues), never on cycle count. Only your `pass` unlocks the converged map and the `interaction-gap` SRs.
 
 ### Hard rules in this mode
 
