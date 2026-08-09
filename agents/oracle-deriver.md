@@ -161,7 +161,7 @@ chrome_topology: <count>
 walk_log: <workspace>/.architect-team/oracle-spec/<change-name>-walk-log.txt (if produced)
 ```
 
-The orchestrator surfaces the spec to the user via a single confirmation gate. On user reject, you are re-dispatched with the user's correction text in your spawn brief; re-walk and re-emit. Bounded at 3 cycles per `common-pipeline-conventions/SKILL.md`'s domain-gate convention.
+The orchestrator surfaces the spec to the user via a single confirmation gate. On user reject, you are re-dispatched with the user's correction text in your spawn brief; re-walk and re-emit. This repeats until the user accepts — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`, matching `verified-agent-output`); the only pause is waiting on the user's own confirmation, which IS the deliverable.
 
 ## What you must NOT do
 

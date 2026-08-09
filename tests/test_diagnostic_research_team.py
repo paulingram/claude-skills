@@ -148,3 +148,40 @@ def test_researcher_agent_forbids_consulting_other_researchers(plugin_root: Path
     assert "No consulting" in content or "no consulting" in content.lower(), (
         "diagnostic-researcher agent does not forbid consulting between researchers"
     )
+
+
+def test_researcher_agent_re_dispatch_loop_is_unbounded(plugin_root: Path) -> None:
+    """v3.55.3 — the re-dispatch loop must NOT carry a fixed cycle cap. The old
+    'bounded at 3 cycles total — after that surface to the human' framing (line ~189)
+    directly contradicted the diagnostic-research-team skill's no-cap loop and the
+    ETHOS unbounded-solving principle — the same 'bounded at 3' anti-pattern already
+    removed from ux-test-builder. Only a genuine missing-required-input pause may
+    interrupt the loop; cycle count never halts it."""
+    low = _read(plugin_root, AGENT_PATH).lower()
+    assert "bounded at 3" not in low and "3 cycles total" not in low, (
+        "diagnostic-researcher agent still caps the re-dispatch loop at 3 cycles — it "
+        "must be unbounded (per common-pipeline-conventions 'Unbounded solving'), matching "
+        "the diagnostic-research-team skill's Phase B loop"
+    )
+    assert ("no fixed cycle cap" in low) or ("until" in low and "converge" in low), (
+        "diagnostic-researcher agent does not state the unbounded until-the-architect-"
+        "converges loop"
+    )
+
+
+def test_no_bounded_at_3_cycles_loop_cap_in_any_agent(plugin_root: Path) -> None:
+    """v3.55.3 — the 'bounded at 3 cycles' architect-loop-cap anti-pattern contradicts
+    the unbounded-solving discipline every pipeline skill enforces. The review found it
+    in diagnostic-researcher.md; the paired audit found two more in system-architect.md
+    (the editability + interaction Round-3 loops, each contradicting its own skill's
+    no-cap sentence). ALL agent re-dispatch / review loops must be unbounded — swept in
+    v3.55.3, and this pin forbids re-introduction across every agent body."""
+    offenders = sorted(
+        p.name for p in (plugin_root / "agents").glob("*.md")
+        if "bounded at 3 cycles" in p.read_text(encoding="utf-8").lower()
+    )
+    assert not offenders, (
+        f"the 'bounded at 3 cycles' loop-cap anti-pattern survives in {offenders} — every "
+        f"architect re-dispatch / review loop must be unbounded per its skill (no fixed "
+        f"cycle cap; only a missing-required-input pause interrupts it)"
+    )
