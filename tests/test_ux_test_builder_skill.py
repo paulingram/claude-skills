@@ -153,6 +153,36 @@ def test_u7_loop_until_converged_no_cap(plugin_root: Path) -> None:
     )
 
 
+def test_u7_spec_of_record_matches_skill_no_cap(plugin_root: Path) -> None:
+    """v3.55.4 — the SPEC-of-record must match the skill body. `openspec/specs/
+    ux-test-builder/spec.md`'s U7 requirement still specced the bounded-at-3
+    re-examination loop the SKILL already dropped (pinned by the test above) — the
+    requirement contradicted the implementation. Swept to the unbounded framing."""
+    spec = (plugin_root / "openspec" / "specs" / "ux-test-builder" / "spec.md").read_text(encoding="utf-8")
+    start = spec.find("### Requirement: U7")
+    assert start >= 0, "ux-test-builder spec has no U7 requirement section"
+    nxt = spec.find("\n### ", start + 1)
+    section = spec[start:nxt] if nxt > 0 else spec[start:]
+    low = section.lower()
+    assert "bounded at 3" not in low and "3 re-examination cycles" not in low, (
+        "the ux-test-builder SPEC's U7 requirement still caps the re-examination loop at 3 "
+        "cycles — it must be unbounded (no fixed cycle cap) to match the skill body + the "
+        "unbounded-solving discipline"
+    )
+    assert ("no fixed cycle cap" in low) or ("until" in low and ("consensus" in low or "converge" in low)), (
+        "the ux-test-builder SPEC's U7 must describe the unbounded until-consensus loop"
+    )
+    # The U7 loop cap must not survive ANYWHERE in the spec-of-record — the summary
+    # line + the test-file listing referenced "3-cycle bounded convergence" too. This
+    # excludes the legitimate B6b "bounded-recursion (3 consecutive fix-regression)"
+    # escalation, which is a different rule (a distinct phrase).
+    assert "3-cycle bounded" not in spec.lower(), (
+        "the ux-test-builder SPEC still references '3-cycle bounded convergence' outside the "
+        "U7 requirement (the spec summary and/or the test-file listing) — the U7 loop cap "
+        "must be swept everywhere the spec-of-record asserts it"
+    )
+
+
 def test_u8_ux_flow_failure_routing(plugin_root: Path) -> None:
     body = _read_body(plugin_root)
     start = body.find("## Phase U8")

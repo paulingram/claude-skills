@@ -180,6 +180,21 @@ def test_session_engaged_pipeline_bare_and_prefixed(tmp_path: Path) -> None:
     assert rc.session_engaged_pipeline(rc.read_transcript(t2)) is False
 
 
+def test_data_eng_pipeline_engages_and_is_recognized(tmp_path: Path) -> None:
+    """v3.55.4 — the data-eng lane is a run-driving pipeline (like bug-fix-pipeline);
+    it must engage the active-run marker + count as engaged so a /architect-team:data-eng
+    run is tracked by the continuation-guard / sticky arm. Closes the v3.50.0 omission
+    that is the run-continuity sibling of the v3.55.2 real-time-gate fix (restores
+    _PIPELINE_SKILLS == ENGAGEMENT_SKILLS at 6 members)."""
+    assert "data-eng-pipeline" in rc.RUN_DRIVING_SKILLS
+    assert "data-eng-pipeline" in rc.ENGAGEMENT_SKILLS
+    t = _write_transcript(tmp_path / "de.jsonl", [
+        _user("/architect-team:data-eng build the warehouse"),
+        _skill_call("architect-team:data-eng-pipeline"),
+    ])
+    assert rc.session_engaged_pipeline(rc.read_transcript(t)) is True
+
+
 def test_engagement_since_last_compact_boundary(tmp_path: Path) -> None:
     base = [
         _user("/architect-team build the thing"),

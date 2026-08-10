@@ -133,7 +133,8 @@ DEFAULT_MARKER_STALE_HOURS = 72.0
 COMPLETION_LOG_FILENAME = "run-completion.log"
 
 # Skills whose invocation ENGAGES (writes/refreshes) the active-run marker —
-# the four run-driving orchestrator playbooks. proposal-refiner deliberately
+# the five run-driving orchestrator playbooks (v3.55.4 added the data-eng lane).
+# proposal-refiner deliberately
 # does NOT engage a marker (it also runs standalone via /refine-prompt, which
 # must never leave a workspace stuck in run-active state).
 RUN_DRIVING_SKILLS: frozenset[str] = frozenset({
@@ -141,6 +142,7 @@ RUN_DRIVING_SKILLS: frozenset[str] = frozenset({
     "bug-fix-pipeline",
     "ux-test-builder",
     "mini-architect-team-pipeline",
+    "data-eng-pipeline",
 })
 
 # Skills whose invocation counts as the session OPERATING UNDER the pipeline

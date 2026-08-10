@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define a persona-driven UX-test orchestrator (10 phases U0-U9, reached via `/architect-team:ux-test`) that takes a persona + objectives + target site + credentials env-var, maps the site (reusing `intake-and-mapping`), drafts a literal Playwright flow, dispatches 3 `flow-explorer` agents to propose 10-15 additional adjacent flows each, distills semantically, executes everything in parallel via 3 `flow-executor` agents against the live target, resolves disagreements via 3-cycle bounded convergence, and auto-routes failed flows through `bug-fix-pipeline` with `origin.kind: "ux-flow-failure"`. Also adds `bug-fix-pipeline` Phase B6b (Logical Sensibility Check) + `fix-sensibility-checker` agent that closes the real-world cohesion gap surfaced by user feedback (the "auth-unavailable after Sign-Back-In fix" case): post-deploy, computes the impact set from the fix's git diff (changed files + importers + nav destinations + endpoints) and runs minimal Playwright sensibility flows; `nonsensical` items route as fresh SRs with `origin.kind: "fix-regression"` for recursive bug-fix processing.
+Define a persona-driven UX-test orchestrator (10 phases U0-U9, reached via `/architect-team:ux-test`) that takes a persona + objectives + target site + credentials env-var, maps the site (reusing `intake-and-mapping`), drafts a literal Playwright flow, dispatches 3 `flow-explorer` agents to propose 10-15 additional adjacent flows each, distills semantically, executes everything in parallel via 3 `flow-executor` agents against the live target, resolves disagreements via until-consensus re-examination (no fixed cycle cap), and auto-routes failed flows through `bug-fix-pipeline` with `origin.kind: "ux-flow-failure"`. Also adds `bug-fix-pipeline` Phase B6b (Logical Sensibility Check) + `fix-sensibility-checker` agent that closes the real-world cohesion gap surfaced by user feedback (the "auth-unavailable after Sign-Back-In fix" case): post-deploy, computes the impact set from the fix's git diff (changed files + importers + nav destinations + endpoints) and runs minimal Playwright sensibility flows; `nonsensical` items route as fresh SRs with `origin.kind: "fix-regression"` for recursive bug-fix processing.
 
 ## Requirements
 
@@ -111,13 +111,13 @@ The skill's Phase U6 SHALL dispatch 3 `flow-executor` agents in parallel. Each a
 
 ### Requirement: U7 consensus on disagreements
 
-The skill's Phase U7 SHALL define the consensus mechanism — for each flow, pool the 3 executors' verdicts; unanimous agreement records the consensus immediately; disagreement enters the re-examination loop where each executor re-runs the disputed flow with the OTHER executors' verdicts as context, bounded at 3 re-examination cycles. After 3 cycles without consensus, the orchestrator SHALL escalate to the user (a domain gate; fires regardless of `--proposal-first`).
+The skill's Phase U7 SHALL define the consensus mechanism — for each flow, pool the 3 executors' verdicts; unanimous agreement records the consensus immediately; disagreement enters the re-examination loop where each executor re-runs the disputed flow with the OTHER executors' verdicts as context. The loop runs until the executors converge — there is no fixed cycle cap (per the unbounded-solving discipline, matching the skill body). If the verdicts genuinely cannot reconcile (a real product ambiguity only the owner can adjudicate), the orchestrator SHALL surface the divergent verdicts to the user as required input (a domain gate; fires regardless of `--proposal-first`) while continuing all other work — it never halts on cycle count.
 
-#### Scenario: Phase U7 documents the 3-cycle bounded convergence + escalation
+#### Scenario: Phase U7 documents the unbounded until-consensus convergence + required-input escalation
 
 - **WHEN** the skill body's Phase U7 section is parsed
-- **THEN** it states the 3-cycle bound
-- **AND** it states the post-bound escalation is a domain gate
+- **THEN** it states the re-examination loop has no fixed cycle cap (runs until the executors converge)
+- **AND** it states the persistent-divergence surfacing to the owner is a domain gate
 
 ### Requirement: U8 bug routing to bug-fix-pipeline
 
@@ -204,7 +204,7 @@ The agent body SHALL document: inputs (impact set, deployed dev URL, credentials
 
 The system SHALL include pytest structural-test files:
 
-- `tests/test_ux_test_builder_skill.py` — frontmatter; all 10 phase sections (U0-U9); the five disciplines; intake-schema fields; literal-flow-as-flow-1 rule; 3-explorer + 3-executor parallel-dispatch; 3-cycle bounded convergence at U7; bug-routing to bug-fix-pipeline with origin.kind: ux-flow-failure.
+- `tests/test_ux_test_builder_skill.py` — frontmatter; all 10 phase sections (U0-U9); the five disciplines; intake-schema fields; literal-flow-as-flow-1 rule; 3-explorer + 3-executor parallel-dispatch; unbounded until-consensus convergence at U7 (no fixed cycle cap); bug-routing to bug-fix-pipeline with origin.kind: ux-flow-failure.
 - `tests/test_flow_explorer_agent.py` — frontmatter, `model: opus`, tools (no Edit, Write present); 10-15-additional-flows directive; do-not-rephrase-literal rule.
 - `tests/test_flow_executor_agent.py` — frontmatter, `model: opus`, tools (no Edit, Bash + Write present); four verdict values; per-flow-result-file path; redundancy rationale.
 - `tests/test_fix_sensibility_checker_agent.py` — frontmatter, `model: opus`, tools (no Edit, Bash + Write present); impact-set computation rules section; four verdict values; verdict-file path.

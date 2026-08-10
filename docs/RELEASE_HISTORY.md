@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.55.4` — run-continuity-and-uxtest-spec
 - `v3.55.3` — debug-3cycle-fix
 - `v3.55.2` — data-eng-realtime-gate-fix
 - `v3.55.1` — compact-readme-status-timeline
@@ -146,6 +147,24 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.55.4  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.55.4 — run-continuity-and-uxtest-spec: the data-eng lane joins run-continuity; the ux-test spec-of-record sheds its stale 3-cycle cap
+
+A PATCH with TWO small fixes, each red-first tested. Fix 1 closes the v3.55.2 KNOWN FOLLOW-UP in code — the run-continuity constants gain the data-eng lane, so a `/architect-team:data-eng` run is now BOTH real-time gated (v3.55.2) AND tracked by the active-run marker / continuation guard / sticky arm. Fix 2 sweeps the last recorded residue of the bounded-at-3-cycles anti-pattern class (v3.9.3 cleared the skills tier, v3.55.3 the agent bodies): the ux-test-builder SPEC-of-record still capped the U7 consensus loop its own skill had already dropped. NO new skill / agent / command / hook / Layer-3 tool — `check_separation` unaffected (26).
+
+| What changed | Detail |
+|---|---|
+| **Run-continuity for data-eng** | `hooks/run_continuity.py`'s `RUN_DRIVING_SKILLS` gains `data-eng-pipeline` (4 → 5 members: the 4 playbooks + `data-eng-pipeline`); `ENGAGEMENT_SKILLS` (= `RUN_DRIVING_SKILLS` ∪ `{proposal-refiner}`) picks it up automatically (5 → 6) — RESTORING the `_PIPELINE_SKILLS == ENGAGEMENT_SKILLS` invariant at 6. A `/architect-team:data-eng` run now ENGAGES the `active-run.json` marker and is recognized as engaged, closing the v3.50.0 omission that was the run-continuity sibling of the v3.55.2 real-time-gate fix. Red-first: `test_data_eng_pipeline_engages_and_is_recognized` in the existing `tests/test_run_continuity.py`. |
+| **ux-test spec-of-record swept** | `openspec/specs/ux-test-builder/spec.md`'s U7 requirement + scenario still specced the "bounded at 3 re-examination cycles" loop the ux-test-builder SKILL already dropped — the spec-of-record contradicted the implementation. Now the unbounded framing: no fixed cycle cap, the re-examination loop runs until the executors converge, and persistent genuine divergence surfaces to the owner as required input (a domain gate) while other work continues — it never halts on cycle count. Red-first: `test_u7_spec_of_record_matches_skill_no_cap` in the existing `tests/test_ux_test_builder_skill.py`. |
+| **Counts + tests** | PATCH — no new skill / agent / command / hook / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22). Suite **7022 → 7024 passing + 6 skipped, 0 failed** (239 top-level test files, both encodings; +2 tests in existing files). |
+
+HONEST BOUNDARY: two targeted consistency fixes — no new enforcement surface; the run-continuity tracking a data-eng run now gets is the EXISTING v3.30.0 machinery, newly reachable for the lane.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
