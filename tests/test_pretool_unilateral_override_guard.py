@@ -432,3 +432,45 @@ def test_ledger_guard_resolution_does_not_swallow_a_same_named_neighbour(
     ):
         assert _targets_completion_lock_ground_truth(benign) is None, benign
         assert check_payload(_write_payload(benign))[0] == 0, benign
+
+
+def test_ask_ledger_arm_resists_case_and_traversal_spellings(tmp_path: Path) -> None:
+    """F-B (independent review). The ask-ledger arm once matched `p.name` /
+    `p.parent.name` as raw strings while its harness-task-store sibling
+    resolved. Two one-Write bypasses followed on NTFS -- an uppercase spelling
+    and a `..` re-entry, each reaching the SAME real file and returning exit 0
+    where the canonical spelling returned 2.
+
+    These are positive cases rather than a mutation entry because their absence
+    IS the defect: the arm was only ever tested against the canonical spelling,
+    which is exactly how it survived to review."""
+    state = tmp_path / ".architect-team"
+    state.mkdir()
+    canonical = state / _ASK_LEDGER_FILENAME
+    canonical.write_text('{"schema": 1, "entries": []}', encoding="utf-8")
+
+    spellings = [
+        str(canonical),
+        str(tmp_path / ".ARCHITECT-TEAM" / "ASK-LEDGER.JSON"),
+        str(tmp_path / ".architect-team" / "Ask-Ledger.json"),
+        str(state / "reviews" / ".." / _ASK_LEDGER_FILENAME),
+        str(tmp_path / ".architect-team" / "." / _ASK_LEDGER_FILENAME),
+        str(state / "sub" / ".." / _ASK_LEDGER_FILENAME),
+    ]
+    for spelling in spellings:
+        assert _targets_completion_lock_ground_truth(spelling) == "ask-ledger", spelling
+        assert check_payload(_write_payload(spelling))[0] == 2, spelling
+
+
+def test_ask_ledger_arm_still_declines_a_same_named_file_elsewhere(tmp_path: Path) -> None:
+    """CONTROL for the test above. Resolving must not widen the arm into every
+    file called ask-ledger.json -- the `.architect-team/` parent requirement is
+    what keeps an unrelated file out, and over-blocking here would train someone
+    to switch the guard off."""
+    for benign in (
+        str(tmp_path / "docs" / _ASK_LEDGER_FILENAME),
+        str(tmp_path / ".architect-team" / "reviews" / _ASK_LEDGER_FILENAME),
+        str(tmp_path / "ask-ledger.json"),
+    ):
+        assert _targets_completion_lock_ground_truth(benign) is None, benign
+        assert check_payload(_write_payload(benign))[0] == 0, benign

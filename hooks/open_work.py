@@ -23,11 +23,27 @@ always can). Each is the usual ``CT6_*_DISABLED`` truthy-env shape, matching
 
   * ``CT6_COMPLETION_LOCK_DISABLED``  — master; disables the whole lock.
   * ``CT6_TASK_LIST_GATE_DISABLED``   — the harness-task-list source only.
-  * ``CT6_ASK_LEDGER_GATE_DISABLED``  — the ask-ledger source only.
+  * ``CT6_ASK_LEDGER_GATE_DISABLED``  — stops the ask-ledger recording at all.
   * ``CT6_TURN_OUTPUT_GATE_DISABLED`` — the one-line-of-state rule only.
+  * ``CT6_ASK_LEDGER_BLOCKING``       — OPT-IN; lets the ledger refuse a stop.
 
 Per-source switches matter: disabling a noisy ledger must not disable the
 task-list gate that works.
+
+WHICH SOURCES MAY REFUSE A STOP — only two, and the split is the point:
+
+  * The task list MAY block: the HARNESS writes ``status``, so "done" is a fact
+    this gate reads rather than a claim it is told.
+  * The turn-output rule MAY block: whether a turn is a narrative is decidable
+    from the text itself.
+  * The ask-ledger is ADVISORY. It knows a directive was GIVEN; it cannot know
+    it was MET. Shipped as a blocking source it made an ordinary session — one
+    request, no tasks — unexitable forever, because nothing ever closed an
+    entry. A source that cannot verify its own release condition must not hold a
+    session hostage, and the reliable half of a gate must not be taken down by
+    the half that cannot tell done from not-done. Recording stays involuntary
+    and the asks are surfaced whenever something else blocks; they are simply
+    not the thing refusing the stop unless ``CT6_ASK_LEDGER_BLOCKING`` is set.
 
 TWO FAILURE MODES, DELIBERATELY DIFFERENT (REQ-6):
 
@@ -94,6 +110,21 @@ LEDGER_FILENAME = "ask-ledger.json"
 #: A turn is a narrative at or above this many non-empty lines.
 NARRATIVE_LINE_THRESHOLD = 3
 
+#: A turn under this many non-whitespace chars is a state line even on one line.
+#: Above it, an unbroken paragraph is a report that merely lacks newlines.
+NARRATIVE_PROSE_CHARS = 600
+
+#: The ask-ledger is ADVISORY by default and does not block on its own.
+#:
+#: It records a directive but cannot tell DONE from NOT-DONE without semantics,
+#: and a gate that cannot verify its own release condition is not a gate — the
+#: first cut blocked an ordinary session forever after a single request, because
+#: nothing ever closed an entry. Recording stays involuntary and useful: open
+#: asks are surfaced whenever something else blocks, so the agent sees every
+#: outstanding directive. Set this to a truthy value to make the source block on
+#: its own, which is only sane once a resolution path is wired.
+LEDGER_BLOCKING_ENV = "CT6_ASK_LEDGER_BLOCKING"
+
 
 def _env_truthy(name: str) -> bool:
     """The ``run_continuity.continuity_disabled()`` truthy-env shape."""
@@ -112,8 +143,21 @@ def tasks_disabled() -> bool:
 
 
 def ledger_disabled() -> bool:
-    """True when the ask-ledger source is switched off."""
+    """True when the ask-ledger source is switched off entirely (no recording)."""
     return _env_truthy(DISABLE_LEDGER_ENV)
+
+
+def ledger_blocking() -> bool:
+    """True when the ask-ledger may refuse a stop ON ITS OWN. Default: False.
+
+    The harness-task-list source can block because the harness writes `status`,
+    so "done" is a fact the gate reads. The ledger has no such signal — it knows
+    a directive was GIVEN, never that it was MET. Blocking on it made an
+    ordinary session unexitable after one request, which is the failure mode
+    that gets the whole gate switched off. Advisory by default; opt in only once
+    something can genuinely close an entry.
+    """
+    return _env_truthy(LEDGER_BLOCKING_ENV)
 
 
 def output_disabled() -> bool:
@@ -301,18 +345,39 @@ def classify_turn_output(text: str) -> dict[str, Any]:
         if "table-row" not in markers and _is_table_row(stripped):
             markers.append("table-row")
 
+    # A SHORT turn is never a narrative, whatever markers it carries.
+    #
+    # The first cut OR-ed markers in at any length, which made the rule fire on
+    # `**Status:** still on task 1 of 9.` — one line, the exact terse shape the
+    # block message asks for. The block demanded one line of state and then
+    # re-blocked a one-line state, an unbreakable loop with no exit but a
+    # kill-switch. A marker cannot indicate report STRUCTURE in a turn too short
+    # to have any, so the length floor now dominates and markers are advisory
+    # only (reported, never decisive).
+    #
+    # The long-prose arm exists because line count alone missed the other real
+    # shape: a single 600+ char paragraph is a report that happens to lack
+    # newlines.
+    body = "".join(text.split())
     long_enough = line_count >= NARRATIVE_LINE_THRESHOLD
-    narrative = bool(long_enough or markers)
+    long_prose = line_count < NARRATIVE_LINE_THRESHOLD and len(body) > NARRATIVE_PROSE_CHARS
+    narrative = bool(long_enough or long_prose)
     if narrative:
         bits = []
         if long_enough:
             bits.append(f"{line_count} non-empty lines "
                         f"(>= {NARRATIVE_LINE_THRESHOLD})")
+        if long_prose:
+            bits.append(f"{len(body)} chars of unbroken prose "
+                        f"(> {NARRATIVE_PROSE_CHARS})")
         if markers:
             bits.append("structural markers: " + ", ".join(markers))
         reason = "; ".join(bits)
     else:
-        reason = f"{line_count} non-empty line(s), no structural markers"
+        reason = (f"{line_count} non-empty line(s), {len(body)} chars - "
+                  "short enough to be a state line"
+                  + (f" (markers present but not decisive: {', '.join(markers)})"
+                     if markers else ""))
     return {"narrative": narrative, "reason": reason,
             "lines": line_count, "markers": markers}
 
@@ -767,6 +832,10 @@ def evaluate_completion_lock(
     """
     result: dict[str, Any] = {
         "blocked": False, "open_tasks": [], "open_asks": [], "unreadable": [],
+        # Recorded directives that are NOT refusing the stop. Surfaced by the
+        # caller when something else blocks, so an outstanding ask is still
+        # visible without being the thing that wedges the session.
+        "advisory_asks": [],
         "turn_output": None, "reasons": [], "killswitch": None,
     }
     if lock_disabled():
@@ -821,10 +890,26 @@ def evaluate_completion_lock(
                 result["open_asks"] = open_asks
                 sources.add(DISABLE_LEDGER_ENV)
 
+    # The ask-ledger is ADVISORY unless explicitly opted in. It knows a
+    # directive was GIVEN; it cannot know it was MET, and a source that cannot
+    # verify its own release condition must not hold a session hostage. Recorded
+    # asks are still surfaced (see `advisory_asks`) whenever another source
+    # blocks, so nothing the user asked for goes unmentioned — it just is not
+    # the thing refusing the stop.
+    asks_block = bool(result["open_asks"]) and ledger_blocking()
+    if result["open_asks"] and not asks_block:
+        result["advisory_asks"] = result["open_asks"]
+        result["open_asks"] = []
+        sources.discard(DISABLE_LEDGER_ENV)
+
     # --- source 3: the one-line-of-state rule. A shape constraint on a turn
     # that should not have been final, so it is evaluated ONLY when work is
     # genuinely open — never as a general style rule. A teammate's structured
     # report back to the Lead is its deliverable, not a violation.
+    #
+    # Gated on work that can actually BLOCK: an advisory ask must not drag the
+    # output rule in behind it, or the ledger would keep blocking by proxy
+    # through exactly the source it was just demoted out of.
     open_work = bool(result["open_tasks"] or result["open_asks"])
     if open_work and not output_disabled() and not is_teammate:
         verdict = classify_turn_output(_last_assistant_text(records))

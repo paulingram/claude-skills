@@ -1883,6 +1883,21 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
             "readable or removed:\n"
             + _lock_bullets(unreadable, _lock_unreadable_text)
         )
+    # Advisory asks are NOT why the stop was refused, and the wording has to be
+    # unambiguous about that or the reader will try to "clear" them and find
+    # they cannot. Demoting the ledger from a blocking source must make the
+    # user's directives non-blocking, never invisible: something else is holding
+    # this turn, and while it is held these are worth re-reading.
+    advisory = list(verdict.get("advisory_asks") or [])
+    if advisory:
+        sections.append(
+            f"FYI - directives recorded from your prompts ({len(advisory)}). "
+            "These are NOT blocking this stop; the ask-ledger is advisory "
+            "because it can tell that a directive was given but not that it was "
+            "met. Listed so nothing you asked for goes unmentioned while "
+            "something else holds the turn:\n"
+            + _lock_bullets(advisory, _lock_ask_text)
+        )
     if rule_fired:
         reason = str((turn_output or {}).get("reason") or "narrative shape")
         sections.append(

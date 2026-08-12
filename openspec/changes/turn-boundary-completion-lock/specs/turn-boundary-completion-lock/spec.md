@@ -35,6 +35,23 @@ The lock SHALL maintain an ask-ledger of the user's directives at a workspace pa
 - **WHEN** a derivation pass runs against a transcript slice containing fewer directives than the stored ledger
 - **THEN** the stored entries are preserved and only genuinely new directives are added
 
+### Requirement: Only a source that can verify its own release condition may refuse a stop
+A source SHALL refuse a stop only when it can determine, from state the harness writes, that work is genuinely outstanding. The harness task list qualifies — `status` is harness-written, so "done" is a fact the gate reads. The turn-output rule qualifies — narrative shape is decidable from the text itself. The ask-ledger does NOT qualify: it records that a directive was given and has no signal that it was met.
+
+The ask-ledger SHALL therefore be ADVISORY by default — recorded involuntarily, surfaced whenever another source blocks, and never the sole cause of a refusal. An opt-in environment variable MAY make it blocking for an operator who accepts resolving entries by hand. An advisory ask SHALL NOT satisfy the "open work" precondition of the turn-output rule, so the ledger cannot block by proxy through a source it was demoted out of.
+
+#### Scenario: An ordinary session is not wedged by a recorded directive
+- **WHEN** a session has one derivable directive, zero open tasks, and no CT6 run state
+- **THEN** the stop is ALLOWED, and the directive is reported as advisory rather than blocking
+
+#### Scenario: An advisory ask is still surfaced when something else blocks
+- **WHEN** an open harness task refuses the stop and an unresolved directive also exists
+- **THEN** the block names the task as the cause AND lists the directive as advisory
+
+#### Scenario: The opt-in restores blocking
+- **WHEN** the ask-ledger blocking opt-in is set, an unresolved directive exists, and no task is open
+- **THEN** the stop is refused by the ask-ledger source
+
 ### Requirement: A pipeline teammate is held only for work it owns
 The lock SHALL identify a pipeline teammate session and SHALL NOT stand it down wholesale. A teammate SHALL be held only for open tasks whose `owner` matches that teammate, so it is never wedged on lanes it has no power to close.
 

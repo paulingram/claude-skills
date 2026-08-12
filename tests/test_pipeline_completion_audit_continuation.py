@@ -200,12 +200,26 @@ def test_engaged_no_progress_budget_is_overridden_by_the_lock(
     so this run has open work throughout.
 
     The budget's own behaviour is not dropped - it is pinned by the sibling
-    test below, on a run with no open work."""
+    test below, on a run with no open work.
+
+    The open work is an open HARNESS TASK, injected at a tmp task root. It was
+    briefly a derived ask-ledger entry instead; that stopped blocking on
+    2026-08-12 when the ledger became advisory by default, which is the right
+    default but the wrong fixture for this test. The task list is the source
+    that blocks in the DEFAULT configuration, so it is the honest one to measure
+    the budget override against."""
     at = _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
     t = _engaged_transcript(workspace)
-    payload = {"transcript_path": str(t)}
-    env = {rc.MAX_NO_PROGRESS_ENV: "1"}
+    session_id = "abcdef1234567890"
+    task_dir = workspace / "harness-tasks" / f"session-{session_id[:8]}"
+    task_dir.mkdir(parents=True)
+    (task_dir / "1.json").write_text(
+        json.dumps({"id": "1", "subject": "finish the lane", "status": "pending"}),
+        encoding="utf-8")
+    payload = {"transcript_path": str(t), "session_id": session_id}
+    env = {rc.MAX_NO_PROGRESS_ENV: "1",
+           "CT6_TASKS_ROOT": str(workspace / "harness-tasks")}
     for attempt in range(1, 6):
         r = _run_stop(script, workspace, payload, env_extra=env)
         assert r.returncode == 2, (
@@ -337,8 +351,17 @@ def test_engaged_block_touches_marker_freshness(script: Path, workspace: Path) -
     # advancing the counter would burn the guard's auto-escalation budget while
     # a run was in fact progressing. The counter's own behaviour is pinned
     # directly by test_engaged_no_progress_auto_escalates_at_budget_with_no_open_work
-    # and by test_composed_block_does_not_advance_the_no_progress_counter in
+    # and by test_no_progress_budget_is_not_consumed_by_the_lock in
     # tests/test_completion_lock.py. What THIS test is for is marker freshness.
+    #
+    # F-C (independent review): the second citation used to name
+    # test_composed_block_does_not_advance_the_no_progress_counter. Mutation
+    # showed that one does NOT catch a regression here — it asserts only that
+    # the footer string is absent from stderr, and the lock returns above the
+    # budget check, so making the lock call note_continuation_block leaves it
+    # green. test_no_progress_budget_is_not_consumed_by_the_lock is the test
+    # that actually goes red (the guard auto-escalates and releases the stop).
+    # The coverage was always there; the citation pointed at the wrong test.
     r = _run_stop(script, workspace, {"transcript_path": str(t)}, env_extra=env)
     assert r.returncode == 2
     assert "CONTINUE" in r.stderr, "the composed block must keep the guard's directive"

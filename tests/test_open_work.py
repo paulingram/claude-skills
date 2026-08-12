@@ -613,18 +613,74 @@ def test_blank_lines_do_not_count_toward_the_line_threshold(tmp_path: Path) -> N
     ("**Status**: blocked on review", "bold-label"),
     ("| task | state |", "table-row"),
 ])
-def test_each_structural_marker_trips_on_its_own(text: str, marker: str) -> None:
-    """Each marker kind is pinned separately — a rule that never fires for a
-    given shape is decoration for that shape."""
+def test_each_structural_marker_is_detected_and_reported(text: str, marker: str) -> None:
+    """SUPERSEDED (v3.56.0): markers no longer trip the rule on their own.
+
+    This test used to assert a single marker-carrying line was a narrative. That
+    shipped a loop: the block message demands one line of state, and
+    `**Status:** still on task 1 of 9.` — that exact shape — tripped `bold-label`
+    and re-blocked, with no exit but a kill-switch. A marker cannot indicate
+    report STRUCTURE in a turn too short to have any.
+
+    What survives is what is still true and still worth pinning: DETECTION. Each
+    marker kind must still be recognized and reported, because the reason string
+    uses them and the length arms are what decide. The tripping assertion moves
+    to `test_markers_trip_once_the_turn_is_long_enough` below.
+    """
     r = ow.classify_turn_output(text)
-    assert r["narrative"] is True, f"{marker} must trip even on a single line"
-    assert marker in r["markers"]
+    assert marker in r["markers"], f"{marker} must still be DETECTED"
     assert r["lines"] == 1
+    assert r["narrative"] is False, "a one-line turn is never a narrative"
 
 
-def test_markers_trip_below_the_line_threshold(tmp_path: Path) -> None:
-    r = ow.classify_turn_output("Here is where things stand.\n- T-1 done")
-    assert r["narrative"] is True and "bullet" in r["markers"]
+def test_markers_trip_once_the_turn_is_long_enough(tmp_path: Path) -> None:
+    """The tripping half of the superseded marker test: a marker-carrying turn
+    that is genuinely long enough IS a narrative, and the marker is reported."""
+    r = ow.classify_turn_output("Here is where things stand.\n"
+                                "- T-1 done\n"
+                                "- T-2 in review")
+    assert r["narrative"] is True
+    assert "bullet" in r["markers"]
+    assert r["lines"] == 3
+
+
+def test_a_marked_state_line_is_not_a_narrative(tmp_path: Path) -> None:
+    """INVERTED from `test_markers_trip_below_the_line_threshold` (v3.56.0).
+
+    That test pinned the opposite of the intended behaviour, and this is the
+    exact turn that shipped the loop — the one-line state the block message asks
+    for, carrying a bold label. It must never trip again."""
+    r = ow.classify_turn_output("**Status:** still on task 1 of 9.")
+    assert r["narrative"] is False, (
+        "the block asks for one line of state; refusing one line of state is a "
+        "loop whose only exit is a kill-switch"
+    )
+    assert "bold-label" in r["markers"], "still detected, just not decisive"
+
+    two_line = ow.classify_turn_output("Here is where things stand.\n- T-1 done")
+    assert two_line["narrative"] is False and "bullet" in two_line["markers"]
+
+
+def test_a_single_unbroken_paragraph_report_is_a_narrative(tmp_path: Path) -> None:
+    """The long-prose arm replaces what markers were really catching: a report
+    that just lacks newlines. Line count alone missed it."""
+    prose = ("I finished the exporter refactor and then went through the "
+             "lineage sidecar looking for anything that needed to change. " * 10)
+    # The module measures whitespace-STRIPPED length, so the premise is checked
+    # the same way rather than by a proxy that would drift from it.
+    assert len("".join(prose.split())) > ow.NARRATIVE_PROSE_CHARS
+    r = ow.classify_turn_output(prose)
+    assert r["narrative"] is True and r["lines"] == 1
+    assert str(ow.NARRATIVE_PROSE_CHARS) in r["reason"]
+
+
+def test_a_short_paragraph_under_the_prose_cap_is_not_a_narrative(
+    tmp_path: Path
+) -> None:
+    """The other direction of the prose arm — a genuinely brief one-liner stays
+    clean, so the cap cannot creep down into ordinary state lines."""
+    r = ow.classify_turn_output("Still on T-1; the exporter fix is under review.")
+    assert r["narrative"] is False
 
 
 def test_prose_containing_a_pipe_or_hash_is_not_a_table_or_heading(tmp_path: Path) -> None:
@@ -799,8 +855,10 @@ def test_teammate_name_ignores_assistant_authored_text(tmp_path: Path) -> None:
 # =============================================================================
 
 def _blank_result_fields(result: dict) -> None:
-    assert set(result) == {"blocked", "open_tasks", "open_asks", "unreadable",
-                           "turn_output", "reasons", "killswitch"}
+    # `advisory_asks` joined the contract in v3.56.0 when the ledger became
+    # advisory by default — recorded asks still have to surface somewhere.
+    assert set(result) == {"blocked", "open_tasks", "open_asks", "advisory_asks",
+                           "unreadable", "turn_output", "reasons", "killswitch"}
 
 
 def test_open_task_blocks_and_names_the_source_switch(tmp_path: Path) -> None:
@@ -812,6 +870,53 @@ def test_open_task_blocks_and_names_the_source_switch(tmp_path: Path) -> None:
     assert [i["id"] for i in r["open_tasks"]] == ["T-1"]
     assert r["killswitch"] == ow.DISABLE_TASKS_ENV
     assert r["reasons"], "a block always says why"
+
+
+def test_an_ordinary_session_with_only_a_directive_is_not_blocked(
+    tmp_path: Path
+) -> None:
+    """THE REGRESSION THAT SHIPPED (v3.56.0). One user request, zero tasks, no
+    CT6 run state — an ordinary session in any project. It blocked PERMANENTLY:
+    the agent finished the work, and nothing in the pipeline ever closes a
+    ledger entry, so the only exit was a kill-switch.
+
+    The principle the fix encodes: the task list may block because the HARNESS
+    writes `status`, so "done" is a fact the gate reads. The ledger only knows a
+    directive was GIVEN, never that it was MET — a source that cannot verify its
+    own release condition must not hold a session hostage."""
+    r = ow.evaluate_completion_lock(tmp_path, "", [_user("Add the changelog entry.")])
+    assert r["blocked"] is False, "an ordinary session must not be wedged"
+    assert r["open_asks"] == []
+    assert [e["text"] for e in r["advisory_asks"]] == ["Add the changelog entry."], (
+        "recorded and surfaced, just not the thing refusing the stop"
+    )
+    assert r["reasons"] == [] and r["killswitch"] is None
+
+
+def test_an_advisory_ask_cannot_drag_in_the_turn_output_rule(tmp_path: Path) -> None:
+    """The proxy-block hole: if source 3 keyed on asks BEFORE the demotion, the
+    ledger would keep blocking through the very rule it was demoted out of."""
+    records = [_user("Add the changelog entry."),
+               _assistant("## Summary\n- did a thing\n- did another")]
+    r = ow.evaluate_completion_lock(tmp_path, "", records)
+    assert r["blocked"] is False
+    assert r["turn_output"] is None
+    assert len(r["advisory_asks"]) == 1
+
+
+def test_the_ledger_blocks_only_when_blocking_is_opted_in(tmp_path: Path) -> None:
+    """Opt-in restores the teeth for a user who wants them."""
+    import os
+    records = [_user("Add the changelog entry.")]
+    os.environ[ow.LEDGER_BLOCKING_ENV] = "1"
+    try:
+        r = ow.evaluate_completion_lock(tmp_path, "", records)
+    finally:
+        del os.environ[ow.LEDGER_BLOCKING_ENV]
+    assert r["blocked"] is True
+    assert [e["text"] for e in r["open_asks"]] == ["Add the changelog entry."]
+    assert r["advisory_asks"] == []
+    assert r["killswitch"] == ow.DISABLE_LEDGER_ENV
 
 
 def test_no_open_work_is_not_blocked(tmp_path: Path) -> None:
@@ -854,9 +959,13 @@ def test_disabling_the_ledger_leaves_the_task_source_enforcing(
 def test_disabling_the_task_list_leaves_the_ledger_enforcing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Per-source independence still holds — but the ledger is ADVISORY by
+    default (v3.56.0), so this test now opts blocking in explicitly. Its point
+    is that one switch does not silence another source, and that survives."""
     tasks = tmp_path / "tasks"
     _write_task(tasks, "sess1234abcd", "T-1", status="pending")
     monkeypatch.setenv(ow.DISABLE_TASKS_ENV, "1")
+    monkeypatch.setenv(ow.LEDGER_BLOCKING_ENV, "1")
 
     r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", [_user("Fix the bug.")],
                                     tasks_root=tasks)
@@ -868,11 +977,18 @@ def test_disabling_the_task_list_leaves_the_ledger_enforcing(
 
 def test_evaluate_accumulates_the_ledger_from_the_transcript(tmp_path: Path) -> None:
     """Registration is involuntary: the entry comes from the harness-written
-    transcript, not from a call the agent could decline to make."""
+    transcript, not from a call the agent could decline to make.
+
+    SUPERSEDED IN PART (v3.56.0): this test's point is RECORDING, which is
+    unchanged — the ledger still registers everything and still persists it. The
+    blocking assertion moved to the opt-in test; demoting the ledger to advisory
+    weakened what it DOES with an entry, never whether it captures one."""
     r = ow.evaluate_completion_lock(tmp_path, "", [_user("Add the changelog entry.")])
-    assert r["blocked"] is True
-    assert [e["text"] for e in r["open_asks"]] == ["Add the changelog entry."]
+    assert [e["text"] for e in r["advisory_asks"]] == ["Add the changelog entry."]
     assert ow.ledger_path(tmp_path).exists(), "the entry is durable on disk"
+    assert [e["text"] for e in ow.open_ledger_entries(tmp_path)] == [
+        "Add the changelog entry."
+    ], "still open in the store — advisory changes the verdict, not the record"
 
 
 def test_unreadable_task_file_blocks_and_is_named(tmp_path: Path) -> None:
@@ -939,9 +1055,15 @@ def test_turn_output_switch_disables_only_that_rule(
     assert r["blocked"] is True and r["killswitch"] == ow.DISABLE_TASKS_ENV
 
 
-def test_master_switch_named_when_more_than_one_source_fires(tmp_path: Path) -> None:
+def test_master_switch_named_when_more_than_one_source_fires(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Blocking opted in (v3.56.0) because this test's point is the killswitch
+    ARBITRATION across several blocking sources — which needs two of them to be
+    able to block. An advisory ask is not a blocking source."""
     tasks = tmp_path / "tasks"
     _write_task(tasks, "sess1234abcd", "T-1", status="pending")
+    monkeypatch.setenv(ow.LEDGER_BLOCKING_ENV, "1")
     r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", [_user("Fix the bug.")],
                                     tasks_root=tasks)
     assert r["blocked"] is True
@@ -949,6 +1071,18 @@ def test_master_switch_named_when_more_than_one_source_fires(tmp_path: Path) -> 
     assert r["killswitch"] == ow.DISABLE_ENV, (
         "with several sources firing, name the switch that releases all of them"
     )
+
+
+def test_an_advisory_ask_leaves_the_task_switch_named(tmp_path: Path) -> None:
+    """The arbitration counterpart: with the ledger advisory, only ONE source is
+    really blocking, so the precise per-source switch is what gets named."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="pending")
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", [_user("Fix the bug.")],
+                                    tasks_root=tasks)
+    assert r["blocked"] is True
+    assert r["killswitch"] == ow.DISABLE_TASKS_ENV
+    assert len(r["advisory_asks"]) == 1 and r["open_asks"] == []
 
 
 # --- teammate owner-scoping through the entry point --------------------------

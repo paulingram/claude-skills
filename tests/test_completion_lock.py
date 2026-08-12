@@ -482,14 +482,86 @@ def test_task_list_killswitch_leaves_the_ledger_enforcing(
     script: Path, workspace: Path, tasks_root: Path
 ) -> None:
     """The symmetric direction -- and the test that proves the ledger source is
-    wired through `main()` at all."""
+    wired through `main()` at all.
+
+    SUPERSEDED PREMISE, 2026-08-12: the ask-ledger is now ADVISORY by default,
+    so with the task-list switch set nothing blocks and the original form of
+    this test asserted an outcome the design no longer wants. The invariant it
+    was really protecting -- that each source is switched independently, and the
+    ledger can enforce with the task list off -- is unchanged, so the test opts
+    the ledger into blocking rather than being deleted.
+
+    Why the ledger is advisory: the task list may block because the HARNESS
+    writes `status`, so "done" is a fact the gate reads. The ledger only knows a
+    directive was GIVEN, never that it was MET, and a source that cannot verify
+    its own release condition must not hold a session hostage."""
     _write_task(tasks_root, "1", "pending", subject="task text")
     _write_ledger(workspace, "add the export button")
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION},
-                  env_extra={ow.DISABLE_TASKS_ENV: "1"})
+                  env_extra={ow.DISABLE_TASKS_ENV: "1",
+                             ow.LEDGER_BLOCKING_ENV: "1"})
     assert r.returncode == 2, f"the ledger source must still enforce; stderr={r.stderr!r}"
     assert "add the export button" in r.stderr
     assert "task text" not in r.stderr, "the disabled source must contribute nothing"
+
+
+def test_advisory_ledger_alone_never_blocks(
+    script: Path, workspace: Path, tasks_root: Path
+) -> None:
+    """The default, and the wedge that made it the default: an ordinary session
+    with one directive, zero tasks and no CT6 run blocked PERMANENTLY, because
+    nothing ever closes a ledger entry. Opting in is the only way it blocks."""
+    _write_ledger(workspace, "add the export button")
+    r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
+    assert r.returncode == 0, (
+        f"an unopted ledger must never refuse a stop on its own; stderr={r.stderr!r}"
+    )
+
+
+def test_advisory_directives_are_still_named_when_a_task_blocks(
+    script: Path, workspace: Path, tasks_root: Path
+) -> None:
+    """Demoting the ledger must make the user's asks NON-BLOCKING, not
+    INVISIBLE. When another source is already holding the stop, listing them
+    costs nothing and is the only place the session sees what it was asked for.
+
+    The distinction the block has to carry is which one is holding it: a reader
+    who cannot tell the blocking source from the advisory one will go hunting
+    for a way to close the directive, which is exactly the dead end that made
+    the ledger advisory in the first place."""
+    _write_task(tasks_root, "1", "pending", subject="wire the export button")
+    _write_ledger(workspace, "also add a CSV download")
+    r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
+    assert r.returncode == 2, "the open TASK blocks"
+    assert "wire the export button" in r.stderr, "the blocking source is named"
+    assert "also add a CSV download" in r.stderr, (
+        "an advisory directive must still be surfaced, not silently dropped"
+    )
+    assert "NOT blocking" in r.stderr, (
+        "the block must say which items are holding it and which are FYI"
+    )
+
+
+def test_control_advisory_mention_disappears_with_the_ledger_switch(
+    script: Path, workspace: Path, tasks_root: Path
+) -> None:
+    """CONTROL for the test above, standing in for a mutation run.
+
+    `hooks/pipeline-completion-audit.py` and `hooks/open_work.py` are both being
+    edited by other lanes right now, so breaking one to witness a red would race
+    them. The ledger kill-switch is an equally decisive falsifier and touches no
+    shared file: with the ledger source off, the advisory line must vanish while
+    the task keeps blocking. If the assertion above could not discriminate, this
+    would pass with the directive still present."""
+    _write_task(tasks_root, "1", "pending", subject="wire the export button")
+    _write_ledger(workspace, "also add a CSV download")
+    r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION},
+                  env_extra={ow.DISABLE_LEDGER_ENV: "1"})
+    assert r.returncode == 2, "the open task still blocks"
+    assert "wire the export button" in r.stderr
+    assert "also add a CSV download" not in r.stderr, (
+        "a switched-off source must contribute nothing, advisory included"
+    )
 
 
 def test_turn_output_killswitch_leaves_the_task_list_enforcing(
