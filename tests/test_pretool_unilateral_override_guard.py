@@ -269,3 +269,114 @@ def test_block_message_lists_disclosure_options(tmp_path: Path) -> None:
     assert ec == 2
     assert "(a) Invoke the pipeline Skill first" in msg
     assert "(b) Explicitly disclose the bypass" in msg
+
+
+# ---- v3.56.0: completion-lock ground truth is immutable to agents ----------
+#
+# ADV-3 / ADV-5. The lock's whole claim is that its exit condition comes from
+# files the HARNESS writes. Two direct-write escapes defeat that without going
+# near a tool the existing gates watch: one `Write` flips every ask-ledger entry
+# to `resolved`, and writing `"status": "completed"` straight into a task JSON
+# bypasses `review-gate-task.py` entirely, because that hook is
+# `PostToolUse(TaskUpdate)` and only ever sees the tool. Both are mitigated here
+# rather than in a new guard: this file already refuses agent edits of
+# `.architect-team-deploy.json`, so it is the same pattern and the same
+# unconditional placement.
+
+import os
+
+from hooks.pretool_unilateral_override_guard import (
+    _ASK_LEDGER_FILENAME,
+    _harness_tasks_root,
+    _targets_completion_lock_ground_truth,
+)
+
+
+def _write_payload(file_path: str, tool: str = "Write") -> dict:
+    return {"tool_name": tool, "tool_input": {"file_path": file_path}}
+
+
+def test_tasks_root_resolution_matches_open_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The guard defers to the substrate's own resolver so the protected set can
+    never drift from the set the lock actually reads. It returns the RESOLVED
+    form (it compares against resolved write targets), so compare resolved."""
+    from hooks import open_work
+
+    monkeypatch.delenv("CT6_TASKS_ROOT", raising=False)
+    assert _harness_tasks_root() == open_work.tasks_root().resolve()
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "injected"))
+    assert _harness_tasks_root() == open_work.tasks_root().resolve()
+    assert _ASK_LEDGER_FILENAME == open_work.LEDGER_FILENAME
+
+
+def test_write_to_ask_ledger_is_blocked(tmp_path: Path) -> None:
+    """ADV-3: one Write flipping every entry to 'resolved' would empty the
+    gate's open-work list without doing any of the work."""
+    ledger = tmp_path / ".architect-team" / _ASK_LEDGER_FILENAME
+    code, message = check_payload(_write_payload(str(ledger)))
+    assert code == 2, "the ask-ledger must not be agent-writable"
+    assert "ask-ledger" in message
+    assert str(ledger) in message
+
+
+def test_write_to_a_harness_task_file_is_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADV-5: writing status=completed into the task JSON never touches
+    TaskUpdate, so review-gate-task.py never sees it."""
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    target = tmp_path / "tasks" / "session-abcdef12" / "1.json"
+    code, message = check_payload(_write_payload(str(target)))
+    assert code == 2, "the harness task store must not be agent-writable"
+    assert "harness task store" in message
+    assert "TaskUpdate" in message, "the message must name the gate being reached around"
+    assert str(target) in message
+
+
+def test_ground_truth_guard_covers_edit_and_notebookedit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    task = str(tmp_path / "tasks" / "session-abcdef12" / "1.json")
+    for tool in ("Edit", "Write", "NotebookEdit"):
+        code, _ = check_payload(_write_payload(task, tool=tool))
+        assert code == 2, f"{tool} must be refused on the harness task list"
+
+
+def test_ground_truth_guard_fires_with_no_pipeline_run_active(tmp_path: Path) -> None:
+    """Unconditional, like the deploy-config arm: the completion lock fires in
+    EVERY session, so its ground truth needs protecting in every session, not
+    only inside a CT6 run. A tmp_path workspace has no intake-state.json."""
+    ledger = tmp_path / ".architect-team" / _ASK_LEDGER_FILENAME
+    assert check_payload(_write_payload(str(ledger)))[0] == 2
+
+
+def test_ground_truth_guard_does_not_capture_neighbours(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CONTROL. Over-blocking here would make ordinary state writes impossible
+    and get the whole guard switched off, so pin what it must NOT catch."""
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for benign in (
+        str(tmp_path / ".architect-team" / "reviews" / "T-1.json"),
+        str(tmp_path / ".architect-team" / "active-run.json"),
+        str(tmp_path / "docs" / "ask-ledger.json"),   # right name, wrong home
+        str(tmp_path / "src" / "index.ts"),
+    ):
+        assert _targets_completion_lock_ground_truth(benign) is None, benign
+        assert check_payload(_write_payload(benign))[0] == 0, benign
+
+
+def test_ground_truth_guard_survives_a_junk_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A guard that raises on a malformed path exits 1, and PreToolUse treats
+    exit 1 as non-blocking -- so it would degrade OPEN on exactly the input the
+    caller controls. Every one of these must return a verdict, not an
+    exception."""
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for junk in ("", "\x00", "://://", "?" * 4096, "con", "//?/UNC/nope"):
+        assert _targets_completion_lock_ground_truth(junk) is None, junk
+        assert check_payload(_write_payload(junk))[0] in (0, 2), junk

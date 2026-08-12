@@ -1,0 +1,68 @@
+{
+ "change": "turn-boundary-completion-lock",
+ "source": "User report (2026-08-12): Agent Teams sessions end their turn with work still open — 'All 17 items are assigned and no lane is idle. It's the turn boundary: every time my turn is about to end, I fill it with a summary. Writing a summary forces me to decide what's done enough to describe, and that decision is me drawing the boundary again.' The user has exhausted the instruction tier ('make a list of my outstanding asks' / 'you cannot consider anything complete until you have finished all my asks') and asks whether ralph loops would lock the agent in, and what else can be done. Refined brief: .architect-team/refined-prompts/agent-teams-completion-lock-20260812T051212Z.md (grade 88.9/B, exit-reason user-confirmed).",
+ "baseline": {"command": "PYTHONUTF8=1 python -m pytest -q", "passed": 7024, "failed": 0, "skipped": 6, "measured_at": "2026-08-12T06:58Z", "duration_s": 485,
+   "note": "MEASURED at Phase 0 on branch architect-team/turn-boundary-completion-lock before any edit; the number is from that run, not carried from the CHANGELOG. Gate is zero NEW failures vs the measured baseline. Two byte-count tests (test_installer_guidance_blocks, test_skill_references) are KNOWN pre-existing Windows line-ending failures since the v3.42.x macOS merges — if present in the baseline they stay in the allowed set and are not this run's regressions. check_separation unaffected (hooks tier, no new services module) — stays 26."},
+ "user_decisions": [
+   "Blast radius: EVERY session, always (not CT6-run-gated) — the arm fires with no CT6 run present",
+   "Escape hatch: UNBOUNDED — never allow stop; only a named kill-switch releases it (the agent can never decide to stop, the user always can)",
+   "Source of truth: BOTH the harness task list AND an ask-ledger",
+   "ralph-loop: verified disk-read exit SUPERSEDES it at the top level; ralph stays in the convergence sub-loops",
+   "Turn output: ENFORCE the one-line-of-state rule (not instruction-tier only)",
+   "Teammates: block on OWNED items only (not a wholesale standdown)",
+   "Ledger: AUTO-DERIVED from transcript prompts (harness-written), not model-registered"
+ ],
+ "entries": [
+  {"source_requirement_id": "REQ-1-universal-stop-gate", "spec_requirement_id": "turn-boundary-completion-lock/A session cannot end its turn while registered work is open", "layer": "infra", "team": "lock-wiring",
+   "acceptance_criteria": [
+     "A plain session with >=1 task at pending|in_progress in ~/.claude/tasks/session-<8>/ and NO .architect-team/ run state -> the Stop hook BLOCKS (red-first; this is the reported bug)",
+     "Zero open tasks + empty/absent ledger -> exit 0, no false positives in ordinary sessions (test)",
+     "The lock is evaluated ABOVE the non-engaged early return (:1757-1763) AND above the budget return (:1774-1783) AND above the escalation-marker return (:1706) — pinned by the engaged 10-stop test and the escalation-marker test, not by reading the source",
+     "The pre-existing arms are untouched: _is_real_run still gates audit(), CT6_MAX_NO_PROGRESS_STOPS still governs them, existing tests/test_pipeline_completion_audit*.py stay green"]},
+  {"source_requirement_id": "REQ-2-unbounded-plus-killswitches", "spec_requirement_id": "turn-boundary-completion-lock/Blocking is unbounded and released only by a named kill-switch", "layer": "infra", "team": "lock-wiring",
+   "acceptance_criteria": [
+     "In an ENGAGED session, 10 consecutive no-progress stop attempts with open work still BLOCK every time — no budget escape (test must exercise the engaged path; a non-engaged-only test could pass while the engaged case stayed broken)",
+     "Four named kill-switches implemented and asserted by name: CT6_COMPLETION_LOCK_DISABLED (master) + CT6_TASK_LIST_GATE_DISABLED + CT6_ASK_LEDGER_GATE_DISABLED + CT6_TURN_OUTPUT_GATE_DISABLED",
+     "Per-source independence: setting the ledger switch leaves the task-list source enforcing (test)"]},
+  {"source_requirement_id": "REQ-3-ask-ledger-durable", "spec_requirement_id": "turn-boundary-completion-lock/The ask-ledger is derived from the transcript and accumulates durably", "layer": "infra", "team": "lock-core",
+   "acceptance_criteria": [
+     "An unresolved ledger entry blocks the stop even when the harness task list is EMPTY (test)",
+     "TAIL-CAP TEST: a stored entry whose originating turn is NOT in the available transcript slice still counts as open and still blocks — re-derivation is purely additive and never removes or reopens a stored entry (the test that matters most; without it the ledger silently under-reports on long sessions)",
+     "Entries derive from harness-written transcript prompts, NOT a model-initiated registration call; an ambiguous entry stays OPEN (conservative resolution; over-blocking fails safe)",
+     "Ledger writes use the atomic tmp-then-replace pattern (run_continuity.py:282), stored at .architect-team/ask-ledger.json"]},
+  {"source_requirement_id": "REQ-4-teammate-owner-scoping", "spec_requirement_id": "turn-boundary-completion-lock/A pipeline teammate is held only for work it owns", "layer": "infra", "team": "lock-core",
+   "acceptance_criteria": [
+     "A teammate session with open tasks NONE of which it owns -> ALLOWED to stop (test)",
+     "A teammate session with >=1 open task whose owner matches it -> BLOCKED, message names that task (test)",
+     "An unidentifiable teammate falls back to the existing standdown — never wedged (test); reuses run_continuity.is_teammate_transcript (:724) + TEAMMATE_TOKEN (:88-94), no parallel detector"]},
+  {"source_requirement_id": "REQ-5-turn-output-rule", "spec_requirement_id": "turn-boundary-completion-lock/While work is open the turn output is one line of state, not a narrative", "layer": "infra", "team": "lock-core",
+   "acceptance_criteria": [
+     "TRIPS: open work + a last assistant text block that is >=3 non-empty lines OR carries a heading / bullet or numbered item / **Label:** block / table row -> re-blocks, message states the rule (test each marker kind)",
+     "DOES NOT TRIP: a one-line state output, and a two-line marker-free terse status update (test BOTH — a rule that never fires is decoration; a rule that fires on a terse update gets disabled)",
+     "classify_turn_output is a pure function over a string with no I/O (exhaustively unit-testable); reads the last assistant text block via the reused run_continuity transcript reader"]},
+  {"source_requirement_id": "REQ-6-split-failure-semantics", "spec_requirement_id": "turn-boundary-completion-lock/An own-code crash fails open but an unreadable source blocks", "layer": "infra", "team": "lock-wiring",
+   "acceptance_criteria": [
+     "A malformed/unreadable task JSON -> BLOCKS and the message NAMES that source (test) — a blanket fail-open here would reproduce the reported bug via one bad file",
+     "A crash injected into the lock's own code -> exit 0 with a stderr note (test), matching main()'s wrapper at :1791-1793",
+     "Source-read failures are carried as DATA (an unreadable[] partition), never as exceptions, so only unexpected control-flow errors reach the fail-open wrapper",
+     "The .lock / .highwatermark sidecars are skipped BY NAME, never via a silent parse failure (test)"]},
+  {"source_requirement_id": "MANDATE-test-seam", "spec_requirement_id": "(cross-cutting: tasks preamble)", "layer": "infra", "team": "lock-core",
+   "acceptance_criteria": [
+     "Every harness-task reader accepts an injected root (explicit arg > env override > real home) so the suite points at tmp_path; NO test writes to the user's real ~/.claude/tasks store (pinned)"]},
+  {"source_requirement_id": "MANDATE-release", "spec_requirement_id": "(cross-cutting: tasks group 6)", "layer": "infra", "team": "orch",
+   "acceptance_criteria": [
+     "Paired review: independent task-reviewer + adversarial-reviewer, producer != checker, evidence-schema-v7, validate_evidence 0 gaps; attack list per tasks 6.1",
+     "Full suite zero NEW failures vs the MEASURED baseline, both encodings; check_separation green and unchanged (26); verify-check-can-fail verdict for every new test file; a captured demo (open tasks -> blocked; closed -> allowed; each kill-switch -> no-op)",
+     "The ralph-loop non-adoption rationale is WRITTEN DOWN so a later run does not re-adopt it; cites ONLY the verified twelve ralph-loop-using skills (there is no exploration-pipeline skill — a phantom citation fails tests/test_instruction_compliance.py)",
+     "Version 3.55.4 -> 3.56.0 both plugin JSONs + dispatch-banner pin lockstep; CHANGELOG per rubric (suite-total line); README spotlight-swap + RELEASE_HISTORY append + timeline; CLAUDE/CODEBASE_MAP/INTEGRATION_MAP/CAPABILITY_INDEX current",
+     "The FOUR kill-switches are documented in the README — a gate this broad must be releasable by a user who has never read the source",
+     "Completion audit exit 0; commit (author override Paul Ingram); merge --no-ff to main"]}
+ ],
+ "testing_authorizations": {
+  "playwright": "n/a - the deliverable is Stop-hook enforcement machinery (a new hooks/open_work.py module + a new evaluation in pipeline-completion-audit.py::main()). There is no UI surface and no frontend file in the diff, so the v3.44.0 frontend-impact detector reports no impact and the v3.55.0 _audit_frontend_e2e arm is a no-op. Behavior is verified by pytest driving the real main() as a subprocess with a stdin payload (the tests/test_pipeline_completion_audit_continuation.py idiom) over tmp_path task-dir + transcript + ledger fixtures.",
+  "dev_api_integration": "n/a - the lock reads local JSON files and a local transcript; no HTTP API is involved.",
+  "both_layer_integration": "n/a - every entry is layer infra (the plugin's own discipline stack)."
+ },
+ "confirmed_stubs": [],
+ "scope_extensions": []
+}

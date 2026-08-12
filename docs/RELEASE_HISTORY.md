@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.56.0` — turn-boundary-completion-lock
 - `v3.55.4` — run-continuity-and-uxtest-spec
 - `v3.55.3` — debug-3cycle-fix
 - `v3.55.2` — data-eng-realtime-gate-fix
@@ -147,6 +148,32 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.56.0 — turn-boundary-completion-lock: a session cannot end its turn while registered work is open, and the condition is read from disk rather than asserted
+
+A MINOR release that closes a user-reported failure the instruction tier could not fix — Agent Teams sessions ending their turn with work still open. The reporting agent diagnosed its own mechanism exactly — *"every time my turn is about to end, I fill it with a summary; writing a summary forces me to decide what's done enough to describe, and that decision is me drawing the boundary again"* — and then, in the same turn, produced two formatted reports while seventeen items sat open. The user had already tried the instruction-tier remedies ("make a list of my outstanding asks", "you cannot consider anything complete until you have finished all my asks"). What was left was machinery.
+
+**The decisive property: the stopping condition is READ FROM DISK, never asserted by the agent.** The harness already persists the shared task list to `~/.claude/tasks/session-<first-8-of-session-id>/<taskId>.json`; the Stop payload already carries `session_id`; and CT6's Stop hook is already wired at `matcher: "*"` in every session. What was missing was that no arm in `hooks/` read the aggregate list at all — and `_is_real_run` kept the hook deliberately inert outside a CT6 run, which is exactly why the reported 17-item session sailed through.
+
+| What changed | Detail |
+|---|---|
+| **NEW `hooks/open_work.py`** | The stdlib-only substrate: `read_harness_tasks` (read failures are DATA in an `unreadable[]` partition, never exceptions), `open_task_items` (unknown / missing status counts as OPEN — the asymmetry fails safe), the durably-accumulated ask-ledger, `classify_turn_output`, `teammate_name`, the single entry point `evaluate_completion_lock`, and an operator CLI (`list` / `resolve`). No new hook script, no new Layer-3 tool, no new `services/` module. |
+| **The lock in the Stop hook** | A new evaluation in `hooks/pipeline-completion-audit.py::main()`, NOT gated behind `_is_real_run`, so it reaches plain Agent Teams sessions that never invoke `/architect-team`. Placement is the requirement, not an implementation detail: it is evaluated ABOVE the non-engaged early return, the no-progress budget's `return 0`, the escalation-marker return, AND `_in_progress_is_fresh` — every one of those is a file the AGENT writes. It COMPOSES the continuation guard's block (`CONTINUE`, the worklist, the post-compact skill-reload directive) and heartbeats the marker, so an engaged run loses nothing, while deliberately NOT advancing the guard's no-progress counter. |
+| **Four kill-switches, unbounded otherwise** | `CT6_COMPLETION_LOCK_DISABLED` (master), `CT6_TASK_LIST_GATE_DISABLED`, `CT6_ASK_LEDGER_GATE_DISABLED`, `CT6_TURN_OUTPUT_GATE_DISABLED`. Per-source switches are the point: a noisy ledger must not force disabling the task-list gate that works. "Unbounded" means the AGENT can never decide to stop; the human always can. `CT6_MAX_NO_PROGRESS_STOPS` continues to govern the pre-existing arms, unchanged. |
+| **The auto-derived ask-ledger** | `.architect-team/ask-ledger.json` — derived from the harness-written transcript, not from a model-initiated registration call, so an agent cannot decline to register an ask. Accumulation is load-bearing: the transcript reader is tail-capped, so re-deriving from a truncated window would drop the EARLIEST directives — the ones most likely still unfinished. Re-derivation only ever ADDS; ambiguous stays open; a human resolves an entry through the CLI. |
+| **Ground truth immutable to agents** | `hooks/pretool_unilateral_override_guard.py` now refuses agent `Edit` / `Write` / `NotebookEdit` against the ask-ledger and against any path under the harness task store (ADV-3 / ADV-5). Closing a task through `TaskUpdate` stays entirely legitimate; reaching around the harness to edit the record does not. |
+| **ralph-loop deliberately NOT adopted at the top level** | The user asked directly. Its exit condition is a literal `<promise>` string the model types, compared by string equality, with nothing verifying it (its own system message says *"do not lie to exit!"*). Wrapping the top-level run in it would relocate the reported failure rather than remove it. ralph-loop keeps its place in the convergence sub-loops of the twelve skills that use it; the rationale is written into `docs/ETHOS.md` so a later run does not re-adopt it. |
+| **Counts + tests** | MINOR — additive within `hooks/`; no new skill / agent / command / hook script / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22); `check_separation` unaffected (26). Suite **7024 → 7166 passing + 6 skipped, 0 failed** (+142 tests; 241 top-level test files, both encodings). |
+
+Adversarial review executed **nine escapes, six critical; eight are closed.** Two reversed architectural calls the architect had already endorsed, and both reversals are recorded in the change's `design.md` rather than quietly amended: `_in_progress_is_fresh` sat above the lock, but `in-progress.md` is AGENT-written, so it was a self-asserted exit admitted through a side door (the corrected general rule: *the question is never what a file means, it is who writes it*); and the teammate standdown fell back on a `>= 1500`-char heuristic reachable by the **user's own long prompts**, which silently disarmed the whole gate. An independent review separately measured that exempting slash-command prompts from ledger derivation dropped the user's directive itself in **25 of 51** command-carrying prompts in their real history — including the prompt that commissioned this feature.
+
+HONEST BOUNDARY — the gate is defeatable, and saying otherwise would be the overclaim this release's own ETHOS section forbids. `TaskUpdate(status="deleted")` unlinks the task file (verified on a live task), so the lock reads a clean-empty directory and releases; deletion is a legitimate harness operation no hook tier can forbid. The mitigation is real but partial: the ask-ledger derives the user's directives from the transcript independently, so deleting *lanes* does not erase the user's *asks*. More broadly, an agent with unrestricted `Bash` can write any file, including these records — the guard raises the cost and makes a bypass deliberate and visible rather than accidental. Stated precisely: **an agent can no longer end its turn early by deciding it is finished — it can still end early by destroying the evidence that it is not, which is a louder and far more detectable act than writing a summary.**
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

@@ -175,10 +175,58 @@ def test_engaged_blocks_past_stop_hook_active(script: Path, workspace: Path) -> 
     assert "want me to continue" in r.stderr, "the message names the forbidden deferral"
 
 
-def test_engaged_no_progress_auto_escalates_at_budget(script: Path, workspace: Path) -> None:
+def _quiet_engaged_transcript(workspace: Path) -> Path:
+    """Engaged, but carrying NO user directive.
+
+    Engagement is read off the Skill ledger, not the prompt, so a bare
+    continuation nudge engages the session while deriving no ask-ledger entry.
+    That is what lets the test below isolate the pre-existing budget from the
+    v3.56.0 completion lock."""
+    records = [_user("continue"), _skill_call("architect-team-pipeline")]
+    p = workspace / "quiet.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    return p
+
+
+def test_engaged_no_progress_budget_is_overridden_by_the_lock(
+    script: Path, workspace: Path
+) -> None:
+    """SUPERSEDED BY DECISION, v3.56.0 (turn-boundary-completion-lock), not
+    eroded. This case previously asserted that the no-progress budget exhausts
+    and the stop is ALLOWED. Acceptance criterion 3 of the completion lock
+    removes exactly that escape *while registered work is open*: the budget must
+    never hand back a stop the lock is holding, or the reported bug returns via
+    the budget. `_engaged_transcript`'s prompt derives an open ask-ledger entry,
+    so this run has open work throughout.
+
+    The budget's own behaviour is not dropped - it is pinned by the sibling
+    test below, on a run with no open work."""
     at = _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
     t = _engaged_transcript(workspace)
+    payload = {"transcript_path": str(t)}
+    env = {rc.MAX_NO_PROGRESS_ENV: "1"}
+    for attempt in range(1, 6):
+        r = _run_stop(script, workspace, payload, env_extra=env)
+        assert r.returncode == 2, (
+            f"attempt {attempt} was released while work was open; stderr={r.stderr!r}"
+        )
+    assert not (at / "escalation-pending.md").exists(), (
+        "the lock must not auto-escalate: escalation is the budget's exit, and "
+        "the budget does not govern open work"
+    )
+
+
+def test_engaged_no_progress_auto_escalates_at_budget_with_no_open_work(
+    script: Path, workspace: Path
+) -> None:
+    """The other half of the v3.56.0 split: with NO open harness task and NO
+    ask-ledger entry the completion lock contributes nothing, and the
+    pre-existing budget behaves exactly as it did before - exhaust, escalate,
+    allow, and sanction the next stop via the marker it wrote."""
+    at = _at(workspace)
+    rc.engage_marker(workspace, "architect-team-pipeline")
+    t = _quiet_engaged_transcript(workspace)
     payload = {"transcript_path": str(t)}
     env = {rc.MAX_NO_PROGRESS_ENV: "1"}
     r1 = _run_stop(script, workspace, payload, env_extra=env)
@@ -277,9 +325,23 @@ def test_engaged_block_touches_marker_freshness(script: Path, workspace: Path) -
     env = {rc.MAX_NO_PROGRESS_ENV: "3", rc.MARKER_STALE_HOURS_ENV: "999999"}
     assert _run_stop(script, workspace, {"transcript_path": str(t)}, env_extra=env).returncode == 2
     assert rc.read_marker(workspace)["updated_at"] != before, "the block must heartbeat the marker"
-    # and two identical no-progress stops still increment despite the touch
+    # A second identical no-progress stop still blocks.
+    #
+    # v3.56.0 SUPERSEDED ASSERTION: this line used to also require
+    # "no-progress continuation attempt 1" in stderr. The completion lock is now
+    # evaluated above the guard and fires first here (the engaged transcript's
+    # prose derives an ask-ledger entry), so the block is the lock's COMPOSED
+    # one: it carries the guard's CONTINUE directive and worklist, but
+    # deliberately omits the budget footer because the lock does not call
+    # note_continuation_block. That omission is load-bearing, not cosmetic —
+    # advancing the counter would burn the guard's auto-escalation budget while
+    # a run was in fact progressing. The counter's own behaviour is pinned
+    # directly by test_engaged_no_progress_auto_escalates_at_budget_with_no_open_work
+    # and by test_composed_block_does_not_advance_the_no_progress_counter in
+    # tests/test_completion_lock.py. What THIS test is for is marker freshness.
     r = _run_stop(script, workspace, {"transcript_path": str(t)}, env_extra=env)
-    assert r.returncode == 2 and "no-progress continuation attempt 1" in r.stderr
+    assert r.returncode == 2
+    assert "CONTINUE" in r.stderr, "the composed block must keep the guard's directive"
 
 
 def test_new_block_messages_are_ascii(script: Path, workspace: Path) -> None:

@@ -68,9 +68,35 @@ All three fail open on a missing trigger (no baseline SHA / no git answer / no
 added tests; no registry; no change dir or no stamped manifest), so they are
 silent on every workspace that predates them.
 
+v3.56.0 — the COMPLETION LOCK, and it is unlike every arm above it. The arms
+above are WORKLIST checks scoped to a CT6 run (`_is_real_run` gates `audit()`).
+The lock is not: it fires in EVERY session, including a plain Agent Teams
+session that never invoked a CT6 pipeline, and it refuses the stop while
+registered work is open — open items in the harness's own per-session task list
+(`~/.claude/tasks/session-<first-8>/`), unresolved directives in the accumulated
+ask-ledger, or a source it was asked to read and could not. Its exit condition
+is read from files the HARNESS writes, so unlike an instruction or a self-typed
+promise string there is no wording that clears it.
+
+Its placement in `main()` is load-bearing and documented at the call site: above
+EVERY return below it — the escalation-marker return, the fresh-`in-progress.md`
+return, the non-engaged early return, and the no-progress budget. Its release
+valves are the four operator kill-switches named in `hooks/open_work.py`
+(master / task-list / ask-ledger / turn-output), never anything the agent can
+write: ON THIS GATE THE QUESTION IS NEVER WHAT A FILE MEANS, IT IS WHO WRITES
+IT. Failure semantics are SPLIT — a crash in the lock's own code fails open, an
+unreadable SOURCE blocks and is named. And because the lock returns above the
+continuation guard, it COMPOSES the guard's block (CONTINUE directive, worklist,
+post-compact reload directive) and performs the guard's marker heartbeat, so
+neither is lost on an engaged run. See `_completion_lock_action` below.
+
 SAFETY (this hook can block a session, so it is deliberately conservative):
-- Acts ONLY when `.architect-team/` holds a real run (state files present) OR
-  an explicit active-run marker exists.
+- The WORKLIST arms act ONLY when `.architect-team/` holds a real run (state
+  files present) OR an explicit active-run marker exists. The v3.56.0 completion
+  lock is the deliberate exception and is scoped by its own four kill-switches
+  instead — a session with no open harness task and no unresolved ledger entry
+  never sees it. The two agent-written markers below release the worklist arms
+  but NOT the lock.
 - A `.architect-team/escalation-pending.md` marker => the orchestrator is
   legitimately paused for the human => exit 0 (allow).
 - `stop_hook_active: true` + a NON-engaged session => exit 0 (legacy: never
@@ -211,6 +237,36 @@ except ImportError:  # pragma: no cover - bare-module fallbacks
 # v3.55.0 — the frontend-E2E loop-exit kill-switch (operator escape if the gate
 # ever misfires). Same truthiness rule as the other CT6 kill-switches.
 FRONTEND_E2E_GATE_DISABLE_ENV = "CT6_FRONTEND_E2E_GATE_DISABLED"
+
+# v3.56.0 — the COMPLETION-LOCK substrate (hooks/open_work.py): the harness task
+# list, the durably-accumulated ask-ledger, the turn-output classifier and the
+# teammate owner-scoping, all behind the single entry point
+# `evaluate_completion_lock`. MODULE-object import (the block message names the
+# module's four kill-switch constants as well as calling the entry point), with
+# the same dual-form + fail-open shape as `_rc`: unavailable => the lock is
+# inert and this hook behaves exactly as it did pre-v3.56.0.
+#
+# ADV-7 (adversarial review): both arms catch `Exception`, NOT `ImportError`.
+# A SyntaxError / NameError / any import-time error inside open_work.py raises
+# at module import — BEFORE main()'s fail-open wrapper exists — so an
+# ImportError-only guard let the whole hook die at exit 1 with a traceback,
+# taking every OTHER audit arm down with it. Exit 1 does not block a stop, so a
+# single typo in the substrate silently disarmed the entire completion audit.
+# The degraded state is loud: `_OW_IMPORT_ERROR` is reported on every Stop by
+# `_completion_lock_action` (ADV-6) rather than failing open in silence.
+_OW_IMPORT_ERROR: str | None = None
+try:  # pragma: no cover - exercised by both import paths
+    from hooks import open_work as _ow
+except Exception as _ow_exc_pkg:  # pragma: no cover - bare-module fallback
+    try:
+        import open_work as _ow  # type: ignore[no-redef]
+    except Exception as _ow_exc_bare:  # pragma: no cover - substrate unavailable
+        _ow = None  # type: ignore[assignment]
+        _OW_IMPORT_ERROR = (
+            f"{type(_ow_exc_bare).__name__}: {_ow_exc_bare}"
+            f" (package-form import also failed with"
+            f" {type(_ow_exc_pkg).__name__}: {_ow_exc_pkg})"
+        )
 
 
 def _read_stdin_utf8() -> str:
@@ -1598,15 +1654,23 @@ def _emit_block(violations: list[str], marker: dict | None = None) -> int:
     return 2
 
 
-def _emit_continuation_block(
+def _continuation_block_text(
     violations: list[str],
     marker: dict | None,
-    count: int,
-    budget: int,
     needs_skill_reload: bool,
-) -> int:
-    """The ENGAGED-session block (v3.30.0): keep the run working — bounded only
-    by the no-progress budget, never by an iteration count."""
+    budget_note: str | None,
+) -> str:
+    """The ENGAGED-session block's TEXT (v3.30.0), built once and used twice.
+
+    v3.56.0 split this out of `_emit_continuation_block` so the completion lock
+    can COMPOSE it rather than duplicate it. The lock is evaluated above the
+    guard and returns, so without this the guard's CONTINUE directive, worklist
+    and reload directive would simply vanish on an engaged run with open work.
+
+    `budget_note=None` omits the no-progress footer: the lock deliberately does
+    not consume the budget, so reporting a count it never incremented would be
+    a false statement about state.
+    """
     items = list(violations)
     if marker and marker.get("status") == "active":
         items.append(_lifecycle_line(marker))
@@ -1620,16 +1684,7 @@ def _emit_continuation_block(
         f"playbook was loaded - re-invoke Skill(skill=\"{skill}\") NOW to "
         "reload the pipeline instructions, then continue the run.\n\n"
     ) if needs_skill_reload else ""
-    budget_note = (
-        f"(no-progress continuation attempt {count} of {budget} - real "
-        "progress resets this budget; at the cap the guard auto-escalates to "
-        "the user instead of looping.)"
-    ) if count > 0 else (
-        "(progress detected since the last stop - the continuation budget is "
-        "fresh; the guard auto-escalates to the user only if the run stops "
-        f"making progress for {budget} consecutive attempts.)"
-    )
-    print(
+    return (
         "pipeline-completion-audit: CONTINUE - the architect-team run is not "
         "finished, and this session is its orchestrator. Do not end the turn; "
         "do not ask the user whether to continue (the mandate is the entire "
@@ -1646,11 +1701,354 @@ def _emit_continuation_block(
         "and refresh it while waiting.\n"
         "  - the run is genuinely finished (audit clean, committed, pushed): run\n"
         f"        python \"{hooks_dir / 'run_continuity.py'}\" --mark-complete\n"
-        "    then stop.\n\n"
-        + budget_note,
+        "    then stop."
+        + (("\n\n" + budget_note) if budget_note else "")
+    )
+
+
+def _budget_note(count: int, budget: int) -> str:
+    """The no-progress footer, single-sourced (v3.56.0).
+
+    Extracted so the completion lock's composed block and the guard's own block
+    quote IDENTICAL wording. Two copies of this sentence would drift, and the
+    lock's copy is read by a resumed session deciding whether the run is moving.
+    """
+    if count > 0:
+        return (
+            f"(no-progress continuation attempt {count} of {budget} - real "
+            "progress resets this budget; at the cap the guard auto-escalates to "
+            "the user instead of looping.)"
+        )
+    return (
+        "(progress detected since the last stop - the continuation budget is "
+        "fresh; the guard auto-escalates to the user only if the run stops "
+        f"making progress for {budget} consecutive attempts.)"
+    )
+
+
+def _emit_continuation_block(
+    violations: list[str],
+    marker: dict | None,
+    count: int,
+    budget: int,
+    needs_skill_reload: bool,
+) -> int:
+    """The ENGAGED-session block (v3.30.0): keep the run working — bounded only
+    by the no-progress budget, never by an iteration count."""
+    budget_note = _budget_note(count, budget)
+    print(
+        _continuation_block_text(violations, marker, needs_skill_reload, budget_note),
         file=sys.stderr,
     )
     return 2
+
+
+# ---------------------------------------------------------------------------
+# v3.56.0 — THE COMPLETION LOCK (turn-boundary-completion-lock)
+# ---------------------------------------------------------------------------
+#
+# A sibling of `_emit_continuation_block` above, for a different question. The
+# continuation guard asks "is THIS CT6 run finished"; the completion lock asks
+# "does this session have registered work still open", in EVERY session,
+# including a plain Agent Teams session that never invoked a CT6 pipeline. Its
+# exit condition is read from files the HARNESS writes (the per-session task
+# list under ~/.claude/tasks/, the transcript), never from anything the model
+# asserts — that single property is what separates it from the instruction tier
+# and from a self-typed promise string.
+#
+# Rendering discipline: this emitter builds its lines from the verdict's
+# STRUCTURED fields, so the wording of the block is owned here and cannot drift
+# with the substrate's phrasing. The verdict's own `reasons` are rendered only
+# as the fallback for a source this emitter does not know how to lay out (a
+# future fifth source), so a block is never emitted without saying why.
+
+_LOCK_MAX_LISTED = 20   # per source; the rest collapse into an "and N more" line
+_LOCK_MAX_LINE = 200    # per rendered item
+
+
+def _lock_clip(text: str, limit: int = _LOCK_MAX_LINE) -> str:
+    """One-line, length-bounded rendering of a piece of item data.
+
+    Clips the MIDDLE rather than the tail: the two most identifying parts of an
+    over-long line are its start and its end (a path's directory and its
+    filename), and an unreadable-source line that lost its filename would fail
+    REQ-6's "name the source" requirement."""
+    t = " ".join(str(text).split())
+    if len(t) <= limit:
+        return t
+    keep = (limit - 5) // 2
+    return t[:keep] + " ... " + t[-keep:]
+
+
+def _lock_bullets(items: Any, render: Any) -> str:
+    listed = list(items or [])
+    shown = listed[:_LOCK_MAX_LISTED]
+    lines = ["  - " + _lock_clip(render(i)) for i in shown]
+    if len(listed) > len(shown):
+        lines.append(f"  - ... and {len(listed) - len(shown)} more")
+    return "\n".join(lines)
+
+
+def _lock_task_text(item: Any) -> str:
+    if not isinstance(item, dict):
+        return str(item)
+    ident = str(item.get("id") or item.get("task_id") or "?").strip()
+    subject = str(item.get("subject") or item.get("description") or "").strip()
+    status = str(item.get("status") or "unknown").strip() or "unknown"
+    owner = str(item.get("owner") or "").strip()
+    label = f"[{ident}] {subject}" if subject else f"[{ident}]"
+    return label + f" ({status}" + (f", owner {owner}" if owner else "") + ")"
+
+
+def _lock_ask_text(entry: Any) -> str:
+    if not isinstance(entry, dict):
+        return str(entry)
+    text = str(entry.get("text") or "").strip()
+    ident = str(entry.get("id") or "").strip()
+    if not text:
+        return f"[{ident}]" if ident else "(directive with no recorded text)"
+    return f"{text} [{ident}]" if ident else text
+
+
+def _lock_unreadable_text(entry: Any) -> str:
+    if not isinstance(entry, dict):
+        return str(entry)
+    return f"{entry.get('path', '?')} : {entry.get('reason') or 'could not be read'}"
+
+
+#: Typographic characters folded to ASCII before the block is printed, so a
+#: cp1252 console renders real text instead of a row of '?' replacements.
+_LOCK_ASCII_FOLD = {
+    "—": " - ", "–": "-", "‘": "'", "’": "'",
+    "“": '"', "”": '"', "…": "...", " ": " ",
+    "•": "-", "→": "->",
+}
+
+
+def _lock_ascii(text: str) -> str:
+    """ASCII-safe rendering of the block.
+
+    This hook runs on cp1252 consoles and the block interpolates arbitrary user
+    text (a task subject, a directive, a path). A `UnicodeEncodeError` from
+    `print` would escape to main()'s fail-open wrapper and silently DROP the
+    block — the gate would release on exactly the sessions whose task titles
+    carry an emoji. Common typography is folded to its ASCII equivalent first so
+    the fallback `?` is reached only by genuinely unmappable characters.
+    """
+    for src, dst in _LOCK_ASCII_FOLD.items():
+        text = text.replace(src, dst)
+    return text.encode("ascii", "replace").decode("ascii")
+
+
+def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) -> int:
+    """Refuse the stop and say exactly what is open and how it releases.
+
+    `guard_text` is the continuation guard's block, COMPOSED in when the guard
+    would also have fired. The lock is evaluated above the guard and returns, so
+    without this the guard's CONTINUE directive, its worklist and its
+    post-compact reload directive would be silently dropped on exactly the
+    engaged runs that need them most.
+    """
+    open_tasks = list(verdict.get("open_tasks") or [])
+    open_asks = list(verdict.get("open_asks") or [])
+    unreadable = list(verdict.get("unreadable") or [])
+    turn_output = verdict.get("turn_output")
+    # The substrate populates `turn_output` only when the rule FIRED; tolerate a
+    # substrate that always reports it by checking the flag when it is present.
+    rule_fired = isinstance(turn_output, dict) and bool(turn_output.get("narrative", True))
+
+    sections: list[str] = []
+    if open_tasks:
+        sections.append(
+            f"open harness tasks ({len(open_tasks)}):\n"
+            + _lock_bullets(open_tasks, _lock_task_text)
+        )
+    if open_asks:
+        sections.append(
+            f"unresolved directives in the ask ledger ({len(open_asks)}):\n"
+            + _lock_bullets(open_asks, _lock_ask_text)
+        )
+    if unreadable:
+        sections.append(
+            f"sources that could NOT be read ({len(unreadable)}) - unknown state "
+            "is not the same as empty, so this blocks until the source is "
+            "readable or removed:\n"
+            + _lock_bullets(unreadable, _lock_unreadable_text)
+        )
+    if rule_fired:
+        reason = str((turn_output or {}).get("reason") or "narrative shape")
+        sections.append(
+            "TURN-OUTPUT RULE: while work is open, your turn output is one line "
+            f"of state, not a narrative. The last turn tripped it ({reason}). "
+            "Reply with a single line of state and keep working."
+        )
+    if not sections:
+        # A source this emitter does not lay out structurally. Never emit a
+        # block without a stated cause.
+        sections.append(
+            "the lock reports:\n" + _lock_bullets(
+                verdict.get("reasons") or ["registered work is still open"], str
+            )
+        )
+
+    hooks_dir = Path(__file__).resolve().parent
+    master = getattr(_ow, "DISABLE_ENV", "CT6_COMPLETION_LOCK_DISABLED")
+    tasks_sw = getattr(_ow, "DISABLE_TASKS_ENV", "CT6_TASK_LIST_GATE_DISABLED")
+    ledger_sw = getattr(_ow, "DISABLE_LEDGER_ENV", "CT6_ASK_LEDGER_GATE_DISABLED")
+    output_sw = getattr(_ow, "DISABLE_OUTPUT_ENV", "CT6_TURN_OUTPUT_GATE_DISABLED")
+
+    message = (
+        "pipeline-completion-audit: BLOCKED - COMPLETION LOCK. Registered work "
+        "is still open, so this turn does not end here. This condition is read "
+        "from files the harness writes, not from anything this session asserts, "
+        "so there is no wording that clears it - only the work.\n\n"
+        + "\n\n".join(sections)
+        + "\n\nHow this releases:\n"
+        "  1. Close the work. A harness task closes when it is genuinely done "
+        "and its status flips to completed; an ask-ledger entry closes by "
+        "recording its resolution WITH evidence (see "
+        f"{hooks_dir / 'open_work.py'}, resolve_ledger_entry). Ambiguous stays "
+        "open on purpose.\n"
+        "  2. Make an unreadable source readable (or remove it). It is named "
+        "above.\n"
+        "  3. Operator kill-switches - the HUMAN's exit, never the agent's. Set "
+        "one of these in the environment:\n"
+        f"       {master}=1  - the whole lock\n"
+        f"       {tasks_sw}=1  - the harness task-list source only\n"
+        f"       {ledger_sw}=1  - the ask-ledger source only\n"
+        f"       {output_sw}=1  - the turn-output rule only\n"
+        "     Each switch disables ONLY its own source; the others keep "
+        "enforcing.\n\n"
+        "Note: nothing an agent can write releases this lock - not the "
+        "no-progress budget, not "
+        f".architect-team/{ESCALATION_MARKER}, not "
+        f".architect-team/{IN_PROGRESS_MARKER}. On this gate the question is "
+        "never what a file means, it is WHO WRITES IT; honouring an "
+        "agent-written file here would restore the self-asserted exit this gate "
+        "exists to remove."
+        + (
+            "\n\n" + "=" * 70 + "\nThe run's continuation guard also applies to "
+            "this session, so its block follows IN FULL and both sets of items "
+            "must be closed. PRECEDENCE: the 'Sanctioned pauses' it lists "
+            "release the GUARD only. They do not release the lock above - it "
+            "holds until the open work is genuinely closed or an operator sets "
+            "a kill-switch, and that is true of every file named there.\n\n"
+            + guard_text
+            if guard_text else ""
+        )
+    )
+    print(_lock_ascii(message), file=sys.stderr)
+    return 2
+
+
+def _completion_lock_guard_text(
+    root: Path,
+    marker: dict | None,
+    engaged: bool,
+    records: list,
+    head_records: list,
+    truncated: bool,
+) -> str | None:
+    """The continuation guard's block text when the guard would ALSO have fired.
+
+    The guard blocks an ENGAGED session whose run is incomplete. Because the
+    lock returns above it, that content has to be carried here or it is lost:
+    the CONTINUE directive, the worklist, and — after a compact — the
+    re-invoke-the-Skill directive, which is the single instruction that gets a
+    stalled run moving again.
+
+    What is deliberately NOT borrowed is the guard's budget arithmetic.
+    `note_continuation_block` is not called and no count is reported.
+
+    The orchestrator briefly reversed this to make a pre-existing test's counter
+    assertion pass, then reverted: advancing the counter is NOT free. The count
+    drives the guard's auto-escalation, so a lock that incremented it on every
+    block would silently burn the guard's budget — and the moment the open work
+    finally closed and control reached the guard, it would auto-escalate
+    immediately on a run that had in fact been progressing the whole time.
+    Quoting a count this path never incremented would also be a false statement
+    about state. The footer is omitted; the guard owns the budget.
+    """
+    if _rc is None or not engaged:
+        return None
+    is_real, violations = audit(root)
+    if not ((is_real and violations) or marker is not None):
+        return None  # the guard's own `incomplete` test
+    needs_reload = _rc.session_engaged_pipeline(
+        records, since_last_compact=True, head_records=head_records,
+        truncated=truncated,
+    ) is False
+    return _continuation_block_text(violations, marker, needs_reload, None)
+
+
+def _completion_lock_action(
+    root: Path,
+    session_id: str,
+    records: list,
+    head_records: list,
+    truncated: bool,
+    marker: dict | None = None,
+    engaged: bool = False,
+) -> int | None:
+    """Evaluate the completion lock; return an exit code, or None to continue.
+
+    ``2`` = the stop is refused. ``0`` = the lock's OWN code raised and failed
+    OPEN. ``None`` = inert or no open work; control belongs to the arms below.
+
+    REQ-6's split lives here. A source the lock could not read comes back as
+    DATA (``unreadable[]``) and BLOCKS with the source named, because unknown
+    state is not "empty" and a blanket fail-open there would let one malformed
+    task file reproduce the reported bug. An exception from the lock's own code
+    fails OPEN, matching main()'s wrapper - a defect in this arm must never
+    wedge a session. The emission is inside the same try for that reason: a
+    crash while rendering the block is an own-code crash too.
+    """
+    if _ow is None:
+        # Substrate unavailable -> pre-v3.56.0 behaviour. ADV-6 (adversarial
+        # review): the fail-open is correct, the SILENCE was the defect.
+        # Deleting or breaking hooks/open_work.py used to disarm the gate with
+        # an empty stderr and exit 0, so the operator kept believing they were
+        # protected. A gate that disappears without saying so is worse than no
+        # gate. Say it, loudly, on every Stop -- and never wedge on it.
+        print(
+            "pipeline-completion-audit: WARNING - the v3.56.0 COMPLETION LOCK "
+            "is DISARMED for this session: its substrate hooks/open_work.py "
+            "could not be imported"
+            + (f" ({_OW_IMPORT_ERROR})" if _OW_IMPORT_ERROR else "")
+            + ". Open harness tasks and unresolved ask-ledger entries are NOT "
+            "being enforced. Restore hooks/open_work.py to re-arm it.",
+            file=sys.stderr,
+        )
+        return None
+    try:
+        verdict = _ow.evaluate_completion_lock(
+            root,
+            session_id,
+            records,
+            head_records=head_records,
+            truncated=truncated,
+        )
+        if not isinstance(verdict, dict) or not verdict.get("blocked"):
+            return None
+        # The staleness heartbeat, which the guard below can no longer perform
+        # because this path returns first. Not a message concern: without it a
+        # live engaged run that keeps stopping ages past `marker_is_stale`, the
+        # marker is discarded, and the continuation guard silently degrades.
+        # `MARKER_FILENAME` is fingerprint-excluded, so this never reads as
+        # progress.
+        if _rc is not None and marker is not None:
+            _rc.touch_marker(root)
+        guard_text = _completion_lock_guard_text(
+            root, marker, engaged, records, head_records, truncated
+        )
+        return _emit_completion_lock_block(verdict, guard_text)
+    except Exception as e:
+        print(
+            "pipeline-completion-audit: the completion lock raised, allowing "
+            f"stop: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+        return 0
 
 
 def _auto_escalate(at: Path, count: int, violations: list[str]) -> None:
@@ -1703,22 +2101,16 @@ def main(argv: list[str]) -> int:
         except json.JSONDecodeError as e:
             print(f"pipeline-completion-audit: malformed hook payload: {e}", file=sys.stderr)
             return 0  # fail open on a hook-side decode error
-        if (at / ESCALATION_MARKER).exists():
-            return 0  # legitimately paused for the human
-        if _in_progress_is_fresh(at):
-            return 0  # v2.16.0 — agent is actively waiting on background work
-
-        # v3.30.0 continuation-guard context (all fail-open: substrate
-        # unavailable / kill-switch set => pure legacy behaviour).
-        continuity_on = _rc is not None and not _rc.continuity_disabled()
-        marker = _rc.read_marker(root) if continuity_on else None
-        if not (isinstance(marker, dict) and marker.get("status") == "active"):
-            marker = None
-        if marker is not None and _rc.marker_is_stale(marker):
-            # An abandoned run's marker must not tax the workspace forever
-            # (review remediation #3). Live engaged runs never go stale — the
-            # guard touches the marker on every block below.
-            marker = None
+        # Transcript slices + the session id, hoisted above the completion lock:
+        # the lock needs all three (ask-ledger derivation, teammate
+        # owner-scoping, the turn-output rule), and the continuation guard below
+        # consumes exactly the same values. They load whenever the
+        # run-continuity substrate is importable rather than when the guard is
+        # enabled — CT6_RUN_CONTINUITY_DISABLED governs the guard, and letting
+        # it silently mute the lock's transcript sources would make it an
+        # undocumented fifth kill-switch for a gate that documents four. Every
+        # pre-existing consumer stays behind `continuity_on`, so nothing below
+        # changes.
         transcript_path = (
             payload.get("transcript_path")
             or payload.get("transcriptPath")
@@ -1727,8 +2119,24 @@ def main(argv: list[str]) -> int:
         records: list = []
         head: list = []
         truncated = False
-        if continuity_on and transcript_path:
+        if _rc is not None and transcript_path:
             records, head, truncated = _rc.load_transcript_slices(transcript_path)
+        session_id = str(payload.get("session_id") or "")
+
+        # v3.30.0 continuation-guard context, hoisted above the completion lock
+        # so the lock can heartbeat the marker and COMPOSE the guard's block
+        # (all fail-open: substrate unavailable / kill-switch set => pure legacy
+        # behaviour).
+        continuity_on = _rc is not None and not _rc.continuity_disabled()
+        marker = _rc.read_marker(root) if continuity_on else None
+        if not (isinstance(marker, dict) and marker.get("status") == "active"):
+            marker = None
+        if marker is not None and _rc.marker_is_stale(marker):
+            # An abandoned run's marker must not tax the workspace forever
+            # (review remediation #3). Live engaged runs never go stale — the
+            # guard touches the marker on every block below, and since v3.56.0
+            # so does the completion lock.
+            marker = None
         # ENGAGED = this session is the run's orchestrator: it invoked a
         # pipeline skill (tail or head slice — the original invocation can
         # scroll past the tail cap on a long run, review remediation #4), OR
@@ -1739,13 +2147,47 @@ def main(argv: list[str]) -> int:
         # completion-status gate in review-gate-task.py cannot drift apart on
         # what "the run's orchestrator session" means. Behaviour is unchanged:
         # a marker with a recorded session id, a payload carrying the same id.
-        session_id = str(payload.get("session_id") or "")
+        # (`session_id` is resolved above, with the transcript slices.)
         engaged = continuity_on and (
             _rc.is_orchestrator_session(marker, session_id)
             or _rc.session_engaged_pipeline(
                 records, head_records=head, truncated=truncated
             ) is True
         )
+
+        # v3.56.0 — THE COMPLETION LOCK. Placement is the requirement here, not
+        # an implementation detail: it is evaluated immediately after the
+        # payload parse, above EVERY return below it — the escalation-marker
+        # return, the fresh-in-progress return, the non-engaged early return and
+        # the no-progress budget's `return 0`. Four consequences, each
+        # deliberate:
+        #   1. it fires for a plain non-engaged session — the reported bug, in
+        #      which `_is_real_run` is False so every arm below is inert;
+        #   2. it survives budget exhaustion (acceptance criterion 3);
+        #   3. `escalation-pending.md` does NOT release it;
+        #   4. a fresh `in-progress.md` does NOT release it either. (3) and (4)
+        #      are the same rule, and the design records it after the
+        #      adversarial pass reversed the first draft on (4): ON THIS GATE
+        #      THE QUESTION IS NEVER WHAT A FILE MEANS, IT IS WHO WRITES IT.
+        #      Both markers are written by the AGENT, per the heartbeat
+        #      discipline in `common-pipeline-conventions`, so honouring either
+        #      readmits the self-asserted exit through a side door however
+        #      sincere its semantics. The harness-written task list and the
+        #      transcript qualify as evidence; agent-written files never do.
+        # Each consequence is pinned by a test with a paired control in
+        # `tests/test_completion_lock.py`; the placement is not verifiable by
+        # reading this line, only by moving it and watching those fail.
+        lock_action = _completion_lock_action(
+            root, session_id, records, head, truncated,
+            marker=marker, engaged=engaged,
+        )
+        if lock_action is not None:
+            return lock_action
+
+        if (at / ESCALATION_MARKER).exists():
+            return 0  # legitimately paused for the human
+        if _in_progress_is_fresh(at):
+            return 0  # v2.16.0 — agent is actively waiting on background work
 
         is_real, violations = audit(root)
         incomplete = (is_real and bool(violations)) or marker is not None

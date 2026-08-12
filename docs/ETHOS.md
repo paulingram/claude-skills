@@ -155,6 +155,41 @@ reported "frontend tested", and shipped on a unit test, an API-only check, or a
 review-gate note. The absence of a real, executed, click-driven, live-environment
 flow is not a smaller version of done; it is not done.
 
+## The turn boundary is not a completion boundary (v3.56.0)
+
+An agent does not get to decide it is done. While registered work is open, the
+turn does not end — and the condition that decides "open" is READ FROM DISK, never
+asserted by the agent that wants to leave.
+
+This principle exists because the instruction tier failed at it. An agent given
+"do not consider anything complete until every ask is finished" diagnosed its own
+failure precisely — *"every time my turn is about to end, I fill it with a summary;
+writing a summary forces me to decide what's done enough to describe, and that
+decision is me drawing the boundary again"* — and then, in the same turn, produced
+two formatted reports while seventeen items sat open. Better phrasing does not fix
+this. The stopping condition has to move somewhere the agent does not control.
+
+Two consequences follow, and the second is the one that gets re-litigated:
+
+**A self-asserted exit is not an exit.** A completion promise the model types, a
+summary it judges sufficient, a note explaining why the gate does not apply — each
+is the same move wearing different clothes. This is why the top-level run is NOT
+wrapped in ralph-loop: ralph-loop exits on a literal `<promise>` string compared by
+string equality, with nothing verifying its truth (its own system message says
+*"do not lie to exit!"*). Adopting it at the top level would relocate this failure,
+not remove it. ralph-loop keeps its place in the convergence sub-loops inside the
+skills that use it, where the exit condition is other agents' agreement rather than
+the looping agent's own claim. Do not "helpfully" re-adopt it as a completion gate.
+
+**While the list is non-empty, the turn output is one line of state, not a
+narrative.** The report IS the boundary-drawing act — composing it requires deciding
+what counts as done enough to describe. So the shape of the turn is constrained, not
+just the decision to end it.
+
+**Anti-pattern:** *the closing summary* — a formatted report delivered while assigned
+work is still open, which reads as completion, was produced instead of completion,
+and required the agent to quietly re-draw the line it was told not to draw.
+
 ## Evidence integrity (v3.47.0)
 
 Principle 7 says state a result only after running the check and reading its
