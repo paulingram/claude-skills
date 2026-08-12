@@ -125,6 +125,13 @@ NARRATIVE_MARKER_LINES = 2
 #: the line threshold (F6). See the measured basis in ``classify_turn_output``.
 NARRATIVE_MIN_LINE_CHARS = 24
 
+#: The ceiling above NARRATIVE_MIN_LINE_CHARS (T2). Counting only report-length
+#: lines left the line arm with no upper bound, so a report made ENTIRELY of
+#: short lines never reached it — 30 lines at 19 chars is 569 characters, under
+#: the prose arm too. At or above this many non-empty lines a turn is a report
+#: whatever its lines look like; nothing legitimate is a six-line state update.
+NARRATIVE_ABSOLUTE_LINES = 6
+
 #: The ask-ledger is ADVISORY by default and does not block on its own.
 #:
 #: It records a directive but cannot tell DONE from NOT-DONE without semantics,
@@ -392,14 +399,20 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     # it says.
     body = text.strip()
     long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
-    long_prose = not long_enough and len(body) > NARRATIVE_PROSE_CHARS
+    # T2 — the ceiling the F6 short-line allowance was missing.
+    too_many_lines = line_count >= NARRATIVE_ABSOLUTE_LINES
+    long_prose = (not long_enough and not too_many_lines
+                  and len(body) > NARRATIVE_PROSE_CHARS)
     marked_report = bool(markers) and line_count >= NARRATIVE_MARKER_LINES
-    narrative = bool(long_enough or long_prose or marked_report)
+    narrative = bool(long_enough or too_many_lines or long_prose or marked_report)
     if narrative:
         bits = []
         if long_enough:
             bits.append(f"{counting_lines} report-length lines "
                         f"(>= {NARRATIVE_LINE_THRESHOLD})")
+        if too_many_lines:
+            bits.append(f"{line_count} lines "
+                        f"(>= {NARRATIVE_ABSOLUTE_LINES}, whatever their length)")
         if long_prose:
             bits.append(f"{len(body)} chars of unbroken prose "
                         f"(> {NARRATIVE_PROSE_CHARS})")
@@ -803,14 +816,41 @@ def _has_teammate_token(
     return False
 
 
-def _last_assistant_text(records: list[dict[str, Any]]) -> str:
-    """The last non-empty assistant text block, or ""."""
+def _turn_assistant_text(records: list[dict[str, Any]]) -> str:
+    """Every assistant text block THIS turn produced, joined.
+
+    T1 — this used to return the LAST non-empty assistant block, which was a
+    complete evasion in one direction and a false positive in the other:
+
+    * Write the summary, then end with ``Working.`` and the selector returned
+      only ``Working.`` — the narrative was never measured. That is the natural
+      shape of the reported failure (a report, then a sign-off), and no amount
+      of threshold tuning could reach it, because the defect is in the INPUT
+      rather than in the predicate.
+    * A turn that ends in tool calls produces no assistant text at all, so the
+      backwards scan walked PAST the user prompt into the previous turn and
+      re-measured an old narrative — firing on text this turn never produced.
+
+    The turn boundary is the last genuine user prompt, taken from
+    ``run_continuity._genuine_prompts`` rather than from a second notion of
+    "this turn" invented here. Identity comparison is deliberate: the helper
+    returns the same record objects, and two turns can carry byte-identical
+    prompts.
+    """
     gate = getattr(_rc, "_gate", None)
     if gate is None:  # pragma: no cover - helpers unavailable
         return ""
-    for rec in reversed(list(records or [])):
-        if not isinstance(rec, dict):
-            continue
+    recs = [r for r in (records or []) if isinstance(r, dict)]
+    start = 0
+    prompts = _rc._genuine_prompts(recs)
+    if prompts:
+        last_prompt = prompts[-1]
+        for i in range(len(recs) - 1, -1, -1):
+            if recs[i] is last_prompt:
+                start = i + 1
+                break
+    parts: list[str] = []
+    for rec in recs[start:]:
         try:
             if gate._role(rec) != "assistant":
                 continue
@@ -818,8 +858,8 @@ def _last_assistant_text(records: list[dict[str, Any]]) -> str:
         except Exception:  # pragma: no cover - defensive
             continue
         if text and text.strip():
-            return text
-    return ""
+            parts.append(text)
+    return "\n".join(parts)
 
 
 # --- the single entry point main() calls -------------------------------------
@@ -1027,7 +1067,7 @@ def evaluate_completion_lock(
     # through exactly the source it was just demoted out of.
     open_work = bool(result["open_tasks"] or result["open_asks"])
     if open_work and not output_disabled() and not is_teammate:
-        verdict = classify_turn_output(_last_assistant_text(records))
+        verdict = classify_turn_output(_turn_assistant_text(records))
         if verdict["narrative"]:
             result["turn_output"] = verdict
             sources.add(DISABLE_OUTPUT_ENV)

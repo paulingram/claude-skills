@@ -588,6 +588,29 @@ def test_a_handful_of_terse_state_lines_is_not_a_narrative(tmp_path: Path) -> No
     assert r["lines"] == 3, "still reported honestly — they just do not COUNT"
 
 
+def test_many_short_markerless_lines_are_a_narrative(tmp_path: Path) -> None:
+    """T2 — the ceiling my F6 tuning was missing. Counting only report-length
+    lines left the line arm with no upper bound, so a report made ENTIRELY of
+    short lines never reached it: 30 lines at 19 chars is 569 characters, under
+    the 600 prose arm too, and passed clean. Nothing legitimate is a six-line
+    state update."""
+    report = "\n".join(f"task {i} is pending" for i in range(30))
+    assert all(len(l) < ow.NARRATIVE_MIN_LINE_CHARS for l in report.splitlines())
+    assert len(report) < ow.NARRATIVE_PROSE_CHARS, "under the prose arm as well"
+
+    r = ow.classify_turn_output(report)
+    assert r["narrative"] is True
+    assert r["lines"] == 30
+
+
+def test_a_few_short_markerless_lines_stay_below_the_ceiling(tmp_path: Path) -> None:
+    """The other direction: the ceiling must not eat the F6 allowance it sits
+    above. Five terse state lines are still a state update."""
+    r = ow.classify_turn_output("\n".join(f"task {i} pending" for i in range(5)))
+    assert r["narrative"] is False
+    assert r["lines"] == 5 and 5 < ow.NARRATIVE_ABSOLUTE_LINES
+
+
 def test_a_short_bullet_summary_is_still_a_narrative(tmp_path: Path) -> None:
     """The F6 allowance must not become an F4 hole: a bullet list of short items
     is a summary, not terse state.
@@ -1324,6 +1347,61 @@ def test_narrative_turn_with_open_work_is_refused(tmp_path: Path) -> None:
     assert r["turn_output"] is not None and r["turn_output"]["narrative"] is True
     assert "heading" in r["turn_output"]["markers"]
     assert any("one line of state" in line for line in r["reasons"]), r["reasons"]
+
+
+_NARRATIVE_TURN = ("## Where things stand\n- T-1 is nearly done\n- T-2 next\n"
+                   "- T-3 not started\n- T-4 blocked on review")
+
+
+def test_a_sign_off_line_cannot_hide_a_narrative(tmp_path: Path) -> None:
+    """T1 — a complete evasion, and the natural shape of the reported failure:
+    write the summary, then end with a short line. The rule measured only the
+    LAST assistant text block, so appending 'Working.' flipped the verdict.
+
+    Both previously-pinned directions were about the PREDICATE; this is about
+    its INPUT, which is why three revisions of the thresholds never touched it.
+    The whole turn is measured now, so the narrative is still in the text no
+    matter what follows it."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+    records = [_user("carry on"),
+               _assistant(_NARRATIVE_TURN),
+               _assistant("Working.")]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["turn_output"] is not None, (
+        "appending a one-line sign-off must not hide the summary before it"
+    )
+    assert r["turn_output"]["narrative"] is True
+
+
+def test_the_rule_cannot_reach_back_into_a_previous_turn(tmp_path: Path) -> None:
+    """The opposite direction of the same defect: when THIS turn produced no
+    assistant text (it ended in tool calls), the last-block scan walked back
+    past the user prompt and re-measured an OLD narrative — firing on text this
+    turn never produced. The turn boundary is the last genuine user prompt."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+    records = [_user("do the thing"),
+               _assistant(_NARRATIVE_TURN),
+               _user("now do the other thing")]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["turn_output"] is None, (
+        "the previous turn's narrative is not this turn's output"
+    )
+
+
+def test_all_of_this_turns_blocks_are_measured_together(tmp_path: Path) -> None:
+    """Two innocuous-looking blocks in one turn are one report between them."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+    records = [_user("status?"),
+               _assistant("Here is where things stand."),
+               _assistant("- T-1 done\n- T-2 next")]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["turn_output"] is not None and r["turn_output"]["narrative"] is True
 
 
 def test_terse_turn_with_open_work_does_not_add_a_turn_output_block(tmp_path: Path) -> None:
