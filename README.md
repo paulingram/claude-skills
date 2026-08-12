@@ -624,9 +624,16 @@ python hooks/open_work.py list                          # the unresolved asks + 
 python hooks/open_work.py resolve <id> --evidence "..." # close one, naming what closed it
 ```
 
-This is deliberately the **operator's** surface, not the agent's: the block
-message does not teach the agent to resolve its own entries, and an entry with
-no evidence stays open.
+This is **intended** as the operator's surface: the block message deliberately
+does not name it, so a gated session is not handed its own exit, and an entry
+with no evidence stays open.
+
+**It is not, however, closed to the agent, and you should read it that way.** The
+CLI is an ordinary script — anything that can run `Bash` can run it, and the
+`--evidence` string is free text that nothing verifies. An adversarial pass
+executed exactly that: block, resolve, stop allowed. Removing the advertisement
+means an agent has to *go looking* for the exit rather than being handed it; it
+does not mean the exit is gone. Same family as the `Bash` boundary below.
 
 ### ▌ HONEST BOUNDARY — the gate is defeatable
 
