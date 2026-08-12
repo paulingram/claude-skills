@@ -1,8 +1,11 @@
 # Completion-lock follow-ups (post-v3.56.0)
 
-Everything here is **reported, measured, and deliberately not fixed** in v3.56.0.
-Recorded so the next run inherits the findings rather than rediscovering them.
-Shipped state: `main` @ `bf4a15e`, suite 7215 / 0 / 6.
+Findings from the adversarial passes, each marked with what actually shipped —
+FIXED, NARROWED, or a named boundary. Recorded so the next run inherits the
+reasoning rather than rediscovering it, including the remedies that were
+measured and **declined**, which are the most expensive thing to re-derive.
+
+Shipped state: `main` @ `e767297`+, suite 7221 / 0 / 6, frozen-tree measured.
 
 ## Named lessons this run earned
 
@@ -35,60 +38,83 @@ These generalise past the completion lock and are the durable output of the run.
    freeze-and-hash discipline was adopted. The shipped number is bracketed by a
    diff hash proving byte-identity across the run.
 
-## Open items
+## Findings and their disposition
 
-### G2 — the turn-output reason is cumulative and cannot be cleared (medium)
+### G2 — cumulative turn-output reason (FIXED, but its precondition is UNVERIFIED)
 
 `_turn_assistant_text` concatenates every assistant text block since the last
-genuine user prompt. That is what closes T1's sign-off evasion, and it is
-correct for that. The consequence: once a turn has produced a narrative, every
-later Stop in that turn re-measures it. Verified — the agent replies with
-exactly the one line of state the block demands and the arm still fires, `lines`
-climbing 6, 7, 8. No reply the agent can write clears it, because the offending
-text is already in the transcript and cannot be retracted. Only a new genuine
-user prompt resets the boundary; the hook's own injected block does not (both
-`promptSource=system` and `isMeta` records are excluded from `_genuine_prompts`).
+genuine user prompt — that is what closes T1's sign-off evasion. The side effect
+was that once a turn produced a narrative, every later Stop re-measured it: the
+agent replied with exactly the one line of state the block demanded and the arm
+still fired, `lines` climbing 6, 7, 8, with no reply able to clear it.
 
-**Severity is lower than it first reads, and the reason matters.** The
-turn-output arm is only evaluated when work is already open, so it can never
-*cause* a block that would not have happened anyway — the task list is already
-holding the turn. What G2 produces is a **misleading block message**: it cites
-TURN-OUTPUT RULE at an agent that complied, and prints an instruction that
-cannot be satisfied. That is a message-quality defect, not a wedge, and
-finishing the work still releases normally.
+**Fixed** by advancing the measurement boundary in-transcript, detected from the
+non-genuine `role: user` record the harness feeds a blocked Stop back as, keyed
+on this module's own kill-switch names rather than the emitter's prose. Verified
+by sequence: narrative -> TRIP, complies -> CLEARS, complies again -> CLEARS.
 
-It is still worth fixing, because "the gate told me to do X, I did X, it still
-says do X" is exactly how a user learns to distrust the message and then the
-gate. **Fix: measure assistant text added since the PREVIOUS STOP rather than
-since the last user prompt.** The guard state already persists per-session. T1's
-evasion fix survives untouched — a summary and its sign-off arrive before the
-same Stop, so both are new and both get measured.
+**The precondition is not verified, and it may make the fix inert.** The boundary
+only advances if the harness actually writes the blocked-Stop feedback into the
+transcript as a `role: user` record that `load_transcript_slices` can see. A scan
+of 38 transcripts across every project on this machine — including long CT6
+pipeline runs in which the v3.30.0 continuation guard has certainly blocked —
+found **zero** such records. Every apparent hit was a `tool_result`, a skill
+body, or a peer `teammate-message`.
 
-### G1 — a summary wrapped in a fence is invisible (low)
+That is suggestive, not conclusive: the completion lock itself had never blocked
+on this machine before today, and the Stop-hook contract does deliver `reason`
+to the model (ralph-loop depends on exactly that), so the open question is
+narrowly whether it is *persisted* in the JSONL rather than whether it is
+delivered.
 
-T4 excludes fenced delimiters and fenced content from `prose_lines`,
-`counting_lines` and the marker scan, so all line-based arms see nothing inside a
-fence; only the >600-char prose arm still applies. A 4-line summary wrapped in
-a fence classifies as `narrative=False`. Confirmed for a plain fence, a
-language-tagged fence, a bulleted summary in a fence, and a fenced summary plus
-sign-off.
+**If it is not persisted, G2 is unfixed** — the boundary never advances and the
+behaviour is exactly as described above. It degrades to the prior behaviour and
+never to something worse. Severity remains bounded either way: `turn_output` is
+only evaluated when work is already open, so G2 can never *cause* a block that
+would not happen anyway; it produces a misleading message citing a rule the
+agent already satisfied.
 
-**Deliberately not fixed, and the reasoning is the point.** Fencing a summary is
-a deliberate evasion, not a natural shape — unlike T1, where the sign-off *was*
-the reported behaviour. An agent that wants out already has cheaper documented
-routes (`Bash` writes, `TaskUpdate(status="deleted")`), so this joins them as a
-named boundary rather than becoming the next seam.
+**Next step: a live check post-install.** Trigger one real block, then grep the
+session transcript for the block text as a `role: user` record. If absent, move
+the boundary to durable per-session state — but note the constraint that killed
+the first attempt: `note_continuation_block` is written only for engaged CT6
+runs, so it is empty in the plain sessions this lock exists for, and writing it
+from here would reintroduce the F-F pollution in every repo the user types in.
 
-Two remedies were considered and both create one. Counting fenced lines toward
-the absolute ceiling was the adversary's suggestion, made when the ceiling was
-~6; G3 then raised it to 12 for a good reason, and a 6-line fenced summary now
-passes under it. Scanning markers inside fences to distinguish "summary in a
-fence" from "code in a fence" founders on diffs, where `- ` prefixes are both a
-bullet marker and ordinary content.
+### G1 — a fenced summary evades the line arms (NARROWED, residual pinned)
 
-This is the seam pattern stated plainly: **each fix is correct in isolation and
-creates the next defect at its seam with an existing arm.** G1 is T4's seam with
-fence handling; G2 and G3 are both T1's seam with the line-counting arms.
+T4 excluded fenced content from the line arms and the marker scan, so a summary
+wrapped in a fence was invisible to everything but the >600-char prose arm.
+
+**Narrowed:** fenced lines now count toward the absolute ceiling, so a fenced
+summary trips at >= 12 total lines. **Residual:** a 4-line fenced summary is 6
+lines and still evades. Both the fix and the gap are pinned in the suite by
+`test_a_fenced_summary_reaches_the_ceiling_when_long_enough`, so the residual
+lives in tests rather than only in prose.
+
+**Two candidate remedies were measured and both declined**, and the reason is
+the durable part. Counting fenced lines toward a ceiling of ~6 was correct when
+proposed — G3 then raised the ceiling to 12 for a good reason and it no longer
+reached. Treating "a fence containing markdown markers" as prose was measured
+against ten realistic fenced shapes and **misclassified 7 of 9 code samples**: a
+unified diff and a git diff (`- old` is both a removed line and a bullet), YAML
+(`- name: build`), a shell session with `#` comments, a documentation sample, a
+markdown table, and an `ls` listing. Adopting it would reintroduce the T4
+false-positive class wholesale — and quoting a diff in a status update is
+genuinely common, unlike fencing a summary, which is deliberate.
+
+G1 therefore stays a **named boundary** alongside `Bash` writes and
+`TaskUpdate(status="deleted")`: an agent that wants out has cheaper routes.
+
+### G3 — ordinary narration tripped the ceiling (FIXED)
+
+Six one-line narration blocks in one turn — the ordinary shape of an agent
+narrating between tool calls — concatenated to 6 prose lines and tripped, on a
+turn containing no report at all. T1's seam with T2: `too_many_lines` counted
+every prose line while `long_enough` counted only >= 24-char lines.
+`NARRATIVE_ABSOLUTE_LINES` raised 6 -> 12, which still catches T2's 30 x 19 with
+margin and clears a normal working turn. Switching the absolute arm to
+`counting_lines` was rejected because it would un-fix T2.
 
 ### Pin sequences, not just strings (spec gap)
 
