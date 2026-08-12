@@ -1021,22 +1021,58 @@ def test_disabling_the_task_list_leaves_the_ledger_enforcing(
     assert r["killswitch"] == ow.DISABLE_LEDGER_ENV
 
 
-def test_evaluate_accumulates_the_ledger_from_the_transcript(tmp_path: Path) -> None:
-    """Registration is involuntary: the entry comes from the harness-written
-    transcript, not from a call the agent could decline to make.
+# --- SPLIT (v3.56.0) of test_evaluate_accumulates_the_ledger_from_the_transcript.
+#
+# That test was re-pointed three times in one release — for the advisory
+# demotion, then the persistence rule, then the fresh-repo exclusion — which is
+# the signature of ONE assertion path defending SEVERAL properties. A test that
+# has to move on every adjacent change has stopped being a pin and become a
+# maintenance tax, and worse, each re-point is an opportunity to quietly weaken
+# the property that was not the reason for the edit.
+#
+# The three below have one reason to change each:
+#   1. derivation wiring   — changes only if evaluate stops reading the transcript
+#   2. durability          — changes only if what is derived stops reaching the store
+#   3. advisory surfacing  — changes only if the advisory/blocking policy changes
+#
+# Note (1) asserts on open_asks + advisory_asks deliberately: WHICH channel an
+# ask lands in is (3)'s property, not (1)'s, so a future policy flip must not
+# drag the derivation pin along with it.
 
-    SUPERSEDED TWICE (v3.56.0): the blocking assertion moved to the opt-in test
-    when the ledger became advisory, and the durability assertion now needs a
-    CT6 workspace, because F-F stopped writing the file into repos that have
-    never seen CT6. What is unchanged, and what this test is actually for, is
-    RECORDING: derivation is involuntary and captures the directive either way."""
-    (tmp_path / ".architect-team").mkdir()
+def test_evaluate_derives_asks_from_the_transcript_without_registration(
+    tmp_path: Path
+) -> None:
+    """PROPERTY 1 — registration is involuntary. The entry comes from the
+    harness-written transcript, not from a call the agent could decline to
+    make. Channel-agnostic on purpose."""
     r = ow.evaluate_completion_lock(tmp_path, "", [_user("Add the changelog entry.")])
-    assert [e["text"] for e in r["advisory_asks"]] == ["Add the changelog entry."]
-    assert ow.ledger_path(tmp_path).exists(), "durable in a CT6 workspace"
+    recorded = [e["text"] for e in r["open_asks"] + r["advisory_asks"]]
+    assert recorded == ["Add the changelog entry."], (
+        "the directive was captured with no registration call of any kind"
+    )
+
+
+def test_a_derived_ask_reaches_the_durable_store(tmp_path: Path) -> None:
+    """PROPERTY 2 — what is derived is what is stored.
+
+    Distinct from the F-F tests beside it: those pin WHICH workspaces persist
+    (the policy), this pins that the store's CONTENTS match what derivation
+    produced. A change to either one should move only its own test."""
+    (tmp_path / ".architect-team").mkdir()
+    ow.evaluate_completion_lock(tmp_path, "", [_user("Add the changelog entry.")])
+
+    assert ow.ledger_path(tmp_path).exists()
     assert [e["text"] for e in ow.open_ledger_entries(tmp_path)] == [
         "Add the changelog entry."
-    ], "still open in the store — advisory changes the verdict, not the record"
+    ], "the record is the directive, verbatim and still open"
+
+
+def test_a_derived_ask_surfaces_as_advisory_by_default(tmp_path: Path) -> None:
+    """PROPERTY 3 — the default channel. This is the one that SHOULD move if the
+    advisory/blocking policy changes again; that is its job."""
+    r = ow.evaluate_completion_lock(tmp_path, "", [_user("Add the changelog entry.")])
+    assert [e["text"] for e in r["advisory_asks"]] == ["Add the changelog entry."]
+    assert r["open_asks"] == [] and r["blocked"] is False
 
 
 def test_unreadable_task_file_blocks_and_is_named(tmp_path: Path) -> None:
