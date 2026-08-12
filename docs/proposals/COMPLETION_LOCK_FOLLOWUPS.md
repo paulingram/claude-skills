@@ -37,6 +37,68 @@ These generalise past the completion lock and are the durable output of the run.
 
 ## Open items
 
+### G2 — the turn-output reason is cumulative and cannot be cleared (medium)
+
+`_turn_assistant_text` concatenates every assistant text block since the last
+genuine user prompt. That is what closes T1's sign-off evasion, and it is
+correct for that. The consequence: once a turn has produced a narrative, every
+later Stop in that turn re-measures it. Verified — the agent replies with
+exactly the one line of state the block demands and the arm still fires, `lines`
+climbing 6, 7, 8. No reply the agent can write clears it, because the offending
+text is already in the transcript and cannot be retracted. Only a new genuine
+user prompt resets the boundary; the hook's own injected block does not (both
+`promptSource=system` and `isMeta` records are excluded from `_genuine_prompts`).
+
+**Severity is lower than it first reads, and the reason matters.** The
+turn-output arm is only evaluated when work is already open, so it can never
+*cause* a block that would not have happened anyway — the task list is already
+holding the turn. What G2 produces is a **misleading block message**: it cites
+TURN-OUTPUT RULE at an agent that complied, and prints an instruction that
+cannot be satisfied. That is a message-quality defect, not a wedge, and
+finishing the work still releases normally.
+
+It is still worth fixing, because "the gate told me to do X, I did X, it still
+says do X" is exactly how a user learns to distrust the message and then the
+gate. **Fix: measure assistant text added since the PREVIOUS STOP rather than
+since the last user prompt.** The guard state already persists per-session. T1's
+evasion fix survives untouched — a summary and its sign-off arrive before the
+same Stop, so both are new and both get measured.
+
+### G1 — a summary wrapped in a fence is invisible (low)
+
+T4 excludes fenced delimiters and fenced content from `prose_lines`,
+`counting_lines` and the marker scan, so all line-based arms see nothing inside a
+fence; only the >600-char prose arm still applies. A 4-line summary wrapped in
+a fence classifies as `narrative=False`. Confirmed for a plain fence, a
+language-tagged fence, a bulleted summary in a fence, and a fenced summary plus
+sign-off.
+
+**Deliberately not fixed, and the reasoning is the point.** Fencing a summary is
+a deliberate evasion, not a natural shape — unlike T1, where the sign-off *was*
+the reported behaviour. An agent that wants out already has cheaper documented
+routes (`Bash` writes, `TaskUpdate(status="deleted")`), so this joins them as a
+named boundary rather than becoming the next seam.
+
+Two remedies were considered and both create one. Counting fenced lines toward
+the absolute ceiling was the adversary's suggestion, made when the ceiling was
+~6; G3 then raised it to 12 for a good reason, and a 6-line fenced summary now
+passes under it. Scanning markers inside fences to distinguish "summary in a
+fence" from "code in a fence" founders on diffs, where `- ` prefixes are both a
+bullet marker and ordinary content.
+
+This is the seam pattern stated plainly: **each fix is correct in isolation and
+creates the next defect at its seam with an existing arm.** G1 is T4's seam with
+fence handling; G2 and G3 are both T1's seam with the line-counting arms.
+
+### Pin sequences, not just strings (spec gap)
+
+Four revisions of both-directions pinning never surfaced G2, because **it is
+invisible to any single-text test**. Every pin classifies one string; G2 only
+appears as a *sequence of Stops*. For any rule whose input accumulates, "both
+directions pinned" is insufficient — pin the sequence: narrative, then
+compliance, then assert the arm clears.
+
+
 ### N5b — a wedged run is silent, not just unreleased (medium)
 
 The README states that nothing releases a wedged run automatically, which is

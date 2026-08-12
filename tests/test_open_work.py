@@ -1406,6 +1406,133 @@ _NARRATIVE_TURN = ("## Where things stand\n- T-1 is nearly done\n- T-2 next\n"
                    "- T-3 not started\n- T-4 blocked on review")
 
 
+def _lock_block(ts: str = "2026-08-12T10:05:00Z") -> dict:
+    """The hook's own block, as the harness feeds it back into the transcript:
+    a role:user record that is NOT a genuine prompt."""
+    return {"type": "user", "timestamp": ts, "promptSource": "system",
+            "message": {"role": "user", "content":
+                        "pipeline-completion-audit: BLOCKED - COMPLETION LOCK. "
+                        "While work is open the turn output is one line of state. "
+                        "Release: CT6_TURN_OUTPUT_GATE_DISABLED=1"}}
+
+
+def test_six_one_line_narration_blocks_are_not_a_narrative(tmp_path: Path) -> None:
+    """G3 — a LIVE false positive, and the ordinary shape of an agent narrating
+    between tool calls. T1's concatenation joins six one-liners into six prose
+    lines and the T2 ceiling fired on them at 6. No report anywhere in it."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+    records = [_user("do the thing")] + [
+        _assistant(f"Running step {i}.") for i in range(1, 7)
+    ]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["turn_output"] is None, (
+        "narrating between tool calls is not a report; this fired constantly"
+    )
+
+
+def test_the_ceiling_still_catches_a_genuinely_long_short_line_report(
+    tmp_path: Path
+) -> None:
+    """The counter to G3's raise: the ceiling still has to catch T2's shape."""
+    r = ow.classify_turn_output("\n".join(f"task {i} is pending" for i in range(30)))
+    assert r["narrative"] is True
+    assert ow.NARRATIVE_ABSOLUTE_LINES > 10, (
+        "a normal 6-10 line working turn must clear the ceiling"
+    )
+
+
+def test_a_compliant_reply_after_a_block_clears_the_rule(tmp_path: Path) -> None:
+    """G2 — THE SEQUENCE PIN, and the reason four rounds of both-directions
+    pinning never surfaced this: it is invisible to any single-text test.
+
+    T1's concatenation is cumulative, so once a turn produced a narrative every
+    later Stop re-measured it. The agent replied with exactly the one line of
+    state the block demands and the arm fired anyway, `lines` climbing 6, 7, 8 —
+    no reply it could write would clear it, because the text is already in the
+    transcript. That is the unbreakable loop again, wearing a different hat.
+
+    The turn boundary therefore advances past the hook's OWN injected block."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+
+    blocked = [_user("carry on"), _assistant(_NARRATIVE_TURN)]
+    first = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", blocked,
+                                        tasks_root=tasks)
+    assert first["turn_output"] is not None, "the narrative is refused (control)"
+
+    # The agent complies with exactly what the block asked for.
+    complied = blocked + [_lock_block(), _assistant("T-1 in progress.")]
+    second = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", complied,
+                                         tasks_root=tasks)
+    assert second["turn_output"] is None, (
+        "an instruction the agent cannot satisfy by complying is a loop"
+    )
+
+    # And it stays clear as the exchange goes on, rather than climbing.
+    third = ow.evaluate_completion_lock(
+        tmp_path, "sess1234abcd",
+        complied + [_lock_block(), _assistant("T-1 still in progress.")],
+        tasks_root=tasks)
+    assert third["turn_output"] is None
+
+
+def test_the_boundary_only_advances_past_the_hooks_own_block(tmp_path: Path) -> None:
+    """G2's fix must not re-open T1: a summary and its sign-off arrive before
+    the SAME Stop, so no block sits between them and both are still measured."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+    records = [_user("carry on"), _assistant(_NARRATIVE_TURN),
+               _assistant("Working.")]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["turn_output"] is not None, "the T1 evasion must stay closed"
+
+
+def test_an_unrelated_injected_record_does_not_move_the_boundary(
+    tmp_path: Path
+) -> None:
+    """The narrow half of G2's fix, and a gap my first witness missed: only THIS
+    HOOK'S block advances the boundary. A `<task-notification>` or any other
+    harness-injected record arriving mid-turn must not, or an agent gets a free
+    evasion whenever one happens to land after its summary."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress")
+    records = [
+        _user("carry on"),
+        _assistant(_NARRATIVE_TURN),
+        _user("<task-notification>a teammate finished</task-notification>",
+              promptSource="system"),
+        _assistant("Working."),
+    ]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["turn_output"] is not None, (
+        "an unrelated injected record is not a Stop and hides nothing"
+    )
+
+
+def test_a_fenced_summary_reaches_the_ceiling_when_long_enough(
+    tmp_path: Path
+) -> None:
+    """G1 — fenced lines are excluded from `counting_lines` (which is what T4
+    actually needed) but DO count toward the absolute ceiling, so a summary
+    hidden in a fence is not invisible to everything.
+
+    HONEST BOUNDARY, measured: with the ceiling raised to clear G3, a fence only
+    reaches it at NARRATIVE_ABSOLUTE_LINES total lines. A 4-line fenced summary
+    is 6 lines and still clears — G1 is narrowed, not closed."""
+    body = "\n".join(f"- item {i}" for i in range(ow.NARRATIVE_ABSOLUTE_LINES))
+    r = ow.classify_turn_output(f"```\n{body}\n```")
+    assert r["narrative"] is True, "a long fenced summary reaches the ceiling"
+
+    small = ow.classify_turn_output("```\n- a\n- b\n- c\n- d\n```")
+    assert small["narrative"] is False, (
+        "documented residual: a short fenced summary still evades"
+    )
+
+
 def test_a_sign_off_line_cannot_hide_a_narrative(tmp_path: Path) -> None:
     """T1 — a complete evasion, and the natural shape of the reported failure:
     write the summary, then end with a short line. The rule measured only the

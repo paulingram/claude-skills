@@ -128,9 +128,14 @@ NARRATIVE_MIN_LINE_CHARS = 24
 #: The ceiling above NARRATIVE_MIN_LINE_CHARS (T2). Counting only report-length
 #: lines left the line arm with no upper bound, so a report made ENTIRELY of
 #: short lines never reached it — 30 lines at 19 chars is 569 characters, under
-#: the prose arm too. At or above this many non-empty lines a turn is a report
-#: whatever its lines look like; nothing legitimate is a six-line state update.
-NARRATIVE_ABSOLUTE_LINES = 6
+#: the prose arm too.
+#:
+#: RAISED 6 -> 12 (G3). At 6 this fired on the ordinary shape of an agent
+#: narrating between tool calls — six one-line blocks ("Running step 1." …
+#: "Running step 6.") concatenate to six lines with no report anywhere in them.
+#: That was live. 12 clears a normal 6-10 line working turn and still catches
+#: T2's 30-line case with margin.
+NARRATIVE_ABSOLUTE_LINES = 12
 
 #: The ask-ledger is ADVISORY by default and does not block on its own.
 #:
@@ -419,7 +424,14 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     body = text.strip()
     long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
     # T2 — the ceiling the F6 short-line allowance was missing.
-    too_many_lines = prose_lines >= NARRATIVE_ABSOLUTE_LINES
+    # G1: the ceiling counts EVERY non-empty line, fenced content included.
+    # Excluding fenced lines from all three arms (T4) left a summary wrapped in
+    # a fence invisible to everything but the 600-char arm. Keeping them out of
+    # `counting_lines` is what T4 actually needed; the ceiling is where they
+    # still have to register. HONEST RESIDUAL: with the ceiling raised to 12 for
+    # G3, a fence only reaches it at 12 total lines, so a SHORT fenced summary
+    # still evades. Narrowed, not closed — pinned as such.
+    too_many_lines = line_count >= NARRATIVE_ABSOLUTE_LINES
     long_prose = (not long_enough and not too_many_lines
                   and len(body) > NARRATIVE_PROSE_CHARS)
     marked_report = bool(markers) and prose_lines >= NARRATIVE_MARKER_LINES
@@ -835,6 +847,29 @@ def _has_teammate_token(
     return False
 
 
+#: Every kill-switch this module can name in a block message. A block always
+#: names exactly one, so their presence in a harness-injected record identifies
+#: it as this hook's own feedback rather than anything the user or agent wrote.
+_BLOCK_SWITCH_NAMES = (DISABLE_ENV, DISABLE_TASKS_ENV,
+                       DISABLE_LEDGER_ENV, DISABLE_OUTPUT_ENV)
+
+
+def _is_lock_block_record(rec: dict[str, Any], gate: Any) -> bool:
+    """True for a harness-injected record carrying this hook's own block (G2).
+
+    Deliberately narrow: an INJECTED ``role: user`` record (a genuine prompt is
+    the user talking, and an assistant record is the agent, so neither may move
+    the boundary) whose text names one of this module's kill-switches.
+    """
+    try:
+        if gate._role(rec) != "user" or gate._is_user_prompt(rec):
+            return False
+        text = gate._text(rec) or ""
+    except Exception:  # pragma: no cover - defensive
+        return False
+    return any(name in text for name in _BLOCK_SWITCH_NAMES)
+
+
 def _turn_assistant_text(records: list[dict[str, Any]]) -> str:
     """Every assistant text block THIS turn produced, joined.
 
@@ -868,6 +903,24 @@ def _turn_assistant_text(records: list[dict[str, Any]]) -> str:
             if recs[i] is last_prompt:
                 start = i + 1
                 break
+    # G2 — the boundary also advances past THIS HOOK'S OWN last block.
+    #
+    # Concatenating since the user prompt is cumulative, so once a turn produced
+    # a narrative every later Stop re-measured it: the agent replied with
+    # exactly the one line of state the block demanded and the arm fired anyway,
+    # `lines` climbing. No reply could clear it, because the text was already in
+    # the transcript — the unbreakable loop again in a new form.
+    #
+    # The harness feeds a blocked Stop's reason back as a non-genuine
+    # ``role: user`` record, which makes it an in-transcript marker of the
+    # previous Stop and needs no new persistence (the guard state is written
+    # only for engaged CT6 runs, and writing state here would reintroduce the
+    # F-F pollution). Detection keys on this module's OWN kill-switch names,
+    # which every block message must carry, rather than on the emitter's prose.
+    for i in range(len(recs) - 1, start - 1, -1):
+        if _is_lock_block_record(recs[i], gate):
+            start = i + 1
+            break
     parts: list[str] = []
     for rec in recs[start:]:
         try:
