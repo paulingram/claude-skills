@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 55 . 4
+                        ─── C T 6 ───   v 3 . 56 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.55.4-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.56.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-7024%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-7166%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -77,21 +77,26 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.55.4  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.55.4 — run-continuity-and-uxtest-spec: the data-eng lane joins run-continuity; the ux-test spec-of-record sheds its stale 3-cycle cap
+### v3.56.0 — turn-boundary-completion-lock: a session cannot end its turn while registered work is open, and the condition is read from disk
 
-A PATCH with TWO small fixes, each red-first tested. Fix 1 closes the v3.55.2 KNOWN FOLLOW-UP in code — the run-continuity constants gain the data-eng lane, so a `/architect-team:data-eng` run is now BOTH real-time gated (v3.55.2) AND tracked by the active-run marker / continuation guard / sticky arm. Fix 2 sweeps the last recorded residue of the bounded-at-3-cycles anti-pattern class (v3.9.3 cleared the skills tier, v3.55.3 the agent bodies): the ux-test-builder SPEC-of-record still capped the U7 consensus loop its own skill had already dropped.
+A MINOR release that closes a user-reported failure the instruction tier could not fix — Agent Teams sessions ending their turn with work still open. The reporting agent diagnosed its own mechanism exactly — *"every time my turn is about to end, I fill it with a summary; writing a summary forces me to decide what's done enough to describe, and that decision is me drawing the boundary again"* — and then, in the same turn, produced two formatted reports while seventeen items sat open. Better phrasing had already been tried. What was left was machinery. **The decisive property: the stopping condition is READ FROM DISK, never asserted by the agent.**
 
 | What changed | Detail |
 |---|---|
-| **Run-continuity for data-eng** | `hooks/run_continuity.py`'s `RUN_DRIVING_SKILLS` gains `data-eng-pipeline` (4 → 5 members: the 4 playbooks + `data-eng-pipeline`); `ENGAGEMENT_SKILLS` (= `RUN_DRIVING_SKILLS` ∪ `{proposal-refiner}`) picks it up automatically (5 → 6) — RESTORING the `_PIPELINE_SKILLS == ENGAGEMENT_SKILLS` invariant at 6. A `/architect-team:data-eng` run now ENGAGES the `active-run.json` marker and is recognized as engaged, closing the v3.50.0 omission that was the run-continuity sibling of the v3.55.2 real-time-gate fix. Red-first: `test_data_eng_pipeline_engages_and_is_recognized` in the existing `tests/test_run_continuity.py`. |
-| **ux-test spec-of-record swept** | `openspec/specs/ux-test-builder/spec.md`'s U7 requirement + scenario still specced the "bounded at 3 re-examination cycles" loop the ux-test-builder SKILL already dropped — the spec-of-record contradicted the implementation. Now the unbounded framing: no fixed cycle cap, the re-examination loop runs until the executors converge, and persistent genuine divergence surfaces to the owner as required input (a domain gate) while other work continues — it never halts on cycle count. Red-first: `test_u7_spec_of_record_matches_skill_no_cap` in the existing `tests/test_ux_test_builder_skill.py`. |
-| **Counts + tests** | PATCH — no new skill / agent / command / hook / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22). Suite **7022 → 7024 passing + 6 skipped, 0 failed** (239 top-level test files, both encodings; +2 tests in existing files). |
+| **The completion lock** | A new arm in the `Stop` hook (`hooks/pipeline-completion-audit.py`) that refuses the stop while registered work is open — **in every session, in every project**, not only inside a CT6 run. Three sources: the harness task list (`~/.claude/tasks/session-<first-8>/<taskId>.json`), a transcript-derived ask-ledger, and the one-line-of-state turn-output rule. Placement is the requirement, not a detail: the lock is evaluated ABOVE the non-engaged early return, the no-progress budget, the escalation marker, and `in-progress.md` — every one of those is a file the AGENT writes. |
+| **NEW `hooks/open_work.py`** | The stdlib-only substrate: `read_harness_tasks` (read failures are DATA in an `unreadable[]` partition, never exceptions), `open_task_items` (unknown or missing status counts as OPEN — the asymmetry fails safe), the accumulating ask-ledger at `.architect-team/ask-ledger.json`, `classify_turn_output`, teammate owner-scoping, `evaluate_completion_lock`, and an operator CLI (`list` / `resolve`). |
+| **Four kill-switches** | `CT6_COMPLETION_LOCK_DISABLED` (master) plus one per source. "Unbounded" means the AGENT can never decide to stop; **you always can** — see the new *Completion lock* section below for what each switch turns off. |
+| **Ground truth is immutable to agents** | `hooks/pretool_unilateral_override_guard.py` now refuses agent `Edit` / `Write` / `NotebookEdit` against the ask-ledger and against any path under the harness task store. Closing a task through `TaskUpdate` stays entirely legitimate; reaching around the harness to rewrite the record does not. |
+| **ralph-loop NOT adopted at the top level** | Asked and answered, and written into `docs/ETHOS.md` so a later run does not re-adopt it: ralph-loop exits on a literal `<promise>` string the model types, with nothing verifying it. Wrapping the top-level run in it would relocate this failure, not remove it. It keeps its place in the convergence sub-loops of the twelve skills that use it. |
+| **Counts + tests** | MINOR — additive within `hooks/`; no new skill / agent / command / hook script / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22). Suite **7024 → 7166 passing + 6 skipped, 0 failed** (+142 tests; 241 top-level test files, both encodings). |
 
-HONEST BOUNDARY: two targeted consistency fixes — no new enforcement surface; the run-continuity tracking a data-eng run now gets is the EXISTING v3.30.0 machinery, newly reachable for the lane. Every earlier release remains in full at [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
+Adversarial review executed **nine escapes, six critical; eight are closed** — including two reversals of calls the architect had already endorsed, both recorded in the change's `design.md` rather than quietly amended.
+
+HONEST BOUNDARY: the gate is **not undefeatable**. `TaskUpdate(status="deleted")` unlinks the task file, so the lock reads a clean-empty directory and releases; deletion is a legitimate harness operation no hook tier can forbid. The ask-ledger mitigates this only partially — deleting *lanes* does not erase the user's *asks*. And an agent with unrestricted `Bash` can write any file, including these records. What the release actually buys, stated precisely: an agent can no longer end its turn early by *deciding* it is finished — it can still end early by destroying the evidence that it is not, which is a louder and far more detectable act. Every earlier release remains in full at [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -195,6 +200,9 @@ HONEST BOUNDARY: two targeted consistency fixes — no new enforcement surface; 
 │                             build/dispatch tools need the Skill re-engaged) │
 │ ▸ PreToolUse(Edit/Write/    unilateral-override guard                       │
 │     NotebookEdit)                                                           │
+│                             + v3.56.0 completion-lock ground truth:         │
+│                             the ask-ledger + the harness task store         │
+│                             are immutable to agent Edit / Write             │
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v7 + independent review  │
 │ ▸ TaskCompleted             review-gate evidence re-check                   │
 │ ▸ SubagentStop              teammate-idle review-gate re-check              │
@@ -203,6 +211,9 @@ HONEST BOUNDARY: two targeted consistency fixes — no new enforcement surface; 
 │                             + v3.9.2 openspec validate --all --strict gate  │
 │                             + v3.30.0 continuation guard (no mid-run stops; │
 │                             no-progress bound => auto-escalate)             │
+│                             + v3.56.0 COMPLETION LOCK — open work           │
+│                             blocks the stop in EVERY session, CT6           │
+│                             run or not; 4 named kill-switches               │
 │ ▸ PreCompact                closeout doc-currency reminder (v3.18.0)        │
 │ ▸ SessionStart              run-continuity resume directive (v3.30.0)       │
 ├─ SETUP ─────────────────────────────────────────────────────────────────────┤
@@ -460,6 +471,14 @@ Every surfaced issue becomes an SR; test-failure origins route through diagnosti
 
 The orchestrator runs as the main session — no hook can gate its mid-run behaviour, but the `Stop` hook gates its **terminal** state: it blocks the orchestrator from ending a run, or auto-committing, while the run is still incomplete. Since v3.30.0 it is also the **continuation guard**: an active run may not end its turn with *"we've done a lot — want me to continue?"*.
 
+**v3.56.0 — the completion lock is evaluated ABOVE this entire map**, and
+outside a CT6 run as well as inside one. Everything below is the run-scoped
+worklist audit; the lock runs first, reads the harness task list and the
+ask-ledger from disk, and blocks while either shows open work — including in the
+two places this map allows a stop (`escalation-pending.md` and a fresh
+`in-progress.md`), because both of those are files the AGENT writes. See
+*Completion lock — when a turn may end*, below.
+
 ```
    orchestrator session ends ──▶ ▣ Stop HOOK · pipeline-completion-audit.py
             │
@@ -529,6 +548,96 @@ On a clean Phase 8 / B8 / M7 pass the run is **self-tidying by default** — it 
 ```
 
 Branch protection always wins: `--force` is never added. Only `architect-team/*` branches are ever auto-merged, pruned, or reconciled — never the user's own branches.
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  COMPLETION LOCK — WHEN A TURN MAY END  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+**v3.56.0. Read this if a session will not stop.** Unlike every other gate in
+this README, the completion lock is **not scoped to a CT6 run**. It fires in
+every session, in every project, whether or not you have ever typed
+`/architect-team` — because the failure it exists to stop happens in plain
+Agent Teams sessions with no pipeline running at all: the agent ends its turn
+with a tidy summary while assigned work is still open.
+
+### ▌ What it blocks, and on what evidence
+
+The `Stop` hook refuses the stop while any of three sources says work is open.
+None of the three is a thing the agent asserts:
+
+| Source | Read from | Kill-switch |
+|---|---|---|
+| **Harness task list** | `~/.claude/tasks/session-<first-8-of-session-id>/<taskId>.json`, written by the harness. A task whose `status` is not `completed` — including a missing or unrecognized status — counts as OPEN. Teammates are held only for tasks whose `owner` matches them, never wedged on lanes they cannot close. | `CT6_TASK_LIST_GATE_DISABLED` |
+| **Ask-ledger** | `.architect-team/ask-ledger.json`, DERIVED from the harness-written transcript rather than registered by the model — so an agent cannot decline to register an ask it would rather not do. Entries accumulate and re-derivation only ever ADDS; ambiguous stays open. | `CT6_ASK_LEDGER_GATE_DISABLED` |
+| **Turn-output rule** | The last assistant text block. While work is open the turn output is *one line of state, not a narrative* — the rule trips at `>= 3` non-empty lines or any structural marker (heading, bullet, bold-label block, table row), and never at `<= 2` lines with no marker. | `CT6_TURN_OUTPUT_GATE_DISABLED` |
+
+A source that cannot be READ blocks too, and names the file it could not read —
+unknown state is not "empty". A crash in the lock's own code fails OPEN, so a
+bug here can never wedge a session.
+
+### ▌ How to release it — the four kill-switches
+
+There is no agent-side exit and no iteration budget: the lock is unbounded on
+purpose. **"Unbounded" means the agent can never decide to stop. You always
+can**, with any of these:
+
+| Environment variable | Turns off |
+|---|---|
+| `CT6_COMPLETION_LOCK_DISABLED=1` | **Master switch** — the entire completion lock, all three sources, everywhere. Nothing else in CT6 changes. |
+| `CT6_TASK_LIST_GATE_DISABLED=1` | Only the harness-task-list source. The ask-ledger and turn-output rules keep enforcing. |
+| `CT6_ASK_LEDGER_GATE_DISABLED=1` | Only the ask-ledger source. The task-list and turn-output rules keep enforcing. |
+| `CT6_TURN_OUTPUT_GATE_DISABLED=1` | Only the one-line-of-state turn-output rule. The task-list and ask-ledger sources keep enforcing. |
+
+**The per-source switches are the point.** A noisy ask-ledger must never be a
+reason to switch off the task-list gate that is working correctly — so each
+source is releasable on its own, and the block message names the specific
+switch for whichever source actually fired. Set them the same way as
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` — a shell environment variable, or
+`{"env": {"CT6_COMPLETION_LOCK_DISABLED": "1"}}` in `~/.claude/settings.json`.
+
+The pre-existing `CT6_MAX_NO_PROGRESS_STOPS` budget (default 3) governs the
+older continuation guard only; it does **not** release the completion lock.
+
+### ▌ Releasing one ask instead of disabling a gate
+
+The ask-ledger has a human-facing exit, so a single false positive never has to
+cost you the whole gate:
+
+```bash
+python hooks/open_work.py list                          # the unresolved asks + their ids
+python hooks/open_work.py resolve <id> --evidence "..." # close one, naming what closed it
+```
+
+This is deliberately the **operator's** surface, not the agent's: the block
+message does not teach the agent to resolve its own entries, and an entry with
+no evidence stays open.
+
+### ▌ HONEST BOUNDARY — the gate is defeatable
+
+It is not airtight, and pretending otherwise would violate this project's own
+[`docs/ETHOS.md`](docs/ETHOS.md).
+
+- **`TaskUpdate(status="deleted")` releases it.** The harness *unlinks* a
+  deleted task's JSON file, so the lock reads a clean-empty directory and lets
+  the stop through. Deletion is a first-class, legitimate harness operation; no
+  hook tier can or should forbid it. The mitigation is real but partial — the
+  ask-ledger derives the user's directives from the transcript independently, so
+  deleting *lanes* does not erase the user's *asks*, and an unresolved ledger
+  entry keeps blocking.
+- **An agent with unrestricted `Bash` can write any file**, including the ledger
+  and the task store. The `PreToolUse` guard refuses `Edit` / `Write` /
+  `NotebookEdit` against both, which raises the cost and makes a bypass a
+  deliberate, visible act — it does not make one impossible.
+- **If the harness changes the on-disk task format**, the lock degrades to the
+  unreadable-source path: it blocks and names the problem rather than silently
+  passing.
+
+Stated precisely, and this is the whole claim: **an agent can no longer end its
+turn early by deciding it is finished. It can still end early by destroying the
+evidence that it is not** — which is a different, louder, and far more
+detectable act than writing a summary.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -1016,7 +1125,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 53 skill frontmatters; all 39 agent frontmatters (tool + model names); all 25 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 120 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all eight trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle + the v3.18.0 PreCompact + the v3.30.0 SessionStart); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **7024 tests pass (+ 6 skipped, 0 failed, across 239 top-level test files — disk-anchored via `git ls-files 'tests/test_*.py'`; Windows-measured under both the default cp1252 environment and `PYTHONUTF8=1` — the macOS-without-PyYAML basis, 5966 + 16 at v3.46.0, has not been re-measured since).**
+Tests validate: plugin/marketplace JSON; all 53 skill frontmatters; all 39 agent frontmatters (tool + model names); all 25 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 120 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all eight trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle + the v3.18.0 PreCompact + the v3.30.0 SessionStart); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check and the v3.56.0 completion lock — its placement above every agent-written release path, the four kill-switches, teammate owner-scoping, and the block-vs-fail-open split of the `hooks/open_work.py` substrate; path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, and scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks) disciplines. **7166 tests pass (+ 6 skipped, 0 failed, across 241 top-level test files — disk-anchored via `git ls-files 'tests/test_*.py'`; Windows-measured under both the default cp1252 environment and `PYTHONUTF8=1` — the macOS-without-PyYAML basis, 5966 + 16 at v3.46.0, has not been re-measured since).**
 
 ### Bumping versions
 
@@ -1038,12 +1147,14 @@ Tests validate: plugin/marketplace JSON; all 53 skill frontmatters; all 39 agent
 ```
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 
-   ◆       v3.55.4 ─ run-continuity-and-uxtest-spec — the data-eng lane joins
-           run-continuity (RUN_DRIVING_SKILLS 4→5, ENGAGEMENT_SKILLS 5→6;
-           a /architect-team:data-eng run now engages the active-run marker
-           and is tracked by the continuation guard + sticky arm — the
-           v3.55.2 follow-up closed) + the ux-test-builder spec-of-record
-           swept to the skill's unbounded U7 loop (no fixed cycle cap)
+   ◆       v3.56.0 ─ turn-boundary-completion-lock — a session cannot end
+           its turn while registered work is open, and the condition is
+           READ FROM DISK (the harness task list + a transcript-derived
+           ask-ledger), never asserted by the agent. Fires in EVERY
+           session, in every project; released only by the human, via
+           CT6_COMPLETION_LOCK_DISABLED or one of three per-source
+           switches. Defeatable by task DELETION — boundary stated, not
+           sanded off
 
            Full release timeline (every version) → docs/RELEASE_HISTORY.md
 

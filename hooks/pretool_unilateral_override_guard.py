@@ -159,6 +159,82 @@ def _targets_existing_deploy_config(file_path: str) -> bool:
     return p.name == _DEPLOY_CONFIG_FILENAME and p.exists()
 
 
+# v3.56.0 (ADV-3 / ADV-5, adversarial review) — the completion lock's GROUND
+# TRUTH is immutable to agents. The whole gate rests on one property: the
+# stopping condition is read from files the agent does not write. The
+# adversarial pass defeated that twice with a single tool call each:
+#
+#   ADV-3  one Write flips every ask-ledger entry to "resolved"
+#   ADV-5  writing "status": "completed" straight into a harness task JSON
+#          bypasses review-gate-task.py entirely, because that hook is
+#          PostToolUse(TaskUpdate) and only ever sees the TOOL, never a
+#          filesystem write
+#
+# Closing a task through `TaskUpdate` stays entirely legitimate — that is the
+# harness's own surface and the gate reads its result. What is forbidden is
+# reaching around it and editing the record directly.
+#
+# HONEST BOUNDARY: this raises the cost and makes the bypass a deliberate,
+# visible act rather than an accident. An agent with unrestricted Bash can
+# still write these files by other means; no hook-tier guard can prevent that.
+_ASK_LEDGER_FILENAME = "ask-ledger.json"
+_STATE_DIRNAME = ".architect-team"
+
+
+def _harness_tasks_root() -> Path | None:
+    """The harness task store, via the substrate's own resolver when available."""
+    try:  # the substrate owns the resolution order (explicit > env > home)
+        from hooks.open_work import tasks_root  # type: ignore
+    except Exception:
+        try:
+            from open_work import tasks_root  # type: ignore
+        except Exception:
+            tasks_root = None  # type: ignore[assignment]
+    if tasks_root is not None:
+        try:
+            return Path(tasks_root()).resolve()
+        except Exception:
+            pass
+    try:  # last-resort fallback mirroring open_work.tasks_root's default
+        return (Path.home() / ".claude" / "tasks").resolve()
+    except Exception:
+        return None
+
+
+def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
+    """The ground-truth source this write targets, or None.
+
+    Returns a short label naming WHICH source, so the block message can be
+    specific about what the agent was about to overwrite.
+    """
+    if not isinstance(file_path, str) or not file_path:
+        return None
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return None
+
+    # The ask-ledger, matched on name + its .architect-team/ parent so an
+    # unrelated file that happens to share the basename is not caught.
+    if p.name == _ASK_LEDGER_FILENAME and p.parent.name == _STATE_DIRNAME:
+        return "ask-ledger"
+
+    # Any path under the harness task store.
+    root = _harness_tasks_root()
+    if root is not None:
+        try:
+            resolved = p.resolve()
+        except Exception:
+            resolved = None
+        if resolved is not None:
+            try:
+                resolved.relative_to(root)
+                return "harness-task-store"
+            except ValueError:
+                pass
+    return None
+
+
 def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     """Inspect a PreToolUse payload and return (exit_code, stderr_message).
 
@@ -180,6 +256,64 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     )
     if not file_path:
         return 0, ""
+
+    # v3.56.0 completion-lock ground-truth immutability (ADV-3 / ADV-5) — fires
+    # UNCONDITIONALLY, like the deploy-config rule below and for the same
+    # reason: an agent rewriting the record the gate reads is a violation
+    # whether or not a pipeline run is active. The reported failure happens in
+    # plain Agent Teams sessions with no CT6 run at all, so a run-gated check
+    # would miss exactly the case that matters.
+    _ground_truth = _targets_completion_lock_ground_truth(file_path)
+    if _ground_truth is not None:
+        if _ground_truth == "ask-ledger":
+            what = (
+                "the ask-ledger — the record of the directives you were given. "
+                "Editing it lets a session mark its own outstanding asks "
+                "resolved, which is the self-asserted exit the completion lock "
+                "exists to remove"
+            )
+            instead = (
+                "Do the work the entry names. A ledger entry is released by "
+                "recording its resolution through the substrate's own CLI "
+                "(hooks/open_work.py), not by hand-editing the file; an "
+                "ambiguous entry stays open on purpose."
+            )
+        else:
+            what = (
+                "the harness task store — the list the completion lock reads to "
+                "decide whether work is still open. Writing a status directly "
+                "into a task file reaches around TaskUpdate, so the "
+                "PostToolUse(TaskUpdate) review gate never sees it"
+            )
+            instead = (
+                "Use the TaskUpdate tool. Closing a task through the harness is "
+                "entirely legitimate and the lock reads the result; only "
+                "editing the record behind the harness's back is forbidden."
+            )
+        message = (
+            "CT6 v3.56.0 PreToolUse guardrail BLOCKED — completion-lock ground "
+            "truth is immutable to agents.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            f"  - source: {_ground_truth}\n"
+            "\n"
+            f"This file is {what}.\n"
+            "\n"
+            "The completion lock works because its stopping condition lives in "
+            "files the agent does not write. A session that can edit its own "
+            "ground truth has no gate at all — it just has a file it is "
+            "trusted not to touch.\n"
+            "\n"
+            f"REQUIRED ACTION: {instead}\n"
+            "\n"
+            "If the gate is genuinely misfiring, that is the HUMAN's call and "
+            "the kill-switches are their lever "
+            "(CT6_COMPLETION_LOCK_DISABLED / CT6_TASK_LIST_GATE_DISABLED / "
+            "CT6_ASK_LEDGER_GATE_DISABLED / CT6_TURN_OUTPUT_GATE_DISABLED) — "
+            "never an agent rewriting the record."
+        )
+        return 2, message
 
     # v3.44.0 deploy-config immutability — fires UNCONDITIONALLY (before the
     # pipeline-state gate below), because an agent editing/disabling the deploy

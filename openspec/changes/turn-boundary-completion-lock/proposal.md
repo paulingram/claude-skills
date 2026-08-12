@@ -1,0 +1,48 @@
+# Proposal: turn-boundary-completion-lock
+
+## Why
+
+Agent Teams sessions are **ending their turn with work still open**. The user's report is specific and the failing agent's own self-diagnosis is the best statement of the mechanism:
+
+> "The tell isn't scope this time. All 17 items are assigned and no lane is idle. It's the turn boundary: every time my turn is about to end, I fill it with a summary. Writing a summary forces me to decide what's 'done enough to describe,' and that decision is me drawing the boundary again. … the instruction is maxed out. What's left is a rule I hold: while the list is non-empty, my turn output is one line of state, not a narrative."
+
+The agent identified the lever and then, in the same turn, produced two formatted reports while the list sat at 17 open. **The instruction tier is exhausted** — the user has already tried "make a list of my outstanding asks" and "you cannot consider anything complete until you have finished all my asks", and the agent still stops. What is left is machinery.
+
+Three structural facts make this fixable, and one makes the obvious fix wrong:
+
+1. **The harness writes the task list to disk.** `~/.claude/tasks/session-<first-8-of-session-id>/<taskId>.json`, one JSON per task, `status` ∈ `pending | in_progress | completed`, with an `owner` field. Verified: 176 task files across 40+ session dirs. The Stop payload already carries `session_id` (`hooks/pipeline-completion-audit.py:1742`). A Stop hook can therefore decide "is the list non-empty" from **ground truth**, not from what the agent says.
+2. **CT6's Stop hook already fires in every session.** `hooks/hooks.json` registers `Stop` at `matcher: "*"`, and the plugin is enabled at user level — so the delivery vehicle exists in every project already.
+3. **But the hook is deliberately inert outside a CT6 run.** `_is_real_run` (`:271-290`) requires `.architect-team/` artifacts; `audit()` returns `(False, [])` (`:1514`) otherwise, and `main()` allows the stop. **No arm in `hooks/` reads the aggregate task list at all** — a grep for `TaskList|task_list|tasks.json` across `hooks/*.py` finds only per-task `TaskUpdate` handling in `review-gate-task.py` and `Task*` in `pretool_skill_gate.py`'s blocked-tool set. A Lead that simply ends its turn never flips anything to `completed`, so the per-task review gate never sees it. This is exactly why the reported 17-item session sailed through.
+
+**And the obvious fix is wrong.** The user asked directly: *"are we leveraging ralph loops to lock them in?"* ralph-loop's exit condition is a literal `<promise>TEXT</promise>` string **the model types**, compared by shell string equality, with nothing verifying its truth — its own system message reads *"do not lie to exit!"*. Wrapping the top-level run in ralph-loop **relocates the reported failure rather than removing it**: the stopping condition would still be a thing the agent decides. The disk-read exit condition is strictly stronger, because the model cannot type its way out of it.
+
+## What Changes
+
+A **completion lock** — a new arm in the Stop hook that fires in every session and refuses the stop while registered work is open, reading its exit condition from disk.
+
+- **REQ-1 — the universal open-work Stop gate.** A new `_completion_lock` evaluation in `hooks/pipeline-completion-audit.py::main()`, NOT gated behind `_is_real_run`, so it reaches plain Agent Teams sessions that never invoke `/architect-team`. **Placement is load-bearing**: it is evaluated ABOVE both the non-engaged early return (`:1757-1763`) and the no-progress budget's `return 0` (`:1774-1783`) — an arm below either would silently never fire in exactly the sessions that need it. Backed by a new stdlib-only module `hooks/open_work.py`.
+- **REQ-2 — unbounded blocking with per-source kill-switches.** While open work exists the stop is refused, with **no** no-progress budget escape (`CT6_MAX_NO_PROGRESS_STOPS` continues to govern the pre-existing arms, unchanged). The only release is a named kill-switch: `CT6_COMPLETION_LOCK_DISABLED` (master), `CT6_TASK_LIST_GATE_DISABLED`, `CT6_ASK_LEDGER_GATE_DISABLED`, `CT6_TURN_OUTPUT_GATE_DISABLED`. Per-source switches matter: disabling a noisy ledger must not disable the task-list gate that works. "Unbounded" means **the agent** can never decide to stop; the user always can.
+- **REQ-3 — the auto-derived ask-ledger, durably accumulated.** The user's directives are derived from the **transcript** (harness-written) rather than registered by a model-initiated call — the agent cannot decline to register an ask it would rather not do. Entries accumulate on disk at `.architect-team/ask-ledger.json` and re-derivation may only ADD, never remove: `run_continuity.load_transcript_slices` (`:588`) is tail-capped with a `truncated` flag, so re-deriving from a truncated window on a long session would drop the EARLIEST directives — the ones most likely still unfinished — and silently allow the stop. The resolution rule is conservative: **ambiguous stays open**.
+- **REQ-4 — teammate owner-scoped blocking.** A pipeline teammate shares the run's task list but cannot close lanes it does not own; CT6's existing standdown comment says blocking teammates *"would brick the pipeline's own workers"* (`hooks/run_continuity.py:88-94`). This arm does NOT stand down wholesale — it holds a teammate only for tasks whose `owner` matches it, building on `run_continuity.is_teammate_transcript` (`:724`) and the `CT6-TEAMMATE` token. Every lane stays honest; nobody is wedged on work they cannot touch. An unidentifiable teammate falls back to the standdown.
+- **REQ-5 — the one-line-of-state turn-output rule.** The user's own named remedy, mechanized: while open work exists, the hook reads the last assistant text block from the transcript and re-blocks when the turn ended in a narrative. Pinned predicate: a turn trips when it is `>= 3` lines **OR** carries a structural marker (heading, bullet list, bold-label block, table); it never trips at `<= 2` lines with no marker.
+- **REQ-6 — split failure semantics.** A crash in the arm's own code fails OPEN (matching `main()`'s contract at `:1791-1793`) — never wedge a session on a bug here. But an **unreadable source** (malformed task JSON, a permissions error) BLOCKS and names what it could not read: a blanket fail-open there would let a bad file reproduce the exact reported bug.
+
+## Impact
+
+Additive within `hooks/` (stdlib-only): one new module (`hooks/open_work.py`), one new evaluation in `main()`, no new hook script, no new Layer-3 tool, no new skill/agent/command. `check_separation` unaffected (hooks tier, not `services/`) — stays 26. The pre-existing audit arms and their `CT6_MAX_NO_PROGRESS_STOPS` budget are untouched; a run that has no open work and no ledger entries behaves exactly as before.
+
+**This is the highest-blast-radius change CT6 has shipped**, and that is deliberate per the user's decision: the arm fires in EVERY session in EVERY project, not only CT6 runs. The kill-switches are the release valve and are documented at the top of the module, in the block message itself, and in the README.
+
+**HONEST BOUNDARY.** This makes it structurally much harder for an agent to end a turn while its task list is non-empty, because the condition is read from a file the harness writes. It does NOT make the agent finish the work — a session can still be wrong, slow, or stuck, and the kill-switch remains the human's exit. It also does not read any task list the harness does not persist: if a future harness version changes the on-disk task format, the arm degrades to the unreadable-source path (REQ-6), which blocks and names the problem rather than silently passing.
+
+**The gate is not undefeatable, and the adversarial pass proved it.** Nine escapes were executed against the first implementation; eight are closed. The one that cannot be closed in the hook tier is named here rather than buried:
+
+> **`TaskUpdate(status="deleted")` empties the list.** The harness *unlinks* a deleted task's JSON file (verified directly on a live task), so the lock then reads a clean-empty directory and releases. Deletion is a legitimate first-class operation on the harness's own surface, and no hook-tier gate can or should forbid it.
+>
+> The mitigation is real but partial: the ask-ledger derives the user's directives from the transcript independently of the task list, so deleting *lanes* does not erase the user's *asks* — an unresolved ledger entry keeps blocking. What deletion does erase is the lane-level detail.
+>
+> More generally, an agent with unrestricted `Bash` can write any file on the machine, including the records this gate reads. `hooks/pretool_unilateral_override_guard.py` now refuses `Edit`/`Write`/`NotebookEdit` against the ask-ledger and the harness task store, which raises the cost and turns a bypass into a deliberate, visible act rather than an accident. It does not make one impossible.
+
+What this change actually buys, stated precisely: **an agent can no longer end its turn early by deciding it is finished.** It can still end early by destroying the evidence that it is not — and that is a different, louder, and far more detectable act than writing a summary.
+
+**ralph-loop is deliberately NOT adopted at the top level**, and the rationale ships in the docs so a later run does not "helpfully" re-adopt it. It stays where it already earns its place — the convergence sub-loops inside the twelve skills that use it.
