@@ -36,7 +36,11 @@ The lock SHALL maintain an ask-ledger of the user's directives at a workspace pa
 - **THEN** the stored entries are preserved and only genuinely new directives are added
 
 ### Requirement: A pipeline teammate is held only for work it owns
-The lock SHALL identify a pipeline teammate session and SHALL NOT stand it down wholesale. A teammate SHALL be held only for open tasks whose `owner` matches that teammate, so it is never wedged on lanes it has no power to close. When the teammate's identity cannot be resolved, the lock SHALL fall back to the existing teammate standdown rather than risk blocking a worker indefinitely.
+The lock SHALL identify a pipeline teammate session and SHALL NOT stand it down wholesale. A teammate SHALL be held only for open tasks whose `owner` matches that teammate, so it is never wedged on lanes it has no power to close.
+
+Teammate classification SHALL require a genuine `CT6-TEAMMATE` spawn-brief token. The lock SHALL NOT stand down on the `>= 1500`-char heuristic in `run_continuity.is_teammate_transcript`, because that heuristic fires on the user's own long prompts and would silently disable the entire gate for exactly the sessions it exists to hold. A session classified only by that heuristic, with no resolvable token, SHALL be treated as an ORCHESTRATOR and held on all open tasks.
+
+The token SHALL be resolved from the FIRST inbound record, and an envelope in that position (a teams-mode spawn brief arrives wrapped in `<teammate-message>`) SHALL be accepted. A token appearing in a later, mid-session peer envelope SHALL NOT resolve a name, so an orchestrator cannot adopt a peer's identity to shrink its own obligations.
 
 #### Scenario: A teammate with no owned open tasks may stop
 - **WHEN** a teammate session attempts to stop, open tasks exist, and none of them name that teammate as `owner`
@@ -45,6 +49,18 @@ The lock SHALL identify a pipeline teammate session and SHALL NOT stand it down 
 #### Scenario: A teammate with an owned open task is blocked
 - **WHEN** a teammate session attempts to stop and at least one open task names that teammate as `owner`
 - **THEN** the stop is refused and the block names that task
+
+#### Scenario: A long user prompt does not stand the gate down
+- **WHEN** a session's first prompt exceeds 1500 characters and mentions `.architect-team`, matching the upstream teammate heuristic, but carries no `CT6-TEAMMATE` token
+- **THEN** the session is treated as an orchestrator and is held on all open tasks
+
+#### Scenario: A teams-mode spawn brief in an envelope still resolves
+- **WHEN** a teammate's spawn brief arrives as the first inbound record wrapped in a `<teammate-message>` envelope
+- **THEN** its `CT6-TEAMMATE` name resolves and the teammate is scoped to its own lanes rather than held on every lane
+
+#### Scenario: A mid-session peer envelope cannot supply a name
+- **WHEN** an orchestrator receives a later peer message carrying a `CT6-TEAMMATE` token
+- **THEN** no teammate name resolves from it and the session remains held on all open tasks
 
 ### Requirement: While work is open the turn output is one line of state, not a narrative
 While the lock finds open work, it SHALL read the last assistant text block from the transcript and SHALL refuse the stop when that turn ended in a narrative report. A turn SHALL be classified as a narrative when it spans three or more lines OR carries a structural marker — a heading, a bullet list, a bold-label block, or a table. A turn of two or fewer lines carrying no structural marker SHALL NOT be classified as a narrative. The refusal SHALL state the rule so the next turn can comply.

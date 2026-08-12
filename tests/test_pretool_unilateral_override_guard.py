@@ -380,3 +380,55 @@ def test_ground_truth_guard_survives_a_junk_path(
     for junk in ("", "\x00", "://://", "?" * 4096, "con", "//?/UNC/nope"):
         assert _targets_completion_lock_ground_truth(junk) is None, junk
         assert check_payload(_write_payload(junk))[0] in (0, 2), junk
+
+
+def test_ledger_guard_resolves_before_matching_so_spellings_cannot_evade_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F-B (independent review): the ask-ledger arm compared `p.name` and
+    `p.parent.name` as RAW strings while its harness-task-store sibling
+    resolved. Two one-Write bypasses reached the SAME real file and returned
+    exit 0 where the canonical spelling returned 2 -- an inconsistency inside a
+    single function, on the platform this repo is developed on:
+
+      * NTFS is case-insensitive, so `.ARCHITECT-TEAM/ASK-LEDGER.JSON` is the
+        canonical file under a different spelling.
+      * `.architect-team/reviews/../ask-ledger.json` re-enters the same file
+        through a sibling directory.
+
+    The original tests only ever exercised the canonical spelling, which is
+    exactly how this survived to review. Both attacks are positive cases here.
+    """
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    at = tmp_path / ".architect-team"
+    (at / "reviews").mkdir(parents=True)
+    canonical = at / _ASK_LEDGER_FILENAME
+    canonical.write_text('{"schema": 1, "entries": []}', encoding="utf-8")
+
+    attacks = {
+        "canonical": str(canonical),
+        "case-folded": str(tmp_path / ".ARCHITECT-TEAM" / "ASK-LEDGER.JSON"),
+        "traversal re-entry": str(at / "reviews" / ".." / _ASK_LEDGER_FILENAME),
+    }
+    for label, spelling in attacks.items():
+        assert _targets_completion_lock_ground_truth(spelling) == "ask-ledger", label
+        rc, msg = check_payload(_write_payload(spelling))
+        assert rc == 2, f"{label} must be refused; got {rc}"
+        assert "ask-ledger" in msg, label
+
+
+def test_ledger_guard_resolution_does_not_swallow_a_same_named_neighbour(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control for the fix above. Resolving must not widen the net: a file
+    with the ledger's name outside a `.architect-team/` parent stays allowed. A
+    guard that blocks legitimate writes gets disabled, which defeats it just as
+    thoroughly as one that can be spelled around."""
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for benign in (
+        str(tmp_path / "notes" / _ASK_LEDGER_FILENAME),
+        str(tmp_path / ".architect-team-backup" / _ASK_LEDGER_FILENAME),
+        str(tmp_path / ".architect-team" / "ask-ledger.json.bak"),
+    ):
+        assert _targets_completion_lock_ground_truth(benign) is None, benign
+        assert check_payload(_write_payload(benign))[0] == 0, benign

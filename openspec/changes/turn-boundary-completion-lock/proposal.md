@@ -35,7 +35,13 @@ Additive within `hooks/` (stdlib-only): one new module (`hooks/open_work.py`), o
 
 **HONEST BOUNDARY.** This makes it structurally much harder for an agent to end a turn while its task list is non-empty, because the condition is read from a file the harness writes. It does NOT make the agent finish the work — a session can still be wrong, slow, or stuck, and the kill-switch remains the human's exit. It also does not read any task list the harness does not persist: if a future harness version changes the on-disk task format, the arm degrades to the unreadable-source path (REQ-6), which blocks and names the problem rather than silently passing.
 
-**The gate is not undefeatable, and the adversarial pass proved it.** Nine escapes were executed against the first implementation; eight are closed. The one that cannot be closed in the hook tier is named here rather than buried:
+**The gate is not undefeatable, and the adversarial passes proved it.** Twelve escapes were executed across three adversarial rounds. The accurate tally, which corrects an earlier "nine found, eight closed" claim that overstated the result:
+
+- **Closed and verified:** the `in-progress.md` bypass, the `>= 1500`-char heuristic standdown, the peer-envelope name adoption, the silent substrate-absence disarm, and the ask-ledger guard's case / traversal / link spellings.
+- **Narrowed, with a named residual:** the ground-truth guard is closed against `Edit`/`Write`/`NotebookEdit` but **Bash remains open by design** — no hook-tier guard sees a shell write. The substrate import is closed against every `BaseException`-derived failure but **`os._exit()` remains** outside any handler by construction. `CT6_TASKS_ROOT` moves both the gate's ground truth and the guard protecting it. Deleting `.architect-team/ask-ledger.json` erases accumulated asks, because `read_ledger` cannot distinguish "absent" from "never existed".
+- **Accepted boundary:** `TaskUpdate(status="deleted")`, below.
+
+The one that cannot be closed in the hook tier is named here rather than buried:
 
 > **`TaskUpdate(status="deleted")` empties the list.** The harness *unlinks* a deleted task's JSON file (verified directly on a live task), so the lock then reads a clean-empty directory and releases. Deletion is a legitimate first-class operation on the harness's own surface, and no hook-tier gate can or should forbid it.
 >

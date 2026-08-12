@@ -206,6 +206,21 @@ def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
 
     Returns a short label naming WHICH source, so the block message can be
     specific about what the agent was about to overwrite.
+
+    Both arms RESOLVE before matching (F-B, independent review). The first cut
+    of the ask-ledger arm compared `p.name` / `p.parent.name` as raw strings
+    while its harness-task-store sibling resolved — an inconsistency inside one
+    function, and two confirmed one-Write bypasses on the platform this repo is
+    developed on:
+
+      .ARCHITECT-TEAM\\ASK-LEDGER.JSON            (NTFS is case-insensitive)
+      .architect-team\\reviews\\..\\ask-ledger.json  (traversal re-entry)
+      a junction or hardlink to either                (mklink /J needs no admin)
+
+    Each reached the SAME real file and returned exit 0 where the canonical
+    spelling returned 2. The tests only ever exercised the canonical spelling,
+    which is how it survived. Resolution collapses all of them: `Path.resolve()`
+    canonicalizes case on Windows, normalizes `..`, and follows links.
     """
     if not isinstance(file_path, str) or not file_path:
         return None
@@ -213,11 +228,24 @@ def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
         p = Path(file_path)
     except (TypeError, ValueError):
         return None
+    try:
+        resolved: Path | None = p.resolve()
+    except Exception:
+        resolved = None
 
-    # The ask-ledger, matched on name + its .architect-team/ parent so an
-    # unrelated file that happens to share the basename is not caught.
-    if p.name == _ASK_LEDGER_FILENAME and p.parent.name == _STATE_DIRNAME:
-        return "ask-ledger"
+    # The ask-ledger. Match the RESOLVED path so case, `..` and links cannot
+    # spell around it; keep the `.architect-team/` parent requirement so an
+    # unrelated file sharing the basename is still not caught.
+    for candidate in (resolved, p):
+        if candidate is None:
+            continue
+        try:
+            same_name = candidate.name.casefold() == _ASK_LEDGER_FILENAME.casefold()
+            same_parent = candidate.parent.name.casefold() == _STATE_DIRNAME.casefold()
+        except Exception:
+            continue
+        if same_name and same_parent:
+            return "ask-ledger"
 
     # Any path under the harness task store.
     root = _harness_tasks_root()

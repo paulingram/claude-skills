@@ -34,7 +34,8 @@
    "acceptance_criteria": [
      "A teammate session with open tasks NONE of which it owns -> ALLOWED to stop (test)",
      "A teammate session with >=1 open task whose owner matches it -> BLOCKED, message names that task (test)",
-     "An unidentifiable teammate falls back to the existing standdown — never wedged (test); reuses run_continuity.is_teammate_transcript (:724) + TEAMMATE_TOKEN (:88-94), no parallel detector"]},
+     "REVERSED after adversarial review (ADV-8): teammate classification REQUIRES a genuine CT6-TEAMMATE token; the >=1500-char is_teammate_transcript heuristic must NOT stand the lock down, because it fires on the user's own long prompts and silently disabled the whole gate. A heuristic-only session with no resolvable token is treated as an ORCHESTRATOR and held on all open tasks (test, with the >=1500-char repro as the red)",
+     "The token resolves from the FIRST inbound record and an envelope in that position is accepted (a teams-mode spawn brief arrives wrapped in <teammate-message>, so a _genuine_prompts-only read wedges every teams-mode teammate — N1); a token in a LATER mid-session peer envelope resolves nothing, so an orchestrator cannot adopt a peer's identity (ADV-9). Both directions need a failing witness"]},
   {"source_requirement_id": "REQ-5-turn-output-rule", "spec_requirement_id": "turn-boundary-completion-lock/While work is open the turn output is one line of state, not a narrative", "layer": "infra", "team": "lock-core",
    "acceptance_criteria": [
      "TRIPS: open work + a last assistant text block that is >=3 non-empty lines OR carries a heading / bullet or numbered item / **Label:** block / table row -> re-blocks, message states the rule (test each marker kind)",

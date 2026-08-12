@@ -254,6 +254,29 @@ def test_bare_invocation_with_no_prose_derives_nothing(tmp_path: Path) -> None:
         assert ow.derive_ledger_entries([_user(text)]) == [], text
 
 
+def test_flag_only_command_arguments_are_not_directives(tmp_path: Path) -> None:
+    """N3. `/setup --external-llm --yes` clears the two-word bar but is options,
+    not an ask. A ledger full of flag noise is how a user learns to disable the
+    gate."""
+    for text in (
+        "<command-name>/architect-team:setup</command-name>"
+        "<command-message>setup</command-message>"
+        "<command-args>--external-llm --yes</command-args>",
+        "<command-name>/architect-team:cleanup-worktrees</command-name>"
+        "<command-args>--dry-run -v</command-args>",
+    ):
+        assert ow.derive_ledger_entries([_user(text)]) == [], text
+
+
+def test_flags_mixed_with_prose_still_derive(tmp_path: Path) -> None:
+    """The N3 guard must not eat a real ask that happens to carry a flag."""
+    text = ("<command-name>/architect-team:setup</command-name>"
+            "<command-args>--yes and wire the gateway to z.ai</command-args>")
+    assert [e["text"] for e in ow.derive_ledger_entries([_user(text)])] == [
+        "--yes and wire the gateway to z.ai"
+    ]
+
+
 def test_prose_outside_the_tags_is_also_kept(tmp_path: Path) -> None:
     """The older/simpler shape puts the prose after the closing tag."""
     records = [
@@ -676,24 +699,74 @@ def test_teammate_name_from_the_lenient_brief_form(tmp_path: Path) -> None:
     assert ow.teammate_name(records) == "lock-wiring"
 
 
-def test_peer_envelope_cannot_supply_a_teammate_name(tmp_path: Path) -> None:
-    """ADV-9. A Lead that received ONE <teammate-message> carrying the token
-    could otherwise adopt a peer's name as its own owner scope and shrink its
-    obligations to that peer's lane. `_genuine_prompts` already excludes peer
-    envelopes — the same exclusion v3.55.x applied to the skill gate's anchor."""
-    records = [_user('<teammate-message teammate_id="lock-core">\n'
-                     '[CT6-TEAMMATE lock-core RUN slug]\nGo.\n</teammate-message>')]
+# A teams-mode spawn brief: a role:user record wrapped in the peer envelope,
+# arriving as the FIRST inbound record of the teammate's transcript.
+_ENVELOPE_BRIEF = ('<teammate-message teammate_id="team-lead">\n'
+                   '[CT6-TEAMMATE lock-core RUN turn-boundary-completion-lock]\n'
+                   'You own hooks/open_work.py.\n</teammate-message>')
+
+
+def test_teams_mode_envelope_brief_resolves_the_name(tmp_path: Path) -> None:
+    """N1. `_is_user_prompt` excludes the peer envelope, so a `_genuine_prompts`
+    -only scan returns nothing for a teams-mode teammate and classifies the
+    worker as an orchestrator. POSITION is the discriminator: the brief is the
+    FIRST inbound record, so an envelope is honoured there and nowhere else."""
+    assert ow.teammate_name([_user(_ENVELOPE_BRIEF)]) == "lock-core"
+
+
+def test_teams_mode_teammate_is_scoped_to_its_own_lane_not_wedged(
+    tmp_path: Path
+) -> None:
+    """N1 end-to-end, the reviewer's measured repro: three tasks owned by three
+    different agents. Before the fix all three came back and the turn-output
+    rule fired on the teammate's report — REQ-4 says a teammate is NEVER wedged
+    on lanes it has no power to close."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="in_progress", owner="lock-core")
+    _write_task(tasks, "sess1234abcd", "T-2", status="pending", owner="lock-wiring")
+    _write_task(tasks, "sess1234abcd", "T-3", status="pending", owner="adversary-lock")
+    records = [_user(_ENVELOPE_BRIEF),
+               _assistant("## Report\n- built the substrate\n- 93 tests green")]
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert [i["id"] for i in r["open_tasks"]] == ["T-1"], (
+        "held for its OWN lane only, never for T-2 / T-3"
+    )
+    assert r["turn_output"] is None, "a teammate's report to the Lead is its deliverable"
+    assert r["open_asks"] == []
+
+
+def test_teams_mode_teammate_with_no_owned_lane_may_stop(tmp_path: Path) -> None:
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-2", status="pending", owner="lock-wiring")
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", [_user(_ENVELOPE_BRIEF)],
+                                    tasks_root=tasks)
+    assert r["blocked"] is False
+
+
+def test_a_mid_session_peer_envelope_cannot_supply_a_name(tmp_path: Path) -> None:
+    """ADV-9's ACTUAL attack, restated precisely after N1. The Lead's own first
+    prompt occupies position one; a peer message arriving LATER must not rename
+    it. Position is what separates the brief from an inbound peer message."""
+    records = [
+        _user("Build the completion lock."),
+        _user('<teammate-message teammate_id="lock-core">\n'
+              '[CT6-TEAMMATE lock-core RUN slug]\ndone\n</teammate-message>'),
+    ]
     assert ow.teammate_name(records) is None
 
 
 def test_a_lead_holding_a_peer_envelope_is_blocked_on_every_lane(tmp_path: Path) -> None:
     """The end-to-end form of ADV-9: adopting a peer's name would have hidden
-    every task the peer does not own."""
+    every task that peer does not own."""
     tasks = tmp_path / "tasks"
     _write_task(tasks, "sess1234abcd", "T-1", status="pending", owner="lock-core")
     _write_task(tasks, "sess1234abcd", "T-2", status="pending", owner="lock-wiring")
-    records = [_user('<teammate-message teammate_id="lock-core">\n'
-                     '[CT6-TEAMMATE lock-core RUN slug]\ndone\n</teammate-message>')]
+    records = [
+        _user("Build the completion lock."),
+        _user('<teammate-message teammate_id="lock-core">\n'
+              '[CT6-TEAMMATE lock-core RUN slug]\ndone\n</teammate-message>'),
+    ]
     r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
     assert r["blocked"] is True
     assert {i["id"] for i in r["open_tasks"]} == {"T-1", "T-2"}

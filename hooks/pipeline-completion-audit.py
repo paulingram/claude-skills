@@ -254,13 +254,21 @@ FRONTEND_E2E_GATE_DISABLE_ENV = "CT6_FRONTEND_E2E_GATE_DISABLED"
 # single typo in the substrate silently disarmed the entire completion audit.
 # The degraded state is loud: `_OW_IMPORT_ERROR` is reported on every Stop by
 # `_completion_lock_action` (ADV-6) rather than failing open in silence.
+#
+# ADV-7 residual (adversarial third pass): `Exception` is not wide enough.
+# `raise SystemExit(0)` or `KeyboardInterrupt` at the top of open_work.py are
+# BaseException-derived, so an Exception-only guard let them through — and
+# SystemExit produced rc=0 with COMPLETELY EMPTY stderr, which is stealthier
+# than the SyntaxError it replaced (that at least left a traceback). Catching
+# BaseException routes them into the same loud DISARMED warning. `os._exit()`
+# remains outside any handler by construction and is named in the docs.
 _OW_IMPORT_ERROR: str | None = None
 try:  # pragma: no cover - exercised by both import paths
     from hooks import open_work as _ow
-except Exception as _ow_exc_pkg:  # pragma: no cover - bare-module fallback
+except BaseException as _ow_exc_pkg:  # pragma: no cover - bare-module fallback
     try:
         import open_work as _ow  # type: ignore[no-redef]
-    except Exception as _ow_exc_bare:  # pragma: no cover - substrate unavailable
+    except BaseException as _ow_exc_bare:  # pragma: no cover - substrate unavailable
         _ow = None  # type: ignore[assignment]
         _OW_IMPORT_ERROR = (
             f"{type(_ow_exc_bare).__name__}: {_ow_exc_bare}"
@@ -1904,11 +1912,19 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
         "so there is no wording that clears it - only the work.\n\n"
         + "\n\n".join(sections)
         + "\n\nHow this releases:\n"
+        # F-A (independent review): this step used to NAME the ledger's
+        # resolution function and its file path. That is a release path the
+        # agent can reach, so printing it here handed the gated session its own
+        # exit and the escape was executed end to end (Stop -> exit 2 -> resolve
+        # -> Stop -> exit 0). The step now describes only what the AGENT can
+        # legitimately do — the work itself. Resolving a ledger entry is an
+        # operator action; the human's surface for it is documented in the
+        # README, deliberately not here.
         "  1. Close the work. A harness task closes when it is genuinely done "
-        "and its status flips to completed; an ask-ledger entry closes by "
-        "recording its resolution WITH evidence (see "
-        f"{hooks_dir / 'open_work.py'}, resolve_ledger_entry). Ambiguous stays "
-        "open on purpose.\n"
+        "and its status flips to completed through the harness's own TaskUpdate "
+        "tool. An ask-ledger entry closes when the directive it records is "
+        "actually carried out; an ambiguous entry stays open on purpose, and "
+        "there is no wording you can emit that closes one.\n"
         "  2. Make an unreadable source readable (or remove it). It is named "
         "above.\n"
         "  3. Operator kill-switches - the HUMAN's exit, never the agent's. Set "

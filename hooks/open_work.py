@@ -407,6 +407,19 @@ def _normalize_directive(text: str) -> str:
     return out.strip()
 
 
+def _is_prose(text: str) -> bool:
+    """True when what survived a command envelope reads as an ASK.
+
+    Two ways it does not: a single bare token (that command's argument), and a
+    remainder that is nothing but flags. A flag mixed WITH words is still an ask
+    — the guard must not eat a real directive that happens to carry an option.
+    """
+    tokens = text.split()
+    if len(tokens) < 2:
+        return False
+    return not all(t.startswith("-") for t in tokens)
+
+
 def _is_acknowledgement(text: str) -> bool:
     collapsed = " ".join(text.lower().split()).strip(" .!,?;:")
     return collapsed in _ACKNOWLEDGEMENTS
@@ -432,10 +445,12 @@ def derive_ledger_entries(records: list[dict[str, Any]]) -> list[dict[str, Any]]
         text = _normalize_directive(raw)
         if not text or _is_acknowledgement(text):
             continue
-        if _COMMAND_MARKER in (raw or "").lower() and len(text.split()) < 2:
+        if _COMMAND_MARKER in (raw or "").lower() and not _is_prose(text):
             # What survives a command envelope is only an ASK when it is prose.
-            # A lone token is that command's argument — `/model opus` must not
-            # register "opus" as an outstanding directive.
+            # A lone token is that command's argument (`/model opus` must not
+            # register "opus"), and an all-flags remainder is options rather
+            # than a directive (`/setup --external-llm --yes`, N3). A ledger
+            # full of flag noise is how a user learns to disable the gate.
             continue
         entry_id = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:16]
         if entry_id in seen:
@@ -558,6 +573,51 @@ _TEAMMATE_NAME_RE = re.compile(
 )
 
 
+def _identity_records(
+    records: list[dict[str, Any]],
+    head_records: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """The records that may legitimately carry this session's spawn brief.
+
+    **Position is the discriminator**, and both halves are load-bearing:
+
+    * The FIRST inbound (``role: user``) record, with a ``<teammate-message>``
+      envelope ALLOWED. A teams-mode brief arrives inside that envelope, which
+      ``_is_user_prompt`` deliberately excludes — so a genuine-prompts-only scan
+      resolved nothing for a teams-mode teammate and classified the worker as an
+      orchestrator, held on every lane including ones it cannot close (N1). That
+      violates REQ-4's "never wedged on lanes it has no power to close".
+    * Every genuine user prompt thereafter, envelopes EXCLUDED. This is what
+      keeps ADV-9 closed: a Lead's own first prompt occupies position one, so a
+      peer message arriving MID-SESSION can never rename it.
+
+    An envelope is the brief only where the brief actually appears. Anywhere
+    else it is an inbound peer message, and the two are told apart by where they
+    sit rather than by what they contain.
+    """
+    gate = getattr(_rc, "_gate", None)
+    if gate is None:  # pragma: no cover - helpers unavailable
+        return []
+    ordered = list(head_records or []) + list(records or [])
+    out: list[dict[str, Any]] = []
+    for rec in ordered:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            role = gate._role(rec)
+        except Exception:  # pragma: no cover - defensive
+            continue
+        if role == "user":
+            out.append(rec)  # position one: the brief, envelope allowed
+            break
+    seen = {id(r) for r in out}
+    for rec in _rc._genuine_prompts(ordered):
+        if id(rec) not in seen:
+            out.append(rec)
+            seen.add(id(rec))
+    return out
+
+
 def teammate_name(
     records: list[dict[str, Any]],
     head_records: list[dict[str, Any]] | None = None,
@@ -565,15 +625,9 @@ def teammate_name(
 ) -> str | None:
     """The teammate's name from its ``CT6-TEAMMATE`` spawn brief, or None.
 
-    Only GENUINE user prompts are searched, via ``run_continuity._genuine_prompts``.
-
-    ADV-9: an earlier version scanned every ``role: user`` record, which
-    included ``<teammate-message>`` PEER envelopes — so a Lead that received one
-    message carrying the token could adopt that peer's name as its own owner
-    scope and shrink its obligations to the peer's lane. ``_genuine_prompts``
-    already excludes peer envelopes (the same exclusion v3.55.x applied to the
-    skill gate's anchor), and excluding assistant records with it keeps the
-    Lead's own quoted briefs from naming it either.
+    Searched: the FIRST inbound record (a peer envelope is honoured there), plus
+    every genuine user prompt. See :func:`_identity_records` for why position is
+    the discriminator.
 
     The head slice is searched first because the brief lives at the transcript
     head; ``truncated`` is accepted for signature symmetry with
@@ -586,7 +640,7 @@ def teammate_name(
     gate = getattr(_rc, "_gate", None)
     if gate is None:  # pragma: no cover - helpers unavailable -> stand down
         return None
-    for rec in _rc._genuine_prompts(list(head_records or []) + list(records or [])):
+    for rec in _identity_records(records, head_records):
         try:
             text = gate._text(rec)
         except Exception:  # pragma: no cover - defensive
@@ -601,19 +655,20 @@ def _has_teammate_token(
     records: list[dict[str, Any]],
     head_records: list[dict[str, Any]] | None = None,
 ) -> bool:
-    """True when a GENUINE user prompt carries the ``CT6-TEAMMATE`` token.
+    """True when this session's spawn brief carries the ``CT6-TEAMMATE`` token.
 
     ADV-8: this — not ``run_continuity.is_teammate_transcript`` — is what
     authorizes a standdown. That detector also classifies on a >= 1500-char
     first prompt mentioning ``.architect-team``, a shape the USER's own long
     prompts hit; standing down on it let a long prompt silently disable the
-    whole gate. Same ``_genuine_prompts`` basis as :func:`teammate_name`, so a
-    peer envelope cannot forge the token either.
+    whole gate. Shares :func:`_identity_records` with :func:`teammate_name`, so
+    a teams-mode brief is recognized in position one while a mid-session peer
+    envelope can forge neither the token nor a name.
     """
     gate = getattr(_rc, "_gate", None)
     if gate is None:  # pragma: no cover - helpers unavailable
         return False
-    for rec in _rc._genuine_prompts(list(head_records or []) + list(records or [])):
+    for rec in _identity_records(records, head_records):
         try:
             text = gate._text(rec)
         except Exception:  # pragma: no cover - defensive
