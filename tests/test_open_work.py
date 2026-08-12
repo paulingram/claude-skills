@@ -893,6 +893,52 @@ def test_an_ordinary_session_with_only_a_directive_is_not_blocked(
     assert r["reasons"] == [] and r["killswitch"] is None
 
 
+def test_a_fresh_unrelated_repo_is_left_byte_untouched(tmp_path: Path) -> None:
+    """F-F. Typing one request into any repo wrote CT6 state into it — the
+    directory AND the ledger file. Defensible while the ledger blocked and
+    tail-cap accumulation was load-bearing; not defensible once it is advisory,
+    because an advisory listing holds nothing and a directive that scrolls out
+    of the window was never going to block anything."""
+    r = ow.evaluate_completion_lock(tmp_path, "", [_user("fix the flaky login test")])
+
+    assert list(tmp_path.iterdir()) == [], (
+        "a repo that has never seen CT6 must be left with no directory and no file"
+    )
+    assert r["blocked"] is False
+    assert [e["text"] for e in r["advisory_asks"]] == ["fix the flaky login test"], (
+        "still derived and surfaced — in memory, just not written to disk"
+    )
+
+
+def test_a_ct6_workspace_still_persists_and_accumulates(tmp_path: Path) -> None:
+    """The other side of F-F: where `.architect-team/` already exists the
+    directory is not new pollution, so persistence — and with it the tail-cap
+    accumulation property — is unchanged."""
+    (tmp_path / ".architect-team").mkdir()
+
+    ow.evaluate_completion_lock(tmp_path, "", [_user("Add the migration.")])
+    assert ow.ledger_path(tmp_path).exists(), "a CT6 workspace still persists"
+
+    # A later pass whose slice cannot see the first turn must not lose it.
+    ow.evaluate_completion_lock(tmp_path, "", [_user("Bump the version to 3.56.0.")])
+    texts = [e["text"] for e in ow.open_ledger_entries(tmp_path)]
+    assert "Add the migration." in texts, "accumulation survives the tail cap"
+    assert "Bump the version to 3.56.0." in texts
+
+
+def test_opting_into_blocking_restores_persistence_anywhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The asymmetry is safe in the direction that matters: the moment the
+    ledger can refuse a stop, accumulation is load-bearing again and the file
+    comes back, even in a workspace CT6 has never touched."""
+    monkeypatch.setenv(ow.LEDGER_BLOCKING_ENV, "1")
+    r = ow.evaluate_completion_lock(tmp_path, "", [_user("Add the migration.")])
+
+    assert ow.ledger_path(tmp_path).exists()
+    assert r["blocked"] is True and len(r["open_asks"]) == 1
+
+
 def test_an_advisory_ask_cannot_drag_in_the_turn_output_rule(tmp_path: Path) -> None:
     """The proxy-block hole: if source 3 keyed on asks BEFORE the demotion, the
     ledger would keep blocking through the very rule it was demoted out of."""
@@ -979,13 +1025,15 @@ def test_evaluate_accumulates_the_ledger_from_the_transcript(tmp_path: Path) -> 
     """Registration is involuntary: the entry comes from the harness-written
     transcript, not from a call the agent could decline to make.
 
-    SUPERSEDED IN PART (v3.56.0): this test's point is RECORDING, which is
-    unchanged — the ledger still registers everything and still persists it. The
-    blocking assertion moved to the opt-in test; demoting the ledger to advisory
-    weakened what it DOES with an entry, never whether it captures one."""
+    SUPERSEDED TWICE (v3.56.0): the blocking assertion moved to the opt-in test
+    when the ledger became advisory, and the durability assertion now needs a
+    CT6 workspace, because F-F stopped writing the file into repos that have
+    never seen CT6. What is unchanged, and what this test is actually for, is
+    RECORDING: derivation is involuntary and captures the directive either way."""
+    (tmp_path / ".architect-team").mkdir()
     r = ow.evaluate_completion_lock(tmp_path, "", [_user("Add the changelog entry.")])
     assert [e["text"] for e in r["advisory_asks"]] == ["Add the changelog entry."]
-    assert ow.ledger_path(tmp_path).exists(), "the entry is durable on disk"
+    assert ow.ledger_path(tmp_path).exists(), "durable in a CT6 workspace"
     assert [e["text"] for e in ow.open_ledger_entries(tmp_path)] == [
         "Add the changelog entry."
     ], "still open in the store — advisory changes the verdict, not the record"

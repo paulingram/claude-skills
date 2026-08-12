@@ -542,6 +542,44 @@ def test_advisory_directives_are_still_named_when_a_task_blocks(
     )
 
 
+def test_block_never_teaches_the_agent_its_own_release_path(
+    script: Path, workspace: Path, tasks_root: Path
+) -> None:
+    """F-A (independent review). The block used to read 'an ask-ledger entry
+    closes by recording its resolution WITH evidence (see .../open_work.py,
+    resolve_ledger_entry)', and the reviewer executed that path end to end:
+    blocked at exit 2, ran the named CLI with --evidence "done", stopped again
+    at exit 0. A gate that prints its own bypass, releasable by a free-text
+    string nothing verifies, is the self-asserted exit this change exists to
+    remove -- and the PreToolUse arm does not cover it, because that arm guards
+    Edit/Write/NotebookEdit on the ledger file, not a Bash call to the CLI.
+
+    The CLI is the HUMAN's surface and stays documented for them. What must
+    never happen is the gate handing it to the agent at the moment it is trying
+    to leave. Asserted across every shape that can produce a block, because the
+    absence of this test is why the string survived a review cycle."""
+    _write_task(tasks_root, "1", "pending", subject="wire the export button")
+    _write_ledger(workspace, "also add a CSV download")
+    shapes = (
+        ({}, "task blocking, ledger advisory"),
+        ({ow.LEDGER_BLOCKING_ENV: "1"}, "ledger opted into blocking"),
+        ({ow.DISABLE_TASKS_ENV: "1", ow.LEDGER_BLOCKING_ENV: "1"}, "ledger blocking alone"),
+    )
+    for env_extra, label in shapes:
+        r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION},
+                      env_extra=env_extra)
+        assert r.returncode == 2, f"{label}: expected a block; stderr={r.stderr!r}"
+        assert "resolve_ledger_entry" not in r.stderr, (
+            f"{label}: the block must not name the release entry point"
+        )
+        assert "open_work.py" not in r.stderr, (
+            f"{label}: the block must not hand the agent the substrate path"
+        )
+        # The legitimate release paths are still stated, so removing the bypass
+        # did not leave the reader with no way out.
+        assert ow.DISABLE_ENV in r.stderr, f"{label}: the kill-switch must still be named"
+
+
 def test_control_advisory_mention_disappears_with_the_ledger_switch(
     script: Path, workspace: Path, tasks_root: Path
 ) -> None:

@@ -538,6 +538,30 @@ def derive_ledger_entries(records: list[dict[str, Any]]) -> list[dict[str, Any]]
     return entries
 
 
+def _ledger_should_persist(root: str | Path) -> bool:
+    """True when writing the ledger to disk can actually matter (F-F).
+
+    Persistence exists for ONE reason: ``load_transcript_slices`` is tail-capped,
+    so a blocking ledger must accumulate or it silently under-reports on long
+    sessions. Two conditions make that worth a file, and nothing else does:
+
+    * the blocking opt-in is set — the ledger can refuse a stop, so accumulation
+      is load-bearing again; or
+    * ``.architect-team/`` already exists — a CT6-touched workspace, where the
+      directory is not new pollution.
+
+    Otherwise typing one request into an unrelated repo wrote CT6 state into it.
+    That was arguable while the ledger blocked; once it is advisory the file buys
+    nothing and just litters the filesystem. Note this is also what keeps
+    ``run_continuity._atomic_write_json``'s ``parent.mkdir(parents=True)`` from
+    creating the directory as a side effect — the write is never reached rather
+    than the shared writer being special-cased.
+    """
+    if ledger_blocking():
+        return True
+    return (Path(root) / _rc.STATE_DIRNAME).is_dir()
+
+
 def _write_ledger(root: str | Path, ledger: dict[str, Any]) -> bool:
     # RD-7: the run_continuity tmp-then-replace path, not a second write path.
     return _rc._atomic_write_json(ledger_path(root), ledger)
@@ -878,8 +902,19 @@ def evaluate_completion_lock(
     # USER's directives, which a worker has no power to resolve.
     if not ledger_disabled() and not is_teammate:
         try:
-            accumulate_ledger(root, derive_ledger_entries(records))
-            open_asks = open_ledger_entries(root)
+            derived = derive_ledger_entries(records)
+            if _ledger_should_persist(root):
+                accumulate_ledger(root, derived)
+                open_asks = open_ledger_entries(root)
+            else:
+                # Advisory-only in a workspace CT6 has never touched: derive in
+                # memory and write NOTHING. Persistence exists to protect the
+                # tail-cap window, and an advisory listing is holding nothing —
+                # a directive that scrolls out was never going to block. No
+                # store can exist here either (the ledger lives inside the
+                # directory whose absence put us on this branch), so the
+                # in-memory list IS the complete listing.
+                open_asks = [e for e in derived if _entry_is_open(e)]
         except LedgerUnreadable as exc:
             result["unreadable"].append(
                 {"path": str(ledger_path(root)), "reason": str(exc).rsplit(": ", 1)[-1]}
