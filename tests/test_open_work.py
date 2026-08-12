@@ -804,6 +804,59 @@ def test_prose_containing_a_pipe_or_hash_is_not_a_table_or_heading(tmp_path: Pat
     assert r["narrative"] is False, f"unexpected markers: {r['markers']}"
 
 
+_SNIPPET = "```\nline one of output\nline two of output\nline three\n```"
+
+
+def test_a_state_line_with_a_code_snippet_is_not_a_narrative(tmp_path: Path) -> None:
+    """T4 — and this one is MINE, introduced by the T2 ceiling rather than
+    inherited. Before T2 this shape measured `lines=5, markers=[],
+    narrative=False`; the ceiling counts every non-empty line including the
+    fences and the snippet body, so the same turn became 6 lines and tripped.
+
+    A status update carrying a snippet is an ordinary shape and blocking it is
+    exactly the 'blocked for shit reasons' the whole stretch exists to stop.
+    Code is not report prose, so fenced content does not feed the line arms."""
+    for n in (3, 5, 8):
+        body = "\n".join(f"line {i} of output" for i in range(n))
+        r = ow.classify_turn_output(f"Still on T-1.\n```\n{body}\n```")
+        assert r["narrative"] is False, f"{n}-line snippet tripped the ceiling"
+
+
+def test_a_marked_state_line_with_a_snippet_is_not_a_narrative(tmp_path: Path) -> None:
+    """The marker-bar sibling of T4: a snippet must not push a ONE-line marked
+    state over the >= 2-line bar either."""
+    r = ow.classify_turn_output(f"**Status:** still on task 1 of 9.\n{_SNIPPET}")
+    assert r["narrative"] is False
+    assert "bold-label" in r["markers"], "still detected, still not decisive"
+
+
+def test_the_ceiling_still_fires_on_a_long_report_containing_a_snippet(
+    tmp_path: Path
+) -> None:
+    """The counter-witness. The failure mode when fixing a false positive is
+    making the rule toothless: a genuine long report does not stop being one
+    because it quotes some output."""
+    report = "\n".join(f"task {i} is pending" for i in range(8))
+    r = ow.classify_turn_output(f"{report}\n{_SNIPPET}")
+    assert r["narrative"] is True, "8 report lines are 8 report lines"
+
+
+def test_an_unclosed_fence_does_not_suppress_markers(tmp_path: Path) -> None:
+    """An agent could otherwise open a fence and never close it, hiding every
+    marker after it — a bulleted summary behind a bare ``` was invisible to the
+    marker arm. An unterminated fence opens nothing."""
+    r = ow.classify_turn_output("Here is the plan.\n```\n- item one\n- item two")
+    assert "bullet" in r["markers"], "an unterminated fence suppresses nothing"
+    assert r["narrative"] is True
+
+
+def test_a_balanced_fence_still_suppresses_markers(tmp_path: Path) -> None:
+    """The other direction: real fenced code must keep its exemption, or every
+    '#' comment in a snippet becomes a heading."""
+    r = ow.classify_turn_output("Ran it.\n```\n# not a heading\n- not a bullet\n```")
+    assert r["markers"] == [], f"unexpected markers: {r['markers']}"
+
+
 def test_fenced_and_indented_code_do_not_create_markers(tmp_path: Path) -> None:
     """A '#' comment inside a code block is not a heading."""
     fenced = ow.classify_turn_output("Ran it.\n```\n# not a heading\n- not a bullet\n```")

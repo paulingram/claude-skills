@@ -344,20 +344,34 @@ def classify_turn_output(text: str) -> dict[str, Any]:
         return {"narrative": False, "reason": "empty turn output",
                 "lines": 0, "markers": []}
 
+    raw_lines = text.splitlines()
+    # An UNTERMINATED fence opens nothing. Otherwise an agent could write a bare
+    # ``` and every marker after it would be invisible to the marker arm — a
+    # bulleted summary hidden behind one line. Only BALANCED delimiters suppress,
+    # so a dangling one is dropped before the scan begins.
+    fence_lines = [i for i, ln in enumerate(raw_lines) if _FENCE_RE.match(ln)]
+    toggles = set(fence_lines[:-1] if len(fence_lines) % 2 else fence_lines)
+    fence_delimiters = set(fence_lines)
+
     line_count = 0
+    prose_lines = 0
     counting_lines = 0
     markers: list[str] = []
     in_fence = False
-    for raw_line in text.splitlines():
+    for index, raw_line in enumerate(raw_lines):
         stripped = raw_line.strip()
         if not stripped:
             continue
         line_count += 1
-        if _FENCE_RE.match(raw_line):
+        if index in toggles:
             in_fence = not in_fence
             continue
-        if in_fence:
-            continue  # a '#' comment inside a code block is not a heading
+        if in_fence or index in fence_delimiters:
+            # T4: code is not report prose. The ceiling and the marker bar count
+            # PROSE lines, not every line — counting fenced content made a
+            # perfectly ordinary status update carrying a three-line snippet
+            # measure 6 lines and trip. `lines` still reports the honest total.
+            continue
         for name, pattern in _MARKER_RULES:
             if pattern.match(raw_line) and name not in markers:
                 markers.append(name)
@@ -378,6 +392,7 @@ def classify_turn_output(text: str) -> dict[str, Any]:
         # marker at >= 2 lines, while this arm needs >= 3, so a marked line can
         # never be the deciding count. A short bullet list is still a narrative
         # — via markers, which is the honest route.
+        prose_lines += 1
         if len(stripped) >= NARRATIVE_MIN_LINE_CHARS:
             counting_lines += 1
 
@@ -397,13 +412,17 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     # `"".join(text.split())`, so the real threshold was ~715 raw characters and
     # a 700-char paragraph slipped at 560 measured. The constant now means what
     # it says.
+    #
+    # Every arm below counts PROSE lines (T4). `line_count` stays the honest
+    # total for reporting; a code block is quoted output, not report structure,
+    # and letting it feed these arms blocked ordinary status updates.
     body = text.strip()
     long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
     # T2 — the ceiling the F6 short-line allowance was missing.
-    too_many_lines = line_count >= NARRATIVE_ABSOLUTE_LINES
+    too_many_lines = prose_lines >= NARRATIVE_ABSOLUTE_LINES
     long_prose = (not long_enough and not too_many_lines
                   and len(body) > NARRATIVE_PROSE_CHARS)
-    marked_report = bool(markers) and line_count >= NARRATIVE_MARKER_LINES
+    marked_report = bool(markers) and prose_lines >= NARRATIVE_MARKER_LINES
     narrative = bool(long_enough or too_many_lines or long_prose or marked_report)
     if narrative:
         bits = []
