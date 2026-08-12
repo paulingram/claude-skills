@@ -558,12 +558,61 @@ def test_read_harness_tasks_honours_the_env_root(
 
 # --- the turn-output classifier: pinned in BOTH directions -------------------
 
-def test_three_non_empty_lines_is_a_narrative(tmp_path: Path) -> None:
-    r = ow.classify_turn_output("Fixed the parser.\nRan the suite.\nAll green.")
+def test_three_substantial_lines_is_a_narrative(tmp_path: Path) -> None:
+    """SUPERSEDED (F6): the old version of this test used three TERSE lines
+    ('Fixed the parser. / Ran the suite. / All green.' — 17/14/10 chars), which
+    measures the same as the F6 false positive it now has to allow. The
+    line-count arm counts SUBSTANTIAL lines, so the pin moves to lines that are
+    actually report-length."""
+    r = ow.classify_turn_output(
+        "I finished the exporter refactor and pushed it.\n"
+        "The full suite is green under both encodings.\n"
+        "I will start on the lineage sidecar next."
+    )
     assert r["narrative"] is True
     assert r["lines"] == 3
     assert r["markers"] == []
     assert r["reason"]
+
+
+def test_a_handful_of_terse_state_lines_is_not_a_narrative(tmp_path: Path) -> None:
+    """F6 — the false positive did not go away when markers stopped deciding,
+    it MOVED to the line-count arm. Three short markerless lines totalling 37
+    non-whitespace characters is a terse state report, which is exactly what
+    the block message asks for. Blocking it is the same wedge in a new place."""
+    r = ow.classify_turn_output("task 2 in progress\ntask 3 pending\nno blockers")
+    assert r["narrative"] is False, (
+        "a terse state report is what the rule ASKS for; refusing it is the "
+        "same loop that made the marker arm unshippable"
+    )
+    assert r["lines"] == 3, "still reported honestly — they just do not COUNT"
+
+
+def test_a_short_bullet_summary_is_still_a_narrative(tmp_path: Path) -> None:
+    """The F6 allowance must not become an F4 hole: a bullet list of short items
+    is a summary, not terse state.
+
+    It is caught by the MARKER arm, not the line-count arm. The first cut also
+    exempted marked lines from the short-line rule; the mutation harness showed
+    that clause was dead — markers already decide at >= 2 lines, while the
+    line-count arm needs >= 3 — so it was removed rather than left as
+    reassuring but inert code."""
+    r = ow.classify_turn_output("- T-1 done\n- T-2 done\n- T-3 next")
+    assert r["narrative"] is True
+    assert "bullet" in r["markers"]
+
+
+def test_two_substantial_markerless_lines_are_not_a_narrative(tmp_path: Path) -> None:
+    """The witness for NARRATIVE_LINE_THRESHOLD itself. Two full report-length
+    lines with no marker sit just under the bar; the terse two-line case cannot
+    pin this any more, because F6's short-line rule now excludes those lines
+    before the threshold is ever consulted."""
+    r = ow.classify_turn_output(
+        "I finished the exporter refactor and pushed it to the branch.\n"
+        "The suite is green under both encodings and I am moving on."
+    )
+    assert r["narrative"] is False and r["markers"] == []
+    assert r["lines"] == 2
 
 
 def test_five_lines_of_plain_prose_is_a_narrative(tmp_path: Path) -> None:
@@ -644,12 +693,13 @@ def test_markers_trip_once_the_turn_is_long_enough(tmp_path: Path) -> None:
     assert r["lines"] == 3
 
 
-def test_a_marked_state_line_is_not_a_narrative(tmp_path: Path) -> None:
-    """INVERTED from `test_markers_trip_below_the_line_threshold` (v3.56.0).
+def test_a_one_line_marked_state_is_never_a_narrative(tmp_path: Path) -> None:
+    """THE ABSOLUTE FLOOR. This is the exact turn that shipped the unbreakable
+    loop — the one line of state the block message demands, carrying a bold
+    label. Whatever else moves in this predicate, this must not.
 
-    That test pinned the opposite of the intended behaviour, and this is the
-    exact turn that shipped the loop — the one-line state the block message asks
-    for, carrying a bold label. It must never trip again."""
+    (The two-line half of the old version of this test was itself a
+    regression — see `test_a_two_line_summary_with_a_marker_trips` below.)"""
     r = ow.classify_turn_output("**Status:** still on task 1 of 9.")
     assert r["narrative"] is False, (
         "the block asks for one line of state; refusing one line of state is a "
@@ -657,21 +707,63 @@ def test_a_marked_state_line_is_not_a_narrative(tmp_path: Path) -> None:
     )
     assert "bold-label" in r["markers"], "still detected, just not decisive"
 
-    two_line = ow.classify_turn_output("Here is where things stand.\n- T-1 done")
-    assert two_line["narrative"] is False and "bullet" in two_line["markers"]
+    for one_liner in ("## Done", "- shipped it", "1. shipped it", "| a | b |"):
+        assert ow.classify_turn_output(one_liner)["narrative"] is False, one_liner
+
+
+@pytest.mark.parametrize("text,marker", [
+    ("Here is where things stand.\n- T-1 done", "bullet"),
+    ("## Summary\nEverything landed.", "heading"),
+    ("| task | state |\n| T-1 | done |", "table-row"),
+    ("**Done:** the exporter\n**Remaining:** the sidecar", "bold-label"),
+    ("Progress:\n1. shipped the exporter", "numbered"),
+])
+def test_a_two_line_summary_with_a_marker_trips(text: str, marker: str) -> None:
+    """F4 — the correction to my correction. Making the length floor dominate
+    removed the unbreakable loop AND most of the enforcement with it: every one
+    of these is unmistakably a report, and every one slipped. The user's
+    reported failure is literally 'every time my turn is about to end, I fill
+    it with a summary', so a two-line summary is THE shape this rule exists to
+    catch. Markers decide at >= 2 lines; the 1-line floor stays absolute."""
+    r = ow.classify_turn_output(text)
+    assert r["narrative"] is True, f"a 2-line {marker} summary must re-block"
+    assert marker in r["markers"]
+    assert r["lines"] == 2
 
 
 def test_a_single_unbroken_paragraph_report_is_a_narrative(tmp_path: Path) -> None:
     """The long-prose arm replaces what markers were really catching: a report
     that just lacks newlines. Line count alone missed it."""
     prose = ("I finished the exporter refactor and then went through the "
-             "lineage sidecar looking for anything that needed to change. " * 10)
-    # The module measures whitespace-STRIPPED length, so the premise is checked
-    # the same way rather than by a proxy that would drift from it.
-    assert len("".join(prose.split())) > ow.NARRATIVE_PROSE_CHARS
+             "lineage sidecar looking for anything that needed to change. " * 6)
+    # F5: the threshold is measured on the RAW text, so the constant means what
+    # it says. It used to measure after whitespace removal, which made the real
+    # threshold ~715 raw chars and let a 700-char paragraph slip at 560 measured.
+    assert len(prose.strip()) > ow.NARRATIVE_PROSE_CHARS
     r = ow.classify_turn_output(prose)
     assert r["narrative"] is True and r["lines"] == 1
     assert str(ow.NARRATIVE_PROSE_CHARS) in r["reason"]
+
+
+def test_the_prose_threshold_is_measured_on_raw_text(tmp_path: Path) -> None:
+    """F5, pinned as an equivalence rather than a vibe: a paragraph just over
+    the constant trips and one just under does not, both measured the way the
+    docstring says they are."""
+    over = "x" * (ow.NARRATIVE_PROSE_CHARS + 20)
+    under = "x" * (ow.NARRATIVE_PROSE_CHARS - 20)
+    assert ow.classify_turn_output(over)["narrative"] is True
+    assert ow.classify_turn_output(under)["narrative"] is False
+
+    # The old whitespace-stripped basis would have measured this UNDER the
+    # constant while the raw text is over it — the exact gap F5 names. 130
+    # four-letter words: 520 stripped, 649 raw.
+    spaced = " ".join("word" for _ in range(130))
+    assert len("".join(spaced.split())) < ow.NARRATIVE_PROSE_CHARS < len(spaced), (
+        "the fixture must straddle the constant, or it pins nothing"
+    )
+    assert ow.classify_turn_output(spaced)["narrative"] is True, (
+        "measured raw, this is over the threshold and is a report"
+    )
 
 
 def test_a_short_paragraph_under_the_prose_cap_is_not_a_narrative(
@@ -858,7 +950,8 @@ def _blank_result_fields(result: dict) -> None:
     # `advisory_asks` joined the contract in v3.56.0 when the ledger became
     # advisory by default — recorded asks still have to surface somewhere.
     assert set(result) == {"blocked", "open_tasks", "open_asks", "advisory_asks",
-                           "unreadable", "turn_output", "reasons", "killswitch"}
+                           "advisory_notes", "unreadable", "turn_output",
+                           "reasons", "killswitch"}
 
 
 def test_open_task_blocks_and_names_the_source_switch(tmp_path: Path) -> None:
@@ -1088,13 +1181,129 @@ def test_unreadable_task_file_blocks_and_is_named(tmp_path: Path) -> None:
     assert "T-9.json" in " ".join(r["reasons"])
 
 
-def test_unreadable_ledger_blocks_and_is_named(tmp_path: Path) -> None:
+def test_an_unreadable_ledger_does_not_block_while_it_is_advisory(
+    tmp_path: Path
+) -> None:
+    """F1 — SUPERSEDES the old `test_unreadable_ledger_blocks_and_is_named`.
+
+    The demotion to advisory never touched the unreadable path, so the advisory
+    source kept exactly one blocking power: being broken. That is the wrong half
+    to keep — pure wedge, zero enforcement value, on the source the user was
+    told is advisory. It degrades to advisory too, loudly."""
     (tmp_path / ".architect-team").mkdir()
     ow.ledger_path(tmp_path).write_text("{corrupt", encoding="utf-8")
+
+    r = ow.evaluate_completion_lock(tmp_path, "", [])
+    assert r["blocked"] is False, "an advisory source cannot wedge a session"
+    assert r["unreadable"] == [], "not a blocking violation while advisory"
+    assert any("ask-ledger.json" in n for n in r["advisory_notes"]), (
+        "surfaced loudly — degraded, not swallowed"
+    )
+
+
+def test_an_unreadable_ledger_still_blocks_when_blocking_is_opted_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other direction: once the ledger can refuse a stop, an unreadable one
+    is unknown state again and REQ-6 applies to it."""
+    (tmp_path / ".architect-team").mkdir()
+    ow.ledger_path(tmp_path).write_text("{corrupt", encoding="utf-8")
+    monkeypatch.setenv(ow.LEDGER_BLOCKING_ENV, "1")
+
     r = ow.evaluate_completion_lock(tmp_path, "", [])
     assert r["blocked"] is True
     assert len(r["unreadable"]) == 1
     assert "ask-ledger.json" in " ".join(r["reasons"])
+
+
+def test_an_unreadable_task_store_always_blocks(tmp_path: Path) -> None:
+    """F1 must not leak into REQ-6: the TASK store is harness-written ground
+    truth, so an unreadable one is unknown state and keeps blocking."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="completed")
+    (tasks / "session-sess1234" / "T-9.json").write_text("{bad", encoding="utf-8")
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", [], tasks_root=tasks)
+    assert r["blocked"] is True and len(r["unreadable"]) == 1
+
+
+def test_an_advisory_note_rides_along_when_something_else_blocks(
+    tmp_path: Path
+) -> None:
+    """Loudly means visible: when the turn IS refused, the degraded ledger is
+    named in the reasons the caller already renders."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="pending")
+    (tmp_path / ".architect-team").mkdir()
+    ow.ledger_path(tmp_path).write_text("{corrupt", encoding="utf-8")
+
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", [], tasks_root=tasks)
+    assert r["blocked"] is True
+    assert r["killswitch"] == ow.DISABLE_TASKS_ENV, "the TASK is the cause"
+    assert any("ask-ledger.json" in line for line in r["reasons"])
+
+
+def test_switching_blocking_on_recovers_the_advisory_period(tmp_path: Path) -> None:
+    """F3 — the persistence transition lost history. Directives arrive advisory
+    in a fresh repo so nothing is written; the window moves; the operator sets
+    the opt-in exactly as the README invites — and the ledger begins at the
+    switch, missing precisely the OLDEST asks. On the first persist pass the
+    head slice is derived too: it is already loaded, already passed in, and it
+    covers the transcript START, which is the region the tail cap loses."""
+    import os
+    early = [_user("Add rate limiting to the login endpoint.",
+                   ts="2026-08-12T09:00:00Z")]
+    later = [_user("Bump the version to 3.56.0.", ts="2026-08-12T18:00:00Z")]
+
+    # Advisory period: nothing is written, by design (F-F).
+    ow.evaluate_completion_lock(tmp_path, "", early)
+    assert not ow.ledger_path(tmp_path).exists()
+
+    # The operator opts in. The early turn has scrolled out of the tail and now
+    # survives only in the head slice.
+    os.environ[ow.LEDGER_BLOCKING_ENV] = "1"
+    try:
+        ow.evaluate_completion_lock(tmp_path, "", later, head_records=early,
+                                    truncated=True)
+    finally:
+        del os.environ[ow.LEDGER_BLOCKING_ENV]
+
+    texts = [e["text"] for e in ow.open_ledger_entries(tmp_path)]
+    assert "Add rate limiting to the login endpoint." in texts, (
+        "the advisory-period directive must survive the switch"
+    )
+    assert "Bump the version to 3.56.0." in texts
+
+
+def test_a_resolved_entry_survives_a_later_pass_that_re_sees_its_turn(
+    tmp_path: Path
+) -> None:
+    """CORRECTED (mutation harness): the first draft of this test claimed to pin
+    the first-pass restriction on the head sweep, and a mutation that swept the
+    head on EVERY pass escaped it. The reason is worth keeping — accumulation
+    unions by id with the STORED side winning, so re-deriving a resolved
+    directive cannot reopen it, whether the sweep runs once or always. So the
+    restriction is a cost guard with no behavioural witness (said plainly in the
+    module), and what this test actually defends is the property that makes it
+    safe: no resurrection."""
+    import os
+    early = [_user("Add rate limiting to the login endpoint.")]
+    os.environ[ow.LEDGER_BLOCKING_ENV] = "1"
+    try:
+        ow.evaluate_completion_lock(tmp_path, "", early)
+        entry_id = ow.read_ledger(tmp_path)["entries"][0]["id"]
+        ow.resolve_ledger_entry(tmp_path, entry_id, evidence="shipped")
+        assert ow.open_ledger_entries(tmp_path) == []
+
+        ow.evaluate_completion_lock(tmp_path, "", [_user("Something else.")],
+                                    head_records=early, truncated=True)
+    finally:
+        del os.environ[ow.LEDGER_BLOCKING_ENV]
+
+    texts = [e["text"] for e in ow.open_ledger_entries(tmp_path)]
+    assert "Add rate limiting to the login endpoint." not in texts, (
+        "a resolved entry must not be resurrected by a head sweep"
+    )
 
 
 def test_turn_output_rule_only_fires_when_open_work_exists(tmp_path: Path) -> None:

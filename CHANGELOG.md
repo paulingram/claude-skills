@@ -25,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 **HONEST BOUNDARY — the gate is not undefeatable and the docs say so.** `TaskUpdate(status="deleted")` unlinks the task file (verified on a live task), so the lock reads a clean-empty dir and releases; deletion is a legitimate harness operation no hook tier can forbid. The ask-ledger partially mitigates it — deleting *lanes* does not erase the user's *asks*. More broadly, an agent with unrestricted `Bash` can write any file, including these records; the guard raises the cost and makes a bypass deliberate and visible rather than accidental. Stated precisely: **an agent can no longer end its turn early by deciding it is finished — it can still end early by destroying the evidence that it is not, which is a louder and far more detectable act than writing a summary.**
 
-Suite **7024 -> 7191 passing + 6 skipped, 0 failed** (+167 tests; 241 top-level test files; both encodings). Skills / agents / commands / Layer-3 tools UNCHANGED (53 / 39 / 25 / 22); hook scripts unchanged at 7; `check_separation` unaffected (26).
+Suite **7024 -> 7205 passing + 6 skipped, 0 failed** (+181 tests; 241 top-level test files; both encodings). Skills / agents / commands / Layer-3 tools UNCHANGED (53 / 39 / 25 / 22); hook scripts unchanged at 7; `check_separation` unaffected (26).
 
 ## [3.55.4] — 2026-08-09 — run-continuity-and-uxtest-spec (the data-eng lane joins run-continuity + the ux-test-builder spec-of-record sheds its stale 3-cycle cap)
 

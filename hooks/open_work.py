@@ -112,7 +112,18 @@ NARRATIVE_LINE_THRESHOLD = 3
 
 #: A turn under this many non-whitespace chars is a state line even on one line.
 #: Above it, an unbroken paragraph is a report that merely lacks newlines.
+#: Measured on the RAW turn text (``len(text.strip())``), so the number means
+#: what it says — it used to be measured after whitespace removal, which put the
+#: real threshold near 715 raw characters (F5).
 NARRATIVE_PROSE_CHARS = 600
+
+#: Markers become decisive at this many non-empty lines. Below it the one-line
+#: floor is absolute: a single marked line is state, not a report (F4).
+NARRATIVE_MARKER_LINES = 2
+
+#: A markerless line shorter than this is terse state and does not count toward
+#: the line threshold (F6). See the measured basis in ``classify_turn_output``.
+NARRATIVE_MIN_LINE_CHARS = 24
 
 #: The ask-ledger is ADVISORY by default and does not block on its own.
 #:
@@ -327,6 +338,7 @@ def classify_turn_output(text: str) -> dict[str, Any]:
                 "lines": 0, "markers": []}
 
     line_count = 0
+    counting_lines = 0
     markers: list[str] = []
     in_fence = False
     for raw_line in text.splitlines():
@@ -340,44 +352,68 @@ def classify_turn_output(text: str) -> dict[str, Any]:
         if in_fence:
             continue  # a '#' comment inside a code block is not a heading
         for name, pattern in _MARKER_RULES:
-            if name not in markers and pattern.match(raw_line):
+            if pattern.match(raw_line) and name not in markers:
                 markers.append(name)
-        if "table-row" not in markers and _is_table_row(stripped):
+        if _is_table_row(stripped) and "table-row" not in markers:
             markers.append("table-row")
+        # F6: a SHORT line is state, not report prose, and must not push a terse
+        # status update over the line-count threshold.
+        # `task 2 in progress / task 3 pending / no blockers` is 3 lines and 37
+        # characters — the shape the block message ASKS for. Measured basis for
+        # the constant: that report's longest line is 18 chars, while the
+        # shortest line of a genuine multi-line report measured here is 25, so
+        # the boundary sits between them with margin on both sides. (The
+        # reviewer suggested ~40; that would have excluded real report lines.)
+        #
+        # This rule deliberately does NOT exempt marked lines. The first cut did
+        # ("a bullet is a summary however short"), and the mutation harness
+        # showed the clause was DEAD: `marked_report` below already fires on any
+        # marker at >= 2 lines, while this arm needs >= 3, so a marked line can
+        # never be the deciding count. A short bullet list is still a narrative
+        # — via markers, which is the honest route.
+        if len(stripped) >= NARRATIVE_MIN_LINE_CHARS:
+            counting_lines += 1
 
-    # A SHORT turn is never a narrative, whatever markers it carries.
+    # Three arms, each catching a shape the others miss.
     #
-    # The first cut OR-ed markers in at any length, which made the rule fire on
-    # `**Status:** still on task 1 of 9.` — one line, the exact terse shape the
-    # block message asks for. The block demanded one line of state and then
-    # re-blocked a one-line state, an unbreakable loop with no exit but a
-    # kill-switch. A marker cannot indicate report STRUCTURE in a turn too short
-    # to have any, so the length floor now dominates and markers are advisory
-    # only (reported, never decisive).
+    # F4 — markers decide again at >= 2 lines. Making the length floor dominate
+    # removed the unbreakable loop and most of the enforcement with it: a 2-line
+    # bullet summary, `## Summary` plus a line, a 2-row table and a
+    # `**Done:** / **Remaining:**` pair all slipped, and every one of them is
+    # unmistakably the "I fill it with a summary" shape this rule exists to
+    # catch. The ONE-LINE FLOOR IS ABSOLUTE and is what the loop fix really
+    # needed: `**Status:** still on task 1 of 9.` is a single line, so markers
+    # never make it a narrative. A marker cannot indicate report STRUCTURE in a
+    # turn too short to have any.
     #
-    # The long-prose arm exists because line count alone missed the other real
-    # shape: a single 600+ char paragraph is a report that happens to lack
-    # newlines.
-    body = "".join(text.split())
-    long_enough = line_count >= NARRATIVE_LINE_THRESHOLD
-    long_prose = line_count < NARRATIVE_LINE_THRESHOLD and len(body) > NARRATIVE_PROSE_CHARS
-    narrative = bool(long_enough or long_prose)
+    # F5 — the prose arm measures RAW text. It used to measure after
+    # `"".join(text.split())`, so the real threshold was ~715 raw characters and
+    # a 700-char paragraph slipped at 560 measured. The constant now means what
+    # it says.
+    body = text.strip()
+    long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
+    long_prose = not long_enough and len(body) > NARRATIVE_PROSE_CHARS
+    marked_report = bool(markers) and line_count >= NARRATIVE_MARKER_LINES
+    narrative = bool(long_enough or long_prose or marked_report)
     if narrative:
         bits = []
         if long_enough:
-            bits.append(f"{line_count} non-empty lines "
+            bits.append(f"{counting_lines} report-length lines "
                         f"(>= {NARRATIVE_LINE_THRESHOLD})")
         if long_prose:
             bits.append(f"{len(body)} chars of unbroken prose "
                         f"(> {NARRATIVE_PROSE_CHARS})")
-        if markers:
+        if marked_report:
+            bits.append(f"{line_count} lines carrying structural markers: "
+                        + ", ".join(markers))
+        elif markers:
             bits.append("structural markers: " + ", ".join(markers))
         reason = "; ".join(bits)
     else:
         reason = (f"{line_count} non-empty line(s), {len(body)} chars - "
                   "short enough to be a state line"
-                  + (f" (markers present but not decisive: {', '.join(markers)})"
-                     if markers else ""))
+                  + (f" (markers present but not decisive at {line_count} "
+                     f"line(s): {', '.join(markers)})" if markers else ""))
     return {"narrative": narrative, "reason": reason,
             "lines": line_count, "markers": markers}
 
@@ -860,6 +896,10 @@ def evaluate_completion_lock(
         # caller when something else blocks, so an outstanding ask is still
         # visible without being the thing that wedges the session.
         "advisory_asks": [],
+        # Degraded-source notes that are NOT refusing the stop (F1). They also
+        # ride along in `reasons` when something else blocks, so a caller that
+        # only renders `reasons` still surfaces them.
+        "advisory_notes": [],
         "turn_output": None, "reasons": [], "killswitch": None,
     }
     if lock_disabled():
@@ -902,8 +942,30 @@ def evaluate_completion_lock(
     # USER's directives, which a worker has no power to resolve.
     if not ledger_disabled() and not is_teammate:
         try:
-            derived = derive_ledger_entries(records)
-            if _ledger_should_persist(root):
+            persist = _ledger_should_persist(root)
+            if persist and head and not ledger_path(root).exists():
+                # F3 — the persistence transition used to lose history. In the
+                # advisory period nothing is written (F-F); when the operator
+                # then sets the opt-in exactly as the README invites, the window
+                # has moved and those directives are unrecoverable — the ledger
+                # would begin at the switch, missing precisely the OLDEST asks.
+                # On the FIRST persist pass the head slice is swept in too: it
+                # is already loaded, already passed in, and it covers the
+                # transcript START, which is the region the tail cap loses.
+                #
+                # Restricted to the first pass as a COST guard, not a
+                # correctness one — and the distinction is worth stating,
+                # because the first draft of this comment claimed a re-sweep
+                # would resurrect resolved entries and the mutation harness
+                # disproved it: accumulation unions by id with the stored side
+                # winning, so a re-derived resolved entry stays resolved. The
+                # guard therefore has no behavioural witness by design; it just
+                # avoids re-deriving the head on every Stop. It also re-arms if
+                # the store is ever deleted, which recovers the entries.
+                derived = derive_ledger_entries(list(head) + list(records))
+            else:
+                derived = derive_ledger_entries(records)
+            if persist:
                 accumulate_ledger(root, derived)
                 open_asks = open_ledger_entries(root)
             else:
@@ -916,10 +978,28 @@ def evaluate_completion_lock(
                 # in-memory list IS the complete listing.
                 open_asks = [e for e in derived if _entry_is_open(e)]
         except LedgerUnreadable as exc:
-            result["unreadable"].append(
-                {"path": str(ledger_path(root)), "reason": str(exc).rsplit(": ", 1)[-1]}
-            )
-            sources.add(DISABLE_LEDGER_ENV)
+            reason = str(exc).rsplit(": ", 1)[-1]
+            if ledger_blocking():
+                # Opted in, so the ledger can refuse a stop and an unreadable
+                # one is unknown state again — REQ-6 applies.
+                result["unreadable"].append(
+                    {"path": str(ledger_path(root)), "reason": reason}
+                )
+                sources.add(DISABLE_LEDGER_ENV)
+            else:
+                # F1 — the demotion never touched this path, so the advisory
+                # source kept exactly one blocking power: being broken. That is
+                # the wrong half to keep — pure wedge, zero enforcement value,
+                # on the source the user was told is advisory. It degrades to
+                # advisory too, surfaced loudly rather than swallowed. The TASK
+                # store is different and still blocks: that one is harness-
+                # written ground truth (REQ-6).
+                result["advisory_notes"].append(
+                    f"the ask-ledger at {ledger_path(root)} could not be read "
+                    f"({reason}) — advisory, so it is NOT refusing this stop; "
+                    f"fix or delete it, or set {LEDGER_BLOCKING_ENV}=1 to make "
+                    f"an unreadable ledger blocking again"
+                )
         else:
             if open_asks:
                 result["open_asks"] = open_asks
@@ -958,7 +1038,9 @@ def evaluate_completion_lock(
     )
     if not result["blocked"]:
         return result
-    result["reasons"] = _block_reasons(result, owner)
+    result["reasons"] = _block_reasons(result, owner) + [
+        f"advisory (not blocking): {note}" for note in result["advisory_notes"]
+    ]
     # Name the switch that actually releases what fired: the precise per-source
     # one when a single source is responsible, the master when several are.
     result["killswitch"] = next(iter(sources)) if len(sources) == 1 else DISABLE_ENV

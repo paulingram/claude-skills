@@ -80,15 +80,29 @@ The token SHALL be resolved from the FIRST inbound record, and an envelope in th
 - **THEN** no teammate name resolves from it and the session remains held on all open tasks
 
 ### Requirement: While work is open the turn output is one line of state, not a narrative
-While the lock finds open work, it SHALL read the last assistant text block from the transcript and SHALL refuse the stop when that turn ended in a narrative report. A turn SHALL be classified as a narrative when it spans three or more lines OR carries a structural marker — a heading, a bullet list, a bold-label block, or a table. A turn of two or fewer lines carrying no structural marker SHALL NOT be classified as a narrative. The refusal SHALL state the rule so the next turn can comply.
+While the lock finds open work, it SHALL read the last assistant text block from the transcript and SHALL refuse the stop when that turn ended in a narrative report. The refusal SHALL state the rule so the next turn can comply.
 
-#### Scenario: A formatted report while items are open is refused
-- **WHEN** open work exists and the last assistant text block carries a heading or bullet list
+**A single line is NEVER a narrative, whatever markers it carries.** This floor is absolute and is the requirement's most important clause: an earlier revision made markers decisive at any length, so `**Status:** still on task 1 of 9.` — one line, the exact terse shape the refusal demands — was itself refused. The gate asked for one line of state and then rejected one, an unbreakable loop whose only exit was a kill-switch. A marker cannot indicate report *structure* in a turn too short to have any.
+
+Above that floor a turn SHALL be classified as a narrative when it carries a structural marker (a heading, a bullet or numbered list item, a bold-label block, or a table row) OR spans enough substantive lines OR runs to enough unbroken prose to be a report that merely lacks newlines. The reported failure is *"every time my turn is about to end, I fill it with a summary"*, so a **two-line summary is exactly the shape this rule exists to catch** and MUST NOT be exempted by line count alone. Conversely a short, markerless state report SHALL NOT be classified as a narrative on line count alone — a rule that fires on a terse status update gets switched off, which is the same as not shipping it.
+
+The precise thresholds are the implementation's to tune, but BOTH directions SHALL be pinned by tests, because every revision of this rule so far has fixed one direction by breaking the other.
+
+#### Scenario: A one-line state report carrying a marker is allowed
+- **WHEN** open work exists and the last assistant text block is the single line `**Status:** still on task 1 of 9.`
+- **THEN** the turn-output rule contributes no block
+
+#### Scenario: A two-line formatted summary while items are open is refused
+- **WHEN** open work exists and the last assistant text block is a two-line summary carrying a heading, bullet list, bold-label block, or table
 - **THEN** the stop is refused and the message states the one-line-of-state rule
 
-#### Scenario: A terse two-line status update is not a narrative
-- **WHEN** open work exists and the last assistant text block is two lines with no heading, bullet, bold-label block, or table
+#### Scenario: A terse markerless status report is not a narrative
+- **WHEN** open work exists and the last assistant text block is a handful of short markerless state lines
 - **THEN** the turn-output rule contributes no block
+
+#### Scenario: An unbroken paragraph report is a narrative
+- **WHEN** open work exists and the last assistant text block is a single paragraph long enough to be a report that merely lacks newlines
+- **THEN** the stop is refused
 
 ### Requirement: An own-code crash fails open but an unreadable source blocks
 An unexpected exception raised inside the completion lock's own code SHALL allow the stop, matching the existing fail-open contract of the hook's top-level handler, so a bug in this code can never wedge a session. A source the lock was asked to read but could not — a malformed task JSON, an unreadable ledger, a permissions error — SHALL NOT be silently treated as empty; it SHALL block and the message SHALL name the source it could not read.

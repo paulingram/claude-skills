@@ -26,7 +26,7 @@
      "Per-source independence: setting the ledger switch leaves the task-list source enforcing (test)"]},
   {"source_requirement_id": "REQ-3-ask-ledger-durable", "spec_requirement_id": "turn-boundary-completion-lock/The ask-ledger is derived from the transcript and accumulates durably", "layer": "infra", "team": "lock-core",
    "acceptance_criteria": [
-     "An unresolved ledger entry blocks the stop even when the harness task list is EMPTY (test)",
+     "REVERSED (advisory default): an unresolved ledger entry does NOT block on its own — it is surfaced as advisory while another source holds the turn. Only a source that can verify its own release condition may refuse a stop, and the ledger knows a directive was GIVEN, never that it was MET. With CT6_ASK_LEDGER_BLOCKING=1 an unresolved entry blocks even when the task list is EMPTY (test both channels)",
      "TAIL-CAP TEST: a stored entry whose originating turn is NOT in the available transcript slice still counts as open and still blocks — re-derivation is purely additive and never removes or reopens a stored entry (the test that matters most; without it the ledger silently under-reports on long sessions)",
      "Entries derive from harness-written transcript prompts, NOT a model-initiated registration call; an ambiguous entry stays OPEN (conservative resolution; over-blocking fails safe)",
      "Ledger writes use the atomic tmp-then-replace pattern (run_continuity.py:282), stored at .architect-team/ask-ledger.json"]},
@@ -38,8 +38,11 @@
      "The token resolves from the FIRST inbound record and an envelope in that position is accepted (a teams-mode spawn brief arrives wrapped in <teammate-message>, so a _genuine_prompts-only read wedges every teams-mode teammate — N1); a token in a LATER mid-session peer envelope resolves nothing, so an orchestrator cannot adopt a peer's identity (ADV-9). Both directions need a failing witness"]},
   {"source_requirement_id": "REQ-5-turn-output-rule", "spec_requirement_id": "turn-boundary-completion-lock/While work is open the turn output is one line of state, not a narrative", "layer": "infra", "team": "lock-core",
    "acceptance_criteria": [
-     "TRIPS: open work + a last assistant text block that is >=3 non-empty lines OR carries a heading / bullet or numbered item / **Label:** block / table row -> re-blocks, message states the rule (test each marker kind)",
-     "DOES NOT TRIP: a one-line state output, and a two-line marker-free terse status update (test BOTH — a rule that never fires is decoration; a rule that fires on a terse update gets disabled)",
+     "ABSOLUTE FLOOR: a ONE-LINE turn is never a narrative whatever markers it carries. `**Status:** still on task 1 of 9.` must NOT trip — an earlier revision made markers decisive at any length and the gate refused the exact shape its own message demands, an unbreakable loop (pin this by name)",
+     "TRIPS above the floor: a TWO-line summary carrying a heading / bullet or numbered item / **Label:** block / table row -> re-blocks. The reported failure is 'I fill it with a summary', so a 2-line summary is the shape this rule exists to catch and must not be exempted by line count (test each marker kind at >=2 lines)",
+     "TRIPS: an unbroken single-paragraph report long enough to be a report that merely lacks newlines -> re-blocks (pin the measured basis, raw vs whitespace-stripped, so the threshold means what it says)",
+     "DOES NOT TRIP: a handful of SHORT markerless state lines -> allowed. A rule that fires on a terse status update gets switched off, which is the same as not shipping it",
+     "BOTH directions pinned for every arm: every revision of this rule so far has fixed one direction by breaking the other",
      "classify_turn_output is a pure function over a string with no I/O (exhaustively unit-testable); reads the last assistant text block via the reused run_continuity transcript reader"]},
   {"source_requirement_id": "REQ-6-split-failure-semantics", "spec_requirement_id": "turn-boundary-completion-lock/An own-code crash fails open but an unreadable source blocks", "layer": "infra", "team": "lock-wiring",
    "acceptance_criteria": [
