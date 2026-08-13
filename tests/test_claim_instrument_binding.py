@@ -841,3 +841,52 @@ def test_each_rule_is_killed_by_its_mutation(
         f"disabled, so that test is not evidence the rule works.\n"
         f"{r.stdout[-4000:]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# R6 tree-scope detection — verb forms (v3.59.1)
+# ---------------------------------------------------------------------------
+#
+# Found by probing the SHIPPED tool against corpus case 4, the one the
+# orchestrator of the v3.59.0 run had personally produced six times. The marker
+# required `passed|passing|failed|failing`, so the most natural phrasing of a
+# suite-count claim — "7360 tests pass" — did not register as tree-scoped and
+# R6 never ran. The CHANGELOG sentence for that very release is written in the
+# missed form.
+#
+# Both directions matter here more than usual: R6 emits a GAP, not a note, so a
+# marker widened carelessly would demand a quiescence bracket from claims that
+# are not whole-tree measurements at all.
+
+import pytest as _pytest
+from hooks.vao.claim_binding import _claim_is_tree_scoped as _tree_scoped
+
+
+@_pytest.mark.parametrize("statement", [
+    "7360 tests pass at this release",
+    "7360 tests pass",
+    "7360 tests are passing",
+    "7360 tests were passing",
+    "1200 tests fail",
+    "7360 passed / 0 failed",
+    "7360 tests passed",
+    "the full suite is green",
+    "all tests pass",
+    "every test passes",
+])
+def test_suite_count_phrasings_are_tree_scoped(statement: str) -> None:
+    """Natural phrasings of a whole-tree measurement must trip R6."""
+    assert _tree_scoped({"statement": statement}) is True, statement
+
+
+@_pytest.mark.parametrize("statement", [
+    "the parser rejects a malformed header",
+    "300 users pass validation on signup",
+    "the retry budget is 3 attempts",
+    "12 rows were written to the ledger",
+    "the guard blocks a hardlink alias",
+])
+def test_non_tree_claims_are_not_tree_scoped(statement: str) -> None:
+    """A claim that is not a whole-tree measurement must NOT be forced to carry
+    a quiescence bracket. R6 blocks, so over-firing here costs real runs."""
+    assert _tree_scoped({"statement": statement}) is False, statement

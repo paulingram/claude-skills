@@ -233,7 +233,17 @@ _TREE_SCOPE_MARKERS: tuple[str, ...] = (
     r"(?i)\bacross\s+the\s+(?:repo|repository|codebase|tree)\b",
     r"(?i)\bthe\s+suite\s+is\s+green\b",
     r"(?i)\bwhole\s+(?:repo|repository|codebase|tree)\b",
-    r"(?i)(?<![\w.])\d{3,}\s+(?:tests?\s+)?(?:passed|passing|failed|failing)\b",
+    # v3.59.1 — the verb set was `passed|passing|failed|failing`, which missed
+    # the most natural phrasing of a suite-count claim: "7360 tests pass". The
+    # v3.59.0 CHANGELOG sentence announcing this very tool is written in the
+    # missed form, so R6 would not have run on the claim it exists to bind.
+    # `are|were` is allowed between the count and the participle for the same
+    # reason. The optional `tests?` still gates the match, so "300 users pass
+    # validation" does NOT register — R6 emits a GAP, and a marker widened past
+    # whole-tree measurements would demand a quiescence bracket from claims that
+    # never needed one.
+    r"(?i)(?<![\w.])\d{3,}\s+(?:tests?\s+)?(?:are\s+|were\s+)?"
+    r"(?:pass(?:es|ed|ing)?|fail(?:s|ed|ing)?)\b",
 )
 
 

@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.59.1` — tree-scope-verb-forms
 - `v3.59.0` — wrong-instrument-verification
 - `v3.58.0` — credit-failover-to-login
 - `v3.57.0` — completion-lock-followups
@@ -151,6 +152,24 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.59.1  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.59.1 — tree-scope-verb-forms: the new tool missed the phrasing its own release notes used
+
+A PATCH found by probing the **shipped** v3.59.0 tool against the corpus it was built for — specifically corpus case 4, the moving tree, which is the failure this repo's orchestrator had personally produced six times.
+
+R6 (a whole-tree measurement must pin the tree it measured) is gated behind a tree-scope detector that reads the claim's own sentence. Its verb set was `passed | passing | failed | failing` — so **"7360 tests pass"**, the most natural phrasing of a suite-count claim, did not register as tree-scoped and R6 never ran. The v3.59.0 CHANGELOG sentence announcing the tool is written in the missed form. Three phrasings missed: `7360 tests pass`, `7360 tests pass at this release`, `7360 tests are passing`.
+
+Widened to `pass | passes | passed | passing | fail | fails | failed | failing`, with an optional `are | were` between the count and the participle. The optional `tests?` gate is retained deliberately: R6 emits a **gap**, not a note, so a marker widened past whole-tree measurements would start demanding a quiescence bracket from claims that never needed one — `300 users pass validation` must stay out, and a both-directions test pins that it does.
+
+Witnessed in both directions by mutation with a sha256 delta and exit-code classification: reverting the verb set turns the new pins red, and dropping the `tests?` gate turns the over-fire pins red.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

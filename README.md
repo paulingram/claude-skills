@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 59 . 0
+                        ─── C T 6 ───   v 3 . 59 . 1
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.59.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.59.1-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-7222%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -77,23 +77,19 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.59.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.59.1  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.59.0 — wrong-instrument-verification: the borrowed green, named and mechanized
+### v3.59.1 — tree-scope-verb-forms: the new tool missed the phrasing its own release notes used
 
-A user forwarded an agent's own postmortem after five of its claims were corrected in a single run: *"my errors this run were never in the code, they were in reporting something as verified that I'd checked with the wrong instrument."*
+A PATCH found by probing the **shipped** v3.59.0 tool against the corpus it was built for — specifically corpus case 4, the moving tree, which is the failure this repo's orchestrator had personally produced six times.
 
-That diagnosis is exact, and the failure is narrower than carelessness. In every case the check **ran**, was **green**, read **real output**, and could fail in general. It simply could not have come out differently if the claim had been false. The name this release gives it is **the borrowed green** — a real check's real green, lent to a claim the check never measured.
+R6 (a whole-tree measurement must pin the tree it measured) is gated behind a tree-scope detector that reads the claim's own sentence. Its verb set was `passed | passing | failed | failing` — so **"7360 tests pass"**, the most natural phrasing of a suite-count claim, did not register as tree-scoped and R6 never ran. The v3.59.0 CHANGELOG sentence announcing the tool is written in the missed form. Three phrasings missed: `7360 tests pass`, `7360 tests pass at this release`, `7360 tests are passing`.
 
-**Principle 7 sharpened, not an eighth principle.** Every witness satisfies principle 7's current letter — each check ran and was read — so the gap was in the letter, not the coverage. Principle 7 gains one clause: *a green check is evidence for what it measures, never for what you asserted*. A fourth Evidence-integrity sub-rule, **A green check proves what it measured**, carries the operational rule: name the instrument, then state the different result it would have shown had the claim been false *of the object the claim names*. "The same green" and "I can't say" both mean you verified nothing. For a new guard, don't state the counterfactual — execute it once, with proof the falsification landed.
+Widened to `pass | passes | passed | passing | fail | fails | failed | failing`, with an optional `are | were` between the count and the participle. The optional `tests?` gate is retained deliberately: R6 emits a **gap**, not a note, so a marker widened past whole-tree measurements would start demanding a quiescence bracket from claims that never needed one — `300 users pass validation` must stay out, and a both-directions test pins that it does.
 
-**The finding that changed the fix.** The instinctive change was a new ETHOS section. Measurement showed it would have reached nobody: 39/39 agents carry principle 7's compiled one-liner, 39/39 carry the sub-rules as clauses inside it, and **0/39 carry any sub-rule heading**. A section in `docs/ETHOS.md` is read by a human maintainer and by nothing in the runtime. Shipping it and declaring the principle live would have been a textbook borrowed green — so the clause went on the compiled surface, and delivery was verified by counting the agents that actually carry the new text.
-
-**The 23rd Layer-3 tool.** `verify-claim-instrument-binding` asks the question neither half of `verify-check-can-fail` asks. Claims are **agent-authored**, never inferred from existing evidence — inferring what was asserted would reproduce the defect one level up, measuring a reconstructed claim instead of the claim made. It refuses a mutation whose sha256 shows the file never changed, a witness whose mutated run stayed green, and a measurement whose tree moved underneath it. Where binding is genuinely undecidable it emits a **note, never a gap**, because a Layer-3 tool that blocks on a heuristic gets its kill-switch set.
-
-**Shipped honestly.** Two of the defects fixed in this release were produced *while building it*: a probe that returned identical output for `pass`, `fail` and `garbage` because 15 required fields short-circuited it first, and a schema field registered in the optional-field list and nowhere else — inert, enforcing nothing. Both were caught by building a probe that could discriminate, which is the whole discipline.
+Witnessed in both directions by mutation with a sha256 delta and exit-code classification: reverting the verb set turns the new pins red, and dropping the `tests?` gate turns the over-fire pins red.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
