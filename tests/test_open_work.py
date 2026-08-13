@@ -1815,3 +1815,112 @@ def test_teammate_is_not_held_for_the_users_ledger_asks(tmp_path: Path) -> None:
     assert r["blocked"] is False
     assert r["open_asks"] == [] and r["turn_output"] is None
 
+
+
+# ---------------------------------------------------------------------------
+# The classifier characterization corpus (v3.57.0)
+# ---------------------------------------------------------------------------
+#
+# The follow-ups doc asked for the `prose_lines` / `line_count` naming trap to be
+# closed, on the grounds that one was load-bearing and the other cosmetic. That
+# premise turned out to be STALE: T4 made the arms count unfenced lines and
+# `line_count` reporting-only, then G1 put the ceiling arm back on the FULL
+# count -- so by v3.56.0 all three counters were load-bearing and the comment
+# saying otherwise was false. A reader who trusted it would have concluded one
+# counter was free to substitute, which is T4 exactly.
+#
+# The rename alone cannot prevent that recurring. This corpus can: it pins the
+# FULL verdict of every arm across 40 turn shapes, so any future edit that moves
+# a verdict -- by substituting a counter, retuning a threshold, or "simplifying"
+# two arms into one -- goes red with the shape that moved named in the failure.
+#
+# The golden values were captured from the v3.56.0 classifier at 9750728 and
+# verified identical after the rename: 40 inputs, 0 mismatches. They are a
+# behavioural snapshot, NOT an aspiration -- a deliberate rule change updates
+# them in the same commit that argues for the change.
+CLASSIFIER_CORPUS = [
+    # (name, text, expected_narrative, expected_lines, expected_markers_sorted)
+    ('empty', '', False, 0, []),
+    ('blank_spaces', '   ', False, 0, []),
+    ('blank_newlines', '\n\n', False, 0, []),
+    ('one_word', 'Done.', False, 1, []),
+    ('one_line_marked', '**Status:** on task 1 of 9.', False, 1, ['bold-label']),
+    ('one_bullet', '- one bullet', False, 1, ['bullet']),
+    ('unicode_bullets_2', '• built it\n• tests green', True, 2, ['bullet']),
+    ('ascii_bullets_2', '- built it\n- tests green', True, 2, ['bullet']),
+    ('signoff_only', 'Working.', False, 1, []),
+    ('state_then_signoff', '**Status:** still going.\nWorking.', True, 2, ['bold-label']),
+    ('narration_3', 'Checking the hooks before the next step.\nChecking the guard before the next step.\nChecking the fixtures before the next step.', False, 3, []),
+    ('markerless_5', 'I finished the a and it is green under both encodings.\nI finished the b and it is green under both encodings.\nI finished the c and it is green under both encodings.\nI finished the d and it is green under both encodings.\nI finished the e and it is green under both encodings.', False, 5, []),
+    ('markerless_6', 'I finished the a and it is green under both encodings.\nI finished the b and it is green under both encodings.\nI finished the c and it is green under both encodings.\nI finished the d and it is green under both encodings.\nI finished the e and it is green under both encodings.\nI finished the f and it is green under both encodings.', True, 6, []),
+    ('markerless_8', 'I finished the a and it is green under both encodings.\nI finished the b and it is green under both encodings.\nI finished the c and it is green under both encodings.\nI finished the d and it is green under both encodings.\nI finished the e and it is green under both encodings.\nI finished the f and it is green under both encodings.\nI finished the g and it is green under both encodings.\nI finished the h and it is green under both encodings.', True, 8, []),
+    ('heading', '# Heading\nbody text here', True, 2, ['heading']),
+    ('table', '| a | b |\n| - | - |', True, 2, ['table-row']),
+    ('numbered', '1. first\n2. second', True, 2, ['numbered']),
+    ('bold_labels', '**Label:** value\n**Other:** value', True, 2, ['bold-label']),
+    ('state_plus_snippet', 'Status.\n```\ncode\nmore code\nthird line\n```', False, 6, []),
+    ('fenced_12', '```\nline 0\nline 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\n```', True, 14, []),
+    ('unclosed_fence', '```\nunclosed fence\nstill going', False, 3, []),
+    ('short_30', 's0\ns1\ns2\ns3\ns4\ns5\ns6\ns7\ns8\ns9\ns10\ns11\ns12\ns13\ns14\ns15\ns16\ns17\ns18\ns19\ns20\ns21\ns22\ns23\ns24\ns25\ns26\ns27\ns28\ns29', True, 30, []),
+    ('short_11', 's0\ns1\ns2\ns3\ns4\ns5\ns6\ns7\ns8\ns9\ns10', False, 11, []),
+    ('short_12', 's0\ns1\ns2\ns3\ns4\ns5\ns6\ns7\ns8\ns9\ns10\ns11', True, 12, []),
+    ('long_prose_750', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', True, 1, []),
+    ('chars_601', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', True, 1, []),
+    ('chars_599', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', False, 1, []),
+    ('mixed_report', '# H\n\n- b1\n- b2\n\nprose line that is quite long indeed yes\n\n| t | u |', True, 5, ['bullet', 'heading', 'table-row']),
+    ('bullets_8', '- item 0 which is a reasonably long bullet line here\n- item 1 which is a reasonably long bullet line here\n- item 2 which is a reasonably long bullet line here\n- item 3 which is a reasonably long bullet line here\n- item 4 which is a reasonably long bullet line here\n- item 5 which is a reasonably long bullet line here\n- item 6 which is a reasonably long bullet line here\n- item 7 which is a reasonably long bullet line here', True, 8, ['bullet']),
+    ('report_then_done', 'Narrative report line one is long enough to count as report length.\nLine two likewise is long enough.\nLine three also.\nDone.', False, 4, []),
+    ('endash_bullets', '– en dash bullet\n– second', True, 2, ['bullet']),
+    ('circle_bullets', '● filled circle\n● second', True, 2, ['bullet']),
+    ('prose_fence_prose', 'text\n```py\n# comment\n- yaml like\n```\ntext', False, 6, []),
+    ('indented_bullets', '  - indented bullet\n  - another', True, 2, ['bullet']),
+    ('one_very_long_line', 'One very long single line yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy', False, 1, []),
+    ('tabs_only', '\t\n\t\n', False, 0, []),
+    ('bold_no_colon', '**Bold** but no colon\nsecond line', False, 2, []),
+    ('h3', '### h3\ncontent', True, 2, ['heading']),
+    ('blockquote', '> quote\n> more quote', False, 2, []),
+    ('report_6', 'Report line 0 long enough to be report length for sure.\nReport line 1 long enough to be report length for sure.\nReport line 2 long enough to be report length for sure.\nReport line 3 long enough to be report length for sure.\nReport line 4 long enough to be report length for sure.\nReport line 5 long enough to be report length for sure.', True, 6, []),]
+
+
+@pytest.mark.parametrize("name,text,want_narrative,want_lines,want_markers", CLASSIFIER_CORPUS)
+def test_classifier_corpus_verdicts_are_pinned(
+    name: str, text: str, want_narrative: bool, want_lines: int, want_markers: list
+) -> None:
+    """Full-verdict pin across 40 turn shapes -- the regression net for any
+    future change to `classify_turn_output`.
+
+    Asserts the whole verdict, not just the boolean: a change that keeps
+    `narrative` while moving `lines` or the marker set has still changed what
+    the block message tells the user, and that is what shipped as T4.
+    """
+    got = ow.classify_turn_output(text)
+    assert got["narrative"] is want_narrative, f"{name}: narrative moved ({got['reason']})"
+    assert got["lines"] == want_lines, f"{name}: reported line count moved"
+    assert sorted(got["markers"]) == want_markers, f"{name}: marker set moved"
+
+
+def test_the_three_counters_are_not_interchangeable() -> None:
+    """The counters genuinely separate -- so substituting one IS a behaviour change.
+
+    This is the claim the renamed counters make in their contract comment, and
+    it has to be measured rather than asserted: if the three were always equal,
+    the "pick by meaning" instruction would be advice about nothing and the next
+    maintainer would rightly ignore it.
+
+    Both separations are proven by exhibiting inputs whose verdicts DIFFER in a
+    way only the respective counter explains.
+    """
+    # all_nonempty vs unfenced: a 12-line fenced block trips the absolute
+    # ceiling only because fenced lines still count toward it (the G1 fix).
+    fenced_12 = "```\n" + "\n".join(f"line {i}" for i in range(12)) + "\n```"
+    assert ow.classify_turn_output(fenced_12)["narrative"] is True
+    # ...while a 3-line fenced snippet beside a state line does NOT trip,
+    # because the marker/report arms exclude fenced content (the T4 fix).
+    assert ow.classify_turn_output("Status.\n```\ncode\nmore\nthird\n```")["narrative"] is False
+
+    # unfenced vs report-length: 30 short lines trip only via the absolute
+    # ceiling, and five report-length lines do not trip at all -- the length
+    # floor is what separates them (F6).
+    assert ow.classify_turn_output("\n".join(f"s{i}" for i in range(30)))["narrative"] is True
+    five = "\n".join(f"I finished the {w} and it is green under both encodings." for w in "abcde")
+    assert ow.classify_turn_output(five)["narrative"] is False

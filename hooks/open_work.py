@@ -116,8 +116,8 @@ LEDGER_FILENAME = "ask-ledger.json"
 #: one-line narration blocks" and fixed by raising the CEILING, which only ever
 #: reached the short-line arm — the class was never fixed and this constant was
 #: the unfixed half. Six report-length lines in one turn is more report than
-#: narration; G3's original short lines are unaffected because `counting_lines`
-#: ignores anything under NARRATIVE_MIN_LINE_CHARS.
+#: narration; G3's original short lines are unaffected because
+#: `report_length_lines` ignores anything under NARRATIVE_MIN_LINE_CHARS.
 NARRATIVE_LINE_THRESHOLD = 6
 
 #: A turn under this many non-whitespace chars is a state line even on one line.
@@ -391,24 +391,51 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     toggles = set(fence_lines[:-1] if len(fence_lines) % 2 else fence_lines)
     fence_delimiters = set(fence_lines)
 
-    line_count = 0
-    prose_lines = 0
-    counting_lines = 0
+    # THREE counters, THREE different arms, and they are NOT interchangeable.
+    # Each name states exactly what it counts, because the last time this
+    # distinction lived in a comment instead of the names, an arm was written
+    # against the wrong counter and shipped (T4). They nest strictly:
+    #
+    #   all_nonempty_lines >= unfenced_lines >= report_length_lines
+    #
+    #   all_nonempty_lines   every non-empty line, FENCED CONTENT INCLUDED.
+    #                        Feeds `too_many_lines` (G1 — a summary hidden in a
+    #                        fence has to register somewhere) and the reported
+    #                        `lines` total. NOT a cosmetic counter.
+    #   unfenced_lines       non-empty lines OUTSIDE fences, any length. Feeds
+    #                        `marked_report` — markers can only be found out
+    #                        here, so this is the count that matches them.
+    #   report_length_lines  unfenced lines of >= NARRATIVE_MIN_LINE_CHARS.
+    #                        Feeds `long_enough`; the length floor is what keeps
+    #                        terse state lines out of the report arm (F6).
+    #
+    # Adding an arm? Pick by what the arm MEANS, not by which name is nearest.
+    # Measured on the classifier's own corpus test: 10 of 40 inputs separate
+    # all_nonempty from unfenced, and 25 of 40 separate unfenced from
+    # report-length. Substituting one for another is a behaviour change.
+    all_nonempty_lines = 0
+    unfenced_lines = 0
+    report_length_lines = 0
     markers: list[str] = []
     in_fence = False
     for index, raw_line in enumerate(raw_lines):
         stripped = raw_line.strip()
         if not stripped:
             continue
-        line_count += 1
+        all_nonempty_lines += 1
         if index in toggles:
             in_fence = not in_fence
             continue
         if in_fence or index in fence_delimiters:
-            # T4: code is not report prose. The ceiling and the marker bar count
-            # PROSE lines, not every line — counting fenced content made a
+            # T4: code is not report prose. Fenced lines are excluded from
+            # `unfenced_lines` and `report_length_lines` — counting them made a
             # perfectly ordinary status update carrying a three-line snippet
-            # measure 6 lines and trip. `lines` still reports the honest total.
+            # measure 6 lines and trip.
+            #
+            # They are deliberately still IN `all_nonempty_lines`, which is
+            # incremented above this branch: G1 put the ceiling arm back on the
+            # full count, because excluding fences everywhere left a summary
+            # wrapped in a fence invisible to every arm but the 600-char one.
             continue
         for name, pattern in _MARKER_RULES:
             if pattern.match(raw_line) and name not in markers:
@@ -430,9 +457,9 @@ def classify_turn_output(text: str) -> dict[str, Any]:
         # marker at >= 2 lines, while this arm needs >= 3, so a marked line can
         # never be the deciding count. A short bullet list is still a narrative
         # — via markers, which is the honest route.
-        prose_lines += 1
+        unfenced_lines += 1
         if len(stripped) >= NARRATIVE_MIN_LINE_CHARS:
-            counting_lines += 1
+            report_length_lines += 1
 
     # Three arms, each catching a shape the others miss.
     #
@@ -451,14 +478,18 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     # a 700-char paragraph slipped at 560 measured. The constant now means what
     # it says.
     #
-    # Every arm below counts PROSE lines (T4). `line_count` stays the honest
-    # total for reporting; a code block is quoted output, not report structure,
-    # and letting it feed these arms blocked ordinary status updates.
+    # Each arm below names the counter it means; see the counter contract at the
+    # top of the loop. This comment previously read "every arm counts PROSE
+    # lines, `line_count` is just for reporting" — TRUE at T4, made FALSE by G1
+    # when the ceiling went back on the full count, and left uncorrected. A
+    # reader who trusted it would conclude one counter was cosmetic and be free
+    # to substitute the other, which is T4 exactly. The names now carry this so
+    # a stale comment cannot mislead the same way twice.
     body = text.strip()
     # H1 — the `long_enough` arm is RETIRED, and this is the sixth revision of
     # this rule, so the reasoning is recorded rather than the change alone.
     #
-    # It fired at `counting_lines >= 3`, where `counting_lines` counts lines of
+    # It fired at `report_length_lines >= 3`, which counts unfenced lines of
     # >= NARRATIVE_MIN_LINE_CHARS (24). G3 was reported as "six one-line
     # narration blocks" and fixed by raising the CEILING 6 -> 12 — which only
     # ever reached the `too_many_lines` arm. The class was never fixed: ordinary
@@ -487,50 +518,63 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     # So the arm is RAISED rather than retired: `NARRATIVE_LINE_THRESHOLD` 3 -> 6.
     # Three narration sentences clear it; six report-length lines in one turn are
     # more report than narration. G3's original six SHORT lines are unaffected,
-    # because `counting_lines` only counts lines of >= NARRATIVE_MIN_LINE_CHARS.
+    # because `report_length_lines` only counts lines of
+    # >= NARRATIVE_MIN_LINE_CHARS.
     #
     # HONEST RESIDUAL, recorded not hidden: a markerless prose report of 3..5
     # report-length lines under 600 chars is allowed. That is the narrowed
     # accepted cost of not blocking ordinary narration — the two shapes genuinely
     # overlap in that band and no threshold separates them.
-    long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
+    long_enough = report_length_lines >= NARRATIVE_LINE_THRESHOLD
     # T2 — the ceiling the F6 short-line allowance was missing.
-    # G1: the ceiling counts EVERY non-empty line, fenced content included.
+    # G1: the ceiling counts EVERY non-empty line, fenced content included —
+    # `all_nonempty_lines`, and this is the ONE arm for which that is correct.
     # Excluding fenced lines from all three arms (T4) left a summary wrapped in
     # a fence invisible to everything but the 600-char arm. Keeping them out of
-    # `counting_lines` is what T4 actually needed; the ceiling is where they
-    # still have to register. HONEST RESIDUAL: with the ceiling raised to 12 for
-    # G3, a fence only reaches it at 12 total lines, so a SHORT fenced summary
-    # still evades. Narrowed, not closed — pinned as such.
-    too_many_lines = line_count >= NARRATIVE_ABSOLUTE_LINES
+    # `report_length_lines` is what T4 actually needed; the ceiling is where
+    # they still have to register. HONEST RESIDUAL: with the ceiling raised to
+    # 12 for G3, a fence only reaches it at 12 total lines, so a SHORT fenced
+    # summary still evades. Narrowed, not closed — pinned as such.
+    too_many_lines = all_nonempty_lines >= NARRATIVE_ABSOLUTE_LINES
     long_prose = (not long_enough and not too_many_lines
                   and len(body) > NARRATIVE_PROSE_CHARS)
-    marked_report = bool(markers) and prose_lines >= NARRATIVE_MARKER_LINES
+    # `unfenced_lines`, NOT `all_nonempty_lines`: a marker can only be matched
+    # outside a fence, so the count that gates it must be the same population.
+    # One unfenced bullet above a four-line snippet is a status update, and
+    # reading 5 here instead of 1 would refuse it.
+    marked_report = bool(markers) and unfenced_lines >= NARRATIVE_MARKER_LINES
     narrative = bool(long_enough or too_many_lines or long_prose or marked_report)
     if narrative:
         bits = []
         if long_enough:
-            bits.append(f"{counting_lines} report-length lines "
+            bits.append(f"{report_length_lines} report-length lines "
                         f"(>= {NARRATIVE_LINE_THRESHOLD})")
         if too_many_lines:
-            bits.append(f"{line_count} lines "
+            bits.append(f"{all_nonempty_lines} lines "
                         f"(>= {NARRATIVE_ABSOLUTE_LINES}, whatever their length)")
         if long_prose:
             bits.append(f"{len(body)} chars of unbroken prose "
                         f"(> {NARRATIVE_PROSE_CHARS})")
         if marked_report:
-            bits.append(f"{line_count} lines carrying structural markers: "
-                        + ", ".join(markers))
+            # Reports the honest TOTAL, not the `unfenced_lines` that decided
+            # the arm — a reason string, not a threshold. Kept verbatim so this
+            # rename stays a pure clarity change; noted rather than silently
+            # "improved".
+            bits.append(f"{all_nonempty_lines} lines carrying structural "
+                        "markers: " + ", ".join(markers))
         elif markers:
             bits.append("structural markers: " + ", ".join(markers))
         reason = "; ".join(bits)
     else:
-        reason = (f"{line_count} non-empty line(s), {len(body)} chars - "
+        reason = (f"{all_nonempty_lines} non-empty line(s), {len(body)} chars - "
                   "short enough to be a state line"
-                  + (f" (markers present but not decisive at {line_count} "
+                  + (f" (markers present but not decisive at "
+                     f"{all_nonempty_lines} "
                      f"line(s): {', '.join(markers)})" if markers else ""))
+    # `lines` is the honest total, fenced content included — the same counter the
+    # ceiling arm uses, not a separate reporting-only number.
     return {"narrative": narrative, "reason": reason,
-            "lines": line_count, "markers": markers}
+            "lines": all_nonempty_lines, "markers": markers}
 
 
 # --- the ask-ledger ----------------------------------------------------------

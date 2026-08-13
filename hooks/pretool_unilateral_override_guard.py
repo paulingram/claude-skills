@@ -24,6 +24,7 @@ silent no-op (exit 0). Stdlib-only.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -201,6 +202,159 @@ def _harness_tasks_root() -> Path | None:
         return None
 
 
+def _default_tasks_root() -> Path | None:
+    """The REAL harness task store, resolved WITHOUT consulting the environment.
+
+    N3 (adversarial): `_harness_tasks_root()` goes through the substrate's own
+    resolver, and that resolver honours `CT6_TASKS_ROOT`. So ONE environment
+    variable relocated both the gate's ground truth AND the guard protecting it
+    — pointed at a decoy, the guard faithfully protected an empty directory
+    while the store the lock reads stayed writable.
+
+    A guard may never derive its protected set from the value under attack.
+    This is the fixed half of the pair: the real default, always.
+    """
+    try:
+        return (Path.home() / ".claude" / "tasks").resolve()
+    except Exception:
+        return None
+
+
+def _harness_tasks_roots() -> tuple[Path, ...]:
+    """Every task root the guard PROTECTS — the UNION, not a choice.
+
+    The real default root is always in the set; whatever `CT6_TASKS_ROOT` names
+    is ADDED to it, because that override is the suite's test seam and a
+    legitimate operator lever, so it has to keep working. The asymmetry is the
+    entire fix: an environment variable may add to the protected set, it may
+    never remove the real store from it. Protecting the union is strictly safer
+    than protecting either root alone.
+    """
+    roots: list[Path] = []
+    for root in (_default_tasks_root(), _harness_tasks_root()):
+        if root is not None and root not in roots:
+            roots.append(root)
+    return tuple(roots)
+
+
+# --- N2b: identity, not spelling ---------------------------------------------
+#
+# `Path.resolve()` collapses SPELLINGS of one path — case folding, `..`
+# traversal, symlinks, junctions — which is what closed F-B. A hardlink is not a
+# spelling: it is a second real directory entry for the same bytes, with no
+# "true" name to resolve to, so `resolve()` hands back the alias's own path and
+# every name-based arm sees an unrelated file. `notes/evil.json` hardlinked onto
+# the ask-ledger writes the ledger.
+#
+# `(st_dev, st_ino)` is what a file IS rather than what it is called, so it
+# catches the alias under any name. Everything below fails SAFE: a stat that
+# cannot answer yields None, a None identity matches nothing, and this arm can
+# therefore only ever ADD a block — never remove one and never raise. A guard
+# that crashes is a guard that is not there, since PreToolUse treats exit 1 as
+# non-blocking.
+
+#: Hard ceiling on the task-store identity scan. Only ever reached when the
+#: write target genuinely carries more than one name, which no ordinary write
+#: does — see `_may_be_a_link_alias`.
+_IDENTITY_SCAN_CAP = 4096
+
+
+def _file_identity(path: Path) -> tuple[int, int] | None:
+    """``(st_dev, st_ino)`` for an existing path, or None when unavailable.
+
+    None for a path that does not exist — the common case for `Write`, and the
+    one `os.stat` raises on — for any stat failure, and for the ``st_ino == 0``
+    sentinel some filesystems report, which would otherwise make every
+    identity-less file compare equal to every other.
+    """
+    try:
+        st = os.stat(path)
+        dev = int(getattr(st, "st_dev", 0) or 0)
+        ino = int(getattr(st, "st_ino", 0) or 0)
+    except Exception:
+        return None
+    if not ino:
+        return None
+    return (dev, ino)
+
+
+def _may_be_a_link_alias(path: Path) -> bool:
+    """True when `path` could be a second name for some other file.
+
+    `st_nlink == 1` means exactly one directory entry points at these bytes, so
+    the path cannot be an alias for anything and the scan below is skipped —
+    that is every ordinary write, which is what keeps this arm free in the case
+    that matters. A missing or zero `st_nlink` means "cannot tell", and
+    cannot-tell runs the check: unknown state is not "safe". A nonexistent file
+    is the one honest False — there are no bytes for it to be a second name for.
+    """
+    try:
+        st = os.stat(path)
+    except Exception:
+        return False
+    try:
+        return int(getattr(st, "st_nlink", 0) or 0) != 1
+    except Exception:
+        return True
+
+
+def _ledger_identity_candidates(target: Path) -> list[Path]:
+    """Canonical ask-ledgers this write could be a second name for.
+
+    A hardlink must live on the same volume as its target, so a realistic alias
+    sits inside or beside the workspace that owns the ledger: walk the target's
+    own ancestors, then the cwd's, for `<dir>/.architect-team/ask-ledger.json`.
+    Bounded by path depth, and only ever reached for a multiply-named file.
+    """
+    starts: list[Path] = []
+    try:
+        starts.append(target.resolve().parent)
+    except Exception:
+        pass
+    try:
+        starts.append(Path.cwd().resolve())
+    except Exception:
+        pass
+
+    out: list[Path] = []
+    seen: set[str] = set()
+    for start in starts:
+        for directory in (start, *start.parents):
+            ledger = directory / _STATE_DIRNAME / _ASK_LEDGER_FILENAME
+            key = str(ledger).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ledger)
+    return out
+
+
+def _task_store_identity_candidates(roots: tuple[Path, ...]) -> list[Path]:
+    """Files under the protected task roots, in the harness's own layout.
+
+    The store is `<root>/session-<8-of-session-id>/<taskId>.json` (see
+    `hooks/open_work.py::read_harness_tasks`), so two shallow globs cover it
+    without an unbounded walk, and `_IDENTITY_SCAN_CAP` bounds even a
+    pathological root.
+    """
+    out: list[Path] = []
+    for root in roots:
+        try:
+            if not root.is_dir():
+                continue
+        except Exception:
+            continue
+        for pattern in ("*", "*/*"):
+            try:
+                for entry in root.glob(pattern):
+                    out.append(entry)
+                    if len(out) >= _IDENTITY_SCAN_CAP:
+                        return out
+            except Exception:
+                continue
+    return out
+
+
 def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
     """The ground-truth source this write targets, or None.
 
@@ -247,19 +401,31 @@ def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
         if same_name and same_parent:
             return "ask-ledger"
 
-    # Any path under the harness task store.
-    root = _harness_tasks_root()
-    if root is not None:
-        try:
-            resolved = p.resolve()
-        except Exception:
-            resolved = None
-        if resolved is not None:
+    # Any path under the harness task store. The UNION of roots (N3), never the
+    # single value `CT6_TASKS_ROOT` happens to name — see `_harness_tasks_roots`.
+    roots = _harness_tasks_roots()
+    if resolved is not None:
+        for root in roots:
             try:
                 resolved.relative_to(root)
                 return "harness-task-store"
             except ValueError:
-                pass
+                continue
+            except Exception:
+                continue
+
+    # N2b — identity, not spelling. Only reached for a path that genuinely
+    # carries more than one name, so an ordinary write pays one `os.stat`.
+    target = resolved if resolved is not None else p
+    if _may_be_a_link_alias(target):
+        identity = _file_identity(target)
+        if identity is not None:
+            for candidate in _ledger_identity_candidates(target):
+                if _file_identity(candidate) == identity:
+                    return "ask-ledger"
+            for candidate in _task_store_identity_candidates(roots):
+                if _file_identity(candidate) == identity:
+                    return "harness-task-store"
     return None
 
 

@@ -2308,6 +2308,10 @@ NO new Layer 3 tool — enforcement is the schema v7 optional field (hook-blocke
 
 **Where code and spec disagree at review time, the code wins and the spec is amended in the same phase.** The spec is a plan; the code is the fact. When a reviewer finds the implementation and the written requirement diverge, the resolution is to (a) confirm the code delivers the user-facing outcome, (b) amend the spec artifact to describe what the code actually does, in the same phase, and (c) file a `spec-drift` SR if a second implementation was built against the superseded reading. The resolution is **never** "the readers misread" — a line two competent agents read two ways is an ambiguous line, and blaming the readers leaves the ambiguity in place for the next run. `spec-drift` SRs dispatch a fix team DIRECTLY (the diagnosis is already complete) and are deliberately NOT `TEST_FAILURE_ORIGINS` members; see `team-spawning-and-review-gates` `## Required field validity`.
 
+## Local -> dev -> test-on-dev is the pipeline's job, not the user's (v3.57.0)
+
+**A gate requiring a live environment obliges the run to PROVIDE one.** A frontend slice with no E2E verdict because the route is not deployed or dev has no data is Phase 5's work: bring the environment up (or run `prod_deploy.deploy_command`), seed the records the flow needs through the application's own create path, then run the flow — automatically, in that order. **Inherited debt is not this run's to satisfy**: `_audit_frontend_e2e` scopes to slices this run owns and prints what it excluded. Escalate only a genuine external blocker; *"how do you want to proceed?"* with a recommended option attached is the run asking permission to do its own job. Full rules: [`references/local-dev-test-discipline.md`](references/local-dev-test-discipline.md).
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.

@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -426,3 +427,147 @@ def test_schema_note_escape_documents_no_runnable_ui(schema_mod) -> None:
     low = doc.lower()
     assert "no runnable ui" in low or "no-runnable-ui" in low
     assert "backstop" in low or "run-level" in low
+
+
+# ---------------------------------------------------------------------------
+# Run-scoping (v3.57.0) — the gate binds what the RUN did, not what the
+# directory remembers.
+# ---------------------------------------------------------------------------
+#
+# `.architect-team/reviews/` is cumulative across every run in a repo. Globbing
+# it made a gate introduced in v3.55.0 retroactively demand live-environment E2E
+# evidence from slices written before it existed. Reported from a live run:
+# "25 of the 27 flagged slices are pre-existing debt" — a commit stopped over
+# work the run never touched, and the operator asked to make the decision.
+#
+# Two independent ownership signals, ORed, because each covers the other's blind
+# spot: a teammate manifest names slices precisely but only a pipeline dispatch
+# writes one; the run marker's start time covers any run but only while the
+# marker exists. With NEITHER signal the arm keeps today's behaviour — an
+# under-blocking loop-exit gate is the defect v3.55.0 existed to remove, so
+# unknown provenance must not disarm it.
+
+
+def _old_review(ws, slice_name: str, files_changed: list, age_seconds: int = 86_400):
+    """A review slice from an EARLIER run: written, then back-dated."""
+    import os
+    rev = ws / ".architect-team" / "reviews"
+    rev.mkdir(parents=True, exist_ok=True)
+    p = rev / (slice_name + ".json")
+    p.write_text(json.dumps({"task_id": slice_name, "files_changed": files_changed}),
+                 encoding="utf-8")
+    old = time.time() - age_seconds
+    os.utime(p, (old, old))
+    return p
+
+
+def _run_marker(ws, started_at: str = "2026-08-13T00:00:00Z"):
+    at = ws / ".architect-team"
+    at.mkdir(parents=True, exist_ok=True)
+    (at / "active-run.json").write_text(
+        json.dumps({"status": "active", "slug": "demo", "started_at": started_at}),
+        encoding="utf-8")
+    return at
+
+
+def _manifest(ws, teammate: str, evidence: list):
+    d = ws / ".architect-team" / "teammates"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / (teammate + ".json")).write_text(
+        json.dumps({"teammate": teammate, "expected_review_evidence": evidence}),
+        encoding="utf-8")
+
+
+def test_inherited_debt_does_not_block_when_a_manifest_scopes_the_run(
+    audit_mod, tmp_path: Path
+) -> None:
+    """The reported failure, as a test.
+
+    Twenty-five inherited frontend slices with no verdicts, plus this run's own
+    slice which HAS one. The run must not be blocked by the twenty-five.
+    """
+    at = _run_marker(tmp_path)
+    for i in range(25):
+        _old_review(tmp_path, f"legacy-{i}", [f"src/legacy/Page{i}.tsx"])
+    _write_review(tmp_path, "mine", ["src/components/Mine.tsx"])
+    _manifest(tmp_path, "frontend-mine", ["mine"])
+    _write_verdict(tmp_path, "mine", _genuine_verdict_body(tmp_path, "mine"))
+
+    violations = audit_mod._audit_frontend_e2e(tmp_path, at)
+    assert violations == [], (
+        "inherited slices from earlier runs must not block this run: " + repr(violations)
+    )
+
+
+def test_the_runs_own_slice_still_blocks_when_it_has_no_verdict(
+    audit_mod, tmp_path: Path
+) -> None:
+    """The other direction, and the one that matters most.
+
+    Scoping must narrow WHOSE work is judged, never weaken the judgement. The
+    run's own unverified frontend slice is still refused with the inherited
+    twenty-five present.
+    """
+    at = _run_marker(tmp_path)
+    for i in range(25):
+        _old_review(tmp_path, f"legacy-{i}", [f"src/legacy/Page{i}.tsx"])
+    _write_review(tmp_path, "mine", ["src/components/Mine.tsx"])
+    _manifest(tmp_path, "frontend-mine", ["mine"])
+
+    violations = audit_mod._audit_frontend_e2e(tmp_path, at)
+    assert len(violations) == 1, "exactly the run's OWN slice must block"
+    assert "mine" in violations[0]
+    assert "legacy-" not in violations[0]
+
+
+def test_a_slice_written_during_the_run_is_owned_without_any_manifest(
+    audit_mod, tmp_path: Path
+) -> None:
+    """The timestamp signal alone, for a run whose teammates wrote no manifest."""
+    at = _run_marker(tmp_path, started_at="2026-01-01T00:00:00Z")
+    _old_review(tmp_path, "legacy", ["src/legacy/Old.tsx"], age_seconds=400 * 86_400)
+    _write_review(tmp_path, "fresh", ["src/components/Fresh.tsx"])  # mtime = now
+
+    violations = audit_mod._audit_frontend_e2e(tmp_path, at)
+    assert len(violations) == 1, "only the slice written during the run is judged"
+    assert "fresh" in violations[0]
+
+
+def test_with_no_ownership_signal_at_all_the_gate_keeps_its_teeth(
+    audit_mod, tmp_path: Path
+) -> None:
+    """Unknown provenance must NOT disarm the gate.
+
+    No manifest and no run marker means the arm cannot tell whose work it is
+    looking at. Failing open there would trade an over-block for an
+    under-block, and an under-blocking loop-exit gate is precisely the defect
+    v3.55.0 was built to remove.
+    """
+    at = tmp_path / ".architect-team"
+    _write_review(tmp_path, "unscoped", ["src/components/Unscoped.tsx"])
+    violations = audit_mod._audit_frontend_e2e(tmp_path, at)
+    assert violations, "with no ownership signal the arm must still block"
+
+
+def test_a_manifest_claimed_slice_is_owned_even_when_its_file_is_old(
+    audit_mod, tmp_path: Path
+) -> None:
+    """Isolates the MANIFEST signal from the timestamp signal.
+
+    Every earlier scoping test has the run's own slice written fresh, so the
+    timestamp signal alone identifies it and disabling the manifest arm changes
+    nothing — the mutation witness caught that, reporting GREEN for a mutation
+    that removed a real arm. A slice can legitimately predate the marker: a
+    resumed run, a re-brief, a marker rewritten mid-run. Here the run's slice is
+    back-dated a year, so ONLY the manifest can claim it.
+    """
+    at = _run_marker(tmp_path, started_at="2026-08-13T00:00:00Z")
+    _old_review(tmp_path, "resumed", ["src/components/Resumed.tsx"],
+                age_seconds=365 * 86_400)
+    _manifest(tmp_path, "frontend-resumed", ["resumed"])
+
+    violations = audit_mod._audit_frontend_e2e(tmp_path, at)
+    assert len(violations) == 1, (
+        "a manifest-claimed slice must be judged even when older than the marker"
+    )
+    assert "resumed" in violations[0]

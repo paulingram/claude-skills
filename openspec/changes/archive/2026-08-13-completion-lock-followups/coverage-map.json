@@ -1,0 +1,121 @@
+{
+  "change": "completion-lock-followups",
+  "source": "docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md",
+  "note": "Every entry traces to a named finding in the follow-ups doc. layer is 'infra' throughout: this change touches hook-tier enforcement machinery only, no frontend and no runtime API. Playwright criteria are therefore N/A by construction, and dev-API integration criteria are N/A for the same reason; the executable criterion for each entry is a pytest property with a mutation witness.",
+  "entries": [
+    {
+      "source_requirement_id": "N5b",
+      "spec_requirement_id": "Blocking is unbounded and released only by a named kill-switch",
+      "layer": "infra",
+      "owner": "lane-audit",
+      "scenarios": [
+        "A persistently wedged run emits a notification and keeps blocking",
+        "A notifier failure never affects the block"
+      ],
+      "acceptance_criteria": [
+        "A notification is emitted exactly once when the lock has blocked past its persistence threshold, and the stop is STILL refused on that same evaluation.",
+        "No notification is emitted on an ordinary single block.",
+        "A notifier that raises, times out, or is absent leaves the exit code and the block message byte-identical to the no-notifier case.",
+        "The continuation guard no-progress counter is NOT advanced by the notification path (ADV-1: escalation-pending.md is agent-written and the lock does not honour it).",
+        "Both directions pinned; a mutation witness per property reproduces the real defect rather than disturbing nearby code."
+      ]
+    },
+    {
+      "source_requirement_id": "F7",
+      "spec_requirement_id": "The turn-output rule is a one-line-of-state constraint",
+      "layer": "infra",
+      "owner": "lane-audit",
+      "scenarios": [
+        "A task subject carrying a forged instruction section renders inert"
+      ],
+      "acceptance_criteria": [
+        "A task subject containing newlines, a bullet prefix, and a colon-terminated heading imitating the block release section renders as inert single-line content.",
+        "The genuine release section appears exactly once in the rendered block.",
+        "An ordinary task subject remains readable after clipping.",
+        "Mutation witness on the strip."
+      ]
+    },
+    {
+      "source_requirement_id": "N3",
+      "spec_requirement_id": "The completion lock ground truth is immutable to agents",
+      "layer": "infra",
+      "owner": "lane-guard",
+      "scenarios": [
+        "A redirected task root does not unprotect the real one"
+      ],
+      "acceptance_criteria": [
+        "With the task-root override pointing elsewhere, a write to a task file under the REAL default root is still refused.",
+        "The configured override root remains protected, so the CT6_TASKS_ROOT test seam keeps working.",
+        "The protected set is a union: the override may add a location, never remove the real store.",
+        "Tested via a patched home directory; no test reads or writes the user's real task store.",
+        "Mutation witness."
+      ]
+    },
+    {
+      "source_requirement_id": "N2b",
+      "spec_requirement_id": "The completion lock ground truth is immutable to agents",
+      "layer": "infra",
+      "owner": "lane-guard",
+      "scenarios": [
+        "A hardlink under another name is refused",
+        "An ordinary unrelated write is allowed"
+      ],
+      "acceptance_criteria": [
+        "A write to a hardlink pointing at the ask-ledger under a different filename is refused on filesystem-identity grounds.",
+        "An ordinary write to an unrelated source file still proceeds — an over-broad guard is a worse defect than the hole.",
+        "Identity comparison applies only where both paths exist; a new-file write is unaffected.",
+        "An indeterminate identity result falls back to resolved-path comparison; the guard never raises.",
+        "If os.link is unavailable on this volume the test skips with a stated reason rather than passing vacuously.",
+        "Mutation witness."
+      ]
+    },
+    {
+      "source_requirement_id": "prose_lines-vs-line_count",
+      "spec_requirement_id": "The turn-output rule is a one-line-of-state constraint",
+      "layer": "infra",
+      "owner": "lane-core",
+      "scenarios": [
+        "A narrative followed by a one-line sign-off still trips",
+        "A one-line marked state update is compliant"
+      ],
+      "acceptance_criteria": [
+        "A characterization corpus of at least 25 varied turn shapes is captured BEFORE any edit and lands as a permanent test.",
+        "Full returned-dict equality across every corpus input, pre-change versus post-change — not merely the boolean.",
+        "The load-bearing counter and the reporting-only counter are distinguishable at every call site.",
+        "Mutation witness: deliberately swapping the two counters turns the corpus RED; if it does not, that is reported as a finding.",
+        "NARRATIVE_ABSOLUTE_LINES and NARRATIVE_LINE_THRESHOLD keep their deliberately different counting (the G3-without-un-fixing-T2 property)."
+      ]
+    },
+    {
+      "source_requirement_id": "G2-precondition",
+      "spec_requirement_id": "The turn-output rule is a one-line-of-state constraint",
+      "layer": "infra",
+      "owner": "lane-g2",
+      "scenarios": [
+        "A narrative followed by a one-line sign-off still trips"
+      ],
+      "acceptance_criteria": [
+        "A verdict of PERSISTED, NOT PERSISTED, or INDETERMINATE is recorded with evidence.",
+        "The search scope is quantified — files, patterns, date range — so a null result is a finding rather than a shrug.",
+        "Every apparent hit is classified by record provenance; a tool_result, skill body, self-quoting assistant message, or teammate-message envelope does not count.",
+        "The larger continuation-guard sample is checked alongside the lock's own few blocks.",
+        "Any durable-state recommendation addresses the note_continuation_block objection (empty in plain sessions; writing it from the lock reintroduces F-F pollution)."
+      ]
+    },
+    {
+      "source_requirement_id": "mutation-harness",
+      "spec_requirement_id": "Blocking is unbounded and released only by a named kill-switch",
+      "layer": "infra",
+      "owner": "lane-g2",
+      "scenarios": [
+        "Ten consecutive no-progress stops in an engaged session still block"
+      ],
+      "acceptance_criteria": [
+        "The lock-wiring mutation artifact classifies caught/escaped by EXIT CODE, not by parsing the pytest result line.",
+        "Each mutation asserts the file actually changed before the tests are run, removing the no-op-logs-green class.",
+        "Mutations are re-run for real; prior verdicts are not transcribed under a new header.",
+        "Any mutation that flips classification under the stricter method is reported explicitly."
+      ]
+    }
+  ]
+}
