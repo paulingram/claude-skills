@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.58.0] — 2026-08-13 — credit-failover-to-login (MINOR: the external-LLM gateway fails over to Claude sign-in when the upstream runs out of credit)
+
+Lands the `credit-failover-to-login` work, built at v3.42.0 and held on a branch for three weeks while other releases shipped. Merged forward across **67 commits**; the two code files (`scripts/setup/install_gateway.py`, `hooks/sessionstart-run-continuity.py`) merged cleanly, and every conflicting version/documentation surface was resolved in favour of current `main` — so this entry describes what shipped, not the v3.42.0 shape the branch was written against. The branch is deleted; `main` is the only branch.
+
+**The gap.** With the role split active, the 21 development / code-checking / testing agents route through the external-LLM gateway to the secondary provider. When that provider's credit runs out, every one of them fails — mid-run, repeatedly, with an error that reads like a defect rather than a bill — while perfectly good Claude sign-in auth sits unused.
+
+**Only hard credit exhaustion may fail over.** A pure classifier (no I/O, no state, tolerant of an absent body) sorts an upstream response into `credit-exhausted` / `rate-limited` / `transient` / `other`. HTTP 402, and bodies matching the hard-credit vocabulary (`insufficient_credit`, `insufficient credits`, `quota_exceeded`, `credit balance is too low`, `billing`, `payment required`, case-insensitively), classify as `credit-exhausted`. HTTP 429 is `rate-limited`; HTTP >= 500 or an `overloaded` body is `transient`. **Only `credit-exhausted` triggers a failover** — the retry classes never do, because abandoning a working provider over a temporary blip is worse than the outage it "fixes". The **429 check is evaluated BEFORE the hard-credit body scan**, so a rate-limit response whose body happens to carry quota wording is still classified `rate-limited`.
+
+**The failover flips RECORDED state, not just live routing.** It writes `activated: false` plus a failover record (reason + detail + timestamp) into the gateway state. Without that, the v3.41.x SessionStart self-heal would see a split it believes is the desired policy and re-apply it on the next session — the failover would silently undo itself. This is the non-obvious half, and the reason the fix is not simply "stop routing".
+
+**Surfaces:** `detect_credit_exhaustion` (the classifier) + `failover_to_login` (the state transition) in `scripts/setup/install_gateway.py`, a `failover` subcommand (with `--force` to apply without probing), and the hook-side application path in `hooks/sessionstart-run-continuity.py`. New capability spec `openspec/specs/credit-exhaustion-failover/spec.md`; the change archives at `openspec/changes/archive/2026-07-20-credit-failover-to-login/`.
+
+**Cleanup landed with it.** A timestamp expression that came in on the branch — a JSON round-trip that serialized a value only to split the same string back out of its own output, calling the deprecated `datetime.utcnow()` three times to do so — was replaced with one timezone-aware call behind a named helper. `utcnow()` is scheduled for removal and returned a naive value that read as local time to any consumer.
+
+No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 22); `check_separation` unaffected (26).
+
+Suite **7284 -> 7305 passing + 6 skipped, 0 failed** (+21 tests, all in the branch's own `tests/test_credit_failover.py`; 242 top-level test files, both encodings).
+
 ## [3.57.0] — 2026-08-13 — completion-lock-followups (MINOR: every open completion-lock follow-up closed, and a run-scoped frontend-E2E gate that stops asking the user to do the pipeline's job)
 
 Closes **every open item** in `docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md`, plus an in-flight scope amendment. Additive within `hooks/` (stdlib-only); NO new hook script / skill / agent / command / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 22), `check_separation` unaffected (26).

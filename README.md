@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 57 . 0
+                        ─── C T 6 ───   v 3 . 58 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.57.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.58.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-7222%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -77,21 +77,21 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.57.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.58.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.57.0 — completion-lock-followups: every open completion-lock follow-up closed, and a run-scoped frontend-E2E gate that stops asking the user to do the pipeline's job
+### v3.58.0 — credit-failover-to-login: the external-LLM gateway falls back to Claude sign-in when the upstream runs out of credit
 
-Closes **every open item** in `docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md`, plus an in-flight scope amendment. No new skill / agent / command / hook script / Layer-3 tool — counts unchanged (53 / 39 / 25 / 7 / 22).
+Lands the `credit-failover-to-login` work, built at v3.42.0 and held on a branch for three weeks. Merged forward across 67 commits; every version and documentation conflict resolved in favour of current `main`, so this release describes what actually shipped rather than the shape the branch was written against.
 
-**A wedged run is no longer silent (N5b).** "Unbounded" is unchanged — nothing auto-releases a wedge — but the lock now emits one best-effort notification after five consecutive blocks and **keeps blocking**, so a run wedged overnight with nobody watching finally produces a signal. It deliberately does NOT route through the continuation guard's counter: that marker is agent-written, so it would appear to escalate without releasing anything, and the burned counter would mis-fire the guard the moment work closed.
+**The problem it solves.** With the role split active, the development agents route through the external-LLM gateway to the secondary provider. When that provider's credit runs out, every one of those agents fails — mid-run, repeatedly, with an error that reads like a bug rather than a bill. Claude sign-in auth is still perfectly good; nothing was using it.
 
-**Two named guard boundaries closed.** `CT6_TASKS_ROOT` can no longer relocate the guard along with the store it protects — the protected set is a union, so an environment variable may add to it but never remove the real store. And filesystem-identity comparison (`st_dev`/`st_ino`) catches a hardlink reaching a protected file under another name, which path resolution cannot see.
+**Failover is deliberately narrow.** A pure classifier sorts an upstream response into `credit-exhausted`, `rate-limited`, `transient`, or `other`, and **only `credit-exhausted` may trigger a failover**. HTTP 402 and hard-credit body vocabulary (`insufficient_credit`, `quota_exceeded`, `credit balance is too low`, `billing`) qualify. A 429 is a retry class and never fails over — and the 429 check runs **before** the body scan, so a rate-limit response whose body happens to mention quota is still classified as a rate limit. A 5xx or an `overloaded` body is transient. Failing over on a retryable error would abandon a working provider over a temporary blip.
 
-**An unverified precondition, answered.** A 679-transcript, 1120 MB scan across every project on the machine settled whether the harness persists blocked-Stop feedback into the transcript: **it does not**, so v3.56.0's G2 boundary-advance is inert. The decisive evidence was the older continuation-guard sample, which has used the same mechanism for months and shows the same nothing. Fixed by making the block message honest rather than by adding per-session state that would pollute every repo the user types in.
+**It flips recorded state, not just live routing.** The failover records `activated: false` plus a failover entry in the gateway state. Without that, the v3.41.x SessionStart self-heal would observe a split it believes should be applied and put it straight back — the failover would silently undo itself on the next session.
 
-**And the gate that blocked a commit over other runs' debt.** The v3.55.0 frontend-E2E loop-exit gate read a cumulative directory, so it demanded live-environment evidence from 25 slices written before it existed — then asked the user how to proceed. It now scopes to slices the run actually owns, and the pipeline brings up and seeds a dev environment itself instead of handing that decision back. Asking permission to do your own job is not an escalation.
+**Also in this release:** a convoluted timestamp expression that came in with the branch — a JSON round-trip that serialized a value only to split the same string back out, calling the deprecated `datetime.utcnow()` three times to do it — was replaced with one timezone-aware call.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 

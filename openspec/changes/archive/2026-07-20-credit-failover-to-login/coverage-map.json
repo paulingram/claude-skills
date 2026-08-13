@@ -1,0 +1,92 @@
+{
+  "change": "credit-failover-to-login",
+  "source_requirements": [
+    {
+      "source_requirement_id": "REQ-001",
+      "text": "we need a way to fail over if we are out of credits. we should fail to our login.",
+      "origin": "owner, verbatim, 2026-07-19",
+      "spec_requirement_id": "Failover returns the user to Claude sign-in auth and makes the change stick",
+      "layer": "backend",
+      "scenarios": [
+        "failover strips the wire and flips recorded state together",
+        "the failover survives the SessionStart activation heal"
+      ],
+      "acceptance_criteria": [
+        "tests/test_credit_failover.py::test_failover_strips_env_block_merge_preservingly",
+        "tests/test_credit_failover.py::test_failover_clears_recorded_activation",
+        "tests/test_credit_failover.py::test_failover_reverts_split_to_uniform_fable",
+        "tests/test_credit_failover.py::test_failover_leaves_enabled_and_keys_intact",
+        "tests/test_credit_failover.py::test_heal_declines_after_failover_even_on_live_port"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-002",
+      "text": "automatic on hard credit errors ONLY: 402/insufficient-credit/quota-exceeded fail over; 429 rate-limit and 5xx/overloaded NEVER do",
+      "origin": "owner decision, AskUserQuestion, 2026-07-19",
+      "spec_requirement_id": "Upstream failures are classified, and only hard-credit exhaustion may trigger failover",
+      "layer": "backend",
+      "scenarios": [
+        "a 402 fails over",
+        "a hard-credit body without a 402 fails over",
+        "a rate limit never fails over even when its body mentions quota",
+        "a server error never fails over"
+      ],
+      "acceptance_criteria": [
+        "tests/test_credit_failover.py::test_classifier_truth_table",
+        "tests/test_credit_failover.py::test_429_with_quota_wording_is_rate_limited_not_exhausted",
+        "tests/test_credit_failover.py::test_no_failover_on_rate_limited_or_transient"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-003",
+      "text": "detection must work on a default install (the launcher writes no log)",
+      "origin": "design constraint discovered in code",
+      "spec_requirement_id": "Credit exhaustion is detected at the seam where CT6 observes the upstream",
+      "layer": "backend",
+      "scenarios": [
+        "a serving gateway reports no exhaustion",
+        "a credit-dead gateway is detected with evidence"
+      ],
+      "acceptance_criteria": [
+        "tests/test_credit_failover.py::test_detector_serving_gateway_no_exhaustion",
+        "tests/test_credit_failover.py::test_detector_credit_dead_gateway_with_evidence"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-004",
+      "text": "surface the failover loudly with the re-activate remediation",
+      "origin": "owner requirement mechanics step 4",
+      "spec_requirement_id": "The failover is surfaced on the status report with its remediation",
+      "layer": "backend",
+      "scenarios": [
+        "a failed-over machine says so",
+        "a never-failed-over machine is unchanged"
+      ],
+      "acceptance_criteria": [
+        "tests/test_credit_failover.py::test_status_reports_failover_with_remediation",
+        "tests/test_credit_failover.py::test_status_clean_machine_has_no_failover_text"
+      ]
+    },
+    {
+      "source_requirement_id": "REQ-005",
+      "text": "reachable as a command and automatically at session start; return path clears the record",
+      "origin": "derived from the owner's 'automatic' decision + the return-path design question",
+      "spec_requirement_id": "The failover is reachable as a command and at session start / Re-activation clears the failover record",
+      "layer": "backend",
+      "scenarios": [
+        "check-only changes nothing",
+        "the hook runs the failover before the activation heal",
+        "the hook fails open",
+        "re-activation clears the record"
+      ],
+      "acceptance_criteria": [
+        "tests/test_credit_failover.py::test_check_only_mutates_nothing",
+        "tests/test_credit_failover.py::test_hook_order_failover_before_heal",
+        "tests/test_credit_failover.py::test_hook_fails_open_on_bad_inputs",
+        "tests/test_credit_failover.py::test_activate_clears_failover_record"
+      ]
+    }
+  ],
+  "confirmed_stubs": [],
+  "notes": "Layer is backend/library throughout - no frontend surface, so Playwright criteria are N/A and interaction/editability/visual reviews are N/A. Dev-API integration testing is N/A in the HTTP sense: the 'dev environment' is the local machine's own gateway, and every test injects the prober seam so no socket is opened and the v3.41.1 real-state tripwire stays silent."
+}
