@@ -1075,6 +1075,27 @@ def test_release_gate_flags_an_artifact_that_contradicts_the_published_count(tmp
     assert any("7490" in f and "10 passing" in f for f in result["findings"])
 
 
+def test_the_always_arms_do_not_flip_when_the_tree_state_changes(tmp_path):
+    """The flake, pinned. With `require_existence=False` the verdict must be
+    identical on a dirty tree and a clean one — that independence is what makes
+    the live-repo test deterministic while other lanes commit underneath it."""
+    root = _release_repo(tmp_path, label=None, clean=True)
+
+    # precondition, measured on the CLEAN tree before anything is written: the
+    # full check depends on tree state, which is exactly why it is release-only
+    assert cc.check_release_measurement_present(root)["ok"] is False
+
+    clean_verdict = cc.check_release_measurement_present(root, require_existence=False)
+    (root / "someone-elses-work.py").write_text("x\n", encoding="utf-8")
+    dirty_verdict = cc.check_release_measurement_present(root, require_existence=False)
+
+    assert clean_verdict["ok"] == dirty_verdict["ok"] is True
+    assert clean_verdict["findings"] == dirty_verdict["findings"] == []
+
+    # ... and the full check has now flipped, purely because the tree moved
+    assert cc.check_release_measurement_present(root)["ok"] is True
+
+
 def test_existence_is_demanded_on_a_clean_tree_but_not_a_dirty_one(tmp_path):
     """Both directions of the conditional arm, on real trees."""
     dirty = _release_repo(tmp_path / "d", label=None, clean=False)
@@ -1143,14 +1164,25 @@ def test_live_repo_release_has_a_recorded_bracket_measurement():
     measurement must have been recorded for it.
 
     This is the ONE test whose input is the live working tree, and that input is
-    not hermetic — other lanes write to this tree while the suite runs, so
-    `CHANGELOG.md` or `plugin.json` can be read mid-write. A gate that reports
-    differently on identical input is the defect this tool exists to catch, so
-    an UNREADABLE input skips with its reason rather than failing: a torn read is
-    not a finding about the gate. A readable input is always asserted.
+    NOT hermetic. Two consequences, both measured rather than theorised:
+
+    1. A torn read (another lane mid-write on `CHANGELOG.md`) skips with its
+       reason — a torn read is not a finding about the gate.
+    2. The **existence** arm is excluded here. Its verdict depends on whether the
+       tree happens to be clean at the instant it runs, so against a tree other
+       lanes are committing to it flips between runs with no code change. That
+       was caught live: this test passed, another lane committed, and the next
+       run failed with "the tree is clean, but no bracketed measurement was
+       recorded" — a gate reporting differently on effectively identical work,
+       which is the exact defect this tool exists to catch, one tier up.
+
+    Existence is therefore enforced where the tree is not moving: at release,
+    through ``changelog_check.py --require-measurements``. What stays here are
+    the two arms that CANNOT flip — an absent artifact is vacuously green, a bad
+    one is red, whatever the tree is doing.
     """
     try:
-        result = cc.check_release_measurement_present(REPO_ROOT)
+        result = cc.check_release_measurement_present(REPO_ROOT, require_existence=False)
     except (OSError, ValueError, KeyError) as exc:
         pytest.skip(f"live tree was mid-write, so the gate had no stable input: {exc}")
     assert result["ok"], "\n".join(result["findings"])

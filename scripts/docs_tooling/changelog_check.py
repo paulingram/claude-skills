@@ -199,7 +199,9 @@ def check_measurement_backing(root: Union[str, Path]) -> dict[str, Any]:
     return result
 
 
-def check_release_measurement_present(root: Union[str, Path]) -> dict[str, Any]:
+def check_release_measurement_present(
+    root: Union[str, Path], *, require_existence: bool = True
+) -> dict[str, Any]:
     """The CONVERGENT half of invariant (c), safe to enforce inside the suite.
 
     When the top entry publishes a suite count, a measurement artifact recorded
@@ -258,8 +260,15 @@ def check_release_measurement_present(root: Union[str, Path]) -> dict[str, Any]:
     # a gate that demands the impossible gets deleted rather than satisfied. On a
     # fresh clone and in CI the tree IS clean, which is exactly where a published
     # count with no artifact behind it must not pass.
+    # `require_existence=False` keeps the two ALWAYS arms and drops this one. It
+    # exists for ONE caller: a check running against a LIVE working tree that
+    # other lanes are committing to. The existence arm's verdict depends on
+    # whether the tree is clean at the instant it runs, so against a moving tree
+    # it flips between runs with no code change — measured, not theorised. The
+    # two ALWAYS arms have no such dependency: absent artifact is vacuously
+    # green, bad artifact is red, regardless of tree state.
     tree = measure.tree_digest(root)
-    if not matching and tree.get("dirty") is False:
+    if require_existence and not matching and tree.get("dirty") is False:
         findings.append(
             f"the top CHANGELOG entry publishes a suite count "
             f"('{claims[0].passed} passing + {claims[0].skipped} skipped') and the tree is "

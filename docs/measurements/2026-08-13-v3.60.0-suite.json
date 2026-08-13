@@ -1,0 +1,53 @@
+{
+  "bracket_closes": false,
+  "command": "python -m pytest -q",
+  "counts": {
+    "failed": 4,
+    "passed": 7621,
+    "skipped": 6
+  },
+  "counts_parsed": true,
+  "digest_algorithm": "sha256-16",
+  "environment": {
+    "PYTHONUTF8": "1",
+    "platform": "win32",
+    "python": "3.12.10"
+  },
+  "exit_code": 1,
+  "label": "v3.60.0",
+  "machine_bound": "Machine-bound: five committed tests hard-require gitignored .architect-team/ fixtures and one skips without the local .architect-team-deploy.json, so a fresh clone does not reproduce this count. This figure describes THIS machine's checkout, not the repository.",
+  "provenance": "measured",
+  "provisional": true,
+  "release_label": true,
+  "repo_root": "C:\\Users\\Paul\\Documents\\claude_skill_lib",
+  "result_tail": "4 failed, 7621 passed, 6 skipped in 304.44s (0:05:04)",
+  "schema": "suite-measurement/v1",
+  "suite_green": false,
+  "timestamp": "2026-08-13T23:33:35Z",
+  "tree_dirty": true,
+  "tree_state": {
+    "after": "fd7ae241c0b8c4d4",
+    "before": "f44c4e8f445a1c15",
+    "components_after": {
+      "diff_sha256": "bdb32236dd94cbc7fbc8ca5007b9c39bdf414c24b88193012c14d354ec81a70f",
+      "head": "9d8108bccc2b7f33cbaee12192bfd4167c718026",
+      "untracked_count": 0,
+      "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "components_before": {
+      "diff_sha256": "5964acee982ffe481973526d4faea2a566b4e0c6cfb9cc9f822e70b93c4069b8",
+      "head": "9d8108bccc2b7f33cbaee12192bfd4167c718026",
+      "untracked_count": 0,
+      "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "head": "9d8108bccc2b7f33cbaee12192bfd4167c718026",
+    "source": "git",
+    "source_digest": "68282d85f962a3cd"
+  },
+  "verdict": "bracket-open",
+  "violations": [
+    "label 'v3.60.0' names a release but the tree carried uncommitted work (0 untracked path(s); tracked diff present): this measures HEAD-plus-changes, not the release. Recorded as PROVISIONAL \u2014 it backs no published count. Measure a clean checkout to label a release.",
+    "the bracket does not close (f44c4e8f445a1c15 -> fd7ae241c0b8c4d4): the tree changed while the suite ran, so this count is about no particular tree state",
+    "the suite exited 1: this measures a RED suite"
+  ]
+}
