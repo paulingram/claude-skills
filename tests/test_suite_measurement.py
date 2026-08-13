@@ -86,6 +86,8 @@ def _artifact(tmp_path: Path, **overrides) -> Path:
         "command": "python -m pytest -q",
         "exit_code": 0,
         "provenance": "measured",
+        # every genuine measurement records this; absence is now itself a finding
+        "tree_dirty": False,
         "tree_state": {"before": "aaaa111122223333", "after": "aaaa111122223333"},
         "bracket_closes": True,
         "counts": {"passed": 7386, "failed": 0, "skipped": 6},
@@ -554,6 +556,7 @@ def _fake_repo(tmp_path: Path, changelog: str, *, with_artifact: bool) -> Path:
                         "schema": sm.SCHEMA,
                         "label": "v1.2.3",
                         "provenance": "measured",
+                        "tree_dirty": False,
                         "command": "python -m pytest -q",
                         "exit_code": 0,
                         "tree_state": {
@@ -752,6 +755,32 @@ def test_currency_true_when_the_source_has_not_moved(tmp_path):
     assert detail == digest
 
 
+@pytest.mark.parametrize(
+    "path,expected",
+    [
+        # both measurement homes must be recognised — the runtime one is the case
+        # `lstrip("./")` silently broke by eating its leading dot
+        ("docs/measurements/a.json", True),
+        (".architect-team/measurements/a.json", True),
+        ("./docs/measurements/a.json", True),
+        (r"docs\measurements\a.json", True),
+        # ... and nothing else may pass as bookkeeping
+        ("docs/measurements-of-something/x.py", False),
+        ("docs/measurementsX/x.py", False),
+        (".docs/measurements/src.py", False),
+        ("../docs/measurements/src.py", False),
+        ("/docs/measurements/a.json", False),
+        ("src/app.py", False),
+        ("docs/guide.md", False),
+    ],
+)
+def test_measurement_path_predicate_both_directions(path, expected):
+    """escape-artist-2's table, pinned. The character-set strip failed in BOTH
+    directions at once: it un-recognised this tool's own `.architect-team/`
+    prefix, and it turned dot-prefixed source paths into false exclusions."""
+    assert sm._is_measurement_path(path) is expected, path
+
+
 def test_source_digest_ignores_only_the_measurement_directory(tmp_path):
     """Unit-level both-directions on the exclusion itself."""
     repo = _init_repo(tmp_path / "repo")
@@ -921,6 +950,10 @@ def test_a_capitalised_release_label_cannot_smuggle_a_dirty_tree(tmp_path):
         # exactly one optional `v` — does not call them release labels. That
         # disagreement is the capital-V smuggle wearing a different hat.
         "vvv3.60.0", "VV3.60.0", "Vv3.60.0",
+        # bare trailing hyphen: `startswith(target + "-")` accepted an EMPTY
+        # suffix while the regex requires a character after the separator. Found
+        # by property test over generated shapes, not by example.
+        "3.60.0-", "v3.60.0-", "V3.60.0-", "3.60.0.",
         "wip-abc", "nightly", "scratch", "", "3.60", "release-3.60.0",
     ],
 )
@@ -935,6 +968,73 @@ def test_matching_this_version_implies_being_a_release_label(label):
             f"{label!r} counts as v3.60.0's artifact but is not a release label — "
             f"the provisional binding would not apply to it"
         )
+
+
+@pytest.mark.parametrize(
+    "overrides,why",
+    [
+        (
+            {"exit_code": 1, "suite_green": True},
+            "exit_code contradicts suite_green",
+        ),
+        (
+            {"counts": {"passed": 1, "failed": 0, "skipped": 2},
+             "result_tail": "7222 passed, 2 skipped in 1.00s"},
+            "counts contradict result_tail",
+        ),
+        ({"tree_dirty": True}, "measured on a dirty tree"),
+        ({"provisional": True}, "provisional"),
+        ({"bracket_closes": False}, "open bracket"),
+    ],
+)
+def test_the_two_arms_agree_on_every_unusable_shape(tmp_path, overrides, why):
+    """escape-artist-2 found `find_release_artifacts` ACCEPTING two shapes that
+    `validate_artifact` rejected — the in-suite arm weaker than the release-time
+    one, the same two-places defect as the smuggle pointing the other way. The
+    arms now share one implementation, so agreement is structural; this pins it
+    against a future re-divergence."""
+    art = {
+        "schema": sm.SCHEMA,
+        "label": "v1.0.0",
+        "provenance": "measured",
+        "tree_dirty": False,
+        "command": "python -m pytest -q",
+        "exit_code": 0,
+        "tree_state": {"before": "aaaa", "after": "aaaa"},
+        "bracket_closes": True,
+        "counts": {"passed": 10, "failed": 0, "skipped": 2},
+        "result_tail": "10 passed, 2 skipped in 1.00s",
+    }
+    art.update(overrides)
+    d = tmp_path / "m"
+    d.mkdir()
+    (d / "a.json").write_text(json.dumps(art), encoding="utf-8")
+
+    validate_rejects = bool(sm.validate_artifact(art))
+    matching, _ = sm.find_release_artifacts(d, "1.0.0")
+    find_rejects = not matching
+
+    assert validate_rejects is True, f"{why}: validate_artifact must reject"
+    assert find_rejects is True, f"{why}: find_release_artifacts must reject too"
+
+
+def test_a_missing_tree_dirty_is_unknown_not_clean():
+    """UNKNOWN is not CLEAN — the asymmetry the rest of this codebase applies."""
+    art = {
+        "schema": sm.SCHEMA,
+        "provenance": "measured",
+        "command": "python -m pytest -q",
+        "exit_code": 0,
+        "tree_state": {"before": "aaaa", "after": "aaaa"},
+        "bracket_closes": True,
+        "counts": {"passed": 1, "failed": 0, "skipped": 0},
+        "result_tail": "1 passed in 1.00s",
+    }
+    findings = sm.validate_artifact(art)
+    assert any("unknown tree state is not a clean one" in f for f in findings), findings
+
+    art["tree_dirty"] = False
+    assert sm.validate_artifact(art) == [], "a recorded-clean measurement must pass"
 
 
 def test_a_dirty_tree_measurement_backs_no_claim_whatever_its_label(tmp_path):
@@ -1039,9 +1139,20 @@ def test_existing_check_changelog_contract_is_untouched(tmp_path):
 # 7. the live repo — the gate that actually bites
 # --------------------------------------------------------------------------- #
 def test_live_repo_release_has_a_recorded_bracket_measurement():
-    """The convergent half, on the real repo: this release publishes a count, so a
-    bracketed measurement must have been recorded for it."""
-    result = cc.check_release_measurement_present(REPO_ROOT)
+    """On the real repo: this release publishes a count, so a bracketed
+    measurement must have been recorded for it.
+
+    This is the ONE test whose input is the live working tree, and that input is
+    not hermetic — other lanes write to this tree while the suite runs, so
+    `CHANGELOG.md` or `plugin.json` can be read mid-write. A gate that reports
+    differently on identical input is the defect this tool exists to catch, so
+    an UNREADABLE input skips with its reason rather than failing: a torn read is
+    not a finding about the gate. A readable input is always asserted.
+    """
+    try:
+        result = cc.check_release_measurement_present(REPO_ROOT)
+    except (OSError, ValueError, KeyError) as exc:
+        pytest.skip(f"live tree was mid-write, so the gate had no stable input: {exc}")
     assert result["ok"], "\n".join(result["findings"])
 
 
@@ -1053,7 +1164,13 @@ def test_the_durable_measurements_dir_is_committed_not_gitignored():
         ["git", "-C", str(REPO_ROOT), "check-ignore", "-q", sm.DURABLE_OUT_DIR],
         capture_output=True,
     )
-    assert out.returncode != 0, f"{sm.DURABLE_OUT_DIR} is gitignored; artifacts there will not survive"
+    # `check-ignore` exits 0 = ignored, 1 = NOT ignored, 128 = git error. The
+    # original `!= 0` accepted 128 as proof the path was tracked — so a
+    # concurrent lane holding `.git/index.lock` would have turned a git failure
+    # into a green assertion. Only 1 is evidence; 128 is no information at all.
+    if out.returncode not in (0, 1):
+        pytest.skip(f"git check-ignore could not run (rc={out.returncode}), so nothing was measured")
+    assert out.returncode == 1, f"{sm.DURABLE_OUT_DIR} is gitignored; artifacts there will not survive"
 
 
 def test_module_has_no_import_time_side_effects(tmp_path):

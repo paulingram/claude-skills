@@ -325,8 +325,20 @@ def _sha(text: str) -> str:
 
 
 def _is_measurement_path(path: str) -> bool:
-    """Is `path` this tool's own output rather than the subject it measures?"""
-    p = path.replace("\\", "/").strip().lstrip("./")
+    """Is `path` this tool's own output rather than the subject it measures?
+
+    The `./` strip is a real PREFIX strip, not `lstrip("./")`. That character-SET
+    strip broke this predicate in both directions at once: it ate the leading dot
+    of ``.architect-team/measurements/…`` — this tool's OWN runtime prefix, which
+    the predicate then failed to recognise — while turning ``.docs/measurements/x``
+    and ``../docs/measurements/x`` into false exclusions. Masked today only
+    because `.architect-team/` is gitignored, so git never emits the path; the
+    moment that directory is tracked, the artifact is stale at birth in exactly
+    the location `RUNTIME_OUT_DIR` exists to serve.
+    """
+    p = path.replace("\\", "/").strip()
+    while p.startswith("./"):
+        p = p[2:]
     return any(p.startswith(prefix) for prefix in MEASUREMENT_PATH_PREFIXES)
 
 
@@ -741,17 +753,30 @@ def validate_artifact(artifact: Any) -> list[str]:
             "against a dirty tree, so it describes HEAD-plus-changes rather than "
             "the release and backs no published count"
         )
-    elif artifact.get("tree_dirty") is True:
-        # Independent of the label. `provisional` alone left the RELEASE-TIME gate
-        # weaker than the in-suite one — `find_release_artifacts` checked both, so
-        # a dirty measurement the suite rejected was accepted by
-        # `--require-measurements`, which is the release check. A published count
-        # describes a committed tree whatever the artifact chose to call itself.
-        findings.append(
-            "the measurement ran against a DIRTY tree, so it describes "
-            "HEAD-plus-uncommitted-changes and backs no published count, "
-            "whatever its label says"
-        )
+    elif artifact.get("tree_dirty") is not False:
+        # UNKNOWN is not CLEAN. Every genuine measurement writes this field, so an
+        # artifact omitting it was hand-assembled — inside the named forgery
+        # boundary, but treating the absence as "clean" made the forgery one field
+        # cheaper and inverted the asymmetry the rest of this codebase applies
+        # (`open_task_items` counts an unknown status as OPEN; an unreadable
+        # source blocks). Reported separately from a recorded dirty tree.
+        if artifact.get("tree_dirty") is True:
+            # Independent of the label. `provisional` alone left the RELEASE-TIME
+            # gate weaker than the in-suite one, so a dirty measurement the suite
+            # rejected was accepted by `--require-measurements` — the release
+            # check. A published count describes a committed tree whatever the
+            # artifact chose to call itself.
+            findings.append(
+                "the measurement ran against a DIRTY tree, so it describes "
+                "HEAD-plus-uncommitted-changes and backs no published count, "
+                "whatever its label says"
+            )
+        else:
+            findings.append(
+                f"tree_dirty is {artifact.get('tree_dirty')!r}, not a recorded "
+                f"boolean — an unknown tree state is not a clean one, and every "
+                f"genuine measurement records this field"
+            )
 
     for field in ("command", "tree_state", "bracket_closes"):
         if field not in artifact:
@@ -879,7 +904,16 @@ def _label_matches_version(label: Any, version: str) -> bool:
     """
     text = _strip_version_prefix(label)
     target = _strip_version_prefix(version)
-    return bool(target) and (text == target or text.startswith(target + "-"))
+    if not target:
+        return False
+    # A suffix must have content: `3.60.0-rc1` names this release, `3.60.0-` does
+    # not name anything. Accepting the bare hyphen made this predicate disagree
+    # with `is_release_label` (whose optional group needs a character after the
+    # separator) — the same predicate-disagreement shape as the capital-V smuggle,
+    # found by property test rather than by example.
+    return text == target or (
+        text.startswith(target + "-") and len(text) > len(target) + 1
+    )
 
 
 def find_release_artifacts(
@@ -905,19 +939,15 @@ def find_release_artifacts(
             # measured", never toward "a measurement exists but is unusable";
             # conflating the two would let a local scratch file wedge the gate.
             continue
-        if artifact.get("provisional") is True or artifact.get("tree_dirty") is True:
-            reasons.append(
-                f"{name}: PROVISIONAL — labelled for a release but measured on a "
-                f"dirty tree, so it does not describe the release"
-            )
-            continue
-        tree_state = artifact.get("tree_state")
-        tree_state = tree_state if isinstance(tree_state, dict) else {}
-        before = str(tree_state.get("before") or "").strip()
-        after = str(tree_state.get("after") or "").strip()
-        if artifact.get("bracket_closes") is not True or not before or before != after \
-                or before == UNKNOWN_DIGEST:
-            reasons.append(f"{name}: the bracket does not close ({before or '?'} -> {after or '?'})")
+        # ONE source of truth for usability. This used to re-implement the
+        # provisional / dirty / bracket checks, and the copy drifted: an artifact
+        # whose `exit_code` contradicted its failure count, or whose `counts`
+        # contradicted its `result_tail`, was rejected by `validate_artifact` at
+        # release time and ACCEPTED here. Same two-places defect as the smuggle,
+        # pointing the other way. Delegating removes the second place.
+        problems = validate_artifact(artifact)
+        if problems:
+            reasons.append(f"{name}: {problems[0]}")
             continue
         matching.append(artifact)
     return matching, reasons
