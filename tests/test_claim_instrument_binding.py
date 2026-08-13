@@ -890,3 +890,49 @@ def test_non_tree_claims_are_not_tree_scoped(statement: str) -> None:
     """A claim that is not a whole-tree measurement must NOT be forced to carry
     a quiescence bracket. R6 blocks, so over-firing here costs real runs."""
     assert _tree_scoped({"statement": statement}) is False, statement
+
+
+# ---------------------------------------------------------------------------
+# R6 must not fire on a SUB-TREE measurement (v3.59.2)
+# ---------------------------------------------------------------------------
+#
+# The v3.59.1 widening fixed an under-fire and created an over-fire, which an
+# independent audit of the shipped tool demonstrated. R6 emits a GAP, so a
+# claim about a targeted single-command run — "236 passed in 2.99s for the
+# three pin files" — was refused for a quiescence bracket it does not need. A
+# sub-tree run is not a whole-tree measurement, and freezing the repo to quote
+# a three-file run is a cost with no corresponding risk.
+#
+# The v3.59.1 comment asserting "\d{3,} means whole-tree by construction" was
+# simply false: three-figure counts are ordinary for a single busy test file.
+
+
+@_pytest.mark.parametrize("statement", [
+    "236 passed in 2.99s for the three pin files, a targeted single-command run",
+    "the 236 tests pass in tests/test_claim_instrument_binding.py",
+    "300 tests pass in the parser file",
+    "412 tests pass under -k tree_scoped",
+    "236 tests pass for tests/test_open_work.py::test_corpus",
+    "180 tests pass in this module",
+])
+def test_subtree_measurements_are_not_tree_scoped(statement: str) -> None:
+    """A scoped run must not be asked for a whole-tree quiescence bracket."""
+    assert _tree_scoped({"statement": statement}) is False, statement
+
+
+@_pytest.mark.parametrize("statement", [
+    "7375 tests pass",
+    "7375 tests pass at this release",
+    "the full suite is green",
+    "7375 passed / 0 failed",
+])
+def test_whole_tree_measurements_still_are_tree_scoped(statement: str) -> None:
+    """The under-fire fix must survive the over-fire fix — the pendulum check."""
+    assert _tree_scoped({"statement": statement}) is True, statement
+
+
+def test_an_explicit_tree_scoped_flag_overrides_a_subtree_sentence() -> None:
+    """The escape hatch stays one-directional: a claim may DECLARE itself
+    whole-tree, but a sentence can never opt a whole-tree claim out."""
+    assert _tree_scoped({"statement": "300 tests pass in the parser file",
+                         "tree_scoped": True}) is True

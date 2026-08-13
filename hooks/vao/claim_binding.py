@@ -224,6 +224,30 @@ _MUTATION_KIND = "mutation"
 # resolved in favour of silence — a tool that flags everything is worse than
 # none — and a claim that IS tree-scoped without saying so can declare
 # `tree_scoped: true`.
+# v3.59.2 — tells that a count is about a SUB-TREE, not the whole repo. Checked
+# BEFORE the tree markers, because the narrower signal is the more specific one
+# and R6 blocks. The v3.59.1 widening fixed an under-fire and created an
+# over-fire, demonstrated by an independent audit of the SHIPPED tool: "236
+# passed in 2.99s for the three pin files" was refused for a quiescence bracket
+# it does not need. Three-figure counts are ordinary for one busy test file,
+# which falsifies v3.59.1's "\d{3,} means whole-tree by construction".
+#
+# Kept to explicit scope language and pytest's own selector vocabulary. A bare
+# "in tests/" is deliberately NOT here — a whole-suite run is legitimately
+# described that way, and suppressing on it would re-open the under-fire.
+_SUBTREE_SCOPE_MARKERS: tuple[str, ...] = (
+    r"(?i)\btargeted\b",
+    r"(?i)\bsingle[-\s](?:command|file|module|test)\b",
+    r"(?i)\bthese\s+(?:tests?|files?)\b",
+    r"(?i)\bthis\s+(?:file|module|test)\b",
+    r"(?i)\bin\s+the\s+\S+\s+file\b",
+    r"(?i)\bfor\s+the\s+\S+\s+(?:pin\s+)?files?\b",
+    r"(?i)\bsubset\b",
+    r"(?i)(?<!\w)-k\s",                 # a pytest selection expression
+    r"(?i)[\w./\\-]+\.py::",            # a pytest node id
+    r"(?i)\bin\s+[\w./\\-]+\.py\b",     # "in tests/test_x.py"
+)
+
 _TREE_SCOPE_MARKERS: tuple[str, ...] = (
     r"(?i)\b(?:full|entire|whole|complete)\s+(?:test\s+)?suite\b",
     r"(?i)\ball\s+(?:the\s+)?tests?\b",
@@ -366,6 +390,12 @@ def _claim_is_tree_scoped(claim: Any) -> bool:
         return True
     statement = claim.get("statement")
     if not isinstance(statement, str) or not statement.strip():
+        return False
+    # A sub-tree run is not a whole-tree measurement. Checked first so the
+    # narrower signal wins; the explicit `tree_scoped` flag above still
+    # overrides, which keeps the escape hatch one-directional — a claim may
+    # DECLARE itself whole-tree, but a sentence can never opt one out.
+    if any(re.search(p, statement) for p in _SUBTREE_SCOPE_MARKERS):
         return False
     return any(re.search(pattern, statement) for pattern in _TREE_SCOPE_MARKERS)
 

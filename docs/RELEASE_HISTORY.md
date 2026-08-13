@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.59.2` — subtree-scope-suppression
 - `v3.59.1` — tree-scope-verb-forms
 - `v3.59.0` — wrong-instrument-verification
 - `v3.58.0` — credit-failover-to-login
@@ -152,6 +153,26 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.59.2  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.59.2 — subtree-scope-suppression: the fix for the under-fire created an over-fire, and an audit of my own claims found it
+
+An independent audit of the orchestrator's claims — commissioned during v3.59.0, silently never run, and re-dispatched after both releases had shipped — probed the **installed** tool and demonstrated that v3.59.1's widening had swung the pendulum the other way.
+
+R6 emits a **gap**, not a note. So after v3.59.1, `236 passed in 2.99s for the three pin files, a targeted single-command run` was refused for a whole-tree quiescence bracket it does not need, as was `the 236 tests pass`. Three-figure counts are ordinary for one busy test file — which falsifies the v3.59.1 comment asserting that `\d{3,}` means whole-tree by construction. Freezing a repo to quote a three-file run is a cost with no matching risk, and a gate that charges it gets switched off.
+
+Sub-tree scope markers now suppress R6 ahead of the tree markers: explicit scope language (`targeted`, `single-command`, `this module`, `in the parser file`) and pytest's own selector vocabulary (`-k `, a `file.py::nodeid`, `in tests/test_x.py`). A bare `in tests/` is deliberately **not** a marker — a whole-suite run is legitimately described that way, and suppressing on it would re-open the under-fire v3.59.1 closed. The explicit `tree_scoped` flag still overrides, so the escape hatch stays one-directional: a claim may declare itself whole-tree, but a sentence can never opt one out.
+
+Witnessed in three directions by mutation with sha256 deltas and exit-code classification: removing the suppression turns the over-fire pins red, making it unconditional turns the under-fire pins red, and ignoring the override turns the override pin red.
+
+Also swept from the same audit: `CODEBASE_MAP` said the vao package holds 15 modules (16 now) and never named `claim_binding.py`; `INTEGRATION_MAP` still said 22 tools and 5 pipeline skills; the README carried a stale 7222 test count under a v3.59.x spotlight; and the v3.59.0 CHANGELOG's "two defects" sentence now carries a pointer to the third rather than being silently rewritten.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
