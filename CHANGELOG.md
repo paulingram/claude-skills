@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.59.1] — 2026-08-13 — tree-scope-verb-forms (PATCH: the v3.59.0 tool missed the phrasing its own release notes used)
+
+Found by probing the SHIPPED v3.59.0 tool against corpus case 4 — the moving tree, the failure this orchestrator had personally produced six times. R6 (a whole-tree measurement must pin the tree it measured) is gated behind a tree-scope detector reading the claim's own sentence, and its verb set was `passed | passing | failed | failing`. So **"7360 tests pass"**, the most natural phrasing of a suite-count claim, did not register as tree-scoped and **R6 never ran** — and the v3.59.0 CHANGELOG sentence announcing the tool is written in the missed form. Three phrasings missed: `7360 tests pass`, `7360 tests pass at this release`, `7360 tests are passing`.
+
+Widened to `pass | passes | passed | passing | fail | fails | failed | failing`, with an optional `are | were` between the count and the participle. The optional `tests?` gate is RETAINED deliberately — R6 emits a gap, not a note, so a marker widened past whole-tree measurements would demand a quiescence bracket from claims that never needed one; `300 users pass validation` must stay out, and a both-directions test pins that it does.
+
+Witnessed in both directions by mutation with a sha256 delta and exit-code classification: reverting the verb set turns the new pins red, and dropping the `tests?` gate turns the over-fire pins red.
+
+No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
+
+Suite **7360 -> 7375 passing + 6 skipped, 0 failed** (+15 tests in the existing `tests/test_claim_instrument_binding.py`; test-file count unchanged).
+
 ## [3.59.0] — 2026-08-13 — wrong-instrument-verification (MINOR: the borrowed green named on the compiled surface, and mechanized as the 23rd Layer-3 tool)
 
 A user forwarded an agent's own postmortem after five of its claims were corrected in one run: *"my errors this run were never in the code, they were in reporting something as verified that I'd checked with the wrong instrument."* The diagnosis is exact and the failure is narrower than carelessness — in every case the check **ran**, was **green**, read **real output**, and could fail in general. It simply could not have come out differently if the claim had been false. This release names it **the borrowed green**: a real check's real green, lent to a claim the check never measured.
