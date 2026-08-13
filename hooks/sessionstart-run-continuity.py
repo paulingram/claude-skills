@@ -53,6 +53,17 @@ import socket
 import sys
 from pathlib import Path
 
+
+def _failover_timestamp() -> str:
+    """ISO-8601 UTC for the credit-failover record.
+
+    Timezone-aware: `datetime.utcnow()` is deprecated and scheduled for removal,
+    and it returned a naive value that read as local time to any consumer.
+    """
+    import datetime as _dt
+
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 # Dual-form import per house convention (package shape, then bare-module).
 try:  # pragma: no cover - exercised by both import paths
     from hooks import run_continuity as _rc
@@ -320,6 +331,192 @@ def maybe_heal_model_split(
         return ""
 
 
+def maybe_failover_to_login(
+    plugin_root: Path | None = None,
+    plugins_base: Path | None = None,
+    gateway_state_path: Path | None = None,
+    settings_path: Path | None = None,
+    agents_dir: Path | None = None,
+    port_probe=None,
+    prober=None,
+) -> str:
+    """Detect credit exhaustion and failover to login auth (v3.42.0),
+    returning a one-line note for the session context ("" when nothing applies).
+
+    Guards, in order (fail-open on every path, never wedges a session start):
+      - Installed-copy guard with EXPLICIT-INJECTION BYPASS, identical in shape
+        to `maybe_heal_model_split` / `maybe_heal_activation`: the hook must run
+        from an INSTALLED plugin copy (under ~/.claude/plugins/) — a DEV
+        CHECKOUT never mutates the developer's real machine. Injecting BOTH
+        `gateway_state_path` AND `settings_path` is programmatic consent to
+        those sandbox paths and bypasses the guard; the real `main()` wiring
+        never injects.
+        THIS GUARD IS NOT OPTIONAL AND ITS ABSENCE IS NOT THEORETICAL: shipping
+        this function without it let a dev-checkout session start mutate the
+        owner's real gateway.json (2026-07-20). The failover is the most
+        destructive of the three hook actions — it un-points Claude Code and
+        reverts the model split — so it needs at least the same containment as
+        the two heals, not less.
+      - State guards: gateway.json must record `activated` AND `enabled` AND
+        `auth_mode == "api-key"` (the failover is only for api-key machines).
+      - Gateway-liveness guard: probe 127.0.0.1:<port> via the injectable
+        `port_probe` seam (default: TCP connect). Nothing listening => fail-open
+        no-op (a dead gateway doesn't need failover).
+      - Credit-exhaustion detection: one bounded probe to the live gateway,
+        classified into credit-exhausted / rate-limited / transient / other.
+        ONLY credit-exhausted triggers failover.
+
+    The failover (if credit-exhausted):
+      1. Strip the env block from settings.json (merge-preserving)
+      2. Flip recorded activation (activated=false) + write failover record
+      3. Revert the role split to uniform-fable
+      4. Return a note for the session context
+
+    Ordered BEFORE maybe_heal_activation() so a failover that fires in this
+    run doesn't immediately get re-healed."""
+    try:
+        # Installed-copy guard with explicit-injection bypass. BOTH
+        # gateway_state_path AND settings_path passed => programmatic consent to
+        # sandbox paths; the real main() wiring never injects, so it always runs
+        # the guard and a dev checkout can never fail over the real machine.
+        explicit = gateway_state_path is not None and settings_path is not None
+        if not explicit:
+            root = Path(plugin_root) if plugin_root \
+                else Path(__file__).resolve().parent.parent
+            base = Path(plugins_base) if plugins_base \
+                else Path.home() / ".claude" / "plugins"
+            try:
+                root.relative_to(base)
+            except ValueError:
+                return ""  # dev checkout / anywhere else — never fails over
+
+        state_path = Path(gateway_state_path) if gateway_state_path else (
+            Path(os.environ.get("CT6_GATEWAY_HOME")
+                 or Path.home() / ".architect-team" / "gateway") / _STATE_NAME)
+        if not state_path.is_file():
+            return ""
+
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if not (isinstance(state, dict)
+                and state.get("activated")
+                and state.get("enabled")
+                and state.get("auth_mode") == "api-key"):
+            return ""  # Not an activated api-key machine — nothing to do
+
+        port = int(state.get("port", 4000))
+
+        # Gateway-liveness guard (same as maybe_heal_activation)
+        probe = port_probe or _default_port_probe
+        try:
+            live = bool(probe(port))
+        except Exception:
+            return ""
+        if not live:
+            return ""  # dead gateway — no failover needed
+
+        # Detect credit exhaustion. Load the classifier dynamically.
+        env_file = state_path.parent / _ENV_FILE_NAME
+        master_key_value = _read_env_file_local(env_file).get(_MASTER_KEY_VAR)
+        if not master_key_value:
+            return ""  # unhealable — no key to probe with
+
+        model = str(state.get("secondary_model") or state.get("openai_model") or "claude-opus-4-8")
+
+        # Dynamically load install_gateway to call detect_credit_exhaustion
+        root = Path(__file__).resolve().parent.parent
+        installer_path = root / "scripts" / "setup" / "install_gateway.py"
+        if not installer_path.is_file():
+            return ""  # can't load installer — fail open
+
+        spec = importlib.util.spec_from_file_location("ct6_failover_installer", installer_path)
+        if spec is None or spec.loader is None:
+            return ""
+        installer = importlib.util.module_from_spec(spec)
+        sys.modules["ct6_failover_installer"] = installer
+        spec.loader.exec_module(installer)
+
+        # Call detect_credit_exhaustion
+        detect_fn = getattr(installer, "detect_credit_exhaustion", None)
+        if not detect_fn:
+            return ""  # function not found — fail open
+
+        # `prober` is an injectable seam (mirrors `port_probe`): without it the hook
+        # path could not be exercised end-to-end hermetically, which is exactly
+        # why the split-revert step below went untested until 2026-07-20.
+        detection = detect_fn(port, master_key_value, model, prober=prober)
+        if not detection.get("exhausted"):
+            return ""  # not credit-exhausted — no failover needed
+
+        # Apply failover: strip env + flip state + revert split
+        target = Path(settings_path) if settings_path \
+            else Path.home() / ".claude" / "settings.json"
+
+        # Read and strip env block (merge-preserving)
+        if target.is_file():
+            try:
+                data = json.loads(target.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    env_block = data.get("env", {})
+                    if isinstance(env_block, dict):
+                        gateway_url = f"http://127.0.0.1:{port}"
+                        if env_block.get("ANTHROPIC_BASE_URL") == gateway_url:
+                            env_block.pop("ANTHROPIC_BASE_URL", None)
+                            env_block.pop("ANTHROPIC_AUTH_TOKEN", None)
+                            data["env"] = env_block
+                            target.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            except (OSError, json.JSONDecodeError):
+                pass  # fail open — don't write if we can't parse
+
+        # Flip recorded state: activated=false + failover record
+        try:
+            state["activated"] = False
+            state["failover"] = {
+                # Was a JSON round-trip that serialized a timestamp only to
+                # split the same string back out of the result, calling the
+                # deprecated `utcnow()` three times to do it. It computed
+                # exactly this value. Timezone-aware because `utcnow()` is
+                # scheduled for removal.
+                "at": _failover_timestamp(),
+                "reason": detection.get("class", "unknown"),
+                "detail": f"status {detection.get('status')}",
+                "provider": state.get("secondary_provider"),
+                "port": port,
+            }
+            # Simplified ISO format
+            from datetime import datetime, timezone
+            state["failover"]["at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+            state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        except Exception:
+            pass  # fail open — state write is best-effort
+
+        # Revert split to uniform-fable
+        try:
+            agent_path = Path(agents_dir) if agents_dir else (root / "agents")
+            if agent_path.is_dir():
+                lever_path = root / "scripts" / "setup" / "set_default_model.py"
+                if lever_path.is_file():
+                    spec2 = importlib.util.spec_from_file_location("ct6_failover_lever", lever_path)
+                    if spec2 is not None and spec2.loader is not None:
+                        lever = importlib.util.module_from_spec(spec2)
+                        sys.modules["ct6_failover_lever"] = lever
+                        spec2.loader.exec_module(lever)
+                        revert_fn = getattr(lever, "apply_policy", None)
+                        if revert_fn:
+                            revert_fn(agent_path, codex_is_available=False)
+        except Exception:
+            pass  # fail open — split revert is best-effort
+
+        return (
+            "[CT6 credit-failover] Upstream provider out of credits (detected "
+            f"{detection.get('class')}); failed over to login auth "
+            "(recovered to Claude sign-in). Recovery: install --activate once "
+            "credits are restored."
+        )
+    except Exception:  # fail open — never wedge a session start on a bug here
+        return ""
+
+
 def maybe_heal_activation(
     plugin_root: Path | None = None,
     plugins_base: Path | None = None,
@@ -507,9 +704,16 @@ def main() -> int:
         directive = build_directive(payload)
     except Exception:  # fail open — never wedge a session start on a bug here
         directive = ""
-    # v3.41.1 activation-drift: the wire heal runs FIRST, then the policy heal,
+    # v3.42.0 credit-failover: the failover check runs FIRST, before the
+    # activation heal, so if failover clears the activation flag in this run,
+    # the heal's state guards correctly decline to re-apply the env block.
+    # v3.41.1 activation-drift: then the wire heal, then the policy heal,
     # so the notes read coherently on a machine recovering from both drifts
     # (B4 supplement-3 — order test-pinned).
+    try:
+        failover_note = maybe_failover_to_login()
+    except Exception:  # fail open — never wedge a session start on a bug here
+        failover_note = ""
     try:
         activation_note = maybe_heal_activation()
     except Exception:  # fail open — never wedge a session start on a bug here
@@ -518,7 +722,7 @@ def main() -> int:
         split_note = maybe_heal_model_split()
     except Exception:  # fail open — never wedge a session start on a bug here
         split_note = ""
-    for line in (directive, activation_note, split_note):
+    for line in (directive, failover_note, activation_note, split_note):
         if line:
             print(line)
     return 0

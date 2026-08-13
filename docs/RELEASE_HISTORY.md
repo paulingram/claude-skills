@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.58.0` — credit-failover-to-login
 - `v3.57.0` — completion-lock-followups
 - `v3.56.0` — turn-boundary-completion-lock
 - `v3.55.4` — run-continuity-and-uxtest-spec
@@ -155,6 +156,20 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.58.0 — credit-failover-to-login: the external-LLM gateway falls back to Claude sign-in when the upstream runs out of credit
+
+Lands the `credit-failover-to-login` work, built at v3.42.0 and held on a branch for three weeks. Merged forward across 67 commits; every version and documentation conflict resolved in favour of current `main`, so this release describes what actually shipped rather than the shape the branch was written against.
+
+**The problem it solves.** With the role split active, the development agents route through the external-LLM gateway to the secondary provider. When that provider's credit runs out, every one of those agents fails — mid-run, repeatedly, with an error that reads like a bug rather than a bill. Claude sign-in auth is still perfectly good; nothing was using it.
+
+**Failover is deliberately narrow.** A pure classifier sorts an upstream response into `credit-exhausted`, `rate-limited`, `transient`, or `other`, and **only `credit-exhausted` may trigger a failover**. HTTP 402 and hard-credit body vocabulary (`insufficient_credit`, `quota_exceeded`, `credit balance is too low`, `billing`) qualify. A 429 is a retry class and never fails over — and the 429 check runs **before** the body scan, so a rate-limit response whose body happens to mention quota is still classified as a rate limit. A 5xx or an `overloaded` body is transient. Failing over on a retryable error would abandon a working provider over a temporary blip.
+
+**It flips recorded state, not just live routing.** The failover records `activated: false` plus a failover entry in the gateway state. Without that, the v3.41.x SessionStart self-heal would observe a split it believes should be applied and put it straight back — the failover would silently undo itself on the next session.
+
+**Also in this release:** a convoluted timestamp expression that came in with the branch — a JSON round-trip that serialized a value only to split the same string back out, calling the deprecated `datetime.utcnow()` three times to do it — was replaced with one timezone-aware call.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ### v3.57.0 — completion-lock-followups: every open completion-lock follow-up closed, and a run-scoped frontend-E2E gate that stops asking the user to do the pipeline's job
 
