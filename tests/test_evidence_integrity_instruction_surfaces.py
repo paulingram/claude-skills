@@ -748,9 +748,10 @@ def test_verdict_example_shows_the_reasons_array(plugin_root: Path) -> None:
 def test_vao_package_docstring_is_current(plugin_root: Path) -> None:
     """F1 — the package docstring counted 20 tools and listed no modules."""
     doc = (plugin_root / "hooks" / "vao" / "__init__.py").read_text(encoding="utf-8")
-    assert "21 ``verify_*`` tools" not in doc, "package docstring still says 21 tools"
-    assert "22 ``verify_*`` tools" in doc
-    for mod in ("check_integrity", "deferral_b", "mention_context", "frontend_e2e"):
+    assert "22 ``verify_*`` tools" not in doc, "package docstring still says 22 tools"
+    assert "23 ``verify_*`` tools" in doc
+    for mod in ("check_integrity", "deferral_b", "mention_context", "frontend_e2e",
+                "claim_binding"):
         assert mod in doc, f"package docstring omits the {mod} module"
     for helper in ("_ITEM_DISPOSITION_CITATIONS", "_boundary_pattern"):
         assert helper in doc, f"package docstring omits the relocated helper {helper}"
@@ -759,7 +760,7 @@ def test_vao_package_docstring_is_current(plugin_root: Path) -> None:
     names = set()
     for p in (plugin_root / "hooks" / "vao").glob("*.py"):
         names |= set(_re.findall(r"^def (verify_[a-z_]+)", p.read_text(encoding="utf-8"), _re.M))
-    assert len(names) == 22, f"package defines {len(names)} verify_* tools, docstring says 22"
+    assert len(names) == 23, f"package defines {len(names)} verify_* tools, docstring says 23"
 
 
 def test_conventions_documents_verdict_hygiene(plugin_root: Path) -> None:

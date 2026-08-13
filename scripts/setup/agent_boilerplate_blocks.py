@@ -88,7 +88,8 @@ PRINCIPLES = (
     "Anti-pattern: the stale grid.\n"
     "- **Evidence before assertion.** State a result only after running the check and "
     "reading its output. Grep proves presence, never absence; silence is not a finding; "
-    "relay claims as claims, verdicts as facts. Anti-pattern: the unverified \"should work\".\n\n"
+    "relay claims as claims, verdicts as facts; a green check is evidence for what it "
+    "measures, never for what you asserted. Anti-pattern: the unverified \"should work\".\n\n"
     "See `docs/ETHOS.md` for the full text."
 )
 

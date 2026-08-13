@@ -93,6 +93,11 @@ symptom is gone against the live system, not that a test went green via some oth
 path. Verification precedes the completion claim, always — evidence before
 assertions.
 
+And bind the check to the claim. A green check is evidence for what the check
+measures, never for what you asserted about it. Before you write "verified", be
+able to name what the instrument would have shown had the claim been false — if
+the answer is "the same green", you measured something else.
+
 **Anti-pattern:** *the unverified "should work"* — a success claim written from
 intention rather than observation, or a test that passes without ever exercising
 the code it purports to cover.
@@ -193,8 +198,10 @@ and required the agent to quietly re-draw the line it was told not to draw.
 ## Evidence integrity (v3.47.0)
 
 Principle 7 says state a result only after running the check and reading its
-output. These three rules are its negative direction — the shapes an agent
-reaches for when there is no result to read, and it reports something anyway.
+output. These four rules are its negative direction — the shapes an agent
+reaches for when there is no result to read and it reports something anyway,
+and the shape it reaches for when there IS a result, but that result answers a
+different question than the one asked.
 Each one was learned from a run that reported fixes that were not real.
 
 ### Grep proves presence, never absence
@@ -244,3 +251,32 @@ difference between a status report and a guess.
 **Anti-pattern:** *the relayed claim* — a task board's `completed`, or a
 teammate's summary, repeated to the user as a verified outcome. The status was
 accurately copied; nothing verified it.
+
+### A green check proves what it measured
+
+The first three rules are about having no result and reporting anyway. This one
+is the harder case: you HAVE a result, it is real, and it answers a different
+question than the one you asked. The check ran. It read genuine output. It could
+fail in general. It simply could not have failed *because your claim was false*.
+
+So before you write "verified", name the instrument and state the different,
+observable result it would have produced had the claim been false **of the
+object the claim names** — the same tree, the same arm, the same code path. Two
+answers mean you have verified nothing: *"the same green"* and *"I cannot say"*.
+Both are honest-boundary statements about what you measured, not verifications;
+report them as such.
+
+For a NEW guard, do not state the counterfactual — execute it once. Make the
+claim false (disable the arm, apply the mutation) with proof the falsification
+landed, and watch the instrument produce that different result *for that reason*.
+A red-first run that went red for an unrelated reason does not bind. Neither does
+any-red-counts-as-caught when two signals cover the same fixture.
+
+This is what `verify-check-can-fail` gestures at without requiring. Its two
+halves ask *did the check read anything* and *has this guard ever been shown able
+to fail* — a check can pass both and still be blind to the one claim it was
+cited for.
+
+**Anti-pattern:** *the borrowed green* — a real check's real green, lent to a
+claim the check never measured. Not a lie and not a broken check: it ran, it was
+read, and it would fail for something. Just not for this.

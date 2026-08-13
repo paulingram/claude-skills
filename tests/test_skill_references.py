@@ -16,7 +16,7 @@ The recorded counts are LF-normalized (the form the index carries). The repo run
 and this pin reads red there — a known platform artifact of `read_bytes()`, not a
 regrowth. v3.47.0 grew the body by the declared-gates + spec-currency disciplines
 and the compiled principles clause, then the adversarial-batch corrections (248657 -> 256080) and the
-v3.57.0 local->dev->test-on-dev discipline (258442 -> 259281; its bulk went straight to
+v3.57.0 local->dev->test-on-dev discipline (258442 -> 259250; its bulk went straight to
 references/local-dev-test-discipline.md, so the SKILL body took only the pointer and the
 file still sits under the 259290 pre-extraction baseline). Before that the
 v3.48.0 contract-first-parallelism canonical section (256080 -> 258442, a NEW cross-pipeline
@@ -52,7 +52,7 @@ import pytest
 # skill dir -> (reference id, pre-change baseline bytes, recorded after bytes)
 # Byte counts are LF-normalized (see the module docstring).
 EXTRACTIONS = {
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 259281),
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 259250),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

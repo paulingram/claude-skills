@@ -138,11 +138,32 @@ CHECK_INTEGRITY_VERDICT_PATH_FIELD = "check_integrity_review_verdict_path"
 # frontend: a passing unit test can never satisfy it — only a real-frontend
 # end-to-end verdict (or an explicitly-authorized n/a) does. 'fail' BLOCKS.
 VALID_FRONTEND_IMPACT_E2E_VALUES = {"pass", "n/a", "fail"}
+
+# v3.59.0 — same pass|n/a|fail shape as its siblings. `n/a` is legitimate for a
+# task that made no verification CLAIM (a pure docs edit, a rename); it is NOT a
+# way to opt a real claim out of binding.
+VALID_CLAIM_BINDING_VALUES = {"pass", "n/a", "fail"}
 OPTIONAL_VAO_FIELDS = (
     "interactions_honored_review",
     "live_verification_review",
     "appearance_scope_review",
     "check_integrity_review",
+    # v3.59.0 — the borrowed green. `check_integrity_review` asks whether the
+    # check read anything and has ever been shown able to fail; this asks the
+    # third question neither answers: could the cited instrument have come out
+    # DIFFERENTLY had this specific claim been false? A check can pass both of
+    # the older halves and still be blind to the one claim it is cited for.
+    #
+    # Deliberately OPTIONAL rather than conditionally-required, against the
+    # building teammate's recommendation. Its argument was sound — a task whose
+    # diff touches tests is exactly where claims are authored, and requiring the
+    # field there would reach the most runs. The counter-argument won on this
+    # repo's own history: the ask-ledger shipped as a blocking source, wedged an
+    # ordinary session on its first live use, and had to be demoted the same
+    # day. A new gate whose trigger has never run against real traffic earns
+    # `fail`-blocks-only first; promoting it to conditionally-required is a
+    # one-line change once there is evidence about its false-positive rate.
+    "claim_instrument_binding_review",
 )
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
@@ -743,6 +764,31 @@ def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
             note_field="check_integrity_review_note",
         )
         gaps += _validate_check_integrity_citation(evidence)
+
+    # v3.59.0 — claim_instrument_binding_review, the borrowed green. OPTIONAL on
+    # the same terms: validated only when present, so every pre-v3.59.0 evidence
+    # file stays valid. Registering the name in OPTIONAL_VAO_FIELDS does NOT by
+    # itself enforce anything — that list is a vocabulary, not a gate, and a
+    # field added there and nowhere else is inert. This block is what makes a
+    # `fail` actually block, and it was written after a probe showed the field
+    # allowed `fail`, `n/a` and `garbage` alike.
+    if "claim_instrument_binding_review" in evidence:
+        gaps += _validate_vao_field(
+            evidence,
+            "claim_instrument_binding_review",
+            VALID_CLAIM_BINDING_VALUES,
+            "v3.59.0 `verify-claim-instrument-binding` found a claim whose cited "
+            "instrument could not have come out differently had the claim been "
+            "false — the borrowed green. The check may well have run, read real "
+            "output, and be able to fail in general; that is not the question. "
+            "The question is whether it would have failed BECAUSE THIS CLAIM IS "
+            "FALSE, of the object the claim names: the same tree, the same arm, "
+            "the same code path. Name the instrument, state the different result "
+            "it would have shown had the claim been false, and for a new guard "
+            "execute that counterfactual once with proof the falsification landed "
+            "— do not restate the green.",
+            note_field="claim_instrument_binding_review_note",
+        )
 
     return gaps
 
