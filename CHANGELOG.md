@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.59.2] — 2026-08-13 — subtree-scope-suppression (PATCH: the under-fire fix created an over-fire, found by the audit of the Lead's own claims)
+
+An independent audit — commissioned during v3.59.0, silently never run, and re-dispatched only after both releases had shipped — probed the INSTALLED tool and demonstrated that v3.59.1's widening swung the pendulum the other way.
+
+R6 emits a GAP, not a note. After v3.59.1, `236 passed in 2.99s for the three pin files, a targeted single-command run` was refused for a whole-tree quiescence bracket it does not need, as was `the 236 tests pass`. Three-figure counts are ordinary for one busy test file — falsifying v3.59.1's own comment that `\d{3,}` means whole-tree by construction. Freezing a repo to quote a three-file run is a cost with no matching risk, and a gate that charges it gets switched off.
+
+NEW `_SUBTREE_SCOPE_MARKERS`, checked BEFORE the tree markers: explicit scope language (`targeted`, `single-command`, `this module`, `in the parser file`) and pytest's own selector vocabulary (`-k `, a `file.py::nodeid`, `in tests/test_x.py`). A bare `in tests/` is deliberately NOT a marker — a whole-suite run is legitimately described that way, and suppressing on it would re-open the under-fire v3.59.1 closed. The explicit `tree_scoped` flag still overrides, keeping the escape hatch one-directional.
+
+Witnessed in THREE directions by mutation with sha256 deltas and exit-code classification: removing the suppression turns the over-fire pins red, making it unconditional turns the under-fire pins red, and ignoring the override turns the override pin red.
+
+Also swept from the same audit: `CODEBASE_MAP` said the vao package holds 15 modules (16) and never named `claim_binding.py`; `INTEGRATION_MAP` still said 22 tools and 5 pipeline skills; the README carried a stale 7222 count; and the v3.59.0 "two defects" sentence now carries a pointer to the third rather than being silently rewritten.
+
+No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
+
+Suite **7375 -> 7386 passing + 6 skipped, 0 failed** (+11 tests in the existing `tests/test_claim_instrument_binding.py`).
+
 ## [3.59.1] — 2026-08-13 — tree-scope-verb-forms (PATCH: the v3.59.0 tool missed the phrasing its own release notes used)
 
 Found by probing the SHIPPED v3.59.0 tool against corpus case 4 — the moving tree, the failure this orchestrator had personally produced six times. R6 (a whole-tree measurement must pin the tree it measured) is gated behind a tree-scope detector reading the claim's own sentence, and its verb set was `passed | passing | failed | failing`. So **"7360 tests pass"**, the most natural phrasing of a suite-count claim, did not register as tree-scoped and **R6 never ran** — and the v3.59.0 CHANGELOG sentence announcing the tool is written in the missed form. Three phrasings missed: `7360 tests pass`, `7360 tests pass at this release`, `7360 tests are passing`.
@@ -26,7 +42,7 @@ A user forwarded an agent's own postmortem after five of its claims were correct
 
 **Review-gate wiring, deliberately conservative.** Evidence schema v7 gains OPTIONAL `claim_instrument_binding_review` (`pass` / `n/a` / `fail`, `fail` blocks, absent stays valid). The building teammate recommended making it conditionally REQUIRED on a test-touching diff and the argument was sound; it lost to this repo's own history — the ask-ledger shipped blocking, wedged an ordinary session on first live use, and was demoted the same day. A gate whose trigger has never met real traffic earns `fail`-blocks-only first. Promotion is a one-line change once there is false-positive evidence.
 
-**Two defects in this release were produced while building it, and both are the class being fixed.** A probe that returned identical output for `pass`, `fail` and `garbage` because fifteen missing required fields short-circuited it before the new field was ever reached; and a schema field registered in `OPTIONAL_VAO_FIELDS` and nowhere else — inert, enforcing nothing, with the suite green. Both were caught by building a probe that could discriminate. `OPTIONAL_VAO_FIELDS` is a vocabulary, not a gate.
+**Two defects in this release were produced while building it, and both are the class being fixed.** (A third, same class, surfaced post-ship when an independent audit probed the installed artifact — see v3.59.1 and v3.59.2. The count is left at two because that is what was true when this entry was written; the pointer is the correction.) A probe that returned identical output for `pass`, `fail` and `garbage` because fifteen missing required fields short-circuited it before the new field was ever reached; and a schema field registered in `OPTIONAL_VAO_FIELDS` and nowhere else — inert, enforcing nothing, with the suite green. Both were caught by building a probe that could discriminate. `OPTIONAL_VAO_FIELDS` is a vocabulary, not a gate.
 
 Also swept: the compiled principles block reaches **6** pipeline-driving skills, not the 5 the docs claimed; and the RELEASE_HISTORY spotlight dividers for v3.57.0 / v3.58.0 / v3.59.0 were missing or mislabelled (v3.59.0's read "NEW IN v3.56.0"), drift introduced by this orchestrator across the three preceding releases and caught by the history-completeness pin.
 
