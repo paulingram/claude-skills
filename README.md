@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 59 . 2
+                        ─── C T 6 ───   v 3 . 59 . 3
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.59.2-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.59.3-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-7375%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -77,21 +77,19 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.59.2  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.59.3  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.59.2 — subtree-scope-suppression: the fix for the under-fire created an over-fire, and an audit of my own claims found it
+### v3.59.3 — audit-record-and-carryovers: the audit's findings moved somewhere they survive
 
-An independent audit of the orchestrator's claims — commissioned during v3.59.0, silently never run, and re-dispatched after both releases had shipped — probed the **installed** tool and demonstrated that v3.59.1's widening had swung the pendulum the other way.
+The adversarial audit that produced v3.59.2 lives in `.architect-team/`, which is **gitignored** — so its findings, and the two open items it surfaced, were one `git clean` from being lost. They now live in `docs/proposals/WRONG_INSTRUMENT_FOLLOWUPS.md`, committed.
 
-R6 emits a **gap**, not a note. So after v3.59.1, `236 passed in 2.99s for the three pin files, a targeted single-command run` was refused for a whole-tree quiescence bracket it does not need, as was `the 236 tests pass`. Three-figure counts are ordinary for one busy test file — which falsifies the v3.59.1 comment asserting that `\d{3,}` means whole-tree by construction. Freezing a repo to quote a three-file run is a cost with no matching risk, and a gate that charges it gets switched off.
+**Three carryovers closed.** The `tests/test_skill_references.py` byte-ledger had its v3.57.0 transition line **rewritten** rather than appended to, so v3.59.0's bytes were attributed to v3.57.0 and v3.59.0's own change was invisible. The gate itself was never weakened — the 259290 cap was untouched and both assertions stayed enforced — but a ledger that misreports which release spent the bytes is the next maintainer's wrong instrument. `docs/ETHOS.md`'s "Evidence integrity (v3.47.0)" heading had come to contain a v3.59.0 rule. And the claim that all five witnesses pass `verify-check-can-fail` unchanged is true but **vacuous for three of them** — W3/W4/W5 add no test file and fall outside that tool's jurisdiction, so the demonstration carries weight for W1 and W2 only, and now says so.
 
-Sub-tree scope markers now suppress R6 ahead of the tree markers: explicit scope language (`targeted`, `single-command`, `this module`, `in the parser file`) and pytest's own selector vocabulary (`-k `, a `file.py::nodeid`, `in tests/test_x.py`). A bare `in tests/` is deliberately **not** a marker — a whole-suite run is legitimately described that way, and suppressing on it would re-open the under-fire v3.59.1 closed. The explicit `tree_scoped` flag still overrides, so the escape hatch stays one-directional: a claim may declare itself whole-tree, but a sentence can never opt one out.
+**Two items left open, deliberately and in writing.** *Hash brackets are asserted, never recorded* — five suite counts were published this thread as "frozen-tree, hash-bracketed" and no bracket artifact exists on disk for any of them; the runs happened, but the evidence is a claim. And *the counts are machine-bound* — five committed tests hard-require gitignored fixtures, so a fresh clone yields 7299/5F/7S rather than the published figure. Every count this repo has ever printed describes this machine, not the repo.
 
-Witnessed in three directions by mutation with sha256 deltas and exit-code classification: removing the suppression turns the over-fire pins red, making it unconditional turns the under-fire pins red, and ignoring the override turns the override pin red.
-
-Also swept from the same audit: `CODEBASE_MAP` said the vao package holds 15 modules (16 now) and never named `claim_binding.py`; `INTEGRATION_MAP` still said 22 tools and 5 pipeline skills; the README carried a stale 7222 test count under a v3.59.x spotlight; and the v3.59.0 CHANGELOG's "two defects" sentence now carries a pointer to the third rather than being silently rewritten.
+Both are the same class the v3.59.x releases addressed, still open in the process that shipped them. Naming them beats closing one and quietly carrying the other.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 

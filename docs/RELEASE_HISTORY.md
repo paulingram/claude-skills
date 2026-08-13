@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.59.3` — audit-record-and-carryovers
 - `v3.59.2` — subtree-scope-suppression
 - `v3.59.1` — tree-scope-verb-forms
 - `v3.59.0` — wrong-instrument-verification
@@ -153,6 +154,24 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.59.3  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.59.3 — audit-record-and-carryovers: the audit's findings moved somewhere they survive
+
+The adversarial audit that produced v3.59.2 lives in `.architect-team/`, which is **gitignored** — so its findings, and the two open items it surfaced, were one `git clean` from being lost. They now live in `docs/proposals/WRONG_INSTRUMENT_FOLLOWUPS.md`, committed.
+
+**Three carryovers closed.** The `tests/test_skill_references.py` byte-ledger had its v3.57.0 transition line **rewritten** rather than appended to, so v3.59.0's bytes were attributed to v3.57.0 and v3.59.0's own change was invisible. The gate itself was never weakened — the 259290 cap was untouched and both assertions stayed enforced — but a ledger that misreports which release spent the bytes is the next maintainer's wrong instrument. `docs/ETHOS.md`'s "Evidence integrity (v3.47.0)" heading had come to contain a v3.59.0 rule. And the claim that all five witnesses pass `verify-check-can-fail` unchanged is true but **vacuous for three of them** — W3/W4/W5 add no test file and fall outside that tool's jurisdiction, so the demonstration carries weight for W1 and W2 only, and now says so.
+
+**Two items left open, deliberately and in writing.** *Hash brackets are asserted, never recorded* — five suite counts were published this thread as "frozen-tree, hash-bracketed" and no bracket artifact exists on disk for any of them; the runs happened, but the evidence is a claim. And *the counts are machine-bound* — five committed tests hard-require gitignored fixtures, so a fresh clone yields 7299/5F/7S rather than the published figure. Every count this repo has ever printed describes this machine, not the repo.
+
+Both are the same class the v3.59.x releases addressed, still open in the process that shipped them. Naming them beats closing one and quietly carrying the other.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

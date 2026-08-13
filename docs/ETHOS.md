@@ -195,7 +195,7 @@ just the decision to end it.
 work is still open, which reads as completion, was produced instead of completion,
 and required the agent to quietly re-draw the line it was told not to draw.
 
-## Evidence integrity (v3.47.0)
+## Evidence integrity (v3.47.0; fourth rule v3.59.0)
 
 Principle 7 says state a result only after running the check and reading its
 output. These four rules are its negative direction — the shapes an agent

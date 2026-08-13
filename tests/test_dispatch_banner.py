@@ -417,7 +417,7 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     release. The test name preserves its v1.5.0 origin (it was added in v1.5.0)
     but its semantic intent is 'plugin metadata is at the current release
     version', which the current release (v3.59.0 — wrong-instrument-verification)
-    makes 3.59.2. NOTE: the v3.40.1 release bumped the manifests without
+    makes 3.59.3. NOTE: the v3.40.1 release bumped the manifests without
     updating this pin (red on the shipped 3.40.1 tree) — the pin is updated
     here together with each release's CHANGELOG entry."""
     plugin_json = json.loads(
@@ -426,6 +426,6 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.59.2"
+    assert plugin_json["version"] == "3.59.3"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.59.2"
+    assert marketplace_json["plugins"][0]["version"] == "3.59.3"

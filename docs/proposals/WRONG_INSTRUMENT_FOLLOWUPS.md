@@ -1,0 +1,97 @@
+# Wrong-instrument verification — audit record and follow-ups (post-v3.59.2)
+
+The v3.59.0–v3.59.2 releases named **the borrowed green** (a real check's real green, lent to a
+claim the check never measured), shipped it into the compiled principles block, and mechanized it
+as the 23rd Layer-3 tool `verify-claim-instrument-binding`.
+
+An independent adversarial audit of the **orchestrator's own claims** ran after v3.59.1 shipped.
+Its working file lives at `.architect-team/design/wrong-instrument-discipline.md`, which is
+**gitignored** — so its durable content is recorded here, where it survives.
+
+## How the audit itself went wrong first, and why that matters
+
+The audit was commissioned during v3.59.0 and **silently never ran**. Two releases shipped before
+anyone noticed. Nothing caught that except re-reading the dispatch: *"I asked someone to check"*
+is not evidence that anyone did. That is the same defect the releases are about, one level up — a
+verification step believed complete because it was requested.
+
+The auditor also recorded four wrong instruments it hit while auditing, which is the honest shape
+of this work: the discipline does not make you immune to the failure, it makes the failure findable.
+
+## What the audit found
+
+| Claim audited | Verdict |
+|---|---|
+| 39/39 agents carry the clause, on the Evidence-before-assertion bullet | **Confirmed** — and the roster denominator, which the original instrument never measured, was supplied |
+| 0/39 agents carry any sub-rule heading (the fact the whole design rests on) | **Confirmed** |
+| Suite counts 7360 / 7375 | **Confirmed** by an independent full run; two qualifiers below |
+| Layer-3 22 → 23 swept across five surfaces | **Refuted in part** — two surfaces did not receive the sweep |
+| R6's `300 users pass validation` pin | Pin confirmed; **over-fire class demonstrated** on the shipped tool |
+| "Two defects produced while building it" | **Now understates** — a third surfaced post-ship |
+
+Everything actionable was fixed in v3.59.2 except the items below.
+
+## OPEN — the highest-value one
+
+### Hash brackets are asserted, never recorded
+
+Five suite counts were reported this thread as "frozen-tree, hash-bracketed": 7284, 7305, 7360,
+7375, 7386. **No bracket artifact exists on disk for any of them.** The runs happened and the
+output was read, but the evidence is the orchestrator's word — unverifiable in either direction,
+by anyone, later.
+
+This is precisely the class the releases addressed, still open in the process that shipped them.
+The `verify-claim-instrument-binding` artifact contract already has the field for it
+(`tree_state: {before, after}`); nothing writes one.
+
+**Fix:** have the measurement step emit `.architect-team/measurements/<ts>-suite.json` carrying the
+before/after diff hash, the command, the exit code, and the counts. Cheap, and it converts a
+recurring assertion into an artifact.
+
+### The counts are machine-bound
+
+Five committed tests hard-require gitignored `.architect-team/` fixtures and one skips without the
+local deploy config, so a fresh clone does not reproduce the published number. The auditor proved
+this by predicting the pristine-worktree result in advance: **7299 / 5 failed / 7 skipped**, rising
+to **7304 / 0 / 7** once the fixtures were restored.
+
+Every published count in this repo's history therefore describes *this machine*, not the repo. That
+is not a defect in any one release — it is an unstated precondition on a number the README, the
+CHANGELOG, and `CLAUDE.md` all print. Either the fixtures become committed test data, or the
+published figure names its precondition.
+
+## CLOSED in v3.59.2
+
+- R6 over-fire on sub-tree runs (`236 passed … for the three pin files` demanded a whole-tree bracket).
+- `CODEBASE_MAP` said the vao package holds 15 modules (16) and never named `claim_binding.py`.
+- `INTEGRATION_MAP` still said 22 tools and "the 5 pipeline skills".
+- README carried a three-release-stale 7222 count under a v3.59.x spotlight.
+- The v3.59.0 "two defects" sentence gained a pointer to the third rather than being silently rewritten.
+- The `tests/test_skill_references.py` byte-ledger, whose v3.57.0 transition line had been
+  **rewritten** rather than appended to, misattributing v3.59.0's bytes to v3.57.0. The gate itself
+  was never weakened — the 259290 cap was untouched and both assertions stayed enforced — but the
+  ledger lied about which release spent the bytes.
+- `docs/ETHOS.md`'s "Evidence integrity (v3.47.0)" heading, which had come to contain a v3.59.0 rule.
+- The claim that all five witnesses pass `verify-check-can-fail` unchanged: true, but **vacuous for
+  W3/W4/W5**, which add no test file and fall outside that tool's jurisdiction. The demonstration
+  carries weight for W1 and W2 only, and now says so.
+
+## Verified clean
+
+- No ETHOS overstatement: the applied text claims no enforcement beyond what shipped, and names
+  `verify-check-can-fail`'s boundary accurately.
+- The reuse decisions in the archived `design.md` hold — `claim_binding.py` imports `core`'s helpers
+  through the house fallback ladder and writes through `_write_verdict`.
+- The ~109-byte trim that made room for the clause lost no content; all three trimmed details are
+  present, reworded, in `references/local-dev-test-discipline.md`.
+- The byte-budget cap was never raised to make a change fit.
+
+## The durable lesson
+
+Three of the defects fixed across v3.59.0–v3.59.2 were **produced while building the fix for that
+exact class**, and a fourth — markers silently compiled with a literal backspace byte where `\b`
+was intended — was caught only because a test happened to cover it.
+
+The discipline does not prevent the failure. It makes the failure *findable*, and only by someone
+who re-runs the assertion. **Principle 2 — the producer is never its own checker — remains the
+backstop, not this discipline.**
