@@ -126,6 +126,10 @@ SESSION_ID_ENV_VARS = ("CT6_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSI
 # guard touches the marker on every block, so a live run never goes stale).
 MARKER_STALE_HOURS_ENV = "CT6_RUN_MARKER_STALE_HOURS"
 DEFAULT_MARKER_STALE_HOURS = 72.0
+#: v3.60.0 (S-3) — the shortest window the lock will honour. Below this the
+#: variable stops being a tuning knob and becomes an undocumented kill-switch:
+#: a marker aged past the window stands the completion lock's arms down.
+MIN_MARKER_STALE_HOURS = 1.0
 
 # Completion audit-trail (review remediation #7): every --mark-complete /
 # --stand-down appends a line here, so the lifecycle escape hatches leave a
@@ -163,6 +167,17 @@ _FINGERPRINT_EXCLUDE = frozenset({
     MARKER_FILENAME,
     COMPLETION_LOG_FILENAME,
     "in-progress.md",
+    # v3.60.0 — the N5b notify state, added in v3.57.0 and MISSED here. The lock
+    # rewrites it on every block, so while it was hashed the progress
+    # fingerprint changed at each Stop, the no-progress counter reset, and
+    # CT6_MAX_NO_PROGRESS_STOPS never exhausted. A budget that cannot be reached
+    # is not a budget, and the auto-escalation it gates never fired.
+    #
+    # Found by a teammate's mutation witness, which was failing for this real
+    # reason while the orchestrator was attributing it to a moving tree. Every
+    # file in this set is one the ENFORCEMENT writes; hashing our own bookkeeping
+    # as if it were the agent's progress is the recurring shape here.
+    "completion-lock-notify.json",
 })
 
 
@@ -183,13 +198,33 @@ def max_no_progress_stops() -> int:
 
 
 def marker_stale_hours() -> float:
-    """The abandoned-marker staleness threshold in hours (default 72)."""
+    """The abandoned-marker staleness threshold in hours (default 72).
+
+    v3.60.0 (S-3) — FLOORED. Any positive value used to be accepted, so
+    ``CT6_RUN_MARKER_STALE_HOURS=0.0001`` aged every marker instantly and stood
+    the completion lock's arms down while silently degrading the continuation
+    guard session-wide. Measured: a 60-second-old marker with zero registered
+    tasks released at exit 0, against exit 2 on the default window.
+
+    That made it a kill-switch that does not look like one, and it was not among
+    the switches any block message enumerated — so an operator could not find it
+    and an agent did not need to. Now the shortest window the lock will honour is
+    ``MIN_MARKER_STALE_HOURS``: shortening the window for a genuine reason still
+    works, collapsing it to nothing does not.
+
+    Deliberately a floor rather than a rejection. An operator who sets 0.5 for a
+    fast-cycling workflow gets 1.0 and a working run; refusing outright would
+    turn a tuning mistake into a broken session, which is how levers get
+    abandoned rather than corrected.
+    """
     raw = os.environ.get(MARKER_STALE_HOURS_ENV, "").strip()
     try:
         h = float(raw)
-        return h if h > 0 else DEFAULT_MARKER_STALE_HOURS
     except ValueError:
         return DEFAULT_MARKER_STALE_HOURS
+    if h <= 0:
+        return DEFAULT_MARKER_STALE_HOURS
+    return max(h, MIN_MARKER_STALE_HOURS)
 
 
 def resolve_session_id(explicit: str | None = None) -> str | None:

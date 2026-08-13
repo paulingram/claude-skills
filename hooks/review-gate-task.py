@@ -196,17 +196,26 @@ def _unmanifested_task_block(task_id: str, cwd: Path, payload: dict[str, Any]) -
     those statuses to the user as fact. This arm closes that, and ONLY that:
 
       (a) an ACTIVE, non-stale run marker exists (`.architect-team/active-run.json`),
-      (b) the completing session belongs to the run — the same
+      (b) the completing session is not DEMONSTRABLY a different one — the same
           `run_continuity.is_orchestrator_session` basis the Stop audit uses,
+          but read correctly (F7): a marker that records NO session means
+          ownership is undeterminable, not that this is somebody else's task,
+          so the gate applies. Only a marker that names a session OTHER than
+          this one stands the gate down,
       (c) NO teammate manifest registers the task id in any of its id fields
           (`expected_review_evidence` / `shared_task_id` / `task_ids`),
       (d) neither kill-switch (`CT6_TASK_GATE_DISABLED`,
           `CT6_RUN_CONTINUITY_DISABLED`) is set.
 
-    Every other direction fails OPEN — no marker, an inactive or stale marker, a
-    null marker session (pre-upgrade markers), a payload with no session, an
-    unreadable marker, or a missing substrate. Foreign workflows and plain user
-    task tracking are left exactly as they were.
+    Every other direction fails OPEN — no marker, an inactive or stale marker,
+    an unreadable marker, a missing substrate, or a payload with no session
+    against a marker that DOES name one. Foreign workflows and plain user task
+    tracking are left exactly as they were, and that is held by the MARKER
+    check rather than by the session check — which is why narrowing the session
+    check in F7 cannot reach them.
+
+    A null MARKER session no longer fails open; see the F7 note at the session
+    test below for the measured escape it produced and why the cost is bounded.
 
     ON `Path.cwd()`. The sibling `hooks/pretool_skill_gate.py` deliberately
     refuses to fall back to the hook process's own cwd, because ambient state
@@ -240,17 +249,70 @@ def _unmanifested_task_block(task_id: str, cwd: Path, payload: dict[str, Any]) -
             return None
         if _rc.marker_is_stale(marker):
             return None  # an abandoned run must not tax the workspace forever
+        # F7 — UNKNOWN OWNERSHIP IS NOT SOMEBODY ELSE'S.
+        #
+        # This used to be a bare `if not is_orchestrator_session(...): return
+        # None`, and that reading of a False answer was the hole. The predicate
+        # returns False for TWO different situations and only one of them is a
+        # reason to stand down:
+        #
+        #   * the marker records a session and it is a DIFFERENT one — this
+        #     completion is demonstrably not the run owner's, so stand down;
+        #   * the marker records NO session — ownership is UNDETERMINABLE, and
+        #     treating that as "not the orchestrator" opened the gate completely.
+        #
+        # Measured before the fix, against this hook: a marker recording the
+        # session blocked at exit 2, a null-session marker allowed at exit 0 —
+        # and with the v3.57.0 unregistered-run arm that composed into a full
+        # bypass (register one throwaway task, complete it freely, Stop exits
+        # 0). One junk task, no Bash, no marker deletion, no kill-switch.
+        #
+        # The SHARED predicate is deliberately not changed: its null fail-open
+        # is documented and `pipeline-completion-audit.py` relies on it. What is
+        # narrowed is only this consumer's reading, which is the one that was
+        # wrong. Unknown is not "no" — the same asymmetry as
+        # `open_work.open_task_items` counting an unknown status as OPEN, and as
+        # the completion lock treating an unreadable source as unknown state
+        # rather than an empty one.
+        #
+        # WHY THE COST IS BOUNDED. The population this newly gates is only: a
+        # session in a workspace with an ACTIVE, NON-STALE marker whose owner
+        # cannot be determined, completing a task NO manifest mentions anywhere.
+        # Foreign workflows and plain user task tracking are held out by the
+        # MARKER check above, never by this one, so they are untouched. The
+        # genuine pre-upgrade case — a marker written before v3.47.0 recorded
+        # sessions — heals itself two ways: the marker goes stale at the
+        # staleness bound, and `engage_marker` re-records a session the moment
+        # the current build runs. And re-engagement never CREATES this state,
+        # because it overwrites `session_id` only when the resolved value is
+        # truthy, so a resumed run preserves the owner it already had.
         session_id = payload.get("session_id") or payload.get("sessionId")
-        if not _rc.is_orchestrator_session(marker, session_id if isinstance(session_id, str) else None):
+        session_id = session_id if isinstance(session_id, str) else None
+        recorded = marker.get("session_id")
+        recorded = recorded.strip() if isinstance(recorded, str) else ""
+        owner_known = bool(recorded)
+        if owner_known and not _rc.is_orchestrator_session(marker, session_id):
             return None
     except Exception:
         return None  # a gate bug must never wedge an unrelated workflow
 
     slug = marker.get("slug") or marker.get("run_id") or "(unnamed)"
+    # The claim has to match what was actually established. Asserting "this
+    # completion comes from the run's own session" on a marker that records no
+    # session states as fact the one thing the gate could not determine, and a
+    # block whose first sentence overclaims is a block the reader stops
+    # believing. Same class as the completion lock's conditional headline.
+    provenance = (
+        "this completion comes from the run's own session"
+        if owner_known else
+        "the owning session cannot be determined (the marker records none, so "
+        "whether this completion is the run owner's is undeterminable and is "
+        "not assumed to be somebody else's)"
+    )
     return (
         f"review-gate-task: blocking task completion (task_id={task_id}): the "
-        f"architect-team run '{slug}' is ACTIVE, this completion comes from the "
-        f"run's own session, and NO teammate manifest mentions {task_id!r} "
+        f"architect-team run '{slug}' is ACTIVE, {provenance}, and NO teammate "
+        f"manifest mentions {task_id!r} "
         f"anywhere — not in expected_review_evidence, not as a shared_task_id, "
         f"not in task_ids. A completion status inside a run is a claim until "
         f"evidence backs it — the producer's own 'done' is an input to "

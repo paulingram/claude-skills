@@ -653,13 +653,14 @@ def test_future_tense_plans_are_not_claims(vao_tools, report, severity):
     assert severity not in _severities(v)
 
 
-@pytest.fixture(scope="module")
-def adversary_artifact(plugin_root: Path):
-    def _load(name: str) -> dict:
-        path = (plugin_root / ".architect-team" / "adversarial" / "hei-group3"
-                / "artifacts" / f"{name}.json")
-        return json.loads(path.read_text(encoding="utf-8"))
-    return _load
+# The five B-16 regression inputs below are hei-adversary-g3's artifacts
+# (R1 / R1b / R2 / R3 / R4), inlined VERBATIM from what used to be read out of
+# .architect-team/adversarial/hei-group3/artifacts/<name>.json. That directory
+# is gitignored runtime state, so loading it made these five tests the only
+# ones in the suite that FAILED on a pristine checkout (close-the-open-items
+# F3). Each artifact was a one-key {"final_report": ...} dict; the report
+# string IS the artifact, and inlining it also makes the shape under test
+# readable where the assertion is.
 
 
 def test_a_citation_before_its_claim_in_the_same_item_counts(vao_tools):
@@ -708,45 +709,68 @@ def test_a_citation_is_not_borrowed_by_an_earlier_claim(vao_tools):
     assert "uncited-completion-claim" in _severities(v)
 
 
-def test_a_citation_excuses_its_own_claim_not_a_sibling(vao_tools, adversary_artifact):
+def test_a_citation_excuses_its_own_claim_not_a_sibling(vao_tools):
     """B-16 (medium) — claim detection went per-occurrence but the citation test
     stayed window-scoped, so a citation attached to claim 1 silently excused
     claim 2. Unlike truncation, the second claim was never reported on ANY
-    re-run. hei-adversary-g3's R1."""
-    v = vao_tools.verify_no_end_of_run_deferral(
-        adversary_artifact("R1-cited-claim-covers-uncited-sibling"))
+    re-run. hei-adversary-g3's R1 (R1-cited-claim-covers-uncited-sibling)."""
+    report = (
+        "Fix list:\n"
+        "- Column config: completed (commit-sha:a1b2c3d). Statement export: also done.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
     assert "uncited-completion-claim" in _severities(v)
 
 
-def test_b16_control_the_sibling_alone_still_fires(vao_tools, adversary_artifact):
-    v = vao_tools.verify_no_end_of_run_deferral(
-        adversary_artifact("R1b-control-second-item-alone"))
+def test_b16_control_the_sibling_alone_still_fires(vao_tools):
+    """B-16 control (R1b-control-second-item-alone) — the uncited sibling with
+    no cited neighbour to hide behind must fire on its own."""
+    report = (
+        "Fix list:\n"
+        "- Statement export: also done.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
     assert "uncited-completion-claim" in _severities(v)
 
 
-def test_a_continuation_line_citation_does_not_cover_a_later_claim(vao_tools, adversary_artifact):
-    """B-16 in the continuation-line shape (R2) — the `evidence:` line cites the
-    claim above it, not the one below it."""
-    v = vao_tools.verify_no_end_of_run_deferral(
-        adversary_artifact("R2-continuation-line-uncited-sibling"))
+def test_a_continuation_line_citation_does_not_cover_a_later_claim(vao_tools):
+    """B-16 in the continuation-line shape (R2-continuation-line-uncited-sibling)
+    — the `evidence:` line cites the claim above it, not the one below it."""
+    report = (
+        "Fix list:\n"
+        "- Column config: completed\n"
+        "  evidence: reviews/fix-1.json\n"
+        "  Statement export: delivered, and the balance rounding is resolved.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
     assert "uncited-completion-claim" in _severities(v)
 
 
-def test_a_grep_only_absence_is_not_excused_by_its_enumerated_sibling(vao_tools, adversary_artifact):
-    """B-16's sharpest instance (R3), and the Lead's first pin: two absence
-    claims in one window, the first backed by a real --collect-only and the
-    second a bare grep. The grep-only claim is the postmortem's R4 shape and
-    `grep_only` exists to mark it — being silently excused by a sibling's
-    enumeration is the failure this whole change exists to prevent."""
-    v = vao_tools.verify_no_end_of_run_deferral(
-        adversary_artifact("R3-absence-mixed-basis"))
+def test_a_grep_only_absence_is_not_excused_by_its_enumerated_sibling(vao_tools):
+    """B-16's sharpest instance (R3-absence-mixed-basis), and the Lead's first
+    pin: two absence claims in one window, the first backed by a real
+    --collect-only and the second a bare grep. The grep-only claim is the
+    postmortem's R4 shape and `grep_only` exists to mark it — being silently
+    excused by a sibling's enumeration is the failure this whole change exists
+    to prevent."""
+    report = (
+        "Coverage review:\n"
+        "- Reconcile: no test exists (pytest --collect-only output above, "
+        "14 collected). The settlement handler was never built — grepped for "
+        "it, nothing came back.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
     assert "absence-claim-uncited" in _severities(v)
 
 
-def test_an_uncited_deploy_is_not_excused_by_a_cited_sibling(vao_tools, adversary_artifact):
-    """B-16 for the deploy family (R4) — one traced deploy silenced the rest."""
-    v = vao_tools.verify_no_end_of_run_deferral(
-        adversary_artifact("R4-deploy-mixed-citation"))
+def test_an_uncited_deploy_is_not_excused_by_a_cited_sibling(vao_tools):
+    """B-16 for the deploy family (R4-deploy-mixed-citation) — one traced
+    deploy silenced the rest."""
+    report = (
+        "Revision 00008 deployed and verified (playwright trace.zip, "
+        "screenshot attached). Revision 00009 is also deployed and verified.\n"
+    )
+    v = vao_tools.verify_no_end_of_run_deferral({"final_report": report})
     assert "uncited-deploy-claim" in _severities(v)
 
 

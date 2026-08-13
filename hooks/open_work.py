@@ -247,8 +247,33 @@ def read_harness_tasks(
     if not sid:
         return result
 
-    session_dir = tasks_root(root) / f"session-{sid[:8]}"
+    resolved_root = tasks_root(root)
+    session_dir = resolved_root / f"session-{sid[:8]}"
     result["dir"] = str(session_dir)
+    # v3.60.0 (F13) — a missing ROOT is unknown; a missing SESSION DIR is empty.
+    # These were collapsed, and the difference is the whole contract: this
+    # module blocks on an unreadable source because "unknown is not empty", yet
+    # pointing CT6_TASKS_ROOT at a path that does not exist read as a clean
+    # pass and released the stop. Measured — an open task blocked, the same
+    # session with the root redirected to a nonexistent path exited 0.
+    #
+    # The session dir stays the honest empty case: a session that has simply
+    # registered nothing is the ordinary state and must never wedge.
+    try:
+        if not resolved_root.is_dir():
+            result["unreadable"].append({
+                "path": str(resolved_root),
+                "reason": "the harness task root does not exist, so whether "
+                          "work is registered cannot be determined",
+            })
+            return result
+    except Exception as exc:
+        result["unreadable"].append({
+            "path": str(resolved_root),
+            "reason": f"the harness task root could not be examined: "
+                      f"{type(exc).__name__}",
+        })
+        return result
     try:
         if not session_dir.is_dir():
             return result
@@ -962,6 +987,59 @@ def _has_teammate_token(
     return False
 
 
+def first_inbound_is_peer_envelope(
+    records: list[dict[str, Any]],
+    head_records: list[dict[str, Any]] | None = None,
+) -> bool:
+    """True when this session's FIRST inbound record is a peer envelope.
+
+    THE RECOGNISER THE TOKEN MISSES. Every teammate path above keys on
+    ``CT6-TEAMMATE``, and a real CT6 brief does not carry it — it arrives as a
+    ``<teammate-message>`` envelope with prose, which is the shape the Lead
+    dispatches. With no token and no parseable name the ownership site below
+    classified a genuine worker as an ORCHESTRATOR and held it on its PEERS'
+    lanes: a condition a worker structurally cannot clear, since it can neither
+    close another teammate's task nor mark the run complete. Measured, guard
+    disabled so the exit code is attributable: tokenless teammate with a peer's
+    open task -> exit 2 from the lock proper; the tokened control -> exit 0.
+
+    POSITION is the discriminator, and it is the same one
+    :func:`_identity_records` already uses:
+
+    * a WORKER's transcript opens with the brief its Lead sent, stored as a
+      ``role: user`` record wrapped in ``<teammate-message …>``;
+    * an ORCHESTRATOR's opens with a genuine human prompt.
+
+    Position ONE only. A peer message arriving mid-session must never
+    reclassify a Lead (ADV-9) — otherwise any teammate could disarm the Lead's
+    gate by sending it a message. The Lead's own first prompt occupies position
+    one and cannot be displaced. The head slice is searched first, so a Lead
+    whose visible TAIL happens to open with a peer message is still held.
+
+    Deliberately NOT ``run_continuity.is_teammate_transcript``, for the reason
+    recorded at the ownership site: that detector also classifies on a
+    >= 1500-char first prompt mentioning ``.architect-team``, a shape the USER's
+    own long prompts hit. This keys on position-one STRUCTURE, not on length,
+    so it cannot be tripped by a long human prompt.
+
+    Envelope detection is `pretool_skill_gate`'s, reached through
+    ``run_continuity._gate`` — the same reuse rule as every other helper here.
+    """
+    gate = getattr(_rc, "_gate", None)
+    if gate is None:  # pragma: no cover - helpers unavailable
+        return False
+    for rec in list(head_records or []) + list(records or []):
+        if not isinstance(rec, dict):
+            continue
+        try:
+            if gate._role(rec) != "user":
+                continue
+            return bool(gate._is_teammate_message(rec))
+        except Exception:  # pragma: no cover - defensive; helpers are pure
+            return False
+    return False
+
+
 #: Every kill-switch this module can name in a block message. A block always
 #: names exactly one, so their presence in a harness-injected record identifies
 #: it as this hook's own feedback rather than anything the user or agent wrote.
@@ -1143,13 +1221,25 @@ def evaluate_completion_lock(
     # prompts hit, including the prompt that commissioned this feature — so
     # deferring to it let a long prompt silently disable the entire gate. It is
     # deliberately NOT consulted here; RD-5's reuse is honoured through
-    # TEAMMATE_TOKEN and _genuine_prompts instead. A session with no resolvable
-    # name and no token is an ORCHESTRATOR and is held on ALL open tasks.
+    # TEAMMATE_TOKEN and _genuine_prompts instead. A session that resolves no
+    # name AND shows no worker signal at all is an ORCHESTRATOR and is held on
+    # ALL open tasks — see the two recognisers below for what counts as a
+    # signal (F9 added the second; the token alone missed every real brief).
     owner: str | None = teammate_name(records, head, truncated)
     is_teammate = owner is not None
-    if owner is None and _has_teammate_token(records, head):
-        # A real worker whose brief carries the token but no parseable name.
-        # Bricking it is worse than a missed block — this is the ONE standdown.
+    if owner is None and (_has_teammate_token(records, head)
+                          or first_inbound_is_peer_envelope(records, head)):
+        # A real worker whose brief resolves no name — either it carries the
+        # token without a parseable name, or (F9) it carries no token at all
+        # because a real CT6 brief is a `<teammate-message>` envelope with
+        # prose. Bricking a worker is worse than a missed block: it is refused
+        # a stop for a lane it cannot close, which is how the whole gate gets
+        # switched off. Two recognisers, ONE standdown.
+        #
+        # The comment three lines up used to end "A session with no resolvable
+        # name and no token is an ORCHESTRATOR and is held on ALL open tasks."
+        # That was the wedge stated as a design intent — true of a Lead, and
+        # false of every teammate this project actually dispatches.
         return result
 
     sources: set[str] = set()

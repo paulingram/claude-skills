@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import pathlib
 from pathlib import Path
 from typing import Any
 
@@ -180,6 +181,44 @@ def _targets_existing_deploy_config(file_path: str) -> bool:
 # still write these files by other means; no hook-tier guard can prevent that.
 _ASK_LEDGER_FILENAME = "ask-ledger.json"
 _STATE_DIRNAME = ".architect-team"
+_RUN_MARKER_FILENAME = "active-run.json"
+
+# v3.60.0 (S-1, adversarial) — the settings files are the MASTER KEY, and were
+# the largest hole in the whole gate. Measured: the guard refused the ledger, the
+# marker and the task store while permitting `.claude/settings.json`,
+# `.claude/settings.local.json` and `~/.claude/settings.json` — Write and Edit
+# both exit 0.
+#
+# That matters because the `env` block reaches spawned processes, which is not a
+# theory: `~/.claude/settings.json` on this machine carries
+# CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS and the session that found this was in
+# Agent Teams mode BECAUSE of it. So one Write sets any kill-switch, and from a
+# baseline where the lock was firing, `CT6_COMPLETION_LOCK_DISABLED`,
+# `CT6_UNREGISTERED_RUN_GATE_DISABLED` and `CT6_RUN_CONTINUITY_DISABLED` each
+# released the stop to exit 0.
+#
+# Worse if Claude Code does not re-read settings mid-session: the effect is then
+# PERSISTENT, disarming the lock for every later session in every project — the
+# quietest possible failure.
+#
+# Refused UNCONDITIONALLY, on the same footing as the v3.44.0 deploy config: a
+# human may edit these, an agent may not. The parent-directory requirement keeps
+# it from becoming a filename ban — a fixture called `settings.json` in a source
+# tree is ordinary work.
+_SETTINGS_DIRNAME = ".claude"
+_SETTINGS_FILENAMES = frozenset({"settings.json", "settings.local.json"})
+
+# v3.60.0 (H1) — the MANAGED settings file is the HIGHEST-precedence env carrier,
+# above user and project. It was allowed. The directory does not exist on this
+# machine but is creatable WITHOUT elevation, so "absent" is not "unreachable".
+# Matched by full path rather than by parent-dir, since its home is not `.claude`.
+_MANAGED_SETTINGS_PATHS: tuple[pathlib.Path, ...] = tuple(
+    pathlib.Path(p) for p in (
+        r"C:/ProgramData/ClaudeCode/managed-settings.json",
+        "/Library/Application Support/ClaudeCode/managed-settings.json",
+        "/etc/claude-code/managed-settings.json",
+    )
+)
 
 
 def _harness_tasks_root() -> Path | None:
@@ -329,6 +368,71 @@ def _ledger_identity_candidates(target: Path) -> list[Path]:
     return out
 
 
+def _settings_identity_candidates(target: Path) -> list[Path]:
+    """Settings files this write could be a second name for (H1).
+
+    A hardlink must live on the same volume as its target, so the realistic
+    aliases are the settings files of the workspaces above this path plus the
+    user-level and machine-level ones. Same shape as
+    `_ledger_identity_candidates`; bounded by path depth.
+    """
+    starts: list[Path] = []
+    for getter in (lambda: target.resolve().parent, lambda: Path.cwd().resolve()):
+        try:
+            starts.append(getter())
+        except Exception:
+            pass
+    dirs: list[Path] = []
+    for start in starts:
+        dirs.extend([start, *start.parents])
+    try:
+        dirs.append(Path.home())
+    except Exception:
+        pass
+    # v3.60.0 (R3/R4) — SIBLING workspaces. The ancestor walk missed them, and
+    # that is not an exotic gap for CT6: run worktrees land at
+    # `<parent-of-repo>/<repo-name>-<slug>/`, so a run worktree and the main
+    # checkout are siblings BY DESIGN. An agent in a worktree could hardlink to
+    # the main checkout's settings and poison the env for the next run there.
+    # Measured before the fix: `projA/.claude/settings.json` was absent from all
+    # 21 candidates generated from `projB`.
+    #
+    # Bounded deliberately — only directories that ALREADY look like a workspace
+    # (they carry a `.claude/`), and only one level out from each ancestor, so
+    # this is a directory listing of a handful of parents rather than a volume
+    # scan.
+    siblings: list[Path] = []
+    for directory in list(dirs):
+        try:
+            if not directory.is_dir():
+                continue
+            for entry in directory.iterdir():
+                if len(siblings) >= _IDENTITY_SCAN_CAP:
+                    break
+                if entry.is_dir() and (entry / _SETTINGS_DIRNAME).is_dir():
+                    siblings.append(entry)
+        except Exception:
+            continue
+    dirs.extend(siblings)
+
+    out: list[Path] = []
+    seen: set[str] = set()
+    for directory in dirs:
+        for name in sorted(_SETTINGS_FILENAMES):
+            candidate = directory / _SETTINGS_DIRNAME / name
+            key = str(candidate).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(candidate)
+    for extra in _MANAGED_SETTINGS_PATHS:
+        key = str(extra).casefold()
+        if key not in seen:
+            seen.add(key)
+            out.append(extra)
+    return out
+
+
 def _task_store_identity_candidates(roots: tuple[Path, ...]) -> list[Path]:
     """Files under the protected task roots, in the harness's own layout.
 
@@ -394,12 +498,42 @@ def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
         if candidate is None:
             continue
         try:
-            same_name = candidate.name.casefold() == _ASK_LEDGER_FILENAME.casefold()
+            name = candidate.name.casefold()
             same_parent = candidate.parent.name.casefold() == _STATE_DIRNAME.casefold()
         except Exception:
             continue
-        if same_name and same_parent:
+        if not same_parent:
+            continue
+        if name == _ASK_LEDGER_FILENAME.casefold():
             return "ask-ledger"
+        # v3.60.0 — the run marker is ground truth too, and was left out. The
+        # v3.57.0 unregistered-run arm triggers on an ACTIVE marker, so editing
+        # or blanking this file disarms it; the arm's own report named the gap
+        # and an independent check confirmed the guard returned None for it.
+        # Protecting it closes the edit-the-marker and corrupt-the-marker
+        # routes on the Edit/Write/NotebookEdit surface.
+        #
+        # HONEST BOUNDARY, unchanged: `Bash` can still remove the file. This
+        # raises the cost and makes it a deliberate act; it does not make it
+        # impossible, and no hook tier can.
+        if name == _RUN_MARKER_FILENAME.casefold():
+            return "run-marker"
+
+    # v3.60.0 (S-1) — the settings files, under `.claude/` rather than the state
+    # dir, so they need their own parent check.
+    for candidate in (resolved, p):
+        if candidate is None:
+            continue
+        try:
+            if (candidate.name.casefold() in _SETTINGS_FILENAMES
+                    and candidate.parent.name.casefold() == _SETTINGS_DIRNAME):
+                return "settings"
+            cf = str(candidate).replace("\\", "/").casefold()
+            if any(cf == str(m).replace("\\", "/").casefold()
+                   for m in _MANAGED_SETTINGS_PATHS):
+                return "settings"
+        except Exception:
+            continue
 
     # Any path under the harness task store. The UNION of roots (N3), never the
     # single value `CT6_TASKS_ROOT` happens to name — see `_harness_tasks_roots`.
@@ -426,6 +560,16 @@ def _targets_completion_lock_ground_truth(file_path: str) -> str | None:
             for candidate in _task_store_identity_candidates(roots):
                 if _file_identity(candidate) == identity:
                     return "harness-task-store"
+            # v3.60.0 (H1) — settings were added to the PATH arm and left out of
+            # the IDENTITY arm, which defeated the whole guard: `mklink /H`
+            # needs no admin on Windows, and a hardlink has no link to follow,
+            # so resolution cannot see it. Proven end to end — a write to an
+            # innocuous filename changed settings.json's env block through the
+            # shared inode. This is N2b, already solved for the ledger and the
+            # task store, simply not extended here.
+            for candidate in _settings_identity_candidates(target):
+                if _file_identity(candidate) == identity:
+                    return "settings"
     return None
 
 
@@ -472,6 +616,23 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
                 "(hooks/open_work.py), not by hand-editing the file; an "
                 "ambiguous entry stays open on purpose."
             )
+        elif _ground_truth == "settings":
+            what = (
+                "a Claude Code settings file — the MASTER KEY to every gate in "
+                "this plugin. Its `env` block is exported to spawned processes, "
+                "so one write sets any kill-switch and disarms the completion "
+                "lock, the run-continuity guard, and the marker staleness "
+                "window at once. If settings are not re-read mid-session the "
+                "effect is worse, not better: it persists into every later "
+                "session in every project"
+            )
+            instead = (
+                "Ask the human to make the change. Every kill-switch is "
+                "deliberately the operator's lever and not the agent's, and a "
+                "session that can set its own switches is not gated at all. "
+                "This is the same rule the human-authored deploy config "
+                "already carries."
+            )
         else:
             what = (
                 "the harness task store — the list the completion lock reads to "
@@ -504,7 +665,9 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
             "If the gate is genuinely misfiring, that is the HUMAN's call and "
             "the kill-switches are their lever "
             "(CT6_COMPLETION_LOCK_DISABLED / CT6_TASK_LIST_GATE_DISABLED / "
-            "CT6_ASK_LEDGER_GATE_DISABLED / CT6_TURN_OUTPUT_GATE_DISABLED) — "
+            "CT6_ASK_LEDGER_GATE_DISABLED / CT6_TURN_OUTPUT_GATE_DISABLED / "
+            "CT6_UNREGISTERED_RUN_GATE_DISABLED, and CT6_RUN_MARKER_STALE_HOURS "
+            "which stands the arms down by ageing the marker) — "
             "never an agent rewriting the record."
         )
         return 2, message

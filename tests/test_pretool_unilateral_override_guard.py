@@ -357,11 +357,17 @@ def test_ground_truth_guard_does_not_capture_neighbours(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """CONTROL. Over-blocking here would make ordinary state writes impossible
-    and get the whole guard switched off, so pin what it must NOT catch."""
+    and get the whole guard switched off, so pin what it must NOT catch.
+
+    `active-run.json` was on this list until v3.60.0 and belonged here at the
+    time: the marker was not ground truth for any gate. The v3.57.0
+    unregistered-run arm triggers on it, so editing it now disarms a gate and
+    it moved to the CAUGHT set. The pipeline writes the marker through the
+    `run_continuity.py` CLI — a subprocess, which PreToolUse never sees — so
+    protecting the Edit/Write surface costs the pipeline nothing."""
     monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
     for benign in (
         str(tmp_path / ".architect-team" / "reviews" / "T-1.json"),
-        str(tmp_path / ".architect-team" / "active-run.json"),
         str(tmp_path / "docs" / "ask-ledger.json"),   # right name, wrong home
         str(tmp_path / "src" / "index.ts"),
     ):
@@ -541,13 +547,19 @@ def test_default_root_protection_does_not_widen_to_the_rest_of_home(
     """CONTROL for N3. Protecting `~/.claude/tasks` unconditionally must not
     creep into `~/.claude/` or the home directory at large, and `tasks-backup`
     must not match on a string prefix. A guard that refuses ordinary writes is a
-    worse bug than the hole it closes -- it gets switched off."""
+    worse bug than the hole it closes -- it gets switched off.
+
+    `~/.claude/settings.json` was on this list until v3.60.0 and belonged here
+    for N3's question: it is not the task root and must not be caught BY THAT
+    RULE. It is now caught by a DIFFERENT one — S-1 measured that the settings
+    `env` block reaches spawned processes, so one write sets any kill-switch.
+    The three remaining entries still pin the no-creep property this test is
+    for; the settings case moved to its own both-directions test."""
     home = tmp_path / "home"
     (home / ".claude" / "tasks").mkdir(parents=True)
     _patch_home(monkeypatch, home)
     monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "decoy"))
     for benign in (
-        str(home / ".claude" / "settings.json"),
         str(home / ".claude" / "tasks-backup" / "1.json"),
         str(home / "notes.md"),
         str(tmp_path / "src" / "index.ts"),
@@ -720,3 +732,231 @@ def test_identity_arm_never_raises_and_degrades_to_the_name_arms(
 
 def _oserror_stat(*_a: object, **_k: object) -> None:
     raise PermissionError("stat denied")
+
+
+def test_the_run_marker_is_ground_truth_and_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v3.60.0 — the v3.57.0 unregistered-run arm triggers on an ACTIVE
+    `active-run.json`, so an agent that edits or blanks it disarms the gate.
+    The guard protected the ask-ledger and the harness task root for exactly
+    that reason and this file was left out; an independent check measured it
+    returning None.
+
+    HONEST BOUNDARY, unchanged: `Bash` can still remove the file. This makes
+    the bypass deliberate and visible, not impossible.
+    """
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for spelling in (
+        tmp_path / ".architect-team" / "active-run.json",
+        tmp_path / ".architect-team" / "ACTIVE-RUN.JSON",          # NTFS case
+        tmp_path / ".architect-team" / "reviews" / ".." / "active-run.json",
+    ):
+        assert _targets_completion_lock_ground_truth(str(spelling)) == "run-marker", spelling
+        assert check_payload(_write_payload(str(spelling)))[0] == 2, spelling
+
+
+def test_a_marker_named_file_outside_the_state_dir_is_not_the_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other direction. The parent-directory requirement is what keeps this
+    from becoming a filename ban — a source file that happens to be called
+    `active-run.json` is ordinary work."""
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    benign = str(tmp_path / "src" / "fixtures" / "active-run.json")
+    assert _targets_completion_lock_ground_truth(benign) is None
+    assert check_payload(_write_payload(benign))[0] == 0
+
+
+def test_the_settings_files_are_the_master_key_and_are_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v3.60.0 (S-1) — the largest hole the adversarial passes found.
+
+    The guard refused the ledger, the marker and the task store while permitting
+    every settings file. That is the master key: the `env` block is exported to
+    spawned processes, so one write sets any kill-switch. Measured live — the
+    session that found this was in Agent Teams mode because of a variable set in
+    `~/.claude/settings.json` — and from a baseline where the lock was firing,
+    three separate switches each released the stop to exit 0.
+
+    Refused unconditionally, on the same footing as the human-authored deploy
+    config. HONEST BOUNDARY, unchanged: `Bash` still writes any file.
+    """
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for spelling in (
+        home / ".claude" / "settings.json",
+        home / ".claude" / "settings.local.json",
+        tmp_path / "proj" / ".claude" / "settings.json",
+        tmp_path / "proj" / ".claude" / "SETTINGS.JSON",          # NTFS case
+        tmp_path / "proj" / ".claude" / "agents" / ".." / "settings.json",
+    ):
+        assert _targets_completion_lock_ground_truth(str(spelling)) == "settings", spelling
+        assert check_payload(_write_payload(str(spelling)))[0] == 2, spelling
+
+
+def test_settings_protection_is_not_a_filename_ban(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other direction. The `.claude/` parent requirement is what keeps this
+    from catching ordinary work — a fixture or an app config called
+    `settings.json` is not the master key."""
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for benign in (
+        tmp_path / "src" / "settings.json",
+        tmp_path / "tests" / "fixtures" / "settings.local.json",
+        tmp_path / ".claude" / "agents" / "backend.md",
+        tmp_path / ".claude" / "other.json",
+    ):
+        assert _targets_completion_lock_ground_truth(str(benign)) is None, benign
+        assert check_payload(_write_payload(str(benign)))[0] == 0, benign
+
+
+def test_the_block_names_every_lever_that_actually_disarms_the_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v3.60.0 (S-3) — the message told the operator about four switches while
+    six things disarmed the gate.
+
+    An undocumented switch is worse than a documented one: the operator whose
+    gate is misfiring cannot find their real lever, and reaches for something
+    blunter. `CT6_RUN_MARKER_STALE_HOURS` is the sharp case — it does not read
+    like a kill-switch at all, but driving it near zero ages every marker
+    instantly, standing the arms down AND silently degrading the continuation
+    guard session-wide.
+
+    Pinned because the first mutation witness for this found NO test: deleting
+    the switch name from the message left the whole suite green, so the fix was
+    shipping unguarded.
+    """
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    target = tmp_path / ".architect-team" / "ask-ledger.json"
+    code, message = check_payload(_write_payload(str(target)))
+    assert code == 2
+    for switch in (
+        "CT6_COMPLETION_LOCK_DISABLED",
+        "CT6_TASK_LIST_GATE_DISABLED",
+        "CT6_ASK_LEDGER_GATE_DISABLED",
+        "CT6_TURN_OUTPUT_GATE_DISABLED",
+        "CT6_UNREGISTERED_RUN_GATE_DISABLED",
+        "CT6_RUN_MARKER_STALE_HOURS",
+    ):
+        assert switch in message, f"the block does not name {switch}"
+
+
+def test_a_hardlink_alias_to_a_settings_file_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v3.60.0 (H1) — the escape that reopened the settings guard completely.
+
+    `mklink /H` needs no admin on Windows, and a hardlink is not a spelling: it
+    is a second directory entry for the same inode, with nothing to resolve. So
+    the PATH arm could not see it, and an adversary changed settings.json's env
+    block end to end by writing to an innocuous filename.
+
+    This is N2b, already solved for the ask-ledger and the harness task store
+    with `st_dev`/`st_ino` identity and simply never extended here — adding a
+    file to the path arm and forgetting the identity arm left the guard's
+    strongest surface unguarded.
+    """
+    import os
+    import subprocess
+
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / "work").mkdir()
+    real = tmp_path / ".claude" / "settings.json"
+    real.write_text('{"env": {}}', encoding="utf-8")
+    alias = tmp_path / "work" / "innocent.json"
+    try:
+        os.link(real, alias)
+    except (OSError, NotImplementedError, AttributeError) as exc:
+        pytest.skip(f"hardlinks unavailable on this volume: {exc}")
+    if os.stat(alias).st_ino != os.stat(real).st_ino:
+        pytest.skip("filesystem does not report a shared inode")
+
+    assert _targets_completion_lock_ground_truth(str(alias)) == "settings"
+    assert check_payload(_write_payload(str(alias)))[0] == 2
+
+
+def test_the_managed_settings_file_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The HIGHEST-precedence env carrier, above user and project settings.
+
+    It was allowed. Its directory does not exist on a typical machine, which is
+    why it was missed — but it is creatable without elevation, so absent is not
+    unreachable.
+    """
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    for p in (
+        "C:/ProgramData/ClaudeCode/managed-settings.json",
+        "/etc/claude-code/managed-settings.json",
+        "/Library/Application Support/ClaudeCode/managed-settings.json",
+    ):
+        assert _targets_completion_lock_ground_truth(p) == "settings", p
+
+
+def test_a_hardlink_from_a_SIBLING_workspace_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """v3.60.0 (R3/R4) — the first hardlink fix bounded its candidate search to
+    the target's ancestors, the cwd's ancestors, and home. A sibling workspace
+    is on none of those branches, so the fix leaked exactly where a bound
+    usually does.
+
+    Not an exotic topology for CT6: run worktrees land at
+    `<parent-of-repo>/<repo-name>-<slug>/`, so a run worktree and the main
+    checkout are siblings BY DESIGN. An agent in a worktree could hardlink to
+    the main checkout's settings and poison the env for the next run there.
+
+    The search is widened only to directories that already look like a
+    workspace, one level out from each ancestor — a listing of a few parents,
+    not a volume scan.
+    """
+    import os
+
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    (tmp_path / "projA" / ".claude").mkdir(parents=True)
+    (tmp_path / "projB" / "work").mkdir(parents=True)
+    real = tmp_path / "projA" / ".claude" / "settings.json"
+    real.write_text('{"env": {}}', encoding="utf-8")
+
+    for alias in (tmp_path / "projB" / "work" / "alias.json",   # R3 sibling
+                  tmp_path / "faraway.json"):                    # R4 off-branch
+        alias.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(real, alias)
+        except (OSError, NotImplementedError, AttributeError) as exc:
+            pytest.skip(f"hardlinks unavailable: {exc}")
+        assert _targets_completion_lock_ground_truth(str(alias)) == "settings", alias
+        assert check_payload(_write_payload(str(alias)))[0] == 2, alias
+
+
+def test_two_ordinary_hardlinked_files_are_not_caught(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control that decided the DESIGN, not just a regression guard.
+
+    The obvious general fix — block whenever `st_nlink > 1` and no candidate
+    matches, on the "unknown is not safe" rule — would catch this case, and
+    real toolchains hardlink ordinary files (pnpm's store, `git clone --local`).
+    Enumerating sibling workspaces closes the demonstrated escape without
+    charging that cost, so it was preferred. If this test ever has to be
+    weakened, the trade has changed and should be argued, not absorbed.
+    """
+    import os
+
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+    a = tmp_path / "one.txt"
+    a.write_text("x", encoding="utf-8")
+    b = tmp_path / "two.txt"
+    try:
+        os.link(a, b)
+    except (OSError, NotImplementedError, AttributeError) as exc:
+        pytest.skip(f"hardlinks unavailable: {exc}")
+    assert _targets_completion_lock_ground_truth(str(b)) is None
+    assert check_payload(_write_payload(str(b)))[0] == 0
