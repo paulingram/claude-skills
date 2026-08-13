@@ -106,7 +106,7 @@ genuinely common, unlike fencing a summary, which is deliberate.
 G1 therefore stays a **named boundary** alongside `Bash` writes and
 `TaskUpdate(status="deleted")`: an agent that wants out has cheaper routes.
 
-### G3 — ordinary narration tripped the ceiling (FIXED)
+### G3 — ordinary narration tripped the ceiling (FIXED FOR ITS WITNESS ONLY — see H1 below)
 
 Six one-line narration blocks in one turn — the ordinary shape of an agent
 narrating between tool calls — concatenated to 6 prose lines and tripped, on a
@@ -127,20 +127,22 @@ sentences of 59 / 62 / 56 chars -> `narrative=True`. Narrating between tool call
 is the single most common thing an agent does, so with work open every such turn
 was refused with an instruction it had already satisfied.
 
-**Fixed by RETIRING the `long_enough` arm entirely.** There is no threshold that
-separates "three narration sentences" from "a three-line markerless report" —
-they are the same shape, and six revisions of tuning proved it. STRUCTURE is what
-identifies a report: the marker arm carries that at `>= 2` lines, and markerless
-prose is now caught only by volume (the 12-line ceiling) or length (the 600-char
-arm).
+**Fixed by RAISING `NARRATIVE_LINE_THRESHOLD` 3 -> 6.** The first attempt retired
+the arm outright; the independent review pushed back that this let a markerless
+plain-prose report through at any length under 600 chars — measured, eight
+markerless report lines at 473 chars were allowed — and it was right: a
+marker-only rule cannot see a report that simply does not use markdown. Raising
+the threshold clears three narration sentences while six report-length lines
+still trip. G3's original short lines are unaffected, because `counting_lines`
+ignores anything under 24 chars.
 
 **H4 — the marker vocabulary was ASCII-only.** In the 2-line band the marker arm
 is the ONLY arm that can fire, so the spec's named catch rested on three exact
 characters (`-`, `*`, `+`). A Unicode bullet or an en-dash defeated it, verified.
 Widened to the glyphs a model actually emits.
 
-**STATED RESIDUAL (the N-obs band, now wider).** A markerless prose report of
-3..11 lines under 600 chars is allowed. This is the accepted, deliberate cost of
+**STATED RESIDUAL (narrowed).** A markerless prose report of 3..5 report-length
+lines under 600 chars is allowed; six trips. This is the accepted, deliberate cost of
 not blocking ordinary narration. It is not a defect to be fixed by another
 threshold — that is precisely the pendulum that produced six revisions. If a
 future run wants it closed, the answer is a different signal, not a different

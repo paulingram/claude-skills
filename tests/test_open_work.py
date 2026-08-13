@@ -569,11 +569,11 @@ def test_three_substantial_markerless_lines_are_NOT_a_narrative(tmp_path: Path) 
     raising the CEILING, which only ever reached the short-line arm — the class
     was never fixed, and this test was pinning the unfixed half.
 
-    There is no threshold separating "three narration sentences" from "a
-    three-line markerless report"; they are the same shape. STRUCTURE is what
-    identifies a report, so the marker arm carries that at >= 2 lines and
-    markerless prose is caught only by volume (the ceiling) or length (the
-    600-char arm). This test now pins the direction that matters."""
+    The first fix retired the arm outright; the independent review pushed back
+    that this let a markerless plain-prose report through at any length under
+    600 chars, which is fair. The arm is RAISED instead (3 -> 6), so three
+    narration sentences clear while six report-length lines still trip — pinned
+    by test_six_markerless_report_lines_is_a_narrative below."""
     r = ow.classify_turn_output(
         "I finished the exporter refactor and pushed it.\n"
         "The full suite is green under both encodings.\n"
@@ -657,9 +657,10 @@ def test_five_lines_of_plain_prose_is_NOT_a_narrative(tmp_path: Path) -> None:
     summary carries structure; the marker arm catches it at two lines. An
     unstructured five-line narration is not that shape.
 
-    HONEST RESIDUAL: a genuinely markerless prose REPORT of 3..11 lines under
-    600 chars slips. Recorded in docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md
-    rather than papered over — it is the N-obs band, widened by this change."""
+    HONEST RESIDUAL, narrowed: a markerless prose report of 3..5 report-length
+    lines under 600 chars slips. Six trips. The two shapes genuinely overlap in
+    that band and no threshold separates them; recorded in
+    docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md rather than papered over."""
     r = ow.classify_turn_output("\n".join([
         "I finished the exporter refactor.",
         "The suite is green under both encodings.",
@@ -669,6 +670,19 @@ def test_five_lines_of_plain_prose_is_NOT_a_narrative(tmp_path: Path) -> None:
     ]))
     assert r["narrative"] is False
     assert r["markers"] == [] and r["lines"] == 5
+
+
+def test_six_markerless_report_lines_is_a_narrative(tmp_path: Path) -> None:
+    """The other half of H1, and the reason the arm was raised rather than
+    retired: a marker-only rule cannot see a report that simply does not use
+    markdown. Six report-length markerless lines trip; five do not."""
+    prose = [f"I finished the {w} and it is green under both encodings."
+             for w in ("exporter", "parser", "lineage", "cli", "docs", "hooks")]
+    r6 = ow.classify_turn_output("\n".join(prose))
+    assert r6["narrative"] is True
+    assert r6["markers"] == []
+    r5 = ow.classify_turn_output("\n".join(prose[:5]))
+    assert r5["narrative"] is False
 
 
 def test_two_lines_with_no_marker_is_not_a_narrative(tmp_path: Path) -> None:

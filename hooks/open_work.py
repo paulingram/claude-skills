@@ -107,8 +107,18 @@ TASK_SIDECARS = frozenset({".lock", ".highwatermark"})
 #: The ask-ledger, under ``<workspace>/.architect-team/``.
 LEDGER_FILENAME = "ask-ledger.json"
 
-#: A turn is a narrative at or above this many non-empty lines.
-NARRATIVE_LINE_THRESHOLD = 3
+#: A turn is a narrative at or above this many REPORT-LENGTH lines (see
+#: NARRATIVE_MIN_LINE_CHARS).
+#:
+#: RAISED 3 -> 6 (H1). At 3 this fired on ordinary inter-tool narration: natural
+#: sentences run 45-60 chars, so an agent saying what it is about to do three
+#: times measured as a 3-line report and was refused. G3 was reported as "six
+#: one-line narration blocks" and fixed by raising the CEILING, which only ever
+#: reached the short-line arm — the class was never fixed and this constant was
+#: the unfixed half. Six report-length lines in one turn is more report than
+#: narration; G3's original short lines are unaffected because `counting_lines`
+#: ignores anything under NARRATIVE_MIN_LINE_CHARS.
+NARRATIVE_LINE_THRESHOLD = 6
 
 #: A turn under this many non-whitespace chars is a state line even on one line.
 #: Above it, an unbroken paragraph is a report that merely lacks newlines.
@@ -467,11 +477,23 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     # arm carries that at >= 2 lines — which is the reported failure ("I fill it
     # with a summary"), not unstructured narration.
     #
-    # HONEST RESIDUAL, recorded not hidden: a markerless prose report of 3..11
-    # lines under 600 chars is now allowed. That is the accepted cost of not
-    # blocking ordinary narration, and it is the N-obs band the G3 ceiling raise
-    # first opened.
-    long_enough = False
+    # The first cut of this fix RETIRED the arm outright (`long_enough = False`).
+    # The independent review was right to push back: that is a policy change, not
+    # a bug fix, and it let a markerless plain-prose report of ANY length under
+    # 600 chars through — measured, 8 markerless report lines at 473 chars were
+    # allowed. A marker-only rule cannot see a report that simply does not use
+    # markdown.
+    #
+    # So the arm is RAISED rather than retired: `NARRATIVE_LINE_THRESHOLD` 3 -> 6.
+    # Three narration sentences clear it; six report-length lines in one turn are
+    # more report than narration. G3's original six SHORT lines are unaffected,
+    # because `counting_lines` only counts lines of >= NARRATIVE_MIN_LINE_CHARS.
+    #
+    # HONEST RESIDUAL, recorded not hidden: a markerless prose report of 3..5
+    # report-length lines under 600 chars is allowed. That is the narrowed
+    # accepted cost of not blocking ordinary narration — the two shapes genuinely
+    # overlap in that band and no threshold separates them.
+    long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
     # T2 — the ceiling the F6 short-line allowance was missing.
     # G1: the ceiling counts EVERY non-empty line, fenced content included.
     # Excluding fenced lines from all three arms (T4) left a summary wrapped in

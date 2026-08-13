@@ -89,6 +89,8 @@ Above that floor a turn SHALL be classified as a narrative when it carries a str
 
 The precise thresholds are the implementation's to tune, but BOTH directions SHALL be pinned by tests, because every revision of this rule so far has fixed one direction by breaking the other.
 
+**Named residuals, stated normatively so they are not read as closed.** Content inside a fenced code block is excluded from the line arms, so a summary WRAPPED in a fence evades every line arm below the absolute ceiling — this keeps an ordinary status update quoting a snippet from being refused, and the trade is accepted rather than fixed. A markerless prose report of three to five report-length lines under the prose threshold is likewise allowed, because that band genuinely overlaps ordinary inter-tool narration.
+
 #### Scenario: A one-line state report carrying a marker is allowed
 - **WHEN** open work exists and all assistant text in the turn (every block since the last genuine user prompt) is the single line `**Status:** still on task 1 of 9.`
 - **THEN** the turn-output rule contributes no block
