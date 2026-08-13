@@ -113,8 +113,9 @@ def test_ethos_doc_carries_the_evidence_integrity_section(plugin_root: Path) -> 
     # the three named anti-patterns
     for anti in ("the grep absence", "the silence conversion", "the relayed claim"):
         assert anti in low, f"missing the named anti-pattern {anti!r}"
-    assert section.count("**Anti-pattern:**") == 3, (
-        "each of the three rules carries exactly one named anti-pattern"
+    assert section.count("**Anti-pattern:**") == 4, (
+        "each of the four rules carries exactly one named anti-pattern "
+        "(v3.59.0 added the fourth: a green check proves what it measured)"
     )
 
 
@@ -166,7 +167,9 @@ def test_every_agent_carries_the_evidence_integrity_clause(plugin_root: Path, bl
     carries the v3.47.0 clause (this is what a missed `sync_agent_boilerplate.py`
     run looks like)."""
     B = blocks_mod
-    clause = "Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts."
+    clause = ("Grep proves presence, never absence; silence is not a finding; "
+              "relay claims as claims, verdicts as facts; a green check is evidence "
+              "for what it measures, never for what you asserted.")
     missing = [
         p.stem for p in sorted((plugin_root / "agents").glob("*.md"))
         if clause not in B.read_agent_text(p)
@@ -176,7 +179,9 @@ def test_every_agent_carries_the_evidence_integrity_clause(plugin_root: Path, bl
 
 @pytest.mark.parametrize("skill", PIPELINE_SKILLS)
 def test_pipeline_skill_carries_the_evidence_integrity_clause(plugin_root: Path, skill: str) -> None:
-    clause = "Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts."
+    clause = ("Grep proves presence, never absence; silence is not a finding; "
+              "relay claims as claims, verdicts as facts; a green check is evidence "
+              "for what it measures, never for what you asserted.")
     text = (plugin_root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
     assert clause in text, f"{skill}: fenced principles block missing the evidence-integrity clause"
 

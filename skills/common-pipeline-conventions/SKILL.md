@@ -25,7 +25,7 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 - **Unbounded solving.** Loop until the gate is green; never hand back a half-finished run on an iteration count. Anti-pattern: the arbitrary stop.
 - **Default to action.** Gates are opt-in; on reversible work, pick the sensible default and proceed. Anti-pattern: permission-seeking.
 - **Documentation currency.** Docs ship current or the run does not ship. Anti-pattern: the stale grid.
-- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts. Anti-pattern: the unverified "should work".
+- **Evidence before assertion.** State a result only after running the check and reading its output. Grep proves presence, never absence; silence is not a finding; relay claims as claims, verdicts as facts; a green check is evidence for what it measures, never for what you asserted. Anti-pattern: the unverified "should work".
 
 See `docs/ETHOS.md` for the full text.
 <!-- ct6:block:principles:end -->
@@ -2310,7 +2310,7 @@ NO new Layer 3 tool — enforcement is the schema v7 optional field (hook-blocke
 
 ## Local -> dev -> test-on-dev is the pipeline's job, not the user's (v3.57.0)
 
-**A gate requiring a live environment obliges the run to PROVIDE one.** A frontend slice with no E2E verdict because the route is not deployed or dev has no data is Phase 5's work: bring the environment up (or run `prod_deploy.deploy_command`), seed the records the flow needs through the application's own create path, then run the flow — automatically, in that order. **Inherited debt is not this run's to satisfy**: `_audit_frontend_e2e` scopes to slices this run owns and prints what it excluded. Escalate only a genuine external blocker; *"how do you want to proceed?"* with a recommended option attached is the run asking permission to do its own job. Full rules: [`references/local-dev-test-discipline.md`](references/local-dev-test-discipline.md).
+**A gate requiring a live environment obliges the run to PROVIDE one.** A frontend slice with no E2E verdict because the route is not deployed or dev has no data is Phase 5's work: bring the environment up (or run `prod_deploy.deploy_command`), seed through the application's own create path, then run the flow. **Inherited debt is not this run's to satisfy** — `_audit_frontend_e2e` scopes to slices this run owns. Escalate only a genuine external blocker; a choice with a recommended option attached is the run asking permission to do its own job. Full rules: [`references/local-dev-test-discipline.md`](references/local-dev-test-discipline.md).
 
 ## Where this skill plugs in
 

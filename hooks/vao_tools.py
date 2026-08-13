@@ -54,6 +54,7 @@ _REEXPORT_MAP = {
     'deploy_pipeline_b': ('_PIPELINE_CONFESSION_MARKERS', '_PIPELINE_DRIVING_SKILLS', '_OPENSPEC_PROPOSE_SKILLS', '_PIPELINE_SLASH_COMMAND_PREFIXES', '_scan_ledger_for_pipeline_elements', '_detect_pipeline_invoked', '_detect_no_worktree_optout', '_detect_no_openspec_optout', '_detect_confession_markers', 'verify_no_pipeline_bypass',),
     'check_integrity': ('_ACCEPTED_RED_SOURCES', '_ZERO_WORK_SIGNATURES', '_FAILURE_SIGNATURES', '_command_names_runner', '_tsc_uses_build_mode', '_playwright_zero_total', '_is_solution_shaped_tsconfig', '_tsc_solution_shape', '_resolve_cited_path', '_detect_missing_cited_output', '_read_output_text', '_scan_zero_work', '_output_shows_failure', 'verify_check_can_fail',),
     'frontend_e2e': ('_E2E_USER_ACTION_RE', '_E2E_USER_LOCATOR_RE', '_E2E_API_ACTION_RE', '_E2E_VISIBLE_STATE_RE', '_e2e_action_text', '_e2e_is_user_driven_action', '_e2e_is_visible_state_assertion', '_e2e_resolve_trace', 'verify_frontend_e2e_loop_exit',),
+    'claim_binding': ('_ACCEPTED_WITNESS_KINDS', '_TREE_SCOPE_MARKERS', '_ABSENCE_ASSERTION_MARKERS', '_is_absence_assertion', '_path_under_any', '_test_ids_intersect', '_output_names_cited_test', '_claim_is_tree_scoped', 'verify_claim_instrument_binding',),
 }
 
 
@@ -243,6 +244,11 @@ def main(argv: list[str] | None = None) -> int:
     fe2e.add_argument("--repo-root", default=None, help="Optional base for resolving a relative trace_path (defaults to the artifact's repo_root field).")
     fe2e.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    cib = sub.add_parser("verify-claim-instrument-binding")
+    cib.add_argument("--artifact", required=True, help="Path to claim-binding artifact JSON with claims[] (each with instrument{} + witness{}).")
+    cib.add_argument("--repo-root", default=None, help="Optional base for resolving relative cited paths (defaults to the artifact's repo_root field).")
+    cib.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -383,6 +389,13 @@ def main(argv: list[str] | None = None) -> int:
         ok = verdict["valid"]
     elif args.tool == "verify-check-can-fail":
         verdict = verify_check_can_fail(
+            verification_artifact=_load_json(args.artifact),
+            repo_root=args.repo_root,
+            out_path=args.out,
+        )
+        ok = verdict["valid"]
+    elif args.tool == "verify-claim-instrument-binding":
+        verdict = verify_claim_instrument_binding(
             verification_artifact=_load_json(args.artifact),
             repo_root=args.repo_root,
             out_path=args.out,

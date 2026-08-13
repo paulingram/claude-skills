@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.59.0` — wrong-instrument-verification
 - `v3.58.0` — credit-failover-to-login
 - `v3.57.0` — completion-lock-followups
 - `v3.56.0` — turn-boundary-completion-lock
@@ -153,7 +154,29 @@ Every release, newest first — the one-line index the README used to carry. Ful
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.59.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.59.0 — wrong-instrument-verification: the borrowed green, named and mechanized
+
+A user forwarded an agent's own postmortem after five of its claims were corrected in a single run: *"my errors this run were never in the code, they were in reporting something as verified that I'd checked with the wrong instrument."*
+
+That diagnosis is exact, and the failure is narrower than carelessness. In every case the check **ran**, was **green**, read **real output**, and could fail in general. It simply could not have come out differently if the claim had been false. The name this release gives it is **the borrowed green** — a real check's real green, lent to a claim the check never measured.
+
+**Principle 7 sharpened, not an eighth principle.** Every witness satisfies principle 7's current letter — each check ran and was read — so the gap was in the letter, not the coverage. Principle 7 gains one clause: *a green check is evidence for what it measures, never for what you asserted*. A fourth Evidence-integrity sub-rule, **A green check proves what it measured**, carries the operational rule: name the instrument, then state the different result it would have shown had the claim been false *of the object the claim names*. "The same green" and "I can't say" both mean you verified nothing. For a new guard, don't state the counterfactual — execute it once, with proof the falsification landed.
+
+**The finding that changed the fix.** The instinctive change was a new ETHOS section. Measurement showed it would have reached nobody: 39/39 agents carry principle 7's compiled one-liner, 39/39 carry the sub-rules as clauses inside it, and **0/39 carry any sub-rule heading**. A section in `docs/ETHOS.md` is read by a human maintainer and by nothing in the runtime. Shipping it and declaring the principle live would have been a textbook borrowed green — so the clause went on the compiled surface, and delivery was verified by counting the agents that actually carry the new text.
+
+**The 23rd Layer-3 tool.** `verify-claim-instrument-binding` asks the question neither half of `verify-check-can-fail` asks. Claims are **agent-authored**, never inferred from existing evidence — inferring what was asserted would reproduce the defect one level up, measuring a reconstructed claim instead of the claim made. It refuses a mutation whose sha256 shows the file never changed, a witness whose mutated run stayed green, and a measurement whose tree moved underneath it. Where binding is genuinely undecidable it emits a **note, never a gap**, because a Layer-3 tool that blocks on a heuristic gets its kill-switch set.
+
+**Shipped honestly.** Two of the defects fixed in this release were produced *while building it*: a probe that returned identical output for `pass`, `fail` and `garbage` because 15 required fields short-circuited it first, and a schema field registered in the optional-field list and nowhere else — inert, enforcing nothing. Both were caught by building a probe that could discriminate, which is the whole discipline.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.58.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
@@ -171,6 +194,12 @@ Lands the `credit-failover-to-login` work, built at v3.42.0 and held on a branch
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.57.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
 ### v3.57.0 — completion-lock-followups: every open completion-lock follow-up closed, and a run-scoped frontend-E2E gate that stops asking the user to do the pipeline's job
 
 Closes **every open item** in `docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md`, plus an in-flight scope amendment. No new skill / agent / command / hook script / Layer-3 tool — counts unchanged (53 / 39 / 25 / 7 / 22).
@@ -184,6 +213,12 @@ Closes **every open item** in `docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md`, plu
 **And the gate that blocked a commit over other runs' debt.** The v3.55.0 frontend-E2E loop-exit gate read a cumulative directory, so it demanded live-environment evidence from 25 slices written before it existed — then asked the user how to proceed. It now scopes to slices the run actually owns, and the pipeline brings up and seeds a dev environment itself instead of handing that decision back. Asking permission to do your own job is not an escalation.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
 
 ### v3.56.0 — turn-boundary-completion-lock: a session cannot end its turn while registered work is open, and the condition is read from disk rather than asserted
 
