@@ -558,18 +558,28 @@ def test_read_harness_tasks_honours_the_env_root(
 
 # --- the turn-output classifier: pinned in BOTH directions -------------------
 
-def test_three_substantial_lines_is_a_narrative(tmp_path: Path) -> None:
-    """SUPERSEDED (F6): the old version of this test used three TERSE lines
-    ('Fixed the parser. / Ran the suite. / All green.' — 17/14/10 chars), which
-    measures the same as the F6 false positive it now has to allow. The
-    line-count arm counts SUBSTANTIAL lines, so the pin moves to lines that are
-    actually report-length."""
+def test_three_substantial_markerless_lines_are_NOT_a_narrative(tmp_path: Path) -> None:
+    """SUPERSEDED AGAIN (H1) — and inverted, because this test WAS the bug.
+
+    It previously asserted `narrative is True` for three report-length
+    markerless lines. Measured on the shipped module, that is indistinguishable
+    from ordinary inter-tool narration: three natural sentences run 45-60 chars
+    each, so an agent saying what it is about to do three times tripped the
+    gate. G3 was reported as "six one-line narration blocks" and fixed by
+    raising the CEILING, which only ever reached the short-line arm — the class
+    was never fixed, and this test was pinning the unfixed half.
+
+    There is no threshold separating "three narration sentences" from "a
+    three-line markerless report"; they are the same shape. STRUCTURE is what
+    identifies a report, so the marker arm carries that at >= 2 lines and
+    markerless prose is caught only by volume (the ceiling) or length (the
+    600-char arm). This test now pins the direction that matters."""
     r = ow.classify_turn_output(
         "I finished the exporter refactor and pushed it.\n"
         "The full suite is green under both encodings.\n"
         "I will start on the lineage sidecar next."
     )
-    assert r["narrative"] is True
+    assert r["narrative"] is False
     assert r["lines"] == 3
     assert r["markers"] == []
     assert r["reason"]
@@ -638,10 +648,18 @@ def test_two_substantial_markerless_lines_are_not_a_narrative(tmp_path: Path) ->
     assert r["lines"] == 2
 
 
-def test_five_lines_of_plain_prose_is_a_narrative(tmp_path: Path) -> None:
-    """The line-count arm has to bite ON ITS OWN: a marker-only rule would let
-    a full plain-prose report through, which is the exact turn shape the user
-    reported."""
+def test_five_lines_of_plain_prose_is_NOT_a_narrative(tmp_path: Path) -> None:
+    """SUPERSEDED (H1), inverted, and the residual is deliberate.
+
+    Five markerless prose lines under 600 chars are now ALLOWED. That is the
+    accepted cost of not blocking ordinary narration — see the sibling test
+    above. The user's reported failure was 'I fill it with a summary', and a
+    summary carries structure; the marker arm catches it at two lines. An
+    unstructured five-line narration is not that shape.
+
+    HONEST RESIDUAL: a genuinely markerless prose REPORT of 3..11 lines under
+    600 chars slips. Recorded in docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md
+    rather than papered over — it is the N-obs band, widened by this change."""
     r = ow.classify_turn_output("\n".join([
         "I finished the exporter refactor.",
         "The suite is green under both encodings.",
@@ -649,7 +667,7 @@ def test_five_lines_of_plain_prose_is_a_narrative(tmp_path: Path) -> None:
         "Next I will wire the CLI.",
         "Tell me if you want a different order.",
     ]))
-    assert r["narrative"] is True
+    assert r["narrative"] is False
     assert r["markers"] == [] and r["lines"] == 5
 
 

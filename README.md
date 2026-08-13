@@ -94,9 +94,9 @@ A MINOR release that closes a user-reported failure the instruction tier could n
 | **ralph-loop NOT adopted at the top level** | Asked and answered, and written into `docs/ETHOS.md` so a later run does not re-adopt it: ralph-loop exits on a literal `<promise>` string the model types, with nothing verifying it. Wrapping the top-level run in it would relocate this failure, not remove it. It keeps its place in the convergence sub-loops of the twelve skills that use it. |
 | **Counts + tests** | MINOR — additive within `hooks/`; no new skill / agent / command / hook script / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22). Suite **7024 → 7221 passing + 6 skipped, 0 failed** (+197 tests; 241 top-level test files, both encodings). |
 
-Adversarial review executed **nine escapes, six critical; eight are closed** — including two reversals of calls the architect had already endorsed, both recorded in the change's `design.md` rather than quietly amended.
+Adversarial review executed **fifteen escapes across six passes** — the accurate tally, replacing an earlier "nine found, eight closed" claim that overstated it: **ten closed and verified, four narrowed with a named residual, one accepted boundary** (`TaskUpdate(status="deleted")`). Three reversed calls the architect had already endorsed, each recorded in the change rather than quietly amended's `design.md` rather than quietly amended.
 
-HONEST BOUNDARY: the gate is **not undefeatable**. `TaskUpdate(status="deleted")` unlinks the task file, so the lock reads a clean-empty directory and releases; deletion is a legitimate harness operation no hook tier can forbid. The ask-ledger mitigates this only partially — deleting *lanes* does not erase the user's *asks*. And an agent with unrestricted `Bash` can write any file, including these records. What the release actually buys, stated precisely: an agent can no longer end its turn early by *deciding* it is finished — it can still end early by destroying the evidence that it is not, which is a louder and far more detectable act. Every earlier release remains in full at [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
+HONEST BOUNDARY: the gate is **not undefeatable**. `TaskUpdate(status="deleted")` unlinks the task file, so the lock reads a clean-empty directory and releases; deletion is a legitimate harness operation no hook tier can forbid. The ask-ledger does NOT mitigate this: it was demoted to advisory, so it never blocks on its own — and the advisory FYI listing renders only INSIDE a block, so at the exact moment every lane has been deleted there is no block and the recorded asks are neither blocking nor shown. Only `CT6_ASK_LEDGER_BLOCKING=1` restores the mitigation. And an agent with unrestricted `Bash` can write any file, including these records. What the release actually buys, stated precisely: an agent can no longer end its turn early by *deciding* it is finished — it can still end early by destroying the evidence that it is not, which is a louder and far more detectable act. Every earlier release remains in full at [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -571,7 +571,7 @@ None of the three is a thing the agent asserts:
 |---|---|---|
 | **Harness task list** | `~/.claude/tasks/session-<first-8-of-session-id>/<taskId>.json`, written by the harness. A task whose `status` is not `completed` — including a missing or unrecognized status — counts as OPEN. Teammates are held only for tasks whose `owner` matches them, never wedged on lanes they cannot close. | `CT6_TASK_LIST_GATE_DISABLED` |
 | **Ask-ledger** | `.architect-team/ask-ledger.json`, DERIVED from the harness-written transcript rather than registered by the model — so an agent cannot decline to register an ask it would rather not do. Entries accumulate and re-derivation only ever ADDS; ambiguous stays open. | `CT6_ASK_LEDGER_GATE_DISABLED` |
-| **Turn-output rule** | The last assistant text block. While work is open the turn output is *one line of state, not a narrative* — the rule trips at `>= 3` non-empty lines or any structural marker (heading, bullet, bold-label block, table row), and never at `<= 2` lines with no marker. | `CT6_TURN_OUTPUT_GATE_DISABLED` |
+| **Turn-output rule** | All assistant text in the turn — every block since the last genuine user prompt, so a summary followed by a one-line sign-off cannot hide it. While work is open the turn output is *one line of state, not a narrative*: the rule trips on a structural marker (heading, bullet — ASCII or Unicode, numbered item, bold-label block, table row) at `>= 2` lines, on the absolute line ceiling, or on enough unbroken prose. A one-line turn NEVER trips, and markerless prose below the ceiling is deliberately allowed so ordinary narration between tool calls is not refused. | `CT6_TURN_OUTPUT_GATE_DISABLED` |
 
 A source that cannot be READ blocks too, and names the file it could not read —
 unknown state is not "empty". A crash in the lock's own code fails OPEN, so a
@@ -687,10 +687,13 @@ It is not airtight, and pretending otherwise would violate this project's own
 - **`TaskUpdate(status="deleted")` releases it.** The harness *unlinks* a
   deleted task's JSON file, so the lock reads a clean-empty directory and lets
   the stop through. Deletion is a first-class, legitimate harness operation; no
-  hook tier can or should forbid it. The mitigation is real but partial — the
-  ask-ledger derives the user's directives from the transcript independently, so
-  deleting *lanes* does not erase the user's *asks*, and an unresolved ledger
-  entry keeps blocking.
+  hook tier can or should forbid it. **There is no mitigation by default.** An
+  earlier revision claimed the ask-ledger covered this; that became false when
+  the ledger was demoted to advisory and was never swept. The ledger does not
+  block on its own, and its advisory FYI listing renders only INSIDE a block —
+  so at the exact moment every lane has been deleted there is no block, and the
+  recorded asks are neither blocking nor shown. `CT6_ASK_LEDGER_BLOCKING=1`
+  restores it.
 - **An agent with unrestricted `Bash` can write any file**, including the ledger
   and the task store. The `PreToolUse` guard refuses `Edit` / `Write` /
   `NotebookEdit` against both, which raises the cost and makes a bypass a

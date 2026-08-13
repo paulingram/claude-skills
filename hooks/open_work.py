@@ -315,7 +315,16 @@ def open_task_items(
 
 _FENCE_RE = re.compile(r"^ {0,3}(?:```|~~~)")
 _HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:\s|$)")
-_BULLET_RE = re.compile(r"^ {0,3}[-*+]\s")
+# H4 — the bullet vocabulary was ASCII-only (`-`, `*`, `+`), and in the 2-line
+# band the marker arm is the ONLY arm that can fire: `too_many_lines` needs 12
+# and the prose arm needs 600 chars. So the spec's named catch — "a two-line
+# summary carrying a heading, bullet list, bold-label block, or table" — rested
+# on three exact ASCII characters, and a one-character substitution defeated it.
+# Measured: `• built it / • tests green` and an en-dash list both
+# evaded while the ASCII spelling tripped. Widened to the glyphs a model
+# actually emits: bullet, white bullet, hyphen-bullet, triangular bullet,
+# en/em dash, and the arrow forms.
+_BULLET_RE = re.compile("^ {0,3}[-*+•◦⁃‣·–—→➤▪●▸]\\s")
 _NUMBERED_RE = re.compile(r"^ {0,3}\d{1,9}[.)]\s")
 # Both spellings of a bold label opening a line: ``**Label:**`` and ``**Label**:``.
 _BOLD_LABEL_RE = re.compile(r"^ {0,3}\*\*[^*]+?(?::\*\*|\*\*\s*:)")
@@ -338,12 +347,26 @@ def _is_table_row(stripped: str) -> bool:
 
 
 def classify_turn_output(text: str) -> dict[str, Any]:
-    """Classify a turn's last assistant text block. Pure function, no I/O.
+    """Classify a turn's assistant text. Pure function, no I/O.
+
+    The caller passes ALL assistant text in the turn (every block since the last
+    genuine user prompt) via :func:`_turn_assistant_text` — not the last block.
+    That is load-bearing: it is what closes the "write the summary, then end
+    with `Working.`" sign-off evasion.
 
     Returns ``{"narrative": bool, "reason": str, "lines": int, "markers": [...]}``.
-    Narrative when there are ``>= NARRATIVE_LINE_THRESHOLD`` non-empty lines OR
-    any structural marker is present (heading, bullet, numbered item, bold-label
-    block, table row).
+
+    Narrative when ANY of:
+      * a structural marker at ``>= NARRATIVE_MARKER_LINES`` lines — heading,
+        bullet (ASCII or Unicode), numbered item, bold-label block, table row;
+      * ``>= NARRATIVE_ABSOLUTE_LINES`` non-empty lines, whatever their length;
+      * more than ``NARRATIVE_PROSE_CHARS`` raw chars of unbroken prose.
+
+    NEVER narrative on a ONE-LINE turn, whatever markers it carries.
+
+    The ``>= 3 report-length lines`` arm is RETIRED (H1) — it fired on three
+    ordinary narration sentences. STRUCTURE identifies a report; markerless
+    prose of 3..11 lines under the prose threshold is deliberately allowed.
     """
     if not isinstance(text, str) or not text.strip():
         return {"narrative": False, "reason": "empty turn output",
@@ -422,7 +445,33 @@ def classify_turn_output(text: str) -> dict[str, Any]:
     # total for reporting; a code block is quoted output, not report structure,
     # and letting it feed these arms blocked ordinary status updates.
     body = text.strip()
-    long_enough = counting_lines >= NARRATIVE_LINE_THRESHOLD
+    # H1 — the `long_enough` arm is RETIRED, and this is the sixth revision of
+    # this rule, so the reasoning is recorded rather than the change alone.
+    #
+    # It fired at `counting_lines >= 3`, where `counting_lines` counts lines of
+    # >= NARRATIVE_MIN_LINE_CHARS (24). G3 was reported as "six one-line
+    # narration blocks" and fixed by raising the CEILING 6 -> 12 — which only
+    # ever reached the `too_many_lines` arm. The class was never fixed: ordinary
+    # inter-tool narration at natural sentence length runs 45-60 chars, so the
+    # identical scenario tripped at THREE sentences. Measured on the shipped
+    # module: three narration sentences of 59 / 62 / 56 chars -> narrative=True.
+    # Narrating between tool calls is the single most common thing an agent
+    # does, and with work open every such turn was refused with an instruction
+    # it had already satisfied.
+    #
+    # There is no threshold that separates "three narration sentences" from
+    # "a three-line markerless report" — they are the same shape. Rather than
+    # tune a seventh time, markerless prose is now caught only where the signal
+    # is unambiguous: sheer volume (the 12-line ceiling) or sheer length (the
+    # 600-char prose arm). STRUCTURE is what identifies a report, and the marker
+    # arm carries that at >= 2 lines — which is the reported failure ("I fill it
+    # with a summary"), not unstructured narration.
+    #
+    # HONEST RESIDUAL, recorded not hidden: a markerless prose report of 3..11
+    # lines under 600 chars is now allowed. That is the accepted cost of not
+    # blocking ordinary narration, and it is the N-obs band the G3 ceiling raise
+    # first opened.
+    long_enough = False
     # T2 — the ceiling the F6 short-line allowance was missing.
     # G1: the ceiling counts EVERY non-empty line, fenced content included.
     # Excluding fenced lines from all three arms (T4) left a summary wrapped in

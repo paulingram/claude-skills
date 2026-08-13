@@ -43,7 +43,7 @@
      "TRIPS: an unbroken single-paragraph report long enough to be a report that merely lacks newlines -> re-blocks (pin the measured basis, raw vs whitespace-stripped, so the threshold means what it says)",
      "DOES NOT TRIP: a handful of SHORT markerless state lines -> allowed. A rule that fires on a terse status update gets switched off, which is the same as not shipping it",
      "BOTH directions pinned for every arm: every revision of this rule so far has fixed one direction by breaking the other",
-     "classify_turn_output is a pure function over a string with no I/O (exhaustively unit-testable); reads the last assistant text block via the reused run_continuity transcript reader"]},
+     "classify_turn_output is a pure function over a string with no I/O (exhaustively unit-testable); reads all assistant text in the turn (every block since the last genuine user prompt) via the reused run_continuity transcript reader"]},
   {"source_requirement_id": "REQ-6-split-failure-semantics", "spec_requirement_id": "turn-boundary-completion-lock/An own-code crash fails open but an unreadable source blocks", "layer": "infra", "team": "lock-wiring",
    "acceptance_criteria": [
      "A malformed/unreadable task JSON -> BLOCKS and the message NAMES that source (test) — a blanket fail-open here would reproduce the reported bug via one bad file",

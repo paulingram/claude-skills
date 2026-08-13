@@ -80,7 +80,7 @@ The token SHALL be resolved from the FIRST inbound record, and an envelope in th
 - **THEN** no teammate name resolves from it and the session remains held on all open tasks
 
 ### Requirement: While work is open the turn output is one line of state, not a narrative
-While the lock finds open work, it SHALL read the last assistant text block from the transcript and SHALL refuse the stop when that turn ended in a narrative report. The refusal SHALL state the rule so the next turn can comply.
+While the lock finds open work, it SHALL read all assistant text in the turn (every block since the last genuine user prompt) from the transcript and SHALL refuse the stop when that turn ended in a narrative report. The refusal SHALL state the rule so the next turn can comply.
 
 **A single line is NEVER a narrative, whatever markers it carries.** This floor is absolute and is the requirement's most important clause: an earlier revision made markers decisive at any length, so `**Status:** still on task 1 of 9.` — one line, the exact terse shape the refusal demands — was itself refused. The gate asked for one line of state and then rejected one, an unbreakable loop whose only exit was a kill-switch. A marker cannot indicate report *structure* in a turn too short to have any.
 
@@ -89,19 +89,19 @@ Above that floor a turn SHALL be classified as a narrative when it carries a str
 The precise thresholds are the implementation's to tune, but BOTH directions SHALL be pinned by tests, because every revision of this rule so far has fixed one direction by breaking the other.
 
 #### Scenario: A one-line state report carrying a marker is allowed
-- **WHEN** open work exists and the last assistant text block is the single line `**Status:** still on task 1 of 9.`
+- **WHEN** open work exists and all assistant text in the turn (every block since the last genuine user prompt) is the single line `**Status:** still on task 1 of 9.`
 - **THEN** the turn-output rule contributes no block
 
 #### Scenario: A two-line formatted summary while items are open is refused
-- **WHEN** open work exists and the last assistant text block is a two-line summary carrying a heading, bullet list, bold-label block, or table
+- **WHEN** open work exists and all assistant text in the turn (every block since the last genuine user prompt) is a two-line summary carrying a heading, bullet list, bold-label block, or table
 - **THEN** the stop is refused and the message states the one-line-of-state rule
 
 #### Scenario: A terse markerless status report is not a narrative
-- **WHEN** open work exists and the last assistant text block is a handful of short markerless state lines
+- **WHEN** open work exists and all assistant text in the turn (every block since the last genuine user prompt) is a handful of short markerless state lines
 - **THEN** the turn-output rule contributes no block
 
 #### Scenario: An unbroken paragraph report is a narrative
-- **WHEN** open work exists and the last assistant text block is a single paragraph long enough to be a report that merely lacks newlines
+- **WHEN** open work exists and all assistant text in the turn (every block since the last genuine user prompt) is a single paragraph long enough to be a report that merely lacks newlines
 - **THEN** the stop is refused
 
 ### Requirement: An own-code crash fails open but an unreadable source blocks

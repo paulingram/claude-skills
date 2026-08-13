@@ -75,7 +75,7 @@ The distinction is implemented by keeping source-read failures as **data** (an `
 
 Pure function, no I/O, so it is exhaustively testable:
 
-- **Trips** when the last assistant text block has `>= 3` non-empty lines, OR carries any structural marker: a markdown heading, a bullet/numbered list item, a bold-label block (`**Label:**` opening a line), or a table row.
+- **Trips** when all assistant text in the turn (every block since the last genuine user prompt) carries any structural marker at `>= 2` lines (a markdown heading, a bullet/numbered list item — ASCII or Unicode, a bold-label block, or a table row), OR reaches the absolute line ceiling, OR runs to enough unbroken prose. The `>= 3 report-length lines` arm was retired: it fired on three ordinary narration sentences.
 - **Never trips** at `<= 2` lines with no marker.
 
 The two directions are both pinned by tests because both failure modes are real: a rule that never fires is decoration, and a rule that fires on a legitimate two-line status update trains the user to disable it.

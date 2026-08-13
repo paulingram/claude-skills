@@ -116,6 +116,36 @@ every prose line while `long_enough` counted only >= 24-char lines.
 margin and clears a normal working turn. Switching the absolute arm to
 `counting_lines` was rejected because it would un-fix T2.
 
+### H1 / H4 / N-obs — the sixth revision (FIXED, with a stated residual)
+
+A final adversarial pass at `2c7cc5e` found that **G3 was fixed for its witness,
+not for its class**. G3 was reported as "six one-line narration blocks" and fixed
+by raising `NARRATIVE_ABSOLUTE_LINES` 6 -> 12 — which only ever reached the
+short-line arm. The `long_enough` arm counted lines of `>= 24` chars and fired at
+`>= 3`, and ordinary narration sentences run 45-60 chars. Measured: three natural
+sentences of 59 / 62 / 56 chars -> `narrative=True`. Narrating between tool calls
+is the single most common thing an agent does, so with work open every such turn
+was refused with an instruction it had already satisfied.
+
+**Fixed by RETIRING the `long_enough` arm entirely.** There is no threshold that
+separates "three narration sentences" from "a three-line markerless report" —
+they are the same shape, and six revisions of tuning proved it. STRUCTURE is what
+identifies a report: the marker arm carries that at `>= 2` lines, and markerless
+prose is now caught only by volume (the 12-line ceiling) or length (the 600-char
+arm).
+
+**H4 — the marker vocabulary was ASCII-only.** In the 2-line band the marker arm
+is the ONLY arm that can fire, so the spec's named catch rested on three exact
+characters (`-`, `*`, `+`). A Unicode bullet or an en-dash defeated it, verified.
+Widened to the glyphs a model actually emits.
+
+**STATED RESIDUAL (the N-obs band, now wider).** A markerless prose report of
+3..11 lines under 600 chars is allowed. This is the accepted, deliberate cost of
+not blocking ordinary narration. It is not a defect to be fixed by another
+threshold — that is precisely the pendulum that produced six revisions. If a
+future run wants it closed, the answer is a different signal, not a different
+number.
+
 ### Pin sequences, not just strings (spec gap)
 
 Four revisions of both-directions pinning never surfaced G2, because **it is
