@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.57.0` — completion-lock-followups
 - `v3.56.0` — turn-boundary-completion-lock
 - `v3.55.4` — run-continuity-and-uxtest-spec
 - `v3.55.3` — debug-3cycle-fix
@@ -154,6 +155,20 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+### v3.57.0 — completion-lock-followups: every open completion-lock follow-up closed, and a run-scoped frontend-E2E gate that stops asking the user to do the pipeline's job
+
+Closes **every open item** in `docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md`, plus an in-flight scope amendment. No new skill / agent / command / hook script / Layer-3 tool — counts unchanged (53 / 39 / 25 / 7 / 22).
+
+**A wedged run is no longer silent (N5b).** "Unbounded" is unchanged — nothing auto-releases a wedge — but the lock now emits one best-effort notification after five consecutive blocks and **keeps blocking**, so a run wedged overnight with nobody watching finally produces a signal. It deliberately does NOT route through the continuation guard's counter: that marker is agent-written, so it would appear to escalate without releasing anything, and the burned counter would mis-fire the guard the moment work closed.
+
+**Two named guard boundaries closed.** `CT6_TASKS_ROOT` can no longer relocate the guard along with the store it protects — the protected set is a union, so an environment variable may add to it but never remove the real store. And filesystem-identity comparison (`st_dev`/`st_ino`) catches a hardlink reaching a protected file under another name, which path resolution cannot see.
+
+**An unverified precondition, answered.** A 679-transcript, 1120 MB scan across every project on the machine settled whether the harness persists blocked-Stop feedback into the transcript: **it does not**, so v3.56.0's G2 boundary-advance is inert. The decisive evidence was the older continuation-guard sample, which has used the same mechanism for months and shows the same nothing. Fixed by making the block message honest rather than by adding per-session state that would pollute every repo the user types in.
+
+**And the gate that blocked a commit over other runs' debt.** The v3.55.0 frontend-E2E loop-exit gate read a cumulative directory, so it demanded live-environment evidence from 25 slices written before it existed — then asked the user how to proceed. It now scopes to slices the run actually owns, and the pipeline brings up and seeds a dev environment itself instead of handing that decision back. Asking permission to do your own job is not an escalation.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ### v3.56.0 — turn-boundary-completion-lock: a session cannot end its turn while registered work is open, and the condition is read from disk rather than asserted
 

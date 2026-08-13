@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 56 . 0
+                        ─── C T 6 ───   v 3 . 57 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.56.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.57.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-7222%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -77,26 +77,23 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.56.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.57.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.56.0 — turn-boundary-completion-lock: a session cannot end its turn while registered work is open, and the condition is read from disk
+### v3.57.0 — completion-lock-followups: every open completion-lock follow-up closed, and a run-scoped frontend-E2E gate that stops asking the user to do the pipeline's job
 
-A MINOR release that closes a user-reported failure the instruction tier could not fix — Agent Teams sessions ending their turn with work still open. The reporting agent diagnosed its own mechanism exactly — *"every time my turn is about to end, I fill it with a summary; writing a summary forces me to decide what's done enough to describe, and that decision is me drawing the boundary again"* — and then, in the same turn, produced two formatted reports while seventeen items sat open. Better phrasing had already been tried. What was left was machinery. **The decisive property: the stopping condition is READ FROM DISK, never asserted by the agent.**
+Closes **every open item** in `docs/proposals/COMPLETION_LOCK_FOLLOWUPS.md`, plus an in-flight scope amendment. No new skill / agent / command / hook script / Layer-3 tool — counts unchanged (53 / 39 / 25 / 7 / 22).
 
-| What changed | Detail |
-|---|---|
-| **The completion lock** | A new arm in the `Stop` hook (`hooks/pipeline-completion-audit.py`) that refuses the stop while registered work is open — **in every session, in every project**, not only inside a CT6 run. Three sources: the harness task list (`~/.claude/tasks/session-<first-8>/<taskId>.json`), a transcript-derived ask-ledger, and the one-line-of-state turn-output rule. Placement is the requirement, not a detail: the lock is evaluated ABOVE the non-engaged early return, the no-progress budget, the escalation marker, and `in-progress.md` — every one of those is a file the AGENT writes. |
-| **NEW `hooks/open_work.py`** | The stdlib-only substrate: `read_harness_tasks` (read failures are DATA in an `unreadable[]` partition, never exceptions), `open_task_items` (unknown or missing status counts as OPEN — the asymmetry fails safe), the accumulating ask-ledger at `.architect-team/ask-ledger.json`, `classify_turn_output`, teammate owner-scoping, `evaluate_completion_lock`, and an operator CLI (`list` / `resolve`). |
-| **Four kill-switches** | `CT6_COMPLETION_LOCK_DISABLED` (master) plus one per source. "Unbounded" means the AGENT can never decide to stop; **you always can** — see the new *Completion lock* section below for what each switch turns off. |
-| **Ground truth is immutable to agents** | `hooks/pretool_unilateral_override_guard.py` now refuses agent `Edit` / `Write` / `NotebookEdit` against the ask-ledger and against any path under the harness task store. Closing a task through `TaskUpdate` stays entirely legitimate; reaching around the harness to rewrite the record does not. |
-| **ralph-loop NOT adopted at the top level** | Asked and answered, and written into `docs/ETHOS.md` so a later run does not re-adopt it: ralph-loop exits on a literal `<promise>` string the model types, with nothing verifying it. Wrapping the top-level run in it would relocate this failure, not remove it. It keeps its place in the convergence sub-loops of the twelve skills that use it. |
-| **Counts + tests** | MINOR — additive within `hooks/`; no new skill / agent / command / hook script / Layer-3 tool; inventory unchanged (53 / 39 / 25 / 7 / 22). Suite **7024 → 7222 passing + 6 skipped, 0 failed** (+198 tests; 241 top-level test files, both encodings). |
+**A wedged run is no longer silent (N5b).** "Unbounded" is unchanged — nothing auto-releases a wedge — but the lock now emits one best-effort notification after five consecutive blocks and **keeps blocking**, so a run wedged overnight with nobody watching finally produces a signal. It deliberately does NOT route through the continuation guard's counter: that marker is agent-written, so it would appear to escalate without releasing anything, and the burned counter would mis-fire the guard the moment work closed.
 
-Adversarial review executed **fifteen escapes across six passes** — the accurate tally, replacing an earlier "nine found, eight closed" claim that overstated it: **ten closed and verified, four narrowed with a named residual, one accepted boundary** (`TaskUpdate(status="deleted")`). Three reversed calls the architect had already endorsed, each recorded in the change rather than quietly amended's `design.md` rather than quietly amended.
+**Two named guard boundaries closed.** `CT6_TASKS_ROOT` can no longer relocate the guard along with the store it protects — the protected set is a union, so an environment variable may add to it but never remove the real store. And filesystem-identity comparison (`st_dev`/`st_ino`) catches a hardlink reaching a protected file under another name, which path resolution cannot see.
 
-HONEST BOUNDARY: the gate is **not undefeatable**. `TaskUpdate(status="deleted")` unlinks the task file, so the lock reads a clean-empty directory and releases; deletion is a legitimate harness operation no hook tier can forbid. The ask-ledger does NOT mitigate this: it was demoted to advisory, so it never blocks on its own — and the advisory FYI listing renders only INSIDE a block, so at the exact moment every lane has been deleted there is no block and the recorded asks are neither blocking nor shown. Only `CT6_ASK_LEDGER_BLOCKING=1` restores the mitigation. And an agent with unrestricted `Bash` can write any file, including these records. What the release actually buys, stated precisely: an agent can no longer end its turn early by *deciding* it is finished — it can still end early by destroying the evidence that it is not, which is a louder and far more detectable act. Every earlier release remains in full at [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
+**An unverified precondition, answered.** A 679-transcript, 1120 MB scan across every project on the machine settled whether the harness persists blocked-Stop feedback into the transcript: **it does not**, so v3.56.0's G2 boundary-advance is inert. The decisive evidence was the older continuation-guard sample, which has used the same mechanism for months and shows the same nothing. Fixed by making the block message honest rather than by adding per-session state that would pollute every repo the user types in.
+
+**And the gate that blocked a commit over other runs' debt.** The v3.55.0 frontend-E2E loop-exit gate read a cumulative directory, so it demanded live-environment evidence from 25 slices written before it existed — then asked the user how to proceed. It now scopes to slices the run actually owns, and the pipeline brings up and seeds a dev environment itself instead of handing that decision back. Asking permission to do your own job is not an escalation.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

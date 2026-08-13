@@ -5,7 +5,10 @@ FIXED, NARROWED, or a named boundary. Recorded so the next run inherits the
 reasoning rather than rediscovering it, including the remedies that were
 measured and **declined**, which are the most expensive thing to re-derive.
 
-Shipped state: `main` @ `e767297`+, suite 7221 / 0 / 6, frozen-tree measured.
+Shipped state: v3.56.0 at `9750728`. **Every open item in this document was closed in
+v3.57.0** (`completion-lock-followups`); each section below now records its final
+disposition. The two DECLINED remedies are kept verbatim — a measured rejection is the
+most expensive thing to re-derive, and the next run must not re-adopt them.
 
 ## Named lessons this run earned
 
@@ -40,7 +43,7 @@ These generalise past the completion lock and are the durable output of the run.
 
 ## Findings and their disposition
 
-### G2 — cumulative turn-output reason (FIXED, but its precondition is UNVERIFIED)
+### G2 — cumulative turn-output reason (ANSWERED v3.57.0 — the precondition is FALSE)
 
 `_turn_assistant_text` concatenates every assistant text block since the last
 genuine user prompt — that is what closes T1's sign-off evasion. The side effect
@@ -157,7 +160,7 @@ directions pinned" is insufficient — pin the sequence: narrative, then
 compliance, then assert the arm clears.
 
 
-### N5b — a wedged run is silent, not just unreleased (medium)
+### N5b — a wedged run is silent, not just unreleased (CLOSED v3.57.0)
 
 The README states that nothing releases a wedged run automatically, which is
 correct and is the point of "unbounded". But that sentence does two jobs, and the
@@ -173,27 +176,27 @@ suitable event type (`issue_discovered`).
 it (ADV-1), so the marker would appear without releasing anything, and the burned
 counter would mis-fire the guard the moment work finally closed.
 
-### T4's neighbour — `prose_lines` vs `line_count` (low, naming)
+### T4's neighbour — `prose_lines` vs `line_count` (CLOSED v3.57.0 — and the premise was STALE)
 
 `prose_lines` now drives three arms; `line_count` only populates the reported
 `lines` field. A later change that reintroduces a line-count-based arm should use
 `prose_lines` unless it genuinely wants code lines counted. The two are one
 careless rename apart, and that confusion is precisely what T4 was.
 
-### N2b — hardlink under another name (low)
+### N2b — hardlink under another name (CLOSED v3.57.0)
 
 The ground-truth guard resolves paths, which closes case-folding, `..` traversal
 and junctions. It cannot see a hardlink under a different name; that needs
 `st_dev`/`st_ino` identity comparison. Low severity because creating one is a
 Bash act, and Bash is already a named boundary.
 
-### N3 — `CT6_TASKS_ROOT` moves the guard's own root (medium)
+### N3 — `CT6_TASKS_ROOT` moves the guard's own root (CLOSED v3.57.0)
 
 One environment variable relocates both the gate's ground truth and the guard
 protecting it. Documented as a boundary; a fix would need the guard to resolve
 its protected set independently of the value under attack.
 
-### F7 — unescaped task text in the block message (low)
+### F7 — unescaped task text in the block message (CLOSED v3.57.0)
 
 A task subject containing newlines and a forged `How this releases:` section
 renders as a single bullet, because `_lock_clip` collapses whitespace first — so
@@ -202,7 +205,7 @@ land is instruction-shaped prose inside a message the agent reads as enforcement
 output. The mitigation is incidental rather than deliberate. Cheap hardening:
 strip bullet-prefix and colon-terminated-heading shapes inside `_lock_clip`.
 
-### Mutation-harness classification (low, tooling)
+### Mutation-harness classification (CLOSED v3.57.0)
 
 `mutation-checks-lock-wiring.txt` derives `caught` by parsing the pytest result
 line; lock-core's harness derives it from the exit code and additionally asserts
@@ -217,3 +220,125 @@ weak → ceiling with no fence exemption → snippets blocked. The spec now requ
 both directions pinned for every arm, but the observation that matters is the
 adversary's: *the shapes that keep moving are the ones between the poles, not at
 them*. A fifth revision should start by enumerating the middle, not the extremes.
+
+---
+
+# v3.57.0 — what closed, and how
+
+Every open item above is closed. Twenty-two mutations were run under exit-code
+classification: **22 caught, 0 escaped, 0 no-op, 0 broken.**
+
+## N5b — CLOSED
+
+The lock now emits one best-effort `issue_discovered` notification once it has blocked
+`CT6_COMPLETION_LOCK_NOTIFY_AFTER` (default 5) consecutive times, and **keeps blocking**.
+The counter resets when the lock stops blocking, so a later wedge notifies again rather
+than being swallowed by a stale `notified` flag. Kill-switch
+`CT6_COMPLETION_LOCK_NOTIFY_DISABLED` silences the channel without weakening the gate.
+
+The prohibition was honoured: the continuation guard's no-progress counter is NOT
+advanced, and the escalation marker is not raised — pinned by a test.
+
+**The witness that mattered.** The emission path is wrapped in a bare `except`, so a
+defect inside it ships the feature INERT with every test still green. That is not
+hypothetical — the first cut called a `_utc_now` helper that does not exist in the
+module, and the swallow hid it completely. The test therefore observes a **sentinel
+notifier from outside the hook**, and one mutation deliberately raises inside the
+swallowed path to prove the test can see it.
+
+## F7 — CLOSED, and the first fix was ineffective
+
+Neutralization is applied **per field** in `_lock_task_text`, not to the assembled line.
+The first cut put it only in `_lock_clip` and was useless for the actual threat:
+`_lock_task_text` prefixes `[<id>] `, so a subject's forged bullet is never at position 0
+and a leading-shape strip never reaches it. **The test asserted on a rendering that could
+not occur and passed vacuously; the mutation witness is what exposed it** — disabling the
+strip left the test green.
+
+## N3 — CLOSED
+
+The guard protects the **union** of the real default root and any `CT6_TASKS_ROOT`
+override. The asymmetry is the whole fix: an environment variable may ADD to the
+protected set, never remove the real store from it — the same shape as the substrate's
+`open_task_items` treating an unknown status as OPEN.
+
+## N2b — CLOSED
+
+`(st_dev, st_ino)` identity comparison catches a hardlink under any name. Fails safe
+throughout: only compared where both paths exist (so an ordinary new-file `Write` is
+untouched), `st_ino == 0` yields no identity, an indeterminate result falls back to
+resolved-path comparison, and the arm can only ever ADD a block. Skipped only for paths
+that could be a second name at all (`st_nlink != 1`), so the common write pays one stat.
+
+## `prose_lines` vs `line_count` — CLOSED, and this document's premise was WRONG
+
+The finding said one counter was load-bearing and the other cosmetic. **That was stale.**
+T4 moved the arms onto unfenced lines and left `line_count` reporting-only; **G1 then put
+the ceiling arm back on the full count** and the comment was never corrected. By v3.56.0
+there were three counters and all three were load-bearing — so a reader trusting the
+comment would have concluded one was free to substitute, which is T4 exactly.
+
+Renamed to `all_nonempty_lines` / `unfenced_lines` / `report_length_lines`, each stating
+what it counts, with the nesting relation and the pick-by-meaning rule at the call site.
+
+Equivalence was **proved, not asserted**: a 40-input corpus captured from `9750728`
+before the edit, full returned-dict comparison, **0 mismatches**. The corpus landed as a
+permanent parametrized test — that regression net, not the rename, is the deliverable.
+All three counter substitutions turn it red.
+
+## G2 — ANSWERED: the precondition is FALSE, and the fix is INERT
+
+Scanned **679 transcripts across 23 projects, 1120.3 MB**, four patterns, **331 matching
+records**. Eight were `type=user` + `role=user` + string content; **all eight dissolved**
+— seven `<teammate-message>` peer envelopes, one `isCompactSummary` record. **Zero**
+harness-written blocked-Stop feedback records.
+
+The decisive evidence is the OLD sample: the v3.30.0 continuation guard has used the same
+mechanism for months and contributes 64 records — 57 `tool_result`, 6 `assistant`, 1
+teammate envelope. This is a property of the harness, not a thin sample.
+
+**Consequence, bounded.** The boundary never advances, so a turn that went narrative keeps
+reporting even after the agent complies. But `turn_output` is only evaluated when work is
+already open, so **G2 can never CAUSE a block** — it produced a misleading message.
+
+**Fixed by making the message honest rather than by adding state.** The objection that
+killed the first attempt still stands: `note_continuation_block` is empty in exactly the
+plain sessions this lock exists for, and writing it from the lock would pollute every repo
+the user types in. Trading a misleading sentence for a stray state file everywhere is a
+bad trade. The message no longer claims *"the last turn tripped it"*; it says the output
+**since the last user prompt** is a narrative and discloses that this covers the whole
+turn. The rule keeps its teeth; only the false claim is gone.
+
+Full evidence: `.architect-team/red-runs/completion-lock/g2-precondition-answer.md`.
+
+## Mutation-harness classification — CLOSED
+
+`mutation-checks-lock-wiring.txt` is regenerated by an exit-code harness. Each entry
+asserts the anchor matched, asserts the file changed **by sha256** before running
+anything, classifies on pytest's exit code (1 = caught, 0 = ESCAPED, 2..5 = `[ERROR]`, so
+a collection error can never read as caught), and verifies the restored sha256 plus a
+green re-run before scoring. Every mutation was re-run for real, not transcribed.
+
+## Frontend-E2E loop-exit gate — the in-flight item 8
+
+Reported live: *"25 of the 27 flagged slices are pre-existing debt"* — a commit stopped
+over work the run never touched, and the user was asked to choose. Three defects:
+
+1. **Retroactive scope.** `.architect-team/reviews/` is cumulative, so a gate introduced
+   in v3.55.0 demanded live-environment evidence from slices written before it existed.
+   `_audit_frontend_e2e` now scopes to slices this run owns — claimed by a teammate
+   manifest **OR** written after the run marker's `started_at` — and prints how many it
+   excluded. With **neither** signal it keeps today's behaviour: unknown provenance must
+   not disarm a loop-exit gate, because under-blocking is the defect v3.55.0 removed.
+2. **No path to a live environment.** The gate required a deploy the pipeline never
+   performed. `common-pipeline-conventions` gains *"Local -> dev -> test-on-dev is the
+   pipeline's job, not the user's"*: bring the environment up (or run `deploy_command`),
+   seed the records the flow needs **through the application's own create path**, then run
+   the flow — in that order, automatically.
+3. **It asked.** *"How do you want to proceed?"* with a recommended option attached is not
+   an escalation; it is the run asking permission to do its own job. Only a genuine
+   external blocker escalates.
+
+**Named boundary:** the inherited debt still exists. Scoping stops it blocking the next
+commit; it does not close it. That is a backlog to schedule, deliberately not this run's.
+

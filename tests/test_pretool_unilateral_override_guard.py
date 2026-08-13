@@ -474,3 +474,249 @@ def test_ask_ledger_arm_still_declines_a_same_named_file_elsewhere(tmp_path: Pat
     ):
         assert _targets_completion_lock_ground_truth(benign) is None, benign
         assert check_payload(_write_payload(benign))[0] == 0, benign
+
+
+# --- N3: the protected set may not be derived from the value under attack ----
+#
+# `_harness_tasks_root()` resolves through `open_work.tasks_root()`, which
+# honours `CT6_TASKS_ROOT`. So ONE environment variable moved BOTH the gate's
+# ground truth AND the guard protecting it: point it at an empty directory and
+# the guard faithfully protects the decoy while the real `~/.claude/tasks` --
+# the store the lock actually reads when the env is not set in the harness's own
+# process -- is writable. The protected set is now the UNION of the real default
+# root and whatever the env names: an env var may ADD to the protected set, it
+# may never REMOVE the real store from it.
+#
+# Every test below stats or globs the DEFAULT root, so every one of them patches
+# `Path.home()` first. ITEM 1 is specifically ABOUT the default root, so a test
+# that dodged it would be testing nothing -- patching is the only honest way to
+# exercise it without reading (or risking a write to) the developer's real store.
+
+
+def _patch_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
+    """Point `Path.home()` at a tmp dir for the duration of one test."""
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+
+def test_ct6_tasks_root_env_cannot_move_the_guard_off_the_real_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """N3 (adversarial). The attack is one variable: set `CT6_TASKS_ROOT` to a
+    decoy and the guard's protected set moves with it, leaving the real harness
+    task store open to a direct `"status": "completed"` write -- which is
+    exactly the ADV-5 bypass this arm exists to refuse."""
+    home = tmp_path / "home"
+    real_task = home / ".claude" / "tasks" / "session-abcdef12" / "1.json"
+    real_task.parent.mkdir(parents=True)
+    real_task.write_text('{"status": "pending"}', encoding="utf-8")
+    _patch_home(monkeypatch, home)
+
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "decoy"))  # the attack
+
+    assert _targets_completion_lock_ground_truth(str(real_task)) == "harness-task-store"
+    rc, msg = check_payload(_write_payload(str(real_task)))
+    assert rc == 2, "the REAL harness task store must stay protected under any env value"
+    assert "harness task store" in msg
+
+
+def test_ct6_tasks_root_env_still_adds_its_root_to_the_protected_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half of the union, and why the fix is a union and not a
+    replacement: `CT6_TASKS_ROOT` is this suite's own test seam, so the
+    env-named root has to stay protected too."""
+    home = tmp_path / "home"
+    (home / ".claude" / "tasks").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "injected"))
+
+    injected = tmp_path / "injected" / "session-abcdef12" / "7.json"
+    assert _targets_completion_lock_ground_truth(str(injected)) == "harness-task-store"
+    assert check_payload(_write_payload(str(injected)))[0] == 2
+
+
+def test_default_root_protection_does_not_widen_to_the_rest_of_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CONTROL for N3. Protecting `~/.claude/tasks` unconditionally must not
+    creep into `~/.claude/` or the home directory at large, and `tasks-backup`
+    must not match on a string prefix. A guard that refuses ordinary writes is a
+    worse bug than the hole it closes -- it gets switched off."""
+    home = tmp_path / "home"
+    (home / ".claude" / "tasks").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "decoy"))
+    for benign in (
+        str(home / ".claude" / "settings.json"),
+        str(home / ".claude" / "tasks-backup" / "1.json"),
+        str(home / "notes.md"),
+        str(tmp_path / "src" / "index.ts"),
+    ):
+        assert _targets_completion_lock_ground_truth(benign) is None, benign
+        assert check_payload(_write_payload(benign))[0] == 0, benign
+
+
+# --- N2b: a hardlink is not a spelling ---------------------------------------
+#
+# The F-B fix resolves before matching, which closes case-folding, `..`
+# traversal and junctions -- each of those is a different SPELLING of one path,
+# and `Path.resolve()` collapses spellings. A hardlink is not a spelling: it is
+# a second real directory entry for the same bytes, and `resolve()` returns the
+# alias's OWN path because there is no "true" name to resolve to. So
+# `notes/evil.json` hardlinked onto the ledger writes the real ledger and every
+# name-based arm sees an unrelated file.
+#
+# Identity closes it: same `(st_dev, st_ino)` IS the protected file, whatever
+# name it was reached by.
+
+
+def _hardlink_or_skip(src: Path, dst: Path) -> None:
+    """Hardlink `src` -> `dst`, or skip loudly.
+
+    `os.link` works on NTFS but not on FAT/exFAT, across volumes, or without the
+    right privileges on some configurations. A skip with a reason beats a test
+    that silently passes because the attack could not be staged."""
+    try:
+        os.link(src, dst)
+    except (OSError, NotImplementedError, AttributeError) as exc:  # pragma: no cover
+        pytest.skip(f"os.link unsupported on this volume/permissions: {exc!r}")
+
+
+def test_a_hardlink_alias_to_the_ask_ledger_is_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """N2b (adversarial): `evil.json` hardlinked onto the ask-ledger writes the
+    real ledger bytes, and the resolved-name arm cannot see it."""
+    home = tmp_path / "home"
+    (home / ".claude" / "tasks").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+
+    state = tmp_path / ".architect-team"
+    state.mkdir()
+    ledger = state / _ASK_LEDGER_FILENAME
+    ledger.write_text('{"schema": 1, "entries": []}', encoding="utf-8")
+    alias = tmp_path / "notes" / "evil.json"
+    alias.parent.mkdir()
+    _hardlink_or_skip(ledger, alias)
+
+    # The precondition that makes this a real hole rather than a hypothetical:
+    # resolution -- the F-B fix -- genuinely cannot see through it.
+    assert alias.resolve() != ledger.resolve(), "precondition: resolve() sees only the alias"
+    assert alias.read_text(encoding="utf-8") == ledger.read_text(encoding="utf-8")
+
+    assert _targets_completion_lock_ground_truth(str(alias)) == "ask-ledger"
+    rc, msg = check_payload(_write_payload(str(alias)))
+    assert rc == 2, "a write to the alias IS a write to the ledger"
+    assert "ask-ledger" in msg
+
+
+def test_a_hardlink_alias_to_a_harness_task_file_is_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """N2b, the ADV-5 half: the same trick against a harness task JSON, whose
+    `"status"` field is the single value the task-list gate reads."""
+    home = tmp_path / "home"
+    (home / ".claude" / "tasks").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+
+    root = tmp_path / "tasks"
+    task = root / "session-abcdef12" / "1.json"
+    task.parent.mkdir(parents=True)
+    task.write_text('{"status": "pending"}', encoding="utf-8")
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(root))
+
+    alias = tmp_path / "notes" / "harmless.json"
+    alias.parent.mkdir()
+    _hardlink_or_skip(task, alias)
+
+    assert alias.resolve() != task.resolve(), "precondition: resolve() sees only the alias"
+    assert _targets_completion_lock_ground_truth(str(alias)) == "harness-task-store"
+    rc, msg = check_payload(_write_payload(str(alias)))
+    assert rc == 2, "a write to the alias IS a write to the task record"
+    assert "harness task store" in msg
+
+
+def test_identity_arm_leaves_ordinary_writes_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CONTROL for N2b, in the three shapes the arm must NOT catch:
+
+      * a file that does not exist yet -- the common case for `Write`, and the
+        one `os.stat` raises on;
+      * an ordinary existing file with a single name;
+      * two files hardlinked to EACH OTHER, neither of them protected -- this
+        is the one that proves the arm matches identity WITH THE PROTECTED
+        FILE, not merely "this path has more than one name".
+    """
+    home = tmp_path / "home"
+    (home / ".claude" / "tasks").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+
+    state = tmp_path / ".architect-team"
+    state.mkdir()
+    (state / _ASK_LEDGER_FILENAME).write_text("{}", encoding="utf-8")
+
+    src = tmp_path / "src"
+    src.mkdir()
+    existing = src / "index.ts"
+    existing.write_text("export const x = 1;\n", encoding="utf-8")
+    linked_a = src / "shared.ts"
+    linked_a.write_text("export const y = 2;\n", encoding="utf-8")
+    linked_b = src / "shared-alias.ts"
+    _hardlink_or_skip(linked_a, linked_b)
+
+    for benign in (
+        str(src / "brand-new-file.ts"),  # does not exist
+        str(existing),
+        str(linked_a),
+        str(linked_b),  # nlink == 2, but not the ledger and not a task
+    ):
+        assert _targets_completion_lock_ground_truth(benign) is None, benign
+        assert check_payload(_write_payload(benign))[0] == 0, benign
+
+
+def test_identity_arm_never_raises_and_degrades_to_the_name_arms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`os.stat` is not guaranteed to answer -- a permission error, a dead
+    network share, a filesystem that does not report inodes. This arm must
+    degrade to the existing resolved-name comparison, never raise: PreToolUse
+    treats exit 1 as NON-blocking, so a crash here opens the whole guard on
+    exactly the input the caller controls."""
+    home = tmp_path / "home"
+    (home / ".claude" / "tasks").mkdir(parents=True)
+    _patch_home(monkeypatch, home)
+    monkeypatch.setenv("CT6_TASKS_ROOT", str(tmp_path / "tasks"))
+
+    state = tmp_path / ".architect-team"
+    state.mkdir()
+    canonical = state / _ASK_LEDGER_FILENAME
+    canonical.write_text("{}", encoding="utf-8")
+
+    # Imported here rather than at module scope so the other new properties in
+    # this file fail on their own assertions instead of a collection error.
+    import hooks.pretool_unilateral_override_guard as guard_mod
+    from hooks.pretool_unilateral_override_guard import (
+        _file_identity,
+        _may_be_a_link_alias,
+    )
+
+    # The helpers must swallow ANY exception, not just OSError.
+    def _boom(*_a: object, **_k: object) -> None:
+        raise RuntimeError("stat is not available here")
+
+    monkeypatch.setattr(guard_mod.os, "stat", _boom)
+    assert _file_identity(canonical) is None
+    assert _may_be_a_link_alias(canonical) in (True, False)  # a verdict, not a raise
+
+    # And with stat merely failing the ordinary way, the name arms still work.
+    monkeypatch.setattr(guard_mod.os, "stat", _oserror_stat)
+    assert _targets_completion_lock_ground_truth(str(canonical)) == "ask-ledger"
+    assert _targets_completion_lock_ground_truth(str(tmp_path / "src" / "a.ts")) is None
+    assert check_payload(_write_payload(str(canonical)))[0] == 2
+
+
+def _oserror_stat(*_a: object, **_k: object) -> None:
+    raise PermissionError("stat denied")

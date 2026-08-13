@@ -1436,6 +1436,87 @@ def _frontend_e2e_trace_exists(trace_path: Any, root: Path, at: Path) -> bool:
     return False
 
 
+def _run_owned_review_stems(at: Path) -> set[str] | None:
+    """Review-file stems THIS run claims, or None when nothing claims anything.
+
+    `.architect-team/reviews/` is cumulative across every run in a repo, so a
+    run-level gate that globs it inherits every slice ever written. The run's
+    own slices are the ones its teammate manifests name — the same
+    `expected_review_evidence` / `task_ids` / `shared_task_id` fields the
+    v3.47.0 unmanifested-task gate already treats as the run's manifest of
+    record, reused here rather than inventing a second notion of ownership.
+
+    Returns None (not an empty set) when no manifest claims anything, so the
+    caller can distinguish "this run owns no slices" from "ownership is
+    unknowable" and fail open on the latter. An empty set means the manifests
+    exist and genuinely claim nothing.
+    """
+    manifests = _read_manifests(at)
+    if not manifests:
+        return None
+    stems: set[str] = set()
+    for _path, manifest in manifests:
+        for key in ("expected_review_evidence", "task_ids"):
+            raw = manifest.get(key)
+            if isinstance(raw, (list, tuple)):
+                for entry in raw:
+                    ident = _normalize_task_id(entry) if _normalize_task_id else None
+                    if ident:
+                        stems.add(str(ident))
+                    elif isinstance(entry, str) and entry.strip():
+                        stems.add(Path(entry.strip()).stem)
+        shared = manifest.get("shared_task_id")
+        if isinstance(shared, str) and shared.strip():
+            stems.add(Path(shared.strip()).stem)
+    return stems if stems else None
+
+
+def _run_started_epoch(at: Path) -> float | None:
+    """Epoch seconds of this run's start, from the active-run marker, or None.
+
+    The second scoping signal, and the one that covers a run whose teammates
+    never wrote manifests. A review file older than the run cannot be this
+    run's work.
+    """
+    marker = _load_json(at / "active-run.json")
+    if not isinstance(marker, dict):
+        return None
+    raw = str(marker.get("started_at") or "").strip()
+    if not raw:
+        return None
+    try:
+        import datetime as _d
+        return _d.datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
+
+
+def _slice_is_this_runs(path: Path, owned: set[str] | None, started: float | None) -> bool:
+    """Whether a cumulative `reviews/` entry belongs to the run now closing.
+
+    Two independent signals, ORed, because each covers the other's blind spot: a
+    manifest names slices precisely but only a pipeline dispatch writes one, and
+    a timestamp covers any run but only while the marker exists. A slice claimed
+    by EITHER is this run's.
+
+    With neither signal available the answer is True for everything — today's
+    behaviour, deliberately. Disarming the gate whenever provenance is unknown
+    would trade an over-block for an under-block, and an under-blocking loop-exit
+    gate is the defect v3.55.0 was built to remove.
+    """
+    if owned is None and started is None:
+        return True
+    if owned is not None and path.stem in owned:
+        return True
+    if started is not None:
+        try:
+            if path.stat().st_mtime >= started - 1.0:  # 1s slack for fs granularity
+                return True
+        except Exception:
+            return True  # cannot stat -> cannot exclude
+    return False
+
+
 def _audit_frontend_e2e(root: Path, at: Path) -> list[str]:
     """v3.55.0 — a frontend-impacting run cannot complete without genuine
     passing E2E evidence (the run-level loop-exit backstop).
@@ -1482,8 +1563,33 @@ def _audit_frontend_e2e(root: Path, at: Path) -> list[str]:
     if not reviews_dir.is_dir():
         return violations
 
+    # v3.57.0 — RUN-SCOPING. `reviews/` is CUMULATIVE: it holds every slice
+    # every run in this repo ever produced. Globbing it made a gate introduced
+    # in v3.55.0 retroactively demand live E2E evidence from slices written
+    # before it existed — reported live as "25 of the 27 flagged slices are
+    # pre-existing debt", which stopped a commit over work the run never
+    # touched. A gate must bind what the run DID, not what the directory
+    # remembers. The run's own slices are the ones its teammate manifests claim.
+    owned = _run_owned_review_stems(at)
+    started = _run_started_epoch(at)
+    every = sorted(reviews_dir.glob("*.json"))
+    scoped = [p for p in every if _slice_is_this_runs(p, owned, started)]
+    inherited = len(every) - len(scoped)
+    if inherited:
+        # Say what was excluded and why. A gate that silently narrows its own
+        # scope reads exactly like a gate that found nothing, and "25 of 27 were
+        # skipped" is information the operator needs in order to trust the pass.
+        print(
+            f"pipeline-completion-audit: frontend-E2E loop-exit gate scoped to "
+            f"this run - {len(scoped)} of {len(every)} review slice(s) "
+            f"considered, {inherited} excluded as pre-existing debt from earlier "
+            "runs. Inherited slices are NOT this run's to satisfy; close them "
+            "with a dedicated pass if you want them covered.",
+            file=sys.stderr,
+        )
+
     frontend_slices: list[str] = []
-    for path in sorted(reviews_dir.glob("*.json")):
+    for path in scoped:
         files = _review_files_changed(_load_json(path))
         if not files:
             continue
@@ -1774,14 +1880,68 @@ _LOCK_MAX_LISTED = 20   # per source; the rest collapse into an "and N more" lin
 _LOCK_MAX_LINE = 200    # per rendered item
 
 
+#: F7 - shapes stripped from the FRONT of a rendered item, repeatedly. A task
+#: subject that opens with its own bullet or step number would otherwise render
+#: as `  - - forged` or `  - 3. forged`, reading as a second entry in the
+#: emitter's own list.
+_LOCK_LEADING_SHAPE = re.compile(
+    r"^(?:[-*+>\u2022\u25cf\u25e6\u2023\u2043\u2013\u2014]+|\d{1,3}[.)])\s+"
+)
+
+#: F7 - a colon that terminates a heading. Only fires on `<text>: <space>`, so a
+#: Windows path (`C:\Users`) and a bare `12:30` are untouched: whitespace is
+#: already collapsed by the time this runs, so a drive colon has no space after
+#: it. Rewritten to ` - `, which keeps the subject readable while removing the
+#: shape that lets `How this releases: ...` read as the emitter's own section.
+_LOCK_HEADING_COLON = re.compile(r"(\S)\s*:\s+")
+
+
+def _lock_neutralize(text: Any) -> str:
+    """Collapse to one line and remove the shapes that imitate this emitter.
+
+    Applied at EVERY point untrusted text enters the block, which is the whole
+    correctness argument: applying it only to the fully-assembled line was the
+    first cut and it was ineffective, because `_lock_task_text` prefixes
+    `[<id>] ` before clipping, so a subject's forged bullet was never at
+    position 0 and the leading-shape strip never reached it. The test asserted
+    on a rendering that could not occur and passed vacuously - the mutation
+    witness is what exposed it. Neutralize the FIELD, not the sentence.
+    """
+    t = " ".join(str(text).split())
+    for _ in range(4):  # bounded: strip stacked shapes, never spin on a no-op
+        stripped = _LOCK_LEADING_SHAPE.sub("", t, count=1)
+        if stripped == t:
+            break
+        t = stripped
+    t = _LOCK_HEADING_COLON.sub(r"\1 - ", t)
+    return " ".join(t.split())
+
+
 def _lock_clip(text: str, limit: int = _LOCK_MAX_LINE) -> str:
-    """One-line, length-bounded rendering of a piece of item data.
+    """One-line, length-bounded, SHAPE-NEUTRALIZED rendering of item data.
 
     Clips the MIDDLE rather than the tail: the two most identifying parts of an
     over-long line are its start and its end (a path's directory and its
     filename), and an unreadable-source line that lost its filename would fail
-    REQ-6's "name the source" requirement."""
-    t = " ".join(str(text).split())
+    REQ-6's "name the source" requirement.
+
+    F7 - the text rendered here is ATTACKER-CONTROLLED. A task subject is
+    written through the harness by whoever creates the task, and it lands inside
+    a message the agent reads as enforcement output. Collapsing whitespace
+    already prevented STRUCTURE from being spoofed - a subject carrying newlines
+    and a forged `How this releases:` section came out as one bullet, and the
+    genuine section still appeared exactly once - but that mitigation was
+    INCIDENTAL, a side effect of wanting one-line rendering. This makes it
+    deliberate: leading bullet/step shapes are stripped and heading colons are
+    defanged, so injected prose reads as inert content rather than as a section
+    of the block that contains it.
+
+    Deliberately NOT a sanitizer with a threat model beyond that. The genuine
+    protection against a task subject is that the release paths are files and
+    environment variables, not prose - no wording in this message, forged or
+    real, closes a task. This only stops the message from LOOKING like it
+    contradicts itself."""
+    t = _lock_neutralize(text)
     if len(t) <= limit:
         return t
     keep = (limit - 5) // 2
@@ -1800,10 +1960,15 @@ def _lock_bullets(items: Any, render: Any) -> str:
 def _lock_task_text(item: Any) -> str:
     if not isinstance(item, dict):
         return str(item)
-    ident = str(item.get("id") or item.get("task_id") or "?").strip()
-    subject = str(item.get("subject") or item.get("description") or "").strip()
-    status = str(item.get("status") or "unknown").strip() or "unknown"
-    owner = str(item.get("owner") or "").strip()
+    # F7 - every one of these is attacker-controlled: a task file is written
+    # through the harness by whoever created the task. Neutralize each FIELD
+    # here, before it is wrapped in this function's own `[id] ... (status)`
+    # punctuation, because after wrapping a forged bullet is no longer at the
+    # start of the line and a leading-shape strip can no longer see it.
+    ident = _lock_neutralize(item.get("id") or item.get("task_id") or "?")
+    subject = _lock_neutralize(item.get("subject") or item.get("description") or "")
+    status = _lock_neutralize(item.get("status") or "unknown") or "unknown"
+    owner = _lock_neutralize(item.get("owner") or "")
     label = f"[{ident}] {subject}" if subject else f"[{ident}]"
     return label + f" ({status}" + (f", owner {owner}" if owner else "") + ")"
 
@@ -1902,7 +2067,12 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
         reason = str((turn_output or {}).get("reason") or "narrative shape")
         sections.append(
             "TURN-OUTPUT RULE: while work is open, your turn output is one line "
-            f"of state, not a narrative. The last turn tripped it ({reason}). "
+            f"of state, not a narrative. Your output SINCE THE LAST USER PROMPT "
+            f"is a narrative ({reason}). That is the whole turn, not just your "
+            "last message - which is what closes the summary-then-sign-off "
+            "evasion, and also means an earlier narrative keeps this line here "
+            "even after you switch to terse state. It is not a claim that your "
+            "most recent message was long. "
             "Reply with a single line of state and keep working."
         )
     if not sections:
@@ -2012,6 +2182,150 @@ def _completion_lock_guard_text(
     return _continuation_block_text(violations, marker, needs_reload, None)
 
 
+#: N5b - consecutive blocks before the wedge is worth an email. Low enough that
+#: an overnight wedge is caught, high enough that the ordinary "you stopped
+#: early, keep going" nudge - which is the lock WORKING - never mails anyone.
+_LOCK_NOTIFY_AFTER = 5
+_LOCK_NOTIFY_AFTER_ENV = "CT6_COMPLETION_LOCK_NOTIFY_AFTER"
+_LOCK_NOTIFY_DISABLED_ENV = "CT6_COMPLETION_LOCK_NOTIFY_DISABLED"
+_LOCK_NOTIFY_STATE = "completion-lock-notify.json"
+
+
+def _lock_notify_timestamp() -> str:
+    """ISO-8601 UTC, via the shared helper when importable.
+
+    Its own fallback because this whole path is wrapped in a bare `except` —
+    a NameError here would be swallowed and the feature would ship INERT, which
+    is precisely the failure this release's mutation discipline exists to catch.
+    """
+    try:
+        from hooks.shared_util import _utc_now_iso  # type: ignore
+        return _utc_now_iso()
+    except Exception:
+        pass
+    try:
+        from shared_util import _utc_now_iso  # type: ignore
+        return _utc_now_iso()
+    except Exception:
+        import datetime as _d
+        return _d.datetime.now(_d.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _lock_notify_threshold() -> int:
+    try:
+        n = int(os.environ.get(_LOCK_NOTIFY_AFTER_ENV, "") or _LOCK_NOTIFY_AFTER)
+        return n if n > 0 else _LOCK_NOTIFY_AFTER
+    except Exception:
+        return _LOCK_NOTIFY_AFTER
+
+
+def _completion_lock_notify(root: Path, session_id: str, verdict: dict) -> None:
+    """N5b - a wedged run is unreleased AND silent. Fix the second half only.
+
+    "Unbounded" was chosen deliberately: nothing releases a wedged run
+    automatically, and that stays true here. But the same sentence was doing a
+    second job by accident - nothing TELLS you either - so a run wedged
+    overnight with nobody watching produced no signal at all. This emits one
+    notification once the lock has blocked persistently and KEEPS BLOCKING. The
+    notification reports the state; it never changes it.
+
+    Three constraints, each preventing a named failure:
+
+    1. It does NOT advance the continuation guard's no-progress counter. That
+       was the obvious implementation and it is wrong: `escalation-pending.md`
+       is agent-written and the lock deliberately does not honour it (ADV-1), so
+       that route would raise the marker WITHOUT releasing anything, and the
+       burned counter would then mis-fire the guard the moment work finally
+       closed. This function touches neither.
+    2. It cannot gate. Every failure mode - no notifier, no config, a raise, a
+       hang - is swallowed, and the caller ignores the return. A block that a
+       mail failure could break is worse than no notification.
+    3. It fires once per wedge episode, not once per Stop. A gate that emails on
+       every Stop trains the reader to filter it, which is the same outcome as
+       silence. The counter resets the moment the lock stops blocking, so a
+       later wedge notifies again.
+
+    The notifier itself is already opt-in (silent no-op with no
+    `.architect-team-notify.json`) and best-effort (always exits 0), so on a
+    project that never configured it this whole path is a few file operations.
+    """
+    try:
+        if os.environ.get(_LOCK_NOTIFY_DISABLED_ENV, "").strip().lower() in (
+            "1", "true", "yes", "on",
+        ):
+            return
+        state_dir = root / ".architect-team"
+        if not state_dir.is_dir():
+            return
+        key = (session_id or "unknown")[:8]
+        path = state_dir / _LOCK_NOTIFY_STATE
+        state = _load_json(path) or {}
+        if not isinstance(state, dict):
+            state = {}
+        entry = state.get(key)
+        entry = entry if isinstance(entry, dict) else {}
+        count = int(entry.get("consecutive") or 0) + 1
+        already = bool(entry.get("notified"))
+        threshold = _lock_notify_threshold()
+        fire = (count >= threshold) and not already
+        state[key] = {
+            "consecutive": count,
+            "notified": already or fire,
+            "last_blocked_at": _lock_notify_timestamp(),
+        }
+        try:
+            path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        except Exception:
+            pass
+        if not fire:
+            return
+        tasks = len(verdict.get("open_tasks") or [])
+        asks = len(verdict.get("open_asks") or [])
+        unread = len(verdict.get("unreadable") or [])
+        summary = (
+            f"CT6 completion lock has blocked {count} consecutive stops in "
+            f"session {key} ({root.name}). Open: {tasks} harness task(s), "
+            f"{asks} ledger directive(s), {unread} unreadable source(s). The "
+            "lock is UNBOUNDED by design - it is still blocking and nothing "
+            "will release it automatically. Either the work is genuinely "
+            "unfinished, or the session is wedged and needs a human: close the "
+            "work, or set a kill-switch (CT6_COMPLETION_LOCK_DISABLED=1)."
+        )
+        notifier = Path(__file__).resolve().parent.parent / "scripts" / "notify" / "notify.py"
+        if not notifier.is_file():
+            return
+        subprocess.run(
+            [sys.executable, str(notifier), "issue_discovered",
+             "--project", root.name, "--summary", summary],
+            cwd=str(root), capture_output=True, timeout=20, check=False,
+        )
+    except Exception:
+        return  # best-effort by contract; never gate, never surface
+
+
+def _completion_lock_clear_notify(root: Path, session_id: str) -> None:
+    """Reset the wedge counter once the lock is no longer blocking.
+
+    Without this the episode never ends: a session that wedges, gets unwedged,
+    and wedges again months later would stay `notified: true` and the second
+    wedge would be silent - the exact failure N5b exists to remove.
+    """
+    try:
+        path = root / ".architect-team" / _LOCK_NOTIFY_STATE
+        if not path.is_file():
+            return
+        state = _load_json(path)
+        if not isinstance(state, dict):
+            return
+        key = (session_id or "unknown")[:8]
+        if key not in state:
+            return
+        state.pop(key, None)
+        path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    except Exception:
+        return
+
+
 def _completion_lock_action(
     root: Path,
     session_id: str,
@@ -2060,7 +2374,12 @@ def _completion_lock_action(
             truncated=truncated,
         )
         if not isinstance(verdict, dict) or not verdict.get("blocked"):
+            _completion_lock_clear_notify(root, session_id)
             return None
+        # N5b. Placed BEFORE the emit so a crash in the emitter cannot skip the
+        # only signal an unattended wedge produces, and AFTER the blocked check
+        # so a passing session never counts. Return value deliberately ignored.
+        _completion_lock_notify(root, session_id, verdict)
         # The staleness heartbeat, which the guard below can no longer perform
         # because this path returns first. Not a message concern: without it a
         # live engaged run that keeps stopping ages past `marker_is_stale`, the
