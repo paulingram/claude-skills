@@ -1045,7 +1045,15 @@ def test_a_dirty_tree_measurement_backs_no_claim_whatever_its_label(tmp_path):
     d = _artifact(tmp_path, label="wip-anything", tree_dirty=True)
     result = sm.verify_measurement_claim(_CLAIM, d)
     assert result["ok"] is False
-    assert any("dirty" in f.lower() for f in result["findings"])
+    # The DIAGNOSIS must be right, not merely the verdict. A recorded-dirty tree
+    # and a malformed/absent field both block, but they are different problems
+    # and an operator acts on the message — the F8 defect in miniature.
+    assert any("ran against a DIRTY tree" in f for f in result["findings"]), result["findings"]
+
+    findings = sm.validate_artifact({**json.loads((d / "artifact.json").read_text(encoding="utf-8"))})
+    assert not any("not a recorded boolean" in f for f in findings), (
+        "a recorded True must not be diagnosed as a malformed field"
+    )
 
 
 @pytest.mark.parametrize("label", ["wip-37b4b2e", "nightly", "v3.59", "scratch", "", "3-59-3"])
