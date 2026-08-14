@@ -20,29 +20,29 @@
   "provisional": false,
   "release_label": true,
   "repo_root": "C:\\Users\\Paul\\Documents\\claude_skill_lib",
-  "result_tail": "7627 passed, 6 skipped in 366.73s (0:06:06)",
+  "result_tail": "7627 passed, 6 skipped in 319.56s (0:05:19)",
   "schema": "suite-measurement/v1",
   "suite_green": true,
-  "timestamp": "2026-08-14T00:15:55Z",
+  "timestamp": "2026-08-14T00:26:19Z",
   "tree_dirty": false,
   "tree_state": {
-    "after": "0352ceee766f54d4",
-    "before": "0352ceee766f54d4",
+    "after": "98fe5e61e93ca86b",
+    "before": "98fe5e61e93ca86b",
     "components_after": {
       "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "head": "ee557d13a6b3024f713ccc41350b33aa8cb70a33",
+      "head": "a604a45a721e0385b011a4ffabd0e5e04dfb2f1d",
       "untracked_count": 0,
       "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "components_before": {
       "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "head": "ee557d13a6b3024f713ccc41350b33aa8cb70a33",
+      "head": "a604a45a721e0385b011a4ffabd0e5e04dfb2f1d",
       "untracked_count": 0,
       "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "head": "ee557d13a6b3024f713ccc41350b33aa8cb70a33",
+    "head": "a604a45a721e0385b011a4ffabd0e5e04dfb2f1d",
     "source": "git",
-    "source_digest": "bdb67b8244772ca4"
+    "source_digest": "27c56de1d4f7d998"
   },
   "verdict": "measured-clean",
   "violations": []
