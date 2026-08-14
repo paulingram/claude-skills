@@ -30,7 +30,7 @@ The v3.56.0 completion lock reads the harness task list, so it cannot be talked 
 
 No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
 
-Suite **7386 -> 7627 passing + 6 skipped, 0 failed** (+241 tests; NEW `tests/test_suite_measurement.py`, plus additions across `tests/test_completion_lock.py` / `tests/test_open_work.py` / `tests/test_review_gate_task.py` / `tests/test_pretool_unilateral_override_guard.py` / `tests/test_run_continuity.py`). **Recorded, not asserted** — `docs/measurements/2026-08-13-v3.60.0-suite.json` carries the frozen-tree bracket behind that number.
+Suite **7386 -> 7627 passing + 6 skipped, 0 failed** (244 test files; +241 tests, NEW `tests/test_suite_measurement.py`, plus additions across `tests/test_completion_lock.py` / `tests/test_open_work.py` / `tests/test_review_gate_task.py` / `tests/test_pretool_unilateral_override_guard.py` / `tests/test_run_continuity.py`). **Recorded, not asserted** — `docs/measurements/2026-08-13-v3.60.0-suite.json` carries the frozen-tree bracket behind that number.
 
 ## [3.59.3] — 2026-08-13 — audit-record-and-carryovers (PATCH: the audit's findings moved somewhere they survive, three carryovers closed, two named open)
 

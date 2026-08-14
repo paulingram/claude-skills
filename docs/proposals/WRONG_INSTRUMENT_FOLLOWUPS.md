@@ -67,6 +67,23 @@ rising to **7304 / 0 / 7** once the fixtures were restored.
 **Fixed by F3.** The affected tests now self-provision their fixtures, so a fresh clone reproduces
 the published figure rather than inheriting this machine's leftovers.
 
+## Named boundary — an in-suite arm that is vacuous at exactly release time
+
+`tests/test_changelog_rubric.py::test_live_repo_check` asserts
+`result["ok"] OR top_version == plugin_version`. The tolerance exists for a real
+transient (a suite line still being authored after the bump), but the two versions
+ALWAYS match at release — so at the one moment the check matters, its green proves
+only that the bump happened, never that the entry carries a suite-total line.
+
+Measured, not theorised: v3.60.0's entry initially carried
+`(+241 tests; ...)` instead of the house `(<K> test files)` form. The in-suite arm
+was green; `changelog_check.py --require-measurements` reported the violation.
+
+This is the SAME architecture the existence arm settled on — the flip-prone or
+lenient arm stays out of the suite, and enforcement lives in the CLI where it runs
+once, deliberately, at release. It is recorded here so nobody reads the in-suite
+green as coverage it does not provide. The CLI is the gate; run it.
+
 ## CLOSED in v3.59.2
 
 - R6 over-fire on sub-tree runs (`236 passed … for the three pin files` demanded a whole-tree bracket).
