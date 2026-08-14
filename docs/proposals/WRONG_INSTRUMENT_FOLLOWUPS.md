@@ -88,7 +88,10 @@ pipeline skill body is a release, not a footnote.
 **Known cost of the mechanism, stated so it is not rediscovered as a bug.** Any
 tracked-file edit after a measurement invalidates the artifact (`source_digest`
 keys committed content by blob sha), so every doc change costs a full re-measure.
-Observed three times during the v3.60.0 release. This is the gate working — the
+Observed on **four** separate edits during the v3.60.0 release — and this sentence
+said "three" until the fourth one made it false, which is the decayed-claim shape
+this document names, occurring inside the paragraph that names it. This is the gate
+working — the
 artifact must describe the tree it shipped — but it makes "one more small doc fix"
 a five-minute act, and batching doc edits before the final measurement is the way
 to work with it rather than around it.
