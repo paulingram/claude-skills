@@ -1678,6 +1678,128 @@ def _audit_frontend_e2e(root: Path, at: Path) -> list[str]:
     return violations
 
 
+# --------------------------------------------------------------------------- #
+# v3.61.0 — the release-backing arm
+# --------------------------------------------------------------------------- #
+#
+# Closes the OPEN item recorded in docs/proposals/WRONG_INSTRUMENT_FOLLOWUPS.md:
+# `changelog_check.py --require-measurements` was the ONLY place the
+# measurement existence arm bites, and NOTHING invoked it — the release's own
+# backing check was checklist-strength, a human remembering to type a command.
+# A script nobody runs is the same as a note nobody reads, one level up from
+# the defect the v3.60.0 measurement engine fixed.
+#
+# The firing condition is deliberately NARROW, because both failure modes were
+# measured on the release that shipped the engine:
+#   * only a run that BUMPED `.claude-plugin/plugin.json` is gated — the
+#     currency comparison is meaningless against mid-cycle trees, and a
+#     non-release run blocked on the PREVIOUS release's now-stale artifact
+#     would be the unsatisfiable-gate shape;
+#   * only once the CHANGELOG top entry NAMES the manifest version — the
+#     authoring window (bump first, entry last) must never be red by
+#     construction, which is the same lesson that moved the existence arm out
+#     of the test suite;
+#   * only in a workspace that CARRIES the convention (the checker script
+#     exists) — every other repo is untouched.
+RELEASE_BACKING_GATE_DISABLE_ENV = "CT6_RELEASE_BACKING_GATE_DISABLED"
+
+
+def _release_backing_gate_disabled() -> bool:
+    """Truthy per the house kill-switch rule: anything but unset / 0 / false / no."""
+    v = os.environ.get(RELEASE_BACKING_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _run_touched_plugin_manifest(root: Path, at: Path) -> bool:
+    """Did THIS run change `.claude-plugin/plugin.json`?
+
+    Two lenses ORed, mirroring the untracked-file rule elsewhere in this file:
+    the committed diff since the run's baseline, and the uncommitted worktree.
+    No baseline -> False (fail-open: without provenance the arm cannot know
+    whose bump it is looking at, and guessing would gate non-release runs)."""
+    baseline = _run_baseline_sha(at)
+    if not baseline:
+        return False
+    manifest_rel = ".claude-plugin/plugin.json"
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "diff", "--name-only",
+             f"{baseline}..HEAD", "--", manifest_rel],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30)
+        if r.returncode == 0 and r.stdout.strip():
+            return True
+        r2 = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--", manifest_rel],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30)
+        return r2.returncode == 0 and bool(r2.stdout.strip())
+    except Exception:
+        return False
+
+
+def _changelog_top_version(root: Path) -> str | None:
+    """The version the CHANGELOG's FIRST `## [x.y.z]` header names, or None."""
+    try:
+        text = (root / "CHANGELOG.md").read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
+    m = re.search(r"^##\s*\[(\d+\.\d+\.\d+)\]", text, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def _run_backing_check(root: Path) -> tuple[int, str]:
+    """Execute the workspace's own backing check; (returncode, combined output).
+
+    A subprocess seam so tests can pin the arm's gate logic without running a
+    real measurement. Infrastructure failure (timeout, unlaunchable) reports
+    as exit 0 — fail-open on plumbing, block only on a measured violation."""
+    checker = root / "scripts" / "docs_tooling" / "changelog_check.py"
+    try:
+        r = subprocess.run(
+            [sys.executable, str(checker), str(root), "--require-measurements"],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120)
+        return r.returncode, ((r.stdout or "") + (r.stderr or "")).strip()
+    except Exception:
+        return 0, ""
+
+
+def _audit_release_backing(root: Path, at: Path) -> list[str]:
+    """A release run cannot close while its published count is unbacked."""
+    if _release_backing_gate_disabled():
+        return []
+    if not (root / "scripts" / "docs_tooling" / "changelog_check.py").is_file():
+        return []  # workspace does not carry the convention
+    if not _run_touched_plugin_manifest(root, at):
+        return []  # not a release run — the currency arm must not tax ordinary work
+    try:
+        plugin_version = json.loads(
+            (root / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        ).get("version")
+    except Exception:
+        return []
+    top = _changelog_top_version(root)
+    if not plugin_version or not top or top != str(plugin_version).strip():
+        return []  # the authoring window — the entry is not written yet
+    code, output = _run_backing_check(root)
+    if code == 0:
+        return []
+    detail = output if output else "(the checker produced no output)"
+    return [
+        "this run bumped the plugin version, and the count the CHANGELOG now "
+        "publishes is NOT backed by a recorded measurement — the release's own "
+        f"backing check refused it:\n    {detail}\n  "
+        "The release order is: reconcile version + CHANGELOG, commit until the "
+        "tree is clean, then `python scripts/measure/suite_measurement.py "
+        f"--label v{plugin_version}` as the LAST act, then commit the artifact "
+        "(the commit is invisible to the digest by design). Re-run "
+        "`python scripts/docs_tooling/changelog_check.py --require-measurements` "
+        "to confirm exit 0. If the gate is genuinely misfiring that is the "
+        "HUMAN's call: " + RELEASE_BACKING_GATE_DISABLE_ENV + "=1 is their lever."
+    ]
+
+
 def audit(root: Path) -> tuple[bool, list[str]]:
     """Audit a workspace. Returns (is_real_run, violations)."""
     at = root / ".architect-team"
@@ -1697,6 +1819,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_spec_currency(root, at)
     violations += _audit_manifest_id_hygiene(at)
     violations += _audit_frontend_e2e(root, at)
+    violations += _audit_release_backing(root, at)
     return True, violations
 
 

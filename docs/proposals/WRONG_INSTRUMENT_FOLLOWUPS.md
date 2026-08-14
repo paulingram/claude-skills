@@ -67,7 +67,7 @@ rising to **7304 / 0 / 7** once the fixtures were restored.
 **Fixed by F3.** The affected tests now self-provision their fixtures, so a fresh clone reproduces
 the published figure rather than inheriting this machine's leftovers.
 
-## OPEN — the backing check runs only because a human remembers
+## CLOSED in v3.61.0 — the backing check runs only because a human remembers
 
 `changelog_check.py --require-measurements` is the ONLY place the existence arm
 bites (the in-suite arm is deliberately lenient, see the boundary below). Nothing
@@ -77,6 +77,18 @@ reads*, one level up from where v3.60.0 fixed it.
 
 **Fix:** call it from the pipeline's Phase 8 release step / the commit gate, so the
 release path runs it rather than the releaser. A single call closes it.
+
+**Closed by v3.61.0's `_audit_release_backing`** — a Stop-hook arm, which is
+STRONGER than the Phase 8 skill-prose call named above: an active run that
+bumped `.claude-plugin/plugin.json` cannot END ITS TURN while the published
+count is unbacked, once the CHANGELOG top entry names the manifest version.
+The authoring window is never blocked (the existence-arm lesson), non-release
+runs are never taxed (the currency-arm lesson), and the arm delegates to
+`changelog_check.py --require-measurements` through one shared implementation
+so the hook and the CLI cannot drift (the finding-C lesson). Kill-switch
+`CT6_RELEASE_BACKING_GATE_DISABLED`. Enforcement is now gate-strength inside
+CT6 runs; a human working OUTSIDE a run still owns the keystroke, which is the
+remaining honest residual.
 
 **Not fixed in v3.60.0, deliberately.** The obvious remediation — "wire it into CI" —
 was recommended and then measured: this repo has no `.github/workflows`, no
