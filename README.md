@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 59 . 3
+                        ─── C T 6 ───   v 3 . 60 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,7 +36,7 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.59.3-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.60.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
 ![tests](https://img.shields.io/badge/tests-7375%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
@@ -77,19 +77,27 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.59.3  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.60.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.59.3 — audit-record-and-carryovers: the audit's findings moved somewhere they survive
+### v3.60.0 — close-the-open-items: the gate that was on and fed nothing, and the nine escapes found by attacking the fix
 
-The adversarial audit that produced v3.59.2 lives in `.architect-team/`, which is **gitignored** — so its findings, and the two open items it surfaced, were one `git clean` from being lost. They now live in `docs/proposals/WRONG_INSTRUMENT_FOLLOWUPS.md`, committed.
+The v3.56.0 completion lock reads the harness task list, so it cannot be talked out of blocking. But **nothing put the run's own work there.** Measured on the session that shipped four consecutive releases: **zero tasks registered.** The gate was on, correct, and fed nothing — and the standing reminder to register work was displayed on every turn and ignored on every turn, which is the same instruction-tier exhaustion the lock itself exists to answer. Another instruction was not the fix.
 
-**Three carryovers closed.** The `tests/test_skill_references.py` byte-ledger had its v3.57.0 transition line **rewritten** rather than appended to, so v3.59.0's bytes were attributed to v3.57.0 and v3.59.0's own change was invisible. The gate itself was never weakened — the 259290 cap was untouched and both assertions stayed enforced — but a ledger that misreports which release spent the bytes is the next maintainer's wrong instrument. `docs/ETHOS.md`'s "Evidence integrity (v3.47.0)" heading had come to contain a v3.59.0 rule. And the claim that all five witnesses pass `verify-check-can-fail` unchanged is true but **vacuous for three of them** — W3/W4/W5 add no test file and fall outside that tool's jurisdiction, so the demonstration carries weight for W1 and W2 only, and now says so.
+**The fix is a refusal.** An ACTIVE run that has registered no work cannot end its turn — register the work, or mark the run complete. A session with no run marker is untouched.
 
-**Two items left open, deliberately and in writing.** *Hash brackets are asserted, never recorded* — five suite counts were published this thread as "frozen-tree, hash-bracketed" and no bracket artifact exists on disk for any of them; the runs happened, but the evidence is a claim. And *the counts are machine-bound* — five committed tests hard-require gitignored fixtures, so a fresh clone yields 7299/5F/7S rather than the published figure. Every count this repo has ever printed describes this machine, not the repo.
+**Suite counts also stop being prose.** The new `scripts/measure/suite_measurement.py` brackets the tree, runs the suite, brackets again, and records a durable artifact — refusing a release label on a dirty tree, an open bracket, or a count that contradicts its own output. **This is the first release in the project's history with a recorded measurement behind its number.**
 
-Both are the same class the v3.59.x releases addressed, still open in the process that shipped them. Naming them beats closing one and quietly carrying the other.
+**Then it was attacked, and the attacks reshaped the release.** Nine escapes landed, three worth naming here:
+
+- **`settings.json` was an unguarded master key.** The guard refused the ask-ledger, the run marker and the task store while permitting all three settings files — whose `env` block reaches every spawned process, so one `Write` disabled every kill-switch. Now refused by path, by **`st_dev`/`st_ino` identity** (a hardlink has nothing to resolve, and `mklink /H` needs no admin), and across **sibling workspaces** — which matters because CT6's own run worktrees are siblings by design.
+- **The no-progress budget could never exhaust.** The lock's own notify state sat inside the progress fingerprint, so every block looked like progress. A budget that cannot be reached is not a budget.
+- **A wedge worse than any escape.** A teammate briefed without the literal token was refused a stop on a lane it could not close. Measured across 20 real spawns: **12 of 20 carry no token** — not a corner case, the default path.
+
+**What it cost, told straight.** Fifteen defects were found *while building the fixes for them*, nearly all one shape: **a fix that covered one of two places** — one message but not the other, the path arm but not the identity arm, the record but not the tree. Not one was faulty logic; every one was verification aimed at the wrong place.
+
+Boundaries left open in writing: `TaskUpdate(status="deleted")` still releases the lock, unrestricted `Bash` still bypasses a tool-layer guard, a hand-written artifact is indistinguishable from a measured one, and **symlink coverage on the settings arm is unproven** — recorded as untested, not as covered.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 

@@ -401,3 +401,99 @@ def test_completion_log_written_on_lifecycle_exits(workspace: Path) -> None:
     rc.stand_down(workspace, "user said by hand")
     text = (workspace / ".architect-team" / rc.COMPLETION_LOG_FILENAME).read_text(encoding="utf-8")
     assert "mark-complete" in text and "stand-down" in text
+
+
+def test_the_notify_state_file_does_not_move_the_progress_fingerprint(
+    tmp_path: Path,
+) -> None:
+    """v3.60.0 — the N5b notify state was hashed by the progress fingerprint.
+
+    The completion lock rewrites `completion-lock-notify.json` on EVERY block,
+    so while it was hashed the fingerprint changed at each Stop, the no-progress
+    counter reset, and `CT6_MAX_NO_PROGRESS_STOPS` never exhausted. A budget
+    that cannot be reached is not a budget, and the auto-escalation it gates
+    never fired.
+
+    Every other member of the exclusion set is a file the ENFORCEMENT writes;
+    hashing our own bookkeeping as if it were the agent's progress is the shape
+    this pins against. The control below is the half that matters: a file the
+    AGENT writes must still move the fingerprint, or the exclusion has been
+    widened into a hole.
+    """
+    at = tmp_path / ".architect-team"
+    at.mkdir()
+    (at / "reviews").mkdir()
+    before = rc.run_fingerprint(tmp_path)
+
+    notify = at / "completion-lock-notify.json"
+    notify.write_text('{"abcd1234": {"consecutive": 1}}', encoding="utf-8")
+    assert rc.run_fingerprint(tmp_path) == before, (
+        "writing the lock's own notify state moved the progress fingerprint — "
+        "the no-progress budget can never exhaust"
+    )
+    notify.write_text('{"abcd1234": {"consecutive": 9}}', encoding="utf-8")
+    assert rc.run_fingerprint(tmp_path) == before, "rewriting it moved it either"
+
+    # CONTROL — an agent-written artifact MUST still register as progress.
+    (at / "reviews" / "T-1.json").write_text('{"task_id": "T-1"}', encoding="utf-8")
+    assert rc.run_fingerprint(tmp_path) != before, (
+        "real run state stopped moving the fingerprint — the exclusion is too wide"
+    )
+
+
+def test_the_staleness_window_is_floored_so_it_cannot_become_a_kill_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """v3.60.0 (S-3) — CT6_RUN_MARKER_STALE_HOURS was an undocumented sixth
+    lever. Any positive value was accepted, so 0.0001 aged every marker
+    instantly, standing the completion lock's unregistered-run arm down and
+    degrading the continuation guard session-wide.
+
+    Floored rather than rejected: an operator who sets 0.5 for a fast-cycling
+    workflow gets 1.0 and a working run. Refusing outright turns a tuning
+    mistake into a broken session, which is how levers get abandoned instead of
+    corrected.
+    """
+    for value, expected in (
+        ("0.0001", rc.MIN_MARKER_STALE_HOURS),   # the escape
+        ("0.5", rc.MIN_MARKER_STALE_HOURS),      # under the floor
+        ("1.0", 1.0),
+        ("24", 24.0),                            # legitimate, untouched
+        ("168", 168.0),
+    ):
+        monkeypatch.setenv(rc.MARKER_STALE_HOURS_ENV, value)
+        assert rc.marker_stale_hours() == expected, value
+    # non-numeric / non-positive still fall back to the default, unchanged
+    for junk in ("", "bogus", "-5", "0"):
+        monkeypatch.setenv(rc.MARKER_STALE_HOURS_ENV, junk)
+        assert rc.marker_stale_hours() == rc.DEFAULT_MARKER_STALE_HOURS, junk
+
+
+def test_a_freshly_aged_marker_cannot_be_declared_stale_to_release_the_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same property at the level the ESCAPE was reported at.
+
+    This is the pin that was missing the first time. The earlier fix named the
+    variable in the PreToolUse guard's message and the mutation witness ran the
+    guard's test file — so it passed while the Stop hook, which is what the
+    escape actually drives, was untouched. Pin the claim, not the edit.
+    """
+    import datetime as _dt
+
+    monkeypatch.setenv(rc.MARKER_STALE_HOURS_ENV, "0.0001")
+    at = tmp_path / ".architect-team"
+    at.mkdir()
+    aged = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(seconds=60)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
+    marker = {"status": "active", "slug": "demo", "skill": "architect-team-pipeline",
+              "started_at": aged, "updated_at": aged}
+    assert rc.marker_is_stale(marker) is False, (
+        "a 60-second-old marker was declared stale — the window collapsed and "
+        "the completion lock's arms stand down"
+    )
+    # CONTROL: a genuinely abandoned marker must still read as stale, or the
+    # floor has turned an over-block into a permanent tax on the workspace.
+    old = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=30)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
+    assert rc.marker_is_stale({**marker, "updated_at": old}) is True

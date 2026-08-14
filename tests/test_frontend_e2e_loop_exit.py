@@ -22,6 +22,7 @@ import os
 import subprocess
 import time
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -461,13 +462,55 @@ def _old_review(ws, slice_name: str, files_changed: list, age_seconds: int = 86_
     return p
 
 
-def _run_marker(ws, started_at: str = "2026-08-13T00:00:00Z"):
+def _iso_z(epoch: float) -> str:
+    """`epoch` as the ISO-8601 Z string the run marker records."""
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _run_marker(ws, started_at: str | None = None, started_ago_seconds: int = 3_600):
+    """A run marker whose start is RELATIVE to the fixture's own clock.
+
+    This used to hardcode ``2026-08-13T00:00:00Z`` while ``_old_review``
+    back-dates relative to ``time.time()`` — two halves of one fixture reading
+    two different clocks. It inverted silently the moment the calendar rolled
+    past that date: "24 hours ago" became LATER than the run start, every
+    inherited slice was claimed as this run's work, and the scoping tests went
+    red with no code change. Pinned by
+    ``test_the_fixtures_two_halves_read_the_same_clock``.
+    """
+    if started_at is None:
+        started_at = _iso_z(time.time() - started_ago_seconds)
     at = ws / ".architect-team"
     at.mkdir(parents=True, exist_ok=True)
     (at / "active-run.json").write_text(
         json.dumps({"status": "active", "slug": "demo", "started_at": started_at}),
         encoding="utf-8")
     return at
+
+
+def test_the_fixtures_two_halves_read_the_same_clock(tmp_path: Path) -> None:
+    """Regression pin for a fixture that silently inverted when the date rolled.
+
+    ``_old_review`` back-dates RELATIVE to ``time.time()`` while ``_run_marker``
+    used to hardcode an ABSOLUTE ``2026-08-13T00:00:00Z``. The two halves
+    therefore read different clocks, and once the calendar passed the hardcoded
+    date "24 hours ago" became LATER than the run start — so every inherited
+    slice was claimed as this run's work and the scoping tests went red with no
+    code change. Green one day, red the next.
+
+    The invariant is checkable without freezing time: whatever ``_old_review``
+    calls old must actually be older than whatever ``_run_marker`` calls the
+    start, by more than the 1s filesystem slack the arm allows.
+    """
+    at = _run_marker(tmp_path)
+    old = _old_review(tmp_path, "legacy", ["src/legacy/Old.tsx"])
+    raw = json.loads((at / "active-run.json").read_text(encoding="utf-8"))["started_at"]
+    started = datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+    assert old.stat().st_mtime < started - 1.0, (
+        "the back-dated review is not older than the run marker — the fixture is "
+        "mixing a relative back-date with an absolute date, so it inverts as soon "
+        f"as the calendar passes it (marker {raw!r})"
+    )
 
 
 def _manifest(ws, teammate: str, evidence: list):
@@ -524,7 +567,7 @@ def test_a_slice_written_during_the_run_is_owned_without_any_manifest(
     audit_mod, tmp_path: Path
 ) -> None:
     """The timestamp signal alone, for a run whose teammates wrote no manifest."""
-    at = _run_marker(tmp_path, started_at="2026-01-01T00:00:00Z")
+    at = _run_marker(tmp_path, started_ago_seconds=200 * 86_400)
     _old_review(tmp_path, "legacy", ["src/legacy/Old.tsx"], age_seconds=400 * 86_400)
     _write_review(tmp_path, "fresh", ["src/components/Fresh.tsx"])  # mtime = now
 
@@ -561,7 +604,7 @@ def test_a_manifest_claimed_slice_is_owned_even_when_its_file_is_old(
     resumed run, a re-brief, a marker rewritten mid-run. Here the run's slice is
     back-dated a year, so ONLY the manifest can claim it.
     """
-    at = _run_marker(tmp_path, started_at="2026-08-13T00:00:00Z")
+    at = _run_marker(tmp_path)
     _old_review(tmp_path, "resumed", ["src/components/Resumed.tsx"],
                 age_seconds=365 * 86_400)
     _manifest(tmp_path, "frontend-resumed", ["resumed"])

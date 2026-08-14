@@ -104,15 +104,35 @@ def test_filename_constant() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# this repo's own config is opted in (the "ensure local config" ask)
+# the repo's opt-in contract (the "ensure local config" ask)
+#
+# `.architect-team-deploy.json` is human-authored, gitignored, per checkout —
+# committed code cannot assert its PRESENCE, and skipping when it is absent
+# made the suite's published result depend on which machine ran it
+# (close-the-open-items F3). What the repo DOES own is the committed template
+# `.architect-team-deploy.example.json`: materialized exactly as its _comment
+# instructs (copy to the real filename in a checkout root), it must resolve to
+# the always-merge-prod opt-in through the real reader. When this checkout
+# additionally carries the human-authored local config, it must still match
+# the ask — the original strict assertions, no longer able to silently skip.
 # --------------------------------------------------------------------------- #
 
-def test_this_repo_is_opted_into_always_merge_prod() -> None:
+def test_optin_template_and_any_local_config_resolve_to_always_merge_prod(
+    tmp_path: Path,
+) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    cfg = repo_root / DEPLOY_CONFIG_FILENAME
-    if not cfg.exists():
-        import pytest
-        pytest.skip("this checkout has no local .architect-team-deploy.json")
-    assert is_prod_deploy_enabled(repo_root) is True
-    assert should_always_merge_to_prod_on_complete(repo_root) is True
-    assert prod_branch(repo_root) == "main"
+
+    template = repo_root / ".architect-team-deploy.example.json"
+    assert template.exists(), "the committed opt-in template must ship with the repo"
+    (tmp_path / DEPLOY_CONFIG_FILENAME).write_text(
+        template.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    assert is_prod_deploy_enabled(tmp_path) is True
+    assert should_always_merge_to_prod_on_complete(tmp_path) is True
+    assert prod_branch(tmp_path) == "main"
+
+    local = repo_root / DEPLOY_CONFIG_FILENAME
+    if local.exists():  # human-authored; present only on opted-in checkouts
+        assert is_prod_deploy_enabled(repo_root) is True
+        assert should_always_merge_to_prod_on_complete(repo_root) is True
+        assert prod_branch(repo_root) == "main"

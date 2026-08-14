@@ -1000,6 +1000,116 @@ def test_teams_mode_teammate_with_no_owned_lane_may_stop(tmp_path: Path) -> None
     assert r["blocked"] is False
 
 
+# --- F9 second half: the brief shape CT6 actually dispatches ----------------
+#
+# Every teammate test above carries the `CT6-TEAMMATE` token. A real CT6 brief
+# does NOT — it is a `<teammate-message>` envelope with prose, which is the
+# shape the Lead sent every teammate on the run that produced this fix. With no
+# token and no parseable name, this module's comment at the ownership site was
+# doing exactly what it says: "A session with no resolvable name and no token is
+# an ORCHESTRATOR and is held on ALL open tasks." So a real teammate was held on
+# its PEERS' lanes — a condition it structurally cannot clear, because it can
+# neither close another teammate's task nor mark the run complete.
+#
+# MEASURED before the fix, guard disabled so the exit code is attributable:
+#   tokenless teammate, zero tasks          -> exit 0
+#   tokenless teammate, a PEER's open task  -> exit 2, held by the LOCK PROPER
+#   tokened teammate,   a PEER's open task  -> exit 0   (control)
+#
+# The recogniser lives HERE rather than in the caller. It was first written in
+# `pipeline-completion-audit.py`, which fixed the arm and left the lock proper
+# untouched — two definitions of "teammate" in two files that had to agree and
+# immediately did not. One definition, in the module that owns the question.
+
+_TOKENLESS_ENVELOPE_BRIEF = (
+    '<teammate-message teammate_id="team-lead" summary="your lane">\n'
+    "You are teammate `lock-core` on CT6 run `close-the-open-items`.\n"
+    "FILES YOU OWN: hooks/open_work.py\n</teammate-message>"
+)
+
+
+def test_a_tokenless_envelope_brief_is_recognised_as_a_worker(tmp_path: Path) -> None:
+    """The predicate itself. Position one is the discriminator, not the token."""
+    assert ow.first_inbound_is_peer_envelope([_user(_TOKENLESS_ENVELOPE_BRIEF)]) is True
+
+
+def test_a_genuine_first_prompt_is_not_a_worker(tmp_path: Path) -> None:
+    assert ow.first_inbound_is_peer_envelope([_user("Build the thing.")]) is False
+
+
+def test_a_tokenless_teammate_is_not_held_on_a_peers_lane(tmp_path: Path) -> None:
+    """THE wedge, at the substrate. A peer's open task is the normal mid-run
+    state, so this — not the empty store — is the case that actually bites."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-2", status="pending", owner="lock-wiring")
+    r = ow.evaluate_completion_lock(
+        tmp_path, "sess1234abcd", [_user(_TOKENLESS_ENVELOPE_BRIEF)], tasks_root=tasks
+    )
+    assert r["blocked"] is False, (
+        f"a worker must not be held for a lane it cannot close: {r['reasons']}"
+    )
+
+
+def test_a_tokenless_teammate_is_not_held_on_an_empty_store(tmp_path: Path) -> None:
+    """The store ROOT is created deliberately. The first cut of this test left
+    it absent and went red on F13's rule — a missing root is unknown state, not
+    an empty one — which is correct behaviour and the wrong fixture for this
+    question. An EMPTY store and an ABSENT one are different measurements."""
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    r = ow.evaluate_completion_lock(
+        tmp_path, "sess1234abcd", [_user(_TOKENLESS_ENVELOPE_BRIEF)], tasks_root=tasks
+    )
+    assert r["blocked"] is False
+
+
+def test_a_lead_is_still_held_on_every_lane(tmp_path: Path) -> None:
+    """The direction that keeps the fix from being a hole: the orchestrator is
+    still held, and on ALL lanes, exactly as before."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="pending", owner="lock-core")
+    _write_task(tasks, "sess1234abcd", "T-2", status="pending", owner="lock-wiring")
+    r = ow.evaluate_completion_lock(
+        tmp_path, "sess1234abcd", [_user("Build the completion lock.")], tasks_root=tasks
+    )
+    assert r["blocked"] is True
+    assert {i["id"] for i in r["open_tasks"]} == {"T-1", "T-2"}
+
+
+def test_a_lead_that_later_receives_a_peer_envelope_is_still_held(tmp_path: Path) -> None:
+    """ADV-9 for the new recogniser. Position one belongs to the Lead's own
+    prompt, so a peer message arriving later cannot disarm it — otherwise any
+    teammate could release the Lead's gate by sending it a message."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="pending", owner="lock-core")
+    records = [
+        _user("Build the completion lock."),
+        _user('<teammate-message teammate_id="lock-core">done</teammate-message>'),
+    ]
+    r = ow.evaluate_completion_lock(tmp_path, "sess1234abcd", records, tasks_root=tasks)
+    assert r["blocked"] is True
+    assert {i["id"] for i in r["open_tasks"]} == {"T-1"}
+
+
+def test_the_head_slice_decides_position_one_when_the_tail_is_truncated(
+    tmp_path: Path
+) -> None:
+    """The residual this fix carries, pinned as behaviour rather than left to
+    prose: position one is read from the HEAD slice when one is supplied, so a
+    Lead whose visible tail happens to open with a peer message is still
+    correctly held. Only a Lead with NO head slice AND a peer-message-first tail
+    is misclassified — it fails toward under-blocking, the right direction for a
+    wedge fix, and `load_transcript_slices` supplies the head precisely here."""
+    tasks = tmp_path / "tasks"
+    _write_task(tasks, "sess1234abcd", "T-1", status="pending", owner="lock-core")
+    head = [_user("Build the completion lock.")]
+    tail = [_user('<teammate-message teammate_id="lock-core">done</teammate-message>')]
+    r = ow.evaluate_completion_lock(
+        tmp_path, "sess1234abcd", tail, head_records=head, tasks_root=tasks
+    )
+    assert r["blocked"] is True, "the head slice must decide position one"
+
+
 def test_a_mid_session_peer_envelope_cannot_supply_a_name(tmp_path: Path) -> None:
     """ADV-9's ACTUAL attack, restated precisely after N1. The Lead's own first
     prompt occupies position one; a peer message arriving LATER must not rename
@@ -1924,3 +2034,37 @@ def test_the_three_counters_are_not_interchangeable() -> None:
     assert ow.classify_turn_output("\n".join(f"s{i}" for i in range(30)))["narrative"] is True
     five = "\n".join(f"I finished the {w} and it is green under both encodings." for w in "abcde")
     assert ow.classify_turn_output(five)["narrative"] is False
+
+
+def test_a_missing_task_ROOT_is_unknown_but_a_missing_session_dir_is_empty(
+    tmp_path: Path,
+) -> None:
+    """v3.60.0 (F13) — the two were collapsed, and the difference is the whole
+    contract.
+
+    This module blocks on an unreadable source because *unknown is not empty*.
+    But pointing `CT6_TASKS_ROOT` at a path that does not exist read as a clean
+    pass, so redirecting the gate at nothing released the stop — measured: an
+    open task blocked, the same session with the root redirected exited 0. A
+    root that is not there is exactly unknown state.
+
+    The session dir is the honest empty case and must stay one: a session that
+    has simply registered nothing is the ordinary state, and turning that into
+    a block would wedge every plain session in every project.
+    """
+    existing = tmp_path / "store"
+    existing.mkdir()
+
+    # unknown -> reported as unreadable, which BLOCKS
+    missing = ow.read_harness_tasks("abcd1234", tmp_path / "nope")
+    assert len(missing["unreadable"]) == 1
+    assert "does not exist" in missing["unreadable"][0]["reason"]
+
+    # empty root -> clean pass
+    assert ow.read_harness_tasks("abcd1234", existing)["unreadable"] == []
+
+    # empty SESSION dir under a real root -> still a clean pass
+    (existing / "session-abcd1234").mkdir()
+    empty_session = ow.read_harness_tasks("abcd1234", existing)
+    assert empty_session["unreadable"] == []
+    assert empty_session["items"] == []

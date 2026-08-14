@@ -6,17 +6,53 @@ The hook reads stdin (JSON), inspects the TaskUpdate args, and exits:
 
 We invoke the script as a subprocess and feed crafted stdin.
 """
+import datetime as _dt
+import hashlib
 import json
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+from hooks import run_continuity as rc
 from tests.helpers.hook_runner import run_hook as _run
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+#: The mutation seam (F7). When set, `script` resolves to a MUTATED COPY of the
+#: hook so the mutation table at the bottom can re-run a named test against a
+#: deliberately broken engine WITHOUT ever writing to the repo.
+_SCRIPT_ENV = "CT6_TEST_GATE_SCRIPT"
+
+#: Set in a mutation child so the table's own tests never recurse.
+_CHILD_ENV = "CT6_TEST_GATE_MUTATION_CHILD"
+
+_IS_CHILD_RUN = os.environ.get(_CHILD_ENV) == "1"
 
 
 @pytest.fixture()
 def script(plugin_root: Path) -> Path:
+    override = os.environ.get(_SCRIPT_ENV, "").strip()
+    if override:
+        return Path(override)
     return plugin_root / "hooks" / "review-gate-task.py"
+
+
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No ambient kill-switch or session id leaks into these subprocesses.
+
+    The session-var list is DERIVED from `rc.SESSION_ID_ENV_VARS` rather than
+    retyped: the suite runs inside a real Claude Code session that exports
+    `CLAUDE_CODE_SESSION_ID`, so a var added to the constant but missed here
+    would leak the harness's own session into every fixture. Mirrors the
+    sibling fixture in `tests/test_completion_status_integrity.py`."""
+    for var in ("CT6_TASK_GATE_DISABLED", "CT6_RUN_CONTINUITY_DISABLED",
+                *rc.SESSION_ID_ENV_VARS):
+        monkeypatch.delenv(var, raising=False)
 
 
 @pytest.fixture()
@@ -529,3 +565,409 @@ def test_exits_two_when_integration_testing_na_without_note(
     r = _run(script, workspace, _make_payload("T-I5", "completed"))
     assert r.returncode == 2
     assert "integration_testing_review_note" in r.stderr or "n/a" in r.stderr
+
+
+# ===========================================================================
+# F7 — the null-session hole in the unmanifested-task completion gate
+# ===========================================================================
+#
+# THE ESCAPE, reproduced by execution before any of this was written. The
+# v3.47.0 gate refuses an orchestrator's completion of a task NO manifest
+# mentions, but it first asks `is_orchestrator_session(marker, session)`, which
+# returns False whenever the marker records a NULL session — so a null-session
+# marker opened the gate completely:
+#
+#   marker records THIS session  -> TaskUpdate(completed) exit 2  BLOCKED
+#   marker records NO session    -> TaskUpdate(completed) exit 0  ALLOWED
+#
+# and composed with the v3.57.0 unregistered-run arm that made a complete
+# bypass of it: no tasks -> Stop exit 2; register one throwaway -> Stop exit 2;
+# flip the throwaway to completed -> Stop exit 0. One junk task and the run
+# stops clean, with no Bash, no marker deletion, and no kill-switch.
+#
+# THE FIX IS SCOPED TO THIS CONSUMER. `is_orchestrator_session` is shared with
+# `pipeline-completion-audit.py`, and its null fail-open is deliberate and
+# documented there. What is wrong is only this consumer's READING of it: a
+# false answer was being treated as "not the orchestrator, so skip the gate"
+# when for a null-session marker it means "ownership is UNDETERMINABLE". Unknown
+# is not "no" — the same asymmetry as `open_work.open_task_items` counting an
+# unknown status as OPEN. The gate now stands down only for a session that is
+# DEMONSTRABLY a different one.
+
+
+ORCH = "sess-orchestrator"
+
+
+def _now_iso() -> str:
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _write_marker(
+    workspace: Path,
+    *,
+    status: str = "active",
+    session_id: str | None = ORCH,
+    updated_at: str | None = None,
+) -> None:
+    (workspace / ".architect-team" / "active-run.json").write_text(
+        json.dumps({
+            "schema": 1,
+            "status": status,
+            "skill": "architect-team-pipeline",
+            "session_id": session_id,
+            "started_at": _now_iso(),
+            "updated_at": updated_at or _now_iso(),
+            "run_id": "run-1",
+            "slug": "some-change",
+            "phase": "Phase 3",
+            "completed_at": None,
+            "stand_down_reason": None,
+        }),
+        encoding="utf-8",
+    )
+
+
+def _completion(task_id: str = "board-7", session_id: str | None = ORCH) -> dict:
+    payload: dict = {
+        "tool_name": "TaskUpdate",
+        "tool_input": {"taskId": task_id, "status": "completed"},
+    }
+    if session_id is not None:
+        payload["session_id"] = session_id
+    return payload
+
+
+# --- the hole, closed --------------------------------------------------------
+
+
+def test_a_null_session_marker_still_gates_an_unmanifested_completion(
+    script: Path, workspace: Path
+) -> None:
+    """THE escape. An ACTIVE run whose marker records no session cannot tell
+    who owns the completion — and undeterminable ownership must not be read as
+    proof that this is somebody else's task to close."""
+    _write_marker(workspace, session_id=None)
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 2, (
+        f"a null-session marker must not open the gate; stderr={r.stderr!r}"
+    )
+    assert "board-7" in r.stderr
+
+
+def test_a_null_session_marker_gates_even_with_no_payload_session(
+    script: Path, workspace: Path
+) -> None:
+    """Neither side names a session, so ownership is undeterminable from both
+    directions at once. Same rule, and pinned separately because it is the
+    configuration an attacker reaches by simply not sending one."""
+    _write_marker(workspace, session_id=None)
+    r = _run(script, workspace, _completion(session_id=None))
+    assert r.returncode == 2, f"stderr={r.stderr!r}"
+
+
+def test_the_block_does_not_claim_a_session_it_cannot_prove(
+    script: Path, workspace: Path
+) -> None:
+    """Message honesty. The block's standing wording asserts "this completion
+    comes from the run's own session" — which is exactly what a null-session
+    marker CANNOT establish. A gate whose first sentence overclaims is a gate
+    the reader stops believing, so the undeterminable case says so instead."""
+    _write_marker(workspace, session_id=None)
+    err = _run(script, workspace, _completion()).stderr
+    assert "comes from the run's own session" not in err, (
+        "the block must not claim ownership it could not determine"
+    )
+    assert "cannot be determined" in err or "undeterminable" in err
+
+
+def test_the_block_still_names_the_runs_own_session_when_it_can_prove_it(
+    script: Path, workspace: Path
+) -> None:
+    """The control for the message change: where ownership IS provable the
+    original, stronger wording must survive."""
+    _write_marker(workspace, session_id=ORCH)
+    err = _run(script, workspace, _completion()).stderr
+    assert "comes from the run's own session" in err
+
+
+# --- everything the fix must leave exactly as it was -------------------------
+
+
+def test_a_demonstrably_different_session_still_stands_the_gate_down(
+    script: Path, workspace: Path
+) -> None:
+    """The standdown that must SURVIVE: a session the marker proves is not the
+    run's own. This is the whole point of scoping the change to the null case —
+    a teammate or an unrelated session is still left alone."""
+    _write_marker(workspace, session_id=ORCH)
+    r = _run(script, workspace, _completion(session_id="sess-somebody-else"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_a_recorded_session_with_no_payload_session_still_stands_down(
+    script: Path, workspace: Path
+) -> None:
+    """Pinned in `tests/test_completion_status_integrity.py` too and unchanged
+    here: the marker names an owner, the payload names nobody, so this
+    completion is not shown to be the owner's."""
+    _write_marker(workspace, session_id=ORCH)
+    r = _run(script, workspace, _completion(session_id=None))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_no_marker_leaves_an_unmanifested_completion_alone(
+    script: Path, workspace: Path
+) -> None:
+    """The blast-radius direction, and the one that matters most. Foreign
+    workflows and plain user task tracking are protected by the MARKER check,
+    never by the session check — so narrowing the session check cannot reach
+    them."""
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"no run, no gate; stderr={r.stderr!r}"
+
+
+def test_a_stale_null_session_marker_does_not_gate(
+    script: Path, workspace: Path
+) -> None:
+    """Why the pre-upgrade cost is bounded: an abandoned marker stops gating at
+    the staleness bound, so a null-session marker left in a long-lived
+    workspace heals itself rather than gating that workspace forever."""
+    old = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=30)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    _write_marker(workspace, session_id=None, updated_at=old)
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_a_completed_run_marker_with_a_null_session_does_not_gate(
+    script: Path, workspace: Path
+) -> None:
+    _write_marker(workspace, session_id=None, status="complete")
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_a_manifested_task_is_never_gated_by_this_arm(
+    script: Path, workspace: Path
+) -> None:
+    """The teammate protection survives. A task the run REGISTERED to somebody
+    is not the postmortem's arbitrary board item, whatever the marker records
+    about sessions — in Agent Teams mode the Lead and every teammate share one
+    session id, so this is the check that keeps a run from wedging the moment
+    each group finishes.
+
+    The evidence file is written because a manifested task owes one to the
+    OTHER arm — the first cut of this test omitted it, went red, and was red for
+    the right reason under the wrong arm. Supplying it is what makes the exit
+    code attributable to the arm under test.
+
+    NOTE what this measures: `main()` routes a task in `expected_review_evidence`
+    to the EVIDENCE arm and never reaches the unmanifested arm at all, so the
+    protection here is the routing. The `_is_registered_task` guard INSIDE the
+    unmanifested arm covers the wider case, pinned separately below — the
+    mutation harness is what forced the two apart, by surviving a mutation of
+    that guard against this test."""
+    _write_manifest(workspace, "backend", ["board-7"])
+    (workspace / ".architect-team" / "reviews" / "board-7.json").write_text(
+        json.dumps(_valid_evidence("board-7")), encoding="utf-8"
+    )
+    _write_marker(workspace, session_id=None)
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_a_task_registered_only_as_a_shared_board_id_is_not_gated(
+    script: Path, workspace: Path
+) -> None:
+    """The WIDER registration the in-arm guard exists for, and the case a
+    null-session marker now makes reachable.
+
+    A CT6 manifest records the same work under two id spaces: `task_ids` (the
+    tasks.md ids, which `expected_review_evidence` mirrors) and
+    `shared_task_id` (the Agent-Teams board id). A board id that appears ONLY as
+    `shared_task_id` is not an `expected_review_evidence` task, so `main()`
+    routes it to the unmanifested arm — and the run HAS registered it. Gating it
+    would wedge a teammate closing the board task its own manifest names, which
+    is the exact failure the v3.47.0 docstring records condition (c) to
+    prevent."""
+    (workspace / ".architect-team" / "teammates" / "backend.json").write_text(
+        json.dumps({
+            "schema_version": 2,
+            "teammate": "backend",
+            "shared_task_id": "board-7",
+            "task_ids": [],
+            "expected_review_evidence": [],
+            "files_owned": [],
+        }),
+        encoding="utf-8",
+    )
+    _write_marker(workspace, session_id=None)
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"a registered board id must not be gated; {r.stderr!r}"
+
+
+def test_a_non_completed_status_is_untouched_by_the_null_session_gate(
+    script: Path, workspace: Path
+) -> None:
+    """The gate is about a COMPLETION claim. Moving a task to in_progress
+    asserts nothing that needs evidence."""
+    _write_marker(workspace, session_id=None)
+    r = _run(script, workspace, _make_payload("board-7", "in_progress"))
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+# --- the operator's exits, unchanged -----------------------------------------
+
+
+def test_the_task_gate_kill_switch_releases_the_null_session_case(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_marker(workspace, session_id=None)
+    monkeypatch.setenv("CT6_TASK_GATE_DISABLED", "1")
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+def test_the_run_continuity_kill_switch_releases_the_null_session_case(
+    script: Path, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_marker(workspace, session_id=None)
+    monkeypatch.setenv("CT6_RUN_CONTINUITY_DISABLED", "1")
+    r = _run(script, workspace, _completion())
+    assert r.returncode == 0, f"stderr={r.stderr!r}"
+
+
+# ===========================================================================
+# The mutation table — every F7 property, witnessed
+# ===========================================================================
+#
+# Each row breaks exactly one rule in a COPY of the hook (the repo file is never
+# touched) and re-runs THAT rule's test against the copy in a child pytest.
+# Classification is by the CHILD PROCESS EXIT CODE — never a parsed pytest
+# summary line. Three guards make the exit code mean what it says: the fragment
+# is asserted UNIQUELY present, the copy's sha256 is asserted CHANGED before the
+# child runs, and a baseline child over every target is asserted GREEN first.
+
+_HOOK_REL = Path("hooks") / "review-gate-task.py"
+
+_MUTATIONS: tuple[tuple[str, str, str, str], ...] = (
+    ("M1 null-session-marker-opens-the-gate",
+     "test_a_null_session_marker_still_gates_an_unmanifested_completion",
+     "        if owner_known and not _rc.is_orchestrator_session(marker, session_id):",
+     "        if not _rc.is_orchestrator_session(marker, session_id):"),
+    ("M2 a-different-session-is-wedged",
+     "test_a_demonstrably_different_session_still_stands_the_gate_down",
+     "        if owner_known and not _rc.is_orchestrator_session(marker, session_id):",
+     "        if False and not _rc.is_orchestrator_session(marker, session_id):"),
+    ("M3 owner-known-is-computed-wrong",
+     "test_a_recorded_session_with_no_payload_session_still_stands_down",
+     "        owner_known = bool(recorded)",
+     "        owner_known = False  # mutated: every marker reads as ownerless"),
+    ("M4 the-block-overclaims-the-session",
+     "test_the_block_does_not_claim_a_session_it_cannot_prove",
+     '        "this completion comes from the run\'s own session"\n        if owner_known else',
+     '        "this completion comes from the run\'s own session"\n        if True else'),
+    # Targets the SHARED-BOARD-ID test, not the expected_review_evidence one:
+    # `main()` never reaches this arm for the latter, so mutating the in-arm
+    # guard against it changed nothing and the row survived. The harness is what
+    # separated the routing from the guard.
+    ("M5 a-registered-board-id-is-gated",
+     "test_a_task_registered_only_as_a_shared_board_id_is_not_gated",
+     "        if _is_registered_task(task_id, cwd):",
+     "        if False and _is_registered_task(task_id, cwd):"),
+    ("M6 an-abandoned-run-gates-forever",
+     "test_a_stale_null_session_marker_does_not_gate",
+     "        if _rc.marker_is_stale(marker):",
+     "        if False and _rc.marker_is_stale(marker):"),
+    # A bare `if False and ...` here is a mutation the code SURVIVES: with no
+    # marker, `marker` stays None, `marker_is_stale(None)` returns True, and the
+    # next line allows anyway. That is the sibling guard absorbing it, not the
+    # rule being measured — so the marker is replaced with a synthetic active,
+    # never-stale one, which breaks the rule without breaking the code.
+    ("M7 a-workspace-with-no-run-is-gated",
+     "test_no_marker_leaves_an_unmanifested_completion_alone",
+     '        marker = _rc.read_marker(cwd)\n'
+     '        if not isinstance(marker, dict) or marker.get("status") != "active":',
+     '        marker = _rc.read_marker(cwd) or {"status": "active",\n'
+     '                                          "updated_at": "2999-01-01T00:00:00Z"}\n'
+     '        if False and marker.get("status") != "active":'),
+    ("M8 the-kill-switches-do-nothing",
+     "test_the_task_gate_kill_switch_releases_the_null_session_case",
+     "        if _task_gate_disabled() or _rc.continuity_disabled():",
+     "        if False and (_task_gate_disabled() or _rc.continuity_disabled()):"),
+)
+
+_MUTATION_TARGETS = tuple(dict.fromkeys(row[1] for row in _MUTATIONS))
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _run_child(selection: str, mutant: Path) -> subprocess.CompletedProcess:
+    """Re-run THIS file's tests in a child against a copy of the hook.
+
+    Both `<repo>` and `<repo>/hooks` go on PYTHONPATH: the hook's substrate
+    import is dual-form, but `from review_evidence_schema import ...` is BARE
+    and resolves only from the hooks directory. A copy placed elsewhere would
+    otherwise die at import and every row would "catch" for the wrong reason.
+    """
+    env = dict(os.environ, PYTHONUTF8="1",
+               **{_CHILD_ENV: "1", _SCRIPT_ENV: str(mutant)})
+    prior = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(_REPO_ROOT), str(_REPO_ROOT / "hooks")] + ([prior] if prior else [])
+    )
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", str(Path(__file__).resolve()),
+         "-k", selection, "-q", "-p", "no:cacheprovider", "--no-header"],
+        capture_output=True, text=True, cwd=str(_REPO_ROOT), env=env,
+    )
+
+
+@pytest.mark.skipif(_IS_CHILD_RUN, reason="child run - never recurse")
+def test_mutation_baseline_every_target_is_green(
+    plugin_root: Path, tmp_path: Path
+) -> None:
+    """The harness's own control, run against an UNMUTATED COPY so the
+    copy-and-inject plumbing is proven sound. Without it every red below could
+    be the plumbing rather than the mutation."""
+    copy = tmp_path / "baseline" / _HOOK_REL.name
+    copy.parent.mkdir(parents=True)
+    shutil.copy2(plugin_root / _HOOK_REL, copy)
+    r = _run_child(" or ".join(_MUTATION_TARGETS), copy)
+    assert r.returncode == 0, (
+        "baseline child run is not green - a mutation's red would be "
+        f"unattributable:\nrc={r.returncode}\n{r.stdout[-4000:]}\n{r.stderr[-2000:]}"
+    )
+
+
+@pytest.mark.skipif(_IS_CHILD_RUN, reason="child run - never recurse")
+@pytest.mark.parametrize("rule,target,fragment,replacement", _MUTATIONS,
+                         ids=[row[0].split()[0] for row in _MUTATIONS])
+def test_each_rule_is_killed_by_its_mutation(
+    plugin_root: Path, tmp_path: Path,
+    rule: str, target: str, fragment: str, replacement: str,
+) -> None:
+    """One row: break the rule in a copy, prove the named test notices."""
+    mutant = tmp_path / "mutant" / _HOOK_REL.name
+    mutant.parent.mkdir(parents=True)
+    shutil.copy2(plugin_root / _HOOK_REL, mutant)
+    before = _sha(mutant)
+
+    src = mutant.read_text(encoding="utf-8")
+    assert src.count(fragment) == 1, (
+        f"{rule}: the fragment appears {src.count(fragment)} times, not once - "
+        "the table has drifted from the code and this row would mutate the "
+        "wrong site (or nothing)"
+    )
+    mutant.write_text(src.replace(fragment, replacement), encoding="utf-8")
+    after = _sha(mutant)
+    assert before != after, f"{rule}: the mutation was a no-op ({before})"
+
+    child = _run_child(target, mutant)
+    assert child.returncode != 0, (
+        f"{rule}: `{target}` PASSED against the mutant - the rule is not what "
+        f"that test measures.\nchild stdout:\n{child.stdout[-4000:]}"
+    )

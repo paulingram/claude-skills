@@ -31,34 +31,58 @@ of this work: the discipline does not make you immune to the failure, it makes t
 
 Everything actionable was fixed in v3.59.2 except the items below.
 
-## OPEN — the highest-value one
+## CLOSED in v3.60.0 — both of them
 
-### Hash brackets are asserted, never recorded
+### Hash brackets are asserted, never recorded — CLOSED
 
 Five suite counts were reported this thread as "frozen-tree, hash-bracketed": 7284, 7305, 7360,
-7375, 7386. **No bracket artifact exists on disk for any of them.** The runs happened and the
-output was read, but the evidence is the orchestrator's word — unverifiable in either direction,
+7375, 7386. **No bracket artifact existed on disk for any of them.** The runs happened and the
+output was read, but the evidence was the orchestrator's word — unverifiable in either direction,
 by anyone, later.
 
-This is precisely the class the releases addressed, still open in the process that shipped them.
-The `verify-claim-instrument-binding` artifact contract already has the field for it
-(`tree_state: {before, after}`); nothing writes one.
+**Fixed by F2.** `scripts/measure/suite_measurement.py` performs a quiescence check, hashes the
+tree, runs the suite, hashes again, and writes a durable artifact carrying the before/after diff
+hash, the command, the exit code, the counts, and a `source_digest`. It REFUSES to back a release
+label on a dirty tree, an open bracket, or a count contradicting its own output — emitting a
+`provisional` verdict and exit 3 rather than a number. `changelog_check.py --require-measurements`
+makes it a release gate.
 
-**Fix:** have the measurement step emit `.architect-team/measurements/<ts>-suite.json` carrying the
-before/after diff hash, the command, the exit code, and the counts. Cheap, and it converts a
-recurring assertion into an artifact.
+**One deliberate departure from the fix sketched above:** artifacts land in `docs/measurements/`,
+not `.architect-team/measurements/`. The whole point is evidence that survives, and
+`.architect-team/` is gitignored — which is the mistake that made *this document* necessary.
 
-### The counts are machine-bound
+v3.60.0 is the first release in the project's history whose published count has a recorded
+measurement behind it.
 
-Five committed tests hard-require gitignored `.architect-team/` fixtures and one skips without the
-local deploy config, so a fresh clone does not reproduce the published number. The auditor proved
-this by predicting the pristine-worktree result in advance: **7299 / 5 failed / 7 skipped**, rising
-to **7304 / 0 / 7** once the fixtures were restored.
+**Still true, and worth stating:** a hand-written artifact is indistinguishable from a measured
+one. The gate makes an unbacked number a deliberate act rather than an accidental one.
 
-Every published count in this repo's history therefore describes *this machine*, not the repo. That
-is not a defect in any one release — it is an unstated precondition on a number the README, the
-CHANGELOG, and `CLAUDE.md` all print. Either the fixtures become committed test data, or the
-published figure names its precondition.
+### The counts are machine-bound — CLOSED
+
+Five committed tests hard-required gitignored `.architect-team/` fixtures and one skipped without
+the local deploy config, so a fresh clone did not reproduce the published number. The auditor
+proved this by predicting the pristine-worktree result in advance: **7299 / 5 failed / 7 skipped**,
+rising to **7304 / 0 / 7** once the fixtures were restored.
+
+**Fixed by F3.** The affected tests now self-provision their fixtures, so a fresh clone reproduces
+the published figure rather than inheriting this machine's leftovers.
+
+## Named boundary — an in-suite arm that is vacuous at exactly release time
+
+`tests/test_changelog_rubric.py::test_live_repo_check` asserts
+`result["ok"] OR top_version == plugin_version`. The tolerance exists for a real
+transient (a suite line still being authored after the bump), but the two versions
+ALWAYS match at release — so at the one moment the check matters, its green proves
+only that the bump happened, never that the entry carries a suite-total line.
+
+Measured, not theorised: v3.60.0's entry initially carried
+`(+241 tests; ...)` instead of the house `(<K> test files)` form. The in-suite arm
+was green; `changelog_check.py --require-measurements` reported the violation.
+
+This is the SAME architecture the existence arm settled on — the flip-prone or
+lenient arm stays out of the suite, and enforcement lives in the CLI where it runs
+once, deliberately, at release. It is recorded here so nobody reads the in-suite
+green as coverage it does not provide. The CLI is the gate; run it.
 
 ## CLOSED in v3.59.2
 

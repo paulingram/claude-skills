@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.60.0` — close-the-open-items
 - `v3.59.3` — audit-record-and-carryovers
 - `v3.59.2` — subtree-scope-suppression
 - `v3.59.1` — tree-scope-verb-forms
@@ -154,6 +155,32 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.60.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.60.0 — close-the-open-items: the gate that was on and fed nothing, and the nine escapes found by attacking the fix
+
+The v3.56.0 completion lock reads the harness task list, so it cannot be talked out of blocking. But **nothing put the run's own work there.** Measured on the session that shipped four consecutive releases: **zero tasks registered.** The gate was on, correct, and fed nothing — and the standing reminder to register work was displayed on every turn and ignored on every turn, which is the same instruction-tier exhaustion the lock itself exists to answer. Another instruction was not the fix.
+
+**The fix is a refusal.** An ACTIVE run that has registered no work cannot end its turn — register the work, or mark the run complete. A session with no run marker is untouched.
+
+**Suite counts also stop being prose.** The new `scripts/measure/suite_measurement.py` brackets the tree, runs the suite, brackets again, and records a durable artifact — refusing a release label on a dirty tree, an open bracket, or a count that contradicts its own output. **This is the first release in the project's history with a recorded measurement behind its number.**
+
+**Then it was attacked, and the attacks reshaped the release.** Nine escapes landed, three worth naming here:
+
+- **`settings.json` was an unguarded master key.** The guard refused the ask-ledger, the run marker and the task store while permitting all three settings files — whose `env` block reaches every spawned process, so one `Write` disabled every kill-switch. Now refused by path, by **`st_dev`/`st_ino` identity** (a hardlink has nothing to resolve, and `mklink /H` needs no admin), and across **sibling workspaces** — which matters because CT6's own run worktrees are siblings by design.
+- **The no-progress budget could never exhaust.** The lock's own notify state sat inside the progress fingerprint, so every block looked like progress. A budget that cannot be reached is not a budget.
+- **A wedge worse than any escape.** A teammate briefed without the literal token was refused a stop on a lane it could not close. Measured across 20 real spawns: **12 of 20 carry no token** — not a corner case, the default path.
+
+**What it cost, told straight.** Fifteen defects were found *while building the fixes for them*, nearly all one shape: **a fix that covered one of two places** — one message but not the other, the path arm but not the identity arm, the record but not the tree. Not one was faulty logic; every one was verification aimed at the wrong place.
+
+Boundaries left open in writing: `TaskUpdate(status="deleted")` still releases the lock, unrestricted `Bash` still bypasses a tool-layer guard, a hand-written artifact is indistinguishable from a measured one, and **symlink coverage on the settings arm is unproven** — recorded as untested, not as covered.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

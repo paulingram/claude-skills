@@ -232,9 +232,51 @@ def test_session_mismatch_allows(script: Path, workspace: Path) -> None:
     assert r.returncode == 0, f"stderr={r.stderr!r}"
 
 
-def test_marker_without_session_id_allows(script: Path, workspace: Path) -> None:
-    """Pre-upgrade markers carry a null session_id — they can never block."""
+def test_marker_without_session_id_now_gates(script: Path, workspace: Path) -> None:
+    """MOVED PIN (F7), recorded rather than silently edited.
+
+    This asserted the OPPOSITE — "pre-upgrade markers carry a null session_id,
+    they can never block" — and that was a defensible reading at v3.47.0, when
+    the only cost of the null fail-open was a missed block. It stopped being
+    defensible once the v3.57.0 unregistered-run arm made a single registered
+    task enough to release the Stop hook: the two composed into a complete
+    bypass, measured end to end against both real hooks — null-session marker,
+    register one throwaway task, complete it (allowed at exit 0 here), Stop
+    exits 0. No Bash, no marker deletion, no kill-switch.
+
+    A False from `is_orchestrator_session` covers two situations and only one
+    is a reason to stand down. A DIFFERENT recorded session is proof this is
+    somebody else's completion; NO recorded session is not proof of anything.
+    Unknown ownership is not somebody else's, so the gate applies.
+
+    The shared predicate is unchanged — its null fail-open is deliberate and
+    `pipeline-completion-audit.py` still relies on it. Only this consumer's
+    reading of it moved. `test_payload_without_session_id_allows` below is the
+    standdown that SURVIVES, and it is what keeps this from being a widening:
+    a marker that names an owner still stands the gate down for a completion
+    that does not name that owner."""
     _write_marker(workspace, session_id=None)
+    r = _run(script, workspace, _subagents_payload("board-7"))
+    assert r.returncode == 2, (
+        f"undeterminable ownership must not open the gate; stderr={r.stderr!r}"
+    )
+    assert "cannot be determined" in r.stderr, (
+        "and the block must say WHY it fired rather than claiming a session "
+        "it could not establish"
+    )
+
+
+def test_a_stale_marker_without_session_id_still_allows(
+    script: Path, workspace: Path
+) -> None:
+    """The bound on the moved pin above, in the same file so the pair reads
+    together: the genuine pre-upgrade case does not gate a workspace forever.
+    An abandoned marker stops gating at the staleness bound, and `engage_marker`
+    re-records a session the moment the current build runs."""
+    old = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=30)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    _write_marker(workspace, session_id=None, updated_at=old)
     r = _run(script, workspace, _subagents_payload("board-7"))
     assert r.returncode == 0, f"stderr={r.stderr!r}"
 
@@ -417,8 +459,14 @@ def test_engage_prefers_the_explicit_session_over_the_environment(
 
 
 def test_engage_records_null_when_no_session_is_discoverable(tmp_path: Path) -> None:
-    """Fail-soft: an unknown session is null, never a fabricated value — and a
-    null session id can never satisfy the gate's session test."""
+    """Fail-soft: an unknown session is null, never a fabricated value.
+
+    This docstring used to end "— and a null session id can never satisfy the
+    gate's session test", which was true prose about a behaviour F7 removed.
+    A null session still cannot SATISFY the session test; what changed is that
+    failing it no longer stands the gate down, because undeterminable ownership
+    is not the same answer as a different owner. See
+    `test_marker_without_session_id_now_gates`."""
     rc.engage_marker(tmp_path, "architect-team-pipeline")
     assert rc.read_marker(tmp_path)["session_id"] is None
 

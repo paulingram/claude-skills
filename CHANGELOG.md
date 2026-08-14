@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.60.0] — 2026-08-13 — close-the-open-items (MINOR: the completion lock stops being a gate with nothing feeding it, and every published count gets an artifact behind it)
+
+The v3.56.0 completion lock reads the harness task list, so it cannot be talked out of blocking. But **nothing put the run's own work there.** Measured on the session that shipped four consecutive releases: **zero tasks registered.** The gate was on, correct, and fed nothing. The standing harness reminder to register work was displayed on every turn and ignored on every turn — the same instruction-tier exhaustion the lock itself exists to answer, so another instruction was not the fix.
+
+**F1 — an ACTIVE run that has registered no work cannot end its turn.** Two release paths: register the work, or mark the run complete. A session with no run marker is untouched, so plain sessions see nothing. Kill-switch `CT6_UNREGISTERED_RUN_GATE_DISABLED`.
+
+**F2 — suite counts stop being prose.** NEW `scripts/measure/suite_measurement.py` brackets the tree (quiescence check, before/after diff hash), runs the suite, and records a durable artifact under `docs/measurements/`. It REFUSES to back a release label on a dirty tree, an open bracket, or a count contradicting its own output — emitting a `provisional` verdict and exit 3 rather than a number. `scripts/docs_tooling/changelog_check.py --require-measurements` makes it a release gate. **This entry is the first in the project's history with a recorded measurement behind its number.** The engine's own live-repo check keeps only the arms that cannot flip with tree state; existence is enforced at release, in the CLI, where a moving tree is not a confound.
+
+**Then it was attacked, and the attacks reshaped the release.** Two adversarial agents executed every escape they could construct against the shipped fixes. Nine landed:
+
+- **F10 — `settings.json` was an unguarded master key.** The guard refused the ask-ledger, the run marker and the task store, and permitted all three settings files — whose `env` block reaches every spawned process. One `Write` disabled every kill-switch, persistently. Now refused by **path, by `st_dev`/`st_ino` identity** (a hardlink has nothing to resolve, and `mklink /H` needs no admin — proven end-to-end), and across **sibling workspaces**, which matters because CT6's own run worktrees are siblings of the main checkout by design. A blanket `nlink > 1` rule was considered and rejected: pnpm and `git clone --local` hardlink ordinary files.
+- **F5 — the no-progress budget could never exhaust.** The lock's own notify state was inside the progress fingerprint, so every block looked like progress and reset the counter. A budget that cannot be reached is not a budget. The rule generalizes: exclude your own bookkeeping from the state you hash.
+- **F9 — a wedge worse than any escape.** A teammate briefed without the literal token was refused a stop on a lane it structurally could not close. Measured across 20 real spawns: **12 of 20 carry no token.** Not a corner case — the default path. Ownership now also reads a position-one peer envelope, because in teams mode every teammate shares the Lead's session id and "not the recorded orchestrator" stands down for nobody.
+- **F13 — a missing task ROOT read as empty rather than unknown**, so relocating the root emptied the gate instead of blocking it.
+- **F12 — an undocumented sixth kill-switch.** `CT6_RUN_MARKER_STALE_HOURS` could age a live marker out; it now has a **one-hour floor** and appears in the enumeration a reader is told is complete.
+- **F7 — a null-session throwaway-task hole**, and task text neutralized **per field** rather than once at the clip, because the renderer prefixes an id and the strip never reached the subject.
+- **F8** — the block message made a claim that was not true and named its own exit in the text an agent reads.
+- **F6** — `active-run.json` joined the protected set.
+- **F11** — "registered" stopped meaning "non-empty", which one throwaway task satisfied.
+
+**What the run cost, told straight.** Fifteen defects were found *while building the fixes for them*, and nearly all shared one shape: **a fix that covered one of two places** — one message but not the other, the path arm but not the identity arm, the record but not the tree. Two variants appeared late: a **witness** covering one of two places (a mutation table read 25/25 green while a rule in another file had no witness at all), and a **claim that decayed** — true when written, silently falsified by a later change, which no mutation table catches. Not one defect was faulty logic; every one was verification aimed at the wrong place. Three of the four agents on this run made the identical error, repeatedly.
+
+**A sixteenth defect, found by the measurement gate on its first real use.** `tests/test_frontend_e2e_loop_exit.py` back-dated its inherited review slices RELATIVE to `time.time()` while hardcoding the run marker's start as an ABSOLUTE `2026-08-13T00:00:00Z` — two halves of one fixture reading two different clocks. It inverted silently the moment the calendar rolled past that date: "24 hours ago" became LATER than the run start, so every inherited slice was claimed as this run's work. **Green one day, red the next, with no code change** — the same shape as the flake found in the measurement engine itself, and a claim that decayed rather than one that was ever wrong. The marker now reads the fixture's own clock, pinned by an invariant that needs no frozen time: whatever the fixture calls old must actually be older than what it calls the start.
+
+**Named boundaries, unclosed and in writing.** `TaskUpdate(status="deleted")` still unlinks a task file and releases the lock. An agent with unrestricted `Bash` can still write any protected file — the guard binds the `Edit`/`Write`/`NotebookEdit` tools, not the shell. A hand-written measurement artifact is indistinguishable from a measured one. And **symlink coverage on the settings arm is unproven** — four attempts, each blocked by lack of privilege; it is recorded as untested, not as covered.
+
+No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
+
+Suite **7386 -> 7627 passing + 6 skipped, 0 failed** (244 test files; +241 tests, NEW `tests/test_suite_measurement.py`, plus additions across `tests/test_completion_lock.py` / `tests/test_open_work.py` / `tests/test_review_gate_task.py` / `tests/test_pretool_unilateral_override_guard.py` / `tests/test_run_continuity.py`). **Recorded, not asserted** — `docs/measurements/2026-08-13-v3.60.0-suite.json` carries the frozen-tree bracket behind that number.
+
 ## [3.59.3] — 2026-08-13 — audit-record-and-carryovers (PATCH: the audit's findings moved somewhere they survive, three carryovers closed, two named open)
 
 The adversarial audit that produced v3.59.2 lives in `.architect-team/`, which is GITIGNORED — its findings and the two open items it surfaced were one `git clean` from being lost. Recorded in the NEW `docs/proposals/WRONG_INSTRUMENT_FOLLOWUPS.md`.

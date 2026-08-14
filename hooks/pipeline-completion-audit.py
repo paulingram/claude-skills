@@ -2048,6 +2048,43 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
             "readable or removed:\n"
             + _lock_bullets(unreadable, _lock_unreadable_text)
         )
+    # v3.57.0 — the unregistered-run arm. Placed after the sources that list
+    # concrete items and before the advisory block, because when it fires it is
+    # usually the ONLY thing holding the turn and the reader needs the action.
+    # The text is field-neutralized at construction (`_unregistered_run_message`)
+    # and deliberately NOT re-run through `_lock_clip` here: that would collapse
+    # this emitter's own prose to one line and rewrite its own colons.
+    unregistered = verdict.get("unregistered_run")
+    if unregistered:
+        sections.append(
+            "UNREGISTERED RUN: " + str(unregistered)
+            # F8 — what this paragraph used to say was BOTH false AND a
+            # hand-over, and each half is a lesson this repo had already
+            # recorded:
+            #
+            # * It claimed the lifecycle command "is itself gated by the
+            #   completion audit". Measured against the real commands: on a run
+            #   with no artifacts `_is_real_run` is False, so `--check` exits 0
+            #   and the command succeeds unconditionally. A FALSE claim inside
+            #   enforcement output is worse than no claim — it is exactly what
+            #   the evidence-integrity rules exist to stop, printed by the gate
+            #   that enforces them.
+            # * It printed the command. That is the v3.56.0 F-A finding — a
+            #   gate handing the gated session its own exit — reproduced
+            #   verbatim in a new arm. The lifecycle commands remain the
+            #   HUMAN's; the agent being refused does not need them named, and
+            #   the run's own closing phase performs them when the run is
+            #   genuinely done.
+            #
+            # What is left is the only thing the agent should do here: the work.
+            + "\n  REGISTER IT: create one harness task per outstanding work "
+            "item through the harness's own TaskCreate tool, then carry on. "
+            "From that point the ordinary task-list source holds the turn until "
+            "each one is genuinely completed, so registering is not a way out - "
+            "it is the way in. If you believe there is no outstanding work, that "
+            "is a claim about the run's state, and it is the run's own closing "
+            "sequence that establishes it - not this turn ending."
+        )
     # Advisory asks are NOT why the stop was refused, and the wording has to be
     # unambiguous about that or the reader will try to "clear" them and find
     # they cannot. Demoting the ledger from a blocking source must make the
@@ -2090,9 +2127,17 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
     ledger_sw = getattr(_ow, "DISABLE_LEDGER_ENV", "CT6_ASK_LEDGER_GATE_DISABLED")
     output_sw = getattr(_ow, "DISABLE_OUTPUT_ENV", "CT6_TURN_OUTPUT_GATE_DISABLED")
 
+    # The headline has to be TRUE of the arm that actually fired. When the only
+    # violation is a missing registration, "registered work is still open" is
+    # the one thing that is not the case, and a block whose first sentence
+    # contradicts its own body is a block the reader stops trusting.
+    headline = (
+        "This run has not registered its work"
+        if unregistered else "Registered work is still open"
+    )
     message = (
-        "pipeline-completion-audit: BLOCKED - COMPLETION LOCK. Registered work "
-        "is still open, so this turn does not end here. This condition is read "
+        f"pipeline-completion-audit: BLOCKED - COMPLETION LOCK. {headline}, "
+        "so this turn does not end here. This condition is read "
         "from files the harness writes, not from anything this session asserts, "
         "so there is no wording that clears it - only the work.\n\n"
         + "\n\n".join(sections)
@@ -2118,8 +2163,23 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
         f"       {tasks_sw}=1  - the harness task-list source only\n"
         f"       {ledger_sw}=1  - the ask-ledger source only\n"
         f"       {output_sw}=1  - the turn-output rule only\n"
+        f"       {UNREGISTERED_RUN_GATE_DISABLE_ENV}=1  - the unregistered-run "
+        "arm only\n"
         "     Each switch disables ONLY its own source; the others keep "
-        "enforcing.\n\n"
+        "enforcing.\n"
+        # S-3 (adversarial): a SIXTH lever existed and this list did not name
+        # it. CT6_RUN_MARKER_STALE_HOURS does not read like a kill-switch, but
+        # driving it near zero ages every marker instantly, which stands the
+        # unregistered-run arm down and degrades the continuation guard
+        # session-wide. Measured: a 60-second-old marker released at exit 0
+        # against exit 2 on the default window. It is now FLOORED in
+        # run_continuity.marker_stale_hours, and named here — an undocumented
+        # lever is worse than a documented one, because the operator whose gate
+        # is misfiring cannot find it and reaches for something blunter.
+        f"       {MARKER_STALE_HOURS_ENV}=<hours>  - not a switch by name, but "
+        "shortening this window ages the run marker and stands the "
+        "unregistered-run arm down; floored at "
+        f"{MIN_MARKER_STALE_HOURS}h so it cannot be collapsed to nothing\n\n"
         "Note: nothing an agent can write releases this lock - not the "
         "no-progress budget, not "
         f".architect-team/{ESCALATION_MARKER}, not "
@@ -2128,12 +2188,22 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
         "agent-written file here would restore the self-asserted exit this gate "
         "exists to remove."
         + (
+            # F8 — this preamble carried the same overclaim in its other half.
+            # "The 'Sanctioned pauses' release the GUARD only. They do not
+            # release the lock above" was true of the v3.56.0 sources and became
+            # FALSE once the unregistered-run arm keyed on the run marker:
+            # ending the run's lifecycle removes the arm's trigger. Rather than
+            # keep a reassuring sentence that one arm falsifies, the claim is
+            # narrowed to what is universally true — the two AGENT-WRITTEN
+            # marker files release neither — which is also the only part a
+            # reader could act on wrongly.
             "\n\n" + "=" * 70 + "\nThe run's continuation guard also applies to "
             "this session, so its block follows IN FULL and both sets of items "
-            "must be closed. PRECEDENCE: the 'Sanctioned pauses' it lists "
-            "release the GUARD only. They do not release the lock above - it "
-            "holds until the open work is genuinely closed or an operator sets "
-            "a kill-switch, and that is true of every file named there.\n\n"
+            "must be closed. PRECEDENCE: the two marker FILES its 'Sanctioned "
+            f"pauses' name - {ESCALATION_MARKER} and {IN_PROGRESS_MARKER} - "
+            "release NEITHER the guard's block nor the lock above, because the "
+            "agent writes both. The lock holds until its stated condition is "
+            "genuinely resolved or an operator sets a kill-switch.\n\n"
             + guard_text
             if guard_text else ""
         )
@@ -2282,10 +2352,16 @@ def _completion_lock_notify(root: Path, session_id: str, verdict: dict) -> None:
         tasks = len(verdict.get("open_tasks") or [])
         asks = len(verdict.get("open_asks") or [])
         unread = len(verdict.get("unreadable") or [])
+        # v3.57.0 — without this the mail on an unregistered-run wedge reads
+        # "Open: 0 tasks, 0 directives, 0 sources", which tells the reader the
+        # opposite of why it is blocked.
+        unreg = (" The run has registered NO harness tasks at all."
+                 if verdict.get("unregistered_run") else "")
         summary = (
             f"CT6 completion lock has blocked {count} consecutive stops in "
             f"session {key} ({root.name}). Open: {tasks} harness task(s), "
-            f"{asks} ledger directive(s), {unread} unreadable source(s). The "
+            f"{asks} ledger directive(s), {unread} unreadable source(s)."
+            f"{unreg} The "
             "lock is UNBOUNDED by design - it is still blocking and nothing "
             "will release it automatically. Either the work is genuinely "
             "unfinished, or the session is wedged and needs a human: close the "
@@ -2324,6 +2400,301 @@ def _completion_lock_clear_notify(root: Path, session_id: str) -> None:
         path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     except Exception:
         return
+
+
+# ---------------------------------------------------------------------------
+# v3.57.0 — the UNREGISTERED-RUN arm of the completion lock
+# ---------------------------------------------------------------------------
+#
+# THE MEASURED GAP. v3.56.0 refuses a stop while registered work is open, and it
+# reads that from the harness task store. A CT6 run puts NOTHING there: the
+# pipeline instructs task creation in five places and every one of them is for
+# TEAMMATE DISPATCH ("the Lead creates 3 reviewer tasks"). Measured on the
+# session that shipped four releases, `session-dd12b61c` held ZERO task files —
+# the gate was armed and its only source was empty, so four turns ended on green
+# with the lock inert.
+#
+# WHY THIS IS NOT AN INSTRUCTION. "Instruct the orchestrator to TaskCreate" is
+# precisely what already failed: the harness's own standing reminder to use the
+# task tools was rendered on every one of those turns and ignored on every one.
+# A stopping condition the agent can decline is not a stopping condition. So the
+# ABSENCE of registration is itself made an open-work condition — a run that has
+# not said what it is doing cannot end its turn.
+#
+# WHY IT LIVES HERE AND NOT IN `audit()`. Every `_audit_*` arm is released by
+# the no-progress budget, by `escalation-pending.md`, and by a fresh
+# `in-progress.md` — all three of which the AGENT writes. An arm placed there
+# would be waved off by one file write, which is the self-asserted exit this
+# whole gate exists to remove. It rides the completion lock instead, above all
+# of them.
+UNREGISTERED_RUN_GATE_DISABLE_ENV = "CT6_UNREGISTERED_RUN_GATE_DISABLED"
+
+# S-3 — surfaced in the block so the operator can find every lever.
+try:
+    from hooks.run_continuity import (
+        MARKER_STALE_HOURS_ENV, MIN_MARKER_STALE_HOURS)
+except Exception:  # pragma: no cover - bare-module shape
+    try:
+        from run_continuity import (
+            MARKER_STALE_HOURS_ENV, MIN_MARKER_STALE_HOURS)
+    except Exception:
+        MARKER_STALE_HOURS_ENV = "CT6_RUN_MARKER_STALE_HOURS"
+        MIN_MARKER_STALE_HOURS = 1.0
+
+
+def _unregistered_run_gate_disabled() -> bool:
+    """True when CT6_UNREGISTERED_RUN_GATE_DISABLED is set truthy (the same
+    rule as every other CT6 kill-switch: anything but unset / 0 / false / no)."""
+    v = os.environ.get(UNREGISTERED_RUN_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _run_marker_state(root: Path) -> tuple[dict | None, str | None]:
+    """`(active-non-stale marker, unreadable-reason)` — this arm's trigger.
+
+    Read INDEPENDENTLY of `CT6_RUN_CONTINUITY_DISABLED`, for the reason already
+    recorded in `main()` about the lock's transcript slices: that switch governs
+    the continuation GUARD, and letting it also mute a completion-lock source
+    would make it an undocumented extra kill-switch for a gate that documents
+    its own.
+
+    Staleness IS honoured, matching `main()`. An abandoned run must not tax the
+    workspace forever — without that, one interrupted run leaves a directory no
+    future session can ever stop in.
+
+    THE UNREADABLE ARM (REQ-6, applied to the marker). `_rc.read_marker` is
+    fail-OPEN by design and returns None for missing, malformed, and
+    not-a-dict alike, which collapsed three different states into "no run
+    here". The task store already refuses that collapse — an unreadable store
+    BLOCKS because unknown is not empty — and the marker was the inconsistent
+    half: corrupting one file read as "no active run" and the arm went silent.
+    A file that EXISTS but does not parse is unknown state, so it is returned as
+    a reason and the caller proceeds as if a run may be active.
+
+    HONEST LIMIT, since this narrows rather than closes: DELETING the marker
+    still disarms the arm, and no hook tier can forbid that. What this removes
+    is the quieter variant that looks like corruption rather than a decision.
+    """
+    if _rc is None:
+        return None, None
+    path = _rc.marker_path(root)
+    try:
+        exists = path.is_file()
+    except OSError:
+        exists = False
+    marker = _rc.read_marker(root)
+    if marker is None:
+        if exists:
+            return None, f"{path} exists but does not parse as a run marker"
+        return None, None
+    if marker.get("status") != "active":
+        return None, None
+    if _rc.marker_is_stale(marker):
+        return None, None
+    return marker, None
+
+
+def _marker_names_another_session(marker: dict, session_id: str) -> bool:
+    """True when the marker records a session id and it is NOT this one.
+
+    The harness task store is PER SESSION, so a second terminal open in the same
+    repo could not register this run's work even if it wanted to — its tasks
+    would land in its own store. Holding it would be holding a session for a
+    lane it has no power to close. When the marker records NOTHING the arm still
+    fires: unknown ownership in a workspace with an active run is the reported
+    shape, and standing down there would reintroduce the inertness being fixed.
+    """
+    recorded = marker.get("session_id")
+    if not isinstance(recorded, str) or not recorded.strip():
+        return False
+    return recorded.strip() != (session_id or "").strip()
+
+
+def _first_inbound_is_peer_envelope(records: list, head_records: list) -> bool:
+    """Delegate to the SUBSTRATE's recogniser. One definition, not two.
+
+    The first cut of F9 defined this here, which fixed the arm and left the
+    lock proper untouched — `open_work` kept resolving ownership its own way, so
+    a tokenless teammate still got `owner=None`, scoped to nothing, and was held
+    on every peer's open task. Two definitions of "teammate" in two files that
+    had to agree, and they disagreed immediately. Worse, the docstring below
+    claimed it mirrored the substrate "rather than inventing a second notion of
+    worker", which is precisely what it had done.
+
+    The recogniser now lives in `open_work`, the module that owns the question,
+    and this is a thin delegation. `getattr` rather than a direct call so a
+    substrate predating it degrades to the token-only behaviour instead of
+    raising — the same fail-open shape as every other `_ow` use here.
+    """
+    probe = getattr(_ow, "first_inbound_is_peer_envelope", None)
+    return bool(probe(records, head_records)) if probe is not None else False
+
+
+def _lock_worker_session(records: list, head_records: list, truncated: bool) -> bool:
+    """True for a pipeline TEAMMATE session, which this arm never holds.
+
+    Registering the run's work is the ORCHESTRATOR's lane, so holding a teammate
+    for it refuses a stop for a condition the session structurally cannot clear.
+    An escape costs enforcement; a wedge costs the user's trust in the whole
+    mechanism, which is how a gate gets switched off for real.
+
+    THREE recognisers, because the first two were not enough (F9). ALL THREE
+    are the substrate's — this function only asks:
+
+    1. a parseable ``CT6-TEAMMATE`` name;
+    2. the bare token — the substrate's own standdown (REQ-4);
+    3. a FIRST INBOUND that is a peer envelope, added to `open_work` by F9's
+       second half so the arm and the lock proper cannot disagree about who is
+       a worker. They did disagree, briefly, and the wedge survived in the half
+       this file does not govern.
+
+    (3) is what closes the measured wedge. A real CT6 teammate brief does NOT
+    carry the token — it arrives as a `<teammate-message>` envelope — so on the
+    brief shape this project actually dispatches, `teammate_name` resolved None,
+    no token was present, and the arm held the worker at exit 2.
+
+    WHY NOT "stand down unless the session is the marker's recorded
+    orchestrator", which is the same ownership question F7 answers: in TEAMS
+    MODE — CT6's default — the Lead and every teammate run under ONE session id
+    and the marker records it, so `is_orchestrator_session` is True for all of
+    them. Measured. It is the identical fact `review-gate-task.py` records as
+    the reason its condition (c) exists, and it means the session test cannot
+    separate a worker from its Lead at all. `_marker_names_another_session`
+    already covers the subagents-mode case, where a teammate does have its own
+    session; teams mode needs a structural signal, which is (3).
+    """
+    if _ow is None:
+        return False
+    if _ow.teammate_name(records, head_records, truncated) is not None:
+        return True
+    probe = getattr(_ow, "_has_teammate_token", None)
+    if probe is not None and bool(probe(records, head_records)):
+        return True
+    return _first_inbound_is_peer_envelope(records, head_records)
+
+
+def _unregistered_run_message(
+    marker: dict | None,
+    read: dict,
+    marker_unreadable: str | None = None,
+) -> str:
+    """The violation text. Marker fields are AGENT-written, so each is
+    neutralized as a FIELD before it lands in a message the agent reads as
+    enforcement output (the F7 rule: neutralize the field, not the sentence)."""
+    m = marker if isinstance(marker, dict) else {}
+    if marker_unreadable:
+        origin = (
+            f"A run marker is present but UNREADABLE ({_lock_clip(marker_unreadable)}), "
+            "and an unreadable marker is unknown state rather than an absent "
+            "run - so this is treated as a run in flight."
+        )
+    else:
+        slug = _lock_clip(m.get("slug") or m.get("run_id") or "(unnamed run)")
+        phase = _lock_clip(m.get("phase") or "(no phase recorded)")
+        skill = _lock_clip(m.get("skill") or "(unrecorded skill)")
+        origin = f"Marker - slug {slug}, phase {phase}, driven by {skill}."
+    where = _lock_clip(read.get("dir") or "the harness task store")
+    return (
+        f"this run has registered NO work in the harness task list. {origin} "
+        f"Its task store for this session is {where} and it holds ZERO "
+        "tasks, so nothing on disk says what this run is doing or what is left "
+        "of it. That absence IS the open work - a worklist that exists only in "
+        "this session's narration holds no turn open, survives no compact, and "
+        "can be checked by nothing."
+    )
+
+
+def _unregistered_run_violation(
+    root: Path,
+    session_id: str,
+    records: list,
+    head_records: list,
+    truncated: bool,
+) -> str | None:
+    """The arm. Returns the violation text, or None when it does not apply.
+
+    Every early return below is a named non-trigger, not an optimization:
+      * the master switch, and the TASK-LIST switch — this arm reads the harness
+        task list, so an operator who switched that source off has switched this
+        off too; an arm that kept blocking on a disabled source would be an
+        end-run around the switch that names it;
+      * its own switch;
+      * no session id — the store cannot be LOCATED, so registration is not
+        observable, and the arm never converts its own blindness into a block
+        nobody can clear (the ordinary task-list source is equally blind there);
+      * a teammate session, and a marker owned by a different session;
+      * no run marker at all, or one that is inactive or stale — a plain session
+        is not this arm's business, the v3.56.0 lock already covers those. A
+        marker that EXISTS but does not parse is the one exception: unknown is
+        not absent, so the arm proceeds (see `_run_marker_state`);
+      * an UNREADABLE store — already a blocking violation of the lock proper.
+        Unknown is not empty: reporting it as unregistered would tell the agent
+        to register work that may already exist, and two reasons for one
+        condition trains the reader to skim;
+      * a store with ANY task in it, completed or not. "Registered" is the
+        condition, not "open" — a run that registered its work and finished it
+        is the state this arm exists to produce.
+    """
+    if _ow is None:
+        return None
+    if _ow.lock_disabled():
+        return None
+    if _ow.tasks_disabled():
+        return None
+    if _unregistered_run_gate_disabled():
+        return None
+    if not (session_id or "").strip():
+        return None
+    if _lock_worker_session(records, head_records, truncated):
+        return None
+    marker, marker_unreadable = _run_marker_state(root)
+    if marker is None and marker_unreadable is None:
+        return None
+    if marker is not None and _marker_names_another_session(marker, session_id):
+        return None
+    read = _ow.read_harness_tasks(session_id, None)
+    if read.get("unreadable"):
+        return None
+    if read.get("items"):
+        return None
+    return _unregistered_run_message(marker, read, marker_unreadable)
+
+
+def _apply_unregistered_run_arm(
+    root: Path,
+    session_id: str,
+    records: list,
+    head_records: list,
+    truncated: bool,
+    verdict: Any,
+) -> Any:
+    """Fold the arm into the lock's verdict. Never raises.
+
+    Its OWN try/except rather than the caller's: `_completion_lock_action`'s
+    handler fails open for the whole lock, so a defect in this arm would
+    disarm the task-list and ask-ledger sources that were working. A bug here
+    costs this arm and nothing else — and says so on stderr.
+    """
+    if not isinstance(verdict, dict):
+        return verdict  # a broken substrate already fails open; do not add to it
+    try:
+        violation = _unregistered_run_violation(
+            root, session_id, records, head_records, truncated
+        )
+    except Exception as e:
+        print(
+            "pipeline-completion-audit: the unregistered-run arm raised and is "
+            f"NOT being applied: {type(e).__name__}: {e}. The rest of the "
+            "completion lock is unaffected.",
+            file=sys.stderr,
+        )
+        return verdict
+    if not violation:
+        return verdict
+    verdict["unregistered_run"] = violation
+    verdict["reasons"] = list(verdict.get("reasons") or []) + [violation]
+    verdict["blocked"] = True
+    return verdict
 
 
 def _completion_lock_action(
@@ -2372,6 +2743,12 @@ def _completion_lock_action(
             records,
             head_records=head_records,
             truncated=truncated,
+        )
+        # v3.57.0 — the unregistered-run arm rides the same verdict, so it
+        # inherits the lock's PLACEMENT (above every agent-written release) for
+        # free rather than needing a second call site to keep in sync.
+        verdict = _apply_unregistered_run_arm(
+            root, session_id, records, head_records, truncated, verdict
         )
         if not isinstance(verdict, dict) or not verdict.get("blocked"):
             _completion_lock_clear_notify(root, session_id)
