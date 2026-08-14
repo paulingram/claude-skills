@@ -161,6 +161,53 @@ def _targets_existing_deploy_config(file_path: str) -> bool:
     return p.name == _DEPLOY_CONFIG_FILENAME and p.exists()
 
 
+# v3.61.0 — recorded MEASUREMENT ARTIFACTS are immutable to agent tools. A
+# hand-written artifact is indistinguishable from a measured one (the named
+# v3.60.0 boundary: there is no trusted signer in-environment, so authenticity
+# cannot be proven). What CAN be closed is the tool layer: with this rule an
+# agent cannot author or doctor a `docs/measurements/*` file through
+# Edit/Write/NotebookEdit — the only way such a file appears is the
+# measurement engine itself (which writes through ordinary io) or a deliberate
+# Bash act, which stays the same NAMED residual every rule in this guard
+# carries. Both creation and modification are refused: a freshly hand-created
+# artifact IS the forgery, unlike the deploy config where creation only adds a
+# constraint.
+_MEASUREMENTS_DIRNAME = "measurements"
+_MEASUREMENTS_PARENT = "docs"
+
+
+def _targets_measurement_artifact(file_path: str) -> bool:
+    """True iff the tool targets a path under a ``docs/measurements/`` dir.
+
+    Matched on the raw AND resolved spelling so ``..`` segments and separators
+    cannot spell around it, mirroring the ground-truth matcher below. The
+    parent-pair requirement (``docs/measurements``) keeps somebody's
+    ``src/measurements/`` feature data out of scope.
+    """
+    if not isinstance(file_path, str) or not file_path:
+        return False
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return False
+    try:
+        resolved: Path | None = p.resolve()
+    except Exception:
+        resolved = None
+    for candidate in (resolved, p):
+        if candidate is None:
+            continue
+        try:
+            parts = [s.casefold() for s in candidate.parts]
+        except Exception:
+            continue
+        for i in range(len(parts) - 1):
+            if (parts[i] == _MEASUREMENTS_PARENT
+                    and parts[i + 1] == _MEASUREMENTS_DIRNAME):
+                return True
+    return False
+
+
 # v3.56.0 (ADV-3 / ADV-5, adversarial review) — the completion lock's GROUND
 # TRUTH is immutable to agents. The whole gate rests on one property: the
 # stopping condition is read from files the agent does not write. The
@@ -693,6 +740,36 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
             "'don't touch prod' for a single run). An agent deciding to disable or "
             "skip the prod mandate is exactly the buck-the-command override this "
             "guard forbids."
+        )
+        return 2, message
+
+    # v3.61.0 measurement-artifact immutability — fires UNCONDITIONALLY, ahead
+    # of the allowed-path shortcut, because a doctored artifact is a violation
+    # whether or not a pipeline run is active. Creation is refused too: a
+    # freshly hand-created artifact IS the forgery this rule exists to stop.
+    if _targets_measurement_artifact(file_path):
+        message = (
+            "CT6 v3.61.0 PreToolUse guardrail BLOCKED — measurement artifacts "
+            "are recorded, never authored.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            "Files under docs/measurements/ are the durable evidence that a "
+            "published suite count was MEASURED — the bracket hashes, counts, "
+            "and verdict a real run recorded. Hand-writing or editing one "
+            "manufactures evidence: the repo would carry an artifact for a "
+            "measurement that never ran.\n"
+            "\n"
+            "REQUIRED ACTION: run the measurement instead — "
+            "`python scripts/measure/suite_measurement.py --label v<version>` "
+            "on a clean tree. It writes the artifact itself. If an artifact is "
+            "wrong, re-measure; the newest recording for a label wins.\n"
+            "\n"
+            "HONEST BOUNDARY, unchanged from v3.60.0: Bash can still write "
+            "these files, and a hand-written artifact remains "
+            "indistinguishable from a measured one. This rule makes forgery a "
+            "deliberate act on a named surface, not an accident."
         )
         return 2, message
 

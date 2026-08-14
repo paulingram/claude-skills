@@ -960,3 +960,56 @@ def test_two_ordinary_hardlinked_files_are_not_caught(
         pytest.skip(f"hardlinks unavailable: {exc}")
     assert _targets_completion_lock_ground_truth(str(b)) is None
     assert check_payload(_write_payload(str(b)))[0] == 0
+
+
+# ---- v3.61.0 — measurement artifacts are immutable to agent tools ----------
+#
+# A hand-written artifact is indistinguishable from a measured one (the named
+# v3.60.0 boundary — no trusted signer exists in-environment). What CAN close
+# is the tool layer: an agent must not be able to author or doctor a file
+# under docs/measurements/ with Edit/Write/NotebookEdit. The measurement
+# engine writes artifacts through ordinary io, so legitimate recording is
+# unaffected; `Bash` remains the NAMED residual, same as every other rule in
+# this guard.
+
+
+def test_write_into_docs_measurements_is_refused(tmp_path: Path) -> None:
+    target = tmp_path / "docs" / "measurements" / "2026-08-14-v9.9.9-suite.json"
+    ec, msg = check_payload(_write_payload(str(target)))
+    assert ec == 2
+    assert "measurement" in msg.lower()
+
+
+def test_edit_of_an_existing_artifact_is_refused(tmp_path: Path) -> None:
+    d = tmp_path / "docs" / "measurements"
+    d.mkdir(parents=True)
+    art = d / "2026-08-14-v9.9.9-suite.json"
+    art.write_text("{}", encoding="utf-8")
+    ec, msg = check_payload(_write_payload(str(art), tool="Edit"))
+    assert ec == 2
+    assert "measurement" in msg.lower()
+
+
+def test_backslash_spelling_is_still_refused(tmp_path: Path) -> None:
+    raw = str(tmp_path) + "\\docs\\measurements\\x-suite.json"
+    ec, _ = check_payload(_write_payload(raw))
+    assert ec == 2
+
+
+def test_dot_segment_spelling_is_still_refused(tmp_path: Path) -> None:
+    (tmp_path / "docs" / "measurements").mkdir(parents=True)
+    dodge = tmp_path / "docs" / "other" / ".." / "measurements" / "y-suite.json"
+    ec, _ = check_payload(_write_payload(str(dodge)))
+    assert ec == 2
+
+
+def test_ordinary_docs_file_is_not_caught(tmp_path: Path) -> None:
+    """The other direction: the rule is scoped to the artifact dir, not docs/."""
+    ec, _ = check_payload(_write_payload(str(tmp_path / "docs" / "notes.md")))
+    assert ec == 0
+
+
+def test_a_measurements_dir_not_under_docs_is_not_caught(tmp_path: Path) -> None:
+    """`src/measurements/` is somebody's feature, not our artifact store."""
+    ec, _ = check_payload(_write_payload(str(tmp_path / "src" / "measurements" / "data.json")))
+    assert ec == 0

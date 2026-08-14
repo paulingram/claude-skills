@@ -91,6 +91,7 @@ Stdlib-only.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -643,6 +644,87 @@ def _sticky_run_check(
         return 0, ""
 
 
+# --------------------------------------------------------------------------- #
+# Arm 3 (v3.61.0) — task deletion during an active run
+# --------------------------------------------------------------------------- #
+#
+# `TaskUpdate(status="deleted")` unlinks the harness task file, and the
+# completion lock reads that store as ground truth — so deletion during an
+# ACTIVE run releases the lock without the work closing. That was a NAMED
+# v3.56.0 honest boundary ("deleted releases the lock"); this arm closes its
+# tool-layer half. `status: "completed"` stays fully legitimate — the honest
+# path is untouched, so unlike a Stop-gate this arm can never wedge a lane.
+#
+# Deliberate choices, each pinned in tests/test_task_delete_gate.py:
+#   * payload-only (tool_name + tool_input + cwd + marker) — NO transcript
+#     dependence, so a missing transcript cannot disarm it (the F7 lesson);
+#   * `escalation-pending.md` does NOT stand it down — the pause file is
+#     agent-writable (ADV-1), so honouring it is a two-step escape;
+#   * its OWN kill-switch only. CT6_RUN_CONTINUITY_DISABLED governs the
+#     continuation guard; letting it also mute this arm would be the F12
+#     undocumented-extra-kill-switch defect.
+TASK_DELETE_GATE_DISABLE_ENV = "CT6_TASK_DELETE_GATE_DISABLED"
+
+
+def _task_delete_gate_disabled() -> bool:
+    """Truthy per the house kill-switch rule: anything but unset / 0 / false / no."""
+    v = os.environ.get(TASK_DELETE_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _task_delete_check(payload: dict[str, Any]) -> tuple[int, str]:
+    """Refuse `TaskUpdate(status="deleted")` while this workspace's run is active.
+
+    Fail-open on every uncertainty EXCEPT the transcript (which is deliberately
+    never consulted): no cwd, no marker, non-active marker, stale marker, and
+    any internal error all allow the call.
+    """
+    if _rc is None:
+        return 0, ""
+    try:
+        if _task_delete_gate_disabled():
+            return 0, ""
+        inp = payload.get("tool_input") or payload.get("input") or payload.get("args")
+        if not isinstance(inp, dict):
+            return 0, ""
+        if str(inp.get("status") or "").strip().casefold() != "deleted":
+            return 0, ""
+        cwd = payload.get("cwd")
+        if not isinstance(cwd, str) or not cwd.strip():
+            return 0, ""
+        marker = _rc.read_marker(cwd)
+        if not isinstance(marker, dict) or marker.get("status") != "active":
+            return 0, ""
+        if _rc.marker_is_stale(marker):
+            return 0, ""
+        task_id = str(inp.get("taskId") or inp.get("task_id") or "?")
+        return 2, (
+            "CT6 v3.61.0 PreToolUse guardrail BLOCKED — task deletion during an "
+            "active run.\n"
+            "\n"
+            f"  - tool about to fire: TaskUpdate (status: deleted, task {task_id})\n"
+            f"  - active run: {marker.get('slug') or '<unnamed>'}\n"
+            "\n"
+            "The harness task list is the completion lock's ground truth. "
+            "Deleting a task unlinks its file, which releases the lock without "
+            "the work closing — the exact self-asserted exit the lock exists "
+            "to remove, previously a NAMED boundary and now refused.\n"
+            "\n"
+            "REQUIRED ACTION: finish the task and mark it `completed` via "
+            "TaskUpdate — that path is fully legitimate and the lock reads its "
+            "result. A task created in error can be completed with a note; an "
+            "unmanifested task completes freely.\n"
+            "\n"
+            "If deletion is genuinely right (a duplicate, a task from another "
+            "workspace), that is the HUMAN's call: "
+            f"{TASK_DELETE_GATE_DISABLE_ENV}=1 is their lever, or wait until "
+            "the run is marked complete — this arm only exists while a run is "
+            "active."
+        )
+    except Exception:
+        return 0, ""
+
+
 def record_engagement(payload: dict[str, Any]) -> None:
     """Engage/refresh the active-run marker when a run-driving Skill has RUN.
 
@@ -701,6 +783,18 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     arm 1 is the v3.15.0 most-recent-prompt mandate; arm 2 is the v3.30.0
     sticky active-run check (consulted only when arm 1 does not block)."""
     tool = (payload.get("tool_name") or payload.get("tool") or "").strip()
+    if tool == "TaskUpdate":
+        # Arm 3 (v3.61.0) — deletion during an active run. ADDITIVE, never a
+        # replacement: TaskUpdate is ALSO a dispatch tool under arm 1 (the
+        # `_BLOCKED_TOOLS` mandate check), so when this arm does not block the
+        # payload falls through to the normal path. The first cut here
+        # early-returned and silently un-gated TaskUpdate from arms 1 and 2 —
+        # the one-of-two-places defect, caught by the existing arm-1 pin
+        # (test_blocks_build_and_dispatch_tools_allows_setup_tools) before it
+        # ever shipped.
+        code, msg = _task_delete_check(payload)
+        if code:
+            return code, msg
     if tool == "Skill":
         return 0, ""  # the Skill tool itself is always allowed
     if tool not in _BLOCKED_TOOLS:

@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.61.0` — optimize-forcing-gates
 - `v3.60.0` — close-the-open-items
 - `v3.59.3` — audit-record-and-carryovers
 - `v3.59.2` — subtree-scope-suppression
@@ -155,6 +156,28 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.61.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.61.0 — optimize-forcing-gates: "is this optimal?" answered with three closed boundaries and one measured restraint
+
+A review of v3.60.0 split its open surface in two. **Settled by measurement, deliberately kept:** the existence arm stays out of the suite (red-by-construction during every authoring window otherwise), the re-measure cost stays (an artifact must describe the tree that shipped), F14 stays open (0 of 707 transcripts — a speculative fix would be the documented error), symlink coverage stays recorded as untested. **Closeable, now closed:**
+
+- **The backing check stops depending on a human remembering.** `--require-measurements` was the only place the measurement existence arm bites, and *nothing invoked it* — the release's own backing check was prose, the defect class one level up from where v3.60.0 fixed it. A new Stop-hook arm makes an active run that bumped the plugin manifest **unable to end its turn while the published count is unbacked** — and it waits for the CHANGELOG entry to name the manifest version first, so the authoring window is never red by construction.
+- **`TaskUpdate(status="deleted")` no longer releases the completion lock.** The headline v3.56.0 boundary, closed at PreToolUse. `completed` stays fully legitimate, so the arm structurally cannot wedge a lane; a missing transcript cannot disarm it; and the agent-writable pause file deliberately does not stand it down.
+- **Measurement artifacts are immutable to agent tools** — creation included, because a freshly hand-created artifact IS the forgery. Bash remains the named residual; the rule converts forgery from an available accident into a deliberate act.
+
+**The sweep found restraint was correct:** the mixed-clock defect class (absolute date vs relative age — inverts the day the calendar passes the constant) counts exactly ONE instance repo-wide, the one already fixed.
+
+**Four defects were produced while building this, all caught before commit** — including the new arm's first cut silently un-gating TaskUpdate from an older gate (the one-of-two-places shape, caught by a pre-existing pin) and three subprocess calls without pinned encodings (caught by the house cp1252 suite gate).
+
+25 red-first tests, 15/15 mutation witnesses caught, 475-test blast radius green. And for the first time, the arm enforcing measure-before-close shipped inside the release it gates.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
