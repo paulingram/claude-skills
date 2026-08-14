@@ -1,5 +1,35 @@
 # Tasks: close-the-open-items
 
+> **COMPLETION RECORD (v3.60.0).**
+>
+> The per-line checkboxes below were NOT maintained during the run. Ticking them
+> retrospectively would assert line-level verification nobody performed, so they
+> are left as authored and the verified outcome is recorded here instead — at the
+> granularity that was actually checked.
+>
+> **Shipped and verified:** F1, F3, F5, F6, F7, F8, F9, F10, F11, F12, F13 (all
+> with both-directions tests and mutation witnesses), and F2 (the measurement
+> engine, 43/43 witnesses caught, artifact recorded at
+> `docs/measurements/2026-08-14-v3.60.0-suite.json`). F4's adversarial pass ran
+> twice and executed nine escapes; eight closed, the ninth NAMED.
+>
+> **Not shipped, and why:** F14 (the v3.30.0 continuation guard wedging teammates
+> in teams mode) is UNMEASURABLE on this machine. Three probes were run; the first
+> two used the wrong ground truth — token-in-file only proves a Lead *wrote* a
+> brief, and the `subagents/` transcripts are Agent-tool subagents whose Stop is
+> SubagentStop, a different hook. The correct ground truth, a session whose FIRST
+> genuine prompt is the spawn brief, matched **0 of 707 transcripts**: Agent Teams
+> teammates leave no transcript here, so the hypothesis can be neither confirmed
+> nor refuted locally. Building a speculative fix for it would be the exact error
+> this release documents. Carried forward, open and unproven.
+>
+> **Named boundaries carried:** `TaskUpdate(status="deleted")` still releases the
+> lock; unrestricted `Bash` bypasses a tool-layer guard; a hand-written artifact is
+> indistinguishable from a measured one; symlink coverage on the settings arm is
+> UNPROVEN (four attempts, each blocked by lack of privilege).
+
+
+
 Mirrors harness tasks #1–#4, which are the ground truth the completion lock reads.
 This file is the narrative; the task store is the gate.
 
