@@ -79,6 +79,24 @@ Measured, not theorised: v3.60.0's entry initially carried
 `(+241 tests; ...)` instead of the house `(<K> test files)` form. The in-suite arm
 was green; `changelog_check.py --require-measurements` reported the violation.
 
+**Decision (v3.60.0), taken deliberately and against one reviewer's advice.** The
+existence arm stays OUT of the suite. `plugin.json` is bumped at the START of a cycle
+while the artifact can only exist at the END, so the arm is red by construction for
+the whole cycle — measured on this very release, where the suite sat red for hours
+for exactly that reason. A gate that is red by design during ordinary work gets
+switched off, which costs more than it buys.
+
+The reviewer's counter was real and is NOT dismissed: dropping it removes the only
+live check that a published count is backed. The proposed resolution was to wire
+`changelog_check.py --require-measurements` into CI — **but this repo has no CI, no
+pre-commit hook, and no commit path to wire it into.** So the honest statement is
+that enforcement is now checklist-strength: a human must run the command. It is in
+the release conventions in `CLAUDE.md`; it is not automatic, and calling it a gate
+would overstate it.
+
+Evidence it is worth running anyway: on this release it caught a suite-total line in
+the wrong house form while the in-suite arm was green.
+
 This is the SAME architecture the existence arm settled on — the flip-prone or
 lenient arm stays out of the suite, and enforcement lives in the CLI where it runs
 once, deliberately, at release. It is recorded here so nobody reads the in-suite
