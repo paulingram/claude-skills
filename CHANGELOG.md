@@ -18,7 +18,7 @@ A review of the v3.60.0 implementation split its open surface into settled-by-me
 
 25 red-first tests + 15/15 mutation witnesses caught across the three arms (6 O1, 6 O2, 3 O3), blast radius 475 tests green. NEW `tests/test_release_backing_gate.py` + `tests/test_task_delete_gate.py`. No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
 
-Suite **7627 -> 7656 passing + 6 skipped, 0 failed** (246 test files; +29 tests). **Recorded, not asserted** — `docs/measurements/2026-08-14-v3.61.0-suite.json` carries the frozen-tree bracket, and for the first time the arm ENFORCING that requirement shipped inside the release it gates.
+Suite **7627 -> 7655 passing + 6 skipped, 0 failed** (246 test files; +28 tests). **Recorded, not asserted** — `docs/measurements/2026-08-14-v3.61.0-suite.json` carries the frozen-tree bracket, and for the first time the arm ENFORCING that requirement shipped inside the release it gates.
 
 ## [3.60.0] — 2026-08-13 — close-the-open-items (MINOR: the completion lock stops being a gate with nothing feeding it, and every published count gets an artifact behind it)
 
