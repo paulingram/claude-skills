@@ -67,6 +67,32 @@ rising to **7304 / 0 / 7** once the fixtures were restored.
 **Fixed by F3.** The affected tests now self-provision their fixtures, so a fresh clone reproduces
 the published figure rather than inheriting this machine's leftovers.
 
+## OPEN — the backing check runs only because a human remembers
+
+`changelog_check.py --require-measurements` is the ONLY place the existence arm
+bites (the in-suite arm is deliberately lenient, see the boundary below). Nothing
+invokes it. It is in the release conventions as prose, and prose is what this whole
+document exists because of — *a script nobody runs is the same as a note nobody
+reads*, one level up from where v3.60.0 fixed it.
+
+**Fix:** call it from the pipeline's Phase 8 release step / the commit gate, so the
+release path runs it rather than the releaser. A single call closes it.
+
+**Not fixed in v3.60.0, deliberately.** The obvious remediation — "wire it into CI" —
+was recommended and then measured: this repo has no `.github/workflows`, no
+`.pre-commit-config.yaml`, no commit hook. The recommendation named a target that
+does not exist, which is the same wrong-instrument shape aimed at a remediation
+instead of a claim. The real target is the pipeline's own close-out, and changing a
+pipeline skill body is a release, not a footnote.
+
+**Known cost of the mechanism, stated so it is not rediscovered as a bug.** Any
+tracked-file edit after a measurement invalidates the artifact (`source_digest`
+keys committed content by blob sha), so every doc change costs a full re-measure.
+Observed three times during the v3.60.0 release. This is the gate working — the
+artifact must describe the tree it shipped — but it makes "one more small doc fix"
+a five-minute act, and batching doc edits before the final measurement is the way
+to work with it rather than around it.
+
 ## Named boundary — an in-suite arm that is vacuous at exactly release time
 
 `tests/test_changelog_rubric.py::test_live_repo_check` asserts
