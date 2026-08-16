@@ -55,7 +55,14 @@ import pytest
 # skill dir -> (reference id, pre-change baseline bytes, recorded after bytes)
 # Byte counts are LF-normalized (see the module docstring).
 EXTRACTIONS = {
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 259250),
+    # Byte ledger — APPEND transitions, never rewrite (the v3.59.3 lesson: a
+    # rewritten ledger line misattributes which release spent the bytes).
+    #   v3.42.0 extraction:   before 259290 -> after 259250 (the original move)
+    #   v3.62.0 transition:   259250 -> 259287 (+37: the evidence-binding
+    #     contract line in ## Independent review evidence — `task_subject` +
+    #     the `<id>.<slug>.json` collision variant; trimmed twice to stay
+    #     under the 259290 cap, which is UNCHANGED)
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 259287),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...
