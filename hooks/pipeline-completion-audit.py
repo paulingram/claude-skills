@@ -1896,6 +1896,9 @@ def _continuation_block_text(
     marker: dict | None,
     needs_skill_reload: bool,
     budget_note: str | None,
+    *,
+    root: Path | None = None,
+    repeat_count: int = 0,
 ) -> str:
     """The ENGAGED-session block's TEXT (v3.30.0), built once and used twice.
 
@@ -1907,15 +1910,68 @@ def _continuation_block_text(
     `budget_note=None` omits the no-progress footer: the lock deliberately does
     not consume the budget, so reporting a count it never incremented would be
     a false statement about state.
+
+    v3.61.2 — rewritten as an AGENT DIRECTIVE after a field report: a session
+    with a lingering marker re-printed this text at the USER on every
+    conversational turn, forever (the lock composes it with no budget), and
+    the agent never acted on it. Three message defects induced that:
+
+      1. nothing forbade relaying the text to the user, and the safe-looking
+         conversational move is to show it;
+      2. the mark-complete command carried no ``--root``, so it silently
+         depended on the shell's cwd — one failed attempt teaches the agent
+         the command "does not work", after which it recites;
+      3. the menu led with the escalation option's "user must decide"
+         phrasing, priming deferral, while the common stuck case (run
+         finished, marker never closed) sat last.
+
+    Now: a no-relay rule up front, a CHECK-then-ACT decision procedure with
+    the finished case FIRST and a fully-qualified command (absolute script
+    path + ``--root``), the human fork last and explicitly named the only
+    user-facing case — and a TERSE form once ``repeat_count >= 2``, because
+    the second identical wall of text adds nothing the first did not.
+    ``repeat_count`` comes from counters that already exist and are already
+    fingerprint-excluded (the guard's no-progress count; the lock's N5b
+    notify state) — no new state, per the F5 lesson.
+
+    ``root=None`` degrades to the old cwd-dependent command rather than
+    failing; a source pin (test_both_call_sites_pass_root_and_repeat_count)
+    asserts every real call site passes both keywords, so the default is a
+    safety net, never the path taken.
     """
     items = list(violations)
     if marker and marker.get("status") == "active":
         items.append(_lifecycle_line(marker))
     if not items:
         items.append("the run is not complete")
-    lines = "\n  - ".join(items)
     skill = (marker or {}).get("skill") or "architect-team-pipeline"
     hooks_dir = Path(__file__).resolve().parent
+    root_arg = f" --root \"{root}\"" if root is not None else ""
+    complete_cmd = (
+        f"python \"{hooks_dir / 'run_continuity.py'}\" --mark-complete{root_arg}"
+    )
+    state_dir = (f"{root}/.architect-team" if root is not None
+                 else ".architect-team")
+
+    if repeat_count >= 2:
+        # The terse form: the full directive already ran at least once this
+        # wedge episode and nothing about the state has changed. Re-sending
+        # the wall trains the reader (agent AND human, when it leaks) to skim
+        # past it — the same failure mode N5b names for e-mail. What survives
+        # terseness is exactly what must: the no-relay rule and the exit.
+        head = items[0]
+        more = f" (+{len(items) - 1} more)" if len(items) > 1 else ""
+        return (
+            f"pipeline-completion-audit: CONTINUE (block #{repeat_count}, state "
+            f"unchanged) - still open: {head}{more}\n"
+            "This is for YOU, the agent - do not show it to the user. Act per "
+            "the full directive from the first block. If the run is finished:\n"
+            f"    {complete_cmd}\n"
+            "then stop."
+            + (("\n" + budget_note) if budget_note else "")
+        )
+
+    lines = "\n  - ".join(items)
     reload_note = (
         "FIRST ACTION: your context has been compacted since the pipeline "
         f"playbook was loaded - re-invoke Skill(skill=\"{skill}\") NOW to "
@@ -1923,22 +1979,34 @@ def _continuation_block_text(
     ) if needs_skill_reload else ""
     return (
         "pipeline-completion-audit: CONTINUE - the architect-team run is not "
-        "finished, and this session is its orchestrator. Do not end the turn; "
-        "do not ask the user whether to continue (the mandate is the entire "
-        "stack, end to end - asking 'want me to continue?' is the forbidden "
-        "end-of-run deferral). Keep executing the pipeline until every item "
-        "below is closed and the run is marked complete:\n  - "
+        "finished, and this session is its orchestrator.\n"
+        "\n"
+        "THIS BLOCK IS ADDRESSED TO YOU, THE AGENT. Never print, quote, or "
+        "paraphrase it to the user, and never ask them which option applies - "
+        "the user sees your actions, not this text. Verify the state with the "
+        "checks below and ACT, this turn.\n"
+        "\n"
+        "Do not end the turn; do not ask the user whether to continue (the "
+        "mandate is the entire stack, end to end - asking 'want me to "
+        "continue?' is the forbidden end-of-run deferral). Keep executing the "
+        "pipeline until every item below is closed and the run is marked "
+        "complete:\n  - "
         + lines
         + "\n\n"
         + reload_note
-        + "Sanctioned pauses (ONLY these):\n"
-        "  - a genuine human decision: write .architect-team/escalation-pending.md "
-        "describing exactly what the user must decide, then stop.\n"
-        "  - waiting on a background process: touch .architect-team/in-progress.md "
-        "and refresh it while waiting.\n"
-        "  - the run is genuinely finished (audit clean, committed, pushed): run\n"
-        f"        python \"{hooks_dir / 'run_continuity.py'}\" --mark-complete\n"
-        "    then stop."
+        + "Decide by CHECKING, not guessing - exactly one of these applies:\n"
+        "  1. The run is FINISHED - the worklist above shows only the "
+        "lifecycle line, `git status --porcelain` is quiet, the work is "
+        "committed. Then run\n"
+        f"         {complete_cmd}\n"
+        "     and stop. Do this YOURSELF, now, via Bash - it is the sanctioned "
+        "close and needs no human approval.\n"
+        "  2. You are WAITING on a background process you started: touch "
+        f"\"{state_dir}/in-progress.md\" and refresh it while waiting.\n"
+        "  3. A GENUINE human decision blocks the work - a fork only the user "
+        f"can take. Write \"{state_dir}/escalation-pending.md\" describing "
+        "exactly what they must decide, then stop. This is the ONLY case "
+        "where the user enters the picture."
         + (("\n\n" + budget_note) if budget_note else "")
     )
 
@@ -1969,12 +2037,19 @@ def _emit_continuation_block(
     count: int,
     budget: int,
     needs_skill_reload: bool,
+    root: Path | None = None,
 ) -> int:
     """The ENGAGED-session block (v3.30.0): keep the run working — bounded only
-    by the no-progress budget, never by an iteration count."""
+    by the no-progress budget, never by an iteration count.
+
+    v3.61.2: threads `root` into the text (the --root the mark-complete command
+    needs) and reuses the no-progress `count` as the terse-on-repeat trigger —
+    a count >= 2 means this session already received the full directive for
+    this wedge episode and the state has not moved."""
     budget_note = _budget_note(count, budget)
     print(
-        _continuation_block_text(violations, marker, needs_skill_reload, budget_note),
+        _continuation_block_text(violations, marker, needs_skill_reload, budget_note,
+                                 root=root, repeat_count=count),
         file=sys.stderr,
     )
     return 2
@@ -2335,6 +2410,26 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
     return 2
 
 
+def _lock_consecutive(root: Path, session_id: str) -> int:
+    """This session's CURRENT consecutive-block count from the N5b notify state.
+
+    Read-only over state `_completion_lock_notify` already wrote THIS stop
+    (the notify call runs before the text is built), so no counter is
+    advanced here and no new state file exists — the file is already in
+    `_FINGERPRINT_EXCLUDE` (the F5 lesson). Unknown/missing reads as 0, which
+    degrades to the FULL directive: more text, never less enforcement."""
+    try:
+        state = _load_json(root / ".architect-team" / _LOCK_NOTIFY_STATE)
+        if not isinstance(state, dict):
+            return 0
+        entry = state.get((session_id or "unknown")[:8])
+        if not isinstance(entry, dict):
+            return 0
+        return max(0, int(entry.get("consecutive") or 0))
+    except Exception:
+        return 0
+
+
 def _completion_lock_guard_text(
     root: Path,
     marker: dict | None,
@@ -2342,6 +2437,7 @@ def _completion_lock_guard_text(
     records: list,
     head_records: list,
     truncated: bool,
+    session_id: str = "",
 ) -> str | None:
     """The continuation guard's block text when the guard would ALSO have fired.
 
@@ -2372,7 +2468,12 @@ def _completion_lock_guard_text(
         records, since_last_compact=True, head_records=head_records,
         truncated=truncated,
     ) is False
-    return _continuation_block_text(violations, marker, needs_reload, None)
+    # The lock composes with NO budget (documented above), so terseness keys
+    # off the N5b notify state's consecutive count instead — state this stop
+    # already wrote, read back rather than advanced.
+    return _continuation_block_text(violations, marker, needs_reload, None,
+                                    root=root,
+                                    repeat_count=_lock_consecutive(root, session_id))
 
 
 #: N5b - consecutive blocks before the wedge is worth an email. Low enough that
@@ -2889,7 +2990,8 @@ def _completion_lock_action(
         if _rc is not None and marker is not None:
             _rc.touch_marker(root)
         guard_text = _completion_lock_guard_text(
-            root, marker, engaged, records, head_records, truncated
+            root, marker, engaged, records, head_records, truncated,
+            session_id=session_id,
         )
         return _emit_completion_lock_block(verdict, guard_text)
     except Exception as e:
@@ -3078,7 +3180,7 @@ def main(argv: list[str]) -> int:
             truncated=truncated,
         ) is False
         return _emit_continuation_block(
-            violations, marker, count, budget, needs_reload
+            violations, marker, count, budget, needs_reload, root=root
         )
     except Exception as e:  # fail open — never wedge a session on a bug here
         print(f"pipeline-completion-audit: internal error, allowing stop: {e}", file=sys.stderr)

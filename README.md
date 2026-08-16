@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 61 . 1
+                        ─── C T 6 ───   v 3 . 61 . 2
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.61.1-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.61.2-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-7657%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-7669%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -77,16 +77,17 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.61.1  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.61.2  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.61.1 — claude-compliance-compaction: the repo held to its own standard
+### v3.61.2 — agent-directive-block-menu: the gate was right, the message was wrong
 
-A compliance review through the repo's own engines first: instruction-compliance **0 findings** across 120 files, boilerplate in sync, index fresh, release gate backed. The two real findings sat above the machine tier:
+A live run on another machine surfaced it: a lingering active-run marker made the continuation guard re-print its full menu **at the user** on every conversational turn, forever — and the agent never acted on it. The gate was correct; the message induced the non-compliance. Three defects, all in the text: nothing forbade relaying it to the user; the mark-complete command carried no `--root` (one cwd-dependent failure teaches the agent it "doesn't work", after which it recites); and the menu led with "user must decide" — the rare escalation case — priming deferral while the common case (run finished, marker never closed) sat last. The lock composes this text with no budget by design, so the repetition had no ceiling.
 
-- **CLAUDE.md was 54,293 bytes — and the repo's own assessor said so.** The file loaded into every session's context carried 30.7KB of Stack essays and one 9,535-byte sentence duplicating what `CODEBASE_MAP` / `CAPABILITY_INDEX` / `RELEASE_HISTORY` canonically own, burying the operative conventions beneath it. Every distinctive fact was verified present in 2–4 canonical docs before cutting. Now **17,345 bytes (−68%)**: compact shape, a where-the-depth-lives pointer block, one line per surface — with the three-digest convention and the conventions section carried byte-identical. All 413 CLAUDE.md-reading tests green. Honest residual: still above the engine's 2,048-byte purist budget, deliberately and in writing.
-- **The tests badge gets the pin its sibling got at v3.45.0.** A pin that covered one of two badges: the version badge has been pinned for 16 releases; the tests badge next to it drifted three releases stale, then drifted AGAIN during this review — the new test's first run caught it live at 7655 vs the published 7656. Now pinned to the CHANGELOG top entry's count, which is itself measurement-backed, so the badge chains to the recorded artifact.
+Now: a **no-relay rule** up front, a CHECK-then-ACT procedure with the finished case **first** and a fully-qualified exit (absolute path + `--root`, both injected by the hook, which always knew them — "do this YOURSELF, now"), the human fork last and named the only user-facing case — and **terse-on-repeat**: the full directive once per wedge episode, a few lines thereafter, reusing counters that already exist and are already fingerprint-excluded. Proven by three real Stop invocations: full on the first, terse on the third, blocking throughout.
+
+The witness process also caught its own author twice: the ordering pin's first draft matched the wrong `--mark-complete` (the worklist's lifecycle line, not the procedure) and passed for the wrong reason — exposed only when a mutation escaped; and that mutation's first placement sat outside the fixed pin's measurement slice. Both corrected; 6/6 witnesses caught, including a severed-feed mutation proving the end-to-end test guards the wiring.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
