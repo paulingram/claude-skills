@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.62.0` — review-evidence-binding
 - `v3.61.2` — agent-directive-block-menu
 - `v3.61.1` — claude-compliance-compaction
 - `v3.61.0` — optimize-forcing-gates
@@ -158,6 +159,22 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.62.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.62.0 — review-evidence-binding: one reused integer, two broken polarities
+
+A field report measured the same defect in both directions on one run: task ids are small reused integers, and the review gate keyed evidence by the bare id. **Pointing a manifest at "17" rode another lane's clean review to exit 0** — completion on borrowed evidence, an unsound gate. Minutes later the mirror: **task 20 was refused because a different lane's failing review sat under the same id** — an unusable one.
+
+Evidence now carries `task_subject`, and the gate selects among `reviews/<id>.json` + `reviews/<id>.<slug>.json` variants the file **bound to the completing task** (its subject resolved from the harness store). Matching evidence governs exactly as before, pass or fail. Mismatched evidence is *invisible* — it neither passes nor blocks — and the refusal quotes the foreign binding and names the exact variant path to write, so colliding lanes stop fighting over one filename. Unbound legacy evidence keeps today's behaviour in both directions, pinned as the named migration boundary; an unresolvable subject falls back rather than inventing a new block.
+
+7 red-first tests reproduce both live polarities exactly as reported; 6/6 mutation witnesses caught — one of which ESCAPED on its first run and earned its keep by exposing that the collision message and the missing-evidence message were indistinguishable to the pins. The pin now demands what actually distinguishes them: the foreign binding, quoted.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

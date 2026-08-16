@@ -143,6 +143,16 @@ VALID_FRONTEND_IMPACT_E2E_VALUES = {"pass", "n/a", "fail"}
 # task that made no verification CLAIM (a pure docs edit, a rename); it is NOT a
 # way to opt a real claim out of binding.
 VALID_CLAIM_BINDING_VALUES = {"pass", "n/a", "fail"}
+# v3.62.0 — the evidence-binding field. OPTIONAL and deliberately not
+# validated here: `task_subject` binds an evidence file to the TASK it claims
+# (task ids are small integers reused across lanes and runs — both mis-keying
+# polarities were measured live). The BINDING is enforced where the collision
+# exists, in review-gate-task.py's evidence selection; a validator-level
+# requirement would instantly red every legacy evidence file in flight (the
+# ask-ledger lesson: a new field that ships blocking wedges a session on
+# first live use).
+TASK_BINDING_FIELD = "task_subject"
+
 OPTIONAL_VAO_FIELDS = (
     "interactions_honored_review",
     "live_verification_review",

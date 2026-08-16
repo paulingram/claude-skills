@@ -90,7 +90,7 @@ Cross-references: `common-pipeline-conventions` `## Frontend missing-API discipl
    - Author tests (unit + integration). Run them.
    - For state-changing endpoints, capture a curl/HTTP example as the demo artifact.
    - Grep your diff for TODO / placeholder / mock-return.
-   - Write `<cwd>/.architect-team/reviews/<task-id>.json`.
+   - Write `<cwd>/.architect-team/reviews/<task-id>.json` — and include `"task_subject": "<your harness task's exact subject>"` (v3.62.0: task ids are small integers REUSED across lanes and runs; the subject is what binds the evidence to YOUR task). If a file already sits at that id bound to a DIFFERENT subject, do not touch it — write yours beside it as `reviews/<task-id>.<slug>.json`.
    - Then `TaskUpdate` to complete. Hook validates.
 
 ## Per-test expectations & failure handling
