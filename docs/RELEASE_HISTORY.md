@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.61.1` — claude-compliance-compaction
 - `v3.61.0` — optimize-forcing-gates
 - `v3.60.0` — close-the-open-items
 - `v3.59.3` — audit-record-and-carryovers
@@ -156,6 +157,21 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.61.1  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.61.1 — claude-compliance-compaction: the repo held to its own standard
+
+A compliance review through the repo's own engines first: instruction-compliance **0 findings** across 120 files, boilerplate in sync, index fresh, release gate backed. The two real findings sat above the machine tier:
+
+- **CLAUDE.md was 54,293 bytes — and the repo's own assessor said so.** The file loaded into every session's context carried 30.7KB of Stack essays and one 9,535-byte sentence duplicating what `CODEBASE_MAP` / `CAPABILITY_INDEX` / `RELEASE_HISTORY` canonically own, burying the operative conventions beneath it. Every distinctive fact was verified present in 2–4 canonical docs before cutting. Now **17,345 bytes (−68%)**: compact shape, a where-the-depth-lives pointer block, one line per surface — with the three-digest convention and the conventions section carried byte-identical. All 413 CLAUDE.md-reading tests green. Honest residual: still above the engine's 2,048-byte purist budget, deliberately and in writing.
+- **The tests badge gets the pin its sibling got at v3.45.0.** A pin that covered one of two badges: the version badge has been pinned for 16 releases; the tests badge next to it drifted three releases stale, then drifted AGAIN during this review — the new test's first run caught it live at 7655 vs the published 7656. Now pinned to the CHANGELOG top entry's count, which is itself measurement-backed, so the badge chains to the recorded artifact.
+
+Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

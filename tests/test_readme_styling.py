@@ -207,3 +207,34 @@ def test_readme_inventory_counts_match_reality(plugin_root: Path) -> None:
         f"README inventory grid does not say COMMANDS ({n_commands}) — "
         f"there are {n_commands} command files"
     )
+
+
+def test_readme_tests_badge_matches_the_published_count(plugin_root: Path) -> None:
+    """v3.61.1 -- the tests badge is pinned to the CHANGELOG top entry.
+
+    The badge drifted THREE releases stale (it said 7375 while the repo
+    published 7627) because nothing enforced it -- the version badge above got
+    its pin at v3.45.0 after the same failure shape, and the tests badge was
+    left out: a pin that covered one of two badges. The CHANGELOG top entry's
+    suite-total line is the publication this badge must mirror, and that line
+    is itself measurement-backed at release by changelog_check
+    --require-measurements, so pinning badge -> entry chains the badge to the
+    recorded artifact without re-parsing it here.
+    """
+    changelog = _read(plugin_root, ("CHANGELOG.md",))
+    m = re.search(
+        r"Suite\s*:?\s*\*{0,2}\s*(?:[\d,]+\s*(?:->|→)\s*)?([\d,]+)\s+passing",
+        changelog,
+    )
+    assert m, "CHANGELOG top region carries no suite-total line to pin against"
+    published = m.group(1).replace(",", "")
+
+    content = _read(plugin_root, README)
+    badge_m = re.search(r"badge/tests-(\d+)%20passing", content)
+    assert badge_m, "README carries no shields.io tests badge"
+    assert badge_m.group(1) == published, (
+        f"README tests badge says {badge_m.group(1)} passing but the CHANGELOG "
+        f"publishes {published} -- the badge is the most visible count in the "
+        f"repo and must mirror the (measurement-backed) published number"
+    )
+
