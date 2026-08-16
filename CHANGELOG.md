@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.62.0] — 2026-08-16 — review-evidence-binding (MINOR: `reviews/<id>.json` stops being trusted as a unique key, because it never was one)
+
+A field report measured the same defect in BOTH directions on one live run: harness task ids are small integers reused across lanes and runs, and the review gate keyed evidence by the bare id. **False PASS** — pointing a manifest at "17" made the hook exit 0 on another lane's clean review; a task completed on borrowed evidence, which makes the gate unsound. **False BLOCK** — minutes later the mirror image: completing task 20 was refused because `lead-fullscale-local`'s FAILING review of a *different* task sat under the same id, which makes the gate unusable. One keying defect, two polarities, each now carrying the regression test the reporter's SRs demanded.
+
+**The binding.** Evidence gains `task_subject` — the harness task's subject, the one identity both the task store and the reviewer's brief share. At completion the gate resolves the completing task's OWN subject (payload `session_id` → `session-<sid8>/<id>.json`) and selects among `reviews/<id>.json` **plus `reviews/<id>.<slug>.json` variants** the file bound to THIS task:
+
+- **bound + matching → governs**, pass or fail, exactly as before — binding narrows WHOSE evidence counts, never weakens what it must say (pinned both ways);
+- **bound + mismatched → invisible**: it neither passes nor blocks. A manifested completion with only foreign evidence is refused with an ACTIONABLE message that quotes the foreign binding and names the exact variant path to write — so the colliding lane writes its own evidence *beside* the foreign file instead of fighting over one name;
+- **unbound (legacy) → pre-3.62.0 behaviour exactly**, pinned in both directions as the NAMED migration boundary — no in-flight run breaks;
+- **subject unresolvable → legacy**, never a new block on degraded infrastructure (the F9 wedge lesson; real harness events always carry `session_id`).
+
+Matching is casefold + whitespace-collapsed (a reviewer's capitalization is not a different task — witnessed). Writers updated where evidence is authored: `backend`/`frontend` teammate playbooks now bind on write and side-step collisions via the variant path; `task-reviewer` verifies it is holding the RIGHT file before adding its `independent_review` block and never overwrites a foreign one; the conventions grid names the contract. Schema untouched except a registered `TASK_BINDING_FIELD` constant — deliberately NOT validator-required, because a new field that ships blocking wedges live sessions (the ask-ledger lesson, applied instead of relearned).
+
+**7 red-first tests** (both live polarities reproduced exactly as reported, both governs-normally directions, both migration-boundary directions, case-insensitivity), **6/6 mutation witnesses caught** — including one whose first run ESCAPED and improved the tests: with the collision branch dropped, the fallback missing-evidence message also said "reused", and the pin could not tell the two blocks apart. The pin now requires the collision block to QUOTE the foreign binding — the property that actually distinguishes it.
+
+No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
+
+Suite **7669 -> 7676 passing + 6 skipped, 0 failed** (248 test files; +7 tests, NEW `tests/test_review_evidence_binding.py`). **Recorded, not asserted** — `docs/measurements/2026-08-16-v3.62.0-suite.json` carries the frozen-tree bracket.
+
 ## [3.61.2] — 2026-08-16 — agent-directive-block-menu (PATCH: the block menu stops being recited at the user, and stops repeating at full length)
 
 A field report from a live run on another machine: a session with a lingering active-run marker re-printed the continuation guard's full menu at the USER on every conversational turn, indefinitely, and the agent never acted on it. The gate was correct; the MESSAGE induced the non-compliance — the same class v3.59.x named for checks, here for instructions. Three message defects, each verified against the shipped text:

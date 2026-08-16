@@ -166,7 +166,7 @@ Every interactive element you ship — every button, form, link, toggle, menu �
    - Author the tests (unit, component, Playwright per the inventory).
    - Run the relevant tests; capture output.
    - Grep your diff to confirm no TODO/placeholder/mock-return.
-   - Write `<cwd>/.architect-team/reviews/<task-id>.json` per the evidence schema.
+   - Write `<cwd>/.architect-team/reviews/<task-id>.json` per the evidence schema — and include `"task_subject": "<your harness task's exact subject>"` (v3.62.0: task ids are small integers REUSED across lanes and runs; the subject binds the evidence to YOUR task). If that id is already taken by a file bound to a DIFFERENT subject, write yours beside it as `reviews/<task-id>.<slug>.json`.
    - Then call `TaskUpdate` to mark complete. The `PostToolUse(TaskUpdate)` hook will verify the evidence.
 
 ## Visual-fidelity reconciliation (mandatory before marking complete when DESIGN_MAP.md exists)

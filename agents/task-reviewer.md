@@ -113,7 +113,7 @@ For every file the diff CREATES (not modifies), confirm there is a corresponding
 
 ### Step 7 — Write the `independent_review` block into the evidence file
 
-Read the current evidence JSON, ADD an `independent_review` object to it (preserve every existing field — the teammate's `self_review` fields stay), and write the file back:
+FIRST verify you are holding the RIGHT file (v3.62.0): task ids are small integers reused across lanes and runs, so the file's `task_subject` must match the subject of the task you were dispatched to review — if it names a DIFFERENT task, the file is another lane's evidence; locate or create this task's own file (`reviews/<task_id>.<slug>.json`) instead, and never overwrite the foreign one. Then read the current evidence JSON, ADD an `independent_review` object to it (preserve every existing field — the teammate's `self_review` fields stay, and if `task_subject` is absent add it from the task you verified), and write the file back:
 
 ```json
 {

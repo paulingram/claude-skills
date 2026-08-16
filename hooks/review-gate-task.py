@@ -63,6 +63,154 @@ except ImportError:  # pragma: no cover - bare-module fallback
 # the plugin.
 TASK_GATE_DISABLE_ENV = "CT6_TASK_GATE_DISABLED"
 
+# v3.62.0 — the completion-lock substrate supplies the harness task root so the
+# gate can resolve the COMPLETING task's own subject (the binding the evidence
+# key was missing). Same optional-import posture as run_continuity above:
+# unavailable => subject resolution returns None => legacy behaviour.
+try:  # pragma: no cover - exercised by both import paths
+    from hooks import open_work as _ow
+except ImportError:  # pragma: no cover - bare-module fallback
+    try:
+        import open_work as _ow  # type: ignore[no-redef]
+    except ImportError:  # pragma: no cover - substrate unavailable
+        _ow = None  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# v3.62.0 — evidence binding: `reviews/<id>.json` is not a unique key.
+#
+# Measured live in BOTH directions on one run (2026-08-16): harness task ids
+# are small integers reused across lanes and runs, and this gate keyed
+# evidence by the bare id. Pointing a manifest at "17" rode another lane's
+# CLEAN review to exit 0 (false pass — unsound), and minutes later a task 20
+# was blocked by a different lane's FAILING review under the same id (false
+# block — unusable). One keying defect, two polarities.
+#
+# The binding: evidence carries `task_subject`; the gate resolves the
+# completing task's own subject from the harness store and selects among
+# `reviews/<id>.json` + `reviews/<id>.*.json` the file BOUND TO THIS TASK.
+# Mismatched evidence is invisible — it neither passes nor blocks — and a
+# manifested completion with only foreign evidence is refused with the
+# variant path to write. Unbound (legacy) evidence keeps pre-v3.62.0
+# behaviour exactly: the migration boundary, pinned in
+# tests/test_review_evidence_binding.py. A payload without a session id
+# cannot resolve a subject and also falls back to legacy — real harness
+# events always carry one; inventing a NEW block on degraded infrastructure
+# would be the F9 wedge shape.
+
+
+def _normalize_subject(value: Any) -> str | None:
+    """Casefolded, whitespace-collapsed subject — one definition of 'same'."""
+    if not isinstance(value, str):
+        return None
+    collapsed = " ".join(value.split())
+    return collapsed.casefold() or None
+
+
+def _subject_slug(subject: str) -> str:
+    """A filesystem-safe slug of a subject for the variant-file suggestion."""
+    out = []
+    for ch in subject.casefold():
+        out.append(ch if ch.isalnum() else "-")
+    slug = "-".join(part for part in "".join(out).split("-") if part)
+    return slug[:40] or "task"
+
+
+def _completing_task_subject(payload: dict[str, Any], task_id: str) -> str | None:
+    """The COMPLETING task's own subject, read from the harness store, or None.
+
+    Resolution: payload session_id -> `<tasks-root>/session-<sid8>/<id>.json`
+    -> its `subject`. Every failure (no substrate, no session, no file, no
+    subject field) returns None, which the caller treats as LEGACY behaviour
+    — fail-open on infrastructure, never a new block."""
+    if _ow is None:
+        return None
+    try:
+        session_id = str(payload.get("session_id") or "").strip()
+        if not session_id:
+            return None
+        root = _ow.tasks_root(None)
+        task_file = root / f"session-{session_id[:8]}" / f"{task_id}.json"
+        data = json.loads(task_file.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
+        subject = data.get("subject")
+        return subject if isinstance(subject, str) and subject.strip() else None
+    except Exception:
+        return None
+
+
+def _select_evidence_path(
+    cwd: Path, task_id: str, subject: str | None
+) -> tuple[Path | None, str | None]:
+    """Choose the evidence file BOUND to this task; `(path, collision_block)`.
+
+    Returns exactly one of three shapes:
+      (path, None)  — govern with this file (bound-and-matching, or legacy
+                      unbound / unverifiable, preserving pre-v3.62.0
+                      behaviour and its exact fail-closed messages);
+      (None, msg)   — only FOREIGN-bound evidence exists for this id and the
+                      subject is known: refuse with the actionable collision
+                      message (the false-pass polarity's fix);
+      (None, None)  — nothing usable exists: the caller emits the existing
+                      missing-evidence block.
+    """
+    reviews = cwd / ".architect-team" / "reviews"
+    plain = reviews / f"{task_id}.json"
+    variants = sorted(p for p in reviews.glob(f"{task_id}.*.json") if p != plain)
+    candidates = ([plain] if plain.exists() else []) + [v for v in variants if v.exists()]
+    if not candidates:
+        return None, None
+
+    norm_task = _normalize_subject(subject)
+    if norm_task is None:
+        # Subject unresolvable: bound files cannot be verified either way.
+        # Legacy semantics = the plain file governs when present; variant
+        # files are a v3.62.0 construct and mean nothing to a legacy reader.
+        return (plain, None) if plain.exists() else (None, None)
+
+    mismatches: list[tuple[Path, str]] = []
+    legacy: Path | None = None
+    for cand in candidates:
+        try:
+            data = json.loads(cand.read_text(encoding="utf-8"))
+        except Exception:
+            # An unreadable PLAIN file must keep flowing into the main read
+            # path so the existing fail-closed messages (not-valid-JSON /
+            # could-not-be-read) fire unchanged; an unreadable variant is
+            # simply not a candidate.
+            if cand == plain:
+                legacy = plain
+            continue
+        bound = _normalize_subject(data.get("task_subject")) if isinstance(data, dict) else None
+        if bound is None:
+            if cand == plain:
+                legacy = plain  # unbound legacy evidence governs as before
+            continue
+        if bound == norm_task:
+            return cand, None
+        raw = data.get("task_subject") if isinstance(data, dict) else ""
+        mismatches.append((cand, str(raw)))
+
+    if legacy is not None:
+        return legacy, None
+    if mismatches:
+        shown = "; ".join(
+            f"{p.name} is bound to {s!r}" for p, s in mismatches[:3]
+        )
+        variant = f".architect-team/reviews/{task_id}.{_subject_slug(subject)}.json"
+        return None, (
+            f"review-gate-task: blocking task completion (task_id={task_id}): "
+            f"the review evidence under this id is bound to a DIFFERENT task "
+            f"({shown}), and task ids are small integers REUSED across lanes "
+            f"and runs — another lane's evidence neither passes nor fails you. "
+            f"This task's subject is {subject!r}. Write THIS task's own "
+            f"evidence, carrying \"task_subject\": {subject!r}, at\n"
+            f"    {variant}\n"
+            f"and complete again. The foreign file stays untouched."
+        )
+    return None, None
+
 
 def _read_stdin_utf8() -> str:
     """Read the hook payload from stdin as UTF-8 (A8 review-remediation).
@@ -410,12 +558,23 @@ def main() -> int:
             return 2
         return 0
 
-    evidence_path = Path.cwd() / ".architect-team" / "reviews" / f"{task_id}.json"
-    if not evidence_path.exists():
+    # v3.62.0 — select the evidence BOUND to this task rather than trusting
+    # the reused integer id (both mis-keying polarities were measured live).
+    subject = _completing_task_subject(payload, str(task_id))
+    evidence_path, collision_block = _select_evidence_path(
+        Path.cwd(), str(task_id), subject
+    )
+    if collision_block:
+        print(collision_block, file=sys.stderr)
+        return 2
+    if evidence_path is None:
+        missing = Path.cwd() / ".architect-team" / "reviews" / f"{task_id}.json"
         print(
             f"review-gate-task: blocking task completion (task_id={task_id}): "
-            f"missing review evidence at {evidence_path}. "
-            f"Write the evidence file before marking complete.",
+            f"missing review evidence at {missing}. "
+            f"Write the evidence file before marking complete (bind it with a "
+            f"\"task_subject\" field — ids are reused across lanes, and the "
+            f"subject is what makes the evidence yours).",
             file=sys.stderr,
         )
         return 2
