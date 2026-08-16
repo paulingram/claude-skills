@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 61 . 0
+                        ─── C T 6 ───   v 3 . 61 . 1
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.61.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.61.1-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-7655%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-7657%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -77,23 +77,16 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.61.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.61.1  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.61.0 — optimize-forcing-gates: "is this optimal?" answered with three closed boundaries and one measured restraint
+### v3.61.1 — claude-compliance-compaction: the repo held to its own standard
 
-A review of v3.60.0 split its open surface in two. **Settled by measurement, deliberately kept:** the existence arm stays out of the suite (red-by-construction during every authoring window otherwise), the re-measure cost stays (an artifact must describe the tree that shipped), F14 stays open (0 of 707 transcripts — a speculative fix would be the documented error), symlink coverage stays recorded as untested. **Closeable, now closed:**
+A compliance review through the repo's own engines first: instruction-compliance **0 findings** across 120 files, boilerplate in sync, index fresh, release gate backed. The two real findings sat above the machine tier:
 
-- **The backing check stops depending on a human remembering.** `--require-measurements` was the only place the measurement existence arm bites, and *nothing invoked it* — the release's own backing check was prose, the defect class one level up from where v3.60.0 fixed it. A new Stop-hook arm makes an active run that bumped the plugin manifest **unable to end its turn while the published count is unbacked** — and it waits for the CHANGELOG entry to name the manifest version first, so the authoring window is never red by construction.
-- **`TaskUpdate(status="deleted")` no longer releases the completion lock.** The headline v3.56.0 boundary, closed at PreToolUse. `completed` stays fully legitimate, so the arm structurally cannot wedge a lane; a missing transcript cannot disarm it; and the agent-writable pause file deliberately does not stand it down.
-- **Measurement artifacts are immutable to agent tools** — creation included, because a freshly hand-created artifact IS the forgery. Bash remains the named residual; the rule converts forgery from an available accident into a deliberate act.
-
-**The sweep found restraint was correct:** the mixed-clock defect class (absolute date vs relative age — inverts the day the calendar passes the constant) counts exactly ONE instance repo-wide, the one already fixed.
-
-**Four defects were produced while building this, all caught before commit** — including the new arm's first cut silently un-gating TaskUpdate from an older gate (the one-of-two-places shape, caught by a pre-existing pin) and three subprocess calls without pinned encodings (caught by the house cp1252 suite gate).
-
-25 red-first tests, 15/15 mutation witnesses caught, 475-test blast radius green. And for the first time, the arm enforcing measure-before-close shipped inside the release it gates.
+- **CLAUDE.md was 54,293 bytes — and the repo's own assessor said so.** The file loaded into every session's context carried 30.7KB of Stack essays and one 9,535-byte sentence duplicating what `CODEBASE_MAP` / `CAPABILITY_INDEX` / `RELEASE_HISTORY` canonically own, burying the operative conventions beneath it. Every distinctive fact was verified present in 2–4 canonical docs before cutting. Now **17,345 bytes (−68%)**: compact shape, a where-the-depth-lives pointer block, one line per surface — with the three-digest convention and the conventions section carried byte-identical. All 413 CLAUDE.md-reading tests green. Honest residual: still above the engine's 2,048-byte purist budget, deliberately and in writing.
+- **The tests badge gets the pin its sibling got at v3.45.0.** A pin that covered one of two badges: the version badge has been pinned for 16 releases; the tests badge next to it drifted three releases stale, then drifted AGAIN during this review — the new test's first run caught it live at 7655 vs the published 7656. Now pinned to the CHANGELOG top entry's count, which is itself measurement-backed, so the badge chains to the recorded artifact.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
