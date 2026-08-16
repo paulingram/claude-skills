@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.61.2] — 2026-08-16 — agent-directive-block-menu (PATCH: the block menu stops being recited at the user, and stops repeating at full length)
+
+A field report from a live run on another machine: a session with a lingering active-run marker re-printed the continuation guard's full menu at the USER on every conversational turn, indefinitely, and the agent never acted on it. The gate was correct; the MESSAGE induced the non-compliance — the same class v3.59.x named for checks, here for instructions. Three message defects, each verified against the shipped text:
+
+- **Nothing forbade relaying the block to the user.** Hook feedback is agent-directed by design, and the text never said so — so the model's safe-looking conversational move was to quote it and wait.
+- **The mark-complete command carried no `--root`.** It silently depended on the shell's cwd; one failed attempt teaches the agent the command "does not work", after which it recites instead of acting.
+- **The menu led with the escalation option's "user must decide" phrasing** — priming deferral — while the common stuck case (run finished, marker never closed) sat last.
+
+And the repetition had no ceiling by construction: the completion lock COMPOSES this same text with `budget_note=None`, deliberately outside the guard's no-progress budget, so nothing ever varied or shortened it.
+
+**M1 — the menu is now an agent-directive decision procedure.** A no-relay rule up front ("never print, quote, or paraphrase it to the user; never ask them which option applies"), then CHECK-then-ACT options with the finished case FIRST, carrying a fully-qualified command — absolute script path AND `--root "<workspace>"`, both injected by the hook, which always knew them — with "do this YOURSELF, now, via Bash - it needs no human approval". The human fork moves last and is explicitly "the ONLY case where the user enters the picture".
+
+**M2 — terse-on-repeat.** The full directive fires on the first block of a wedge episode; once the caller's consecutive counter reaches 2, the block collapses to a few lines (block number, worklist head + "+K more", the no-relay rule, the fully-qualified exit command). No new state, per the F5 lesson: the guard path reuses its no-progress count, and the lock path READS the N5b notify state this same stop already wrote — a new `_lock_consecutive` reader over a file that is already fingerprint-excluded. Proven end to end by three real Stop invocations: full directive on the first, terse on the third, blocking throughout.
+
+**The witness process caught the witness's own author, twice.** The ordering pin's first draft matched `--mark-complete` in the WORKLIST's lifecycle line rather than in the decision procedure — a pin passing for the wrong reason, exposed only when mutation W5 escaped; and W5's own first placement landed OUTSIDE the slice the fixed pin measures, mutation and pin talking past each other. Both halves were corrected and the demotion mutation is now CAUGHT in-procedure. 6/6 witnesses caught, including a severed-feed mutation proving the end-to-end test guards the wiring, not just the parameter.
+
+No new skill / agent / command / hook script / Layer-3 tool — counts UNCHANGED (53 / 39 / 25 / 7 / 23); `check_separation` unaffected (26).
+
+Suite **7657 -> 7669 passing + 6 skipped, 0 failed** (247 test files; +12 tests, NEW `tests/test_block_menu_directive.py`). **Recorded, not asserted** — `docs/measurements/2026-08-16-v3.61.2-suite.json` carries the frozen-tree bracket.
+
 ## [3.61.1] — 2026-08-16 — claude-compliance-compaction (PATCH: the repo held to its own instruction-surface standard — CLAUDE.md cut 68%, and the one unpinned count badge gets its pin)
 
 A compliance review of the repo's own instruction surfaces, run through the repo's own engines first: `instruction_compliance.py` (120 files, **0 findings**), `compile_skills.py --check` (in sync), `capability_index.py` (fresh), `changelog_check.py --require-measurements` (backed). The machine-checkable tier was clean. The two real findings were above that tier:
