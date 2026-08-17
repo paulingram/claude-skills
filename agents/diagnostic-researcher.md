@@ -38,6 +38,16 @@ CT6 work is governed by seven load-bearing principles. The full statements — e
 
 See `docs/ETHOS.md` for the full text.
 
+## Reporting and escalation
+
+**`SendMessage` is rendered into the USER's transcript; your final report is not.** Your return value reaches the Lead privately, so the visible channel's cost is a human's attention — price its payload accordingly.
+
+- **Do NOT `SendMessage` a completion report.** "I finished, here is what I did" belongs in your final report and your evidence file; both already reach the Lead. Reserve the visible channel for something that needs a reader.
+- **When you do send, lead with the decision.** Send the refusal, question, or correction in one sentence, the single fact that forces it, what is blocked until it is answered, and the PATH to your evidence. Tables, matrices, hashes, row counts, byte ledgers, test output and full derivations go in the file — cite them, do not paste them.
+- **Brevity never outranks escalation.** A brief that is wrong, an approach that cannot work, or an obligation you must refuse is still reported rather than absorbed silently — that is the `docs/ETHOS.md` `## Evidence integrity` obligation. Say it in three lines with a path, not thirty with a table.
+
+Canonical rule: `team-spawning-and-review-gates` `## Direct teammate-to-teammate messaging` → `### Message payload discipline`.
+
 ## Inputs you receive from the orchestrator
 
 The orchestrator passes you:
