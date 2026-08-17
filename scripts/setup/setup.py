@@ -14,6 +14,14 @@ Behavior (in order):
      These are HARD prerequisites. A MISSING required plugin is a HARD failure
      (exit 1) — superpowers especially is a hard dependency of the pipeline,
      NOT a soft warning. The script cannot self-install Claude plugins.
+  6a. Conditional plugin tier (CONDITIONAL_PLUGINS): plugins that are valuable
+      on a project of a particular shape and pure cost everywhere else (today:
+      bauplan@bauplan-skills). These are checked and REPORTED — present or
+      absent, with the same remediation lines a hard prerequisite gets — but
+      the tier NEVER contributes to the exit code. It is deliberately kept out
+      of both exit paths: it is not in REQUIRED_PLUGINS (so it cannot reach
+      `if missing: return 1`) and it contributes no `rows` entry (so it cannot
+      reach `any(status == "failed") -> 2`). The two registries are disjoint.
   6b. openspec-propose availability check: the pipeline depends on the
       openspec-propose / opsx:propose change-proposal skill. This ships as a
       VENDORED local skill at .claude/skills/openspec-propose/SKILL.md (there
@@ -30,6 +38,13 @@ Behavior (in order):
 Flags:
   --check-only        Report status; install nothing; never modify user files.
   --force-reinstall   Reinstall everything we manage even if present.
+  --claude-md PATH    OPT-IN. Keep the Bauplan safety-context guidance block in
+                      that project's CLAUDE.md in sync with its Bauplan project
+                      marker — added when the marker is present (even if the
+                      bauplan plugin is NOT installed, which is exactly when the
+                      "never write directly on main" rules matter most), removed
+                      when the marker is absent. Without this flag no CLAUDE.md
+                      is created or modified. Best effort: never gates setup.
   --no-prompt         Skip interactive consent prompts (print suggested edits).
   --codex             Codex 5.6 is available in this harness: apply the model
                       role split (fable stays on architecture/control/design
@@ -48,7 +63,9 @@ Exit:
   1  At least one required prerequisite is missing and cannot be self-installed.
      This is a HARD block: a missing REQUIRED Claude plugin (superpowers /
      cartographer / ralph-loop) OR a missing openspec-propose skill yields
-     exit 1. superpowers is a hard dependency, not a soft warning.
+     exit 1. superpowers is a hard dependency, not a soft warning. A missing
+     CONDITIONAL_PLUGINS member does NOT: that tier never contributes to any
+     exit code, in either direction.
   2  An installation failed.
   Non-zero on --check-only if agent-teams mode is unsatisfied (REQ-7.1).
 """
@@ -77,6 +94,20 @@ REQUIRED_PLUGINS = {
     "ralph-loop@claude-plugins-official",
 }
 
+# CONDITIONAL tier — a SIBLING registry of REQUIRED_PLUGINS, never an extension
+# of it. A member is verified and reported exactly like a hard prerequisite, but
+# its absence NEVER produces a non-zero exit from setup or from a run: it is not
+# read by the `if missing: return 1` branch in main() (which sees REQUIRED_PLUGINS
+# alone) and it contributes no `rows` entry (which is what the `-> 2` branch
+# reads). The tier is domain-agnostic — adding a member is a registry entry plus,
+# for a third-party marketplace, one _PLUGIN_MARKETPLACE_SOURCES entry; no
+# per-plugin code. The two sets MUST stay disjoint (spec-pinned, unit-tested):
+# a member here is soft by construction, and moving one into the hard set is a
+# spec change, never a convenience edit.
+CONDITIONAL_PLUGINS = {
+    "bauplan@bauplan-skills",
+}
+
 # `tiktoken` is a cartographer RUNTIME dependency (observed missing on a real VM
 # install), not a test tool; setup installs it here so cartographer can run. The
 # list name is kept for backward compatibility with existing tests.
@@ -91,9 +122,11 @@ OPENSPEC_NPM_PKG = "@fission-ai/openspec@latest"
 # works as a package import, a direct script, or an importlib file load.
 try:
     from scripts.setup.teams_mode import _TRUTHY_VALUES, _is_truthy
+    from scripts.setup import guidance_blocks as _guidance
 except ImportError:  # direct script / importlib-by-path execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.setup.teams_mode import _TRUTHY_VALUES, _is_truthy
+    from scripts.setup import guidance_blocks as _guidance
 
 # Non-interactive consent: setting either --yes OR this env var makes every
 # consent prompt assume "y" WITHOUT reading stdin (CI / scripted installs).
@@ -131,15 +164,23 @@ FABLE_FALLBACK_REMEDIATION = (
 # cost a real first-install a GitHub search.
 _PLUGIN_MARKETPLACE_SOURCES: dict[str, str] = {
     "cartographer@cartographer-marketplace": "kingbootoshi/cartographer",
+    # Conditional tier (bauplan) — same third-party shape as cartographer, so it
+    # reuses this map and plugin_remediation_lines() verbatim rather than
+    # growing a second remediation path.
+    "bauplan@bauplan-skills": "BauplanLabs/bauplan-skills",
 }
 
 
 def plugin_remediation_lines(plugin_id: str) -> list[str]:
-    """The ordered `/plugin ...` commands that install a missing required plugin.
+    """The ordered `/plugin ...` commands that install an absent plugin.
 
-    For a plugin whose marketplace is a third-party source (cartographer), the
-    `/plugin marketplace add <source>` step is emitted FIRST, then the install.
-    Default-marketplace plugins get the single install line.
+    For a plugin whose marketplace is a third-party source (cartographer,
+    bauplan), the `/plugin marketplace add <source>` step is emitted FIRST, then
+    the install. Default-marketplace plugins get the single install line.
+
+    Tier-agnostic: hard prerequisites and CONDITIONAL_PLUGINS members share this
+    one helper. The tiers differ in what their absence COSTS, never in how it is
+    remediated.
     """
     lines: list[str] = []
     source = _PLUGIN_MARKETPLACE_SOURCES.get(plugin_id)
@@ -559,6 +600,133 @@ def ensure_openspec_propose_skill(
             "HARD prerequisite for the change-proposal flow."
         ),
     )
+
+
+# ---- Bauplan safety context (trait-keyed CLAUDE.md guidance) -----------------
+#
+# The three existing installers gate their guidance blocks on installed-capability
+# presence. This one deliberately does NOT: its gate is the PROJECT MARKER
+# (`bauplan_project.yml`), because the block carries "never publish by writing
+# directly on `main`" — and the moment those rules matter most is when the plugin
+# that would otherwise carry them is absent. Trait present => block present,
+# plugin or no plugin. Trait absent => block removed.
+#
+# The opt-in `--claude-md` flag still governs everything: without it setup never
+# creates or modifies a CLAUDE.md.
+
+BAUPLAN_GUIDANCE_CAPABILITY = "bauplan"
+BAUPLAN_GUIDANCE_BODY = (
+    "## Bauplan lakehouse safety (CT6)\n"
+    "\n"
+    "This project carries the Bauplan project marker (`bauplan_project.yml`). The\n"
+    "rules below govern every lakehouse operation here and win over any conflicting\n"
+    "default. They hold whether or not the `bauplan` plugin is installed.\n"
+    "\n"
+    "- Never publish by writing or importing data directly on `main`. Create a data\n"
+    "  branch (`bauplan checkout -b <username>.<branch> --from-ref main`), work\n"
+    "  there, and merge to publish. Only branches prefixed with your username are\n"
+    "  writable, and materialization is blocked on `main`.\n"
+    "- Before merging, review with `bauplan branch diff main`, or compare the two\n"
+    "  refs with `bauplan query`.\n"
+    "- Prefer `bauplan run --dry-run` while iterating — much faster and safer. A dry\n"
+    "  run materializes nothing, so use `--preview head` to see table content.\n"
+    "- Never hardcode or commit API keys, including LLM keys — use Bauplan\n"
+    "  parameters or secrets. Never ask the user for a Bauplan key: credentials come\n"
+    "  from the local CLI config, the environment, or a profile.\n"
+    "- Use the CLI for interactive inspection (`bauplan table get`, `bauplan query`,\n"
+    "  `bauplan branch ls`); note `bauplan query` returns 10 rows unless you pass\n"
+    "  `--all-rows`. Use the Python SDK (`client.query()`) for large result sets,\n"
+    "  pipelines, ingestion, and automation.\n"
+    "- The SDK returns Arrow tables: convert with polars (`pl.from_arrow(...)`,\n"
+    "  zero-copy). Do not use pandas.\n"
+    "- Docs index: https://docs.bauplanlabs.com/llms.txt\n"
+    "\n"
+    "Adapted from the upstream `bauplan-skills` plugin's CLAUDE.md\n"
+    "(BauplanLabs/bauplan-skills). CT6 added this block because the project carries\n"
+    "the Bauplan marker, and removes it automatically when the marker goes away."
+)
+
+
+def _resolve_bauplan_detector():
+    """Resolve the Bauplan project-marker detector, or None when unavailable.
+
+    The detector lives with the other codebase trait detectors in
+    `hooks/discipline_registry.py` (`_has_bauplan_markers`, the
+    `_has_frontend_markers` pattern). It is resolved lazily and FAIL-OPEN: on a
+    harness where the hooks package is not importable, the guidance step reports
+    itself skipped rather than guessing at the project's shape.
+    """
+    try:
+        from hooks.discipline_registry import _has_bauplan_markers
+        return _has_bauplan_markers
+    except Exception:  # noqa: BLE001 — any import failure means "unavailable"
+        pass
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from hooks.discipline_registry import _has_bauplan_markers
+        return _has_bauplan_markers
+    except Exception:  # noqa: BLE001 — fail-open; never gate setup on this
+        return None
+
+
+def sync_bauplan_guidance(
+    claude_md: str | os.PathLike[str] | None,
+    *,
+    check_only: bool = False,
+    detector=None,
+) -> tuple[str, str, str | None]:
+    """Keep the Bauplan safety block in `claude_md` in sync with the project marker.
+
+    Returns the standard (name, status, detail) report row. `detector` is the
+    marker predicate over the project root — injected here, resolved from the
+    hooks package when omitted.
+
+    Guidance is BEST EFFORT and never gates setup: no path through this function
+    returns the "failed" status that main() maps to exit 2, and it contributes
+    nothing to the plugin-presence sets that main() maps to exit 1.
+    """
+    name = "bauplan-guidance"
+    if not claude_md:
+        return name, "skipped", "no --claude-md target (opt-in; nothing written)"
+
+    if detector is None:
+        detector = _resolve_bauplan_detector()
+    if detector is None:
+        return (name, "skipped",
+                "bauplan marker detector unavailable; no CLAUDE.md touched")
+
+    target = Path(claude_md)
+    root = target.parent
+    try:
+        # Detect ONCE and reuse the verdict for both the row and the write, so a
+        # detector that answered differently on a second call could not make the
+        # report disagree with what landed on disk.
+        armed = _guidance.coerce_check(detector(root))
+    except Exception as exc:  # noqa: BLE001 — detection is best effort
+        return name, "warn", f"bauplan marker detection failed ({exc}); guidance not synced"
+
+    if check_only:
+        return (name, "note",
+                f"would {'add' if armed else 'remove'} the Bauplan safety block "
+                f"in {target} (--check-only writes nothing)")
+
+    try:
+        result = _guidance.sync_block(
+            target,
+            BAUPLAN_GUIDANCE_CAPABILITY,
+            BAUPLAN_GUIDANCE_BODY,
+            capability_check=lambda _root: armed,
+            project_root=root,
+            create=True,
+        )
+    except Exception as exc:  # noqa: BLE001 — a guidance write NEVER fails setup
+        return name, "warn", f"could not sync the Bauplan safety block ({exc})"
+
+    if result in {"written", "unchanged"}:
+        return name, "present", f"Bauplan safety block present in {target}"
+    if result == "removed":
+        return name, "removed", f"no bauplan marker; block removed from {target}"
+    return name, "skipped", f"no bauplan marker; no block in {target} (no-op)"
 
 
 # ---- Agent-teams mode (v1.0.0) ----------------------------------------------
@@ -1009,6 +1177,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check-only", action="store_true", help="Report status; install nothing.")
     parser.add_argument("--force-reinstall", action="store_true", help="Reinstall everything managed.")
     parser.add_argument(
+        "--claude-md",
+        default=None,
+        help="Path to a target project's CLAUDE.md. OPT-IN: when given, setup "
+             "keeps the Bauplan safety-context guidance block in that file in "
+             "sync with the project's Bauplan marker — added when the marker is "
+             "present (even if the bauplan plugin is NOT installed), removed "
+             "when it is absent. Without this flag no CLAUDE.md is created or "
+             "modified.",
+    )
+    parser.add_argument(
         "--no-prompt",
         action="store_true",
         help="Skip interactive consent prompts (print suggested edits instead). "
@@ -1129,10 +1307,36 @@ def main(argv: list[str] | None = None) -> int:
     openspec_propose_row = ensure_openspec_propose_skill()
     rows.append(openspec_propose_row)
 
-    present, missing = check_plugin_presence(INSTALLED_PLUGINS_PATH, REQUIRED_PLUGINS)
-    _print_report(rows, sorted(present), sorted(missing))
+    # Trait-keyed Bauplan safety context. Opt-in via --claude-md, gated on the
+    # project marker rather than on plugin presence, and best-effort: it can only
+    # ever emit skipped / note / present / removed / warn, never "failed".
+    rows.append(sync_bauplan_guidance(args.claude_md, check_only=args.check_only))
 
-    _write_last_run(rows, present, missing)
+    present, missing = check_plugin_presence(INSTALLED_PLUGINS_PATH, REQUIRED_PLUGINS)
+
+    # Conditional tier: the SAME presence check, kept in its own variables so it
+    # is structurally impossible for it to reach the exit-code computation below
+    # — `missing` is derived from REQUIRED_PLUGINS alone and is the only set the
+    # `if missing: return 1` branch reads. Reported, never fatal.
+    conditional_present, conditional_absent = check_plugin_presence(
+        INSTALLED_PLUGINS_PATH, CONDITIONAL_PLUGINS
+    )
+
+    _print_report(
+        rows,
+        sorted(present),
+        sorted(missing),
+        conditional_present=sorted(conditional_present),
+        conditional_absent=sorted(conditional_absent),
+    )
+
+    _write_last_run(
+        rows,
+        present,
+        missing,
+        conditional_present=conditional_present,
+        conditional_absent=conditional_absent,
+    )
 
     if any(r[1] == "failed" for r in rows):
         return 2
@@ -1154,6 +1358,9 @@ def _print_report(
     rows: list[tuple[str, str, str | None]],
     plugins_present: list[str],
     plugins_missing: list[str],
+    *,
+    conditional_present: Iterable[str] = (),
+    conditional_absent: Iterable[str] = (),
 ) -> None:
     print("\n== architect-team setup report ==")
     for name, status, detail in rows:
@@ -1174,12 +1381,32 @@ def _print_report(
             print(f"  [missing  ] {p}")
             for line in plugin_remediation_lines(p):
                 print(f"             {line}")
+    # Conditional tier — printed in its OWN section, under its own status token
+    # ([absent] rather than [missing]) and with the never-blocks statement on the
+    # heading, so neither state can be read as a hard prerequisite.
+    conditional_present = sorted(conditional_present)
+    conditional_absent = sorted(conditional_absent)
+    if conditional_present or conditional_absent:
+        print(
+            "\nOptional plugins (CONDITIONAL tier — absence NEVER blocks setup "
+            "or a run):"
+        )
+        for p in conditional_present:
+            print(f"  [present  ] {p}  (conditional — never gates setup)")
+        for p in conditional_absent:
+            print(f"  [absent   ] {p}  (conditional — install only if you work "
+                  f"on that kind of project)")
+            for line in plugin_remediation_lines(p):
+                print(f"             {line}")
 
 
 def _write_last_run(
     rows: list[tuple[str, str, str | None]],
     plugins_present: set[str],
     plugins_missing: set[str],
+    *,
+    conditional_present: Iterable[str] = (),
+    conditional_absent: Iterable[str] = (),
 ) -> None:
     out = Path(__file__).parent / ".last-run.json"
     payload = {
@@ -1188,6 +1415,10 @@ def _write_last_run(
         "components": [{"name": n, "status": s, "detail": d} for (n, s, d) in rows],
         "plugins_present": sorted(plugins_present),
         "plugins_missing": sorted(plugins_missing),
+        # Own keys, never folded into plugins_missing: an absent conditional
+        # member is not a missing prerequisite, and a reader must not confuse them.
+        "conditional_plugins_present": sorted(conditional_present),
+        "conditional_plugins_absent": sorted(conditional_absent),
     }
     try:
         out.write_text(json.dumps(payload, indent=2), encoding="utf-8")

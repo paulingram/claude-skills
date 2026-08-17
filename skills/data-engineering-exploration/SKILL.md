@@ -262,6 +262,12 @@ For every transformation step identified in Stage 3 (every dbt model / Airflow t
 
 Every transformation MUST have ≥ 1 `blocker`-severity rule. A transformation with zero blocker rules fails the Stage-6 convergence check.
 
+#### Bauplan-armed rule emission (gated on the arming verdict; a no-op when unarmed)
+
+**This is the strongest single fit in the CT6 injection surface: this stage already mandates the rule, and `bauplan-data-quality-checks` emits exactly that rule.** When the calling run armed the optional `bauplan` lakehouse capability — the `data-eng-pipeline` lane resolves this at its D−1 Part C and records the verdict at `<workspace>/.architect-team/data-eng/<slug>/bauplan-arming.json`; **absent such a verdict this stage is unarmed**, which is the default and the ordinary case — dispatch `bauplan-data-quality-checks` per transformation and take the `expectations.py` it generates as the **implementation** of the ≥ 1 blocker-severity rule the mandate above requires.
+
+The mandate itself does not move, per `common-pipeline-conventions` `## Augment-never-replace discipline (v3.63.0)`: every rule is still authored into `DATA_VALIDATION_LINEAGE_MAP.md` in the schema above, a transformation with zero blocker rules still fails the Stage-6 convergence check, the six-item checklist below is unchanged, and the convergence promise still gates the stage. The bauplan skill supplies a *how* for an obligation this stage states independently of it — it never becomes the obligation, and a transformation it emitted no rule for is still a transformation with zero blocker rules. When the run is not armed, this stage reads no Bauplan instruction and authors its validation rules exactly as it does today.
+
 ### End-to-end lineage tracking
 
 ```json

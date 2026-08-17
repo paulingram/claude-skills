@@ -103,6 +103,16 @@ _FRONTEND_PACKAGE_DEPS = (
     "next", "nuxt", "@remix-run", "preact", "@sveltejs/kit",
 )
 
+# Bauplan project-trait marker (D2). `bauplan_project.yml` is the file the
+# Bauplan CLI itself requires at the root of every Bauplan project, so its
+# presence is a DETERMINISTIC statement that this repo targets the platform —
+# unlike a `bauplan` CLI on PATH or a `~/.bauplan/config.yml`, which are
+# per-MACHINE and would arm on every repo touched from a Bauplan-configured
+# laptop. The glob is recursive so a marker in a monorepo SUBDIRECTORY arms
+# too; `_SKIP_DIR_PARTS` keeps a vendored or reference-cloned copy from
+# arming the host repo.
+_BAUPLAN_MARKER_GLOBS = ("**/bauplan_project.yml",)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -233,6 +243,21 @@ def _has_frontend_markers(workspace: Path) -> tuple[bool, dict[str, Any]]:
             return True, {"marker": "frontend-package-dep", "deps": present[:5],
                           "package_json": str(pkg.relative_to(workspace))}
     return False, {"marker": "none", "reason": "no UI/persona surface detected"}
+
+
+def _has_bauplan_markers(workspace: Path) -> tuple[bool, dict[str, Any]]:
+    """True iff the codebase is a Bauplan project (D2). Marker: a
+    `bauplan_project.yml` anywhere in the tree — the recursive glob means a
+    monorepo subdirectory arms, and `_SKIP_DIR_PARTS` means a vendored or
+    reference-cloned copy does not. Read-only; mirrors `_has_frontend_markers`
+    including its `(bool, {marker, example})` evidence contract."""
+    workspace = Path(workspace)
+    for pattern in _BAUPLAN_MARKER_GLOBS:
+        for p in workspace.glob(pattern):
+            if p.is_file() and not any(skip in set(p.parts) for skip in _SKIP_DIR_PARTS):
+                return True, {"marker": "bauplan-project-file",
+                              "example": str(p.relative_to(workspace))}
+    return False, {"marker": "none", "reason": "no bauplan_project.yml found"}
 
 
 def _latest_mtime(paths: list[Path]) -> float:

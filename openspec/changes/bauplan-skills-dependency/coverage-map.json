@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "change_name": "bauplan-skills-dependency",
+  "source": "/Users/paulingram/Documents/code/claude-skills/.architect-team/refined-prompts/bauplan-skills-dependency-20260817T050000Z.md",
+  "baseline_sha": "395b8265f06cdb1fad2e44ca9400095b6c9471c5",
+  "generated_at": "2026-08-17T06:55:00Z",
+
+  "verification_profile": {
+    "playwright_criteria": "n/a",
+    "playwright_authorization": "No frontend codebase is in scope. Phase -1A discovery found no frontend markers (no package.json with a frontend framework dep, no .tsx/.jsx/.vue/.svelte sources); the target is a Claude Code plugin repo of Markdown instruction surfaces plus stdlib-only Python. Phase -1D interaction-intuition is a documented no-op for the same reason. Recording this N/A explicitly per the Phase 1 gate rule rather than leaving it silent.",
+    "dev_api_integration_criteria": "n/a",
+    "dev_api_authorization": "The change ships no HTTP surface, no server, and no database. There is no endpoint to call, no payload to post, and no dev environment to stand up, so the dev-api-integration-testing criteria have no referent. The analogous real-execution bar for this repo is (a) the default pytest suite executed against the real modules with no mocks of CT6's own code, and (b) the opt-in CT6_EVALS=1 behavioral tier executing a real model against marker-bearing fixtures. Both are bound as acceptance criteria below.",
+    "frontend_e2e": "n/a — no frontend file will be touched by any task in tasks.md"
+  },
+
+  "entries": [
+    {
+      "source_requirement_id": "SRC-001",
+      "source_text": "Add bauplan as a NEW soft/conditional dependency tier in scripts/setup/setup.py — detected and recommended, never a hard REQUIRED_PLUGINS exit-1 block.",
+      "spec_requirement_id": [
+        "conditional-plugin-dependency/A conditional plugin tier exists and never gates setup",
+        "conditional-plugin-dependency/Conditional plugins reuse the existing marketplace-provenance mechanism",
+        "uniform-plugin-usage/All four plugins are verified at setup",
+        "bauplan-integration/Bauplan is a conditional dependency armed by its project marker"
+      ],
+      "scenarios": [
+        "a missing conditional plugin does not fail setup",
+        "a missing hard prerequisite still fails setup",
+        "a present conditional plugin is reported as present",
+        "remediation names the marketplace-add step first",
+        "no duplicate remediation machinery is introduced",
+        "a conditional plugin's absence does not contribute to the exit code",
+        "the two tiers stay disjoint",
+        "setup without the plugin still succeeds",
+        "openspec-propose is in the verified set"
+      ],
+      "acceptance_criteria": [
+        "setup.py --check exits 0 with the conditional member absent and all hard prerequisites present",
+        "setup.py --check exits 1 when any hard prerequisite is absent, in both conditional states",
+        "CONDITIONAL_PLUGINS and REQUIRED_PLUGINS are disjoint (unit-tested invariant)",
+        "plugin_remediation_lines('bauplan@bauplan-skills') returns the marketplace-add line then the install line, in order",
+        "REGRESSION — the pre-existing scenario carried forward in the MODIFIED requirement still holds: openspec-propose (or its resolvable skill) remains part of the verified prerequisites AND its absence still contributes to a non-zero exit. Adding the conditional tier must not weaken the hard set."
+      ],
+      "layer": "backend",
+      "implementing_tasks": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "SRC-002",
+      "source_text": "Detection/arming — bauplan_project.yml anywhere in the repo arms silently (recursive, monorepo-safe); stated Bauplan intent surfaces exactly one confirmation then arms. The greenfield path MUST be reachable.",
+      "spec_requirement_id": [
+        "project-trait-arming/A project trait arms a capability deterministically and recursively",
+        "project-trait-arming/Deterministic signals arm silently and inferred signals require one confirmation",
+        "project-trait-arming/A declined or unarmed run records its disposition",
+        "bauplan-integration/Bauplan is a conditional dependency armed by its project marker"
+      ],
+      "scenarios": [
+        "a top-level marker arms the capability",
+        "a monorepo subdirectory marker arms the capability",
+        "excluded directories do not arm the capability",
+        "no marker means not armed",
+        "marker arms without asking",
+        "stated intent asks exactly once",
+        "greenfield remains reachable",
+        "the confirmation is not skippable as process ceremony",
+        "decline degrades and is recorded",
+        "no signal means no dispatch",
+        "a Bauplan repository arms the path",
+        "a non-Bauplan repository dispatches no bauplan skills"
+      ],
+      "acceptance_criteria": [
+        "_has_bauplan_markers finds a marker in a nested subdirectory (monorepo case)",
+        "_has_bauplan_markers returns false for a marker inside a _SKIP_DIR_PARTS directory",
+        "resolve_bauplan_arming truth table is unit-tested in every cell including declined-confirmation",
+        "greenfield cell (no marker + stated intent + confirmed) resolves armed, keeping bauplan-data-pipeline reachable",
+        "the arming confirmation fires even under a process-gate opt-out (domain gate)"
+      ],
+      "layer": "backend",
+      "implementing_tasks": ["2.1", "2.2", "2.3", "2.4", "3.1", "3.2", "3.3", "3.4"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "SRC-003",
+      "source_text": "Missing-plugin behavior at RUN time — warn and degrade: proceed generic, record the missed capability plus exact remediation in the run report. Never block.",
+      "spec_requirement_id": [
+        "conditional-plugin-dependency/A run reports a missed conditional capability instead of blocking"
+      ],
+      "scenarios": [
+        "warn and degrade",
+        "silence is not acceptable"
+      ],
+      "acceptance_criteria": [
+        "a Bauplan-shaped project with the plugin absent completes the run using generic behavior",
+        "the run report names the missed capability AND its remediation lines",
+        "the run does not block, pause, or fail on this condition"
+      ],
+      "layer": "backend",
+      "implementing_tasks": ["7.2", "7.4"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "SRC-004",
+      "source_text": "Review the WHOLE CT6 injection surface and choose the best combination of injection points, justifying each. The two originally-named candidates are EXAMPLES, not constraints. Map each of the 6 bauplan skills to the CT6 phase(s) where it is the right tool.",
+      "spec_requirement_id": [
+        "bauplan-integration/Each bauplan skill is bound to the CT6 phase where it is the right tool"
+      ],
+      "scenarios": [
+        "every bauplan skill has a binding",
+        "injection points are justified, not assumed"
+      ],
+      "acceptance_criteria": [
+        "all six bauplan-* skills appear in the skill-to-phase mapping with at least one phase and a justification",
+        "the mapping derives from a whole-surface review recorded in design.md D4, including the alternatives rejected (agents-only, both, autodiscovery-alone)",
+        "every injection point added to a CT6 surface carries its stated justification",
+        "each lane pointer is gated on the arming result, so an unarmed run reads no Bauplan instruction"
+      ],
+      "layer": "infra",
+      "implementing_tasks": ["6.1", "6.2", "6.3", "6.4", "6.5", "6.6"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "SRC-005",
+      "source_text": "Bauplan context file — propagate via the existing guidance-block mechanism, keyed on the MARKER not on plugin presence, so the safety rules persist through the degraded path.",
+      "spec_requirement_id": [
+        "installer-guidance-blocks/A guidance block may be gated on a detected project trait",
+        "bauplan-integration/Bauplan safety context is propagated on the marker, not on plugin presence"
+      ],
+      "scenarios": [
+        "trait present and capability absent still yields the block",
+        "trait absent removes the block",
+        "the opt-in flag still governs",
+        "trait-keyed blocks remain idempotent",
+        "safety context survives a missing plugin",
+        "no marker means no block",
+        "opt-in is still required"
+      ],
+      "acceptance_criteria": [
+        "trait present + plugin absent + --claude-md supplied yields the Bauplan safety block present",
+        "trait absent removes exactly the fenced block, every other byte preserved",
+        "no --claude-md flag means no CLAUDE.md created or modified, in either trait state",
+        "running twice against a trait-bearing project leaves the block present exactly once",
+        "upsert_block / remove_block / block_fences signatures and behavior are unchanged"
+      ],
+      "layer": "backend",
+      "implementing_tasks": ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6", "4.7"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "SRC-006",
+      "source_text": "PRECEDENCE — bauplan skills AUGMENT, never REPLACE, CT6's own invariants. D0 still dispatches data-engineering-exploration VERBATIM. No gate is relaxed. Bauplan safety rules win on lakehouse operations, conflict recorded.",
+      "spec_requirement_id": [
+        "bauplan-integration/Bauplan skills augment CT6 invariants and never replace them"
+      ],
+      "scenarios": [
+        "the verbatim exploration dispatch survives",
+        "no review gate is relaxed",
+        "platform safety rules take precedence"
+      ],
+      "acceptance_criteria": [
+        "the canonical augment-never-replace section exists once in common-pipeline-conventions and is referenced (not duplicated) by both lanes",
+        "an armed Bauplan data-eng run still dispatches data-engineering-exploration verbatim at D0",
+        "the evidence required by the paired review gate and close-out gate is unchanged between an armed and unarmed run",
+        "a diff of the two lane bodies shows only additive sentences — no existing gate wording weakened"
+      ],
+      "layer": "infra",
+      "implementing_tasks": ["5.1", "5.2", "5.3", "5.4"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "SRC-007",
+      "source_text": "Scope (out) — Bauplan credential handling, provisioning, or account setup: the plugin's own auth chain is used as-is; CT6 never prompts for or stores a Bauplan key. Layer-6 enforcement hooks are not modified.",
+      "spec_requirement_id": [
+        "bauplan-integration/CT6 never handles Bauplan credentials"
+      ],
+      "scenarios": [
+        "no credential prompt"
+      ],
+      "acceptance_criteria": [
+        "no code path in setup, arming, or dispatch requests a Bauplan credential or writes one to CT6 state",
+        "no file under hooks/ that implements a Layer-6 enforcement arm is modified by this change (asserted in test)"
+      ],
+      "layer": "backend",
+      "implementing_tasks": ["7.4"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "AC-003/004/005",
+      "source_text": "Behavioral bar — an armed run records at least one bauplan-* dispatch to a run-state artifact; an unarmed run records zero; the greenfield path is reachable.",
+      "spec_requirement_id": [
+        "behavioral-evals/Arming behavior is covered by the opt-in eval tier"
+      ],
+      "scenarios": [
+        "marker fixture arms and dispatches",
+        "bare fixture arms nothing",
+        "greenfield intent reaches the project-creation skill",
+        "the default suite is unaffected"
+      ],
+      "acceptance_criteria": [
+        "each bauplan-* dispatch is recorded with skill, phase, teammate, timestamp under .architect-team/data-eng/<slug>/bauplan-dispatches.json",
+        "the marker-fixture eval produces at least one recorded dispatch",
+        "the bare-fixture eval produces zero recorded dispatches",
+        "the greenfield eval reaches bauplan-data-pipeline after an affirmative confirmation",
+        "all three evals stay behind CT6_EVALS=1 and the default suite runs key-free with unchanged determinism"
+      ],
+      "layer": "backend",
+      "implementing_tasks": ["7.1", "7.3", "8.1", "8.2", "8.3", "8.4", "8.5"],
+      "implementing_commits": []
+    },
+    {
+      "source_requirement_id": "AC-002",
+      "source_text": "Every injected reference resolves — instruction-compliance lint zero findings; the pytest suite stays green at or above its recorded count. Documentation ships current.",
+      "spec_requirement_id": [
+        "cross-cutting — enforced by the Phase 8 documentation-currency gate and the suite-measurement release gate"
+      ],
+      "scenarios": [
+        "instruction_compliance reports zero findings across the in-scope instruction set",
+        "the recorded suite measurement backs the released count"
+      ],
+      "acceptance_criteria": [
+        "scripts/compliance/instruction_compliance.py reports zero findings",
+        "the pytest suite passes at or above the recorded 7676 passing / 6 skipped baseline",
+        "docs/CODEBASE_MAP.md covers the new tier, detector, and trait-keyed gate — and its stale last_mapped stamp (2026-08-03, against a file last rewritten in the v3.62.0 commit d8c8136) is corrected",
+        "docs/CAPABILITY_INDEX.md is regenerated",
+        "CHANGELOG.md entry conforms to docs/CHANGELOG_RUBRIC.md and plugin.json + marketplace.json are bumped in lockstep",
+        "a suite measurement artifact is recorded under docs/measurements/ so the released count is backed, not asserted"
+      ],
+      "layer": "infra",
+      "implementing_tasks": ["9.1", "9.2", "9.3", "9.4", "9.5", "9.6"],
+      "implementing_commits": []
+    }
+  ],
+
+  "uncovered_source_requirements": [],
+  "confirmed_stubs": [],
+
+  "notes": [
+    "Every one of the 14 authored spec requirements is referenced by at least one entry above; every one of the 40 authored scenarios appears in an entry's scenarios list.",
+    "Reuse Decisions are recorded in design.md and each cites a verified file:line anchor (setup.py:74, :132, :1141; discipline_registry.py:204; guidance_blocks.py:55/:116/:161).",
+    "Layer classification: 'backend' covers the stdlib-only Python modules; 'infra' covers the Markdown instruction surfaces (skills, conventions, docs). No entry is 'frontend' or 'both' — see verification_profile."
+  ]
+}

@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 62 . 0
+                        ─── C T 6 ───   v 3 . 63 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.62.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-3.63.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-7676%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-7806%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -77,17 +77,21 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.62.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v3.63.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.62.0 — review-evidence-binding: one reused integer, two broken polarities
+### v3.63.0 — bauplan-skills-dependency: a dependency that costs nothing where it does not apply
 
-A field report measured the same defect in both directions on one run: task ids are small reused integers, and the review gate keyed evidence by the bare id. **Pointing a manifest at "17" rode another lane's clean review to exit 0** — completion on borrowed evidence, an unsound gate. Minutes later the mirror: **task 20 was refused because a different lane's failing review sat under the same id** — an unusable one.
+CT6 had exactly one way to depend on a plugin — a hard block that exits setup 1 when a member is missing. Correct for superpowers, cartographer, and ralph-loop. Wrong for a data-lakehouse plugin most users will never touch.
 
-Evidence now carries `task_subject`, and the gate selects among `reviews/<id>.json` + `reviews/<id>.<slug>.json` variants the file **bound to the completing task** (its subject resolved from the harness store). Matching evidence governs exactly as before, pass or fail. Mismatched evidence is *invisible* — it neither passes nor blocks — and the refusal quotes the foreign binding and names the exact variant path to write, so colliding lanes stop fighting over one filename. Unbound legacy evidence keeps today's behaviour in both directions, pinned as the named migration boundary; an unresolvable subject falls back rather than inventing a new block.
+**A conditional tier** now sits beside the hard set, provably disjoint from it and routed nowhere near the exit-code branch: a missing conditional member is reported and remediated but can never fail an install.
 
-7 red-first tests reproduce both live polarities exactly as reported; 6/6 mutation witnesses caught — one of which ESCAPED on its first run and earned its keep by exposing that the collision message and the missing-evidence message were indistinguishable to the pins. The pin now demands what actually distinguishes them: the foreign binding, quoted.
+**Arming is asymmetric by how certain the signal is.** A `bauplan_project.yml` anywhere in the repo arms silently — recursive, so a monorepo subdirectory counts; skip-list aware, so a vendored or reference-cloned copy never arms its host. Stated intent with no marker asks exactly once, then arms. That second path is not politeness: the pipeline-creation skill exists to build projects from scratch, where no marker can yet exist.
+
+**It injects into the lanes, not the agents.** The agent boilerplate compiles into all 39 agents unconditionally — a block there would ship lakehouse instructions to `visual-analyzer` and `closeout-agent` forever. Each skill landed where it is genuinely the right tool instead, and every pointer is gated on the arming verdict: an unarmed run reads no Bauplan instruction at all.
+
+**A shipped leak closed on the way.** A byte-preservation test written for the new gate exposed a defect present in every prior release: guidance-block removal never reclaimed the newline its insertion wrote, so each install/uninstall cycle left one byte behind and accumulated without bound in a file CT6 does not own.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 

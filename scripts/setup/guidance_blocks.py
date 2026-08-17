@@ -20,6 +20,12 @@ Contract:
   * remove_block  — deletes exactly the fenced block (both fences inclusive)
     plus a single trailing-newline normalization, byte-preserving everything
     else. A missing file or missing block is a no-op.
+  * sync_block    — drives the two above from a capability check supplied as a
+    PREDICATE over the target project, so a block may be gated on a detected
+    project trait instead of on an installed capability. The gate is the only
+    new part: upsert_block / remove_block / block_fences are used verbatim.
+  * coerce_check  — normalizes a check verdict (a bool, or the `(bool, evidence)`
+    tuple the house trait detectors return) so a detector needs no wrapper.
   * Writes are atomic (tmp file + os.replace) and byte-exact (binary I/O, so a
     file's existing CRLF / trailing-whitespace bytes are never rewritten).
   * ASCII-safe: the emitted fences + wrapper are ASCII; the capability slug is
@@ -34,7 +40,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Union
 
 # A conservative ASCII slug: lowercase letters / digits / hyphen / underscore,
 # starting with an alphanumeric. This is validated (never silently rewritten)
@@ -147,10 +153,14 @@ def upsert_block(
         new_text = text[: span[0]] + block + text[span[1]:]
     elif text == "":
         new_text = block + "\n"
-    elif text.endswith("\n"):
-        new_text = text + "\n" + block + "\n"
     else:
-        new_text = text + "\n\n" + block + "\n"
+        # ONE separator newline in both branches, so remove_block can reclaim it
+        # with a single symmetric strip. The earlier asymmetry — "\n" when the
+        # file ended with a newline, "\n\n" when it did not — made an exact
+        # reverse impossible: from the file alone the two are indistinguishable
+        # after the fact, so no reclaim rule could restore both. A file with no
+        # trailing newline therefore keeps not having one across a round trip.
+        new_text = text + "\n" + block + "\n"
 
     if new_text == text:
         return False
@@ -189,8 +199,97 @@ def remove_block(claude_md_path: PathLike, capability: str) -> bool:
         after = after[2:]
     elif after.startswith("\n"):
         after = after[1:]
+    # Reclaim the SEPARATOR newline that upsert_block inserted ahead of an
+    # APPENDED block, so an upsert -> remove round trip is byte-identical.
+    # Without this the separator survives every cycle and the user's file grows
+    # by one byte per install/uninstall, without bound (measured: a 30-byte
+    # CLAUDE.md reached 35 bytes after five cycles). That accumulation is what
+    # the spec's "all other CLAUDE.md content is byte-preserved" scenario
+    # forbids, and it shipped un-caught because the round trip was never
+    # asserted end-to-end.
+    #
+    # Only an APPENDED block is reclaimed: upsert appends at EOF, so an empty
+    # `after` is what distinguishes the separator it wrote from a blank line
+    # that is genuinely the user's. A hand-seeded block MID-file leaves `after`
+    # non-empty, and its preceding blank line is content — stripping it there
+    # would corrupt the document rather than restore it.
+    #
+    # KNOWN, BOUNDED EDGE: a block the user placed at EOF themselves, behind a
+    # blank line they wrote, loses that blank line — after the fact it is
+    # byte-identical to the separator an upsert would have written, so the two
+    # cannot be told apart from the file alone. The cost is one trailing blank
+    # line in a hand-edited file; it does not accumulate and never reaches
+    # mid-file content. Preferred over the alternative, which was a leak on the
+    # COMMON path that grew without bound on every install/uninstall cycle.
+    if not after and before.endswith("\n"):
+        # Exactly ONE "\n" — the precise byte upsert_block wrote — and never the
+        # "\r\n" pair. Upsert's separator is a bare "\n" appended to whatever the
+        # file already ended with, so on a CRLF file it produces "...\r\n\n" and
+        # one "\n" is the right reclaim; but on a bare-CR file (classic Mac) it
+        # produces "...\r\n", where treating that as a CRLF pair would eat the
+        # user's own CR. Stripping the pair destroyed a byte that was never ours
+        # — caught by independent review, not by the author.
+        before = before[:-1]
     new_text = before + after
     if new_text == text:
         return False
     _atomic_write(path, new_text)
     return True
+
+
+def coerce_check(result: Any) -> bool:
+    """Normalize a capability-check verdict to a bool.
+
+    The house trait-detector shape (`hooks/discipline_registry.py`'s
+    `_has_frontend_markers`) returns `(bool, evidence_dict)`; a plain predicate
+    returns a bool. Both are accepted so an existing detector can be passed in
+    verbatim rather than wrapped. Only the verdict is read — the evidence is the
+    caller's to report.
+    """
+    if isinstance(result, tuple):
+        return bool(result[0]) if result else False
+    return bool(result)
+
+
+def sync_block(
+    claude_md_path: Optional[PathLike],
+    capability: str,
+    body: str,
+    *,
+    capability_check: Callable[[Path], Any],
+    project_root: Optional[PathLike] = None,
+    create: bool = True,
+) -> str:
+    """Add or remove a guidance block according to a check over the TARGET PROJECT.
+
+    `capability_check` is called with the project root — `claude_md_path`'s
+    directory unless `project_root` says otherwise — and may return either a
+    bool or the `(bool, evidence)` tuple the house trait detectors return. When
+    it passes, the block is upserted; when it does not, the block is removed.
+
+    Keying the gate on a project trait rather than on an installed capability is
+    what lets safety-critical guidance survive the DEGRADED path, where the
+    tooling that would otherwise enforce it is missing — which is exactly when
+    it is needed. The gate is the ONLY thing this adds: upsert_block and
+    remove_block are called verbatim and no byte handling happens here, so an
+    existing capability-gated caller behaves identically through this path.
+
+    Returns one of:
+      * ``"written"``   — the block was added, replaced, or created.
+      * ``"unchanged"`` — the check passed and the block was already correct.
+      * ``"removed"``   — the check failed and an existing block was deleted.
+      * ``"absent"``    — the check failed and there was no block to delete.
+      * ``"skipped"``   — nothing was attempted: no target path was supplied, or
+        the file does not exist and create=False.
+    """
+    if not claude_md_path:
+        return "skipped"
+    path = Path(claude_md_path)
+    root = Path(project_root) if project_root is not None else path.parent
+
+    if not coerce_check(capability_check(root)):
+        return "removed" if remove_block(path, capability) else "absent"
+
+    if not path.exists() and not create:
+        return "skipped"
+    return "written" if upsert_block(path, capability, body, create=create) else "unchanged"
