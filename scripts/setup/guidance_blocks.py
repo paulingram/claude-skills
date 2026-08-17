@@ -221,14 +221,27 @@ def remove_block(claude_md_path: PathLike, capability: str) -> bool:
     # line in a hand-edited file; it does not accumulate and never reaches
     # mid-file content. Preferred over the alternative, which was a leak on the
     # COMMON path that grew without bound on every install/uninstall cycle.
-    if not after and before.endswith("\n"):
-        # Exactly ONE "\n" — the precise byte upsert_block wrote — and never the
-        # "\r\n" pair. Upsert's separator is a bare "\n" appended to whatever the
-        # file already ended with, so on a CRLF file it produces "...\r\n\n" and
-        # one "\n" is the right reclaim; but on a bare-CR file (classic Mac) it
-        # produces "...\r\n", where treating that as a CRLF pair would eat the
-        # user's own CR. Stripping the pair destroyed a byte that was never ours
-        # — caught by independent review, not by the author.
+    if not after and before.endswith("\n") and not before.endswith("\r\n"):
+        # Exactly ONE "\n" — the precise byte upsert_block wrote — and only when
+        # it is NOT the tail of a "\r\n". Upsert's separator is always a lone
+        # "\n" appended to whatever the file already ended with, so:
+        #   LF   file: "...\n"   + "\n" -> "...\n\n"   -> strip -> "...\n"   OK
+        #   CRLF file: "...\r\n" + "\n" -> "...\r\n\n" -> strip -> "...\r\n" OK
+        # In both, the byte before the trailing "\n" is itself "\n", never "\r".
+        # A trailing "\r\n" therefore belongs to the FILE, not to us, and
+        # stripping its "\n" tears the pair into a dangling "\r" — malformed
+        # line endings, which is worse in kind than the leak this reclaim
+        # exists to prevent.
+        #
+        # The residue: a bare-CR file (classic Mac) upserted-then-removed keeps
+        # one extra "\n". It is stable, not cumulative — the next cycle sees a
+        # "\r\n" tail and reclaims nothing — and the file stays well-formed. A
+        # one-time byte on a degenerate shape is the right trade against
+        # emitting a torn CRLF on a shape a user can actually hand-write.
+        #
+        # Both halves of this were found by independent review, not by the
+        # author: the first pass stripped the "\r\n" pair (destroying a bare CR),
+        # the second stripped any "\n" (tearing a real CRLF).
         before = before[:-1]
     new_text = before + after
     if new_text == text:
