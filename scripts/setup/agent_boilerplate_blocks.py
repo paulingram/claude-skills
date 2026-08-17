@@ -100,6 +100,32 @@ CHECKPOINT_DISCIPLINE_HEADING = "## Checkpoint discipline"
 OPERATING_CONTEXT_HEADING = "## Operating context (v1.0.0)"
 PRINCIPLES_HEADING = "## Operating principles"
 
+REPORTING = (
+    "## Reporting and escalation\n"
+    "\n"
+    "**`SendMessage` is rendered into the USER's transcript; your final report is "
+    "not.** Your return value reaches the Lead privately, so the visible channel's "
+    "cost is a human's attention — price its payload accordingly.\n"
+    "\n"
+    "- **Do NOT `SendMessage` a completion report.** \"I finished, here is what I "
+    "did\" belongs in your final report and your evidence file; both already reach "
+    "the Lead. Reserve the visible channel for something that needs a reader.\n"
+    "- **When you do send, lead with the decision.** Send the refusal, question, or "
+    "correction in one sentence, the single fact that forces it, what is blocked "
+    "until it is answered, and the PATH to your evidence. Tables, matrices, hashes, "
+    "row counts, byte ledgers, test output and full derivations go in the file — "
+    "cite them, do not paste them.\n"
+    "- **Brevity never outranks escalation.** A brief that is wrong, an approach "
+    "that cannot work, or an obligation you must refuse is still reported rather "
+    "than absorbed silently — that is the `docs/ETHOS.md` `## Evidence integrity` "
+    "obligation. Say it in three lines with a path, not thirty with a table.\n"
+    "\n"
+    "Canonical rule: `team-spawning-and-review-gates` `## Direct teammate-to-"
+    "teammate messaging` → `### Message payload discipline`."
+)
+
+REPORTING_HEADING = "## Reporting and escalation"
+
 # --- the three VAO agents (R4c, v3.10.0) -------------------------------------
 # These three (adversarial-reviewer, interaction-observer, oracle-deriver) now
 # carry the CANONICAL git + checkpoint blocks like every other agent — the
@@ -148,6 +174,7 @@ STANDARD_AGENTS_OPERATING_CONTEXT = [
 # block is inserted after the checkpoint block (a universal anchor every agent has)
 # and thereafter kept byte-identical to the canonical text like any equals block.
 STANDARD_AGENTS_PRINCIPLES = list(STANDARD_AGENTS_FORBIDDEN_GIT)
+STANDARD_AGENTS_REPORTING = list(STANDARD_AGENTS_FORBIDDEN_GIT)
 
 # Match modes: "equals" -> full block must equal canonical; "prefix" -> block
 # must START with canonical (extra role-specific text after it is allowed).
@@ -189,6 +216,14 @@ BLOCKS = {
         "standard_agents": list(STANDARD_AGENTS_PRINCIPLES),
         "variant_agents": [],
         "insert_after_heading": CHECKPOINT_DISCIPLINE_HEADING,
+    },
+    "reporting": {
+        "heading": REPORTING_HEADING,
+        "canonical": REPORTING,
+        "match": MATCH_EQUALS,
+        "standard_agents": list(STANDARD_AGENTS_REPORTING),
+        "variant_agents": [],
+        "insert_after_heading": PRINCIPLES_HEADING,
     },
 }
 
