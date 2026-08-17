@@ -38,7 +38,7 @@
 
 ![version](https://img.shields.io/badge/version-3.63.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-7806%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-7807%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
