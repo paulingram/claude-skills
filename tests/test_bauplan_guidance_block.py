@@ -178,24 +178,47 @@ def test_sync_block_repeated_cycles_do_not_accumulate_bytes(
     assert claude_md.read_bytes() == original
 
 
-def test_round_trip_preserves_a_bare_cr_file(
+def test_a_bare_cr_file_stays_well_formed_and_stable(
     gb: ModuleType, tmp_path: Path
 ) -> None:
-    """A classic-Mac bare-CR file keeps its trailing CR across a round trip.
+    """A classic-Mac bare-CR file keeps a WELL-FORMED tail and stops changing.
 
-    Found by INDEPENDENT REVIEW, not by the author: `upsert_block` appends a
-    bare "\\n" separator, so on a CR-terminated file it lands against the
-    user's "\\r" and forms a "\\r\\n" pair. A reclaim that strips the PAIR
-    eats a byte that was never CT6's — destroying user content rather than
-    merely leaking, which is strictly worse than the defect it replaced. The
-    reclaim now removes exactly the one "\\n" upsert wrote."""
+    Two independent reviews shaped this. The first reclaim stripped the "\\r\\n"
+    pair, DESTROYING the user's bare CR. The correction stripped any trailing
+    "\\n" — which then TORE a genuine CRLF into a dangling "\\r" on a
+    hand-seeded block (see the sibling test). The reclaim now fires only when
+    the trailing "\\n" is not part of a "\\r\\n".
+
+    The residue on this degenerate shape is one "\\n", and what matters is that
+    it is STABLE — the next cycle sees a "\\r\\n" tail and reclaims nothing —
+    so nothing accumulates and the file never becomes malformed."""
     claude_md = _project(tmp_path, existing="# Target\rnotes.\r")
-    original = claude_md.read_bytes()
-    assert original.endswith(b"\r") and not original.endswith(b"\r\n")
+    sizes = []
     for _ in range(5):
         gb.upsert_block(claude_md, "bauplan", "rules")
         gb.remove_block(claude_md, "bauplan")
-    assert claude_md.read_bytes() == original
+        sizes.append(len(claude_md.read_bytes()))
+    assert len(set(sizes)) == 1, f"bare-CR round trip is not stable: {sizes}"
+    assert not claude_md.read_bytes().endswith(b"\r"), "left a torn CR"
+
+
+def test_removal_never_tears_a_crlf_into_a_dangling_cr(
+    gb: ModuleType, tmp_path: Path
+) -> None:
+    """A hand-seeded block at EOF behind a CRLF blank line keeps that blank line.
+
+    Found by independent review as a PREDICTION about the fix, then confirmed
+    live: stripping the trailing "\\n" of a genuine "\\r\\n" leaves a bare
+    "\\r" — malformed line endings, which is worse in kind than the byte leak
+    the reclaim exists to prevent. `upsert_block` never writes this shape, so
+    the reclaim must not assume it did."""
+    begin, end = gb.block_fences("bauplan")
+    seeded = f"# Target\r\n\r\n{begin}\nrules\n{end}\n"
+    claude_md = _project(tmp_path, existing=seeded)
+    gb.remove_block(claude_md, "bauplan")
+    got = claude_md.read_bytes()
+    assert not got.endswith(b"\r"), f"torn CRLF: {got!r}"
+    assert got == b"# Target\r\n\r\n"
 
 
 def test_round_trip_preserves_a_file_with_no_trailing_newline(
