@@ -62,7 +62,18 @@ EXTRACTIONS = {
     #     contract line in ## Independent review evidence — `task_subject` +
     #     the `<id>.<slug>.json` collision variant; trimmed twice to stay
     #     under the 259290 cap, which is UNCHANGED)
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 259287),
+    #   v3.63.0 transition:   259287 -> 259100 (-187 NET, cap still UNCHANGED)
+    #     ADDED `## Augment-never-replace discipline (v3.63.0)` as a heading +
+    #     STOP pointer only, its full rules extracted to
+    #     references/augment-never-replace.md — the section could not be carried
+    #     inline at any length, since 259287 against the cap left 2 bytes.
+    #     PAID FOR by compressing `## Local -> dev -> test-on-dev ...` (v3.57.0)
+    #     to the same heading + STOP-pointer form its siblings already use: its
+    #     inline paragraph DUPLICATED references/local-dev-test-discipline.md,
+    #     which was already on disk, so no rule text was lost and nothing that
+    #     cites the section by heading was disturbed. Making room by extraction
+    #     is this regime's own mechanism; raising the cap would have defeated it.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 259100),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

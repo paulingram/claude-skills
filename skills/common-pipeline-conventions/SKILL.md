@@ -2310,7 +2310,11 @@ NO new Layer 3 tool — enforcement is the schema v7 optional field (hook-blocke
 
 ## Local -> dev -> test-on-dev is the pipeline's job, not the user's (v3.57.0)
 
-**A gate requiring a live environment obliges the run to PROVIDE one.** A frontend slice with no E2E verdict because the route is not deployed or dev has no data is Phase 5's work: bring the environment up (or run `prod_deploy.deploy_command`), seed through the application's own create path, then run the flow. **Inherited debt is not this run's to satisfy** — `_audit_frontend_e2e` scopes to slices this run owns. Escalate only a genuine external blocker; a choice with a recommended option attached is the run asking permission to do its own job. Full rules: [`references/local-dev-test-discipline.md`](references/local-dev-test-discipline.md).
+> **STOP.** Before escalating a gate that needs a live environment, Read `skills/common-pipeline-conventions/references/local-dev-test-discipline.md` and execute it in full. Do not work from memory.
+
+## Augment-never-replace discipline (v3.63.0)
+
+> **STOP.** Before arming, dispatching, or gating on an optional third-party capability, Read `skills/common-pipeline-conventions/references/augment-never-replace.md` and execute it in full. Do not work from memory.
 
 ## Where this skill plugs in
 

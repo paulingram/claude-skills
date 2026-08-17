@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v3.63.0` — bauplan-skills-dependency
 - `v3.62.0` — review-evidence-binding
 - `v3.61.2` — agent-directive-block-menu
 - `v3.61.1` — claude-compliance-compaction
@@ -159,6 +160,26 @@ Every release, newest first — the one-line index the README used to carry. Ful
 - `v0.2.3` — path-traversal hardening + escalation policy
 - `v0.2.0` — orchestrator skill rename (command/skill collision)
 - `v0.1.0` — initial release
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v3.63.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v3.63.0 — bauplan-skills-dependency: a dependency that costs nothing where it does not apply
+
+CT6 had exactly one way to depend on a plugin — `REQUIRED_PLUGINS`, a hard block that exits setup 1 when a member is missing. Correct for superpowers, cartographer, and ralph-loop. Wrong for a data-lakehouse plugin most users will never touch.
+
+**A conditional tier.** `CONDITIONAL_PLUGINS` sits beside the hard set, provably disjoint from it and routed nowhere near the exit-code branch: a missing conditional member is reported and remediated but can never fail an install. Its remediation reuses the third-party-marketplace path built for cartographer rather than duplicating it.
+
+**Arming, asymmetric by how certain the signal is.** A `bauplan_project.yml` anywhere in the repo arms **silently** — recursive, so a monorepo subdirectory counts, and skip-list aware, so a *vendored or reference-cloned* Bauplan project never arms its host. Stated intent with no marker asks **exactly once**, then arms. That second path is not politeness: `bauplan-data-pipeline` exists to create projects from scratch, where no marker can yet exist, so a marker-only rule would have shipped the flagship skill unreachable in the one case it was written for.
+
+**Injected into the lanes, not the agents.** The agent boilerplate compiles into all 39 agents unconditionally — a block there would ship lakehouse instructions to `visual-analyzer` and `closeout-agent` on every run forever. Each skill instead landed where it is genuinely the right tool, the sharpest fit being quality-checks at exploration **Stage 6**, which already mandates ≥ 1 blocker-severity rule per transformation and now has a skill that emits exactly that. Every pointer is gated on the arming verdict: an unarmed run reads no Bauplan instruction at all.
+
+**And a shipped leak closed on the way.** A byte-preservation test written for the new gate exposed a defect present in every prior release: `upsert_block` wrote a separator newline `remove_block` never reclaimed, so each install/uninstall cycle left one byte behind and **accumulated without bound** in a file CT6 does not own. It affected all three existing installers and violated the guidance-block spec's own byte-preservation scenario. The first fix attempt turned the suite green by asserting the residue instead of removing it; the gate caught that by running the code rather than reading the report. The real repair had to make the *write* side symmetric first — after the fact, a one-newline and a two-newline append are indistinguishable from the file alone, so no reclaim rule could reverse both.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
