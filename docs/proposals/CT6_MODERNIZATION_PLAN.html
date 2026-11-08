@@ -97,9 +97,9 @@ a { color: var(--accent); }
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">Proposal · CLAUDE TEAM SIX (plugin slug <code>architect-team</code>) · v3.67.0 baseline · measured 2026-11-08</div>
+  <div class="eyebrow">Proposal · CLAUDE TEAM SIX (plugin slug <code>architect-team</code>) · v3.67.0 baseline · measured 2026-11-08 · Part II added the same day</div>
   <h1>Keep the careful robot team. Shrink its backpack.</h1>
-  <p class="lede">CT6 is a team of robot helpers that builds software very carefully. It got so careful that it now reads a 65,000-word rulebook before every chore. This plan keeps the carefulness and removes the weight, using what Claude Code and the Claude 5 models can do today.</p>
+  <p class="lede">CT6 is a team of robot helpers that builds software very carefully. It got so careful that it now reads a 65,000-word rulebook before every chore. This plan keeps the carefulness and removes the weight, using what Claude Code and the Claude 5 models can do today. Part I is the modernization; Part II adds six requested capabilities: a referencing mandate, codified project principles, smarter deletion, test selection, sample-first data work, and private-URL publishing.</p>
   <div class="kpis">
     <div class="kpi"><b>~141K</b><span>tokens the Lead loads before Phase −2 starts (its own rule surfaces alone)</span></div>
     <div class="kpi"><b>124K</b><span>tokens per researcher dispatch, ~3% role signal (CT6's own v3.66.0 measurement)</span></div>
@@ -364,7 +364,7 @@ a { color: var(--accent); }
   <!-- Row 2 -->
   <g>
     <rect x="250" y="232" width="300" height="110" rx="8" fill="none" stroke="currentColor"/>
-    <text x="400" y="254" text-anchor="middle" font-weight="600">Phase 2 Spawn teams</text>
+    <text x="400" y="254" text-anchor="middle" font-weight="600">Phase 2 Spawn teams <tspan fill="#c2410c" font-weight="400" font-size="11.5">· briefs carry principles</tspan></text>
     <rect x="266" y="266" width="120" height="62" rx="6" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
     <text x="326" y="283" text-anchor="middle" font-size="11.5">backend · Opus 5.5</text><text x="326" y="299" text-anchor="middle" font-size="10.5">2K role brief + core skill</text><text x="326" y="315" text-anchor="middle" font-size="10.5">+ adversarial · Fable 5.1</text>
     <rect x="414" y="266" width="120" height="62" rx="6" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
@@ -377,7 +377,7 @@ a { color: var(--accent); }
     <text x="884" y="270" text-anchor="middle" font-weight="600">Phase 4</text><text x="884" y="290" text-anchor="middle" font-size="11.5">reconcile</text>
     <line x1="944" y1="287" x2="984" y2="287" stroke="currentColor" marker-end="url(#arr2)"/>
     <rect x="986" y="232" width="202" height="110" rx="8" fill="none" stroke="currentColor"/>
-    <text x="1087" y="254" text-anchor="middle" font-weight="600">Phase 5 Integrate live</text><text x="1087" y="272" text-anchor="middle" font-size="11.5">real dev API + Playwright</text><text x="1087" y="290" text-anchor="middle" font-size="11.5">verdict artifacts (unchanged)</text>
+    <text x="1087" y="254" text-anchor="middle" font-weight="600">Phase 5 Integrate live</text><text x="1087" y="272" text-anchor="middle" font-size="11.5">real dev API + Playwright</text><text x="1087" y="290" text-anchor="middle" font-size="11.5">verdict artifacts (unchanged)</text><text x="1087" y="308" text-anchor="middle" font-size="11.5" fill="#c2410c">selected tests + pins, not the suite</text>
   </g>
   <path d="M1087,342 L1087,380 L400,380 L400,342" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr2)"/>
   <text x="740" y="374" text-anchor="middle" font-size="10.5">Phase 6 outer loop: next group</text>
@@ -390,7 +390,7 @@ a { color: var(--accent); }
     <text x="496" y="438" text-anchor="middle" font-size="10.5">gaps → Phase 2</text>
     <line x1="712" y1="480" x2="712" y2="500" stroke="currentColor" marker-end="url(#arr2)"/>
     <rect x="592" y="502" width="240" height="50" rx="8" fill="none" stroke="currentColor"/>
-    <text x="712" y="522" text-anchor="middle" font-weight="600">Phase 8 Final report</text><text x="712" y="540" text-anchor="middle" font-size="11.5">Layer-3 gates + budget record → commit</text>
+    <text x="712" y="522" text-anchor="middle" font-weight="600">Phase 8 Final report</text><text x="712" y="540" text-anchor="middle" font-size="11.5">Layer-3 gates + <tspan fill="#c2410c">full suite once</tspan> → commit</text>
   </g>
   <!-- Hook rail -->
   <g>
@@ -420,7 +420,261 @@ a { color: var(--accent); }
 <figcaption><b>Figure 4.</b> Targets are estimates until <code>instruction_budget.py</code> (change 8) records them; they follow directly from the 500-line skill guidance, a 2K role brief, and a 5K-token re-attach budget per skill. Fewer tokens per dispatch also means fewer compactions per run, which is where today's long-rule skills lose their tails.</figcaption>
 </figure>
 
-<h2 id="impact">7. Impact summary</h2>
+<h2 id="part2" style="border-top:3px solid var(--accent)">Part II. Six additions (requested 2026-11-08)</h2>
+<p>Each addition below was checked against the repo first. Every section says what exists today with file names, what is proposed, which files it touches, and the negatives you should weigh before saying yes.</p>
+
+<h2 id="pointers">7. A referencing system: yes, with three conditions</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Instead of handing every robot the whole encyclopedia, you hand it a one-page map that says "before you build, go read chapter 4; before you test, read chapter 9." The robot reads only the chapters for today's job. This is a good idea. It only works if the map is tiny, the chapters are real, and a hall monitor checks that the robot actually went and read the chapter.</p></div>
+<h3>Verdict</h3>
+<p><b>Yes.</b> It is the same mechanism Claude Code itself uses: descriptions load at start, a skill body loads on invocation, supporting files load only when read. It is also what CT6 already decided to do in v3.47.1 (the "heading + STOP pointer + one paragraph" house shape) and in <code>claude-md-efficiency</code>, and then did not finish: the conventions skill has 53 sections but only two STOP pointers and five reference files, and the whole skills tree has five <code>references/</code> files in total. The proposal in Part I (changes 2 and 4) is this referencing system; this section makes it a mandate and names the pieces that are missing.</p>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>Pointer shape exists, mostly unused.</b> <code>common-pipeline-conventions</code> has a ranked "Read this first" list of 10 rules (good) followed by 2,200 lines of inlined procedure (the thing pointers are meant to replace). Two sections use the <code>&gt; STOP. Before X, Read references/Y.md</code> form; the other 51 inline their body.</li>
+<li><b>CLAUDE.md is already pointer-style</b> (60 lines) and <code>scripts/claude_md/claude_md_efficiency.py</code> can assess and generate pointer CLAUDE.md files, but the skill gates itself on MemPalace being installed, so most projects never get it.</li>
+<li><b>No index files.</b> There is no "before a build, read this index" surface. <code>docs/CAPABILITY_INDEX.md</code> catalogs skills for humans, not for a phase.</li>
+<li><b>No read enforcement.</b> The tool-call ledger at <code>.architect-team/run-history/&lt;run-id&gt;-toolcalls.jsonl</code> already records every tool call, and <code>skill_invocation_audit.py</code> already proves a Skill was invoked after it was requested. Nothing proves a mandated reference was Read before the phase that depends on it.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>Condition 1: the map is tiny.</b> One <code>INDEX.md</code> per domain (build, test, data, review, release), each under 60 lines: a table of "situation → read this file → what you will know after." The constitution (change 2) is the only always-loaded text; it points at the indexes, the indexes point at the chapters. Never a pointer to a pointer to a pointer: depth is capped at constitution → index → chapter.</li>
+<li><b>Condition 2: the chapters are real and resolvable.</b> Every pointer names a file and a heading. <code>scripts/compliance/instruction_compliance.py</code> gains a check that every pointer resolves (file exists, heading exists) and that no chapter exceeds the 5,000-token re-attach budget. Dead pointers fail the suite the same way a bad count does today.</li>
+<li><b>Condition 3: a hall monitor checks the reading.</b> Each phase declares its required reads in its index (<code>required_before: phase-2</code>). A new Layer-3 tool <code>verify-required-reads</code> reads the tool-call ledger and reports a <code>required-read-skipped</code> gap when a phase started without its reads; the Stop audit carries it as a measured gap, never as a block on its own (the honest boundary: it proves the file was opened, not understood).</li>
+<li>Pointers are written as mandates in the imperative the repo already uses: <i>"Before spawning a team, Read <code>skills/…/references/spawn-brief.md</code> and execute it in full."</i> Plain-text pointers, not <code>@imports</code>: the docs say imports do not reduce context cost, a pointer does.</li>
+</ul>
+<h3>How it changes the codebase</h3>
+<p>Mostly moves, not rewrites: conventions sections become <code>references/*.md</code> files; five <code>INDEX.md</code> files are new; <code>instruction_compliance.py</code> gains two checks; one new file in <code>hooks/vao/</code> plus one Stop arm; <code>claude-md-efficiency</code> drops its MemPalace precondition and points at the indexes instead. The ~137 wording-pin tests move with the text (change 8's structural lint).</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>Following a pointer is probabilistic.</b> An agent under pressure skips the read. That is why condition 3 exists, and why the rules that must never be skipped are enforced by hooks, not by pointers (change 3).</li>
+<li><b>More tool calls per phase.</b> Each phase start costs two or three Reads. On a 10-phase run that is 20 to 30 extra calls, at roughly 50 ms of hook time each. Cheap next to 120K tokens per dispatch, but not zero.</li>
+<li><b>Index drift.</b> An index that lags its chapters sends agents to the wrong place silently. The resolvability check catches a missing file, not a stale summary; <code>documentation-currency</code> has to own the indexes explicitly.</li>
+<li><b>After compaction the Lead forgets what it read.</b> That is acceptable by design (it re-reads on demand), but the constitution must say so, or the Lead will work from the summary.</li>
+</ul>
+
+<h2 id="principles">8. Codified project principles</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Every treehouse project gets a short list of house rules, written down where everyone can see it: "all boards are the same width," "reuse a ladder before you build a new one," "the toy box is for any toy, not a box shaped like one toy." When you give the robots a document about your project, they pull the rules out of it and show you the list. Every builder has to follow the list. When the robots show you choices, they say which choices break a rule and why. In auto mode they pick a choice that follows the rules, and only stop to ask if every choice breaks one.</p></div>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>No per-project principles artifact exists.</b> The closest things: <code>reuse-first-design</code> (the extend → compose → reuse → build-new ladder with a Reuse Decision Log in <code>design.md</code>, which already covers your "recreate the function instead of reusing it" example); <code>phenotypes</code> (cross-project blueprints); the <code>appearance_mode</code> binding (strict / propose / innovate) that is set at intake, persisted in <code>intake-state.json</code>, and carried in every teammate's spawn brief, which is the exact mechanism a principles binding needs; and <code>deploy_config.py</code>, the pattern for a human-authored, agent-immutable config file.</li>
+<li><b><code>hooks/discipline_registry.py</code> is not this.</b> It tracks which CT6 disciplines have been applied to a codebase, not the project's own design rules. Its per-workspace JSON registry under <code>.architect-team/</code> is a reusable shape, though.</li>
+<li><b>Nothing abstracts principles from user documents.</b> <code>intake-and-mapping</code> reads <code>codebases.json</code> and requirement folders; <code>proposal-refiner</code> grades prose. Neither extracts durable rules.</li>
+<li><b>Nothing labels options against project rules.</b> Proposal-first mode presents a package; the SR fallback presents options. Neither marks a violation.</li>
+<li>Your data-model example (a generic anonymized model that an agent specializes with one too-specific column) has no guard today: the architect checks the contract shape, not its generality.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>The artifact.</b> <code>docs/PROJECT_PRINCIPLES.md</code> in the target workspace (committed, human-readable, pointer-shaped: one line per principle plus a link to its source), with a machine twin <code>.architect-team/principles.json</code>: <code>{id, statement, scope: architecture|data-model|naming|reuse|testing|ui, source: {file, quote} | user-stated, status: proposed|confirmed, added_by, added_at}</code>.</li>
+<li><b>The skill.</b> <code>project-principles</code> with four verbs. <b>extract</b>: when a markdown, PDF, or spoken instruction is provided at intake (Claude Code's Read tool reads PDFs natively, so no new parser), produce candidate principles each with a verbatim source quote, and confirm them in one <code>AskUserQuestion</code> as a domain gate; nothing becomes <code>confirmed</code> silently. <b>add</b>: "codify this" at any time, in or out of a run. <b>show</b>: the new command <code>/architect-team:principles</code> prints the confirmed list with sources, the same way <code>/architect-team:discipline-status</code> prints the registry today. <b>check</b>: a Layer-3 tool <code>verify-principles-respected</code> that takes a design, contract, or diff and emits one verdict per principle: <code>respected</code> / <code>violated (why, where)</code> / <code>not-applicable</code>.</li>
+<li><b>Where it binds.</b> The Phase 1 architect brief, the Interface Contract Approval mode of <code>system-architect</code>, and every <code>backend</code> / <code>frontend</code> / <code>integration</code> spawn brief carry the principles exactly as <code>appearance_mode</code> is carried today. Phase 3 evidence schema gains a <code>principles_review</code> field citing the check's verdict path. Your example becomes principle <i>"the shared data model stays generic: no entity-specific columns in shared schemas; specialize in a view or an extension table"</i>, and the architect's contract approval checks it.</li>
+<li><b>Presenting options.</b> Whenever options are shown (proposal-first, SR fallback, diagnostic hypotheses), each is tagged <code>fits</code> or <code>violates P-07 (why)</code>. Rule for autonomous runs: choose a fitting option and continue; stop with <code>escalation-pending.md</code> only when every option violates. Precedence: the user's explicit instruction in this run > confirmed principles > CT6 defaults.</li>
+</ul>
+<h3>How it changes the codebase</h3>
+<p>New skill + command + Layer-3 tool (<code>hooks/vao/principles.py</code>); one new field in <code>review_evidence_schema.py</code> (v8); one line in each of the six lane commands' front door (intake) and in the Phase 1 / Phase 2 brief templates; <code>reuse-first-design</code> links its ladder as the default principle set; <code>pretool_unilateral_override_guard.py</code> treats <code>PROJECT_PRINCIPLES.md</code> as human-owned (agents may propose, never edit silently). The <code>appearance_mode</code> rollout touched six commands, six lane skills, and the schema; expect the same footprint, which is why Part I's constitution should land first.</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>The verdicts are judgments.</b> A hook can prove every principle was considered and a verdict was written; it cannot prove the judgment is right. The honest boundary has to say so on the artifact.</li>
+<li><b>Over-codification recreates the bloat.</b> Fifty principles per project is the conventions skill again. Cap the confirmed list (a soft 15), rank it, and make "retire a principle" a verb too.</li>
+<li><b>Principles can contradict the requirement.</b> The precedence rule above resolves it, and the run must say which principle it set aside and on whose instruction.</li>
+<li><b>Extraction from a long PDF is lossy.</b> The quote-per-principle rule keeps it auditable; the user still has to read the proposed list once.</li>
+<li><b>Auto mode will sometimes pick the "fitting" option that is worse.</b> The tag on the final report ("chose B over A because A violated P-03") keeps that visible.</li>
+</ul>
+
+<h2 id="deletion">9. Smarter about deleting things</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Throwing away a scrap of paper you doodled on is fine. Throwing away the only copy of your homework is not. Right now the robots are told "never throw anything away without asking," so they ask about scraps. Instead: if it is a scrap (a temp file), throw it away. If a saved copy exists in the drawer (git has it, unchanged), throw it away and say where the copy is. If it is the only copy, or you scribbled on it since the last save, put it in a trash bin instead, and ask only if it must truly be gone.</p></div>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>Blanket bans, no classification.</b> All 39 agents carry a "Forbidden git operations" block (stash, reset --hard, rebase, amend, checkout other branch, clean -f). <code>hooks/shared_rule_constants.py</code> holds the six regexes and <code>review_evidence_schema.py</code> asserts none were used. This protects shared git state inside a run, which is right, and says nothing about file deletion.</li>
+<li><b>No hook looks at <code>rm</code>, <code>rmdir</code>, <code>find -delete</code>, <code>git clean</code>, or <code>git checkout -- path</code>.</b> The PreToolUse guard covers Edit / Write / NotebookEdit on ground-truth files only.</li>
+<li><b>Asking is governed by prose.</b> The "process gates vs domain gates" section says a destructive irreversible action is a legitimate reason to ask, with no definition of irreversible. 72 <code>AskUserQuestion</code> mentions across the surfaces; none is derived from a recoverability check.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>Soft delete by default.</b> Agents move files to <code>.architect-team/trash/&lt;run-id&gt;/&lt;original-path&gt;</code> instead of <code>rm</code>. The trash is pruned at Phase 8 / worktree cleanup once the run is merged. Most "may I delete" questions disappear because nothing is lost yet.</li>
+<li><b>A recoverability classifier, as a PreToolUse(Bash) arm.</b> For each deletion-shaped command it extracts the target paths and classifies each with git: <b>temp</b> (under <code>.architect-team/</code> per-run dirs, <code>/tmp</code>, caches, build output, merged worktrees) → allow. <b>Ignored</b> by <code>.gitignore</code> → allow. <b>Tracked and clean</b> (in HEAD and <code>git status --porcelain</code> empty for the path) → allow, with <code>additionalContext</code> naming the restore command. <b>Tracked with uncommitted changes</b> → <code>ask</code>, naming how many lines would be lost. <b>Untracked and not ignored</b> → <code>ask</code>. <b>Not in a git repo</b> or unparsable command (pipes, variables, globs it cannot expand) → <code>ask</code>. The six shared-state git operations stay <code>deny</code> during an active run exactly as today. This uses the hook <code>permissionDecision: allow | ask | deny</code> with a reason, which is the mechanism the docs give for exactly this.</li>
+<li><b>Replace the prose.</b> The 39 copies of the forbidden-operations block become one constitution line ("deletion goes through the classifier; shared git state is never rewritten in a run") pointing at the hook.</li>
+</ul>
+<h3>How it changes the codebase</h3>
+<p>New <code>hooks/deletion_guard.py</code> (stdlib: <code>shlex</code> to tokenize, <code>subprocess</code> for <code>git ls-files</code> / <code>git status --porcelain</code> / <code>git cat-file -e HEAD:path</code>), registered as a PreToolUse(Bash) arm beside the skill gate; the six regexes move from <code>shared_rule_constants.py</code> into it; one new section in the constitution; the compiled "Forbidden git operations" block is removed from the agents by the same pass as change 4. A fixture test matrix (temp / ignored / clean / dirty / untracked / no-repo / unparsable) is the acceptance test.</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>Shell parsing is heuristic.</b> <code>rm -rf "$DIR"</code>, <code>xargs rm</code>, <code>find … -exec rm</code>, and Python one-liners calling <code>shutil.rmtree</code> are hard to classify. The rule is fail-safe: unparsable means ask, which will annoy occasionally.</li>
+<li><b>"In git" is not "recoverable from the remote."</b> A clean tracked file whose commit was never pushed is recoverable only locally. The classifier checks HEAD, and the reason text says "local HEAD" or "on origin" explicitly.</li>
+<li><b>Non-interactive runs cannot answer an ask.</b> In <code>-p</code> or cloud mode an <code>ask</code> is a denial. The soft-delete default is what keeps those runs moving; the agent falls back to trash instead of stopping.</li>
+<li><b>Trash can grow.</b> Pruning is tied to merge, so an abandoned run leaves trash on disk until the worktree cleanup sweep. Acceptable, but it should be reported in the final report.</li>
+</ul>
+
+<h2 id="testing">10. Run the tests that matter, not all of them</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>If you fix one squeaky stair, you check the stairs. You don't re-inspect every window in the house. Right now the robots re-inspect the whole house after every tiny fix. Instead: keep a list of which test checks which part, look at what changed, run only the tests for those parts (plus any tests you said must always run), and inspect the whole house once at the end before it is handed over.</p></div>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>Phase 3 (per teammate):</b> unit, integration, and Playwright are each required (<code>test-completeness-verifier</code>), and the teammate must "capture full test-suite output." Nothing scopes the run to the slice.</li>
+<li><b>Phase 5 (integration):</b> the <code>integration</code> agent "runs the full integration test suite locally first, then against the development API with live dev data," and since v3.65.0 must enumerate <code>suite-manifest.json</code> and run the <b>ENTIRE</b> dev Playwright project. <code>mini-review-sweep</code> carries the same whole-suite rule. Full-stack, frontend-only, and backend-only changes all take the same path.</li>
+<li><b>The selector ingredients already exist, unconnected.</b> <code>hooks/frontend_impact.py</code> maps a change set to frontend impact (file extensions, plus changed endpoints consumed in ROUTE_MAP / INTEGRATION_MAP): a selector precedent. <code>hooks/lineage_graph.py</code> (the Code and Data Lineage Graph) gives every function a <code>func://</code> identity, runtime-witness trust, and transitive freshness: the function map you describe. <code>suite-manifest.json</code> records per test the persona, kind, and <code>covers_elements</code>. <code>coverage-mapping</code> maps requirements → tests, but not tests → functions. <code>test-prod-safety-classifier</code> already separates what may run against prod.</li>
+<li><b>No human "always run" pin exists.</b> The only standing pins are the prod smoke suite and the prod default-deny.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>A test index.</b> <code>&lt;workspace&gt;/.architect-team/test-index.json</code>: per test id → files, <code>func://</code> nodes, endpoints, UI elements (from the intuition map), kind (unit / integration / e2e), layer, last duration, <code>always_run</code>, trust (<code>static</code> or <code>runtime-witnessed</code>). Built by <code>scripts/test_index/</code> from the CDLG's static call graph, and upgraded to runtime-witnessed when a coverage-per-test run is available (pytest-cov contexts, c8, Playwright traces → endpoints hit). Same trust gate the CDLG already uses: a static mapping is a hypothesis, a witnessed one is evidence.</li>
+<li><b>A selector.</b> <code>select</code>: diff against <code>BASELINE_SHA</code> → changed <code>func://</code> nodes → transitive dependents (CDLG) → tests, plus every <code>always_run</code> pin, plus every test whose mapping is unknown (unknown is not "no tests," the same lesson as the completion lock). The selection and its reasons are written as evidence (<code>test-selection-&lt;ts&gt;.json</code>) and cited in the Phase 3 / Phase 5 evidence files.</li>
+<li><b>Human pins.</b> <code>.architect-team-deploy.json</code> (already human-owned and agent-immutable) gains <code>tests.always_run: [ids or globs]</code> and <code>tests.full_suite_at: ["phase-8"]</code>. A project can say "always run the billing suite" or "always run everything," and no agent can lower it.</li>
+<li><b>Three tiers.</b> Phase 3: selected tests for the slice. Phase 5: selected integration against live dev plus flows the frontend-impact detector names plus pins. Phase 8 (before merge to main): the full suite once, and the prod smoke suite. "Full every time" becomes "full once per run," not never.</li>
+</ul>
+</div>
+<div class="wide">
+<figure>
+<svg viewBox="0 0 1200 660" role="img" aria-label="Test selection proposal. Top row, the mechanism: a diff against the baseline commit maps to changed functions in the lineage graph, then to dependent functions, then through a test index to a selected set, joined with human always-run pins, with the selection recorded as evidence. Below, a grid of three change types, backend only, frontend only and full stack, against three gates, Phase 3, Phase 5 and Phase 8. Today every cell runs the full suite. Proposed: Phase 3 and Phase 5 run selected tests plus pins, and Phase 8 runs the full suite once before merge." font-family="Source Sans 3, system-ui, sans-serif" font-size="13">
+  <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <!-- mechanism row -->
+  <text x="20" y="34" font-weight="600" fill="#c2410c">How a selection is made</text>
+  <g>
+    <rect x="20" y="50" width="150" height="56" rx="8" fill="none" stroke="currentColor"/>
+    <text x="95" y="73" text-anchor="middle" font-weight="600">git diff</text><text x="95" y="91" text-anchor="middle" font-size="11.5">vs BASELINE_SHA</text>
+    <line x1="170" y1="78" x2="206" y2="78" stroke="currentColor" marker-end="url(#arr3)"/><text x="188" y="70" text-anchor="middle" font-size="10.5">files</text>
+    <rect x="208" y="50" width="170" height="56" rx="8" fill="none" stroke="currentColor"/>
+    <text x="293" y="73" text-anchor="middle" font-weight="600">changed func:// nodes</text><text x="293" y="91" text-anchor="middle" font-size="11.5">lineage_graph.py (CDLG)</text>
+    <line x1="378" y1="78" x2="414" y2="78" stroke="currentColor" marker-end="url(#arr3)"/><text x="396" y="70" text-anchor="middle" font-size="10.5">callers</text>
+    <rect x="416" y="50" width="170" height="56" rx="8" fill="none" stroke="currentColor"/>
+    <text x="501" y="73" text-anchor="middle" font-weight="600">transitive dependents</text><text x="501" y="91" text-anchor="middle" font-size="11.5">+ endpoints + UI elements</text>
+    <line x1="586" y1="78" x2="622" y2="78" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="624" y="50" width="170" height="56" rx="8" fill="#c2410c" fill-opacity="0.12" stroke="#c2410c"/>
+    <text x="709" y="73" text-anchor="middle" font-weight="600" fill="#c2410c">test-index.json</text><text x="709" y="91" text-anchor="middle" font-size="11.5">test → nodes · trust · duration</text>
+    <line x1="794" y1="78" x2="830" y2="78" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="832" y="50" width="160" height="56" rx="8" fill="#c2410c" fill-opacity="0.12" stroke="#c2410c"/>
+    <text x="912" y="73" text-anchor="middle" font-weight="600" fill="#c2410c">selected set</text><text x="912" y="91" text-anchor="middle" font-size="11.5">+ unknown-mapping tests</text>
+    <line x1="992" y1="78" x2="1028" y2="78" stroke="currentColor" marker-end="url(#arr3)"/>
+    <rect x="1030" y="50" width="150" height="56" rx="8" fill="none" stroke="currentColor"/>
+    <text x="1105" y="73" text-anchor="middle" font-weight="600">evidence</text><text x="1105" y="91" text-anchor="middle" font-size="11.5">test-selection-&lt;ts&gt;.json</text>
+    <!-- pins joining -->
+    <rect x="832" y="128" width="160" height="44" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+    <text x="912" y="146" text-anchor="middle" font-weight="600">always_run pins</text><text x="912" y="162" text-anchor="middle" font-size="11">.architect-team-deploy.json (human-owned)</text>
+    <line x1="912" y1="128" x2="912" y2="108" stroke="currentColor" marker-end="url(#arr3)"/>
+  </g>
+  <!-- grid -->
+  <text x="20" y="214" font-weight="600" fill="#c2410c">What runs where</text>
+  <g font-size="12.5">
+    <!-- header row -->
+    <text x="330" y="246" text-anchor="middle" font-weight="600">Backend-only change</text>
+    <text x="620" y="246" text-anchor="middle" font-weight="600">Frontend-only change</text>
+    <text x="910" y="246" text-anchor="middle" font-weight="600">Full-stack change</text>
+    <!-- row labels -->
+    <text x="20" y="300" font-weight="600">Phase 3</text><text x="20" y="316" font-size="11">per teammate</text>
+    <text x="20" y="420" font-weight="600">Phase 5</text><text x="20" y="436" font-size="11">integration, live dev</text>
+    <text x="20" y="540" font-weight="600">Phase 8</text><text x="20" y="556" font-size="11">before merge</text>
+    <!-- cells: today (strikethrough-ish faded) + proposed -->
+    <!-- Phase 3 -->
+    <rect x="200" y="262" width="260" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="330" y="284" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: full unit + integration suite</text>
+    <text x="330" y="308" text-anchor="middle" fill="#c2410c" font-weight="600">selected unit + integration</text>
+    <text x="330" y="326" text-anchor="middle" font-size="11.5">dependents of changed func:// nodes</text>
+    <text x="330" y="342" text-anchor="middle" font-size="11.5">+ pins · Sonnet 5.5 verifier</text>
+    <rect x="490" y="262" width="260" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="620" y="284" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: full suite + all Playwright flows</text>
+    <text x="620" y="308" text-anchor="middle" fill="#c2410c" font-weight="600">selected component tests</text>
+    <text x="620" y="326" text-anchor="middle" font-size="11.5">+ flows covering touched elements</text>
+    <text x="620" y="342" text-anchor="middle" font-size="11.5">(intuition map → suite manifest)</text>
+    <rect x="780" y="262" width="260" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="910" y="284" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: both full suites</text>
+    <text x="910" y="308" text-anchor="middle" fill="#c2410c" font-weight="600">both selections</text>
+    <text x="910" y="326" text-anchor="middle" font-size="11.5">contract tests for the shared surface</text>
+    <text x="910" y="342" text-anchor="middle" font-size="11.5">(contract-first-parallelism)</text>
+    <!-- Phase 5 -->
+    <rect x="200" y="382" width="260" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="330" y="404" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: full integration suite vs dev</text>
+    <text x="330" y="428" text-anchor="middle" fill="#c2410c" font-weight="600">selected integration vs live dev</text>
+    <text x="330" y="446" text-anchor="middle" font-size="11.5">+ flows that consume changed endpoints</text>
+    <text x="330" y="462" text-anchor="middle" font-size="11.5">(frontend_impact.py) + pins</text>
+    <rect x="490" y="382" width="260" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="620" y="404" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: ENTIRE dev Playwright project</text>
+    <text x="620" y="428" text-anchor="middle" fill="#c2410c" font-weight="600">impacted flows vs live dev</text>
+    <text x="620" y="446" text-anchor="middle" font-size="11.5">as a real user (unchanged rule)</text>
+    <text x="620" y="462" text-anchor="middle" font-size="11.5">+ pins</text>
+    <rect x="780" y="382" width="260" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="910" y="404" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: everything, twice</text>
+    <text x="910" y="428" text-anchor="middle" fill="#c2410c" font-weight="600">selected integration + impacted flows</text>
+    <text x="910" y="446" text-anchor="middle" font-size="11.5">front-to-back through the real backend</text>
+    <text x="910" y="462" text-anchor="middle" font-size="11.5">+ pins</text>
+    <!-- Phase 8 -->
+    <rect x="200" y="502" width="840" height="76" rx="8" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
+    <text x="620" y="528" text-anchor="middle" font-weight="600" fill="#c2410c">full suite once, all layers, plus the prod smoke suite</text>
+    <text x="620" y="548" text-anchor="middle" font-size="11.5">the safety net for anything the index did not know about; results recorded as evidence before the merge to main</text>
+    <text x="620" y="566" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.6">today: no distinct full-suite moment here; the "full" runs happened at every earlier gate instead</text>
+  </g>
+  <text x="20" y="630" font-size="11.5" fill="currentColor" fill-opacity="0.75">Legend: faded line = today · orange = proposed · dashed box = human-owned configuration no agent may lower</text>
+</svg>
+<figcaption><b>Figure 5. Test selection.</b> The mechanism reuses what the repo already has (the lineage graph's function identities, the frontend-impact detector, the suite manifest) and adds the one missing join: a test index. The grid shows the move from "full suite at every gate" to "selected plus pins at every gate, full suite once before merge."</figcaption>
+</figure>
+</div>
+<div class="wrap">
+<h3>How it changes the codebase</h3>
+<p>New <code>scripts/test_index/</code> (build, select, witness); one new field family in <code>deploy_config.py</code>; <code>frontend_impact.py</code> and <code>lineage_graph.py</code> gain callers but no new logic; the Phase 3 and Phase 5 text in <code>architect-team-pipeline</code>, <code>dev-api-integration-testing</code>, <code>mini-review-sweep</code>, and <code>test-completeness-verifier</code> changes from "full suite" to "selected per the index, full once at Phase 8"; <code>test-run-monitor</code> records which selection ran. The v3.65.0 "ENTIRE dev suite" rule is an explicit reversal and should be logged as such in the CHANGELOG.</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>A stale or wrong index skips a test that would have failed.</b> Three mitigations, all needed: unknown-mapping tests always run; the CDLG's transitive freshness marks the index stale when its inputs change; the Phase 8 full run still exists.</li>
+<li><b>Static call graphs miss dynamic code.</b> Reflection, dependency injection, config-driven dispatch, and event buses hide edges. Runtime-witnessed mappings fix this, but they need one instrumented full run per codebase to bootstrap and periodic refresh.</li>
+<li><b>Playwright flows map poorly to functions.</b> They map to endpoints and UI elements instead, which is why the index carries both; coverage will be coarser on the frontend.</li>
+<li><b>An agent might lean on the selector to avoid a slow test.</b> The pins are human-owned and immutable, the selection is recorded with reasons, and the Phase 8 full run is not selectable. That is the same three-part answer the deploy mandate uses.</li>
+<li><b>Bootstrapping cost.</b> The first run on a codebase builds the index and runs everything once; the savings begin on the second change.</li>
+</ul>
+
+<h2 id="sampling">11. Sample first on big data</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>If you want to know whether a new recipe works, you bake one cupcake before you bake a thousand. When a robot changes how a big pile of data is processed, it should first grab a small, well-chosen handful of that data, including the weird pieces, try the change on the handful, check the result, and only then run the whole pile.</p></div>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>Sampling exists for discovery, not for development.</b> <code>data-dictionary</code> samples roughly the first 100 records per table to infer grain, keys, and types; <code>warehouse-sql-mining</code> reads sampled rows. Neither is used to iterate a change.</li>
+<li><b>The data-eng lane builds like the main lane.</b> <code>data-eng-pipeline</code> Phases D2–D6 are "Phases 2–6 verbatim": implement, review, integrate, with no data-scale step. D0 explores, D7 refreshes the catalog.</li>
+<li><b><code>expensive-verification-debugging</code> is the nearest discipline</b> (when a verify cycle is expensive, audit the whole pathway and batch fixes). It never says "make the cycle cheap by shrinking the data."</li>
+<li><code>verification-planning</code> lists venues (local run / dev / replay / seeded fixture / production) but not a sampled run.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>A sample-first discipline in the data lanes</b>, default on, opt out with <code>--full-data</code> or a project principle. Before implementing a change that targets a subset (a filter, a partition, an entity type, a date range): <b>profile</b> the subset's structure from the data dictionary (grain, keys, partitions, distributions); <b>stratify</b> on the dimension the change depends on and always include edge rows (nulls, boundaries, duplicates, and the exact rows named in a bug report); <b>size</b> the sample as the smallest N that covers every stratum, and record <code>sample-plan.json</code> (strata, N, seed, source query, where it was materialized); <b>materialize</b> into a sandbox the dictionary already knows how to reach (temp table, local parquet, or fixture) under the read-only connection discipline; <b>iterate</b> the change against the sample with a before/after diff per stratum (row counts, key checksums, aggregate deltas); <b>scale</b> only when the sample passes, and use the sample result as the expectation file for the full run.</li>
+<li><b>Sample groups, not rows.</b> When the logic is aggregate-level (windows, dedup across partitions, joins), the sample must keep whole groups so the semantics survive; the plan records which keys were kept whole.</li>
+<li><b>Where it plugs in.</b> Data-eng Phase D2 (before implementation), the bug-fix lane when the bug is a data defect (B1 replication on the sample, B6 replay on the sample then full), and <code>verification-planning</code> gains "stratified sample" as a venue that is usually the cheapest faithful one.</li>
+</ul>
+<h3>How it changes the codebase</h3>
+<p>New reference <code>skills/data-eng-pipeline/references/sample-first.md</code> plus a stdlib helper <code>scripts/data_dictionary/sampling.py</code> that emits the plan and the stratified query from a dictionary entry; one new venue row in <code>verification-planning</code>; one paragraph in the bug-fix lane's data-defect branch; <code>expensive-verification-debugging</code> gains a first line ("before batching fixes for an expensive cycle, ask whether the cycle can be made cheap by sampling"). No hook changes; the sample plan is recorded as evidence like any other artifact.</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>A sample can hide the bug.</b> Including the reported rows and stratifying on the change's own predicate reduces this; the full run remains the gate, so the cost of a miss is time, not correctness.</li>
+<li><b>Small data makes this overhead.</b> When the dictionary shows a full run takes seconds, skip sampling. The threshold belongs in the plan, not in prose.</li>
+<li><b>Data residency and PII.</b> Materializing a sample to a laptop may violate policy. Default to a sandbox inside the warehouse; local files only when the project principles allow it, which ties back to your anonymized-model principle.</li>
+<li><b>Sampling logic is itself code that can be wrong.</b> Keep it deterministic (seeded) and record the query, so a reviewer can rerun it.</li>
+</ul>
+
+<h2 id="publish">12. Publish to a private URL when the setting says so</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>The robots are good at making pretty pages to show their work. Right now the page lives on Claude's website, which is fine for you but not for a friend without a Claude login. New option: the same page, but put on a web address you own, with a secret word in the link. You decide at setup where that address lives: a cloud service, a door on your own computer, or an address you name.</p></div>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>No page-building skill exists.</b> The 46 skills that mention "artifact" mean run artifacts (JSON verdicts, reports). <code>readme-styling</code> is the only presentation skill, and it targets markdown.</li>
+<li><b>The hosting plumbing is half there.</b> <code>services/triage/server.py</code> and <code>services/seeded_mempalace/server.py</code> already wrap handlers onto the stdlib <code>http.server</code>; <code>services/common/</code> has an Ed25519 handshake, <code>service_config.py</code>, and <code>bg_runtime.py</code> for background daemons. Designed, tested, not live-deployed (the Librarian is the only installable).</li>
+<li><b>Config precedent is clear.</b> <code>.architect-team-notify.json</code> and <code>.architect-team-deploy.json</code> are human-authored, gitignored, agent-immutable opt-ins with a committed example file; <code>architect-team-setup</code> asks-then-applies.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>Skill <code>page-publishing</code>.</b> Carries the plugin's own page contract (one self-contained HTML file, color tokens that follow light and dark, inline SVG diagrams, responsive at phone width, libraries only from pinned CDN URLs, no data leaves the page) so the page is portable to any host; when running inside Claude Code the native artifact guidance is also available and the skill defers to it for design. Two publish modes: <b>claude</b> (default; the Artifact tool, unchanged) and <b>private-url</b>.</li>
+<li><b>Config <code>.architect-team-publish.json</code></b> (human-owned, immutable to agents, example committed): <code>{"mode": "claude" | "private-url", "adapter": "local-port" | "gcp-signed-url" | "gcp-cloud-run" | "nominated-host", "token_ttl_hours": 72, "bind": {"host", "port", "external_ip"}, "gcp": {"project", "bucket" | "service"}, "nominated_host": {"ssh", "web_root", "public_base_url"}}</code>.</li>
+<li><b>Setup asks once.</b> <code>architect-team-setup</code> detects the ecosystem (is <code>gcloud</code> on PATH and logged in? does the box have a public IP? is an SSH host configured?) and asks one question: where should shareable pages live? Options: a GCP URL (signed GCS object, or a tiny Cloud Run service checking the token), a port on this machine using its external IP, or a host you nominate. Nothing is opened or deployed until that answer is recorded.</li>
+<li><b>Engine <code>scripts/publish/publish.py</code>.</b> Writes the page, mints a token with <code>secrets.token_urlsafe</code>, and hands it to the adapter. <code>local-port</code>: a stdlib server (reusing the <code>services/common</code> runtime) that serves <code>/p/&lt;token&gt;/&lt;page&gt;</code>, denies everything else, expires tokens, and logs access; TLS when a certificate path is configured, plain HTTP on a LAN with a printed warning otherwise. <code>gcp-signed-url</code>: upload via <code>gcloud storage</code> and return a time-limited signed URL (no server to run). <code>gcp-cloud-run</code>: the same stdlib server in a container behind Cloud Run's HTTPS. <code>nominated-host</code>: copy over SSH into a web root the user's own server already serves. GCP and SSH adapters are conditional dependencies in the <code>CONDITIONAL_PLUGINS</code> sense: reported if missing, never gating.</li>
+<li><b>Commands.</b> <code>/architect-team:publish &lt;file&gt;</code>, <code>/architect-team:publish --revoke &lt;token&gt;</code>, <code>/architect-team:publish --list</code>.</li>
+</ul>
+<h3>How it changes the codebase</h3>
+<p>New skill, command, and <code>scripts/publish/</code> with four adapters; <code>services/common/bg_runtime.py</code> gets its first live consumer; <code>setup.py</code> gains one question and one config writer; <code>pretool_unilateral_override_guard.py</code> adds the publish config to its immutable set; <code>setup.py</code>'s conditional tier lists <code>gcloud</code> and <code>ssh</code> as optional tools. Stdlib-only holds for the engine and the local adapter.</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>CT6 becomes the operator of a public endpoint.</b> A token in a URL leaks through browser history, chat logs, and referrers; a port on a dev box is an attack surface; a Cloud Run service costs money and needs IAM. Default TTL, revoke command, and access log are the minimum; the setup question must say this out loud.</li>
+<li><b>No TLS from the stdlib alone.</b> <code>ssl</code> is in the stdlib but minting a certificate is not; the local adapter is HTTP unless the user supplies a cert. The GCP adapters get HTTPS for free, which is a reason to recommend them.</li>
+<li><b>You lose the Claude-native features.</b> Comments routed to Claude, the shared database capability, the organization share list, and automatic theme detection by the host do not exist on a private URL. The page contract keeps the page self-sufficient, but the honest boundary should be printed with the link.</li>
+<li><b>"The same talents" are partly Anthropic's.</b> The native artifact-design guidance belongs to the Claude Code session, not the plugin. The plugin ships its own page contract (as <code>readme-styling</code> does for markdown) and benefits from the native skill when it is present.</li>
+<li><b>A daemon outlives the session.</b> The local server must survive the Claude Code process and be stoppable; <code>bg_runtime.py</code> was designed for this but has never run in anger.</li>
+</ul>
+
+<h2 id="impact">13. Impact summary</h2>
 <div class="scroll"><table>
 <tr><th>#</th><th>Change</th><th>Effect</th><th>Effort</th><th>Risk</th><th>ETHOS principle it serves</th></tr>
 <tr><td class="num">1</td><td>Task-tool floor check</td><td>Review gate and completion lock work on Claude 5</td><td>S</td><td class="good">low</td><td>7 Evidence before assertion</td></tr>
@@ -431,14 +685,23 @@ a { color: var(--accent); }
 <tr><td class="num">6</td><td>Workflows, drop ralph-loop, soften plugins</td><td>Deterministic converge loops; identical behavior in -p / cloud</td><td>M</td><td class="crit">med–high</td><td>4 Unbounded solving, 5 Default to action</td></tr>
 <tr><td class="num">7</td><td>Skill frontmatter + per-run hooks</td><td>Always-loaded 21K → ~6K; no hook tax on other sessions</td><td>S</td><td class="good">low</td><td>3 Honest boundary</td></tr>
 <tr><td class="num">8</td><td>Budget gate + release hygiene</td><td>Weight regressions visible; releases cheap</td><td>M</td><td class="good">low</td><td>6 Documentation currency</td></tr>
+<tr><td class="num">9</td><td>Referencing system as a mandate (indexes, resolvable pointers, read audit)</td><td>Makes changes 2 and 4 stick; pointer drift becomes a suite failure</td><td>M</td><td class="good">low</td><td>8 Understand before acting</td></tr>
+<tr><td class="num">10</td><td>Codified project principles</td><td>Repeatable architecture and naming; violations named on every option; auto mode picks the fitting one</td><td>L</td><td class="warn">medium</td><td>1 Reuse before build, 7 Evidence</td></tr>
+<tr><td class="num">11</td><td>Deletion classifier + soft delete</td><td>Fewer questions, no silent loss; 39 prose blocks become one hook</td><td>M</td><td class="good">low</td><td>3 Honest boundary</td></tr>
+<tr><td class="num">12</td><td>Test index + selector + pins</td><td>Full suite once per run instead of at every gate; selection recorded as evidence</td><td>L</td><td class="warn">medium</td><td>7 Evidence before assertion</td></tr>
+<tr><td class="num">13</td><td>Sample-first on data changes</td><td>Minutes instead of hours per iteration on large data; full run stays the gate</td><td>S</td><td class="good">low</td><td>4 Unbounded solving, 5 Default to action</td></tr>
+<tr><td class="num">14</td><td>Private-URL page publishing (opt-in)</td><td>Shareable pages for people without Claude access</td><td>M</td><td class="crit">med–high (security surface)</td><td>Fidelity to human-configured policy</td></tr>
 </table></div>
 
-<h2 id="order">8. Order of work and decisions for you</h2>
+<h2 id="order">14. Order of work and decisions for you</h2>
 <ol class="steps">
 <li><b>Floor and measurement first (changes 1 and 8a).</b> Done when a Claude 5 local session blocks a fake "completed" exactly as today, and <code>instruction_budget.py</code> has recorded the v3.67.0 baseline under <code>docs/measurements/</code>. Nothing else starts until the "before" number is on disk.</li>
 <li><b>Rulebook (changes 2, 3, 7).</b> Done when every SKILL.md is under 500 lines, the constitution is under 3K tokens, each deleted MUST cites its hook or principle in a ledger, internal skills are hidden from the menu, and the suite is green with wording pins replaced by the structural lint.</li>
 <li><b>Agents and team (changes 4, 5).</b> Done when no agent exceeds 2K tokens, the core skill preloads through <code>skills:</code>, the tier table is in the constitution, and one full run on a fixture project shows the same gate verdicts as the baseline run.</li>
 <li><b>Toolbox (change 6).</b> Done when the four converge loops run as workflows with typed verdicts, ralph-loop is out of <code>REQUIRED_PLUGINS</code>, and the decisions below are settled.</li>
+<li><b>Referencing mandate and deletion classifier (changes 9, 11).</b> Done when the five indexes exist, every pointer resolves under the compliance lint, <code>verify-required-reads</code> reports on a fixture run, and the deletion guard passes its seven-case matrix. These ride on step 2's restructure.</li>
+<li><b>Principles and test selection (changes 10, 12).</b> Done when a fixture project with a two-principle <code>PROJECT_PRINCIPLES.md</code> gets a violation named in a proposal-first run and a fitting option chosen in an autonomous run; and when a one-function change on the fixture runs only its dependents at Phase 3 and 5 with the full suite recorded once at Phase 8.</li>
+<li><b>Sampling and publishing (changes 13, 14).</b> Done when a data-eng fixture run writes <code>sample-plan.json</code> before implementation, and when <code>/architect-team:publish</code> serves a page by token on the local adapter and revokes it; the GCP and SSH adapters follow once you pick a default host in decision F.</li>
 </ol>
 
 <h3>Decisions only you can make</h3>
@@ -447,9 +710,12 @@ a { color: var(--accent); }
 <li><b>B. The reviewer tier table.</b> Which gates keep ×3? Proposed: architecture approval, master review, map convergence. Everything else gets producer + adversary.</li>
 <li><b>C. Models by role.</b> Proposed: Fable 5.1 for Lead, architect, adversary; Opus 5.5 builders; Sonnet 5.5 verifiers; Haiku 5.5 classifiers. The current uniform / split lever in <code>set_default_model.py</code> would gain a "by role" mode.</li>
 <li><b>D. Release cadence.</b> Per capability instead of per fix, with the CHANGELOG rotated to the last 10 entries.</li>
+<li><b>E. Reversing "run the ENTIRE dev suite" (v3.65.0).</b> The selector moves the full run to once per run before merge. You wrote the whole-suite rule after a real gap; this proposal argues the index plus pins plus one full run closes the same gap cheaper, but it is your rule to reverse.</li>
+<li><b>F. Default host for private pages.</b> GCP signed URLs (HTTPS, no server to run, small cost), a port on the box (free, HTTP unless you supply a cert), or a nominated host. The recommendation is GCP signed URLs where <code>gcloud</code> exists.</li>
+<li><b>G. The principles cap.</b> A soft limit of 15 confirmed principles per project, with retirement as a verb, so the principles file does not become the next 65K-token rulebook.</li>
 </ul>
 
-<h2 id="keep">9. What does not change</h2>
+<h2 id="keep">15. What does not change</h2>
 <ul>
 <li>The phase sequence, the 100% coverage gate, live-environment verification, and the Playwright-as-a-real-user rule.</li>
 <li>Hooks as the enforcement layer: the Stop-hook completion lock, the evidence-file gate, the override guard, the commit-identity arm, the 24 Layer-3 tools.</li>
