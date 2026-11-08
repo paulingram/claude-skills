@@ -1,0 +1,471 @@
+<title>CT6 Modernization Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column (72ch) with full-bleed figures; ELI5 voice first, engineer detail in folded panels. */
+:root {
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --fg: #1d2433;
+  --muted: #5a6478;
+  --line: #d9dbe3;
+  --tint: #eef0f8;
+  --accent: #c2410c;        /* the one hue that marks "what changes" */
+  --accent-soft: #fbe9df;
+  --today: #3b5bdb;         /* chart series: today */
+  --next: #c2410c;          /* chart series: proposed */
+  --good: #15803d;
+  --warn: #b45309;
+  --crit: #b91c1c;
+  --font-display: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --surface: #1c222c; --fg: #e8eaf0; --muted: #a3acbf; --line: #313a48;
+    --tint: #222a38; --accent: #e8590c; --accent-soft: #3a2418; --today: #5c7cfa; --next: #e8590c;
+    --good: #4ade80; --warn: #fbbf24; --crit: #f87171; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --surface: #1c222c; --fg: #e8eaf0; --muted: #a3acbf; --line: #313a48;
+  --tint: #222a38; --accent: #e8590c; --accent-soft: #3a2418; --today: #5c7cfa; --next: #e8590c;
+  --good: #4ade80; --warn: #fbbf24; --crit: #f87171; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
+.wrap { max-width: 76ch; margin: 0 auto; }
+.wide { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 600; margin-top: 3.2rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.8rem; }
+p { margin: 0.8rem 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+header { padding-block: 3rem 1rem; }
+header .lede { font-size: 1.25rem; color: var(--muted); max-width: 60ch; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 1.6rem; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.kpi b { display: block; font-family: var(--font-display); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--muted); font-size: 0.9rem; }
+.five { background: var(--tint); border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 1rem 0; }
+.five .eyebrow { color: var(--accent); }
+.five p { margin: 0.4rem 0 0; font-size: 1.08rem; }
+details { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 1rem 0; }
+details summary { cursor: pointer; padding: 10px 14px; font-weight: 600; font-family: var(--font-display); font-size: 0.95rem; }
+details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details > div { padding: 0 16px 12px; }
+figure { margin: 1.6rem 0; }
+figure svg { max-width: 100%; height: auto; display: block; color: var(--fg); }
+figcaption { color: var(--muted); font-size: 0.92rem; margin-top: 8px; max-width: 76ch; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; color: var(--muted); }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 0.88rem; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--tint); padding: 1px 5px; border-radius: 4px; }
+pre { font-family: var(--font-mono); font-size: 0.82rem; background: var(--tint); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; vertical-align: middle; }
+.crit { color: var(--crit); } .warn { color: var(--warn); } .good { color: var(--good); } .acc { color: var(--accent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 1rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.card h3 { margin-top: 0; font-size: 1.05rem; }
+.card .num { font-family: var(--font-mono); color: var(--accent); font-size: 0.8rem; letter-spacing: 0.08em; }
+.card p { font-size: 0.97rem; }
+.card dl { margin: 0.6rem 0 0; font-size: 0.92rem; display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; }
+.card dt { color: var(--muted); font-family: var(--font-display); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 3px; }
+.card dd { margin: 0; }
+ul, ol { padding-left: 1.3rem; } li { margin: 0.3rem 0; }
+.bars { font-size: 0.9rem; }
+.bar-row { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 10px; align-items: center; margin: 6px 0; }
+.bar-row .lab { color: var(--fg); min-width: 0; overflow-wrap: anywhere; }
+.bar-row .track { position: relative; height: 18px; }
+.bar-row .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--today); border-radius: 0 4px 4px 0; }
+.bar-row .val { position: absolute; left: calc(var(--w) + 8px); top: 0; line-height: 18px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.pair .fill.next { background: var(--next); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); margin: 6px 0; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.steps { counter-reset: s; list-style: none; padding: 0; }
+.steps li { counter-increment: s; position: relative; padding-left: 3rem; margin: 1rem 0; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--font-display); font-weight: 700; display: grid; place-items: center; }
+.note { color: var(--muted); font-size: 0.9rem; }
+a { color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) { details[open] > div { animation: fade .18s ease-out; } }
+@keyframes fade { from { opacity: .4 } to { opacity: 1 } }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Proposal · CLAUDE TEAM SIX (plugin slug <code>architect-team</code>) · v3.67.0 baseline · measured 2026-11-08</div>
+  <h1>Keep the careful robot team. Shrink its backpack.</h1>
+  <p class="lede">CT6 is a team of robot helpers that builds software very carefully. It got so careful that it now reads a 65,000-word rulebook before every chore. This plan keeps the carefulness and removes the weight, using what Claude Code and the Claude 5 models can do today.</p>
+  <div class="kpis">
+    <div class="kpi"><b>~141K</b><span>tokens the Lead loads before Phase −2 starts (its own rule surfaces alone)</span></div>
+    <div class="kpi"><b>124K</b><span>tokens per researcher dispatch, ~3% role signal (CT6's own v3.66.0 measurement)</span></div>
+    <div class="kpi"><b>0 of 56</b><span>skills use any frontmatter beyond name + description</span></div>
+    <div class="kpi"><b>1 break</b><span>Claude 5 ships without the task tools CT6's review gate and completion lock depend on</span></div>
+  </div>
+</header>
+
+<h2 id="what">1. What CT6 is, like you're five</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Imagine you ask a team of robots to build a treehouse. One robot is the <b>Lead</b>: it reads your wish, makes a plan, and hands out jobs. <b>Builder</b> robots build. <b>Checker</b> robots look at the builders' work and say "not done yet" if anything is fake or untested. <b>Hall monitors</b> stand in the doorway and physically block a builder from saying "I'm finished!" without showing their homework. And the whole team writes down what it learned so the next treehouse goes better.</p></div>
+<p>In Claude Code terms: the Lead is the orchestrator running the <code>architect-team-pipeline</code> skill. Builders are the <code>backend</code> and <code>frontend</code> agents. Checkers are the paired <code>adversarial-reviewer</code>, the <code>task-reviewer</code>, and the ×3 convergence reviewers. Hall monitors are the 7 hook scripts (a Stop hook that refuses to end the turn while work is open, a PostToolUse hook that blocks "completed" without an evidence file, a PreToolUse gate on every tool call). Memory is MemPalace. Those four ideas are the spirit of the repo, and nothing below removes any of them.</p>
+
+<h2 id="today">2. How a run works today</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>The Lead wakes up its memory, sorts your wish into "bug" or "feature" or "data," draws a map of the whole house, writes a plan and checks it covers every wish, splits the work, sends builders off in pairs with a checker each, refuses to call anything done without proof, glues the pieces together, clicks through the real app like a user, and only then writes the report and saves the work. Every step has a hall monitor.</p></div>
+</div>
+
+<div class="wide">
+<figure>
+<svg viewBox="0 0 1200 640" role="img" aria-label="The CT6 main pipeline today: a wake-up and triage step, then phases minus one through eight in a chain, with loops back from Phase 6 and Phase 7 to Phase 2, a hook rail underneath that intercepts tool calls, task completion, idleness, stop and compaction, and the Lead's rulebook of roughly 141 thousand tokens loaded before the first phase." font-family="Source Sans 3, system-ui, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/></marker>
+  </defs>
+  <!-- Lead rulebook stack -->
+  <g>
+    <rect x="20" y="40" width="190" height="150" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+    <text x="115" y="62" text-anchor="middle" font-weight="600">Lead loads first</text>
+    <rect x="34" y="72" width="162" height="22" rx="3" fill="currentColor" fill-opacity="0.10" stroke="currentColor"/><text x="115" y="87" text-anchor="middle" font-size="11.5">conventions skill · 64.6K tok</text>
+    <rect x="34" y="98" width="162" height="22" rx="3" fill="currentColor" fill-opacity="0.10" stroke="currentColor"/><text x="115" y="113" text-anchor="middle" font-size="11.5">pipeline skill · 38.4K tok</text>
+    <rect x="34" y="124" width="162" height="22" rx="3" fill="currentColor" fill-opacity="0.10" stroke="currentColor"/><text x="115" y="139" text-anchor="middle" font-size="11.5">team-spawning + VAO · 24.3K</text>
+    <rect x="34" y="150" width="162" height="22" rx="3" fill="currentColor" fill-opacity="0.10" stroke="currentColor"/><text x="115" y="165" text-anchor="middle" font-size="11.5">command + intake · 13.2K</text>
+    <text x="115" y="184" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.7">≈141K tokens before Phase −2</text>
+  </g>
+  <!-- Row 1 -->
+  <g>
+    <rect x="250" y="60" width="150" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="325" y="88" text-anchor="middle" font-weight="600">MemPalace wake-up</text><text x="325" y="106" text-anchor="middle" font-size="11.5">recall prior runs</text>
+    <line x1="400" y1="95" x2="440" y2="95" stroke="currentColor" marker-end="url(#arr)"/>
+    <rect x="442" y="60" width="150" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="517" y="82" text-anchor="middle" font-weight="600">Phase −2 Triage</text><text x="517" y="100" text-anchor="middle" font-size="11.5">bug-classifier agent</text><text x="517" y="116" text-anchor="middle" font-size="11.5">bug / feature / data-eng</text>
+    <line x1="592" y1="95" x2="632" y2="95" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="612" y="88" text-anchor="middle" font-size="10.5">feature</text>
+    <path d="M517,130 L517,160 L420,160" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+    <text x="470" y="152" text-anchor="middle" font-size="10.5">bug → bug-fix lane · data → data-eng lane</text>
+    <rect x="634" y="60" width="180" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="724" y="82" text-anchor="middle" font-weight="600">Phase −1 Intake &amp; Mapping</text><text x="724" y="100" text-anchor="middle" font-size="11.5">cartographer + route-mapper</text><text x="724" y="116" text-anchor="middle" font-size="11.5">×3 reviewers loop until "ok"</text>
+    <line x1="814" y1="95" x2="854" y2="95" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="834" y="88" text-anchor="middle" font-size="10.5">maps</text>
+    <rect x="856" y="60" width="150" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="931" y="82" text-anchor="middle" font-weight="600">Phase 0 Normalize</text><text x="931" y="100" text-anchor="middle" font-size="11.5">OpenSpec proposal /</text><text x="931" y="116" text-anchor="middle" font-size="11.5">specs / design / tasks</text>
+    <line x1="1006" y1="95" x2="1046" y2="95" stroke="currentColor" marker-end="url(#arr)"/>
+    <rect x="1048" y="60" width="140" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="1118" y="82" text-anchor="middle" font-weight="600">Phase 1 Plan loop</text><text x="1118" y="100" text-anchor="middle" font-size="11.5">coverage map must</text><text x="1118" y="116" text-anchor="middle" font-size="11.5">hit 100% to exit</text>
+  </g>
+  <!-- down to row 2 -->
+  <path d="M1118,130 L1118,200 L1130,200" fill="none" stroke="currentColor"/>
+  <path d="M1118,200 L400,200 L400,230" fill="none" stroke="currentColor" marker-end="url(#arr)"/>
+  <text x="760" y="194" text-anchor="middle" font-size="10.5">specs + coverage map + task groups</text>
+  <!-- Row 2 -->
+  <g>
+    <rect x="250" y="232" width="300" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="400" y="254" text-anchor="middle" font-weight="600">Phase 2 Decompose &amp; spawn teams</text>
+    <rect x="266" y="266" width="120" height="48" rx="6" fill="currentColor" fill-opacity="0.06" stroke="currentColor"/>
+    <text x="326" y="285" text-anchor="middle" font-size="11.5">backend teammate</text><text x="326" y="302" text-anchor="middle" font-size="10.5">+ adversarial reviewer</text>
+    <rect x="414" y="266" width="120" height="48" rx="6" fill="currentColor" fill-opacity="0.06" stroke="currentColor"/>
+    <text x="474" y="285" text-anchor="middle" font-size="11.5">frontend teammate</text><text x="474" y="302" text-anchor="middle" font-size="10.5">+ adversarial reviewer</text>
+    <line x1="550" y1="280" x2="590" y2="280" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="570" y="272" text-anchor="middle" font-size="10.5">diff + tests</text>
+    <rect x="592" y="232" width="170" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="677" y="254" text-anchor="middle" font-weight="600">Phase 3 Review gate</text><text x="677" y="272" text-anchor="middle" font-size="11.5">evidence JSON per task</text><text x="677" y="288" text-anchor="middle" font-size="11.5">task-reviewer verdict</text><text x="677" y="306" text-anchor="middle" font-size="11.5" fill="#c2410c">hook blocks "completed"</text>
+    <line x1="762" y1="280" x2="802" y2="280" stroke="currentColor" marker-end="url(#arr)"/>
+    <rect x="804" y="232" width="130" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="869" y="262" text-anchor="middle" font-weight="600">Phase 4 Reconcile</text><text x="869" y="282" text-anchor="middle" font-size="11.5">merge parallel</text><text x="869" y="298" text-anchor="middle" font-size="11.5">branches, fix drift</text>
+    <line x1="934" y1="280" x2="974" y2="280" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="954" y="272" text-anchor="middle" font-size="10.5">merged</text>
+    <rect x="976" y="232" width="212" height="96" rx="8" fill="none" stroke="currentColor"/>
+    <text x="1082" y="254" text-anchor="middle" font-weight="600">Phase 5 Integrate live</text><text x="1082" y="272" text-anchor="middle" font-size="11.5">suite vs real dev API</text><text x="1082" y="288" text-anchor="middle" font-size="11.5">Playwright as a real user</text><text x="1082" y="306" text-anchor="middle" font-size="11.5">verdict artifact per slice</text>
+  </g>
+  <!-- Phase 6 loop -->
+  <path d="M1082,328 L1082,370 L400,370 L400,328" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+  <text x="740" y="364" text-anchor="middle" font-size="10.5">Phase 6 outer loop: next task group</text>
+  <!-- Row 3 -->
+  <g>
+    <path d="M1188,280 L1200,280" fill="none" stroke="none"/>
+    <rect x="592" y="400" width="240" height="80" rx="8" fill="none" stroke="currentColor"/>
+    <text x="712" y="424" text-anchor="middle" font-weight="600">Phase 7 Master review</text><text x="712" y="442" text-anchor="middle" font-size="11.5">every requirement → commit + tests</text><text x="712" y="458" text-anchor="middle" font-size="11.5">+ flow; editability + interaction maps</text>
+    <path d="M1082,328 L1082,440 L832,440" fill="none" stroke="currentColor" marker-end="url(#arr)"/>
+    <text x="960" y="432" text-anchor="middle" font-size="10.5">all groups done</text>
+    <path d="M592,440 L400,440 L400,328" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+    <text x="496" y="432" text-anchor="middle" font-size="10.5">gaps → re-enter Phase 2</text>
+    <line x1="712" y1="480" x2="712" y2="510" stroke="currentColor" marker-end="url(#arr)"/>
+    <rect x="592" y="512" width="240" height="56" rx="8" fill="none" stroke="currentColor"/>
+    <text x="712" y="534" text-anchor="middle" font-weight="600">Phase 8 Final report</text><text x="712" y="552" text-anchor="middle" font-size="11.5">Layer-3 gates → commit, push, merge to main</text>
+  </g>
+  <!-- Hook rail -->
+  <g>
+    <rect x="20" y="590" width="1168" height="40" rx="6" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
+    <text x="36" y="615" font-weight="600" fill="#c2410c">Hooks (every session, every tool call)</text>
+    <text x="320" y="615" font-size="11.5">SessionStart: resume run</text>
+    <text x="490" y="615" font-size="11.5">PreToolUse *: skill gate, identity, override guard</text>
+    <text x="790" y="615" font-size="11.5">PostToolUse TaskUpdate / TaskCompleted: evidence</text>
+    <text x="1085" y="615" font-size="11.5">Stop: completion lock</text>
+  </g>
+  <line x1="677" y1="328" x2="677" y2="400" stroke="none"/>
+</svg>
+<figcaption><b>Figure 1. Today's main lane.</b> The chain is sound. The weight is in the dashed box at top left (what the Lead must read before anything happens) and in the hook rail at the bottom, which runs on every tool call of every Claude Code session on the machine, not only during a CT6 run. Phase 3 is the one place where enforcement is code, not prose: the PostToolUse hook refuses a "completed" status without an evidence file.</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<details><summary>For the engineers: the lane in one table</summary><div>
+<div class="scroll"><table>
+<tr><th>Step</th><th>Who</th><th>Exit condition</th><th>Enforced by</th></tr>
+<tr><td>MemPalace wake-up</td><td>Lead</td><td>recall included in context</td><td>prose</td></tr>
+<tr><td>Phase −2 Triage</td><td><code>bug-classifier</code> (model: fable)</td><td>kind decided; bug → <code>bug-fix-pipeline</code>, data-eng → <code>data-eng-pipeline</code></td><td>prose</td></tr>
+<tr><td>Phase −1 Intake &amp; Mapping</td><td>cartographer plugin, <code>route-mapper</code>, ×3 <code>codebase-map-reviewer</code>, ×3 <code>integration-explorer</code>, <code>master-synthesizer</code></td><td>all three reviewers return ok (ralph-loop plugin, no cap)</td><td>external plugin loop</td></tr>
+<tr><td>Phase 0 / 0.5</td><td>Lead, <code>oracle-deriver</code></td><td>OpenSpec artifacts exist; oracle derived</td><td>OpenSpec CLI</td></tr>
+<tr><td>Phase 1 Plan loop</td><td>Lead, <code>system-architect</code></td><td><code>openspec validate</code> clean and coverage map 100%</td><td>CLI + prose</td></tr>
+<tr><td>Phase 2 Spawn</td><td><code>backend</code>, <code>frontend</code> (opus) + paired <code>adversarial-reviewer</code></td><td>teams created; contracts approved</td><td>Agent Teams or subagents</td></tr>
+<tr><td>Phase 3 Review gate</td><td>teammate self-review, <code>task-reviewer</code>, <code>test-completeness-verifier</code>, ×3 <code>interaction-reviewer</code></td><td>schema v7 evidence file present</td><td><b>hook (code)</b></td></tr>
+<tr><td>Phase 4 / 5</td><td><code>reconciler</code>, <code>integration</code></td><td>merged; live dev + Playwright verdict artifacts</td><td>hook arm <code>_audit_frontend_e2e</code> at Stop</td></tr>
+<tr><td>Phase 6 / 7</td><td>Lead</td><td>all groups; coverage fully green; ×3 editability reviewers</td><td>prose + Layer-3 tools</td></tr>
+<tr><td>Phase 8</td><td>Lead, <code>doc-updater</code>, <code>closeout-agent</code></td><td>24 Layer-3 verification tools pass; commit as recorded identity</td><td>hook arms at Stop + PreToolUse</td></tr>
+</table></div>
+</div></details>
+
+<h2 id="heavy">3. Where the weight is (measured, not guessed)</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Before the Lead robot can even start, it has to read a rulebook as long as a short novel. Every helper robot carries a copy of the same five rule pages. Some rules are said three hundred times with the word MUST. And the robots have gotten a new brain (Claude 5) that threw away a tool the hall monitors were relying on.</p></div>
+
+<h3>3a. The Lead's backpack at run start</h3>
+<figure>
+<div class="bars" role="img" aria-label="Approximate tokens loaded by the Lead before Phase minus two, by surface: conventions skill 64.6K, pipeline skill 38.4K, team-spawning skill 15.7K, verified-agent-output skill 8.6K, the slash command 8.5K, intake skill 4.8K. Total about 141K.">
+  <div class="bar-row"><span class="lab">common-pipeline-conventions</span><span class="track" style="--w:100%"><span class="fill" style="width:100%"></span><span class="val">64.6K tok · 2,298 lines</span></span></div>
+  <div class="bar-row"><span class="lab">architect-team-pipeline</span><span class="track" style="--w:59%"><span class="fill" style="width:59%"></span><span class="val">38.4K</span></span></div>
+  <div class="bar-row"><span class="lab">team-spawning-and-review-gates</span><span class="track" style="--w:24%"><span class="fill" style="width:24%"></span><span class="val">15.7K</span></span></div>
+  <div class="bar-row"><span class="lab">verified-agent-output</span><span class="track" style="--w:13%"><span class="fill" style="width:13%"></span><span class="val">8.6K</span></span></div>
+  <div class="bar-row"><span class="lab">/architect-team command</span><span class="track" style="--w:13%"><span class="fill" style="width:13%"></span><span class="val">8.5K</span></span></div>
+  <div class="bar-row"><span class="lab">intake-and-mapping</span><span class="track" style="--w:7%"><span class="fill" style="width:7%"></span><span class="val">4.8K</span></span></div>
+</div>
+<figcaption><b>Figure 2. Tokens the Lead reads before Phase −2</b> (bytes ÷ 4, this repo at v3.67.0). Claude Code keeps an invoked skill in context for the rest of the session, so this is a recurring cost on every turn, and after a compaction only the first 5,000 tokens of each skill are re-attached, with 25,000 shared across all of them. The conventions skill is 13× that cap: whatever rule lives on line 1,200 is gone after the first compaction.</figcaption>
+</figure>
+
+<h3>3b. The full measurement table</h3>
+<div class="scroll"><table>
+<tr><th>What</th><th>Measured</th><th>Why it matters</th></tr>
+<tr><td>Always-loaded descriptions (56 skills + 39 agents + 26 commands)</td><td class="num">≈21.4K tokens / session</td><td>Paid in every Claude Code session on the machine, including ones that never run CT6. No skill sets <code>user-invocable: false</code> or <code>disable-model-invocation</code>.</td></tr>
+<tr><td>SKILL.md files over the documented 500-line guidance</td><td class="num">7 (largest 2,298 lines)</td><td>Docs: keep SKILL.md under 500 lines, move detail to supporting files.</td></tr>
+<tr><td>Largest agent file</td><td class="num">system-architect 83 KB ≈ 21K tok</td><td>A dispatch brief this size buries the role in rules. CT6's own v3.66.0 entry measured 124K tokens per researcher dispatch with ~3% role signal.</td></tr>
+<tr><td>Identical boilerplate blocks compiled into every agent</td><td class="num">5 blocks × 39 agents ≈ 4.5 KB each</td><td>~175 KB of duplicated text; one change means 39 regenerated files.</td></tr>
+<tr><td>Imperative rule words</td><td class="num">skills: 240 MUST / 88 NEVER · agents: 116 / 29</td><td>Unranked imperatives dilute each other; the repo already noticed this and added a ranked "Read this first" in v3.66.0.</td></tr>
+<tr><td>"×3 parallel reviewers" pattern</td><td class="num">80 mentions</td><td>Three independent reviewers is the right tool for a few high-stakes gates and an expensive default everywhere else.</td></tr>
+<tr><td>Required external plugins</td><td class="num">3 (superpowers, cartographer, ralph-loop) + experimental Agent Teams flag</td><td>A run aborts without superpowers. ralph-loop exists to do what the Stop-hook completion lock now does natively.</td></tr>
+<tr><td>Releases</td><td class="num">179 in 105 days; last release touched 27 files in 9 directories</td><td>CHANGELOG is 978 KB; CODEBASE_MAP is 265 KB. Both are read by agents.</td></tr>
+<tr><td>Tests that pin markdown wording</td><td class="num">≈137 of 265 test files</td><td>Every prose edit risks a test; the suite protects wording more than behavior.</td></tr>
+<tr><td>Hook latency (this machine)</td><td class="num">50–75 ms per PreToolUse / Stop call</td><td><span class="good">Not a problem.</span> The hooks are fast; the cost is that they run in every session, not that they are slow.</td></tr>
+<tr><td>Test suite on Linux / Python 3.13</td><td class="num">8,348 passed · 2 skipped · 1 failed · 101 s</td><td>The recorded bracket is win32 (8,345 + 6 skipped). The one Linux failure is <code>test_completion_status_integrity::test_both_surfaces_agree_on_the_orchestrator_session</code>: the Stop hook blocks because <code>~/.claude/tasks</code> does not exist on this machine and the lock treats an unreadable task root as "unknown, so blocked". That is the same condition a Claude 5 session without the task tools produces (see §4, row 1).</td></tr>
+</table></div>
+
+<h2 id="claude">4. What changed in Claude since CT6 was designed</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>The robots got a new brain and a new toolbox. The new brain doesn't carry a to-do list by default, and CT6's hall monitors watch that to-do list. The toolbox now has labels for "only humans may press this" and "only load this when touching these files," and a script runner that can send out many helpers at once without the Lead having to babysit them.</p></div>
+<div class="scroll"><table>
+<tr><th>Claude Code / Claude 5 fact (verified in docs)</th><th>What it means for CT6</th><th>Severity</th></tr>
+<tr><td><code>TaskCreate/TaskList/TaskUpdate</code> are provided by default only on Opus 4.7, Sonnet 4.6, Haiku 4.5 and earlier. On every other model (all of Claude 5) they are left out unless you opt in (<code>CLAUDE_CODE_ENABLE_TODO_TOOLS=1</code>, <code>--allowedTools TaskCreate</code>, or <code>--tools</code>). Cloud and background sessions always have them. <a href="https://code.claude.com/docs/en/tools-reference.md">tools-reference</a></td><td>The PostToolUse(TaskUpdate) review gate and the TaskCompleted hook go silent on a local Claude 5 session, and the Stop-hook completion lock, which reads the harness task root, fails closed when that root was never created: it blocks every turn end with "unknown state is not the same as empty". Reproduced on this machine by the one failing test. 18 skill/hook files reference these tools; nothing in the repo mentions the opt-in.</td><td><span class="pill crit">critical</span></td></tr>
+<tr><td><code>TodoWrite</code> is disabled by default in favor of the Task tools. <a href="https://code.claude.com/docs/en/tools-reference.md">tools-reference</a></td><td>All 39 agents list <code>TodoWrite</code> in <code>tools:</code>. Dead entry on every dispatch.</td><td><span class="pill warn">cleanup</span></td></tr>
+<tr><td>Skill descriptions load at session start; the body loads on invocation and stays in context. After compaction each skill is re-attached up to 5,000 tokens, 25,000 combined. Keep SKILL.md under 500 lines. <a href="https://code.claude.com/docs/en/skills.md">skills</a></td><td>The 64.6K-token conventions skill is truncated to its first 5,000 tokens after the first compaction. The rules it carries past that point are unenforced prose anyway (see §5, change 3).</td><td><span class="pill crit">critical</span></td></tr>
+<tr><td>Skill frontmatter: <code>disable-model-invocation</code>, <code>user-invocable</code>, <code>context: fork</code>, <code>agent</code>, <code>paths</code>, <code>hooks</code>, <code>effort</code>, <code>model</code>, <code>allowed-tools</code>. Description + <code>when_to_use</code> cap at 1,536 chars. <a href="https://code.claude.com/docs/en/skills.md">skills</a></td><td>CT6 uses none of them. ~45 skills are internal procedure (not for humans), 7 are lane drivers (only via command), several are path-specific (data-eng, Playwright).</td><td><span class="pill warn">opportunity</span></td></tr>
+<tr><td>Subagent frontmatter: <code>effort</code>, <code>memory</code> (project-scoped persistent memory, first 25 KB loaded), <code>isolation: worktree</code>, <code>omitClaudeMd</code>, <code>skills</code> (preload), <code>maxTurns</code>, <code>autoCompactWindow</code>; model accepts <code>fable</code>/<code>opus</code>/<code>sonnet</code>/<code>haiku</code> or full IDs. Plugin agents ignore <code>hooks</code>, <code>permissionMode</code>, <code>mcpServers</code>. <a href="https://code.claude.com/docs/en/sub-agents.md">sub-agents</a></td><td>Shared rules can be one preloaded skill instead of 39 compiled copies. Mappers can keep per-project memory across runs. Builders can get native worktrees.</td><td><span class="pill warn">opportunity</span></td></tr>
+<tr><td>Hooks: 33 events incl. <code>SubagentStart</code>, <code>PostToolUseFailure</code>, <code>TaskCreated</code>, <code>PostCompact</code>, <code>InstructionsLoaded</code>; handler types <code>command</code>, <code>prompt</code>, <code>agent</code>, <code>http</code>; <code>onFailure: block</code>; PreToolUse may return <code>updatedInput</code> and <code>additionalContext</code>. Hooks may be declared in skill frontmatter and persist for the session. <a href="https://code.claude.com/docs/en/hooks.md">hooks</a></td><td>CT6's enforcement can register when a lane starts instead of in every session; a PreToolUse hook can inject the commit identity rather than refuse; a <code>prompt</code> hook can replace some ×3 reviewer fan-outs for cheap checks.</td><td><span class="pill warn">opportunity</span></td></tr>
+<tr><td>Workflow tool: a script orchestrates many subagents in the background with <code>agent()</code>, <code>parallel()</code>, <code>pipeline()</code>, <code>phase()</code>, typed <code>schema</code> results, 16 concurrent agents by default; plugins ship workflows in <code>workflows/</code>. <a href="https://code.claude.com/docs/en/workflows.md">workflows</a></td><td>The "dispatch ×3, aggregate verdicts, loop until all ok" pattern becomes deterministic code with typed outputs, replacing the ralph-loop plugin and most of the prose that explains the loop.</td><td><span class="pill warn">opportunity</span></td></tr>
+<tr><td>Agent Teams remain experimental and disabled by default; teammates are not spawned in <code>-p</code> / SDK sessions; no nested teams; teammate model resolves spawn prompt → agent file → <code>CLAUDE_CODE_SUBAGENT_MODEL</code> → lead. <a href="https://code.claude.com/docs/en/agent-teams.md">agent-teams</a></td><td>Keep teams as the optional mode it already is; make subagents + Workflow the primary, documented path so unattended runs behave the same as interactive ones.</td><td><span class="pill">keep</span></td></tr>
+<tr><td>Models: Fable 5.1 $10/$50 per MTok, high effort default; Opus 5.5 $4/$20 ("start here for most workloads"); Sonnet 5.5 $2/$10; Haiku 5.5 from $0.10/$0.50 for classification and routing. All 1M context, 128K output. Effort levels low→max via frontmatter. <a href="https://platform.claude.com/docs/en/models/overview.md">models</a></td><td>CT6 uses two tiers (fable / opus). Classification and mechanical verification roles can drop two tiers without losing anything the hooks check.</td><td><span class="pill warn">opportunity</span></td></tr>
+<tr><td>CLAUDE.md is context, not enforcement; keep it under ~200 lines; <code>.claude/rules/*.md</code> with <code>paths:</code> load on demand. Hooks are the enforcement mechanism. A plugin-root CLAUDE.md is not loaded. <a href="https://code.claude.com/docs/en/memory.md">memory</a></td><td>CT6 already agrees in principle (hooks enforce; CLAUDE.md is 60 lines). The disagreement is in the skills, which carry hundreds of prose rules with no hook behind them.</td><td><span class="pill">aligned</span></td></tr>
+<tr><td><code>/skill-doctor</code> reports each skill's context cost and usage. <code>claude plugin eval</code> runs scripted evals. <a href="https://code.claude.com/docs/en/skills.md">skills</a></td><td>Free measurement for the budget gate proposed below; evals can replace many prose-pin tests.</td><td><span class="pill warn">opportunity</span></td></tr>
+</table></div>
+<p class="note">Not verified and therefore not asserted here: exact input schemas of the team hooks, whether <code>claude plugin eval</code> is GA in your build, a minimum Claude Code version for Agent Teams.</p>
+
+<h2 id="plan">5. The proposal: eight changes</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Fix the broken to-do list first. Then turn the giant rulebook into one page of real rules plus a shelf of books the robots pull down only when needed. Any rule that matters gets a hall monitor; any rule that doesn't gets deleted. Give each robot a short job card instead of the whole manual. Send three checkers only when the job is scary. Use the new toolbox instead of borrowed tools. And stop printing a new edition of the encyclopedia every two days.</p></div>
+
+<div class="cards">
+<div class="card"><div class="num">CHANGE 1 · FLOOR</div><h3>Make CT6 run on Claude 5 at all</h3>
+<p>Setup writes <code>CLAUDE_CODE_ENABLE_TODO_TOOLS=1</code> into <code>~/.claude/settings.json</code> <code>env</code> next to the Agent Teams flag; the SessionStart hook checks the session actually has <code>TaskUpdate</code> and prints a one-line warning with the fix when it does not; the completion lock treats "task tools absent" as a measured gap instead of silence. Drop <code>TodoWrite</code> from all 39 agent tool lists.</p>
+<dl><dt>Spirit kept</dt><dd>Evidence before assertion. The gate must know when it is blind.</dd><dt>Impact</dt><dd>Restores the Phase 3 gate and the completion lock on local Claude 5 sessions.</dd><dt>Risk</dt><dd>Low. Additive; one test per surface.</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 2 · RULEBOOK</div><h3>One constitution, a shelf of references</h3>
+<p>Split <code>common-pipeline-conventions</code> into a ~3K-token constitution (the ranked "Read this first" list that already exists, the 8 ETHOS principles, and a table of pointers) plus one <code>references/*.md</code> per discipline, loaded only by the phase that needs it. Every SKILL.md: ≤ 500 lines, and the first 5,000 tokens must carry everything a run cannot lose at compaction. Lane skills shrink to the phase sequence plus pointers.</p>
+<dl><dt>Spirit kept</dt><dd>Nothing is deleted, it is moved behind a pointer; the house "heading + STOP pointer + one paragraph" shape already exists.</dd><dt>Impact</dt><dd>Lead start load ~141K → ~20K (estimate); rules survive compaction.</dd><dt>Risk</dt><dd>Medium. ~137 prose-pin tests need re-homing (change 8).</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 3 · RULES</div><h3>Every rule is a hook, a principle, or gone</h3>
+<p>Walk the 328 MUST/NEVER sentences in skills. Each becomes (a) a line in the constitution pointing at the hook or Layer-3 tool that enforces it, (b) one of the 8 principles, or (c) deleted. A rule nobody checks is a wish, and CT6's own ETHOS says evidence beats assertion. The 24 Layer-3 tools and 7 hooks stay; their prose shadows go.</p>
+<dl><dt>Spirit kept</dt><dd>The producer is never its own checker: enforcement stays in code, where it already lives.</dd><dt>Impact</dt><dd>Biggest single reduction in instruction bytes; higher compliance on the rules that remain.</dd><dt>Risk</dt><dd>Medium. Needs a ledger so each deletion cites its hook or its principle.</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 4 · AGENTS</div><h3>A job card, not the manual</h3>
+<p>Replace the 5 compiled boilerplate blocks with one <code>ct6-agent-core</code> skill preloaded through the agent's <code>skills:</code> frontmatter. Each agent file becomes a ≤ 2K-token role brief: who you are, inputs, output schema, what you never touch. Use <code>effort</code> per role, <code>memory: project</code> for mappers and reviewers so maps improve across runs, <code>omitClaudeMd</code> for pure verifiers, and evaluate native <code>isolation: worktree</code> against the custom worktree lifecycle.</p>
+<dl><dt>Spirit kept</dt><dd>Reuse before build; honest boundary stays in the core skill.</dd><dt>Impact</dt><dd>system-architect 21K → ~4K; researcher dispatch 124K → ≤ 15K (targets).</dd><dt>Risk</dt><dd>Low–medium. <code>sync_agent_boilerplate.py</code> is retired, not rewritten.</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 5 · TEAM</div><h3>Three checkers only when it's scary</h3>
+<p>Make reviewer fan-out a tiered parameter: tier 3 (×3 independent + synthesis) for architecture approval, master review, and map convergence; tier 2 (producer + adversarial) for every Phase 3 task; tier 1 (one verifier, often a <code>prompt</code> hook) for mechanical checks. Assign models by role: Fable 5.1 for Lead, architect, adversarial reviewer; Opus 5.5 for builders; Sonnet 5.5 for mechanical verifiers; Haiku 5.5 for <code>bug-classifier</code> and <code>test-prod-safety-classifier</code>.</p>
+<dl><dt>Spirit kept</dt><dd>Independent verdicts where independence buys something; the adversarial pair stays universal.</dd><dt>Impact</dt><dd>Fewer dispatches per run; classification at 1/100th the price.</dd><dt>Risk</dt><dd>Medium. The tier table is a user decision (§8).</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 6 · TOOLBOX</div><h3>Native orchestration over borrowed loops</h3>
+<p>Ship <code>workflows/</code> scripts for the converge loops (map review, integration synthesis, editability, interaction): <code>parallel()</code> the reviewers, read typed <code>schema</code> verdicts, loop until all ok. Retire the ralph-loop dependency (the Stop-hook completion lock already provides "do not stop until done"). Keep Agent Teams as the optional interactive mode; document subagents + workflows as the default so <code>-p</code> and cloud runs behave identically. Make superpowers and cartographer conditional with a native fallback skill each.</p>
+<dl><dt>Spirit kept</dt><dd>Unbounded solving, now in code; Default to action.</dd><dt>Impact</dt><dd>One fewer hard dependency now, two more if you accept §8 decision A.</dd><dt>Risk</dt><dd>Medium–high: reverses the v3.9.0 "never degrade" rule; user decision.</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 7 · FRONTMATTER</div><h3>Label every skill with who may press it</h3>
+<p><code>user-invocable: false</code> on the ~45 internal procedure skills (gone from the <code>/</code> menu); <code>disable-model-invocation: true</code> on the 7 lane drivers (only the command starts a run, which is what the skill-invocation gate already demands); <code>paths:</code> on data-eng and Playwright skills; <code>context: fork</code> for heavy sub-procedures (SQL mining, map review) so their transcripts never land in the Lead; move the PreToolUse / Stop hook registrations into the lane skills' <code>hooks:</code> so they run during a CT6 run instead of in every session. Trim descriptions toward the 1,536-char cap.</p>
+<dl><dt>Spirit kept</dt><dd>The skill-invocation discipline becomes a property of the file, not a paragraph.</dd><dt>Impact</dt><dd>≈21K always-loaded tokens → ~6K; hooks stop taxing non-CT6 sessions.</dd><dt>Risk</dt><dd>Low. Verify plugin-skill hooks fire as documented before removing them from <code>hooks.json</code>.</dd></dl></div>
+
+<div class="card"><div class="num">CHANGE 8 · HYGIENE</div><h3>Measure the backpack, stop printing encyclopedias</h3>
+<p>Add <code>scripts/measure/instruction_budget.py</code>: tokens loaded per lane start and per agent dispatch, recorded under <code>docs/measurements/</code> and gated by <code>changelog_check.py</code> exactly like the suite bracket. CHANGELOG keeps the last 10 releases, the rest already belongs in RELEASE_HISTORY. CODEBASE_MAP becomes generated. Tests split into behavior tests and one manifest-driven structural lint that replaces hand-written wording pins. Release per capability, not per fix.</p>
+<dl><dt>Spirit kept</dt><dd>Recorded, not asserted. The same discipline the suite bracket already has, applied to instruction weight.</dd><dt>Impact</dt><dd>Regressions in weight become visible; release cost drops from ~27 files to a handful.</dd><dt>Risk</dt><dd>Low.</dd></dl></div>
+</div>
+
+<h2 id="after">6. The pipeline after the changes</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Same treehouse, same steps, same hall monitors. The differences: a quick "do we have our tools?" check at the door, a one-page rulebook with a shelf behind it, short job cards for each robot, the right number of checkers for each job, and the new script runner doing the "send three, wait, collect" dance so the Lead doesn't have to.</p></div>
+</div>
+
+<div class="wide">
+<figure>
+<svg viewBox="0 0 1200 600" role="img" aria-label="The proposed CT6 lane: the same phase chain as today, with six highlighted changes: a floor check before wake-up, a 3K constitution plus lane skill replacing the 141K rulebook, mapping and review convergence loops run by Workflow scripts with tiered reviewer counts, agents receiving a short role brief plus one shared core skill with models assigned by role, the Phase 3 hook gate unchanged, and hooks registered by the lane skill rather than every session." font-family="Source Sans 3, system-ui, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+  </defs>
+  <!-- Backpack after -->
+  <g>
+    <rect x="20" y="40" width="190" height="150" rx="8" fill="none" stroke="#c2410c"/>
+    <text x="115" y="62" text-anchor="middle" font-weight="600" fill="#c2410c">Lead loads first (after)</text>
+    <rect x="34" y="72" width="162" height="22" rx="3" fill="#c2410c" fill-opacity="0.15" stroke="#c2410c"/><text x="115" y="87" text-anchor="middle" font-size="11.5">constitution · ~3K tok</text>
+    <rect x="34" y="98" width="162" height="22" rx="3" fill="#c2410c" fill-opacity="0.15" stroke="#c2410c"/><text x="115" y="113" text-anchor="middle" font-size="11.5">lane skill · ~12K tok</text>
+    <rect x="34" y="124" width="162" height="22" rx="3" fill="none" stroke="currentColor" stroke-dasharray="3 3"/><text x="115" y="139" text-anchor="middle" font-size="11.5">references/ · on demand</text>
+    <rect x="34" y="150" width="162" height="22" rx="3" fill="none" stroke="currentColor" stroke-dasharray="3 3"/><text x="115" y="165" text-anchor="middle" font-size="11.5">workflows/ · run as code</text>
+    <text x="115" y="184" text-anchor="middle" font-size="11" fill="#c2410c">≈20K tokens before Phase −2</text>
+  </g>
+  <!-- Row 1 -->
+  <g>
+    <rect x="250" y="60" width="130" height="70" rx="8" fill="#c2410c" fill-opacity="0.12" stroke="#c2410c"/>
+    <text x="315" y="82" text-anchor="middle" font-weight="600" fill="#c2410c">Floor check</text><text x="315" y="100" text-anchor="middle" font-size="11.5">task tools present?</text><text x="315" y="116" text-anchor="middle" font-size="11.5">identity · plugins</text>
+    <line x1="380" y1="95" x2="410" y2="95" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="412" y="60" width="130" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="477" y="88" text-anchor="middle" font-weight="600">Wake-up</text><text x="477" y="106" text-anchor="middle" font-size="11.5">MemPalace recall</text>
+    <line x1="542" y1="95" x2="572" y2="95" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="574" y="60" width="140" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="644" y="82" text-anchor="middle" font-weight="600">Phase −2 Triage</text><text x="644" y="100" text-anchor="middle" font-size="11.5">bug-classifier</text><text x="644" y="116" text-anchor="middle" font-size="11.5" fill="#c2410c">Haiku 5.5 · tier 1</text>
+    <line x1="714" y1="95" x2="744" y2="95" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="746" y="60" width="170" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="831" y="82" text-anchor="middle" font-weight="600">Phase −1 Mapping</text><text x="831" y="100" text-anchor="middle" font-size="11.5">mappers w/ project memory</text><text x="831" y="116" text-anchor="middle" font-size="11.5" fill="#c2410c">Workflow: ×3 review → converge</text>
+    <line x1="916" y1="95" x2="946" y2="95" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="948" y="60" width="110" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="1003" y="88" text-anchor="middle" font-weight="600">Phase 0</text><text x="1003" y="106" text-anchor="middle" font-size="11.5">OpenSpec</text>
+    <line x1="1058" y1="95" x2="1088" y2="95" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="1090" y="60" width="98" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="1139" y="88" text-anchor="middle" font-weight="600">Phase 1</text><text x="1139" y="106" text-anchor="middle" font-size="11.5">100% coverage</text>
+  </g>
+  <path d="M1139,130 L1139,200 L400,200 L400,230" fill="none" stroke="currentColor" marker-end="url(#arr2)"/>
+  <text x="770" y="194" text-anchor="middle" font-size="10.5">specs + coverage map + task groups</text>
+  <!-- Row 2 -->
+  <g>
+    <rect x="250" y="232" width="300" height="110" rx="8" fill="none" stroke="currentColor"/>
+    <text x="400" y="254" text-anchor="middle" font-weight="600">Phase 2 Spawn teams</text>
+    <rect x="266" y="266" width="120" height="62" rx="6" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
+    <text x="326" y="283" text-anchor="middle" font-size="11.5">backend · Opus 5.5</text><text x="326" y="299" text-anchor="middle" font-size="10.5">2K role brief + core skill</text><text x="326" y="315" text-anchor="middle" font-size="10.5">+ adversarial · Fable 5.1</text>
+    <rect x="414" y="266" width="120" height="62" rx="6" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
+    <text x="474" y="283" text-anchor="middle" font-size="11.5">frontend · Opus 5.5</text><text x="474" y="299" text-anchor="middle" font-size="10.5">2K role brief + core skill</text><text x="474" y="315" text-anchor="middle" font-size="10.5">+ adversarial · Fable 5.1</text>
+    <line x1="550" y1="287" x2="590" y2="287" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="592" y="232" width="190" height="110" rx="8" fill="none" stroke="currentColor"/>
+    <text x="687" y="254" text-anchor="middle" font-weight="600">Phase 3 Review gate</text><text x="687" y="272" text-anchor="middle" font-size="11.5">evidence JSON (unchanged)</text><text x="687" y="288" text-anchor="middle" font-size="11.5">hook still blocks "completed"</text><text x="687" y="306" text-anchor="middle" font-size="11.5" fill="#c2410c">tier 2 default · Sonnet 5.5</text><text x="687" y="322" text-anchor="middle" font-size="11.5" fill="#c2410c">for mechanical verifiers</text>
+    <line x1="782" y1="287" x2="822" y2="287" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="824" y="232" width="120" height="110" rx="8" fill="none" stroke="currentColor"/>
+    <text x="884" y="270" text-anchor="middle" font-weight="600">Phase 4</text><text x="884" y="290" text-anchor="middle" font-size="11.5">reconcile</text>
+    <line x1="944" y1="287" x2="984" y2="287" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="986" y="232" width="202" height="110" rx="8" fill="none" stroke="currentColor"/>
+    <text x="1087" y="254" text-anchor="middle" font-weight="600">Phase 5 Integrate live</text><text x="1087" y="272" text-anchor="middle" font-size="11.5">real dev API + Playwright</text><text x="1087" y="290" text-anchor="middle" font-size="11.5">verdict artifacts (unchanged)</text>
+  </g>
+  <path d="M1087,342 L1087,380 L400,380 L400,342" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr2)"/>
+  <text x="740" y="374" text-anchor="middle" font-size="10.5">Phase 6 outer loop: next group</text>
+  <!-- Row 3 -->
+  <g>
+    <rect x="592" y="410" width="240" height="70" rx="8" fill="none" stroke="currentColor"/>
+    <text x="712" y="434" text-anchor="middle" font-weight="600">Phase 7 Master review</text><text x="712" y="452" text-anchor="middle" font-size="11.5" fill="#c2410c">tier 3: ×3 + synthesis, Fable 5.1</text><text x="712" y="468" text-anchor="middle" font-size="11.5">run as a Workflow script</text>
+    <path d="M1087,342 L1087,445 L832,445" fill="none" stroke="currentColor" marker-end="url(#arr2)"/>
+    <path d="M592,445 L400,445 L400,342" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr2)"/>
+    <text x="496" y="438" text-anchor="middle" font-size="10.5">gaps → Phase 2</text>
+    <line x1="712" y1="480" x2="712" y2="500" stroke="currentColor" marker-end="url(#arr2)"/>
+    <rect x="592" y="502" width="240" height="50" rx="8" fill="none" stroke="currentColor"/>
+    <text x="712" y="522" text-anchor="middle" font-weight="600">Phase 8 Final report</text><text x="712" y="540" text-anchor="middle" font-size="11.5">Layer-3 gates + budget record → commit</text>
+  </g>
+  <!-- Hook rail -->
+  <g>
+    <rect x="20" y="565" width="1168" height="30" rx="6" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
+    <text x="36" y="585" font-weight="600" fill="#c2410c">Hooks (same 7 scripts, registered by the lane skill for this run only)</text>
+    <text x="640" y="585" font-size="11.5">PreToolUse injects identity via updatedInput · Stop lock knows when task tools are absent</text>
+  </g>
+</svg>
+<figcaption><b>Figure 3. The proposed lane.</b> Orange marks what changes; everything in neutral ink is today's mechanism, kept. The phase chain, the evidence-file gate, the live-environment verdicts, and the completion lock are untouched. What moves is where the rules live (code and references instead of a 65K-token skill), how many reviewers a step gets, which model does which job, and when the hooks are armed.</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<h3>Before and after, per dispatch</h3>
+<figure>
+<div class="legend"><span><i style="background:var(--today)"></i>today (measured)</span><span><i style="background:var(--next)"></i>target after changes 2, 4, 7 (estimate)</span></div>
+<div class="bars pair" role="img" aria-label="Paired bars comparing today's measured token load with the proposed target: Lead before Phase minus two, 141K today versus 20K target; researcher dispatch 124K versus 15K; system-architect brief 21K versus 4K; always-loaded descriptions per session 21K versus 6K.">
+  <div class="bar-row"><span class="lab">Lead, before Phase −2</span><span class="track" style="--w:100%"><span class="fill" style="width:100%"></span><span class="val">141K</span></span></div>
+  <div class="bar-row"><span class="lab"></span><span class="track" style="--w:14%"><span class="fill next" style="width:14%"></span><span class="val">~20K</span></span></div>
+  <div class="bar-row"><span class="lab">Researcher dispatch</span><span class="track" style="--w:88%"><span class="fill" style="width:88%"></span><span class="val">124K (v3.66.0 changelog)</span></span></div>
+  <div class="bar-row"><span class="lab"></span><span class="track" style="--w:11%"><span class="fill next" style="width:11%"></span><span class="val">≤15K</span></span></div>
+  <div class="bar-row"><span class="lab">system-architect brief</span><span class="track" style="--w:15%"><span class="fill" style="width:15%"></span><span class="val">21K</span></span></div>
+  <div class="bar-row"><span class="lab"></span><span class="track" style="--w:3%"><span class="fill next" style="width:3%"></span><span class="val">~4K</span></span></div>
+  <div class="bar-row"><span class="lab">Always-loaded, every session</span><span class="track" style="--w:15%"><span class="fill" style="width:15%"></span><span class="val">21K</span></span></div>
+  <div class="bar-row"><span class="lab"></span><span class="track" style="--w:4%"><span class="fill next" style="width:4%"></span><span class="val">~6K</span></span></div>
+</div>
+<figcaption><b>Figure 4.</b> Targets are estimates until <code>instruction_budget.py</code> (change 8) records them; they follow directly from the 500-line skill guidance, a 2K role brief, and a 5K-token re-attach budget per skill. Fewer tokens per dispatch also means fewer compactions per run, which is where today's long-rule skills lose their tails.</figcaption>
+</figure>
+
+<h2 id="impact">7. Impact summary</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>Change</th><th>Effect</th><th>Effort</th><th>Risk</th><th>ETHOS principle it serves</th></tr>
+<tr><td class="num">1</td><td>Task-tool floor check</td><td>Review gate and completion lock work on Claude 5</td><td>S</td><td class="good">low</td><td>7 Evidence before assertion</td></tr>
+<tr><td class="num">2</td><td>Constitution + references</td><td>Lead start 141K → ~20K; rules survive compaction</td><td>L</td><td class="warn">medium</td><td>8 Understand before acting</td></tr>
+<tr><td class="num">3</td><td>Rule → hook / principle / delete</td><td>Hundreds of prose imperatives removed; the rest enforced</td><td>L</td><td class="warn">medium</td><td>2 Producer is never its own checker</td></tr>
+<tr><td class="num">4</td><td>Role briefs + core skill</td><td>Per-dispatch load down ~80%; one shared rules surface</td><td>M</td><td class="good">low–med</td><td>1 Reuse before build</td></tr>
+<tr><td class="num">5</td><td>Tiered reviewers, models by role</td><td>Fewer dispatches; classification ~1/100 price</td><td>M</td><td class="warn">medium</td><td>2, 7</td></tr>
+<tr><td class="num">6</td><td>Workflows, drop ralph-loop, soften plugins</td><td>Deterministic converge loops; identical behavior in -p / cloud</td><td>M</td><td class="crit">med–high</td><td>4 Unbounded solving, 5 Default to action</td></tr>
+<tr><td class="num">7</td><td>Skill frontmatter + per-run hooks</td><td>Always-loaded 21K → ~6K; no hook tax on other sessions</td><td>S</td><td class="good">low</td><td>3 Honest boundary</td></tr>
+<tr><td class="num">8</td><td>Budget gate + release hygiene</td><td>Weight regressions visible; releases cheap</td><td>M</td><td class="good">low</td><td>6 Documentation currency</td></tr>
+</table></div>
+
+<h2 id="order">8. Order of work and decisions for you</h2>
+<ol class="steps">
+<li><b>Floor and measurement first (changes 1 and 8a).</b> Done when a Claude 5 local session blocks a fake "completed" exactly as today, and <code>instruction_budget.py</code> has recorded the v3.67.0 baseline under <code>docs/measurements/</code>. Nothing else starts until the "before" number is on disk.</li>
+<li><b>Rulebook (changes 2, 3, 7).</b> Done when every SKILL.md is under 500 lines, the constitution is under 3K tokens, each deleted MUST cites its hook or principle in a ledger, internal skills are hidden from the menu, and the suite is green with wording pins replaced by the structural lint.</li>
+<li><b>Agents and team (changes 4, 5).</b> Done when no agent exceeds 2K tokens, the core skill preloads through <code>skills:</code>, the tier table is in the constitution, and one full run on a fixture project shows the same gate verdicts as the baseline run.</li>
+<li><b>Toolbox (change 6).</b> Done when the four converge loops run as workflows with typed verdicts, ralph-loop is out of <code>REQUIRED_PLUGINS</code>, and the decisions below are settled.</li>
+</ol>
+
+<h3>Decisions only you can make</h3>
+<ul>
+<li><b>A. superpowers and cartographer: hard or conditional?</b> The repo's v3.9.0 rule says abort rather than degrade. The proposal is to keep them as the preferred path but ship a native fallback skill for brainstorming / TDD / debugging / mapping so a run never aborts on a missing plugin. This reverses a rule you wrote on purpose.</li>
+<li><b>B. The reviewer tier table.</b> Which gates keep ×3? Proposed: architecture approval, master review, map convergence. Everything else gets producer + adversary.</li>
+<li><b>C. Models by role.</b> Proposed: Fable 5.1 for Lead, architect, adversary; Opus 5.5 builders; Sonnet 5.5 verifiers; Haiku 5.5 classifiers. The current uniform / split lever in <code>set_default_model.py</code> would gain a "by role" mode.</li>
+<li><b>D. Release cadence.</b> Per capability instead of per fix, with the CHANGELOG rotated to the last 10 entries.</li>
+</ul>
+
+<h2 id="keep">9. What does not change</h2>
+<ul>
+<li>The phase sequence, the 100% coverage gate, live-environment verification, and the Playwright-as-a-real-user rule.</li>
+<li>Hooks as the enforcement layer: the Stop-hook completion lock, the evidence-file gate, the override guard, the commit-identity arm, the 24 Layer-3 tools.</li>
+<li>The eight ETHOS principles, the honest-boundary habit, "recorded, not asserted" measurements, and stdlib-only Python.</li>
+<li>The 26 slash commands and the <code>architect-team</code> slug.</li>
+<li>MemPalace memory and the git-commit-identity discipline.</li>
+</ul>
+
+<h2 id="appendix">Appendix: how the numbers were taken</h2>
+<p class="note">All measurements are from this checkout at v3.67.0 (commit <code>13ac5a6</code>) on 2026-11-08, Linux, Python 3.13.18. Tokens are bytes ÷ 4. Commands:</p>
+<pre>wc -c skills/*/SKILL.md agents/*.md commands/*.md            # sizes
+grep -c "^## " skills/common-pipeline-conventions/SKILL.md     # 53 sections
+grep -o "\bMUST\b" -r skills | wc -l                            # 240 (NEVER: 88)
+grep -oi "×3\|x3 in parallel\|three reviewers" -r skills agents | wc -l   # 80
+grep -l "SKILL.md\|agents/\|commands/" tests/*.py | wc -l       # 137 of 265
+python hooks/pretool_skill_gate.py &lt; payload.json              # 48–76 ms
+python -m pytest -q                                            # 8348 passed, 2 skipped, 1 failed, 101 s</pre>
+<p class="note">Claude Code facts come from code.claude.com/docs (tools-reference, skills, sub-agents, hooks, agent-teams, workflows, memory, context-window, plugins) and platform.claude.com/docs/en/models/overview, fetched 2026-11-08. The 124K-tokens-per-researcher figure is CT6's own, from the v3.66.0 CHANGELOG entry.</p>
+</div>
