@@ -99,7 +99,7 @@ a { color: var(--accent); }
 <header>
   <div class="eyebrow">Proposal · CLAUDE TEAM SIX (plugin slug <code>architect-team</code>) · v3.67.0 baseline · measured 2026-11-08 · Part II added the same day</div>
   <h1>Keep the careful robot team. Shrink its backpack.</h1>
-  <p class="lede">CT6 is a team of robot helpers that builds software very carefully. It got so careful that it now reads a 65,000-word rulebook before every chore. This plan keeps the carefulness and removes the weight, using what Claude Code and the Claude 5 models can do today. Part I is the modernization; Part II adds six requested capabilities: a referencing mandate, codified project principles, smarter deletion, test selection, sample-first data work, and private-URL publishing.</p>
+  <p class="lede">CT6 is a team of robot helpers that builds software very carefully. It got so careful that it now reads a 65,000-word rulebook before every chore. This plan keeps the carefulness and removes the weight, using what Claude Code and the Claude 5 models can do today. Part I is the modernization; Part II adds seven requested capabilities: a referencing mandate, codified project principles, smarter deletion, test selection, sample-first data work, private-URL publishing, and a per-project homepage with a timing log.</p>
   <div class="kpis">
     <div class="kpi"><b>~141K</b><span>tokens the Lead loads before Phase −2 starts (its own rule surfaces alone)</span></div>
     <div class="kpi"><b>124K</b><span>tokens per researcher dispatch, ~3% role signal (CT6's own v3.66.0 measurement)</span></div>
@@ -389,8 +389,8 @@ a { color: var(--accent); }
     <path d="M592,445 L400,445 L400,342" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arr2)"/>
     <text x="496" y="438" text-anchor="middle" font-size="10.5">gaps → Phase 2</text>
     <line x1="712" y1="480" x2="712" y2="500" stroke="currentColor" marker-end="url(#arr2)"/>
-    <rect x="592" y="502" width="240" height="50" rx="8" fill="none" stroke="currentColor"/>
-    <text x="712" y="522" text-anchor="middle" font-weight="600">Phase 8 Final report</text><text x="712" y="540" text-anchor="middle" font-size="11.5">Layer-3 gates + <tspan fill="#c2410c">full suite once</tspan> → commit</text>
+    <rect x="592" y="502" width="240" height="58" rx="8" fill="none" stroke="currentColor"/>
+    <text x="712" y="519" text-anchor="middle" font-weight="600">Phase 8 Final report</text><text x="712" y="536" text-anchor="middle" font-size="11">Layer-3 gates + <tspan fill="#c2410c">full suite once</tspan> → commit</text><text x="712" y="552" text-anchor="middle" font-size="11" fill="#c2410c">homepage + timing log rebuilt</text>
   </g>
   <!-- Hook rail -->
   <g>
@@ -420,7 +420,7 @@ a { color: var(--accent); }
 <figcaption><b>Figure 4.</b> Targets are estimates until <code>instruction_budget.py</code> (change 8) records them; they follow directly from the 500-line skill guidance, a 2K role brief, and a 5K-token re-attach budget per skill. Fewer tokens per dispatch also means fewer compactions per run, which is where today's long-rule skills lose their tails.</figcaption>
 </figure>
 
-<h2 id="part2" style="border-top:3px solid var(--accent)">Part II. Six additions (requested 2026-11-08)</h2>
+<h2 id="part2" style="border-top:3px solid var(--accent)">Part II. Seven additions (requested 2026-11-08)</h2>
 <p>Each addition below was checked against the repo first. Every section says what exists today with file names, what is proposed, which files it touches, and the negatives you should weigh before saying yes.</p>
 
 <h2 id="pointers">7. A referencing system: yes, with three conditions</h2>
@@ -674,7 +674,100 @@ a { color: var(--accent); }
 <li><b>A daemon outlives the session.</b> The local server must survive the Claude Code process and be stoppable; <code>bg_runtime.py</code> was designed for this but has never run in anger.</li>
 </ul>
 
-<h2 id="impact">13. Impact summary</h2>
+<h2 id="homepage">13. A homepage for every project</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>Every treehouse project gets a notice board by the door. On it: a picture of the house, the house rules, every switch and which way it is flipped, a list of decisions and why they were made, how fresh each map is, which tests check which rooms, and a stopwatch log that says "last time a job like this took about this long." The board is redrawn every time the maps are redrawn. If you allowed the private web address, the board lives there too, and many projects can share one address with a shelf for each project.</p></div>
+<h3>Today in CT6</h3>
+<ul>
+<li><b>Status is a terminal printout.</b> <code>/architect-team:status</code> prints a 25-line read-only report (dispatch mode, worktrees, open solution requirements, last run); <code>/architect-team:discipline-status</code> prints the discipline registry. Neither persists, neither is visual, neither shows maps or timing.</li>
+<li><b>State is scattered across a dozen gitignored files.</b> <code>intake-state.json</code> (phase, dispatch mode, appearance mode, deploy mandate, baseline SHA, <code>started_at</code>), <code>discipline-registry.json</code>, <code>contracts/ledger.json</code>, <code>reviews/*.json</code>, <code>vao-verdicts/</code>, <code>frontend-e2e/</code>, <code>clarifications/</code>, <code>run-metrics/&lt;run&gt;.json</code>, <code>run-history/&lt;run&gt;-toolcalls.jsonl</code>, plus <code>openspec/changes/&lt;slug&gt;/</code> (the proposal, design with its Reuse Decision Log, tasks) and MemPalace. Each is readable; nothing summarizes them.</li>
+<li><b>Maps and their freshness exist, in pieces.</b> CODEBASE_MAP (<code>last_mapped</code>), ROUTE_MAP, INTEGRATION_MAP, DESIGN_MAP, INTERACTION_INTUITION_MAP, ENDPOINT_TRACE_MAP with <code>lineage-graph.json</code>, and <code>suite-manifest.json</code>. Phase −1 checks <code>last_mapped</code> against the git log, and <code>services/knowledge_server/freshness.py</code> already computes a <code>current | stale | unknowable</code> verdict with its basis from the lineage graph. Designed and tested, consumed by nothing in the plugin.</li>
+<li><b>Nothing records how long things take.</b> <code>hooks/run_metrics.py</code> records bug-fix quality counters (loop iterations, first-pass fix, oscillation), not durations. <code>heartbeat_snapshot</code> computes elapsed time since <code>started_at</code> for the liveness email. The notifier's <code>phase_start</code> / <code>phase_complete</code> / <code>run_complete</code> events carry <code>elapsed</code>, but only into an opt-in email; nothing is stored. The tool-call ledger has a timestamp per call that nobody aggregates. There is no per-task duration log and no estimate function.</li>
+<li><b>Decisions have no single ledger.</b> Triage verdicts, reuse decisions, contract approvals, appearance mode, solution-requirement routing, and (proposed) principle verdicts each live in their own artifact.</li>
+</ul>
+<h3>Proposed</h3>
+<ul>
+<li><b>One page, built from the files that already exist.</b> <code>scripts/homepage/build.py</code> (stdlib) reads the sources above and renders one self-contained HTML at <code>.architect-team/homepage/index.html</code> with seven panels: <b>Structure</b> (the codebase tree and layers from CODEBASE_MAP); <b>Settings</b> (every <code>.architect-team-*.json</code>, the commit identity, the model split, the dispatch mode, each with its file path and a "human-owned" badge; secret values never rendered, only set / unset); <b>Decisions</b> (a new append-only <code>.architect-team/decisions.jsonl</code> that the phases already making these decisions write to: triage, reuse, contract approval, appearance, principle verdicts, option chosen and options rejected with reasons); <b>Maps</b> (each map with its freshness verdict and basis from <code>freshness.py</code>, and a link); <b>Functions</b> (the lineage graph in summary: node counts, witnessed-edge ratio, stale regions); <b>Tests</b> (the test index and suite manifest: counts by kind and persona, the always-run pins, the last selection and why); <b>Performance</b> (from the timing log below).</li>
+<li><b>A local timing log.</b> <code>.architect-team/run-history/timings.jsonl</code>, one record per interval: <code>{run_id, lane, phase, task_id, agent, model, dispatch_mode, started_at, ended_at, duration_s, outcome, size_bucket}</code>. Written by hooks that already see the boundaries: <code>SubagentStart</code> / <code>SubagentStop</code> for agent intervals, <code>TaskCreated</code> / <code>TaskCompleted</code> for task intervals, the notifier's phase events for phase intervals (the notifier writes the log whether or not email is enabled), and <code>Stop</code> for the run. <code>timings.py stats</code> gives median, p90, and sample count per lane, phase, and agent, with a trend across runs. <code>timings.py estimate --lane bug-fix --size medium</code> returns the same numbers for a question. A constitution line pairs with it: when a user asks how long something will take, answer from the estimate verb and say how many local runs it rests on; below five samples, say there is no basis yet instead of guessing. History, not a promise.</li>
+<li><b>Refreshed where the maps are refreshed.</b> Setup builds the first page as a designed empty state that names what will appear. Phase −1 rebuilds it after the maps are refreshed. Phase 8's <code>doc-updater</code> rebuilds it in its currency walk. <code>/architect-team:home</code> rebuilds on demand, and <code>/architect-team:status</code> prints its location. The page carries <code>built_at</code> and the hash of every source it read, and shows "stale since" when a source has moved, so the page can never claim a freshness it does not have.</li>
+<li><b>Published through the same setting as change 14.</b> Mode <code>claude</code>: the page is republished to the same artifact URL each time (stable file path, stable link). Mode <code>private-url</code>: served at <code>&lt;base_url&gt;/&lt;project-slug&gt;/</code>. A user-level <code>~/.architect-team/publish.json</code> holds <code>base_url</code> and the adapter; the per-project config holds the slug (default: repository name), so many projects share one host under their own paths, with an optional token-protected index at the root listing them.</li>
+</ul>
+</div>
+<div class="wide">
+<figure>
+<svg viewBox="0 0 1200 330" role="img" aria-label="How the project homepage is built and published: state files, maps, the test index and the timing log on the left feed a stdlib build script that writes one self-contained HTML page with a freshness stamp; the page is rebuilt at setup, Phase minus one, Phase 8 and on demand; it is published either to the Claude artifact URL or to base URL slash project slug on the private host, chosen by the publish setting." font-family="Source Sans 3, system-ui, sans-serif" font-size="13">
+  <defs><marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <!-- sources -->
+  <g font-size="11.5">
+    <rect x="20" y="30" width="250" height="270" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+    <text x="145" y="52" text-anchor="middle" font-weight="600" font-size="13">Sources (already on disk)</text>
+    <text x="36" y="78">intake-state.json · settings files</text>
+    <text x="36" y="100">decisions.jsonl <tspan fill="#c2410c">(new, append-only)</tspan></text>
+    <text x="36" y="122">CODEBASE / ROUTE / INTEGRATION maps</text>
+    <text x="36" y="144">lineage-graph.json · intuition map</text>
+    <text x="36" y="166">test-index.json · suite-manifest.json</text>
+    <text x="36" y="188">reviews/ · vao-verdicts/ · contracts/</text>
+    <text x="36" y="210">run-metrics/ · run-history/</text>
+    <text x="36" y="232">timings.jsonl <tspan fill="#c2410c">(new, hook-written)</tspan></text>
+    <text x="36" y="262" fill="currentColor" fill-opacity="0.7">freshness.py → current / stale / unknowable</text>
+    <text x="36" y="282" fill="currentColor" fill-opacity="0.7">per map, with the basis</text>
+  </g>
+  <line x1="270" y1="165" x2="318" y2="165" stroke="currentColor" marker-end="url(#arr4)"/>
+  <text x="294" y="157" text-anchor="middle" font-size="10.5">read</text>
+  <!-- build -->
+  <rect x="320" y="110" width="190" height="110" rx="8" fill="#c2410c" fill-opacity="0.12" stroke="#c2410c"/>
+  <text x="415" y="138" text-anchor="middle" font-weight="600" fill="#c2410c">scripts/homepage/build.py</text>
+  <text x="415" y="158" text-anchor="middle" font-size="11.5">stdlib · no secrets rendered</text>
+  <text x="415" y="176" text-anchor="middle" font-size="11.5">built_at + source hashes</text>
+  <text x="415" y="194" text-anchor="middle" font-size="11.5">timings.py stats / estimate</text>
+  <line x1="510" y1="165" x2="558" y2="165" stroke="currentColor" marker-end="url(#arr4)"/>
+  <text x="534" y="157" text-anchor="middle" font-size="10.5">writes</text>
+  <!-- page -->
+  <rect x="560" y="80" width="220" height="170" rx="8" fill="none" stroke="currentColor"/>
+  <text x="670" y="104" text-anchor="middle" font-weight="600">.architect-team/homepage/index.html</text>
+  <g font-size="11.5">
+    <text x="576" y="128">Structure · Settings · Decisions</text>
+    <text x="576" y="148">Maps + freshness · Functions</text>
+    <text x="576" y="168">Tests + pins + last selection</text>
+    <text x="576" y="188">Performance: median / p90 / n</text>
+    <text x="576" y="208">per lane · phase · agent</text>
+    <text x="576" y="236" fill="currentColor" fill-opacity="0.7">"stale since …" when a source moved</text>
+  </g>
+  <!-- triggers -->
+  <rect x="560" y="268" width="220" height="40" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+  <text x="670" y="285" text-anchor="middle" font-size="11.5" font-weight="600">rebuilt at</text>
+  <text x="670" y="300" text-anchor="middle" font-size="11">setup · Phase −1 · Phase 8 · /architect-team:home</text>
+  <line x1="670" y1="268" x2="670" y2="252" stroke="currentColor" marker-end="url(#arr4)"/>
+  <!-- publish fork -->
+  <line x1="780" y1="165" x2="828" y2="165" stroke="currentColor"/>
+  <path d="M828,165 L828,110 L868,110" fill="none" stroke="currentColor" marker-end="url(#arr4)"/>
+  <path d="M828,165 L828,220 L868,220" fill="none" stroke="currentColor" marker-end="url(#arr4)"/>
+  <text x="808" y="157" text-anchor="middle" font-size="10.5">publish</text>
+  <rect x="870" y="80" width="300" height="60" rx="8" fill="none" stroke="currentColor"/>
+  <text x="1020" y="104" text-anchor="middle" font-weight="600">mode: claude (default)</text>
+  <text x="1020" y="124" text-anchor="middle" font-size="11.5">same artifact URL on every rebuild</text>
+  <rect x="870" y="190" width="300" height="60" rx="8" fill="#c2410c" fill-opacity="0.08" stroke="#c2410c"/>
+  <text x="1020" y="214" text-anchor="middle" font-weight="600" fill="#c2410c">mode: private-url</text>
+  <text x="1020" y="234" text-anchor="middle" font-size="11.5">&lt;base_url&gt;/&lt;project-slug&gt;/ · one host, many projects</text>
+  <text x="1020" y="290" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.7">chosen by .architect-team-publish.json (human-owned)</text>
+</svg>
+<figcaption><b>Figure 6. The project homepage.</b> Nothing on the left is new except two append-only logs; the build script is the join, the freshness module is reused, and the publish setting from change 14 decides where the page lives.</figcaption>
+</figure>
+</div>
+<div class="wrap">
+<h3>How it changes the codebase</h3>
+<p>New skill <code>project-homepage</code>, command <code>/architect-team:home</code>, and <code>scripts/homepage/</code> (build, timings); <code>hooks.json</code> registers <code>SubagentStart</code> and <code>TaskCreated</code> alongside the existing <code>SubagentStop</code> and <code>TaskCompleted</code>; <code>scripts/notify/notify.py</code> appends to <code>timings.jsonl</code> on phase events regardless of the email opt-in; the phases that make decisions (Phase −2 triage, Phase 1 reuse log, CFP-3 contract approval, principle checks, SR routing) each gain one append to <code>decisions.jsonl</code>; <code>doc-updater</code> Step 4 and <code>intake-and-mapping</code>'s freshness step call the builder; <code>status</code> prints the page location; <code>services/knowledge_server/freshness.py</code> gets its first plugin consumer through the lazy-import form the separation check allows; <code>setup.py</code> builds the empty-state page and asks for the slug when private-url mode is on.</p>
+<h3>Negatives to be aware of</h3>
+<ul>
+<li><b>A stale homepage is worse than none.</b> Rebuilding at the same moments the maps are rebuilt, plus the "stale since" stamp, is the whole defense. If a rebuild is skipped the page says so instead of lying.</li>
+<li><b>Timing data is noisy.</b> Duration depends on model, effort, machine, dispatch mode, and task size. The log records all of them so stats can be bucketed; estimates below five samples refuse to answer; and an estimate is presented as history with its sample count, never as a commitment.</li>
+<li><b>Task intervals depend on the task tools.</b> On a local Claude 5 session without change 1, <code>TaskCreated</code> / <code>TaskCompleted</code> never fire and task timing silently disappears; agent and phase timing still work. The page should show which interval sources were live.</li>
+<li><b>The page concentrates sensitive information.</b> Structure, settings, and decisions in one place is exactly what makes it useful and what makes a leaked token costly. Secret values are never rendered; private-url publishing of the homepage is a per-project opt-in on top of the publish setting, not implied by it.</li>
+<li><b>Two more hook writes per boundary.</b> One JSON line per agent start and stop; negligible against the 50 ms hooks already cost, but it is more I/O in the hot path.</li>
+<li><b>One more generated artifact to test.</b> The builder needs fixture coverage for every panel's empty, partial, and stale states so it degrades honestly when a source is missing.</li>
+</ul>
+
+<h2 id="impact">14. Impact summary</h2>
 <div class="scroll"><table>
 <tr><th>#</th><th>Change</th><th>Effect</th><th>Effort</th><th>Risk</th><th>ETHOS principle it serves</th></tr>
 <tr><td class="num">1</td><td>Task-tool floor check</td><td>Review gate and completion lock work on Claude 5</td><td>S</td><td class="good">low</td><td>7 Evidence before assertion</td></tr>
@@ -691,9 +784,10 @@ a { color: var(--accent); }
 <tr><td class="num">12</td><td>Test index + selector + pins</td><td>Full suite once per run instead of at every gate; selection recorded as evidence</td><td>L</td><td class="warn">medium</td><td>7 Evidence before assertion</td></tr>
 <tr><td class="num">13</td><td>Sample-first on data changes</td><td>Minutes instead of hours per iteration on large data; full run stays the gate</td><td>S</td><td class="good">low</td><td>4 Unbounded solving, 5 Default to action</td></tr>
 <tr><td class="num">14</td><td>Private-URL page publishing (opt-in)</td><td>Shareable pages for people without Claude access</td><td>M</td><td class="crit">med–high (security surface)</td><td>Fidelity to human-configured policy</td></tr>
+<tr><td class="num">15</td><td>Project homepage + timing log + decisions ledger</td><td>One place to see structure, settings, decisions, map freshness, tests, and how long work takes; estimates grounded in local history</td><td>M</td><td class="good">low–med</td><td>6 Documentation currency, 3 Honest boundary</td></tr>
 </table></div>
 
-<h2 id="order">14. Order of work and decisions for you</h2>
+<h2 id="order">15. Order of work and decisions for you</h2>
 <ol class="steps">
 <li><b>Floor and measurement first (changes 1 and 8a).</b> Done when a Claude 5 local session blocks a fake "completed" exactly as today, and <code>instruction_budget.py</code> has recorded the v3.67.0 baseline under <code>docs/measurements/</code>. Nothing else starts until the "before" number is on disk.</li>
 <li><b>Rulebook (changes 2, 3, 7).</b> Done when every SKILL.md is under 500 lines, the constitution is under 3K tokens, each deleted MUST cites its hook or principle in a ledger, internal skills are hidden from the menu, and the suite is green with wording pins replaced by the structural lint.</li>
@@ -702,6 +796,7 @@ a { color: var(--accent); }
 <li><b>Referencing mandate and deletion classifier (changes 9, 11).</b> Done when the five indexes exist, every pointer resolves under the compliance lint, <code>verify-required-reads</code> reports on a fixture run, and the deletion guard passes its seven-case matrix. These ride on step 2's restructure.</li>
 <li><b>Principles and test selection (changes 10, 12).</b> Done when a fixture project with a two-principle <code>PROJECT_PRINCIPLES.md</code> gets a violation named in a proposal-first run and a fitting option chosen in an autonomous run; and when a one-function change on the fixture runs only its dependents at Phase 3 and 5 with the full suite recorded once at Phase 8.</li>
 <li><b>Sampling and publishing (changes 13, 14).</b> Done when a data-eng fixture run writes <code>sample-plan.json</code> before implementation, and when <code>/architect-team:publish</code> serves a page by token on the local adapter and revokes it; the GCP and SSH adapters follow once you pick a default host in decision F.</li>
+<li><b>Homepage and timing log (change 15).</b> Done when setup produces the empty-state page, a fixture run writes agent, phase, and task intervals to <code>timings.jsonl</code>, <code>timings.py estimate</code> refuses below five samples and answers above, Phase 8 rebuilds the page with a fresh stamp, and the private-url mode serves it under the project slug. Rides on changes 1, 12, and 14.</li>
 </ol>
 
 <h3>Decisions only you can make</h3>
@@ -713,9 +808,10 @@ a { color: var(--accent); }
 <li><b>E. Reversing "run the ENTIRE dev suite" (v3.65.0).</b> The selector moves the full run to once per run before merge. You wrote the whole-suite rule after a real gap; this proposal argues the index plus pins plus one full run closes the same gap cheaper, but it is your rule to reverse.</li>
 <li><b>F. Default host for private pages.</b> GCP signed URLs (HTTPS, no server to run, small cost), a port on the box (free, HTTP unless you supply a cert), or a nominated host. The recommendation is GCP signed URLs where <code>gcloud</code> exists.</li>
 <li><b>G. The principles cap.</b> A soft limit of 15 confirmed principles per project, with retirement as a verb, so the principles file does not become the next 65K-token rulebook.</li>
+<li><b>H. Where the homepage and the timing log live.</b> The page as gitignored derived state (recommended: it is rebuilt from sources) or committed under <code>docs/</code> for people without the plugin. The timing log per project (simple) or also mirrored to a user-level log so estimates can draw on every project you run CT6 on (more samples sooner, less comparable).</li>
 </ul>
 
-<h2 id="keep">15. What does not change</h2>
+<h2 id="keep">16. What does not change</h2>
 <ul>
 <li>The phase sequence, the 100% coverage gate, live-environment verification, and the Playwright-as-a-real-user rule.</li>
 <li>Hooks as the enforcement layer: the Stop-hook completion lock, the evidence-file gate, the override guard, the commit-identity arm, the 24 Layer-3 tools.</li>
