@@ -887,8 +887,8 @@
   },
   "estimator": "bytes/4",
   "estimator_detail": "tokens = ceil(utf8_bytes / 4); not a tokenizer, a shared yardstick",
-  "head": "839fdad2ad99aa903568642c55fbc8b680e4d7f7",
-  "label": "v4.1.0",
+  "head": "d4492593d1159bed9f6fc5ffde5af2abb608677e",
+  "label": "budget-v4.1.0",
   "lane_rule": "lane command + lane SKILL.md + common-pipeline-conventions SKILL.md (+ the fixed start_skills list for architect-team); a fixed component list, not a parse of the lane prose",
   "lanes": {
     "architect-team": {
@@ -1047,7 +1047,7 @@
   },
   "provenance": "measured",
   "provisional": false,
-  "release_label": true,
+  "release_label": false,
   "repo_root": "/home/user/claude-skills",
   "schema": "instruction-budget/v1",
   "surfaces": [
@@ -3659,7 +3659,7 @@
       "tokens": 1619
     }
   ],
-  "timestamp": "2026-11-09T03:29:47Z",
+  "timestamp": "2026-11-09T03:34:36Z",
   "totals": {
     "agent": {
       "count": 39,
@@ -3700,12 +3700,12 @@
     "surfaces": 291,
     "tokens": 725774
   },
-  "tree_dirty": false,
+  "tree_dirty": true,
   "tree_state": {
-    "detail": "",
-    "digest": "83928cb215e2dd46",
-    "dirty": false,
-    "head": "839fdad2ad99aa903568642c55fbc8b680e4d7f7",
+    "detail": "0 untracked path(s); tracked diff present",
+    "digest": "f67d2f7a8d7839c7",
+    "dirty": true,
+    "head": "d4492593d1159bed9f6fc5ffde5af2abb608677e",
     "helper": "suite_measurement.tree_digest",
     "source": "git"
   }
