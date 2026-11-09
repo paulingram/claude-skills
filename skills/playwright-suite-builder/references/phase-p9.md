@@ -58,7 +58,10 @@ gaps were closed and by which new tests; which gaps were escalated and why; the
 checkers' findings from P3 and where each was routed; the manifest path; and the
 `verify-suite-manifest` result, and the two selection records (P5, P9). Commit the
 manifest and the suite with the run's standard git behaviour unless `--no-commit`
-was passed. The manifest is a source the project homepage's Tests panel reads, so
+was passed, the commit authored as the checkout's RECORDED person per
+`common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)` (the
+`git_identity.py git --` wrapper or the explicit `-c user.name= -c user.email=`
+pair -- never a default author). The manifest is a source the project homepage's Tests panel reads, so
 the write ends with a rebuild (v4.0.0, best-effort, never blocking —
 `project-homepage` `## Rebuild moments`):
 

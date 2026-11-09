@@ -113,7 +113,9 @@ EXTRACTIONS = {
     #   v4.1.0: 63816 -> 64873. The `## Completion-hold release (v4.1.0)` stub
     #     (STOP pointer + first paragraph) and its Reference-index row: the
     #     user's unlock command and the two moves an agent has under a hold.
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 64873),
+    #   v4.1.0 verification pass: 64873 -> 64906. The cancel row and the deletion
+    #     stub wording corrected to what ships; the notifier count reads ten.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 64906),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

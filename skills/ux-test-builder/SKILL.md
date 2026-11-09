@@ -123,7 +123,7 @@ The orchestrator dispatches `flow-explorer` agents per the review tier (`skills/
 
 > **STOP.** Before acting under this section, Read `skills/ux-test-builder/references/phase-u4.md` and execute it in full. Do not work from memory.
 
-The orchestrator reads all 3 expansions (3 × 10-15 = 30-45 raw proposals + the 1 literal = 31-46 total) and deduplicates SEMANTICALLY — two flows that produce the same user-visible outcome via different selectors are duplicates; two flows that touch different upload entry points are NOT duplicates even if they look similar in code. The orchestrator uses the flows' `goal_one_line` + `steps[]` + `rationale` to judge.
+The orchestrator reads every expansion (10-15 raw proposals from the default single explorer, 3 × 10-15 = 30-45 from a tier-3 panel, + the 1 literal) and deduplicates SEMANTICALLY — two flows that produce the same user-visible outcome via different selectors are duplicates; two flows that touch different upload entry points are NOT duplicates even if they look similar in code. The orchestrator uses the flows' `goal_one_line` + `steps[]` + `rationale` to judge.
 
 ## Phase U5 — Playwright authoring per distilled flow
 
@@ -146,7 +146,7 @@ This phase is the pipeline's `superpowers:verification-before-completion` gate �
 
 > **STOP.** Before acting under this section, Read `skills/ux-test-builder/references/phase-u7.md` and execute it in full. Do not work from memory.
 
-The orchestrator pools the 3 executor verdicts per flow:
+The orchestrator pools the executor verdicts per flow (review tier 2 by default, per `skills/team-spawning-and-review-gates/references/review-tiers.md`):
 
 ## Phase U8 — Bug routing to bug-fix-pipeline
 

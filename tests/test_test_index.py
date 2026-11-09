@@ -713,6 +713,12 @@ def test_cli_human_output_and_usage_errors(ws) -> None:
     no_changes = _cli("select", "--workspace", str(ws), "--phase", "3")
     assert no_changes.returncode == 2
     assert "usage" in no_changes.stdout
+    # v4.1.0: the merge-boundary command the lanes document -- a full-suite
+    # phase alone, no baseline, no changed files -- selects everything.
+    merge_boundary = _cli("select", "--workspace", str(ws), "--phase", "8", "--no-write", "--json")
+    assert merge_boundary.returncode == 0, merge_boundary.stdout + merge_boundary.stderr
+    full_record = json.loads(merge_boundary.stdout)
+    assert full_record["full_suite"] is True and len(full_record["selected"]) == full_record["index_tests"]
     bad_ws = _cli("stats", "--workspace", str(ws / "missing"), "--json")
     assert bad_ws.returncode == 2
     bad_baseline = _cli("select", "--workspace", str(ws), "--phase", "3",

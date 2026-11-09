@@ -124,7 +124,6 @@ The mini variant produces all five so the OpenSpec archive looks identical to a 
 
 `proposal.md` MUST contain a `## QA Guidance` section with these four required sub-sections (and an optional `### Out of Scope`):
 
-```markdown
 ## QA Guidance
 
 > **STOP.** Before acting under this section, Read `skills/mini-architect-team-pipeline/references/qa-guidance.md` and execute it in full. Do not work from memory.

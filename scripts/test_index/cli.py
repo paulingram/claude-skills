@@ -90,8 +90,13 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
 def _cmd_select(args: argparse.Namespace) -> int:
     ws = _workspace(args)
-    if not args.baseline and not args.changed_files:
-        raise SystemExit("usage: select needs --baseline SHA or --changed-files f1 f2 ...")
+    full_suite_phase = engine.normalize_phase(args.phase) in engine._full_suite_phases(ws)
+    if not args.baseline and not args.changed_files and not full_suite_phase:
+        # v4.1.0: a full-suite phase (8, or tests.full_suite_at) returns everything
+        # whatever changed, so it needs no change set -- the lanes' merge-boundary
+        # command is `select --phase 8` alone.
+        raise SystemExit("usage: select needs --baseline SHA or --changed-files f1 f2 ... "
+                         "(a full-suite phase such as 8 needs neither)")
     changed: List[str] = list(args.changed_files or [])
     if args.baseline:
         try:

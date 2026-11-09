@@ -448,7 +448,7 @@ def test_front_door_commands_resolve_the_identity_first(command: str) -> None:
 def test_lane_commit_steps_carry_the_record() -> None:
     main = skill_surface("architect-team-pipeline", root=ROOT)
     assert "git_identity.py" in main and "Git commit identity discipline (v3.67.0)" in main
-    for lane in ("bug-fix-pipeline", "mini-architect-team-pipeline", "data-eng-pipeline", "ux-test-builder"):
+    for lane in ("bug-fix-pipeline", "mini-architect-team-pipeline", "data-eng-pipeline", "ux-test-builder", "playwright-suite-builder"):
         body = skill_surface(lane, root=ROOT)
         assert "Git commit identity discipline (v3.67.0)" in body, lane
 
