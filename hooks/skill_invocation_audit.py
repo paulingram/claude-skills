@@ -65,7 +65,8 @@ def _discover_canonical_commands() -> tuple[str, ...]:
         names = []
     if names:
         return tuple(names)
-    # Frozen fallback — the 26 commands shipped (+closeout v3.18.0,
+    # Frozen fallback — the commands shipped when the snapshot was last
+    # refreshed (30 at v4.1.0; the live directory is the source of truth) (+closeout v3.18.0,
     # +logit v3.21.0, +librarian-install v3.29.0, +knowledge-install v3.49.0,
     # +data-eng v3.50.0, +playwright-suite).
     return (
