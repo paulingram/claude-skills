@@ -3,7 +3,7 @@
   "command": "python -m pytest -q",
   "counts": {
     "failed": 0,
-    "passed": 8953,
+    "passed": 8954,
     "skipped": 2
   },
   "counts_parsed": true,
@@ -20,29 +20,29 @@
   "provisional": false,
   "release_label": true,
   "repo_root": "/home/user/claude-skills",
-  "result_tail": "8953 passed, 2 skipped in 122.95s (0:02:02)",
+  "result_tail": "8954 passed, 2 skipped in 121.88s (0:02:01)",
   "schema": "suite-measurement/v1",
   "suite_green": true,
-  "timestamp": "2026-11-09T09:11:08Z",
+  "timestamp": "2026-11-09T09:20:45Z",
   "tree_dirty": false,
   "tree_state": {
-    "after": "ed248a19d8555147",
-    "before": "ed248a19d8555147",
+    "after": "070200ef79c360c3",
+    "before": "070200ef79c360c3",
     "components_after": {
       "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "head": "86dd1bdaa92280c9a6913fafe9d75f0676348cbf",
+      "head": "c17e1c29227cefe351b48a07944f713d0287d091",
       "untracked_count": 0,
       "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "components_before": {
       "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "head": "86dd1bdaa92280c9a6913fafe9d75f0676348cbf",
+      "head": "c17e1c29227cefe351b48a07944f713d0287d091",
       "untracked_count": 0,
       "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "head": "86dd1bdaa92280c9a6913fafe9d75f0676348cbf",
+    "head": "c17e1c29227cefe351b48a07944f713d0287d091",
     "source": "git",
-    "source_digest": "db4d69bbe5ea5857"
+    "source_digest": "9f63dabe807c55b4"
   },
   "verdict": "measured-clean",
   "violations": []

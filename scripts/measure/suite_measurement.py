@@ -1000,6 +1000,14 @@ def verify_measurement_claim(
     for claim in parse_suite_claims(text):
         backed_by: Optional[str] = None
         reasons: list[str] = []
+        # Every green, valid artifact whose counts equal the claim is a
+        # candidate. Two releases can record the SAME count (v4.1.1 and v4.1.2
+        # both measured 8953 + 2), so the first match is not the right one: the
+        # claim is backed by the NEWEST such recording, which is also the one the
+        # caller's currency check should judge. Measured, not theorised -- the
+        # first-match rule reported a fresh v4.1.2 bracket as stale because it
+        # picked the v4.1.1 artifact that happened to carry the same numbers.
+        candidates: list[dict[str, Any]] = []
         for artifact in artifacts:
             name = Path(str(artifact.get("_path", "?"))).name
             counts = artifact_counts(artifact) or {}
@@ -1019,8 +1027,13 @@ def verify_measurement_claim(
             if not _artifact_is_green(artifact):
                 reasons.append(f"{name}: measures a RED suite, so it backs no green count")
                 continue
-            backed_by = str(artifact.get("_path"))
-            break
+            candidates.append(artifact)
+        if candidates:
+            newest = max(
+                candidates,
+                key=lambda a: (str(a.get("timestamp") or ""), Path(str(a.get("_path", ""))).name),
+            )
+            backed_by = str(newest.get("_path"))
 
         claims_out.append(
             {

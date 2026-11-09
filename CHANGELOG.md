@@ -16,7 +16,7 @@ v4.0.0 moved the rules behind pointers and measured the weight; the lanes still 
 
 **Honest boundaries.** Two figures stop short of target on purpose: always-loaded lands at 9.2K rather than 8K because restoring the reviewer's ten findings was worth the tokens, and the architect-team lane lands at 26.3K because its remaining weight is the constitution's irreducible rule text (Read this first, the principles, the operating rules, the reference table: about 8,300 tokens) plus the command's nine verbatim invocations and pinned sentences; cutting further would mean cutting rules. The 13 non-lane skills and 23 agents over their per-file budgets were not touched beyond their descriptions; they load on demand, not at lane start. The descriptions were reviewed by one reader against the originals; a trigger phrase nobody wrote down would not have been caught.
 
-Counts unchanged: skills **60**, agents **39**, commands **30**, hook scripts **9** (10 events), Layer-3 tools **26**; skills with `references/` chapters 13 -> **14** (`intake-and-mapping`). Suite **8953 -> 8953 passing + 2 skipped, 0 failed** (278 test files; linux/py3.13 bracket recorded in docs/measurements/).
+Counts unchanged: skills **60**, agents **39**, commands **30**, hook scripts **9** (10 events), Layer-3 tools **26**; skills with `references/` chapters 13 -> **14** (`intake-and-mapping`). Suite **8953 -> 8954 passing + 2 skipped, 0 failed** (278 test files; linux/py3.13 bracket recorded in docs/measurements/).
 
 ## [4.1.1] — 2026-11-09 — hold-channel-harness-pin (PATCH: the quiet Stop hold's dependence on Claude Code is now announced, not assumed)
 

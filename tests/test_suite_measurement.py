@@ -391,6 +391,26 @@ def test_claim_with_a_matching_artifact_passes(tmp_path):
     assert result["claims"][0]["backed"] is True
 
 
+def test_a_repeated_count_is_backed_by_the_newest_recording(tmp_path):
+    """Two releases can measure the SAME count. The claim is then backed by the
+    newest artifact, not the first file the loader happened to list -- the
+    first-match rule reported a fresh bracket as stale because it picked an
+    older artifact carrying the same numbers (v4.1.1 vs v4.1.2, both 8953 + 2)."""
+    d = _artifact(tmp_path, label="v9.9.8", timestamp="2026-11-09T08:00:00Z",
+                  tree_state={"before": "aaaa111122223333", "after": "aaaa111122223333",
+                              "source_digest": "aaaa111122223333"})
+    newer = json.loads((d / "artifact.json").read_text(encoding="utf-8"))
+    newer.update({"label": "v9.9.9", "timestamp": "2026-11-09T09:00:00Z",
+                  "tree_state": {"before": "bbbb111122223333", "after": "bbbb111122223333",
+                                 "source_digest": "bbbb111122223333"}})
+    (d / "a-older-name.json").write_text(json.dumps(newer), encoding="utf-8")
+    result = sm.verify_measurement_claim(_CLAIM, d)
+    assert result["ok"] is True, result["findings"]
+    assert result["claims"][0]["artifact"].endswith("a-older-name.json"), (
+        "the newest recording backs the claim, whatever its file name sorts to"
+    )
+
+
 def test_claim_with_no_artifact_at_all_fails(tmp_path):
     result = sm.verify_measurement_claim(_CLAIM, tmp_path / "empty")
     assert result["ok"] is False
