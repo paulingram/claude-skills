@@ -358,6 +358,10 @@ def _record_assignments(tokens: list[str], assigns: dict[str, str]) -> None:
         if not m:
             break
         name, _, value = t.partition("=")
+        # A chain (`S=/tmp/x; W=$S/lanes/y`) resolves through the names already
+        # known; only a value that STILL carries a variable or a backtick after
+        # that expansion is unknown.
+        value = _expand_known_vars([value], assigns)[0]
         if "$" in value or "`" in value:
             assigns.pop(name, None)
         else:
@@ -502,6 +506,12 @@ def _git_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, Any
         if "--" in rest:
             paths = rest[rest.index("--") + 1:]
             return _hit("git-restore", segment, paths, eff_base) if paths else None
+        # v4.1.5 -- `git checkout -b|-B|--orphan <name> [<start>]` creates a
+        # branch and `--detach` moves HEAD; neither restores a path. The
+        # positionals are a branch name and a start point (a sha, a ref),
+        # not files. Field report: the start-point sha was read as a path.
+        if any(t in ("-b", "-B", "--orphan", "--detach") or t.startswith(("--orphan=",)) for t in rest):
+            return None
         positional = [t for t in rest if not t.startswith("-")]
         if len(positional) >= 2:  # `git checkout HEAD <path>...`
             return _hit("git-restore", segment, positional[1:], eff_base)

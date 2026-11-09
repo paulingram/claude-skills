@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.5` — deletion-guard-branches
 - `v4.1.4` — deletion-guard-variables
 - `v4.1.3` — deletion-guard-heredocs
 - `v4.1.2` — instruction-compression
@@ -176,6 +177,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.5  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.5 — deletion-guard-branches: creating a branch restores nothing
+
+`git -C $W checkout -b architect-team/followup <sha>` was asking for confirmation: the deletion guard read every `git checkout` as a working-tree restore and took the start-point commit for a path, and the variable `W` was left unresolved because its value was built from another variable assigned one segment earlier. Branch creation (`-b`, `-B`, `--orphan`, `--detach`) now restores nothing as far as the guard is concerned, and variable chains resolve through the names already known. A branch SWITCH still asks, under the teammate git discipline, with that reason rather than "unparsable"; `git checkout -- <path>` is still classified. Eight tests pin it against a real repository.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
