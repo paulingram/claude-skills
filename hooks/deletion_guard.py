@@ -344,6 +344,38 @@ def _tokenize_windows(segment: str) -> list[str] | None:
     return [t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'" else t for t in toks]
 
 
+_SHELL_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _record_assignments(tokens: list[str], assigns: dict[str, str]) -> None:
+    """v4.1.3 -- remember ``NAME=value`` assignments that lead a segment (a
+    bare ``W=/tmp/lanes/x`` segment, or ``FOO=bar cmd ...``) when the value
+    is a literal: a later ``git -C $W`` or ``rm $W/build`` in the SAME command
+    is then resolvable. A value that itself carries ``$`` or a backtick stays
+    unknown, so the unexpanded-variable rule still applies to it."""
+    for t in tokens:
+        m = _ENV_ASSIGN_RE.match(t)
+        if not m:
+            break
+        name, _, value = t.partition("=")
+        if "$" in value or "`" in value:
+            assigns.pop(name, None)
+        else:
+            assigns[name] = value
+
+
+def _expand_known_vars(tokens: list[str], assigns: dict[str, str]) -> list[str]:
+    """Substitute ``$NAME`` / ``${NAME}`` for names assigned earlier in the same
+    command; unknown names are left as written (and later reported as
+    unexpanded). Tokens arrive already unquoted by the tokenizer."""
+    if not assigns:
+        return tokens
+    def sub(m: "re.Match[str]") -> str:
+        name = m.group(1) or m.group(2)
+        return assigns.get(name, m.group(0))
+    return [_SHELL_VAR_RE.sub(sub, t) for t in tokens]
+
+
 def _strip_prefixes(tokens: list[str]) -> list[str]:
     i = 0
     while i < len(tokens):
@@ -575,6 +607,7 @@ def detect_deletions(command: str, cwd: str | None) -> list[dict[str, Any]]:
     hits: list[dict[str, Any]] = []
     base = cwd if isinstance(cwd, str) and cwd.strip() else None
     saw_python = False
+    assigns: dict[str, str] = {}
     # Heredoc bodies are data (a commit message, a file's content), never
     # commands: segment the command with them removed. The python-heredoc
     # check below still reads the FULL text, so `python - <<EOF` bodies that
@@ -588,6 +621,10 @@ def detect_deletions(command: str, cwd: str | None) -> list[dict[str, Any]]:
             # deletes nothing the guard knows of -- a prose line, an odd quote
             # in an argument to a non-deleting tool. Silence, not ask.
             continue
+        # Same-command variables (`W=/tmp/x; git -C $W checkout -- f`): the
+        # value is right there, so the base and the targets are resolvable.
+        _record_assignments(tokens, assigns)
+        tokens = _expand_known_vars(tokens, assigns)
         tokens = _strip_redirections(_strip_prefixes(tokens))
         if not tokens:
             continue

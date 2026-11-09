@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.4` — deletion-guard-variables
 - `v4.1.3` — deletion-guard-heredocs
 - `v4.1.2` — instruction-compression
 - `v4.1.1` — hold-channel-harness-pin
@@ -175,6 +176,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.4  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.4 — deletion-guard-variables: a variable the command assigns is a known path
+
+`W=/path; git -C $W checkout -- a.py b.py` was asking for confirmation on every run as "relative path with no known working directory": the deletion guard tracked `cd` and literal `-C` paths but treated a variable assigned two characters earlier in the same command like any unknown `$VAR`. Same-command assignments are now remembered and expanded before classification, so the base and the targets resolve: clean tracked files allow, a file with uncommitted edits asks with the real reason, and a variable the command never assigns is still reported as unexpanded. Pinned against a real repository in the tests.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

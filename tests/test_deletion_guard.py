@@ -386,6 +386,41 @@ def test_strip_heredocs_keeps_the_opener_and_drops_the_body() -> None:
     assert guard.strip_heredocs("cat <<'X'\nnever closed") == "cat <<'X'"
 
 
+def test_git_checkout_with_a_same_command_variable_base_is_classified(repo: Path) -> None:
+    """Field report (v4.1.3): `W=/path; git -C $W checkout -- a.py b.py; git -C $W
+    status --short` asked as "relative path with no known working directory"
+    because `-C $W` was never resolved. The assignment is in the same command,
+    so the base is known: clean tracked files allow, a dirty one asks for the
+    real reason."""
+    (repo / "a.py").write_text("print(1)\n", encoding="utf-8")
+    (repo / "b.py").write_text("print(2)\n", encoding="utf-8")
+    _git("add", "a.py", "b.py", cwd=repo)
+    _git("-c", "user.name=S", "-c", "user.email=s@e.t", "commit", "-q", "-m", "two files", cwd=repo)
+    cmd = f"W={repo}; git -C $W checkout -- a.py b.py; git -C $W status --short"
+    d = _decide(cmd, None)
+    assert d is not None and d["permissionDecision"] == "allow", d
+    assert "no known working directory" not in d["permissionDecisionReason"]
+    (repo / "a.py").write_text("print(3)\n", encoding="utf-8")
+    d2 = _decide(cmd, None)
+    assert d2["permissionDecision"] == "ask"
+    assert "tracked-dirty" in d2["permissionDecisionReason"] or "uncommitted" in d2["permissionDecisionReason"]
+    assert "no known working directory" not in d2["permissionDecisionReason"]
+
+
+def test_braced_variable_and_prefix_assignment_forms_resolve(repo: Path) -> None:
+    (repo / "c.py").write_text("x\n", encoding="utf-8")
+    _git("add", "c.py", cwd=repo)
+    _git("-c", "user.name=S", "-c", "user.email=s@e.t", "commit", "-q", "-m", "c", cwd=repo)
+    d = _decide(f"ROOT={repo} git -C ${{ROOT}} checkout -- c.py", None)
+    assert d is not None and d["permissionDecision"] == "allow", d
+
+
+def test_a_variable_whose_value_is_itself_unexpanded_stays_unknown(repo: Path) -> None:
+    d = _decide("W=$HOME/x; rm -rf $W/build", repo)
+    assert d is not None and d["permissionDecision"] == "ask"
+    assert "unexpanded shell variable" in d["permissionDecisionReason"]
+
+
 def test_relative_path_without_cwd_asks(repo: Path) -> None:
     d = _decide("rm notes.txt", None)
     assert d["permissionDecision"] == "ask"
