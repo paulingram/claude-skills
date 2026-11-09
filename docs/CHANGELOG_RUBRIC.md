@@ -4,7 +4,7 @@ The house shape for a `CHANGELOG.md` entry, distilled from the conventions the
 existing entries already follow. It is the contract for
 `scripts/docs_tooling/changelog_check.py` — the deterministic half of this rubric.
 
-Two invariants are **machine-checked** by that engine (a suite-enforced gate); the
+Two invariants are **machine-checked** by that engine (a suite-enforced gate) and a third — the top entry's suite count must be backed by a recorded bracket under `docs/measurements/` — by the same engine behind `--require-measurements` (v3.60.0; the release gate CLAUDE.md names); the
 rest are **judgment** — followed by the author, verified in review, not linted.
 
 ---
@@ -91,7 +91,7 @@ the changelog's own history is not.)
 
 ## What the check does *not* enforce
 
-`changelog_check.py` verifies only rules 4 and 5 — the two invariants a machine can
+`changelog_check.py` verifies rules 4 and 5 (always) and the suite line's measurement backing (behind `--require-measurements`) — the invariants a machine can
 judge without reading intent. Rules 1, 2, 3, 6, and 7 are LLM-judgment: a reviewer
 confirms the headline leads with the verdict, the numbers are real, divergences are
 named, the narrative is sufficient, and no historical entry was rewritten. A clean

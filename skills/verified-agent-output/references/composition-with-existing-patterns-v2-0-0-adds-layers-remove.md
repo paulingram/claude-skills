@@ -9,6 +9,6 @@
 | `visual-verification-team` (Phase 5) | Visual drift vs DESIGN_MAP | Unchanged |
 | `system-architect` Master Review Audit (Phase 7) | Coverage-map self-attestation gap | Extended — now also walks VAO verdicts |
 | `documentation-currency` audit (Phase 8) | Stale docs after a run | Unchanged |
-| `pipeline-completion-audit.py` (Stop hook) | Incomplete-state termination | Extended — now also blocks on missing VAO verdicts + invokes Layer 6 |
+| `pipeline-completion-audit.py` (Stop hook) | Incomplete-state termination | Extended — reads the `verify-check-can-fail` verdicts (`_audit_check_integrity`); the other VAO verdicts gate through the evidence file at the review gate |
 
 The picture: v2.0.0 EARLIER nets catch failures the LATER nets had to catch post-facto. The later nets stay as the regression safety; the earlier nets reduce wasted Phase-3-through-Phase-5 cycles.

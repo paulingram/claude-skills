@@ -162,7 +162,7 @@ the engine returned.
 - Every page passes `publish.py check` before it is published; a secret-shaped
   string is never published.
 - Every private link is printed with its token, its expiry and the honest
-  boundary; every `--revoke` is confirmed from the registry, not assumed.
+  boundary; every `revoke <token>` is confirmed from the registry, not assumed.
 - `gcp-cloud-run` generates; a human deploys.
 
 ## Reference index

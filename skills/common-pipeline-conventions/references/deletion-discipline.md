@@ -31,7 +31,7 @@ $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/deletion
 
 | Class | Decision | Why |
 |---|---|---|
-| `temp` — `__pycache__`, `.pytest_cache`, `node_modules`, `.mypy_cache`, `.ruff_cache`, `.tox`, `htmlcov`, `coverage`, `dist/`, `build/`, `*.pyc`, `*.egg-info`, `.coverage`; the OS temp dir (outside any repo); `find` whose predicates name only these | allow | Regenerable output. A TRACKED `build/` is NOT temp — it falls through to the git classes. |
+| `temp` — `__pycache__`, `.pytest_cache`, `node_modules`, `.mypy_cache`, `.ruff_cache`, `.tox`, `.nox`, `htmlcov`, `coverage`, `.nyc_output`, `dist/`, `build/`, `*.pyc`, `*.pyo`, `*.egg-info`, `.coverage` (`TEMP_DIR_NAMES` / `TEMP_FILE_NAMES` / `TEMP_FILE_SUFFIXES` in `hooks/deletion_guard.py`); an empty directory or one holding only ignored content (`empty-or-ignored`); the OS temp dir (outside any repo); `find` whose predicates name only these | allow | Regenerable output. A TRACKED `build/` is NOT temp — it falls through to the git classes. |
 | `run-state` — `.architect-team/{reviews,teammates,handoffs,trash,run-history}/` | allow | Per-run scratch the pipeline rebuilds. |
 | `ignored` — `git check-ignore` matches | allow | Never under version control by design. Note the boundary below: ignored is not the same as worthless. |
 | `tracked-clean` — in the index, `git status --porcelain` empty | allow, with the restore command | `git checkout HEAD -- <path>` brings it back from LOCAL HEAD. The hint says `also on origin/<branch>` only when `git branch -r --contains HEAD` is non-empty; otherwise it says the commit may not be on the remote. |

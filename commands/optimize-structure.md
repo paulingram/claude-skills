@@ -75,7 +75,7 @@ structure-optimization: <one-line objective or "general structural health">
 - adversarial rounds: <N> (final two all-clean); architect verdict: pass
 - artifacts: RESTRUCTURE_PLAN.md + movements.json + openspec/changes/<name>/
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 5. If `AUTO_PUSH = true`: `git push -u origin <branch>`. If the push fails, surface the error and stop — never escalate.

@@ -17,7 +17,7 @@ dispatch points):
   The hook fires when a teammate marks a shared-task-list item complete.
 
 In BOTH modes the enforcement is identical: read
-`.architect-team/reviews/<task-id>.json`, validate the v6 schema, exit 2
+`.architect-team/reviews/<task-id>.json`, validate the v7 schema, exit 2
 with the same structured feedback if anything is wrong.
 
 The evidence schema + validation logic live in `review_evidence_schema.py`

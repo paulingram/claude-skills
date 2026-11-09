@@ -14,7 +14,7 @@ The "do not re-execute" system note is a hint preventing accidental re-invocatio
 
 `hooks/skill_invocation_audit.py` parses the session transcript for two surface forms:
 
-**Slash-command form (canonical).** Any of the 13 user-invocable command names preceded by `/`: `/architect-team`, `/architect-team:architect-team`, `/bug-fix`, `/ux-test`, `/mini`, `/refine-prompt`, `/cleanup-worktrees`, `/mempalace-install`, `/mempalace-search`, `/mempalace-status`, `/status`, `/code-review`, `/editability-audit`. Case-insensitive; sub-routes like `/architect-team:bug-fix` fall back to the base command's expected Skill set.
+**Slash-command form (canonical).** Any command in `commands/` preceded by `/` — the set is discovered at runtime from the directory (`hooks/skill_invocation_audit.py::_discover_canonical_commands`; 30 at v4.1.0), so `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`, `/architect-team:ux-test`, `/architect-team:data-eng`, `/architect-team:playwright-suite`, `/architect-team:refine-prompt` and every utility command count.
 
 **Prose form.** A verb (`use`, `using`, `invoke`, `run`, `fire`, `with`) followed by an optional `the`, an optional `/`, and a command name. Examples — *"use architect-team"*, *"using the architect-team"*, *"invoke /bug-fix"*, *"run mini"*, *"fire architect-team"*. Conversational mentions WITHOUT a verb (*"we discussed the architect-team plugin earlier"*) DO NOT count — only explicit-request shapes count.
 

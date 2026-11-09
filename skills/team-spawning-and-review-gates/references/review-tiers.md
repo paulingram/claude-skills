@@ -12,7 +12,7 @@ changes is how many checkers, and which model does the checking.
 
 | Tier | Shape | Model | Use for |
 |---|---|---|---|
-| 3 | three independent reviewers in parallel + one synthesis; loop until all three return `ok` (a Workflow script owns the loop) | Fable 5.1 reviewers | architecture approval (`system-architect` Interface Contract Approval), the Phase 7 master review, codebase-map convergence (Phase −1B), integration-map convergence (Phase −1C) |
+| 3 | three independent reviewers in parallel + one synthesis; loop until all three return `ok` (a Workflow script owns the loop) | Fable 5.1 reviewers for architecture approval, the master review and map convergence; the Phase 7 editability / interaction sweep reuses those reviewers' shipped seats (Sonnet 5.5 under `--split role`) | architecture approval (`system-architect` Interface Contract Approval), the Phase 7 master review, codebase-map convergence (Phase −1B), integration-map convergence (Phase −1C) |
 | 2 | the producer plus ONE paired adversarial reviewer; a second independent verifier only when the first two disagree | adversarial reviewer on Fable 5.1; mechanical verifiers on Sonnet 5.5 | every Phase 3 task gate (`task-reviewer` + `test-completeness-verifier`), editability and interaction completeness for a slice, bug-fix sensibility |
 | 1 | one verifier, often a Layer-3 tool or a `prompt` hook with no agent dispatch | Haiku 5.5 or no model | classification (`bug-classifier`, prod-safety), evidence-file shape checks, manifest reconciliation, freshness checks |
 

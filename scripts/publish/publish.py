@@ -216,7 +216,7 @@ def boundary_lines(result: Dict[str, Any]) -> List[str]:
         "This link is a private URL, not a Claude artifact: no comments routed to Claude, "
         "no shared database, no organization share list, no host theme detection.",
         "The token in the URL IS the secret: anyone holding the link can open the page until "
-        f"it expires ({result.get('expires_at')}) or you run `publish --revoke {result.get('token')}`.",
+        f"it expires ({result.get('expires_at')}) or you run `publish.py revoke {result.get('token')}`.",
     ]
     url = str(result.get("url") or "")
     if url.startswith("http://"):

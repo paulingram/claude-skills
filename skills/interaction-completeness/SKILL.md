@@ -326,7 +326,7 @@ The 5 named severities each reviewer applies (from the canonical taxonomy):
 | `network-not-intercepted` | `wiring_mandate.endpoints[]` includes E; no Playwright capture shows a request to E |
 | `async-status-not-surfaced` | `wiring_mandate.async_states_expected[]` includes S; no DOM element names S |
 
-Verdict ingest: the `verify_live_data_wiring` Layer 3 tool (`hooks/vao_tools.py`) is invoked once per slice with the convergence-report's union of findings; its verdict feeds the `live_verification_review` schema-v7 optional field. The v2.2.0 gating remains the same — the tool's `valid: False` blocks the review-gate the same way `dynamic_value_review` does.
+Verdict ingest: the `verify_live_data_wiring` Layer 3 tool (`hooks/vao_tools.py`) is invoked once per slice with the convergence-report's union of findings; its verdict is cited in the slice's evidence (there is no dedicated schema field for it; `live_verification_review` belongs to the `verify-live-verification-claim` tool). The v2.2.0 gating remains the same — a `valid: False` verdict blocks the review-gate the way `ui_interaction_review: fail` does.
 
 A converged `live_data_wiring_findings` entry becomes a `live-data-wiring-gap` solution requirement that the existing fix loop acts on (same mechanism as `interaction-gap`). Do NOT route through `diagnostic-research-team` — the gap is fully diagnosed.
 

@@ -40,11 +40,9 @@ The picture: v2.0.0 EARLIER nets catch failures the LATER nets had to catch post
 
 Schema v7 adds five required fields to `REQUIRED_EVIDENCE_FIELDS`:
 
-## `--no-vao` escape hatch
+## No escape hatch
 
-The three pipeline-driving slash commands (`/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`) accept a `--no-vao` flag that disables Layers 1, 2, 4, 5. Layer 3 tools remain available for ad-hoc CLI invocation; Layer 6 (Skill-invocation audit) is ALWAYS-ON and cannot be opted out — the audit checks whether the framework was invoked at all, so opting out IS the failure mode it exists to catch.
-
-Trade-off: `--no-vao` re-opens the v1.x failure modes (scope-narrowing, git-stash clobbering, fake data, oracle mismatch, source-vs-rendered audit, execution-time variance). Use only when the user has explicitly accepted that trade.
+There is no `--no-vao` flag on any command: the six layers are part of every lane's contract, and the only way to run without a layer is the human's kill-switch for the hook that enforces it (named at each hook). Layer 3 tools remain available for ad-hoc CLI invocation.
 
 ## Failure-mode mapping (the audit trail)
 
@@ -54,21 +52,20 @@ Trade-off: `--no-vao` re-opens the v1.x failure modes (scope-narrowing, git-stas
 
 - `hooks/vao_tools.py` — the Layer-3 facade + CLI: **26 tools** (v4.0.0) — the five originals verify-oracle-match, verify-baseline-clean, verify-no-fake-data, verify-every-element, verify-rendered-parity; the discipline tools (verify-check-can-fail was the 21st, v3.47.0; verify-diagnosis-falsified the 24th, v3.66.0); and the two v4.0.0 additions `verify-principles-respected` (`hooks/vao/principles.py`, the project-principles gate) and `verify-required-reads` (`hooks/vao/required_reads.py`, the INDEX-declared required reads, a measured gap).
 - `hooks/vao/check_integrity.py` — the 21st Layer-3 tool's module (v3.47.0).
-- `hooks/skill_invocation_audit.py` — the Layer 6 Stop-hook auditor.
+- `hooks/skill_invocation_audit.py` — the Layer 6 ENGINE: `find_skill_requests` (reused in real time by `hooks/pretool_skill_gate.py` Arm 1, which blocks build/dispatch tools until the mandated Skill is invoked) and the `audit_session` CLI (`--transcript --ledger --run-id --out`) that writes the verdict the `skill_invocation_audit` evidence field cites. It is NOT wired as a Stop hook.
 - `hooks/review_evidence_schema.py` — schema v7: 17 required fields (the five required VAO fields among them) + 6 optional tool-mediated fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`).
-- `hooks/pipeline-completion-audit.py` — extended to assert VAO verdicts + delegate to Layer 6.
+- `hooks/pipeline-completion-audit.py` — reads the `verify-check-can-fail` verdicts (`_audit_check_integrity`); the other VAO verdicts reach the gate through the evidence file `hooks/review-gate-task.py` validates, not through the Stop hook.
 - `agents/oracle-deriver.md` — the Phase 0.5 agent.
 - `agents/adversarial-reviewer.md` — the Phase 3 paired adversarial agent.
 - `skills/architect-team-pipeline/SKILL.md` — Phase 0.5 + Layer 2 spawn brief + Layer 4 Phase −2 step.
 - `skills/bug-fix-pipeline/SKILL.md` — analogous insertions at B0.5 / B3 / B−1.
 - `skills/mini-architect-team-pipeline/SKILL.md` — analogous insertions at M0.5 / M5 / M0.
-- `skills/team-spawning-and-review-gates/SKILL.md` — `## VAO task-shape pairing` section + manifest v2.
-- `skills/common-pipeline-conventions/SKILL.md` — `## Run-history shape detection (v2.0.0)` + `## Skill-invocation discipline (v2.0.0)` sections.
-- `commands/{architect-team,bug-fix,mini}.md` — `--no-vao` flag.
-- `tests/test_vao_tools.py` — 32 tests pinning the 5 tools' contracts.
-- `tests/test_vao_skill_invocation_audit.py` — 55 tests pinning the Layer 6 audit.
-- `tests/test_vao_fixtures.py` — 19 tests pinning each canonical fixture's round-trip.
-- `tests/fixtures/vao/*.json` — 7 canonical synthetic fixtures.
+- `skills/verified-agent-output/references/the-six-layers.md` — the Layer 2 task-shape pairing table the review gate enforces.
+- `skills/verified-agent-output/references/the-six-layers-part-2.md` (Layer 4, run-history shape detection) + `skills/common-pipeline-conventions/SKILL.md` `## Skill-invocation discipline (v2.0.0)`.
+- `tests/test_vao_tools.py` — pins the Layer 3 tools' contracts.
+- `tests/test_vao_skill_invocation_audit.py` — pins the Layer 6 engine.
+- `tests/test_vao_fixtures.py` — pins each canonical fixture's round-trip.
+- `tests/fixtures/vao/*.json` — the canonical synthetic fixtures.
 
 ## Operating rules (non-negotiable)
 
@@ -76,8 +73,7 @@ Trade-off: `--no-vao` re-opens the v1.x failure modes (scope-narrowing, git-stas
 - A pipeline skill MUST NOT re-explain any of the six layers inline — replace with a reference to this skill. Inline re-explanation is the drift-risk this skill exists to remove.
 - An agent's `*_review` field in the evidence file MUST be either the legacy string-shape (`pass`/`n/a`/`fail`) OR the canonical dict-shape (`{verdict, verdict_path}`). A field that's a dict but lacks `verdict_path` is rejected at the hook layer.
 - The cited verdict file IS the source of truth. The agent's inline summary is NOT — a passing inline summary that cites a failing verdict file is a hook-level violation, not just bad communication.
-- Layer 6 is ALWAYS-ON. `--no-vao` does not disable it. A skill-invocation audit failure is a hard block.
-- `--no-vao` MUST come with an explicit user acknowledgment of the re-opened failure modes — the documentation lists them; the orchestrator surfaces them in the run summary.
+- Layer 6 is ALWAYS-ON, enforced BEFORE the fact: `pretool_skill_gate.py` Arm 1 refuses build/dispatch tools until the mandated Skill is invoked, and the review gate requires the `skill_invocation_audit` evidence field. A missing or failing field is a hard block at the gate.
 
 ## Reference index
 

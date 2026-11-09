@@ -22,13 +22,13 @@ lets an agent pick the weaker one; a load-bearing directive phrased as "should
 consider" invites the agent to skip it. This rubric makes each of those a
 checkable defect rather than a matter of taste.
 
-## Scope — the 113 in-scope files
+## Scope — the 132 in-scope files
 
 | File class | Count | Path pattern | Frontmatter | Body title |
 |---|---:|---|---|---|
-| Skills | 48 | `skills/*/SKILL.md` | required (`name`, `description`) | `# <Title>` H1 |
+| Skills | 60 | `skills/*/SKILL.md` | required (`name`, `description`) | `# <Title>` H1 |
 | Agents | 39 | `agents/*.md` | required (`name`, `description`, `tools`, `model`, `color`) | operating instructions |
-| Commands | 23 | `commands/*.md` | required (`description`) | `# /architect-team:<name>` H1 |
+| Commands | 30 | `commands/*.md` | required (`description`) | `# /architect-team:<name>` H1 |
 | Root instruction | 1 | `CLAUDE.md` | none (plain-doc class) | `# ` H1 |
 | Maps | 2 | `docs/CODEBASE_MAP.md`, `docs/INTEGRATION_MAP.md` | none (plain-doc class) | `# ` H1 |
 
@@ -94,7 +94,7 @@ Every file conforms to the structural contract for its class. This dimension is
      lock read), and an agent re-introducing it fails the frontmatter test.
      Since v4.0.0 an agent also preloads `ct6-agent-core` through a `skills:`
      frontmatter list instead of carrying compiled boilerplate blocks.
-     `model` ∈ {`opus`, `sonnet`, `haiku`, `inherit`}. `color` ∈ the documented
+     `model` ∈ {`fable`, `opus`, `sonnet`, `haiku`, `inherit`}. `color` ∈ the documented
      palette (`red, blue, green, yellow, purple, orange, pink, cyan`).
    - **Command:** `description` (substantive string).
 4. **Description length cap — 1024 chars, applied UNIFORMLY to all three
@@ -137,11 +137,13 @@ Every file conforms to the structural contract for its class. This dimension is
   `## ` sections. A skill that cites other skills/agents/hooks SHOULD carry a
   `## Cross-references` (or equivalent pointer) section, and — where it is the
   canonical home of a discipline or a contract for a `scripts/` engine — say so.
-- **Agent:** the body is the agent's operating instructions. The shared
-  boilerplate blocks (operating-context / forbidden-git-operations / checkpoint
-  discipline) are canonical across all agents; drift is already pinned by
-  `scripts/setup/sync_agent_boilerplate.py` and `tests/test_agents.py`, and this
-  rubric does not re-assert it.
+- **Agent:** the body is the agent's operating instructions. Since v4.0.0 the
+  five shared boilerplate blocks (operating context / forbidden git operations /
+  checkpoint discipline / operating principles / reporting and escalation) live
+  ONCE in `skills/ct6-agent-core/SKILL.md` and every agent preloads them through
+  `skills:` frontmatter; a compiled block left in an agent body, or a missing
+  preload, is the drift `scripts/setup/sync_agent_boilerplate.py --check` and
+  `tests/test_agents.py` refuse, and this rubric does not re-assert it.
 - **Command:** the body opens with a `# /architect-team:<name>` (or `# /<name>`)
   H1, followed by `## ` sections.
 - **Plain-doc class:** `CLAUDE.md` and the maps open with a `# ` H1 and are
@@ -171,9 +173,17 @@ be an engine bug, so the engine holds the path subset and the sweep judges the r
 | `hooks/<file>.py` | files under `hooks/` (including `hooks/vao/`) | **Deterministic** (engine) |
 | `scripts/<path>.py` | files under `scripts/` | **Deterministic** (engine) |
 | `docs/<FILE>.md` | **only** the maps that exist in THIS repo — `docs/CODEBASE_MAP.md`, `docs/INTEGRATION_MAP.md` | **Deterministic** (engine) |
-| `/architect-team:<command>` | the 23 `commands/*.md` stems | **LLM-judgment** (prose-ambiguous; not machine-checked) |
-| `` `architect-team:<skill>` `` (Skill-tool addressing) | the 48 `skills/*/` dir names | **LLM-judgment** (prose-ambiguous; not machine-checked) |
+| `/architect-team:<command>` | the 30 `commands/*.md` stems | **LLM-judgment** (prose-ambiguous; not machine-checked) |
+| `` `architect-team:<skill>` `` (Skill-tool addressing) | the 60 `skills/*/` dir names | **LLM-judgment** (prose-ambiguous; not machine-checked) |
 | a bare back-ticked skill name (e.g. `` `mempalace-integration` ``) | the `skills/*/` dir names, when the token exactly matches one | **LLM-judgment** (prose-ambiguous; not machine-checked) |
+
+**Pointer checks the engine added in v4.0.0 (Deterministic):** `dead-pointer` (a cited
+`skills/<name>/references/<chapter>.md`, `hooks/…` or `scripts/…` path that does not
+exist), `dead-heading` (a cited `## heading` that no longer appears in the named
+file — exact match), and `chapter-over-budget` (a `references/*.md` chapter above
+the per-chapter token budget). Pre-existing dead cites that were classified as
+historical live in `scripts/compliance/pointer_allowlist.txt`, one per line with
+its reason; a fixed cite is removed from that file.
 
 **NOT references — MUST NOT be flagged (documented so a false positive is a
 wording fix, never an engine bug):**
@@ -245,8 +255,8 @@ canonical statement is compliant — cross-referencing is the intended pattern,
 not a violation.
 
 ### (b.4) Inventory-count consistency (semi-deterministic sub-check)
-Counts stated in prose — skills (48), agents (39), commands (23), phenotypes,
-Layer-3 tools (20), hook scripts — are consistent with the real inventory AND
+Counts stated in prose — skills (60), agents (39), commands (30), phenotypes,
+Layer-3 tools (26), hook scripts (9 over 10 events) — are consistent with the real inventory AND
 with each other across the in-scope files. This is the historical drift class
 (v3.13.0 shipped a fourth phenotype while a store doc still said three); a stale
 count is a (b) finding.

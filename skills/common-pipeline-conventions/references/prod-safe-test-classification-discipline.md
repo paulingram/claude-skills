@@ -59,7 +59,7 @@ When a test run's `run_target.url` matches a `_PROD_URL_PATTERNS` value (substri
 ### Cross-references
 
 - `hooks/vao_tools.py::verify_test_prod_safety_classification` — the 15th Layer 3 tool.
-- `hooks/vao_tools.py::_MUTATION_PATTERNS` + `_READ_ONLY_PATTERNS` + `_PROD_URL_PATTERNS` + `_PROD_SAFE_ANNOTATIONS` + `_NOT_PROD_SAFE_ANNOTATIONS` — the canonical pattern allowlists.
+- `hooks/vao/prod_safety.py::_MUTATION_PATTERNS` + `_READ_ONLY_PATTERNS` + `_PROD_URL_EXCLUSIONS` + `_PROD_SAFE_ANNOTATIONS` + `_NOT_PROD_SAFE_ANNOTATIONS` (re-exported by `hooks/vao_tools.py`) — the canonical pattern allowlists.
 - `skills/test-prod-safety-classifier/SKILL.md` (NEW v2.17.0) — the 31st skill; mass-classify mode (scan + annotate) and auto-classify mode (Phase 3 gate).
 - `commands/classify-test-prod-safety.md` (NEW v2.17.0) — the 16th slash command; entry point for mass-classify mode.
 - `agents/frontend.md` + `agents/backend.md` `## Prod-safe test classification discipline (v2.17.0)` — every authored test carries the annotation.

@@ -32,7 +32,7 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 29 slash commands like
+> compatibility with existing installations + the 30 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
@@ -58,7 +58,7 @@ is missing.
 |---|---|
 | **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** | Set as a shell env var, or as `{"env": {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}}` in `~/.claude/settings.json`. `/architect-team:architect-team-setup` checks for it and (with your consent) offers to add it to your settings file. |
 | **Claude Code ≥ 2.1.32** | Older versions don't ship the Agent Teams primitive. `/architect-team:architect-team-setup` checks `claude --version`. |
-| **`--no-teams` fallback** | Forces subagents mode even when the flag + version qualify — escape hatch for users hitting experimental-flag instability. Pass it on `/architect-team`, `/architect-team:bug-fix`, or `/architect-team:mini`. |
+| **`--no-teams` fallback** | Forces subagents mode even when the flag + version qualify — escape hatch for users hitting experimental-flag instability. Pass it on `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`, `/architect-team:data-eng` or `/architect-team:ux-test`. |
 
 Without the flag set or with Claude Code < 2.1.32, the pipeline runs in
 subagents mode silently — same dispatch behavior as v0.10.0, no surprise. With
@@ -85,7 +85,7 @@ the current release's spotlight, below.
 
 Two field reports from the first v4.0.0 runs. First, the completion lock's worklist and the continuation guard's CONTINUE directive — text written for the AGENT — were being rendered in the user's main view on every refused stop, because a Stop hook's exit-2 stderr (and `decision: block`) is shown as a hook-error notification. The hold now travels as `hookSpecificOutput.additionalContext` in hook JSON on stdout: Claude Code keeps the turn open through the same loop protections, labels it `Stop hook feedback` in the transcript, and the user's screen stays clean (`CT6_STOP_HOLD_MODE=block` restores the old channel; `CT6_STOP_USER_NOTICE=1` adds a one-line count for the user). Second, holds outlived the work — a task nobody closed, an ask the transcript never resolved, a converge gate never recorded — and outlived the user's own "good enough, move on with what you have". **`/architect-team:unlock`** is the user's verb for that: it inspects what holds the turn and, under one durable record of the user's words, retires the open tasks, resolves the open asks, WAIVES the unsatisfied gates (never fakes them satisfied), stands the run down and appends a decision the homepage shows. It is the user's alone: the command is `disable-model-invocation`, the skill gate's Arm 5 refuses the release verb unless the latest genuine user prompt is that command, the override guard refuses hand-written release records, and no Stop hold text names it. Every agent now carries the two moves it has under a hold — finish the work, or show the user what is open.
 
-The same release closes the v4.0.0 documentation debt across every surface (README, CLAUDE.md, the maps, 60 skills, 39 agents, 30 commands, the hook and setup docstrings): every reviewer-convergence site names its tier and runs as declare → `ct6-converge` → record, superpowers and cartographer read as conditional everywhere, the selected-tests rule and the v4.0.0 engines are wired into every lane phase, and seven commit templates drop a model-named trailer.
+The same release closes the v4.0.0 documentation debt across every surface (README, CLAUDE.md, the maps, 60 skills, 39 agents, 30 commands, the hook and setup docstrings): every reviewer-convergence site names its tier and runs as declare → `ct6-converge` → record, superpowers and cartographer read as conditional everywhere, the selected-tests rule and the v4.0.0 engines are wired into every lane phase, and eight commit templates drop a model-named trailer.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
@@ -262,8 +262,9 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 │ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright │
 │                                      + reports the CONDITIONAL plugins      │
 │                                      (superpowers / cartographer / bauplan —│
-│                                      never gating, v4.0.0); exit 1 only on  │
-│                                      the vendored openspec-propose skill    │
+│                                      never gating, v4.0.0); exit 1 on a     │
+│                                      missing openspec-propose skill, 2 on a │
+│                                      failed install step                    │
 │                                      + writes the task-tools opt-in env     │
 │                                      (CLAUDE_CODE_ENABLE_TODO_TOOLS=1)      │
 │                                      + --project-root: the page-publishing  │
@@ -968,7 +969,7 @@ Run the full Phase −1 → 8 pipeline against a requirements folder. See "Usage
 
 ### `/architect-team:architect-team-setup [--check-only] [--no-prompt] [--yes] [--force-reinstall] [--project-root <path>] [--codex|--no-codex] [--external-llm|--no-external-llm] [--secondary <openai|zai>]`
 
-Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent. Reports the **CONDITIONAL** plugins (superpowers, cartographer, bauplan — `CONDITIONAL_PLUGINS`; verified and remediated, never exit 1; `REQUIRED_PLUGINS` is empty since v4.0.0) and **HARD-checks (exit 1)** only that the vendored `openspec-propose` skill resolves via `ensure_openspec_propose_skill()`. Writes `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (consent flow) so Claude 5 sessions have the task tools the gates read; with `--project-root` asks the page-publishing question once and builds the project's first homepage. Manages the v3.35.0 role split (`--codex`/`--no-codex`) and the v3.36.0 external-LLM gateway (`--external-llm`/`--no-external-llm`) — both never-gates. **v3.40.0 — choose the secondary API:** `--secondary <openai|zai>` (or `CT6_SECONDARY_PROVIDER`) selects which provider backs the split's provider-neutral `ct6-secondary` alias — OpenAI Codex (`gpt-5.6-sol`) or Z.ai GLM 5.2 (`glm-5.2`, keyed by `ZAI_API_KEY` with full v3.38.0 decline parity via `--zai-key`); the choice is asked once (the wrapper's "Choose the secondary API" gate / the installer's TTY prompt), remembered in `gateway.json`, grandfathered as openai for a pre-v3.40 install, and re-opened only by `--re-ask-provider`. **v3.38.0 — ask for missing keys, never punt:** on an absent-key state from the external-LLM path (`ANTHROPIC_API_KEY` absent in subscription mode / the chosen secondary provider's key — `OPENAI_API_KEY` or `ZAI_API_KEY` — absent in provisioned-but-NOT-enabled), the wrapper ASKS for the key in-session (capture-and-apply, with a prior `--yes` carrying over as `--activate` consent) or records an explicit decline via the installer's `decline` subcommand — never the bare script remediation as the only path; an interactive terminal run of the installer prompts itself (hidden entry, blank-to-skip).
+Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent. Reports the **CONDITIONAL** plugins (superpowers, cartographer, bauplan — `CONDITIONAL_PLUGINS`; verified and remediated, never exit 1; `REQUIRED_PLUGINS` is empty since v4.0.0) and **exits 1 on a missing vendored `openspec-propose` skill** (resolved via `ensure_openspec_propose_skill()`; under `--check-only` also on an unsatisfied Agent Teams mode), **exits 2 on a failed install step**. Writes `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (consent flow) so Claude 5 sessions have the task tools the gates read; with `--project-root` asks the page-publishing question once and builds the project's first homepage. Manages the v3.35.0 role split (`--codex`/`--no-codex`) and the v3.36.0 external-LLM gateway (`--external-llm`/`--no-external-llm`) — both never-gates. **v3.40.0 — choose the secondary API:** `--secondary <openai|zai>` (or `CT6_SECONDARY_PROVIDER`) selects which provider backs the split's provider-neutral `ct6-secondary` alias — OpenAI Codex (`gpt-5.6-sol`) or Z.ai GLM 5.2 (`glm-5.2`, keyed by `ZAI_API_KEY` with full v3.38.0 decline parity via `--zai-key`); the choice is asked once (the wrapper's "Choose the secondary API" gate / the installer's TTY prompt), remembered in `gateway.json`, grandfathered as openai for a pre-v3.40 install, and re-opened only by `--re-ask-provider`. **v3.38.0 — ask for missing keys, never punt:** on an absent-key state from the external-LLM path (`ANTHROPIC_API_KEY` absent in subscription mode / the chosen secondary provider's key — `OPENAI_API_KEY` or `ZAI_API_KEY` — absent in provisioned-but-NOT-enabled), the wrapper ASKS for the key in-session (capture-and-apply, with a prior `--yes` carrying over as `--activate` consent) or records an explicit decline via the installer's `decline` subcommand — never the bare script remediation as the only path; an interactive terminal run of the installer prompts itself (hidden entry, blank-to-skip).
 
 ### `/architect-team:visual-qa [<codebase-path>]`
 
@@ -1199,7 +1200,7 @@ Markdown. Three failure modes, one enforcement layer.
 A new judgment-heavy verification discipline — the `interaction-completeness`
 skill — modeled on the proven `editability-completeness` pattern. For any slice
 with UI/UX surface it runs at the **Phase 3** review gate and the **Phase 5**
-cross-layer pass: three `interaction-reviewer` agents (fable, analysis-only)
+cross-layer pass: the `interaction-reviewer` agents (sonnet, analysis-only; one per slice at tier 2, a panel of three at tier 3)
 spawn **in parallel** and each independently re-enumerates **every interactive
 element** (buttons, links, inputs, selects, toggles, menus, drag handles,
 file-uploads) AND **every page / screen / route** — the union of the design /
@@ -1339,6 +1340,6 @@ MIT — see [`LICENSE`](LICENSE).
 
 ```
                   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-                  █   Built with Claude Code · Opus 5   █
+                  █   Built with Claude Code            █
                   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 ```
