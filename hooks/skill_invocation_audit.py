@@ -72,10 +72,11 @@ def _discover_canonical_commands() -> tuple[str, ...]:
     return (
         "absorb-phenotype", "architect-team", "architect-team-setup", "bug-fix",
         "classify-test-prod-safety", "cleanup-worktrees", "closeout", "data-eng",
-        "discipline-status", "editability-audit", "inject", "knowledge-install",
-        "librarian-install", "logit", "memory", "mempalace-install", "mini",
-        "mini-review-sweep", "monitor-tests", "optimize-structure",
-        "playwright-suite", "refine-prompt", "status", "ux-test", "visual-qa",
+        "discipline-status", "editability-audit", "home", "inject",
+        "knowledge-install", "librarian-install", "logit", "memory",
+        "mempalace-install", "mini", "mini-review-sweep", "monitor-tests",
+        "optimize-structure", "playwright-suite", "principles", "publish",
+        "refine-prompt", "status", "unlock", "ux-test", "visual-qa",
         "visual-to-api",
     )
 
