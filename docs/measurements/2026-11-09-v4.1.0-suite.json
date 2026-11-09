@@ -1,0 +1,49 @@
+{
+  "bracket_closes": true,
+  "command": "python -m pytest -q",
+  "counts": {
+    "failed": 0,
+    "passed": 8932,
+    "skipped": 2
+  },
+  "counts_parsed": true,
+  "digest_algorithm": "sha256-16",
+  "environment": {
+    "PYTHONUTF8": null,
+    "platform": "linux",
+    "python": "3.13.18"
+  },
+  "exit_code": 0,
+  "label": "v4.1.0",
+  "machine_bound": "Machine-bound: five committed tests hard-require gitignored .architect-team/ fixtures and one skips without the local .architect-team-deploy.json, so a fresh clone does not reproduce this count. This figure describes THIS machine's checkout, not the repository.",
+  "provenance": "measured",
+  "provisional": false,
+  "release_label": true,
+  "repo_root": "/home/user/claude-skills",
+  "result_tail": "8932 passed, 2 skipped in 115.79s (0:01:55)",
+  "schema": "suite-measurement/v1",
+  "suite_green": true,
+  "timestamp": "2026-11-09T03:34:49Z",
+  "tree_dirty": false,
+  "tree_state": {
+    "after": "d1a1617447c251b0",
+    "before": "d1a1617447c251b0",
+    "components_after": {
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "head": "d6cf27e033b40f1c4e1d240a167746ca1831ce67",
+      "untracked_count": 0,
+      "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "components_before": {
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "head": "d6cf27e033b40f1c4e1d240a167746ca1831ce67",
+      "untracked_count": 0,
+      "untracked_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "head": "d6cf27e033b40f1c4e1d240a167746ca1831ce67",
+    "source": "git",
+    "source_digest": "c1c245c0e0a773b0"
+  },
+  "verdict": "measured-clean",
+  "violations": []
+}
