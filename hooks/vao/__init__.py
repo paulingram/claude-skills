@@ -3,7 +3,7 @@
 This package is the split form of the former 5,200-line ``hooks/vao_tools.py``
 monolith (R2, v3.10.0). ``hooks/vao_tools.py`` remains as a thin facade that
 re-exports every public function + module-level constant + helper the test
-suite references and preserves the CLI byte-for-byte. The 24 ``verify_*`` tools
+suite references and preserves the CLI byte-for-byte. The 26 ``verify_*`` tools
 are grouped into per-discipline-family modules (each <= 900 lines); cross-module
 helpers (``_utc_now_iso`` / ``_write_verdict`` / ``_is_test_path`` /
 ``_looks_like_test_path`` / ``_scan_markers`` / ``_ITEM_DISPOSITION_CITATIONS`` /
@@ -17,6 +17,9 @@ here for): ``check_integrity`` (v3.47.0 — the 21st tool, check falsifiability)
 out differently if the claim were false?),
 ``core``, ``deferral`` + ``deferral_b`` (end-of-run deferral and the
 claims-citation severities), ``deploy_pipeline`` + ``deploy_pipeline_b``,
+``principles`` (v4.0.0 — the 25th tool: was every confirmed project principle given a verdict,
+and did an autonomous choice fit), ``required_reads`` (v4.0.0 — the 26th tool: was every
+chapter an INDEX requires Read before its phase started),
 ``diagnosis`` (v3.66.0 — the 24th tool: was the leading hypothesis EXECUTED and
 did it survive while its competitors were executed-refuted?),
 ``fake_data``, ``frontend_e2e`` (v3.55.0 — the 22nd tool, the frontend-E2E

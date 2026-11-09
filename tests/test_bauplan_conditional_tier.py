@@ -33,11 +33,11 @@ from tests.helpers.module_loader import load_module
 BAUPLAN_ID = "bauplan@bauplan-skills"
 BAUPLAN_SOURCE = "BauplanLabs/bauplan-skills"
 
-HARD_PLUGINS = {
-    "superpowers@claude-plugins-official",
-    "cartographer@cartographer-marketplace",
-    "ralph-loop@claude-plugins-official",
-}
+# v4.0.0: the HARD set is empty -- superpowers and cartographer moved to the
+# conditional tier (native fallback) and ralph-loop is retired. The fixtures
+# below keep the name so the "installed hard set" shape reads the same.
+HARD_PLUGINS: set[str] = set()
+FAKE_HARD = "fake-hard-prerequisite@claude-plugins-official"
 
 
 @pytest.fixture(scope="module")
@@ -103,7 +103,7 @@ def test_conditional_tier_and_required_set_are_disjoint(setup_module: ModuleType
     assert not (setup_module.CONDITIONAL_PLUGINS & setup_module.REQUIRED_PLUGINS)
 
 
-def test_hard_set_is_not_weakened_by_the_new_tier(setup_module: ModuleType) -> None:
+def test_hard_set_matches_the_v4_registry(setup_module: ModuleType) -> None:
     """REGRESSION — the three hard prerequisites are untouched by this change."""
     assert setup_module.REQUIRED_PLUGINS == HARD_PLUGINS
 
@@ -213,11 +213,18 @@ def test_conditional_present_with_hard_present_exits_zero(
 def test_missing_hard_prerequisite_still_exits_one_in_both_conditional_states(
     setup_module: ModuleType, tmp_path: Path, conditional_installed: bool
 ) -> None:
-    """1.5 — the conditional tier cannot mask a hard failure in either state."""
-    installed = HARD_PLUGINS - {"ralph-loop@claude-plugins-official"}
-    if conditional_installed:
-        installed = installed | {BAUPLAN_ID}
-    rc, _ = _run_main(setup_module, _installed(tmp_path, installed))
+    """1.5 — the conditional tier cannot mask a hard failure in either state.
+    The shipped hard set is empty since v4.0.0, so a fake hard member is
+    injected to prove the `if missing: return 1` branch still bites."""
+    original = set(setup_module.REQUIRED_PLUGINS)
+    setup_module.REQUIRED_PLUGINS = {FAKE_HARD}
+    try:
+        installed = set(HARD_PLUGINS)
+        if conditional_installed:
+            installed = installed | {BAUPLAN_ID}
+        rc, _ = _run_main(setup_module, _installed(tmp_path, installed))
+    finally:
+        setup_module.REQUIRED_PLUGINS = original
     assert rc == 1
 
 

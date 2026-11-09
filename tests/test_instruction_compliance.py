@@ -412,7 +412,7 @@ def test_engine_runs_over_the_real_in_scope_set() -> None:
     #   123 -> 124  v3.66.0 executed-diagnosis + verification-planning: +1 skill
     #               (verification-planning). The 24th Layer-3 tool
     #               (hooks/vao/diagnosis.py) is hooks/-tier and adds nothing here.
-    assert result["files_checked"] == 124, result["files_checked"]
+    assert result["files_checked"] == 131, result["files_checked"]
     assert isinstance(result["findings"], list)
 
 
@@ -496,3 +496,182 @@ def test_claude_md_has_no_frontmatter() -> None:
     # (it opens with an H1), so it is exempt from the yaml parse pin above.
     text = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert not text.startswith("---"), "CLAUDE.md unexpectedly grew a frontmatter block"
+
+
+# --------------------------------------------------------------------------- #
+# the referencing-mandate checks (proposal change 9, condition 2): pointer
+# resolvability, heading existence, chapter budget, the allowlist
+# --------------------------------------------------------------------------- #
+
+def _write_allowlist(root: Path, *entries: str) -> None:
+    _write(root / ic.POINTER_ALLOWLIST_PATH,
+           "# fixture allowlist\n" + "".join(f"{e}\n" for e in entries))
+
+
+def test_dead_pointer_repo_relative_markdown_is_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8")
+           + "\nBefore Phase 2, Read `skills/alpha/references/ghost.md` and `docs/NOT_HERE.md`.\n")
+    dead = _findings_for(tmp_path, "dead-pointer")
+    assert {(f["file"], f["evidence"]) for f in dead} == {
+        ("skills/alpha/SKILL.md", "skills/alpha/references/ghost.md"),
+        ("skills/alpha/SKILL.md", "docs/NOT_HERE.md"),
+    }
+    assert all("does not exist on disk" in f["issue"] for f in dead)
+
+
+def test_dead_pointer_relative_references_resolves_against_the_skill_dir(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8") + "\nSee `references/missing.md`.\n")
+    dead = _findings_for(tmp_path, "dead-pointer")
+    assert len(dead) == 1
+    assert dead[0]["evidence"] == "references/missing.md"
+    assert "skills/alpha/references/missing.md" in dead[0]["issue"]  # the resolved path is named
+    # the same pointer is live once the chapter exists
+    _write(tmp_path / "skills" / "alpha" / "references" / "missing.md", "# Missing\n")
+    assert _findings_for(tmp_path, "dead-pointer") == []
+
+
+def test_live_pointers_and_placeholders_are_not_flagged(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    _write(tmp_path / "skills" / "alpha" / "references" / "live.md", "# Live\n")
+    _write(tmp_path / "hooks" / "present.py", "x = 1\n")
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8") + "\n".join([
+        "",
+        "Live: `skills/alpha/references/live.md`, `references/live.md`, `hooks/present.py`,",
+        "`agents/worker.md`, `commands/do-thing.md`, `docs/CODEBASE_MAP.md`.",
+        "Placeholders are not pointers: `skills/<lane>/references/INDEX.md`, `<codebase>/docs/ROUTE_MAP.md`,",
+        "`skills/x/references/*.md`, a prose mention of docs/ROUTE_MAP.md without backticks.",
+        "",
+    ]))
+    assert _findings_for(tmp_path, "dead-pointer") == []
+
+
+def test_cross_reference_token_is_not_double_reported_as_dead_pointer(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8") + "\nBroken: `hooks/absent.py`, `agents/nobody.md`.\n")
+    result = ic.assess_instruction_files(tmp_path)
+    checks = sorted((f["check"], f["evidence"]) for f in result["findings"])
+    assert checks == [("cross-reference", "agents/nobody.md"), ("cross-reference", "hooks/absent.py")]
+
+
+def test_dead_heading_is_flagged_exactly(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    beta = tmp_path / "skills" / "beta" / "SKILL.md"
+    _write(beta, beta.read_text(encoding="utf-8") + "\n## Beta\n\n## Spawn rules (v1.2.0)\n\nBody.\n\n### Sub rule\n")
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8") + "\n".join([
+        "",
+        "Live heading: `skills/beta/SKILL.md` `## Beta` is cited as written.",
+        "Live H3: see `skills/beta/SKILL.md` `### Sub rule` too.",
+        "Dead heading: `skills/beta/SKILL.md` `## Nope` does not exist.",
+        "Version suffix is NOT stripped: `skills/beta/SKILL.md` `## Spawn rules` is dead (real: `## Spawn rules (v1.2.0)`).",
+        "",
+    ]))
+    dead = _findings_for(tmp_path, "dead-heading")
+    assert {f["evidence"] for f in dead} == {
+        "skills/beta/SKILL.md### Nope",
+        "skills/beta/SKILL.md### Spawn rules",
+    }
+    assert all(f["file"] == "skills/alpha/SKILL.md" for f in dead)
+    assert all("suffixes are not stripped" in f["issue"] for f in dead)
+
+
+def test_heading_attribution_is_sentence_scoped(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    beta = tmp_path / "skills" / "beta" / "SKILL.md"
+    _write(beta, beta.read_text(encoding="utf-8") + "\n## Beta\n\nBody.\n")
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8") + "\n".join([
+        "",
+        # a heading named AFTER a sentence terminator belongs to the next sentence, not the path
+        "Per `skills/beta/SKILL.md` principle 8. Capture the gaps as `## Open questions` in the output.",
+        # a heading BEFORE the path on the line is never attributed
+        "The `## Whatever` section lives in `skills/beta/SKILL.md`.",
+        # a table cell boundary ends attribution
+        "| `skills/beta/SKILL.md` | `## Column heading` |",
+        # the nearest preceding resolvable path wins
+        "See `skills/alpha/SKILL.md` and `skills/beta/SKILL.md` `## Beta`.",
+        "",
+    ]))
+    assert _findings_for(tmp_path, "dead-heading") == []
+    # ...and a heading charged to the nearest path IS checked against that file
+    _write(p, p.read_text(encoding="utf-8") + "\nSee `skills/beta/SKILL.md` and `skills/alpha/SKILL.md` `## Beta`.\n")
+    dead = _findings_for(tmp_path, "dead-heading")
+    assert [f["evidence"] for f in dead] == ["skills/alpha/SKILL.md### Beta"]
+
+
+def test_chapter_over_budget_is_flagged_and_chapters_are_counted_separately(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    _write(tmp_path / "skills" / "alpha" / "references" / "small.md", "# Small\n\nFine.\n")
+    _write(tmp_path / "skills" / "alpha" / "references" / "big.md", "# Big\n\n" + ("word " * 4100))  # > 20000 bytes
+    result = ic.assess_instruction_files(tmp_path)
+    assert result["files_checked"] == 7, "chapters never change the in-scope file count"
+    assert result["chapters_checked"] == 2
+    assert result["token_estimator"] == "bytes/4" and result["chapter_token_budget"] == 5000
+    over = [f for f in result["findings"] if f["check"] == "chapter-over-budget"]
+    assert len(over) == 1
+    assert over[0]["file"] == "skills/alpha/references/big.md"
+    assert over[0]["evidence"].endswith(" tokens") and int(over[0]["evidence"].split()[0]) > 5000
+    assert ic.estimate_tokens(20000) == 5000 and ic.estimate_tokens(20001) == 5001
+
+
+def test_chapters_are_pointer_scanned_too(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    _write(tmp_path / "skills" / "alpha" / "references" / "INDEX.md",
+           "# Index\n\n| Before | Read | You will know |\n|---|---|---|\n"
+           "| phase-2 | `references/ghost.md` | nothing |\n"
+           "| phase-3 | `skills/beta/SKILL.md` `## Nope` | nothing |\n")
+    result = ic.assess_instruction_files(tmp_path)
+    found = {(f["file"], f["check"], f["evidence"]) for f in result["findings"]}
+    assert ("skills/alpha/references/INDEX.md", "dead-pointer", "references/ghost.md") in found
+    assert ("skills/alpha/references/INDEX.md", "dead-heading", "skills/beta/SKILL.md### Nope") in found
+
+
+def test_allowlist_suppresses_exactly_the_listed_pointer_and_heading(tmp_path: Path) -> None:
+    _clean_tree(tmp_path)
+    p = tmp_path / "skills" / "alpha" / "SKILL.md"
+    _write(p, p.read_text(encoding="utf-8") + "\n".join([
+        "",
+        "Allowlisted: `references/ghost.md` and `skills/beta/SKILL.md` `## Nope`.",
+        "Not allowlisted: `docs/OTHER.md` and `skills/beta/SKILL.md` `## Also nope`.",
+        "",
+    ]))
+    _write_allowlist(tmp_path,
+                     "skills/alpha/references/ghost.md   # resolved path, with a trailing comment",
+                     "skills/beta/SKILL.md### Nope")
+    result = ic.assess_instruction_files(tmp_path)
+    remaining = sorted((f["check"], f["evidence"]) for f in result["findings"])
+    assert remaining == [("dead-heading", "skills/beta/SKILL.md### Also nope"), ("dead-pointer", "docs/OTHER.md")]
+    assert result["pointer_allowlist"] == ["skills/alpha/references/ghost.md", "skills/beta/SKILL.md### Nope"]
+    hits = {(h["kind"], h["entry"], h["file"]) for h in result["pointer_allowlist_hits"]}
+    assert hits == {
+        ("path", "skills/alpha/references/ghost.md", "skills/alpha/SKILL.md"),
+        ("heading", "skills/beta/SKILL.md### Nope", "skills/alpha/SKILL.md"),
+    }
+
+
+def test_allowlist_parses_comments_blank_lines_and_a_missing_file(tmp_path: Path) -> None:
+    assert ic.load_pointer_allowlist(tmp_path) == {"paths": set(), "headings": set()}
+    _write(tmp_path / ic.POINTER_ALLOWLIST_PATH,
+           "# a comment\n\n  docs/X.md  \ndocs/ETHOS.md### Evidence integrity\n\n# another\n")
+    assert ic.load_pointer_allowlist(tmp_path) == {
+        "paths": {"docs/X.md"},
+        "headings": {"docs/ETHOS.md### Evidence integrity"},
+    }
+
+
+def test_real_allowlist_exists_and_every_entry_is_well_formed() -> None:
+    allow = ic.load_pointer_allowlist(REPO_ROOT)
+    assert allow["paths"] or allow["headings"], "the shipped allowlist carries the pre-existing dead pointers"
+    for entry in allow["paths"]:
+        assert entry.startswith(("docs/", "skills/", "agents/", "commands/", "hooks/", "scripts/")), entry
+        assert entry.endswith((".md", ".py")), entry
+    for entry in allow["headings"]:
+        path, _, heading = entry.partition("#")
+        assert path.endswith(".md") and heading.startswith("#") and " " in heading, entry
+        assert (REPO_ROOT / path).is_file(), f"an allowlisted heading must name an existing file: {entry}"

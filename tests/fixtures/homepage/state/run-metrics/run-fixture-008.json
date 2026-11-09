@@ -1,0 +1,1 @@
+{"dev_loop_iterations": 2, "first_pass_fix": false, "oscillation_count": 0, "bug_still_present_count": 1, "fix_regression_count": 0, "fe_api_verdict": "api-bug", "layer_fixed": "api", "wrong_layer": false}

@@ -1,11 +1,12 @@
 ---
 name: structure-optimization
 description: Use when a codebase's structure needs an adversarially-verified restructure plan — the user asks to optimize / reorganize / restructure the directory layout, module placement, or file organization ("optimize the codebase structure", "clean up the layout", "propose a better file structure"), or /architect-team:optimize-structure is invoked. Produces a reference-closed movement plan (every file movement + every reference that must change + every forced refactor, in ordered verifiable batches) as RESTRUCTURE_PLAN.md + movements.json + an OpenSpec change — it PLANS the restructure; execution belongs to /architect-team driving the produced change.
+user-invocable: false
 ---
 
 # Structure Optimization
 
-You are the **Structure Optimization orchestrator**. Drive the S0–S8 flow that converts a codebase (or a multi-codebase workspace) + an optional user objective into a converged, reference-closed, adversarially-verified restructure plan: `RESTRUCTURE_PLAN.md` + `movements.json` + an OpenSpec change authored via `openspec-propose`. Every convergence loop runs inside `ralph-loop:ralph-loop` with a completion-promise and NO iteration cap, per `common-pipeline-conventions` `## Unbounded solving discipline (v3.8.0)` and `## Uniform plugin usage (v3.9.0)`.
+You are the **Structure Optimization orchestrator**. Drive the S0–S8 flow that converts a codebase (or a multi-codebase workspace) + an optional user objective into a converged, reference-closed, adversarially-verified restructure plan: `RESTRUCTURE_PLAN.md` + `movements.json` + an OpenSpec change authored via `openspec-propose`. Every convergence loop runs inside `ct6-converge` workflow with a completion-promise and NO iteration cap, per `common-pipeline-conventions` `## Unbounded solving discipline (v3.8.0)` and `## Uniform plugin usage (v3.9.0)`.
 
 The role split is producer-cannot-be-its-own-checker (v0.9.13) at pipeline scale: `structure-analyst` ×3 design the structure; `reference-tracer` ×N close the reference set; `structure-adversary` ×3 refute both; `system-architect` (Restructure Plan Audit mode) independently evaluates the whole. No role verifies its own output.
 
@@ -83,7 +84,7 @@ Each draft MUST carry the full file partition: every `git ls-files` tracked file
 
 Round-robin convergence: each analyst reads the other two drafts and revises toward ONE shared proposal, arguing with evidence until all three sign the identical movement table + stays list. Wrap the loop in the canonical flag form:
 
-`/ralph-loop "<stage-3 convergence prompt>" --completion-promise "STRUCTURE PROPOSAL CONVERGED"`
+the `ct6-converge` workflow with completion promise "STRUCTURE PROPOSAL CONVERGED"
 
 — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
@@ -164,7 +165,7 @@ The orchestrator assembles the shards + the converged proposal into **`movements
 
 The orchestrator (Lead) dispatches 3 `structure-adversary` agents per round in parallel via a single Agent-tool batch (subagents mode) OR creates 3 adversary tasks in the shared list (teams mode). Their mandate is refutation: independent search modalities the tracers did not log, a from-scratch re-run of the partition check, migration-order attacks, tooling-breakage attacks, runtime-only-reference hunts, and alive-checks on every `delete-dead`. Wrap the loop in the canonical flag form:
 
-`/ralph-loop "<stage-5 adversarial prompt>" --completion-promise "RESTRUCTURE PLAN VERIFIED"`
+the `ct6-converge` workflow with completion promise "RESTRUCTURE PLAN VERIFIED"
 
 — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
@@ -218,7 +219,7 @@ Author the OpenSpec change via `openspec-propose` (use the Skill tool — NEVER 
 
 Gate: `openspec validate --all --strict --json` must pass (per `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)` — the validate gate is uniform regardless of authoring path). Wrap the authoring + validation loop in the canonical flag form:
 
-`/ralph-loop "<stage-7 authoring prompt>" --completion-promise "OPENSPEC AUTHORING COMPLETE"`
+the `ct6-converge` workflow with completion promise "OPENSPEC AUTHORING COMPLETE"
 
 — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
@@ -250,7 +251,7 @@ This skill NEVER executes movements itself — not even "just the easy renames."
 
 ## Disciplines this skill respects
 
-- `## Uniform plugin usage (v3.9.0)` — ralph-loop canonical flag form, superpowers pre-flight + invocation map (brainstorming at S2, writing-plans at S6, verification-before-completion at S8), openspec SKILL authoring path + uniform strict-validate gate.
+- `## Uniform plugin usage (v3.9.0)` — ct6-converge workflow canonical flag form, superpowers pre-flight + invocation map (brainstorming at S2, writing-plans at S6, verification-before-completion at S8), openspec SKILL authoring path + uniform strict-validate gate.
 - `## Unbounded solving discipline (v3.8.0)` — every loop runs to its completion promise; no iteration cap, no give-up ceiling; heartbeat tick on >30-min stages per the `### Heartbeat discipline (v3.10.0)` subsection.
 - `## Scope discipline` — the stated objective is the fidelity baseline; narrowing is a DOMAIN gate, never silent.
 - `## MemPalace wake-up precondition` — wake-up before S0 work; mining at S8.

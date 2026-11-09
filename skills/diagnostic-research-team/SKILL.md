@@ -1,6 +1,7 @@
 ---
 name: diagnostic-research-team
 description: Use when a failing test escalates back to the orchestrator via a solution requirement before spawning a Phase 2 fix team. Spawns three diagnostic-researcher agents in parallel — each independently maps the FULL code flow from test input to failing assertion, then theorizes ranked diagnostic hypotheses anchored to file-line evidence. The system-architect agent reviews all three drafts for robustness, identifies coverage gaps, sends researchers back for deeper investigation if needed, and only then produces a consolidated diagnostic plan that becomes mandatory input to the fix team brief. The fix team never starts work without an approved diagnostic plan when this skill applies.
+user-invocable: false
 ---
 
 # Diagnostic Research Team — Three Researchers + Architect Review for Failed-Test Escalations

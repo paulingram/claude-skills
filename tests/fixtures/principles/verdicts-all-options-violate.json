@@ -1,0 +1,14 @@
+{
+  "schema": "principles-verdicts/v1",
+  "subject": {"kind": "options", "ref": "openspec/changes/orders/design.md#storage"},
+  "verdicts": [
+    {"id": "P-01", "verdict": "respected", "why": "both options keep the tables", "where": "design.md"},
+    {"id": "P-02", "verdict": "respected", "why": "no ORM in either", "where": "design.md"}
+  ],
+  "options": [
+    {"label": "A", "fits": false, "violates": ["P-01"], "why": "joins the billing tables"},
+    {"label": "B", "fits": false, "violates": ["P-02"], "why": "adds prisma"}
+  ],
+  "chosen": null,
+  "auto_mode": true
+}

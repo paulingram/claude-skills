@@ -1,0 +1,7 @@
+{
+  "schema": "test-selection/v1",
+  "at": "2026-08-01T10:00:00Z",
+  "baseline_sha": "abc1234",
+  "selected": ["tests/test_totals.py::test_sum", "tests/test_totals.py::test_tax"],
+  "reasons": {"tests/test_totals.py::test_sum": "always_run pin", "tests/test_totals.py::test_tax": "transitive dependent of func://shop/src/services/totals.py#sum"}
+}

@@ -17,6 +17,7 @@ appearance_scope_review field semantics (same contract as v2.1.0's
 interactions_honored_review and v2.2.0's live_verification_review).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 from tests.helpers.module_loader import load_module
 from pathlib import Path
@@ -34,9 +35,7 @@ def schema_module(plugin_root: Path):
 
 @pytest.fixture(scope="module")
 def conventions_body(plugin_root: Path) -> str:
-    return (
-        plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    return skill_surface("common-pipeline-conventions", root=plugin_root)
 
 
 SECTION_HEADING = "## Appearance-change policy discipline (v3.14.0)"
@@ -172,18 +171,14 @@ def test_spec_restoration_always_in_scope(conventions_body: str):
     ],
 )
 def test_pipeline_references_policy(plugin_root: Path, skill_dir: str):
-    body = (plugin_root / "skills" / skill_dir / "SKILL.md").read_text(
-        encoding="utf-8"
-    )
+    body = skill_surface(skill_dir, root=plugin_root)
     assert "Appearance-change policy" in body, (
         f"{skill_dir} must reference the canonical appearance-change policy"
     )
 
 
 def test_main_pipeline_phase_minus2_binding(plugin_root: Path):
-    body = (
-        plugin_root / "skills" / "architect-team-pipeline" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("architect-team-pipeline", root=plugin_root)
     # NOTE: the pipeline body spells Phase −2 with U+2212 (minus sign).
     assert (
         "### Phase −2 appearance-mode binding (v3.14.0)" in body
@@ -191,9 +186,7 @@ def test_main_pipeline_phase_minus2_binding(plugin_root: Path):
 
 
 def test_main_pipeline_phase8_lists_proposals(plugin_root: Path):
-    body = (
-        plugin_root / "skills" / "architect-team-pipeline" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("architect-team-pipeline", root=plugin_root)
     assert "appearance-proposals" in body
 
 
@@ -204,9 +197,7 @@ def test_main_pipeline_phase8_lists_proposals(plugin_root: Path):
 def test_sibling_pipelines_carry_policy_section(
     plugin_root: Path, skill_dir: str
 ):
-    body = (plugin_root / "skills" / skill_dir / "SKILL.md").read_text(
-        encoding="utf-8"
-    )
+    body = skill_surface(skill_dir, root=plugin_root)
     assert "## Appearance-change policy (v3.14.0)" in body
 
 
@@ -252,23 +243,19 @@ def test_command_no_flags_default_includes_strict(
     ["frontend.md", "task-reviewer.md", "system-architect.md"],
 )
 def test_agent_carries_policy_section(plugin_root: Path, agent_file: str):
-    body = (plugin_root / "agents" / agent_file).read_text(encoding="utf-8")
+    body = agent_surface(agent_file, root=plugin_root)
     assert SECTION_HEADING in body, (
         f"agents/{agent_file} must carry the per-agent policy statement"
     )
 
 
 def test_task_reviewer_checks_delta_trace(plugin_root: Path):
-    body = (plugin_root / "agents" / "task-reviewer.md").read_text(
-        encoding="utf-8"
-    )
+    body = agent_surface("task-reviewer", root=plugin_root)
     assert "appearance_scope_review" in body
 
 
 def test_frontend_records_proposals_not_implements(plugin_root: Path):
-    body = (plugin_root / "agents" / "frontend.md").read_text(
-        encoding="utf-8"
-    )
+    body = agent_surface("frontend", root=plugin_root)
     assert "appearance-proposals" in body
 
 
@@ -282,9 +269,7 @@ def test_team_spawning_documents_the_optional_field_count(plugin_root: Path, sch
     fifth optional field breaks this without anyone remembering to rename a test.
     (v3.47.0: `check_integrity_review` made the count 4; the previous form pinned
     the literal '3' and had to be edited by hand.)"""
-    body = (
-        plugin_root / "skills" / "team-spawning-and-review-gates" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("team-spawning-and-review-gates", root=plugin_root)
     n = len(schema_module.OPTIONAL_VAO_FIELDS)
     assert "appearance_scope_review" in body
     assert f"{n} `OPTIONAL_VAO_FIELDS`" in body, (

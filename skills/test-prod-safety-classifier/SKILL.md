@@ -1,6 +1,7 @@
 ---
 name: test-prod-safety-classifier
 description: Evaluate every Playwright / QA test file in a codebase and classify it `@prod-safe` (only reads — safe against ANY deployed environment including production) or `@not-prod-safe` (contains mutations — POST/PUT/PATCH/DELETE / form submits / file uploads / DB writes / external side effects). Two modes — MASS-CLASSIFY scans every test under a glob, produces a per-file report, and (with `--write-annotations`) injects the top-of-file annotation into each file; AUTO-CLASSIFY runs on every new test file written at Phase 3 review gate, gates the slice on a missing annotation, and emits a `prod-safety-classification-required` SR when ambiguous. Both modes feed the 15th Layer 3 tool `verify_test_prod_safety_classification` which gates Phase 5 — a `@not-prod-safe` test scheduled against a production URL is `prod-deployment-runs-unsafe-test`, a CRITICAL safety violation.
+user-invocable: false
 ---
 
 # Test Prod-Safety Classifier

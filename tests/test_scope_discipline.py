@@ -20,6 +20,7 @@ v1.x would add additional behavioral tests; v1.4.0 is documentation +
 structural.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 from pathlib import Path
 
@@ -46,14 +47,12 @@ PARITY_VERBS = (
 
 
 def _read_skill_body(plugin_root: Path, skill_name: str) -> str:
-    path = plugin_root / "skills" / skill_name / "SKILL.md"
-    _, body = frontmatter.parse(path)
+    _, body = frontmatter.parse_text(skill_surface(skill_name, root=plugin_root))
     return body
 
 
 def _read_agent_body(plugin_root: Path, agent_name: str) -> str:
-    path = plugin_root / "agents" / f"{agent_name}.md"
-    _, body = frontmatter.parse(path)
+    _, body = frontmatter.parse_text(agent_surface(agent_name, root=plugin_root))
     return body
 
 

@@ -1,6 +1,7 @@
 ---
 name: phenotypes
 description: Discover, match, and consume phenotypes — pre-made generalized deployable application architectures (a blueprint + a parameterized scaffold + metadata) that the pipeline proposes reuse-first or is told to use. Use when a request matches a known architecture domain (user management, config management, an AI agent/prompt layer), when the user says "use the X phenotype" or "use phenotypes", or when the architect-team pipeline reaches reuse-first design and a phenotype could seed the work.
+user-invocable: false
 ---
 
 # Phenotypes — discover, match, consume

@@ -1,6 +1,7 @@
 ---
 name: domain-research-team
 description: A 3-researcher domain analysis skill with MANDATORY outside research. Reads provided inputs (a frontend codebase, documentation, or both — any combination is valid), extracts personas + objectives, and AUGMENTS with industry / market / competitor research that every researcher performs independently regardless of input completeness. Round-robin convergence + master-synthesizer produces the final map. Caller-configurable output path so the skill is reusable from intake-and-mapping (INTEGRATION_MAP.md output), visual-to-api-design Stages 1+2 (PERSONA_MAP.md output), the new Phase 0b backend dispatch (PERSONA_MAP.md output to .architect-team/frontend-reference/ when frontend_read_only). v3.4.0.
+user-invocable: false
 ---
 
 # Domain Research Team
@@ -51,7 +52,7 @@ Dispatch 3 `domain-researcher` agents in parallel via a single Agent-tool batch 
 
 - `Read` / `Glob` / `Grep` / `LS` / `Bash` (read provided inputs)
 - `WebFetch` / `WebSearch` (mandatory outside research)
-- `Write` / `TodoWrite` (per-researcher draft output)
+- `Write` / `TaskUpdate` (per-researcher draft output)
 
 Each researcher's job:
 
@@ -100,7 +101,7 @@ Convergence check before exiting:
 - Every researcher's `outside_research` block is non-empty (the mandate is satisfied).
 - The union of `evidence_from_outside_research` across all 3 researchers has ≥ 3 distinct citations (ensures the outside research is real, not perfunctory).
 
-Failures iterate via `ralph-loop:ralph-loop` in the canonical flag form `/ralph-loop "<round-robin convergence prompt>" --completion-promise "DOMAIN RESEARCH COMPLETE"` (or the caller-configured exit string). Loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+Failures iterate via `ct6-converge` workflow in the canonical flag form the `ct6-converge` workflow with completion promise "DOMAIN RESEARCH COMPLETE" (or the caller-configured exit string). Loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
 
 ## Phase R4 — Master synthesis
 
@@ -117,7 +118,7 @@ Dispatch the `master-synthesizer` agent (existing, opus). Inputs: every research
 
 4. The 3 researchers confirm the master doc reflects their understanding (one round of confirmations).
 
-5. Emit the completion promise to exit the ralph-loop.
+5. Emit the completion promise to exit the ct6-converge workflow.
 
 ## Phase R5 — Return verdict
 

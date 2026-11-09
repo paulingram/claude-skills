@@ -49,7 +49,7 @@ Invoke the `structure-optimization` skill from this plugin (use the Skill tool w
 }
 ```
 
-The skill drives Stages S0–S8: maps current via `cartographer-team` (freshness-checked; produced if missing) → ×3 `structure-analyst` independent drafts → ralph-loop convergence gated by the deterministic partition check (`STRUCTURE PROPOSAL CONVERGED`) → sharded `reference-tracer` closure into `movements.json` → ×3 `structure-adversary` refutation rounds until two consecutive all-clean rounds (`RESTRUCTURE PLAN VERIFIED`) → `system-architect` Restructure Plan Audit → `RESTRUCTURE_PLAN.md` assembly → `openspec-propose` authoring + `openspec validate --all --strict --json` (`OPENSPEC AUTHORING COMPLETE`) → return + handoff.
+The skill drives Stages S0–S8: maps current via `cartographer-team` (freshness-checked; produced if missing) → ×3 `structure-analyst` independent drafts → ct6-converge workflow convergence gated by the deterministic partition check (`STRUCTURE PROPOSAL CONVERGED`) → sharded `reference-tracer` closure into `movements.json` → ×3 `structure-adversary` refutation rounds until two consecutive all-clean rounds (`RESTRUCTURE PLAN VERIFIED`) → `system-architect` Restructure Plan Audit → `RESTRUCTURE_PLAN.md` assembly → `openspec-propose` authoring + `openspec validate --all --strict --json` (`OPENSPEC AUTHORING COMPLETE`) → return + handoff.
 
 Follow the skill exactly — including the partition-check gate, the two-consecutive-clean-rounds exit rule, and the producer/checker role separation.
 
@@ -117,5 +117,5 @@ The model cannot programmatically execute `/compact` — it is a user-typed REPL
 - `skills/structure-optimization/SKILL.md` — the canonical skill body (stages S0–S8, the partition check, the movements.json schema, the adversarial exit rule).
 - `agents/structure-analyst.md` / `agents/reference-tracer.md` / `agents/structure-adversary.md` — the three new roles; `agents/system-architect.md` `## Restructure Plan Audit` — the Stage S6 gate.
 - `skills/cartographer-team/SKILL.md` — the reused map machinery (Stage S1).
-- `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)` — the ralph-loop / openspec / superpowers invocation contracts this pipeline follows.
+- `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)` — the ct6-converge workflow / openspec / superpowers invocation contracts this pipeline follows.
 - `commands/architect-team.md` — the implementing pipeline the produced change hands off to.

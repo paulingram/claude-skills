@@ -108,6 +108,25 @@ a { color: var(--accent); }
   </div>
 </header>
 
+<h2 id="status" style="border-top:3px solid var(--accent)">Implementation status (v4.0.0, 2026-11-09)</h2>
+<div class="five"><div class="eyebrow">Like you're five</div>
+<p>We built it. The robots' rulebook is now one page plus a shelf of chapters, every robot carries one shared rule card instead of five pasted copies, the to-do list works again on the new brain, and all seven extras are in. Two things we planned turned out to be wrong when we tried them, and we wrote down what we changed instead.</p></div>
+<p>All fifteen changes shipped in release v4.0.0 of the plugin (the CHANGELOG entry and <code>docs/RELEASE_HISTORY.md</code> carry the full account). Measured with the new <code>scripts/measure/instruction_budget.py</code>, bytes ÷ 4, recorded under <code>docs/measurements/</code>:</p>
+<div class="scroll"><table>
+<tr><th>Surface</th><th>Before (v3.67.0)</th><th>After (v4.0.0)</th><th>Target</th></tr>
+<tr><td>architect-team lane start load</td><td class="num">140,542</td><td class="num">45,196</td><td class="num">25,000</td></tr>
+<tr><td>bug-fix lane start load</td><td class="num">96,650</td><td class="num">30,658</td><td class="num">25,000</td></tr>
+<tr><td>mini lane start load</td><td class="num">82,940</td><td class="num">25,748</td><td class="num">25,000</td></tr>
+<tr><td>data-eng lane start load</td><td class="num">78,068</td><td class="num">26,456</td><td class="num">25,000</td></tr>
+<tr><td>ux-test lane start load</td><td class="num">82,574</td><td class="num">27,107</td><td class="num">25,000</td></tr>
+<tr><td>playwright-suite lane start load</td><td class="num">74,366</td><td class="num">24,644</td><td class="num">25,000</td></tr>
+<tr><td>agents, all 39 files</td><td class="num">199,604</td><td class="num">150,508</td><td class="num">78,000</td></tr>
+<tr><td>always-loaded descriptions</td><td class="num">20,701</td><td class="num">21,853</td><td class="num">8,000</td></tr>
+</table></div>
+<p><b>Two corrections to this proposal, found in implementation.</b> First, <code>disable-model-invocation</code> was not set on the lane skills: the lane commands invoke those skills through the Skill tool, so the flag would have broken every lane. The hooks also stayed in <code>hooks.json</code> rather than moving into skill frontmatter, because the completion lock must fire in a resumed session where no skill has been invoked yet. Second, <code>user-invocable: false</code> hides a skill from the slash menu but its description is still loaded for the model, so the always-loaded figure did not fall; it rose slightly with four new skills and three new commands. Shrinking it means shortening descriptions, which was not done.</p>
+<p><b>Still open after v4.0.0.</b> The lane start loads are a third of what they were and still above the 25K target, mostly because the constitution stub paragraphs and the lane skills' own stubs remain around 15K and 11K tokens. The agents lost their compiled blocks but were not rewritten into 2K role briefs. The budget engine records all of this on every run so it cannot regrow unseen; it does not gate a release yet.</p>
+<p><b>Also found while implementing change 1.</b> The completion lock looked for task directories named <code>session-&lt;first 8 chars&gt;</code>; current Claude Code writes <code>&lt;full session id&gt;</code>. The lock now reads both layouts. On the test machine the whole suite passed on Linux and Python 3.13; the recorded bracket is in <code>docs/measurements/</code>.</p>
+
 <h2 id="what">1. What CT6 is, like you're five</h2>
 <div class="five"><div class="eyebrow">Like you're five</div>
 <p>Imagine you ask a team of robots to build a treehouse. One robot is the <b>Lead</b>: it reads your wish, makes a plan, and hands out jobs. <b>Builder</b> robots build. <b>Checker</b> robots look at the builders' work and say "not done yet" if anything is fake or untested. <b>Hall monitors</b> stand in the doorway and physically block a builder from saying "I'm finished!" without showing their homework. And the whole team writes down what it learned so the next treehouse goes better.</p></div>

@@ -1,6 +1,7 @@
 ---
 name: dev-api-integration-testing
 description: Use when authoring or running integration tests against a backend slice, especially during Phase 5 when verifying against a live dev API. Defines payload conventions, side-effect verification (DB / queue / file), dev-data fixture hygiene, idempotency, and the rule that the system under test runs against real dependencies — mock only what's truly external or non-deterministic.
+user-invocable: false
 ---
 
 # Dev-API Integration Testing
@@ -31,7 +32,7 @@ Tests read these from the design artifact — never hard-code in test files.
 
 ## Full-run enumeration — the whole dev suite
 
-When this discipline runs as a FULL integration pass — the `architect-team-pipeline` Phase 5 cross-layer run, the `mini-review-sweep` batch — and the target codebase carries `<e2e-dir>/suite-manifest.json`, ENUMERATE that manifest and run the ENTIRE dev project: every registered entry, not only the tests belonging to the slice under test. The manifest is the registry of which tests exist (`playwright-suite-builder` owns its contract), and a full run that re-runs only the current slice's tests is a slice run wearing a full run's name — it cannot see the regression the slice caused elsewhere, which is the failure a full run exists to catch. Failures route as solution requirements exactly as today. Absent a suite manifest, behavior is unchanged — run the slice's integration tests as this skill otherwise describes.
+The full run against dev is SELECTED, not exhaustive (v4.0.0): `python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 5 --baseline <sha> --json` names the integration tests whose files, endpoints or elements the change set reaches, plus the human `always_run` pins and every unknown mapping; run those against live dev and cite the selection record in the evidence file. The manifest (`<e2e-dir>/suite-manifest.json`, whose contract `playwright-suite-builder` owns) is still enumerated -- the selector reads it -- but the whole dev project runs ONCE, at Phase 8 (or the lane's merge boundary, `select --phase 8`), before the merge to main. This reverses the v3.65.0 whole-suite rule; the full text and the reasoning are in `skills/common-pipeline-conventions/references/test-selection.md`. A slice run wearing a full run's name is still forbidden: the Phase 8 full run is not selectable. Absent a suite manifest, behavior is unchanged.
 
 ## Test structure
 

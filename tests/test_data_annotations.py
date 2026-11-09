@@ -18,6 +18,7 @@ here explicitly:
 Additive: a repo with NO annotations behaves EXACTLY as before (byte-unchanged).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import ast
 import json
@@ -305,7 +306,7 @@ def test_inform_gate_preserves_the_gates_own_state_both_ways() -> None:
 # 6. Mine wiring (task 1.3) + structural reuse / stdlib discipline
 # --------------------------------------------------------------------------- #
 def test_mine_wiring_documented_in_skill() -> None:
-    body = (REPO_ROOT / "skills" / "data-annotations" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("data-annotations")
     assert "mempalace" in body and "mine" in body
     assert "docs/data-annotations" in body  # annotations are mined alongside the dictionary
 

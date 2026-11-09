@@ -21,6 +21,7 @@ Source of truth: `docs/LINEAGE_UPGRADE_REQUIREMENTS.md` REQ-DIAG-03/04 (P2),
 REQ-DATA-01..04 (P3), REQ-PARA-01/02 (P4), REQ-MEM-01/02 (P5).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import importlib.util
 from pathlib import Path
@@ -40,7 +41,11 @@ from tests.helpers.module_loader import load_module
 def _read(plugin_root: Path, *parts: str) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 @pytest.fixture(scope="module")

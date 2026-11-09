@@ -1,5 +1,5 @@
 ---
-description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), verifies prerequisite plugins (superpowers, cartographer, ralph-loop) are installed, and verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32).
+description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), verifies prerequisite plugins (superpowers, cartographer, ct6-converge workflow) are installed, and verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32).
 argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall] [--codex] [--no-codex] [--external-llm] [--no-external-llm] [--secondary <openai|zai>]"
 allowed-tools: ["Bash(python:*)", "Bash(python3:*)", "AskUserQuestion"]
 ---
@@ -18,11 +18,11 @@ The `|| python ...` fallback handles default Windows python.org installs where o
 
 After the script finishes, summarize:
 - Dependencies installed or already present
-- Plugins required but missing (with the exact `/plugin install` command to run)
+- Conditional plugins missing (with the exact `/plugin install` command to run; none gates setup since v4.0.0)
 - Any failures and how to remediate them
 - The v1.0.0 Agent-Teams mode status (see section below)
 
-If `cartographer`, `ralph-loop`, or `superpowers` are missing, instruct the user to run the corresponding `/plugin install <name>@<marketplace>` commands. The setup script cannot install plugins on the user's behalf.
+If `cartographer` or `superpowers` are missing (v4.0.0: CONDITIONAL plugins -- preferred when installed, never gating; the lanes fall back to `skills/common-pipeline-conventions/references/native-methodology.md`), report the gap and give the user the corresponding `/plugin install <name>@<marketplace>` commands; the retired `ralph-loop` plugin is no longer needed, its job is done by the shipped `ct6-converge` workflow. The setup script cannot install plugins on the user's behalf.
 
 **Cartographer marketplace source.** `cartographer` ships from a THIRD-PARTY marketplace — `kingbootoshi/cartographer` — that must be ADDED before it can be installed (no other CT6 doc named it, which cost a real first-install a GitHub search). When cartographer is missing, `setup.py` names the source and prints, in order:
 
@@ -31,7 +31,7 @@ If `cartographer`, `ralph-loop`, or `superpowers` are missing, instruct the user
 /plugin install cartographer@cartographer-marketplace
 ```
 
-`superpowers` and `ralph-loop` are on the built-in `claude-plugins-official` marketplace, so they need only the single `/plugin install` step.
+`superpowers` is on the built-in `claude-plugins-official` marketplace, so it needs only the single `/plugin install` step.
 
 ## Model policy — the secondary role split (v3.40.0)
 

@@ -130,7 +130,13 @@ def _completing_task_subject(payload: dict[str, Any], task_id: str) -> str | Non
         if not session_id:
             return None
         root = _ow.tasks_root(None)
-        task_file = root / f"session-{session_id[:8]}" / f"{task_id}.json"
+        # v4.0.0 -- the harness writes <root>/<full session id>/ today and
+        # <root>/session-<sid8>/ in older builds; open_work resolves both.
+        session_dir_fn = getattr(_ow, "session_task_dir", None)
+        if callable(session_dir_fn):
+            task_file = session_dir_fn(root, session_id) / f"{task_id}.json"
+        else:  # pragma: no cover - older open_work without the resolver
+            task_file = root / f"session-{session_id[:8]}" / f"{task_id}.json"
         data = json.loads(task_file.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return None

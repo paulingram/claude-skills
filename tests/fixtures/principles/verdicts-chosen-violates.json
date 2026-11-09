@@ -1,0 +1,14 @@
+{
+  "schema": "principles-verdicts/v1",
+  "subject": {"kind": "options", "ref": "openspec/changes/orders/design.md#storage"},
+  "verdicts": [
+    {"id": "P-01", "verdict": "respected", "why": "owns its tables", "where": "design.md"},
+    {"id": "P-02", "verdict": "respected", "why": "no ORM", "where": "design.md"}
+  ],
+  "options": [
+    {"label": "A", "fits": false, "violates": ["P-02"], "why": "adds prisma"},
+    {"label": "B", "fits": true, "violates": [], "why": "raw sql through the existing client"}
+  ],
+  "chosen": "A",
+  "auto_mode": true
+}

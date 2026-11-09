@@ -16,6 +16,7 @@ is. Three surfaces, pinned here:
   that no shipped plugin surface hardcodes a maintainer's identity again.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 import os
@@ -445,10 +446,10 @@ def test_front_door_commands_resolve_the_identity_first(command: str) -> None:
 
 
 def test_lane_commit_steps_carry_the_record() -> None:
-    main = (ROOT / "skills" / "architect-team-pipeline" / "SKILL.md").read_text(encoding="utf-8")
+    main = skill_surface("architect-team-pipeline", root=ROOT)
     assert "git_identity.py" in main and "Git commit identity discipline (v3.67.0)" in main
     for lane in ("bug-fix-pipeline", "mini-architect-team-pipeline", "data-eng-pipeline", "ux-test-builder"):
-        body = (ROOT / "skills" / lane / "SKILL.md").read_text(encoding="utf-8")
+        body = skill_surface(lane, root=ROOT)
         assert "Git commit identity discipline (v3.67.0)" in body, lane
 
 

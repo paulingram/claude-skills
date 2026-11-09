@@ -231,6 +231,72 @@ def deliver_role_model(stem: str) -> str:
     return OPUS_MODEL if stem in DELIVERY_ADVERSARIAL_AGENTS else "fable"
 
 
+# --- Model-by-role split (v4.0.0, proposal change 5) -------------------------- #
+# The shipped default from v4.0.0 on. Four tiers, chosen by what the role does:
+#   fable  - judgment-heavy seats: architecture, adversarial attack, synthesis,
+#            independent verdicts, deep research, map convergence reviewers.
+#   opus   - delivery: agents that write or merge product code, and the agents
+#            that reproduce / execute to surface failures (the v3.43.0 set).
+#   sonnet - mechanical verification, extraction, observation, documentation.
+#   haiku  - classification and routing.
+# Every shipped stem is listed; an unclassified stem fails safe to ``fable``.
+ROLE_SPLIT_MODELS: Dict[str, str] = {
+    # fable - judgment
+    "system-architect": "fable", "adversarial-reviewer": "fable",
+    "structure-adversary": "fable", "task-reviewer": "fable",
+    "master-synthesizer": "fable", "diagnostic-researcher": "fable",
+    "oracle-deriver": "fable", "fix-sensibility-checker": "fable",
+    "prompt-refiner": "fable", "domain-researcher": "fable",
+    "codebase-map-reviewer": "fable", "integration-explorer": "fable",
+    "structure-analyst": "fable", "mcp-design-agent": "fable",
+    "scaffold-agent": "fable",
+    # opus - delivery and execution
+    "backend": "opus", "frontend": "opus", "integration": "opus",
+    "reconciler": "opus", "mini-qa": "opus", "bug-replicator": "opus",
+    "qa-replayer": "opus", "flow-executor": "opus", "visual-analyzer": "opus",
+    # sonnet - mechanical verification / extraction / observation / docs
+    "test-completeness-verifier": "sonnet", "editability-reviewer": "sonnet",
+    "interaction-reviewer": "sonnet", "interaction-observer": "sonnet",
+    "interaction-intuiter": "sonnet", "visual-capture": "sonnet",
+    "test-run-watcher": "sonnet", "monitor-synthesizer": "sonnet",
+    "reference-tracer": "sonnet", "route-mapper": "sonnet",
+    "endpoint-tracer": "sonnet", "flow-explorer": "sonnet",
+    "doc-updater": "sonnet", "closeout-agent": "sonnet",
+    # haiku - classification
+    "bug-classifier": "haiku",
+}
+POLICY_ROLE_SPLIT = "role-split"
+
+
+def role_split_model(stem: str) -> str:
+    """The v4.0.0 model-by-role target for an agent stem (unclassified -> fable)."""
+    return ROLE_SPLIT_MODELS.get(stem, "fable")
+
+
+def role_split_targets(agents_dir) -> Dict[str, str]:
+    """``{stem: target_model}`` for every agent under the role split."""
+    agents_dir = pathlib.Path(agents_dir)
+    return {path.stem: role_split_model(path.stem) for path in sorted(agents_dir.glob("*.md"))}
+
+
+def apply_role_split(agents_dir) -> List[str]:
+    """Apply the v4.0.0 model-by-role split. Returns sorted changed stems;
+    idempotent; only the frontmatter model line is ever touched."""
+    agents_dir = pathlib.Path(agents_dir)
+    targets = role_split_targets(agents_dir)
+    changed: List[str] = []
+    for path in sorted(agents_dir.glob("*.md")):
+        text_lf, newline, trailing = _read(path)
+        new = rewrite_model_line(text_lf, targets[path.stem])
+        if new is None or new == text_lf:
+            continue
+        if trailing and not new.endswith("\n"):
+            new += "\n"
+        if _write_if_changed(path, new, newline):
+            changed.append(path.stem)
+    return sorted(changed)
+
+
 def codex_available(env: Optional[Mapping[str, str]] = None) -> bool:
     """True when the ``CT6_CODEX_56_AVAILABLE`` signal is truthy in ``env``
     (defaults to ``os.environ``). Absent or falsy => False."""
@@ -552,6 +618,8 @@ def policy_state(agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID) -> str:
     ))
     if any(actual == split_targets(agents_dir, alias) for alias in recognized_aliases):
         return POLICY_SECONDARY_SPLIT
+    if actual == role_split_targets(agents_dir):
+        return POLICY_ROLE_SPLIT
     if actual == deliver_split_targets(agents_dir):
         return POLICY_DELIVER_OPUS_SPLIT
     return "mixed"
@@ -603,13 +671,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     group.add_argument(
         "--split",
-        choices=["secondary", "codex", "delivery"],
+        choices=["secondary", "codex", "delivery", "role"],
         default=None,
         help="Apply a role split. 'secondary' (canonical; 'codex' is a deprecated "
         "synonym): fable on architecture/control/design agents, the gateway "
         "secondary alias on development/checking/testing agents. 'delivery': opus "
         "on delivery + adversarial agents, fable on planning/validation/review "
-        "agents (the v3.43.0 delivery-adversarial Opus split).",
+        "agents (the v3.43.0 delivery-adversarial Opus split). 'role': the v4.0.0 "
+        "four-tier split (fable judgment / opus delivery / sonnet mechanical / "
+        "haiku classification) -- the shipped default.",
     )
     group.add_argument(
         "--auto",
@@ -651,6 +721,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.split == "delivery":
         changed = apply_deliver_split(agents_dir)
         _report_changed(POLICY_DELIVER_OPUS_SPLIT, changed)
+        return 0
+
+    if args.split == "role":
+        changed = apply_role_split(agents_dir)
+        _report_changed(POLICY_ROLE_SPLIT, changed)
         return 0
 
     if args.split in {"secondary", "codex"}:

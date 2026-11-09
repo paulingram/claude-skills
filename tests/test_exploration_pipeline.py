@@ -25,6 +25,7 @@ tail substring rather than embedding the em-dash literal, so the assertions are
 robust under both UTF-8 and cp1252 locales.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -71,7 +72,9 @@ SUBSET_MARKERS = [
 
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     """Read a plugin file with EXPLICIT utf-8 (the repo's Windows portability rule)."""
-    return plugin_root.joinpath(*parts).read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    return surface_read(plugin_root.joinpath(*parts))
 
 
 def _read_skill(plugin_root: Path) -> str:
@@ -118,8 +121,7 @@ def test_all_ten_stage_labels_present(plugin_root: Path):
 
 def test_ralph_loop_named(plugin_root: Path):
     body = _read_skill(plugin_root)
-    assert "ralph-loop" in body
-    assert "/ralph-loop" in body
+    assert "ct6-converge" in body
 
 
 def test_ralph_loop_invoked_per_stage_min_count(plugin_root: Path):
@@ -127,19 +129,19 @@ def test_ralph_loop_invoked_per_stage_min_count(plugin_root: Path):
     an explicit invocation; Stages 1/2 reuse subset bodies but still name one).
     The real content carries 13 ``/ralph-loop`` invocations."""
     body = _read_skill(plugin_root)
-    count = body.count("/ralph-loop")
-    assert count >= 8, f"only {count} /ralph-loop invocations; expected >= 8 (one per stage)"
+    count = body.count("ct6-converge")
+    assert count >= 8, f"only {count} ct6-converge invocations; expected >= 8 (one per stage)"
 
 
 def test_ralph_loop_total_mentions(plugin_root: Path):
     body = _read_skill(plugin_root)
-    assert body.count("ralph-loop") >= 10
+    assert body.count("ct6-converge") >= 10
 
 
 def test_governance_states_all_reviewers_agree_full_fidelity_exit(plugin_root: Path):
     body = _read_skill(plugin_root)
     low = body.lower()
-    assert "completion-promise" in body
+    assert "completion promise" in body
     assert "total" in low and "agreement" in low
     assert "100%" in body and "fidelity" in low
 

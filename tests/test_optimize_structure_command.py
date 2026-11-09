@@ -9,6 +9,7 @@ non-negotiable safety rules.
 ASCII-only module; encoding-explicit reads (Windows cp1252 portability rule).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -20,7 +21,7 @@ CMD_PATH = ("commands", "optimize-structure.md")
 
 
 def _read_cmd(plugin_root: Path) -> str:
-    return plugin_root.joinpath(*CMD_PATH).read_text(encoding="utf-8")
+    return surface_read(plugin_root.joinpath(*CMD_PATH))
 
 
 def test_command_present_with_valid_frontmatter(plugin_root: Path) -> None:

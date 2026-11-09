@@ -1,6 +1,7 @@
 ---
 name: interaction-completeness
 description: Use when a feature with UI/UX surface has been implemented and you must independently verify the shipped UI is genuine — every interactive element is real-user-flow-tested (real page.click / page.fill, not a direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamic data-binding rather than hardcoded sample data. Fires at Phase 3 review-gate or Phase 5 cross-layer verification, or whenever you are not certain each control genuinely works, a route may be a placeholder, or a value may be hardcoded where it should be dynamic. The body documents the full triggers and the three-reviewer team that enumerates, classifies, traces, audits test authenticity, converges, routes gaps as solution requirements, and re-reviews after fixes.
+user-invocable: false
 ---
 
 # Interaction Completeness — Is Every Control Genuinely Wired, Every Page Live, and Every Control Genuinely User-Flow-Tested

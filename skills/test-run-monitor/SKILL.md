@@ -1,6 +1,7 @@
 ---
 name: test-run-monitor
 description: A passive observer team that watches when testing is happening and produces a per-run report. Generic across 3 source adapters — local test runs (pytest / playwright / npm test / vitest / jest) / CI runs (GitHub Actions / GitLab CI) / production QA + UAT (APM / log-tail). Strictly log-only — no mid-run interrupts, no auto-SR filing, no pipeline gating.
+user-invocable: false
 ---
 
 # Test-Run Monitor

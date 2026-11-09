@@ -32,6 +32,37 @@ colon-invocation form (`/architect-team:<cmd>`), per-codebase map names
 (`skills/agents/commands`) are intentionally NOT machine-checked — they are the
 rubric's documented LLM-judgment surface, so a false positive is a wording fix,
 not an engine bug (see the rubric's "Recognized cross-reference forms").
+
+Referencing-mandate checks (proposal change 9, conditions 2 + 3 of section 7 of
+``docs/proposals/CT6_MODERNIZATION_PLAN.html``) -- three further finding classes:
+
+* ``dead-pointer`` -- a backticked repo-relative path in a skill / command /
+  agent body (or a ``references/*.md`` chapter) that does not exist on disk. The
+  pointer grammar is a WHOLE backticked token of one of these shapes:
+  ``skills/.../*.md``, ``docs/.../*.md``, ``agents/*.md``, ``commands/*.md``,
+  ``hooks/*.py``, ``scripts/**/*.py`` (resolved against the repo root) and
+  ``references/*.md`` (resolved against the citing skill's directory; from a
+  non-skill file, against the file's own directory). A token the narrow
+  cross-reference grammar above already flags is reported once, as
+  ``cross-reference``, never twice.
+* ``dead-heading`` -- a backticked ``## Heading`` literal that follows a
+  RESOLVABLE markdown pointer in the same sentence of the same line must exist
+  in that file as an exact heading line (case-sensitive, whitespace-trimmed; a
+  version suffix or a trailing subtitle on the real heading is NOT stripped --
+  cite the heading as written). Attribution ends at a sentence terminator
+  (``.``, ``;``, ``?``, ``!`` + whitespace) or a table-cell bar, so a heading
+  named later in the sentence's successor is never charged to the path.
+* ``chapter-over-budget`` -- a ``skills/*/references/*.md`` chapter over the
+  5,000-token re-attach budget (``bytes/4`` estimator: ``ceil(utf8_bytes / 4)``).
+
+``scripts/compliance/pointer_allowlist.txt`` is the ONLY suppression: one entry
+per line, a resolved repo-relative path (suppresses ``dead-pointer`` for that
+target wherever it is cited) or ``<path>#<heading literal>`` (suppresses
+``dead-heading`` for that heading of that target). It carries the dead pointers
+that pre-dated the check, each with its classification; new entries need the
+same justification. Chapters are pointer-scanned and budget-checked but are NOT
+counted in ``files_checked`` (the in-scope set is unchanged); they are counted
+in ``chapters_checked``.
 """
 from __future__ import annotations
 
@@ -99,6 +130,206 @@ _RE_FM_KEY = re.compile(r"^([A-Za-z0-9_-]+):[ \t]+(\S.*)$")
 # Precedence is positional — whichever appears first in the value is what yaml does.
 _RE_COLON_SPACE = re.compile(r":(?=[ \t]|$)")
 _RE_SPACE_HASH = re.compile(r"(?<=[ \t])#")
+
+
+# --------------------------------------------------------------------------- #
+# referencing-mandate checks: pointer resolvability, heading existence, chapter
+# budget (proposal change 9)
+# --------------------------------------------------------------------------- #
+# The token estimator shared with scripts/measure/instruction_budget.py: one
+# token per four UTF-8 bytes, rounded up. Stated, not measured against a real
+# tokenizer -- it is a budget yardstick, and every surface is measured with the
+# same stick.
+TOKEN_ESTIMATOR = "bytes/4"
+# The re-attach budget for one reference chapter (the proposal's 5,000 tokens).
+CHAPTER_TOKEN_BUDGET = 5000
+POINTER_ALLOWLIST_PATH = "scripts/compliance/pointer_allowlist.txt"
+
+# A WHOLE backticked token that is a repo-relative markdown / python pointer.
+_RE_POINTER_TOKEN = re.compile(
+    r"^(?:(?:skills|docs|agents|commands|references)/[A-Za-z0-9_./-]+\.md"
+    r"|(?:hooks|scripts)/[A-Za-z0-9_./-]+\.py)$"
+)
+_RE_BACKTICK_TOKEN = re.compile(r"`([^`\n]+)`")
+# A heading literal cited in backticks: `## Heading text`.
+_RE_HEADING_TOKEN = re.compile(r"^#{1,6} \S.*$")
+# What ends a sentence between a pointer and a heading literal: a terminator
+# followed by whitespace / end, or a table-cell bar.
+_RE_SENTENCE_BREAK = re.compile(r"[.;?!](?:\s|$)|\|")
+
+
+def estimate_tokens(nbytes: int) -> int:
+    """``ceil(nbytes / 4)`` -- the bytes/4 estimator."""
+    return (int(nbytes) + 3) // 4
+
+
+def load_pointer_allowlist(root: Union[str, Path]) -> dict[str, set[str]]:
+    """``{"paths": {...}, "headings": {...}}`` from the allowlist file.
+
+    One entry per line; ``#`` starts a comment ONLY at column 0 or after
+    whitespace, because a heading entry is ``<path>#<heading literal>`` and the
+    literal itself begins with ``#``. Blank lines are ignored. A missing file is
+    an empty allowlist.
+    """
+    out: dict[str, set[str]] = {"paths": set(), "headings": set()}
+    p = Path(root) / POINTER_ALLOWLIST_PATH
+    if not p.is_file():
+        return out
+    for raw in p.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        line = re.split(r"\s+#", line, maxsplit=1)[0].strip()
+        if not line:
+            continue
+        if "#" in line:
+            # `docs/X.md### Heading` -> path `docs/X.md`, literal `## Heading`;
+            # the key is `<path>#<literal>`, exactly as the finding's evidence.
+            path, _, heading = line.partition("#")
+            out["headings"].add(f"{path.strip()}#{heading.strip()}")
+        else:
+            out["paths"].add(line.replace("\\", "/"))
+    return out
+
+
+def _skill_dir_for(path: Path, root: Path) -> Optional[Path]:
+    try:
+        parts = path.resolve().relative_to(root.resolve()).parts
+    except ValueError:
+        return None
+    if len(parts) >= 3 and parts[0] == "skills":
+        return root / "skills" / parts[1]
+    return None
+
+
+def resolve_pointer_token(token: str, citing_file: Path, root: Path) -> tuple[Path, str]:
+    """``(absolute, repo_relative_posix)`` for a pointer token as written."""
+    token = token.strip()
+    if token.startswith("references/"):
+        base = _skill_dir_for(citing_file, root) or citing_file.parent
+        absolute = base / token
+    else:
+        absolute = root / token
+    try:
+        rel = absolute.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        rel = token.replace("\\", "/")
+    return absolute, rel
+
+
+def _headings_of(path: Path, cache: dict[str, set[str]]) -> set[str]:
+    key = str(path)
+    if key not in cache:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            lines = []
+        cache[key] = {ln.rstrip() for ln in lines if ln.startswith("#")}
+    return cache[key]
+
+
+def _pointer_findings(
+    text: str,
+    path: Path,
+    root: Path,
+    *,
+    allowlist: dict[str, set[str]],
+    skip_evidence: set[str],
+    hits: list[dict[str, str]],
+    heading_cache: Optional[dict[str, set[str]]] = None,
+) -> list[tuple[str, str, str]]:
+    """``(check, issue, evidence)`` for every dead pointer / dead heading in
+    ``text`` per the module docstring's referencing-mandate rules."""
+    cache = heading_cache if heading_cache is not None else {}
+    rel_file = path.resolve().relative_to(root.resolve()).as_posix()
+    out: list[tuple[str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(check: str, issue: str, evidence: str) -> None:
+        if (check, evidence) not in seen:
+            seen.add((check, evidence))
+            out.append((check, issue, evidence))
+
+    for line in text.splitlines():
+        last_md: Optional[tuple[Path, str, int]] = None  # (absolute, rel, end offset)
+        for m in _RE_BACKTICK_TOKEN.finditer(line):
+            token = m.group(1).strip()
+            if _RE_POINTER_TOKEN.match(token):
+                absolute, rel = resolve_pointer_token(token, path, root)
+                if absolute.is_file():
+                    last_md = (absolute, rel, m.end()) if token.endswith(".md") else None
+                    continue
+                last_md = None
+                if rel in allowlist["paths"]:
+                    hits.append({"file": rel_file, "kind": "path", "entry": rel, "pointer": token})
+                    continue
+                if token in skip_evidence:
+                    continue  # already reported as a cross-reference finding
+                add("dead-pointer",
+                    f"pointer '{token}' resolves to '{rel}', which does not exist on disk",
+                    token)
+                continue
+            if _RE_HEADING_TOKEN.match(token):
+                if last_md is None:
+                    continue
+                absolute, rel, end = last_md
+                if _RE_SENTENCE_BREAK.search(line[end:m.start()]):
+                    last_md = None  # a new sentence; the heading is not this pointer's
+                    continue
+                if token in _headings_of(absolute, cache):
+                    continue
+                key = f"{rel}#{token}"
+                if key in allowlist["headings"]:
+                    hits.append({"file": rel_file, "kind": "heading", "entry": key, "pointer": token})
+                    continue
+                add("dead-heading",
+                    f"heading '{token}' is cited for '{rel}' but no line of that file is "
+                    f"exactly that heading (cite the heading as written; suffixes are not stripped)",
+                    key)
+    return out
+
+
+def _chapter_files(root: Path) -> list[Path]:
+    """Every ``skills/*/references/*.md`` chapter (INDEX.md files included)."""
+    skills_dir = root / "skills"
+    if not skills_dir.is_dir():
+        return []
+    return sorted(skills_dir.glob("*/references/*.md"))
+
+
+def assess_chapters(
+    root: Path,
+    *,
+    allowlist: dict[str, set[str]],
+    hits: list[dict[str, str]],
+    heading_cache: Optional[dict[str, set[str]]] = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """``(findings, chapters_checked)`` -- chapter budget + pointer scan over
+    every reference chapter. Chapters are outside the in-scope file count."""
+    findings: list[dict[str, Any]] = []
+    chapters = _chapter_files(root)
+    for chapter in chapters:
+        rel = chapter.resolve().relative_to(root.resolve()).as_posix()
+        data = chapter.read_bytes()
+        tokens = estimate_tokens(len(data))
+        if tokens > CHAPTER_TOKEN_BUDGET:
+            findings.append({
+                "file": rel,
+                "check": "chapter-over-budget",
+                "issue": (
+                    f"reference chapter is {tokens} tokens ({TOKEN_ESTIMATOR}), over the "
+                    f"{CHAPTER_TOKEN_BUDGET}-token re-attach budget; split it or move "
+                    "procedure that is not read together into its own chapter"
+                ),
+                "evidence": f"{tokens} tokens",
+            })
+        text = data.decode("utf-8", errors="replace")
+        for check, issue, evidence in _pointer_findings(
+            text, chapter, root, allowlist=allowlist, skip_evidence=set(),
+            hits=hits, heading_cache=heading_cache,
+        ):
+            findings.append({"file": rel, "check": check, "issue": issue, "evidence": evidence})
+    return findings, len(chapters)
 
 
 def build_inventory(root: Union[str, Path]) -> dict[str, set[str]]:
@@ -259,8 +490,16 @@ def assess_file(
     file_class: str,
     inventory: dict[str, set[str]],
     expected_name: Optional[str] = None,
+    allowlist: Optional[dict[str, set[str]]] = None,
+    hits: Optional[list[dict[str, str]]] = None,
+    heading_cache: Optional[dict[str, set[str]]] = None,
 ) -> list[dict[str, Any]]:
-    """Grade one instruction file; return its findings (possibly empty)."""
+    """Grade one instruction file; return its findings (possibly empty).
+
+    ``allowlist`` / ``hits`` / ``heading_cache`` feed the referencing-mandate
+    pointer check (skill / agent / command classes only); when ``allowlist`` is
+    None it is loaded from ``POINTER_ALLOWLIST_PATH`` under ``root``.
+    """
     rel = str(path.relative_to(root)).replace("\\", "/")
     text = path.read_text(encoding="utf-8")
     findings: list[dict[str, Any]] = []
@@ -319,8 +558,18 @@ def assess_file(
             f"{file_class} body does not open with the conventional heading/role line",
             "opening line")
 
-    for evidence, issue in _cross_reference_findings(text, inventory, root):
+    xref = _cross_reference_findings(text, inventory, root)
+    for evidence, issue in xref:
         add("cross-reference", issue, evidence)
+
+    if file_class in ("skill", "agent", "command"):
+        allow = allowlist if allowlist is not None else load_pointer_allowlist(root)
+        sink = hits if hits is not None else []
+        for check, issue, evidence in _pointer_findings(
+            text, path, root, allowlist=allow,
+            skip_evidence={ev for ev, _ in xref}, hits=sink, heading_cache=heading_cache,
+        ):
+            add(check, issue, evidence)
 
     return findings
 
@@ -360,18 +609,31 @@ def assess_instruction_files(root: Union[str, Path]) -> dict[str, Any]:
     root = Path(root)
     inventory = build_inventory(root)
     files = _in_scope_files(root)
+    allowlist = load_pointer_allowlist(root)
+    hits: list[dict[str, str]] = []
+    heading_cache: dict[str, set[str]] = {}
     findings: list[dict[str, Any]] = []
     for path, file_class, expected_name in files:
         findings.extend(assess_file(
             path, root=root, file_class=file_class,
             inventory=inventory, expected_name=expected_name,
+            allowlist=allowlist, hits=hits, heading_cache=heading_cache,
         ))
+    chapter_findings, chapters_checked = assess_chapters(
+        root, allowlist=allowlist, hits=hits, heading_cache=heading_cache,
+    )
+    findings.extend(chapter_findings)
     return {
         "schema": "instruction-compliance/v1",
         "root": str(root),
         "files_checked": len(files),
+        "chapters_checked": chapters_checked,
         "findings": findings,
         "inventory_counts": {k: len(v) for k, v in inventory.items()},
+        "token_estimator": TOKEN_ESTIMATOR,
+        "chapter_token_budget": CHAPTER_TOKEN_BUDGET,
+        "pointer_allowlist": sorted(allowlist["paths"]) + sorted(allowlist["headings"]),
+        "pointer_allowlist_hits": hits,
     }
 
 

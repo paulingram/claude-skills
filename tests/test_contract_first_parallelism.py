@@ -29,6 +29,7 @@ JSON with no writer API in front of it:
   see `.architect-team/red-runs/rv-fixer/mutation-matrix.md`.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import json
 from pathlib import Path
@@ -824,7 +825,7 @@ def test_the_registered_gate_is_enforced_by_the_real_completion_audit(
 # --------------------------------------------------------------------------- #
 
 def test_skill_contract_carries_the_six_phases_and_the_boundary() -> None:
-    body = (REPO_ROOT / "skills" / "contract-first-parallelism" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("contract-first-parallelism")
     for phase in ("CFP-1", "CFP-2", "CFP-3", "CFP-4", "CFP-5", "CFP-6"):
         assert phase in body, phase
     assert "new-surface" in body and "amend-surface" in body
@@ -834,7 +835,7 @@ def test_skill_contract_carries_the_six_phases_and_the_boundary() -> None:
 
 
 def test_main_pipeline_detects_at_phase_2_and_gates_at_phase_8() -> None:
-    body = (REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("architect-team-pipeline")
     phase2 = body.split("## Phase 2 —", 1)[1].split("## Phase 3 —", 1)[0]
     assert "contract-first-parallelism" in phase2, "Phase 2 must engage the protocol before spawn"
     assert "interface_contract.py" in phase2
@@ -845,7 +846,7 @@ def test_main_pipeline_detects_at_phase_2_and_gates_at_phase_8() -> None:
 
 
 def test_mini_pipeline_wires_m4_and_m7() -> None:
-    body = (REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("mini-architect-team-pipeline")
     m4 = body.split("## Phase M4 —", 1)[1].split("## Phase M5", 1)[0]
     assert "contract-first-parallelism" in m4
     m7 = body.split("## Phase M7 —", 1)[1]
@@ -853,7 +854,7 @@ def test_mini_pipeline_wires_m4_and_m7() -> None:
 
 
 def test_cpc_carries_the_canonical_statement() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     assert "## Contract-first parallelism (v3.48.0 — the canonical statement)" in body
     section = body.split("## Contract-first parallelism", 1)[1].split("## Frontend missing-API discipline", 1)[0]
     assert "SERVER-SIDE" in section
@@ -861,7 +862,7 @@ def test_cpc_carries_the_canonical_statement() -> None:
 
 
 def test_backend_agent_owns_provisioning_and_retirement() -> None:
-    body = (REPO_ROOT / "agents" / "backend.md").read_text(encoding="utf-8")
+    body = agent_surface("backend")
     assert "## Contract-first provisioning" in body
     section = body.split("## Contract-first provisioning", 1)[1].split("## Missing-API SR intake", 1)[0]
     assert "REAL path" in section
@@ -870,7 +871,7 @@ def test_backend_agent_owns_provisioning_and_retirement() -> None:
 
 
 def test_frontend_agent_builds_against_live_and_holds_no_fallback() -> None:
-    body = (REPO_ROOT / "agents" / "frontend.md").read_text(encoding="utf-8")
+    body = agent_surface("frontend")
     assert "## Contract-first parallelism" in body
     section = body.split("## Contract-first parallelism", 1)[1].split("## Missing-API discipline", 1)[0]
     assert "no `page.route` intercept" in section or "page.route" in section
@@ -898,7 +899,7 @@ def test_skill_reconciles_the_provisioned_mock_with_the_fake_data_sweep() -> Non
     """The mock handler is PRODUCTION backend code, which `verify-no-fake-data`
     sweeps. The compatibility claim has to address that, and the categories it
     names have to be the verifier's real ones."""
-    body = (REPO_ROOT / "skills" / "contract-first-parallelism" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("contract-first-parallelism")
     section = body.split("## Relationship to the no-fake-data disciplines", 1)[1]
     assert "verify-no-fake-data" in section
     fake_data = (REPO_ROOT / "hooks" / "vao" / "fake_data.py").read_text(encoding="utf-8")
@@ -912,7 +913,7 @@ def test_skill_documents_the_exact_ledger_shape_it_reads() -> None:
     shape the skill never documented — so the agent invented one."""
     import re
 
-    body = (REPO_ROOT / "skills" / "contract-first-parallelism" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("contract-first-parallelism")
     # Whitespace-normalized: the claim must hold, not its line wrapping.
     flat = re.sub(r"\s+", " ", body).lower()
     assert '"contracts"' in flat
@@ -921,15 +922,15 @@ def test_skill_documents_the_exact_ledger_shape_it_reads() -> None:
 
 def test_the_retirement_gate_is_registered_not_merely_asserted() -> None:
     """`non-closable` is only true if some machinery knows about the gate."""
-    skill = (REPO_ROOT / "skills" / "contract-first-parallelism" / "SKILL.md").read_text(encoding="utf-8")
+    skill = skill_surface("contract-first-parallelism")
     assert "declared-gates.json" in skill and "cfp-retirement-" in skill
     assert "declare-gate" in skill
-    backend = (REPO_ROOT / "agents" / "backend.md").read_text(encoding="utf-8")
+    backend = agent_surface("backend")
     assert "declare-gate" in backend
 
 
 def test_architect_carries_the_approval_mode() -> None:
-    body = (REPO_ROOT / "agents" / "system-architect.md").read_text(encoding="utf-8")
+    body = agent_surface("system-architect")
     assert "## Interface Contract Approval" in body
     assert "TEN distinct modes" in body
     section = body.split("## Interface Contract Approval", 1)[1]

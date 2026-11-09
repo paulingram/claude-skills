@@ -95,7 +95,16 @@ EXTRACTIONS = {
     #     Reference-index row. Fits inside the room the v3.66.0 extraction
     #     made; 763 bytes of headroom remain, so the NEXT addition pays by
     #     extraction again.
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 258527),
+    #   v4.0.0 transition:    258527 -> 59615 (the constitution split, proposal
+    #     change 2): every discipline section over 1300 bytes moved whole into
+    #     references/<slug>.md behind a STOP pointer + its first paragraph; the
+    #     ranked "Read this first", "No self-imposed limits", the compiled
+    #     principles and the structural sections stay inline. This REVERSES the
+    #     v3.42.0 "keep every gate/discipline inline" conservatism: the gates
+    #     are enforced by hooks and Layer-3 tools, the prose is read on demand,
+    #     and tests read the surface (SKILL.md with its chapters spliced in
+    #     place -- tests/helpers/surfaces.py), not the raw body.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 59615),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

@@ -54,7 +54,7 @@ def test_canonical_commands_has_20_entries(audit_module) -> None:
     # +1 (playwright-suite) in playwright-suite-intuition-lifecycle.
     # CANONICAL_COMMANDS is disk-derived, so only this pin moves — the constant
     # picks the new command up on its own.
-    assert len(audit_module.CANONICAL_COMMANDS) == 26
+    assert len(audit_module.CANONICAL_COMMANDS) == 29  # v4.0.0: + principles, publish, home
 
 
 @pytest.mark.parametrize("phantom", ["mempalace-search", "mempalace-status", "code-review"])

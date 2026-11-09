@@ -1,6 +1,7 @@
 ---
 name: frontend-route-mapping
 description: Use when the route-mapper agent is producing a ROUTE_MAP.md for a frontend codebase, or when any agent needs to consult an existing route map. Defines the ROUTE_MAP.md schema, the navigation web format, route inventory + dynamic routes + modal routes + API endpoint catalog, and what "complete" means for review.
+user-invocable: false
 ---
 
 # Frontend Route Mapping

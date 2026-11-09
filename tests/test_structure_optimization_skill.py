@@ -29,6 +29,7 @@ module is ASCII-only; stage headings use an em-dash in the skill body, so the
 assertions match ASCII prefix + ASCII tail substrings.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -71,7 +72,7 @@ MOVEMENTS_SCHEMA_FIELDS = (
 
 
 def _read_skill(plugin_root: Path) -> str:
-    return plugin_root.joinpath(*SKILL_PATH).read_text(encoding="utf-8")
+    return surface_read(plugin_root.joinpath(*SKILL_PATH))
 
 
 # --------------------------------------------------------------------------- #
@@ -116,14 +117,14 @@ def test_stage_heading_present(plugin_root: Path, prefix: str, tail: str) -> Non
 @pytest.mark.parametrize("promise", COMPLETION_PROMISES)
 def test_ralph_loop_promise_present_in_canonical_form(plugin_root: Path, promise: str) -> None:
     body = _read_skill(plugin_root)
-    assert f'--completion-promise "{promise}"' in body, (
+    assert f'completion promise "{promise}"' in body, (
         f"missing canonical ralph-loop completion-promise {promise!r}"
     )
 
 
 def test_ralph_loop_uses_slash_form_and_no_iteration_cap(plugin_root: Path) -> None:
     body = _read_skill(plugin_root)
-    assert '/ralph-loop "' in body
+    assert 'ct6-converge' in body
     assert "--max-iterations" not in body, (
         "iteration caps were removed in v3.8.0 (unbounded solving); the skill "
         "must not reintroduce one"

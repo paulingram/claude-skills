@@ -1,6 +1,7 @@
 """Structural tests for the v3.3.0 /architect-team:monitor-tests slash command."""
 
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import json
 from pathlib import Path
@@ -104,26 +105,26 @@ def test_ci_fixture_meta_documents_2_expected_findings() -> None:
 
 
 def test_canonical_home_documents_v3_3_0() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     assert "## Test-run monitor discipline (v3.3.0)" in body
 
 
 def test_canonical_home_names_3_adapters() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Test-run monitor discipline (v3.3.0)", 1)[1].split("\n## ", 1)[0]
     for adapter in ("LocalAdapter", "CIAdapter", "ProductionQAAdapter"):
         assert adapter in section
 
 
 def test_canonical_home_documents_4_categories() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Test-run monitor discipline (v3.3.0)", 1)[1].split("\n## ", 1)[0]
     for cat in ("flake", "regression", "environmental", "new"):
         assert cat in section
 
 
 def test_canonical_home_documents_strictly_passive_contract() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Test-run monitor discipline (v3.3.0)", 1)[1].split("\n## ", 1)[0]
     assert "passive" in section.lower()
     assert "MUST NOT" in section

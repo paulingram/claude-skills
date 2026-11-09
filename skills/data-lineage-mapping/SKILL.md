@@ -1,6 +1,7 @@
 ---
 name: data-lineage-mapping
 description: Use when a diagnostic or feature trace reaches data and the asset-lineage layer of the Code & Data Lineage Graph (CDLG) must be produced or consulted — the bug/feature-flow-facing per-asset lineage that records which functions read / write / modify / originate each data asset, and how each asset is populated. Produces DATA_LINEAGE_MAP.md (human view) + the asset edges (reads / writes / modifies / originates) in lineage-graph.json, keyed by the asset:// nomenclature, joined to func:// nodes. Makes data-model decomposition available in the bug-fix and feature flows (not only Phase 0c). The deterministic graph pieces live in hooks/lineage_graph.py; this skill is the asset-lineage contract that layers on top of endpoint-trace-mapping. A reuse-first layer over data-engineering-exploration Stage 2/6 — the warehouse-design layer — not a duplicate of it.
+user-invocable: false
 ---
 
 # Data Lineage Mapping (the CDLG asset-lineage layer)

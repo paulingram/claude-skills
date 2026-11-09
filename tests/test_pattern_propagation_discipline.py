@@ -13,6 +13,7 @@ fires when the diff fixed some consumers of a named shared mock source but
 left others unmodified while they still reference the source.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 from pathlib import Path
@@ -27,19 +28,19 @@ import pytest
 
 def test_canonical_subsection_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "### Pattern propagation mandate (v2.7.0)" in body
 
 
 def test_canonical_subsection_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.count("### Pattern propagation mandate (v2.7.0)") == 1
 
 
 def test_canonical_subsection_names_6th_severity(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "shared-mock-source-not-swept" in body
 
 
@@ -47,7 +48,7 @@ def test_canonical_subsection_quotes_verbatim_user_prose(plugin_root: Path):
     """The canonical sub-section must include the verbatim user phrase that
     drove the discipline addition — *'say the word if you want me to sweep'*."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8").lower()
+    body = surface_read(skill).lower()
     assert "say the word" in body
     assert "sweep" in body
 
@@ -59,14 +60,14 @@ def test_canonical_subsection_quotes_verbatim_user_prose(plugin_root: Path):
 ])
 def test_canonical_subsection_names_3_signature_classes(plugin_root: Path, signature_class: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8").lower()
+    body = surface_read(skill).lower()
     assert signature_class.lower() in body
 
 
 def test_canonical_subsection_documents_3_step_sweep(plugin_root: Path):
     """The mandate must document trace → enumerate → fix as the per-instance protocol."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8").lower()
+    body = surface_read(skill).lower()
     assert "trace the source" in body
     assert "enumerate" in body
     assert "fix every consumer" in body
@@ -79,21 +80,21 @@ def test_canonical_subsection_documents_3_step_sweep(plugin_root: Path):
 
 def test_frontend_agent_has_pattern_propagation_section(plugin_root: Path):
     agent = plugin_root / "agents" / "frontend.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "## Pattern propagation mandate (v2.7.0)" in body
 
 
 def test_frontend_agent_forbids_say_the_word_phrasing(plugin_root: Path):
     """The discipline must explicitly forbid the verbatim 'say the word' offer."""
     agent = plugin_root / "agents" / "frontend.md"
-    body = agent.read_text(encoding="utf-8").lower()
+    body = surface_read(agent).lower()
     assert "say the word" in body
     assert "forbidden" in body or "do not" in body
 
 
 def test_frontend_agent_documents_3_step_sweep(plugin_root: Path):
     agent = plugin_root / "agents" / "frontend.md"
-    body = agent.read_text(encoding="utf-8").lower()
+    body = surface_read(agent).lower()
     assert "trace the source" in body
     assert "enumerate" in body
 
@@ -105,13 +106,13 @@ def test_frontend_agent_documents_3_step_sweep(plugin_root: Path):
 
 def test_interaction_reviewer_has_pattern_propagation_sweep_section(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-reviewer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "### Pattern propagation sweep (v2.7.0)" in body
 
 
 def test_interaction_reviewer_documents_5_step_audit(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-reviewer.md"
-    body = agent.read_text(encoding="utf-8").lower()
+    body = surface_read(agent).lower()
     # the 5-step audit must walk identify → enumerate → compare → confirm → emit
     assert "identify the shared source" in body
     assert "enumerate consumers" in body
@@ -146,12 +147,12 @@ def test_sweep_fixture_is_valid_json_with_required_shape(plugin_root: Path):
 
 def test_v26_cross_references_v27_fixture(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "shared-mock-source-not-swept.json" in body
 
 
 def test_v26_cross_references_v27_agent_section(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "agents/frontend.md" in body
     assert "Pattern propagation mandate (v2.7.0)" in body

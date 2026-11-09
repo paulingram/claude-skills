@@ -35,6 +35,16 @@ provided — `--details` (what is about to happen / what was accomplished),
 an email is a meaningful update, not a bare status line. All ten honor the
 identical opt-in/best-effort contract; none gates, blocks, or caps a run.
 
+Timing log (project homepage, change 15): the five run-shaped events --
+`run_start` / `run_complete` / `phase_start` / `phase_complete` / `heartbeat`
+-- ALSO append their interval to `<workspace>/.architect-team/run-history/
+timings.jsonl` through `hooks/timings_log.py`, whether or not
+`.architect-team-notify.json` exists. The email path is untouched by it: the
+append happens before the config lookup, prints nothing, and swallows every
+failure, so a timing record can no more block a run than an email can. It is
+recorded only while a CT6 run is active in the workspace (the run-continuity
+marker), and `CT6_TIMINGS_DISABLED=1` switches it off.
+
 Exit:
   Always 0. main() catches every exception (including argparse SystemExit).
 """
@@ -85,6 +95,85 @@ SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
 
 # Bounded socket timeout (seconds) — a send must fail fast, never hang a phase.
 SOCKET_TIMEOUT = 15
+
+
+# ---- Timing log (project homepage, change 15) --------------------------------
+
+# The events that are interval boundaries. Every other event is email-only.
+TIMING_EVENTS = ("run_start", "run_complete", "phase_start", "phase_complete", "heartbeat")
+
+# `hooks/timings_log.py`, loaded lazily BY PATH (stdlib importlib) so the
+# notifier stays a path-addressed script with no package dependency and the
+# email path never pays for -- or fails on -- the ledger.
+_TIMINGS_LOG_PATH = Path(__file__).resolve().parents[2] / "hooks" / "timings_log.py"
+
+
+def _load_timings_log():
+    """Load `hooks/timings_log.py` from its file path (lazy, in-function)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("ct6_timings_log_for_notify", _TIMINGS_LOG_PATH)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the timing log from {_TIMINGS_LOG_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def append_timing(event: str, context: dict, cwd: Path | None = None) -> dict | None:
+    """Append ``event``'s interval to the timing log; independent of the email
+    opt-in and of every email failure path.
+
+    ``run_start`` opens the run interval, ``run_complete`` closes it (or, when
+    no open interval exists, records one from intake-state's ``started_at``);
+    ``phase_start`` / ``phase_complete`` bracket a phase interval (a complete
+    whose start was never seen is recorded with an unknown duration, not a
+    guessed one); ``heartbeat`` appends a liveness point (``outcome:
+    "heartbeat"``, excluded from statistics). Nothing is written unless a CT6
+    run is ACTIVE in the workspace, and ``CT6_TIMINGS_DISABLED=1`` switches the
+    whole thing off.
+
+    Returns the record written, or None. Never raises and never prints: a
+    failure here is invisible to the email path by construction.
+    """
+    if event not in TIMING_EVENTS:
+        return None
+    try:
+        tl = _load_timings_log()
+        if tl.disabled():
+            return None
+        workspace = Path(cwd) if cwd is not None else Path.cwd()
+        if not tl.workspace_engaged(workspace):
+            return None
+        ctx = tl.context_from_workspace(workspace)
+        run_id = context.get("run_id") or ctx.get("run_id")
+        run_key = run_id or "current"
+        phase = context.get("phase") or None
+        if event == "run_start":
+            return tl.open_interval(workspace, "run", run_key, run_id=run_id, phase=phase)
+        if event == "run_complete":
+            rec = tl.close_interval(workspace, "run", run_key, tl.OUTCOME_OK, phase=phase)
+            if rec is None:
+                records = tl.close_run(workspace, tl.OUTCOME_OK)
+                rec = records[0] if records else None
+            return rec
+        if event == "phase_start":
+            if not phase:
+                return None
+            return tl.open_interval(workspace, "phase", phase, phase=phase, run_id=run_id)
+        if event == "phase_complete":
+            if not phase:
+                return None
+            rec = tl.close_interval(workspace, "phase", phase, tl.OUTCOME_OK, phase=phase)
+            if rec is None:
+                rec = tl.record(workspace, "phase", started_at=None, outcome=tl.OUTCOME_OK,
+                                phase=phase, run_id=run_id)
+            return rec
+        # heartbeat: elapsed-so-far from the run start, flagged so stats skip it.
+        return tl.record(workspace, "run", started_at=ctx.get("run_started_at"),
+                         outcome=tl.OUTCOME_HEARTBEAT, phase=phase, run_id=run_id)
+    except Exception:  # noqa: BLE001 - the ledger never reaches the email path
+        return None
 
 
 # ---- Errors ------------------------------------------------------------------
@@ -743,6 +832,10 @@ def notify(argv: list[str], cwd: Path | None = None) -> int:
                 file=sys.stderr,
             )
         return 0
+
+    # The timing log is written REGARDLESS of the email opt-in (project
+    # homepage, change 15): before the config lookup, silent, never raising.
+    append_timing(args.event, _context_from_args(args), cwd=cwd)
 
     try:
         config_path = find_config(args.config, cwd=cwd)

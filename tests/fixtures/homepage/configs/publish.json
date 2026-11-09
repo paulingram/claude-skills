@@ -1,0 +1,8 @@
+{
+  "mode": "private-url",
+  "adapter": "local-port",
+  "slug": "shop-fixture",
+  "token_ttl_hours": 72,
+  "token": "tok-PLANTED-SECRET-PUBLISH-77c0",
+  "bind": {"host": "127.0.0.1", "port": 8731, "external_ip": null}
+}

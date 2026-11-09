@@ -31,6 +31,7 @@ wasted. v1.7.0 names the explicit alternative: surface a structured SR,
 pause that element's work, return to wire when the backend ships.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 from pathlib import Path
 
@@ -58,14 +59,12 @@ SR_ORIGIN_KIND = "missing-api-for-frontend-element"
 
 
 def _read_skill_body(plugin_root: Path, skill_name: str) -> str:
-    path = plugin_root / "skills" / skill_name / "SKILL.md"
-    _, body = frontmatter.parse(path)
+    _, body = frontmatter.parse_text(skill_surface(skill_name, root=plugin_root))
     return body
 
 
 def _read_agent_body(plugin_root: Path, agent_name: str) -> str:
-    path = plugin_root / "agents" / f"{agent_name}.md"
-    _, body = frontmatter.parse(path)
+    _, body = frontmatter.parse_text(agent_surface(agent_name, root=plugin_root))
     return body
 
 

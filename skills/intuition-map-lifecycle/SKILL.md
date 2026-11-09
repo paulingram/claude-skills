@@ -1,6 +1,7 @@
 ---
 name: intuition-map-lifecycle
 description: Lane-callable lifecycle discipline for a frontend codebase's INTERACTION_INTUITION_MAP.md, with three verbs — ensure (guarantee the map exists before any Playwright test is authored, dispatching interaction-intuiter in pipeline context or running the same rubric inline with an inline bulk-verify ad hoc), grow (upsert the elements and routes a user-specified flow exercises as confirmed entries carrying source user-flow, with no bulk-verify round-trip because the user specifying the flow IS the confirmation), bug-path-upsert (record a resolved bug path with source bug-path plus regression_refs naming the covering debug-flow test and the SR or bug slug). Triggers — any lane about to author or review Playwright tests, a user handing over a concrete UX flow, a debugging lane closing out a bug. The deterministic engine lives under scripts/intuition_lifecycle/ and this skill is its contract.
+user-invocable: false
 ---
 
 # intuition-map-lifecycle

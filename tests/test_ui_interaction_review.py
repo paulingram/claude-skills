@@ -18,6 +18,7 @@ These tests assert the v6 contract:
   - both evidence hooks (`review-gate-task.py`, `teammate-idle-check.py`) import
     the shared schema module, so the bump flows through with no per-hook copy.
 """
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 import importlib.util
 import json
 import os
@@ -43,7 +44,11 @@ def _import_schema(plugin_root: Path):
 def _read(plugin_root: Path, *parts: str) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 def _valid_v6_evidence() -> dict:

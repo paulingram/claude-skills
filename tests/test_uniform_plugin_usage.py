@@ -7,6 +7,7 @@ Every pipeline body must:
   - apply uniform openspec gates (mini gains validate --all + archive; bug-fix
     no longer carries a bare ``openspec validate --strict`` without ``--all``).
 """
+from tests.helpers.surfaces import surface_read
 import re
 from pathlib import Path
 
@@ -33,7 +34,7 @@ FOUR_SUPERPOWERS_SKILLS = [
 def _body(plugin_root: Path, skill_name: str) -> str:
     path = plugin_root / "skills" / skill_name / "SKILL.md"
     assert path.exists(), f"{skill_name}/SKILL.md missing"
-    return path.read_text(encoding="utf-8")
+    return surface_read(path)
 
 
 @pytest.mark.parametrize("skill_name", PIPELINE_BODIES)

@@ -1,6 +1,7 @@
 ---
 name: root-cause-test-failures
 description: Use when running, debugging, or triaging any Playwright user-flow test or live dev-API integration test. Triggers - any test failure, a flaky test, you are about to retry a test without diagnosing it, you are about to propose a fix without an evidence trail, or you find yourself reaching for "probably" / "must be" / "seems like" / "obviously" to explain why something deviated from expected. Also use before every test run to write the per-step expectation that the failure-mode analysis will measure against. Mandatory whenever the architect-team Phase 3 review gate or Phase 5 integration loop runs tests.
+user-invocable: false
 ---
 
 # Root-Cause Test Failures — Predict, Trace, Loop Three Times

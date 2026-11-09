@@ -1,6 +1,7 @@
 ---
 name: interactive-mockup-discovery
 description: Two-pass discovery of interactive HTML mockups as oracle artifacts. Pass 1 (observation) runs the mockup in headless Chrome and records every interactive element's observed behavior; Pass 2 (intent inference) flags semantic-vs-observed mismatches (e.g., "Logout" button routing to /dashboard) and surfaces them at the existing Phase −1D bulk-verify gate so the user-resolved intent — not the mockup's literal behavior — becomes the binding contract. Adds a 6th spec_shape to oracle-deriver, a new interaction-observer agent, an INTENT-INFERENCE mode to interaction-intuiter, a new Layer 3 tool (verify-interactions-honored), and an OPTIONAL schema v7 field.
+user-invocable: false
 ---
 
 # interactive-mockup-discovery — v2.1.0 extension to the VAO framework

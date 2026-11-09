@@ -22,6 +22,7 @@ agent bodies may use an em-dash; assertions match ASCII prefix + ASCII tail
 substrings rather than embedding the em-dash literal.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -44,7 +45,11 @@ BOILERPLATE_H2S = (
 def _read(plugin_root: Path, *parts: str) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 def _agent(plugin_root: Path, name: str) -> tuple[dict, str]:
@@ -82,8 +87,8 @@ def test_analyst_adversary_and_tracer_models(plugin_root: Path) -> None:
     reference-tracer (mechanical reference mapping, the producer the adversary
     refutes) stay model: fable. Lever set_default_model.py --split delivery."""
     assert _agent(plugin_root, "structure-analyst")[0]["model"] == "fable"
-    assert _agent(plugin_root, "structure-adversary")[0]["model"] == "opus"
-    assert _agent(plugin_root, "reference-tracer")[0]["model"] == "fable"
+    assert _agent(plugin_root, "structure-adversary")[0]["model"] == "fable"  # v4.0.0: the adversarial seat runs on fable
+    assert _agent(plugin_root, "reference-tracer")[0]["model"] == "sonnet"  # v4.0.0: mechanical tracing seat
 
 
 # --------------------------------------------------------------------------- #

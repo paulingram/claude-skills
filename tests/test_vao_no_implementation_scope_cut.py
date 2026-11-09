@@ -7,6 +7,7 @@ unilateral-implementation-scope-cut), the canonical marker allowlists,
 determinism, fixture round-trip, CLI exit codes.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from tests.helpers.module_loader import load_module
 import json
@@ -278,19 +279,19 @@ def test_cli_exits_nonzero_on_bad(plugin_root, fixture_data, tmp_path):
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "## No implementation-time scope cut discipline (v2.14.0)" in body
 
 
 def test_canonical_section_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.count("\n## No implementation-time scope cut discipline (v2.14.0)\n") == 1
 
 
 def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "implement everything in full" in body
     assert "should never ever make such judgement" in body
     assert "M0 foundation" in body

@@ -1,6 +1,7 @@
 ---
 name: interaction-intuition
 description: "Discovery-phase verification discipline that — for every frontend codebase in scope at Phase −1B — cross-walks ROUTE_MAP.md × DESIGN_MAP.md × INTEGRATION_MAP.md and produces an explicit per-element intuition of what action each control takes and which endpoint it likely calls, with confidence high / medium / low / unknown, evidence, and a precise ambiguity question for every low-confidence item. The end of Phase −1 fires a bulk-verify gate: every low-confidence and unknown element is presented to the user as a single numbered list (`all correct` / a list of incorrect indices / `all incorrect`), then a targeted drill-down resolves only the flagged items. The confirmed intuition map is a binding input to Phase 0 spec authoring and Phase 1 coverage criteria. The Phase −1D bulk-verify is a domain gate (the user-confirmation step IS the feature) and fires regardless of the v0.9.20 process-gates-opt-in rule."
+user-invocable: false
 ---
 
 # interaction-intuition
@@ -147,7 +148,7 @@ The Phase −1D gate fires whenever the union of low-confidence intuitions is no
 ## Hard rules (non-negotiable)
 
 - **One intuition map per frontend codebase.** Never merge multiple codebases' intuitions into a single file. Each map lives at `<codebase>/docs/INTERACTION_INTUITION_MAP.md`.
-- **Read-only on source code.** The intuiter may Read / Glob / Grep / LS / Bash / TodoWrite the codebase, and Write only `INTERACTION_INTUITION_MAP.md`. It may NOT Edit any source file and may NOT Write any other path.
+- **Read-only on source code.** The intuiter may Read / Glob / Grep / LS / Bash / TaskUpdate the codebase, and Write only `INTERACTION_INTUITION_MAP.md`. It may NOT Edit any source file and may NOT Write any other path.
 - **Every intuition cites at least one source.** No citation = a guess = rejected by the orchestrator before the map is mined.
 - **`low` and `unknown` MUST surface to the gate.** The agent never silently drops a low-confidence item to keep the bulk-verify list short.
 - **`high` does not surface.** The gate is for genuinely uncertain items; auto-confirming `high` items in the gate output would burn the user's attention.

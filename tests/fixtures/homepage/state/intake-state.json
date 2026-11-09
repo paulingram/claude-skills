@@ -1,0 +1,15 @@
+{
+  "run_id": "run-fixture-008",
+  "slug": "checkout-fix",
+  "project": "shop",
+  "lane": "bug-fix",
+  "phase": "Phase B3",
+  "dispatch_mode": "subagents",
+  "appearance_mode": "strict",
+  "model": "opus",
+  "size_bucket": "medium",
+  "started_at": "2026-08-01T09:00:00Z",
+  "baseline_sha": "abc1234",
+  "codebases": [{"name": "shop", "path": "."}],
+  "map_invalidated": []
+}

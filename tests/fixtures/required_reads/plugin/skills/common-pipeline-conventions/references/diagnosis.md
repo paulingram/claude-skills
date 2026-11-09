@@ -1,0 +1,3 @@
+# diagnosis (fixture chapter)
+
+Body.

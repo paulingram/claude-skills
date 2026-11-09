@@ -2,6 +2,7 @@
 name: architect-team-pipeline
 description: "Use when a feature needs to be driven end-to-end to tested, integrated, demonstrable production code. Spec-to-production agent team orchestration: takes a requirement ($ARGUMENTS) — EITHER a requirements folder (OpenSpec, Superpowers, or plain markdown) OR a plain-language requirement typed directly as prose; builds and validates codebase + integration maps; generates the OpenSpec plan via a 100% coverage validation loop with reuse-first design; spawns parallel Superpowers-driven agent teams for backend and frontend work with mandatory architectural review gates; reconciles parallel changes; runs Playwright user-flow tests against the development environment; and meta-loops until the entire spec is implemented."
 argument-hint: "[requirements-folder | plain-language requirement]"
+user-invocable: false
 ---
 
 # System Architect Agent Team — Spec-to-Production Orchestration
@@ -29,7 +30,7 @@ See `docs/ETHOS.md` for the full text.
 
 ## Plugin prerequisites (v3.9.0)
 
-**superpowers is a HARD dependency.** A pre-flight check runs as the very first action of this pipeline — BEFORE Phase −2 (Triage) — and ABORTS the run if the superpowers plugin is unavailable. Resolve availability either way: (a) `~/.claude/plugins/installed_plugins.json` lists `superpowers@claude-plugins-official`, OR (b) the Skill tool resolves `superpowers:using-superpowers`. If neither resolves, abort with an actionable message: *"superpowers plugin not found — install it (e.g. `/plugin marketplace add claude-plugins-official` then `/plugin install superpowers`) before running /architect-team; the pipeline's design / TDD / debugging / verification gates depend on it."* Do NOT silently degrade to a methodology-by-hand fallback. The canonical source of truth is `common-pipeline-conventions/SKILL.md` `## Uniform plugin usage (v3.9.0)`.
+**superpowers is a CONDITIONAL plugin (v4.0.0; it was a hard dependency from v3.9.0 to v3.67.0).** A pre-flight check still runs as the very first action of this pipeline and resolves availability either way: (a) `~/.claude/plugins/installed_plugins.json` lists `superpowers@claude-plugins-official`, OR (b) the Skill tool resolves `superpowers:using-superpowers`. When it is present the lane uses the superpowers skills named below. When it is absent the lane does NOT abort: it prints one line naming the gap and the install remediation (`/plugin marketplace add claude-plugins-official` then `/plugin install superpowers`), records `methodology: native` in `intake-state.json`, and runs the same disciplines in their native form per `skills/common-pipeline-conventions/references/native-methodology.md`. The same rule covers `cartographer` (native mapping fallback in that chapter) and the retired `ralph-loop`, whose job the `ct6-converge` workflow does (`skills/common-pipeline-conventions/references/converge-workflows.md`). The canonical source of truth is `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)`.
 
 This pipeline concretely invokes these superpowers skills at its phases (via the Skill tool):
 
@@ -114,291 +115,55 @@ The wake-up is placed here, not under any phase number, because it is a precondi
 
 ## Phase −2 — Triage & Routing (REQUIRED, runs first after the MemPalace wake-up)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase--2.md` and execute it in full. Do not work from memory.
+
 Before Phase −1's intake-and-mapping runs, the orchestrator classifies the incoming requirement and routes it to the right pipeline. v0.9.22 introduced the `bug-fix-pipeline` skill as a sibling — faster, bug-focused, replicate-first-then-propose — and a `bug-classifier` agent that tells the main orchestrator whether the user's request is a bug, a feature, both, or unclear. The triage layer is purely additive; the existing Phase −1 → 8 behavior is unchanged when the verdict is `feature`.
-
-**Skip condition.** If the spawning context already set `triage_done: true` (the main pipeline spawned this run as a subagent for the feature-portion of a `mixed` request, and the parent already classified), skip Phase −2 entirely and proceed to Phase −1 — Intake & Mapping. The MemPalace wake-up above STILL runs regardless of `triage_done` — it precedes the triage step. This bounds the recursion at depth 1 — a spawned feature-pipeline subagent does NOT re-classify and re-spawn.
-
-**Explicit-flag overrides.**
-
-- `--bug-fix` (or natural-language phrasings: *"this is a bug"* / *"just fix the bug"* / *"hotfix"*) → forces `kind: bug`, skips the classifier.
-- `--feature-only` (or *"this is a feature"* / *"build this as a feature"*) → forces `kind: feature`, skips the classifier.
-- `--data-eng` (or *"this is a data pipeline"* / *"data-eng"* / *"build the warehouse"* / *"design the dbt models"*) → forces `kind: data-eng`, skips the classifier; routes to the `data-eng-pipeline` lane (the first-class data-engineering sibling lane, v3.50.0).
-- Invocation via `/architect-team:bug-fix` → forced `kind: bug`, classifier skipped.
-- Invocation via `/architect-team:data-eng` → forced `kind: data-eng`, classifier skipped.
-
-When no flag forces the verdict, proceed to step 1.
-
-1. **Dispatch the `bug-classifier` agent** with the source description (the prose from `$REQ_DIR`, OR the contents of the requirements folder). The classifier is lightweight (sonnet, analysis-only, no Bash) and returns a structured verdict:
-
-   ```json
-   { "kind": "bug" | "feature" | "data-eng" | "mixed" | "unclear",
-     "bug_portion": "<the bug-portion of the requirement, or null>",
-     "feature_portion": "<the feature-portion of the requirement, or null>",
-     "data_eng_portion": "<the data-engineering portion of the requirement, or null>",
-     "confidence": "high" | "medium" | "low",
-     "reasoning": "<one-line citation of the language signals>" }
-   ```
-
-   The verdict is persisted at `<cwd>/.architect-team/triage/<run-id>-<ts>.json` and mined to MemPalace for prior-context recall in future runs.
-
-2. **Route per the verdict.**
-
-   - **`kind: bug`** — invoke the `bug-fix-pipeline` skill against the requirement. Do NOT continue to Phase −1 or any subsequent main-pipeline phase. The bug-fix pipeline handles intake-and-mapping itself (it reuses this skill's Phase B−1). The MemPalace wake-up has already run; bug-fix-pipeline's own wake-up section is a no-op here (the palace is already consulted).
-
-     If `confidence: low` on a `bug` verdict, the orchestrator emits a soft-route confirmation to the user — *"classified as bug with low confidence; if this is actually a feature, reply `--feature-only` and I'll re-route. Proceeding with bug-fix pipeline."* — and waits one beat for the user to override; if no override comes in the next user message, proceeds with the bug-fix route.
-
-   - **`kind: feature`** — proceed to Phase −1 — Intake & Mapping. No behavior change for feature runs.
-
-   - **`kind: data-eng`** — invoke the `data-eng-pipeline` skill against the requirement. Do NOT continue to Phase −1 or any subsequent main-pipeline phase — in particular a data-eng-primary run NEVER reaches Phase 0c (the front-door lane wins; see `## Data-eng lane precedence — front door vs. Phase 0c (v3.50.0)` below). The lane handles intake-and-mapping itself (it reuses this skill's Phase −1 flow via `intake-and-mapping`) and adds its own D−1 warm-catalog-first check + D7 catalog-refresh disciplines. The MemPalace wake-up has already run; the lane's own wake-up section is a no-op here.
-
-     If `confidence: low` on a `data-eng` verdict, the orchestrator emits a soft-route confirmation to the user — *"classified as data-eng with low confidence; if this is actually a plain feature, reply `--feature-only` and I'll re-route. Proceeding with the data-eng lane."* — and waits one beat for the user to override; if no override comes in the next user message, proceeds with the lane route.
-
-   - **`kind: mixed`** — spawn TWO subagents IN PARALLEL in a single message:
-     - One running the `bug-fix-pipeline` skill against `bug_portion` (the bug-specific scope).
-     - One running the `architect-team-pipeline` skill against `feature_portion`, **with `triage_done: true` set in its context** to prevent infinite recursion (the spawned subagent's Phase −2 will see the flag and skip directly to Phase −1).
-
-     Await both. If either reports a `scope-conflict` (the two portions touch overlapping files), abort the parallel-spawn and sequence: run the bug-fix-pipeline first (it's the faster one), then the feature pipeline takes over. Integrate the two commit ranges in the final report. The orchestrator emits a single combined `/compact` prompt at the very end.
-
-   - **`kind: unclear`** — emit a structured question to the user:
-
-     *"I want to make sure I understand the scope before I start. Is this: (a) a bug to fix (something broken that should already work), (b) a new capability to build (something the system doesn't do yet), or (c) both? A one-line clarification or a `--bug-fix` / `--feature-only` flag would help. Reasoning behind the classification: `<the classifier's reasoning field, verbatim>`."*
-
-     Pause. This is a **domain gate** (per the v0.9.21 process-vs-domain-gate carve-out in `## Default mode of operation`) — the user's answer changes what is built, so the gate fires regardless of `--proposal-first`. Resume on the user's reply: re-run the classifier with the clarification, OR honor the explicit flag.
-
-3. **Auto-mine the verdict + the routing decision** to MemPalace at `--room triage-verdicts` for prior-context recall. The classifier's signal calibration improves run-over-run as the corpus grows.
-
-The triage layer is bounded at depth 1: a `mixed` spawn sets `triage_done: true` on the feature-pipeline subagent, which skips Phase −2 and proceeds directly to Phase −1 — Intake & Mapping. A `mixed` spawn does NOT spawn another `mixed` (the spawned feature-pipeline can't itself triage). The MemPalace wake-up (above this section) STILL runs in spawned subagents — it is unconditional.
-
-### Phase −2 deploy-mandate detection (v2.20.0)
-
-Immediately after the triage `bug-classifier` verdict (or when an explicit `--bug-fix` / `--feature-only` flag short-circuits the classifier), the orchestrator runs the deploy-mandate classifier against the verbatim user prompt:
-
-```python
-from hooks.vao_tools import detect_deploy_mandate_in_prompt
-mandate = detect_deploy_mandate_in_prompt(user_prompt)  # {active, target_kind, ...}
-```
-
-If `mandate.active == true`, the orchestrator persists `deploy_mandate = mandate` into `<workspace>/.architect-team/intake-state.json` AND carries it in every teammate's spawn brief (extending the v0.9.13 manifest schema). Phase 5 cross-layer and Phase 8 final-gate then invoke the 18th Layer 3 tool `verify_deploy_mandate_satisfied` against the verification artifact.
-
-When `mandate.active == false`, no deploy-mandate state is set; the v2.20.0 tool is a no-op for the rest of the run. Per `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)`.
-
-### Phase −2 appearance-mode binding (v3.14.0)
-
-Alongside the deploy-mandate detection, the orchestrator binds the run's `appearance_mode` — `strict` (the DEFAULT) / `propose` / `innovate` — from the `--appearance` flag (or its parse-time natural-language equivalents), persists it into `<workspace>/.architect-team/intake-state.json`, and carries it in every teammate's spawn brief (extending the v0.9.13 manifest schema, same as `deploy_mandate` / `baseline_sha`). An explicit visual ask in the requirement prose puts the NAMED surfaces in scope under `strict`; when the prompt asks to "improve" / "update" a UI surface and it is genuinely ambiguous whether the LOOK may change, surface ONE `AskUserQuestion` at intake (domain gate). Phase 3's review gate (the schema v7 optional `appearance_scope_review` field — the hook BLOCKS `fail`), the Phase 7 Master Review Audit's run-diff walk, and Phase 8's final-report proposals rule all read this binding. Canonical home: `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`.
 
 ## Phase 0.1 — Discipline freshness check (v2.18.0)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-0.1.md` and execute it in full. Do not work from memory.
+
 Runs AFTER the Phase −2 triage (so the bug-fix-pipeline branch inherits the same check) and BEFORE Phase −1 — Intake & Mapping. Per `common-pipeline-conventions/SKILL.md` `## Codebase discipline registry (v2.18.0)`:
-
-1. Resolve `<workspace>` (the repo root the run targets — same as Phase −1A).
-2. Invoke the freshness check `verify-discipline-registry-current` per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Discipline-freshness row; best-effort, never blocks).
-3. Read the verdict JSON. For each `gap` in the verdict:
-   - If `gap.auto_apply_safe` is `true` AND `gap.auto_update_command` is non-null: print the banner `▸ CT6 v2.18.0: applying <discipline> (auto-update — discipline-registry was missing or stale)`, invoke the named command/skill once against the workspace, then record the application via `hooks.discipline_registry.record_application(workspace, discipline, ct6_version=..., applied_by_run_id=..., artifact_path=..., summary={...})`.
-   - If `gap.auto_apply_safe` is `false`: emit a solution requirement with `origin.kind = gap.sr_origin_kind or "discipline-not-applied"`. The existing fix loop handles it via the bug-fix-pipeline OR the feature-pipeline's Phase 2 (depending on the discipline's nature).
-4. Re-run the freshness check after applying any auto-update routines. The expected outcome: all auto-apply-safe disciplines now applied; SR-route-only disciplines either applied or surfaced as SRs.
-5. Proceed to Phase −1.
-
-**Best-effort.** A failure of the verify-discipline-registry-current tool (missing workspace path, registry file unreadable, etc.) MUST NOT block the run. Surface a one-line note (`▸ CT6 v2.18.0: discipline registry check skipped — <reason>`) and proceed.
-
-**Currently auto-applied disciplines (v2.18.0):** prod-safe-test-classification (v2.17.0). Future disciplines wire by appending to `hooks/discipline_registry.py::DISCIPLINE_CATALOG`.
 
 ## Phase-boundary inbox check (v2.19.0)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-boundary-inbox-check.md` and execute it in full. Do not work from memory.
+
 At the **start of every numbered phase below** (Phase −1 / 0 / 1 / 2 / 3 / 3b / 4 / 5 / 6 / 7 / 8) AND **after every background-dispatch return / wake** (v3.16.0 — not only at phase boundaries; dispatch teammates with `run_in_background: true` so the Lead's turn frees up and the inbox drains promptly instead of sitting until the next phase), the orchestrator MUST read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` BEFORE proceeding.
-
-```python
-from hooks.inflight_inbox import unprocessed_messages, mark_processed
-messages = unprocessed_messages(workspace, run_id)
-for msg in messages:
-    # Apply v2.5.0 in-flight clarification discipline:
-    # - classify as scope-amendment | clarification | out-of-scope | parallel-problem
-    # - take the named action (re-run upstream phase / fold into current /
-    #   record-only / spawn a concurrent LANE with a disjoint hooks/locks.py lock)
-    # - record disposition (parallel-problem REQUIRES lane_id=<the spawned lane id>)
-    mark_processed(workspace, run_id, msg['message_id'],
-                   classification="...", action_taken="...")  # + lane_id=... for parallel-problem
-```
-
-Phase 8 invokes the 17th Layer 3 tool `verify-inflight-clarifications-processed` to gate against silently-ignored messages, per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the In-flight inbox row). A `clarification-silently-ignored` gap is a Phase 8 gate failure — process the message, mark it processed, re-run Phase 8.
-
-See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home + the slash-command channel (`/architect-team:inject <message>`), and `## In-flight clarification discipline (v2.5.0)` `### Parallel lanes (v3.16.0)` for the responsiveness (poll-on-every-wake) + parallel-lane (`parallel-problem`) protocol.
 
 ## Phase −1 — Intake & Mapping (REQUIRED, runs before Phase 0)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase--1.md` and execute it in full. Do not work from memory.
+
 Follow the `intake-and-mapping` skill. Briefly:
-
-**A. Discover required codebases** — read `$REQ_DIR/codebases.json` → `codebases:` key in proposal/design frontmatter → cwd → ask user. Resolve each to an absolute path; assert each is a git repo. Classify each (backend / frontend / fullstack / library / infra) using the markers in `frontend-route-mapping` and `intake-and-mapping`. **Once the wing name is known** (basename of the workspace repo, or parsed from `git remote get-url origin`), re-run wake-up scoped to the wing: `mempalace --palace <palace> wake-up --wing <wing>` and merge the scoped output with the unscoped one — the scoped wake-up surfaces project-specific prior runs that the unscoped one may have missed.
-
-**B. Per-codebase mapping (one ralph loop per codebase, dispatched in parallel across codebases).** Each codebase's mapping work (cartographer + route-mapper + 3-reviewer convergence + mine) is independent of every other codebase's mapping work — only Phase −1C integration mapping depends on all per-codebase maps being done. So all per-codebase mapping ralph loops are dispatched in PARALLEL via a single Agent-tool batch — one teammate per codebase (the Lead creates one ralph-loop-driver task per codebase in the shared task list in teams mode, or dispatches one ralph-loop-driver subagent per codebase in a single batched Agent-tool call in subagents mode). For a 1-codebase workspace this is a no-op; for a multi-codebase workspace it cuts Phase −1B's wall-clock by a factor of the codebase count. Within each codebase's ralph loop:
-1. Freshness check: read `<codebase>/docs/CODEBASE_MAP.md` `last_mapped` and compare against `git log -1 --format=%cI` of the codebase root. Mark CURRENT (skip cartographer + the review loop) ONLY if the doc is newer than the last commit AND `intake-state.json` carries no `map_invalidated` flag for this codebase; else run `cartographer`. A newer timestamp proves the map is recent, not correct — per `intake-and-mapping`, any agent that discovers the map is materially wrong during the run records the codebase in `intake-state.json`'s `map_invalidated` array, which forces a full re-derive + re-review on the next run regardless of timestamps.
-2. If the codebase is a frontend (per detection markers), run the `route-mapper` agent → produces `<codebase>/docs/ROUTE_MAP.md`.
-3. Review loop wrapped in `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"` — runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`):
-   - The Lead creates 3 `codebase-map-reviewer` tasks in the shared task list (teams mode) OR dispatches 3 `codebase-map-reviewer` subagents in parallel via a single Agent-tool batch (subagents mode). Each task / dispatch is independent and gets CODEBASE_MAP.md (and ROUTE_MAP.md if present); the three reviewers do NOT spawn each other. No reviewer body claims to spawn additional reviewers.
-   - Each returns `{ status: "ok" | "deficient", deficiencies: [...] }`.
-   - If all 3 return `ok` → emit `"CODEBASE MAP COMPLETE"` (exits the ralph loop).
-   - Else → aggregate deficiencies; targeted update via cartographer/route-mapper; loop.
-4. **Auto-mine to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<codebase>/docs/CODEBASE_MAP.md" --wing <wing>`. If a ROUTE_MAP.md was produced, mine it too; if a DESIGN_MAP.md was produced, mine it as well. `mine` takes `--wing` only — rooms are auto-detected by `mempalace init` from the mined file's directory layout. Mine failures surface to the user but do NOT block Phase 0; the artifact still exists on disk.
-
-**C. Integration mapping (one ralph loop, all codebases).** Wrapped in `/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE"` — runs until the completion-promise is satisfied (all 3 explorers confirm); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`):
-1. The Lead creates 3 `integration-explorer` tasks in the shared task list (teams mode) OR dispatches 3 `integration-explorer` subagents in parallel via a single Agent-tool batch (subagents mode). Each task / dispatch is independent and gets all CODEBASE_MAP/ROUTE_MAP files + boundary code access.
-2. Each produces its own synthesis. Round-robin convergence: each reviews the other 2 (via direct teammate-to-teammate `SendMessage` in teams mode; via sequential Lead-orchestrated review rounds in subagents mode); originating agent revises until all 3 confirm 100% coverage of each other. The convergence is teammate-to-teammate negotiation, not a nested spawn.
-3. The Lead creates a `master-synthesizer` task (teams mode) OR dispatches the `master-synthesizer` subagent (subagents mode) → writes `<workspace>/docs/INTEGRATION_MAP.md` with `last_synthesized` ISO 8601 frontmatter.
-4. Confirmation pass: each of the 3 explorers confirms the master doc reflects their understanding.
-5. Emit `"INTEGRATION MAP COMPLETE"`.
-6. **Auto-mine to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<workspace>/docs/INTEGRATION_MAP.md" --wing <wing>`.
-
-**D. Phase −1D — Interaction intuition (per-codebase production + bulk-verify gate).** Phase −1D bridges Phase −1's structural mapping and Phase 0's spec normalization with explicit per-element intuition of "what action does this control take and which endpoint does it call" — see the `interaction-intuition` skill. Phase −1D is a no-op when no codebase was classified as a frontend (no `ROUTE_MAP.md` was produced); otherwise it produces a per-codebase `INTERACTION_INTUITION_MAP.md`, surfaces every low-confidence intuition to the user as a single bulk-verify list, drills down with one targeted question per flagged item, and closes when every flagged item has a `user_verdict`.
-
-1. **Per-codebase intuiter dispatch.** For each codebase that produced a `ROUTE_MAP.md` in step B, dispatch the `interaction-intuiter` agent in parallel. Each agent reads its codebase's `ROUTE_MAP.md`, its `DESIGN_MAP.md` (when present), `<workspace>/docs/INTEGRATION_MAP.md`, and the source description from `$REQ_DIR`. It writes `<codebase>/docs/INTERACTION_INTUITION_MAP.md` per the skill's artifact schema with `confirmed: false`. When no frontend codebase exists in scope, Phase −1D is a silent no-op and proceeds directly to Phase 0.
-2. **Auto-mine the per-codebase intuition maps to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<codebase>/docs/INTERACTION_INTUITION_MAP.md" --wing <wing>`. Mine each map.
-3. **Bulk-verify gate — present the low-confidence union to the user.** The orchestrator gathers across every map every element where `confidence ∈ {low, unknown}` OR (`confidence == medium` AND `ambiguity_question != null`). If the gathered set is empty, the gate is a silent no-op and Phase −1D closes. Otherwise present the set as **a single numbered list** — each item showing index, codebase, route, element label, intuited action, top candidate endpoint, confidence, and the agent's specific `ambiguity_question`. State the response format explicitly: the user replies with one of **(a)** `all correct` (auto-confirm everything), **(b)** a comma- or whitespace-separated list of item-number integers (the flagged set), or **(c)** `all incorrect` (every item flagged).
-4. **Parse the reply** in three deterministic heuristics in order: exact match `all correct` or `all incorrect` (case-insensitive, trimmed) → that match wins; a comma- or whitespace-separated list of integers within the valid range → those are the flagged set; anything else → re-prompt with the format reminder. Never guess. Items the user did NOT flag are auto-recorded with `user_verdict: confirmed`, `confirmed_action: <intuited_action>`, `confirmed_endpoint: <candidate_endpoints[0]>` (when a candidate exists).
-5. **Drill-down round — one targeted question per flagged item.** Preferred channel: `AskUserQuestion` with up to 4 options per question (each candidate endpoint as an option, plus "none of these — confirmed-stub", plus "skip — defer to implementation team"), batched up to 4 questions per message. For items where the candidate set exceeds 4 or the question needs free-form prose, emit a focused free-form question. Each answer writes `user_verdict`, `confirmed_action`, `confirmed_endpoint`, and (when applicable) `correction_note` to the corresponding entry — matched on `element_id`.
-6. **Persist + close.** Once every flagged item across every in-scope map has a non-null `user_verdict`, the orchestrator flips each map's frontmatter `confirmed: true` with `confirmed_at: <ISO 8601 UTC>`, re-mines each to MemPalace, and Phase −1D closes. The Phase −1D bulk-verify is a **domain gate**, not a process gate — it fires regardless of `--proposal-first`, since the user-confirmation step IS the deliverable, not an interruption to it. See `## Default mode of operation` for the explicit carve-out.
-
-Persist state to `<workspace>/.architect-team/intake-state.json` with codebase paths + commit SHAs + timestamps so re-entry short-circuits cleanly.
 
 ## Phase 0a — Visual-to-API dispatch check (v3.3.1)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-0a.md` and execute it in full. Do not work from memory.
+
 Before Phase 0's classification + normalization, the orchestrator MUST check whether the `visual-to-api-design` skill applies. This step formalizes the contract that `skills/visual-to-api-design/SKILL.md` `## When this skill runs` documents from its own side — both bodies must agree on the dispatch rules so that `/architect-team` and `/architect-team:visual-to-api` deliver identical quality.
-
-Read `<workspace>/.architect-team/intake-state.json::intake_mode` and apply this dispatch ladder in order:
-
-1. **Explicit signal (canonical entry point).** If `intake_mode == "visual-to-api"` (set by the `/architect-team:visual-to-api <codebase-path>` slash command before the pipeline started), **dispatch the `visual-to-api-design` skill unconditionally**. Skip the heuristic checks below — the explicit signal short-circuits them.
-
-2. **Heuristic — codebase + no requirements.** If `$REQ_DIR` resolves to a visual codebase URL or path AND no explicit requirements folder is present (no `proposal.md` / no `openspec/changes/<name>/` / no Superpowers brief), dispatch the `visual-to-api-design` skill.
-
-3. **Heuristic — partial requirements + explicit derive ask.** If an existing requirements folder is partial AND the user explicitly asks (anywhere in `$REQ_DIR` or the conversation log) to derive the API from the UI, dispatch the `visual-to-api-design` skill.
-
-4. **Heuristic — prose pattern.** If `$REQ_DIR` (or, when prose, the verbatim user message) contains any of the canonical prose patterns:
-   - *"review this codebase and design the API"*
-   - *"derive the API from the UI"*
-   - *"build out the backend for this frontend"*
-   - *"design the backend behind this frontend"*
-
-   dispatch the `visual-to-api-design` skill.
-
-5. **No-op condition.** For pure-feature pipelines with full upfront requirements AND no explicit `intake_mode == "visual-to-api"` signal AND no heuristic match, this step is a no-op. Phase 0 proceeds to its normal classification + normalization with the requirements as the binding checklist (the requirements themselves serve the role the visual-to-api-design 7-stage flow would otherwise serve).
-
-### When the dispatch fires
-
-Invoke the `visual-to-api-design` skill (use the Skill tool with `skill: visual-to-api-design`) and pass `$REQ_DIR` + the workspace codebase paths discovered at Phase −1A. The skill runs its 7-stage Exploration Pipeline (Stage 0 scope detection → Stage 1 personas + classification → Stage 2 per-persona objectives → Stage 3a page/element catalog + Stage 3b route↔persona map + Stage 3c reusable-component architecture → Stage 4 OpenSpec conversion via `openspec-propose` → Stage 5 per-page REST returns → Stage 6 consolidated API design → Stage 7 backend data architecture via `openspec-propose`). Each stage's 3-reviewer convergence is wrapped in `ralph-loop:ralph-loop` with total-agreement completion-promise.
-
-On completion, the skill has produced:
-- The 5 standardized `*_MAP.md` docs (`PERSONA_MAP.md`, `COMPONENT_ARCHITECTURE_MAP.md`, `API_RETURNS_MAP.md`, `API_DESIGN_MAP.md`, `DATA_ARCHITECTURE_MAP.md`) in `<codebase>/docs/`.
-- The OpenSpec change folder at `openspec/changes/<change-name>/` populated via the openspec skill's `openspec-propose` (NOT hand-written) — Stages 4 + 7 each contribute their portion (frontend specs from Stage 4; backend data + service specs from Stage 7).
-
-### How Phase 0 reacts
-
-When the visual-to-api dispatch fired AND completed successfully:
-
-- **Skip the `plain` branch's `openspec init` + artifact-authoring loop** in Phase 0 step 3 below — the OpenSpec change already exists, authored by the openspec skill via Stages 4 + 7.
-- **Phase 0 still runs** to (a) classify the now-existing OpenSpec change (it will classify as `openspec`), (b) confirm every `<codebase>/docs/INTERACTION_INTUITION_MAP.md` (when present from Phase −1D) lines up with the Stage 3b route↔persona map, and (c) treat the 5 `*_MAP.md` docs as binding inputs alongside the `INTERACTION_INTUITION_MAP.md` already mandated at line 239 below.
-- **Phase 1's planning validation loop** then operates on the openspec change exactly as it would for any other openspec input — `openspec validate --all --strict --json`, coverage map authoring, Playwright + dev-API criteria gating. The Stages-4-and-7 output is held to the same Phase 1 bar as any other source.
-
-When the visual-to-api dispatch did NOT fire (no-op condition above), Phase 0 proceeds unchanged.
-
-This step is the explicit pre-action half of the contract; the post-action half (Stage 4/7 output binding into Phase 1) is already enforced via line 239 + line 267 below.
 
 ## Phase 0b — Backend dispatch check (v3.4.0)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-0b.md` and execute it in full. Do not work from memory.
+
 Runs ONLY when Phase 0a was a no-op AND the run is backend-shaped — i.e., the bug-classifier at Phase −2 returned `kind: feature` AND the Phase −1A classification surfaces a `backend` / `library` / `infra` / `data-pipeline` codebase (with or without a frontend in scope). Per `common-pipeline-conventions/SKILL.md` `## Backend-from-frontend dispatch + analysis modularization (v3.4.0)`:
-
-1. **Branch A — Existing API extension.** An existing backend codebase is in scope AND the request adds endpoints to it (extending, not designing from scratch). Detected by: the bug-classifier verdict OR the request prose ("add endpoint X to Y" / "extend the existing API") OR the Phase 0 normalization preview classifying as `openspec` against an existing change folder. **NO dispatch.** Phase 0 proceeds with its normal classification + normalization; Phase 1 enforces dev-API-integration-testing criteria primary.
-
-2. **Branch B — Greenfield API + frontend codebase referenceable.** A frontend codebase is in scope OR named in `$REQ_DIR` AS A REFERENCE (not as a refactor target). Detected by: Phase −1A surfaced a frontend codebase classification AND the request prose explicitly says *"design the backend from this frontend"* / *"read-only reference"* / *"derive the API from this UI"*, OR the brief's frontmatter sets `reference_codebases: [...]` with codebases that are not `$REQ_DIR`'s primary work target. **Dispatch ladder:**
-   - Set `intake-state.json::frontend_read_only = true` and `frontend_reference_codebase = <absolute-path>`.
-   - Dispatch `cartographer-team` with `inputs.frontend_read_only = true` and `inputs.output_path = <workspace>/.architect-team/frontend-reference/<codebase-slug>/CODEBASE_MAP.md` (+ ROUTE_MAP.md for frontends).
-   - Dispatch `domain-research-team` with `inputs.frontend_read_only = true` and `inputs.output_path = <workspace>/.architect-team/frontend-reference/<codebase-slug>/PERSONA_MAP.md`. The skill MUST perform the outside-research mandate regardless of input completeness (per its body's Phase R2).
-   - Dispatch `api-design-from-frontend` with `inputs.persona_map_path = <workspace>/.architect-team/frontend-reference/<codebase-slug>/PERSONA_MAP.md` + `inputs.frontend_reference_path = <absolute-path>` + `inputs.output_dir = <workspace>/.architect-team/frontend-reference/<codebase-slug>/`. The 3-stage flow (Stages 5+6+7) produces `API_RETURNS_MAP.md` + `API_DESIGN_MAP.md` + `DATA_ARCHITECTURE_MAP.md` + an openspec change via `openspec-propose`.
-
-3. **Branch C — Greenfield API + documentation referenceable (no frontend codebase).** No frontend codebase is in scope, BUT `$REQ_DIR` cites documentation (PDFs / markdown / API specs / product briefs / brand docs) OR the brief's frontmatter sets `reference_docs: [...]`. **Dispatch ladder:**
-   - Dispatch `domain-research-team` with `inputs.doc_inputs = [<paths>]` and `inputs.output_path = <workspace>/.architect-team/doc-reference/PERSONA_MAP.md`. The skill MUST perform outside research (the doc-only path makes the outside-research mandate even more critical — docs frame the problem; outside research grounds the personas + objectives in industry reality).
-   - Dispatch `api-design-from-frontend` with `inputs.persona_map_path = <workspace>/.architect-team/doc-reference/PERSONA_MAP.md` + `inputs.doc_inputs = [<paths>]` + `inputs.output_dir = <workspace>/.architect-team/doc-reference/`. The 3-stage flow produces the same 3 maps + openspec change.
-
-4. **Branch D — Pure greenfield, no reference at all.** No frontend codebase, no docs. **NO dispatch.** Phase 0 proceeds with its normal `plain` branch authoring.
-
-### Frontend-read-only enforcement (non-negotiable)
-
-When Branch B fires, `frontend_read_only: true` is set in `intake-state.json` for the rest of the run. This affects:
-
-- The 3 dispatched skills (`cartographer-team`, `domain-research-team`, `api-design-from-frontend`) — each MUST honor the flag and route output to the alternate `<workspace>/.architect-team/frontend-reference/<codebase-slug>/` path instead of `<frontend-codebase>/docs/`. Each skill body documents this explicitly.
-- The frontend's working tree is NEVER modified. Any `Write` / `Edit` targeting a path under `frontend_reference_codebase` during this run is a v3.0.0 unilateral-override violation that the PreToolUse guardrail should catch.
-- The frontend's `.architect-team/intake-state.json` (if it exists separately) is NEVER touched.
-
-### How Phase 0 reacts
-
-When Branch B or C fires AND completes successfully:
-
-- **Skip the `plain` branch's `openspec init` + artifact-authoring loop** in Phase 0 step 3 below — the OpenSpec change already exists, authored by the openspec skill via `api-design-from-frontend` Stage A3.
-- **Phase 0 still runs** to (a) classify the now-existing OpenSpec change (it will classify as `openspec`), and (b) treat the produced maps as binding inputs (the same pattern as Phase 0a).
-- **Phase 1's planning validation loop** then operates on the openspec change at the same bar as any other openspec input. The `dev-api-integration-testing` criteria are primary; Playwright criteria remain N/A (no frontend was refactored — the frontend was a read-only reference).
-
-When Branch A or D applies (no dispatch), Phase 0 proceeds unchanged.
-
-This step is the explicit pre-action half of the Phase 0b contract; the post-action half (Stages 5+6+7 output binding into Phase 1) is enforced by Phase 1's standard validation against the produced openspec change.
 
 ## Phase 0c — Data-engineering dispatch check (v3.5.0)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-0c.md` and execute it in full. Do not work from memory.
+
 Runs after Phase 0b. Fires when the run is data-engineering-shaped — independent of Phase 0a and Phase 0b (the 3 dispatch phases are mutually exclusive at the trigger layer EXCEPT for the documented mixed-mode case below). Per `common-pipeline-conventions/SKILL.md` `## Data engineering exploration discipline (v3.5.0)`.
-
-### Detection ladder
-
-The orchestrator checks ALL of the following signals and dispatches if ANY fires (heuristic OR — high recall, the orchestrator confirms via `AskUserQuestion` on ambiguity before dispatching):
-
-1. **Prose patterns** — `$REQ_DIR` (or, when prose, the verbatim user message) contains any of:
-   - *"build a data warehouse"* / *"design a data warehouse"*
-   - *"design a dbt project"* / *"build a dbt model"*
-   - *"build an Airflow DAG"* / *"design an Airflow pipeline"*
-   - *"design a data pipeline"* / *"build a data pipeline"*
-   - *"build a streaming pipeline"* / *"design a streaming pipeline"*
-   - *"design a lakehouse"* / *"build a lakehouse"*
-   - *"build a data mesh"* / *"design a data mesh"*
-   - *"design a feature store"* / *"build a feature store"*
-   - *"build a CDC pipeline"* / *"design CDC"*
-   - *"design a data product"* / *"build a data product"*
-   - *"design the data architecture"* / *"data architecture for"*
-
-2. **Tool keywords** — the request mentions ANY of: dbt / Airflow / Dagster / Snowflake / Databricks / BigQuery / Redshift / Kafka / Flink / Spark / Iceberg / Delta / Fivetran / Stitch / Hightouch / Census / OpenLineage / Marquez / DataHub / Great Expectations / Soda / dbt-tests.
-
-3. **Codebase markers** — Phase −1A surfaced a codebase containing ANY of: `dbt_project.yml` / `airflow.cfg` / `dagster.yaml` / `airflow/dags/` directory / `models/staging/` (dbt convention) / `kafka/` topic-config files / `databricks.yml` / requirements include `snowflake-sqlalchemy` / `dbt-core` / `apache-airflow` / `dagster` / `databricks-sdk`.
-
-4. **Document markers** — the brief's frontmatter carries ANY of: `data_contract: <path>` / `source_schemas: [<paths>]` / `business_glossary: <path>` / `ELT_brief: <path>` / `data_eng_classification: <kind>`.
-
-### Branch decision
-
-| Branch | Trigger | Action |
-|---|---|---|
-| **A** — Data-eng + reference (any combination of codebase / docs / upstream API) | Any detection signal fires AND `codebase_inputs` ∪ `doc_inputs` ∪ `upstream_api_contract_path` is non-empty | **Dispatch `data-engineering-exploration`** with the structured inputs |
-| **B** — Data-eng + pure greenfield (no reference at all) | Any detection signal fires BUT no codebase / docs / upstream API available | NO dispatch; Phase 0 proceeds with plain-branch authoring; phenotype seeding may apply (`config-management` for IaC) per the v3.5.0 phenotype convergence rules |
-| **C** — Mixed mode (data-eng + frontend / API surface) | Phase 0a or Phase 0b ALSO fired earlier in this run | Phase 0a or 0b's outputs are passed as `upstream_api_contract_path` to `data-engineering-exploration`. Stage 1 domain context reads the upstream API contract as evidence of downstream consumer requirements |
-| **D** — No data-eng detected | None of the 4 detection ladders fire | No-op; Phase 0 proceeds unchanged |
-
-### How Phase 0 reacts when Phase 0c Branch A or C fires
-
-When the dispatched skill completes:
-
-- **Skip the `plain` branch's `openspec init` + artifact-authoring loop** in Phase 0 step 3 below — the OpenSpec change already exists, authored by the openspec skill via `data-engineering-exploration` Stage 7.
-- **Phase 0 still runs** to (a) classify the now-existing OpenSpec change (it will classify as `openspec`), and (b) treat the 6 `*_MAP.md` docs (Stage 1 DOMAIN_CONTEXT + Stage 2 CONCEPTUAL_DATA_MODEL + Stage 3 DATA_SERVICE_DESIGN + Stage 4 VOLUME_VELOCITY_ANALYSIS + Stage 5 DATA_SECURITY + Stage 6 DATA_VALIDATION_LINEAGE) as binding inputs.
-- **Phase 1's planning validation loop** then operates on the openspec change at the same bar as any other openspec input. The dev-api-integration-testing criteria are primary; the Stage 6 validation rules become explicit acceptance criteria in the coverage map (one acceptance criterion per validation rule per transformation). Missing validation criteria is a Phase 1 loop-failure condition.
-
-When Branch B or D applies (no dispatch), Phase 0 proceeds unchanged. Branch B is the path where phenotype seeding alone (e.g., `config-management` for OpenTofu data infra) carries the structure.
-
-This step is the explicit pre-action half of the Phase 0c contract; the post-action half (Stage 6 validation rules binding into Phase 1's coverage map) is enforced by Phase 1's standard validation against the produced openspec change.
 
 ## Data-eng lane precedence — front door vs. Phase 0c (v3.50.0)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/data-eng-lane-precedence-front-door-vs-phase-0c.md` and execute it in full. Do not work from memory.
+
 The data-engineering surface is reachable from two places — the front-door lane (Phase −2 → `data-eng-pipeline`, v3.50.0) and the mid-flow dispatch (Phase 0c → `data-engineering-exploration`, v3.5.0). The precedence between them is unambiguous and additive — **no existing routing behavior changes for a non-data-eng run**:
 
-- **The lane WINS at the front door.** When the Phase −2 classifier returns `kind: data-eng` (a data-eng-primary ask — *"build the warehouse dbt models"*, *"mine the stored procedures into a data dictionary"*), the run routes to `data-eng-pipeline` at Phase −2 and **never reaches Phase 0c** (nor Phase 0a / 0b / 0 in the main pipeline). The lane owns the whole run — it drives its own D−1…D8, dispatching `data-engineering-exploration` verbatim at its Phase D0. Phase 0c is not consulted, because the classifier routed the run away from the main pipeline before Phase 0 ever begins.
-
-- **Phase 0c KEEPS winning mid-flow.** When the classifier returns `kind: feature` (a feature-primary ask) and the run proceeds down the main pipeline, a data-engineering *surface* discovered mid-flow keeps today's behavior EXACTLY — Phase 0c's detection ladder fires and dispatches `data-engineering-exploration` unchanged, including its mixed-mode branch (Phase 0a/0b fired first, upstream API contract passed as Stage 1 input) and its pure-greenfield phenotype-seeding branch. A feature-primary run with a data-eng surface is NOT re-routed to the lane; the lane is the front door, Phase 0c is the mid-flow surface, and neither steps on the other.
-
-- **A `mixed` ask with a data-eng portion parallel-spawns.** When the classifier returns `kind: mixed` and `data_eng_portion` is non-null, the orchestrator parallel-spawns the `data-eng-pipeline` lane for the data-eng portion alongside the relevant pipeline(s) for the rest (the `bug-fix-pipeline` for `bug_portion`, the `architect-team-pipeline` for `feature_portion`), each spawned **with `triage_done: true` set in its context**. This bounds the recursion at **depth 1** exactly as the existing `mixed` bug+feature spawn does — a spawned lane / pipeline sees `triage_done: true` and does NOT re-classify or re-spawn. The lane carries `triage_done` harmlessly (it begins at D−1 and has no Phase −2 of its own, so it never re-triages); the depth-1 bound holds because no spawned child triages. On a `scope-conflict` (the portions touch overlapping files), the orchestrator sequences instead of parallel-spawning, integrating the commit ranges in the final report — the same fallback as the existing `mixed` handling.
-
-The net effect: a data-eng-primary ask gets the purpose-built lane (with its warm-catalog-first + catalog-refresh disciplines), a feature-primary ask with a data surface keeps the lighter mid-flow exploration dispatch, and a genuinely mixed ask gets both — with no change to how any non-data-eng run is classified or routed.
-
 ## Phase 0 — Detection & Normalization
+
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-0.md` and execute it in full. Do not work from memory.
 
 1. Inspect `$REQ_DIR`. List every top-level file and read each.
 2. Classify the input as `openspec`, `superpowers`, or `plain`.
@@ -420,129 +185,28 @@ The net effect: a data-eng-primary ask gets the purpose-built lane (with its war
 
 ## Phase 1 — Planning Validation Loop (hard gate; 100% coverage required)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-1.md` and execute it in full. Do not work from memory.
+
 **Phenotype seeding (v2.3.0).** If `$PHENOTYPE` is set (the `--phenotype <label>` flag, or an explicit "use the X phenotype" request), OR reuse-first design surfaces a strong phenotype match, follow `skills/phenotypes`: read the phenotype's `blueprint.md`, confirm its variation points + scaffold parameters with the user (domain gate — never silent), emit the scaffold into the change workdir, and treat it as the reuse-first starting point that the coverage map + review gates then validate. A phenotype is reuse-plus-customization (logged in the Reuse Decision Log); it never bypasses Phase 1's 100%-coverage requirement.
 
-Do not exit Phase 1 until every condition below is satisfied.
-
-Loop:
-
-1. Run `openspec validate --all --strict --json`.
-2. Run `openspec status --change <change-name> --json`. Inspect every artifact's `status`.
-3. Build/refresh the **coverage map** per `coverage-mapping` skill: cross-walk OpenSpec specs against the original requirements. Persist as `openspec/changes/<change-name>/coverage-map.json` with shape `{ source_requirement_id, spec_requirement_id, scenarios[], acceptance_criteria[], layer: backend|frontend|both|infra }`.
-4. The loop continues if **any** of the following is true:
-   - Validation reports `valid: false` or any errors.
-   - Any artifact (`proposal`, `specs`, `design`, `tasks`) status is not `done`.
-   - The coverage map has any source requirement without at least one scenario.
-   - Acceptance criteria for any requirement are missing, vague, or non-measurable.
-   - Any front-end requirement lacks an explicit Playwright user-flow specification (URL or route, login state, selectors, input data, expected visible assertions) per `playwright-user-flows`.
-   - Any back-end requirement lacks explicit dev-API integration test criteria per `dev-api-integration-testing` (endpoint, payload, expected response, expected side-effect).
-   - **Any requirement whose `layer` is `both` (spans frontend AND backend) lacks an explicit front-to-back integration test criterion** — i.e., a criterion stating that the happy-path user-flow test runs against the real running backend (real server, real DB / queue / cache), not mocked / fake data, per `playwright-user-flows`'s "Real backend by default" discipline. This is the DEFAULT for every `both`-layer requirement; the ONLY way to satisfy this condition without the criterion is an explicit statement in `$REQ_DIR` authorizing isolated / mock-backed testing for that requirement — in which case the coverage map records the authorization verbatim. Silence in the requirements means integrate, not mock.
-   - `design.md` proposes any new module / file / dependency without a Reuse Decision citing CODEBASE_MAP.md.
-   - Any Reuse Decision cites a file/symbol that does not actually exist in the referenced CODEBASE_MAP.md (verify by reading the map).
-   - The proposal duplicates a capability that already exists in any mapped codebase (cross-check via CODEBASE_MAP.md / INTEGRATION_MAP.md).
-   - `design.md` introduces a new third-party dependency without a documented comparison against existing stack libraries.
-   - `tasks.md` creates a new file where an existing file could be extended, unless the corresponding Reuse Decision justifies it.
-   - **Any `frontend` or `both`-layer requirement that touches a designed screen lacks the confirmed element-action-endpoint triples from `INTERACTION_INTUITION_MAP.md` as explicit acceptance criteria in the coverage map.** Each entry in that screen's intuition map with `user_verdict ∈ {confirmed, corrected}` MUST appear as a Phase 5 verification criterion (a genuine `page.click` / `page.fill` user-flow test driving the confirmed endpoint). When `INTERACTION_INTUITION_MAP.md` is absent for a frontend codebase (e.g., no design source existed), this condition is N/A and the coverage map records that authorization explicitly.
-5. Refine artifacts via `openspec instructions <artifact> --change <change-name> --json` and edit the files directly. Re-run validation.
-6. Exit only when validation passes, all artifacts are `done`, every source requirement maps to scenarios with measurable acceptance criteria, Playwright + dev-API criteria are explicit, and every new module has a verified Reuse Decision.
-7. **Auto-mine to MemPalace** on every coverage-map revision: `mempalace --palace <palace> mine "openspec/changes/<change-name>/coverage-map.json" --wing <wing>`. Mine the final revision when the loop exits.
-
-**Run-start notification — the kickoff email carrying the plan (v3.34.0, best-effort, per `## Notifications`).** The moment this loop exits — the OpenSpec bundle validates and the architecture + solution plan therefore exists — the orchestrator emits `run_start` ONCE, embedding the plan artifacts themselves so stakeholders receive the architecture and solution plan in ONE email (not a pointer to it). Pass `--details` with a 2-4 sentence plain-language summary of the requirement and the chosen solution approach, and one `--plan-file` per bundle artifact. Invoke from the target project's root and proceed immediately regardless of outcome:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <run-id> --details "<requirement + solution-approach summary>" --next-step "Phase 2 — Decomposition & Team Spawn" --plan-file "openspec/changes/<change-name>/proposal.md" --plan-file "openspec/changes/<change-name>/design.md" --plan-file "openspec/changes/<change-name>/tasks.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <run-id> --details "<requirement + solution-approach summary>" --next-step "Phase 2 — Decomposition & Team Spawn" --plan-file "openspec/changes/<change-name>/proposal.md" --plan-file "openspec/changes/<change-name>/design.md" --plan-file "openspec/changes/<change-name>/tasks.md"
-```
-
 ## Phase 2 — Decomposition & Team Spawn
+
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-2.md` and execute it in full. Do not work from memory.
 
 1. From `tasks.md` and the coverage map, classify each task by layer (`backend`, `frontend`, `both`, `infra`).
 2. Build a parallel-execution graph: which task groups have no dependencies on each other and can run simultaneously.
 
-3. **Contract-first parallelism (v3.48.0) — engage it BEFORE the teams are spawned.** For every `both`-layer slice where the backend must add or change a surface AND the frontend needs that surface to visualize data (a full-stack build from scratch, or an integration where the frontend needs inbound surfaces), engage `contract-first-parallelism` NOW rather than letting the frontend discover the gap mid-slice and block on it:
-   - **CFP-2** — have the frontend and backend teammates co-design each inbound surface contract (what the UI must render vs what the source can authoritatively produce, with the error states).
-   - **CFP-3** — dispatch `system-architect` in `## Interface Contract Approval` mode; approval binds the contract (neither side changes it unilaterally afterward — amendments come back through the architect, who relays them). Gate: `scripts/contract/interface_contract.py validate --json <contract.json>` must report zero blocking findings.
-   - **CFP-4** — the backend teammate's FIRST action with the approved contract is to provision the endpoint AT ITS REAL PATH serving a contract-conforming provisional payload, register it in `<workspace>/.architect-team/contracts/ledger.json` as `mock-serving`, register the retirement gate itself (`interface_contract.py declare-gate --json <contract.json> --registry "<workspace>/.architect-team/declared-gates.json"`, which is what makes the Phase 8 refusal the machinery's rather than the orchestrator's memory), and announce it. The frontend is unblocked from that moment and builds its complete integration against the live surface while the backend builds the real internals underneath.
-
-   This decision belongs in the Phase 2 architect brief alongside the existing ordering check: for each `both`-layer slice, record either (a) contract-first (the default when the frontend needs surfaces that do not yet exist or lack attributes), or (b) the `missing-api-for-frontend-element` SR fallback. The approved contracts are inputs to the spawn briefs of BOTH teammates. Every contract created here carries a debt the run must repay before Phase 8 closes — see the retirement gate there.
-4. For each parallel group, spawn a Superpowers-driven teammate per `team-spawning-and-review-gates`. Each implementing teammate applies `superpowers:test-driven-development` — write the failing test before the implementation code, per `## Plugin prerequisites (v3.9.0)`. Use **plan approval mode** for any teammate touching auth, schemas, contracts, or external integrations. Spawn instructions must include:
-   - The exact `<change-name>` and the task IDs the teammate owns (so it can run `openspec instructions apply --change <change-name> --json` and self-orient).
-   - The layer.
-   - The acceptance criteria copied verbatim from the coverage map.
-   - The non-overlapping file scope it owns. Two teammates must never edit the same file.
-   - A clear, predictable name (e.g., `backend-auth`, `frontend-dashboard`, `infra-pipeline`) so other teammates can message it directly.
-   - The subagent definition to inherit (e.g., "use the `backend` agent type").
-   - The relevant CODEBASE_MAP.md sections and the Reuse Decisions for this teammate's slice. The teammate MUST honor them — any deviation requires returning to the orchestrator for re-approval.
-5. Before the teammate begins, write `<cwd>/.architect-team/teammates/<teammate-name>.json` per the full teammate manifest schema defined in `team-spawning-and-review-gates` (fields: `schema_version`, `teammate`, `spawned_at`, `task_ids`, `files_owned`, `expected_review_evidence`). The `SubagentStop` hook reads this manifest to validate on idle.
-6. State explicitly to each teammate: **do not mark your tasks complete until the Team Review Gate passes (Phase 3).**
-
-The Lead creates 3-5 teammate tasks per parallel group in the shared task list (teams mode) OR dispatches 3-5 subagents per parallel group via a single Agent-tool batch (subagents mode). Size each task group to 5-6 tasks per teammate.
-
-**Waiting-on-agents notification (v3.34.0, best-effort, per `## Notifications`).** Immediately after the teams are dispatched and the Lead enters its wait, emit `waiting_on_agents` naming every dispatched teammate and its mission, so recipients know the run is now blocked on agent work and on whom:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" waiting_on_agents --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --agents "<teammate — mission; teammate — mission>" --details "<what the dispatch covers>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" waiting_on_agents --project <name> --phase "Phase 2 — Decomposition & Team Spawn" --agents "<teammate — mission; teammate — mission>" --details "<what the dispatch covers>"
-```
-
-After EVERY background Agent dispatch the orchestrator (Lead) makes in this pipeline — across Phase −2, Phase −1 mapping ralph loops, Phase −1C integration mapping, Phase −1D interaction intuition, Phase 2 team spawn, Phase 3 independent review, Phase 3b SR fix-team dispatch, Phase 4 reconciliation, Phase 5 integration, Phase 7 master synthesis, and Phase 8 doc-updater — the Lead routes the raw dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` per `common-pipeline-conventions` `## Background-agent resume discipline` BEFORE treating the work as complete. Truncated / stream-timed-out results auto-resume up to 2 attempts; `resumed_failed=True` surfaces to the user with on-disk artifacts cited.
-
 ## Phase 3 — Team Review Gate (mandatory; per team; pre-completion)
+
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-3.md` and execute it in full. Do not work from memory.
 
 Before any teammate marks its task group complete, it must run an **architectural + implementation review loop** against its own work. The `PostToolUse(TaskUpdate)` hook enforces this by reading `<cwd>/.architect-team/reviews/<task-id>.json` whenever a task status flips to `completed` — it exits 2 (blocks) if evidence is missing.
 
-The review must confirm:
-
-1. **Code is real, not stubbed.** No `TODO`, `pass`, `NotImplementedError`, mock returns, or placeholder data outside of explicitly designated test fixtures. Grep the diff to confirm.
-2. **Tests exist and pass.** Unit tests for every new function/class/component; integration tests for every cross-module path. Capture full test-suite output.
-3. **Integration is wired.** New code is reachable from real entry points — not orphan modules.
-4. **Coverage map satisfied for this team's slice.** Every requirement assigned to this team maps to passing tests.
-5. **Demonstrable feature.** The teammate produces a short demo: a curl/HTTP example or invocation script for backend; a Playwright trace for frontend.
-6. **Reuse-first compliance.** Every file the teammate created or modified matches a Reuse Decision in `design.md`. No silent new files. Grep the diff for new file paths and verify each is sanctioned.
-7. **Expectation files exist per test, and any failed test has been root-caused per `root-cause-test-failures`.** Each test in the teammate's slice references an `expectations/<test-id>.json` file produced BEFORE the test ran. Any failing test produced an `rca/<test-id>-<ts>.json` with three completed passes and an evidence-backed root cause — guesses, retries, and symptom patches are blocked here.
-8. **Visual-fidelity reconciliation passed when frontend was touched per `visual-fidelity-reconciliation`.** When ANY file in `files_changed` is a frontend file (`.tsx` / `.jsx` / `.vue` / `.svelte` / `.astro` / `.css` / `.scss` / `.less` / `.module.css` / Tailwind config / theme tokens / Storybook stories / asset files) AND `DESIGN_MAP.md` exists for the touched codebase, the teammate produced a per-(screen, element, state, viewport) reconciliation JSON with zero-tolerance computed-style + bounding-box + asset checks AND per-state screenshots, and EVERY tuple verdict is `perfect`. Drift / gaps are escalated via handoff to the architect-team — never inline-patched. The hook enforces this via the `visual_fidelity_review` evidence field: `"pass"` allows completion; `"n/a"` requires a `visual_fidelity_review_note` explaining why (no frontend touched OR no DESIGN_MAP exists); `"fail"` is blocked.
-9. **Interaction completeness verified when the slice has UI/UX surface per `interaction-completeness`.** When the slice ships any interactive element (button, form, link, toggle, menu) or any page / screen / route, the `interaction-completeness` verification confirms every interactive element is genuinely user-flow-tested (a real `page.click` / `page.fill` path, not a direct `page.request.*` API call and not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value — or a user-confirmed stub. The hook enforces this via the `ui_interaction_review` evidence field: `"pass"` allows completion (every interactive element is genuinely UI-tested and correctly wired, every page is live, every value is correctly static or dynamic, or a confirmed stub); `"n/a"` requires a `ui_interaction_review_note` explaining why (the slice has no UI/frontend interactive surface — no interactive elements, no pages); `"fail"` is blocked — an unwired control, an unconfirmed placeholder page, or a hardcoded-should-be-dynamic value MUST be escalated through a solution requirement, not marked complete.
-
-10. **Frontend-impact end-to-end verdict when the slice touched a real frontend UI file (v3.44.0 + v3.55.0 loop-exit).** When any file in `files_changed` is a frontend file, `frontend_impact_e2e_review` is REQUIRED and a passing unit test can never open it — the hook (`hooks/review_evidence_schema.py`) blocks `fail`, and `n/a` + a `frontend_impact_e2e_review_note` is legitimate ONLY for a frontend-adjacent change with **no runnable UI surface** (a type-only edit, a comment-only change). This per-task field is NOT the last word: the run-level `_audit_frontend_e2e` loop-exit gate (Phase 8) is the backstop — a slice that touched a real frontend UI file must produce an EXECUTED, genuine, passing E2E verdict artifact at `.architect-team/frontend-e2e/<slice>-verdict.json` before the run can close, and no per-task note escapes it. The Phase 5 integration agent writes that artifact (see Phase 5 step 3b).
-
-Teammate writes its **self-review** — the 17 top-level fields of `<cwd>/.architect-team/reviews/<task-id>.json` per the schema (v7) in `team-spawning-and-review-gates` — BEFORE any `TaskUpdate` flips its task to `completed`. If any check fails, the teammate re-engages on implementation.
-
-**Independent review — the orchestrator spawns a `task-reviewer`.** A teammate's self-review is a producer checking its own work; the hook can validate the evidence file's shape but not the truth of its `"pass"` values. So after a teammate writes its `self_review` evidence and signals its task complete, the orchestrator dispatches an independent `task-reviewer` agent against that `task_id` (passing the `teammate` name, the coverage-map slice, and the teammate's `files_owned`). The `task-reviewer` is read-only on source (no `Edit`): it reads the teammate's `git diff`, confirms each acceptance criterion is met by the code, runs the repo's linters / type-checkers / the slice's tests itself, greps the diff for stubs / placeholders, checks new files against the Reuse Decisions, and writes the `independent_review` block into the same evidence file — with `reviewer` set to itself, never the teammate. The `PostToolUse(TaskUpdate)` hook now requires that block present with `independent_review.reviewer != teammate` and `verdict == "pass"`: **only a `task-reviewer` verdict of `pass` opens the Phase 3 gate** — it cannot open on the teammate's self-attestation. On a reviewer `verdict: fail`, the teammate re-engages on the reviewer's per-gap notes (an ordinary review-gate failure — no SR, no diagnostic-research routing) and the `task-reviewer` re-reviews.
-
-The `SubagentStop` hook re-checks the full review-evidence file (including the `independent_review` block) on idle and sends the teammate back to work (exit 2) if any item is unsatisfied.
-
-**Agents-complete notification (v3.34.0, best-effort, per `## Notifications`).** When EVERY teammate in the Phase 2 dispatch has passed this gate (the wait the Phase 2 `waiting_on_agents` announced has ended), emit `agents_complete` with the per-agent outcomes:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" agents_complete --project <name> --phase "Phase 3 — Team Review Gate" --agents "<teammate — outcome (tests/verdict); teammate — outcome>" --details "<what the teams delivered>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" agents_complete --project <name> --phase "Phase 3 — Team Review Gate" --agents "<teammate — outcome (tests/verdict); teammate — outcome>" --details "<what the teams delivered>"
-```
-
-The same `waiting_on_agents` → `agents_complete` pair brackets the OTHER major dispatch-and-wait points of this pipeline — the Phase −1B mapping fleet, the Phase 3b diagnostic-research + fix-team dispatches, and the Phase 6 review swarm — per the canonical dispatch-wait rule in `common-pipeline-conventions` `## Notifications wiring convention`.
-
 ## Phase 3b — Solution-Requirement Intake (continuous, runs after every subagent idle)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-3b.md` and execute it in full. Do not work from memory.
+
 The architect-team pipeline runs as a closing loop: failed tests, drifted visuals, and surfaced bugs do not sit in handoff files waiting for manual triage — they spawn fresh dev-loop entries automatically.
-
-After every subagent signals idle (Phase 3 review-gate fail, Phase 5 regression failure, visual-fidelity drift, RCA product-bug verdict), the orchestrator MUST:
-
-1. **Walk `<cwd>/.architect-team/solution-requirements/`.** Read every `SR-*.json` file with `status: "open"`.
-2. **For each open SR:**
-   - Validate the required fields per `team-spawning-and-review-gates`'s `## Solution Requirements` schema. Any malformed SR → flag back to the writer (re-engage them with the schema requirement).
-   - **Emit an `issue_discovered` notification** (best-effort; see `## Notifications`) when a new, not-yet-actioned SR is picked up — the orchestrator invokes the notifier from the target project's root, passing the SR's issue summary, then proceeds immediately regardless of the notifier's outcome:
-
-     ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's issue summary>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" issue_discovered --project <name> --summary "<the SR's issue summary>"
-     ```
-
-     This invocation is best-effort and NEVER blocks or alters the SR intake — a notifier failure does not stop the SR from being processed.
-   - **Auto-mine the SR to MemPalace** (per `mempalace-integration`): `mempalace --palace <palace> mine "<SR-path>" --wing <wing>`. Mine BEFORE invoking diagnostic-research-team so the SR is discoverable even if the diagnostic loop is in progress.
-   - If `affected_requirements` is populated → append/update entries in the active change's `coverage-map.json` referencing the SR ID. If empty → derive a new coverage-map entry from `acceptance_criteria` + `affected_screens` + `scope`.
-   - **If the SR's `origin.kind` is a test-failure origin (`rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, or `visual-fidelity-drift`): the Lead invokes the `diagnostic-research-team` skill before dispatching the fix team.** This is non-optional. Each diagnostic-researcher applies `superpowers:systematic-debugging` — find the root cause before any fix is proposed, per `## Plugin prerequisites (v3.9.0)`. Per the skill, the Lead creates 3 `diagnostic-researcher` tasks in the shared list (teams mode) OR dispatches 3 `diagnostic-researcher` subagents in parallel via a single Agent-tool batch (subagents mode), then the Lead creates a `system-architect` task (teams mode) OR dispatches the `system-architect` subagent (subagents mode) to review robustness, producing a consolidated diagnostic plan at `<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.md`. No researcher spawns the architect; only the Lead does. Update the SR with `diagnostic_plan_path: "<path>"` and `diagnostic_research_completed_at: "<ISO 8601 UTC>"`. **Auto-mine the entire diagnostic-research dir** when the plan is approved: `mempalace --palace <palace> mine "<cwd>/.architect-team/diagnostic-research/<test-id>/" --wing <wing>`. The fix team CANNOT be dispatched until `diagnostic_plan_path` is populated and the plan file exists on disk. The diagnostic-research-team skill loops until the architect converges — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses ONLY if a required input that only the owner can supply is missing (surfaced loudly while the rest of the run continues), never on cycle count. While that loop is in progress or paused for required input, the Lead does NOT skip ahead to fix-team dispatch.
-   - The Lead dispatches a Phase 2 fix team per `team-spawning-and-review-gates` rules — creating fix tasks in the shared list (teams mode) OR dispatching fix subagents via a single Agent-tool batch (subagents mode), using `suggested_team` as the hint and `scope.files_to_change` as `files_owned`. The teammate manifest's `expected_review_evidence` includes the task ID generated for the fix. The fix team's brief includes: the SR file path, verbatim `acceptance_criteria` (the originating failing test MUST be among them), a pointer to the original failing test as the verification check, AND (when the SR is a test-failure origin) the `diagnostic_plan_path` with the directive **"READ THIS PLAN FIRST. Your first work item is the pre-fix verification checklist in the plan. Do NOT propose a fix until you have captured every observation in that checklist."**
-   - Update the SR: `status: "in_progress"`, add `spawned_teammate: "<name>"` and `spawned_at: "<ISO 8601 UTC>"`. Bracket the diagnostic-research and fix-team dispatches with the v3.34.0 dispatch-wait pair per `## Notifications` — `waiting_on_agents` (naming the researchers / fix team and the SR each chases) when the dispatch goes out, `agents_complete` (per-agent outcomes) when it returns.
-3. **The fix flows through Phase 2 → Phase 3 → Phase 4 → Phase 5** as a normal dev-loop iteration. When the originating test reaches verdict `pass` at Phase 5, the orchestrator marks the SR `status: "resolved"` with `resolved_at` and `resolved_by` (commit SHA), then unblocks the ORIGINATING teammate's task (the one whose failure surfaced the SR). The originating teammate re-runs whatever they were waiting on; their loop converges.
-3b. **Counter-evidence re-triggers research.** If, during the fix team's pre-fix verification checklist execution, the fix team's evidence contradicts the leading hypothesis in the diagnostic plan, the fix team writes `<cwd>/.architect-team/diagnostic-research/<test-id>/counter-evidence-<ts>.md` and signals idle. The orchestrator picks up the counter-evidence on its next pickup pass and re-invokes `diagnostic-research-team` with the counter-evidence as a new input. The fix team does NOT silently override the plan; it surfaces the conflict and lets research re-run.
-4. **Master review (Phase 7) walks every SR** and confirms each is `resolved` AND its acceptance criteria are reflected in a passing test in the coverage map. Test-failure SRs MUST have a `diagnostic_plan_path` and the plan file MUST exist on disk; SRs missing the plan are an audit gap and re-trigger `diagnostic-research-team` even at Phase 7. Any `open` or `in_progress` SR at Phase 7 is a coverage gap; the Lead re-dispatches the fix team until resolved.
-
-This phase is NOT a manual step — it runs every time the orchestrator resumes (which the SubagentStop hook plus the harness's idle-resume already make automatic). The point is: there is NO state where an SR sits unactioned. The loop closes itself.
 
 ## Phase 4 — Reconciliation
 
@@ -557,286 +221,27 @@ When two or more teammates have completed parallel work that touches a shared bo
 
 ## Phase 5 — Cross-Layer Integration (frontend + backend)
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-5.md` and execute it in full. Do not work from memory.
+
 When a feature spans both layers, integration only begins after **both** layer-teams have passed Phase 3 and Phase 4 has merged their work cleanly.
-
-1. The Lead creates an `integration` task in the shared list (teams mode) OR dispatches an **Integration Agent** (Superpowers-driven, fresh context, using the `integration` subagent definition) (subagents mode).
-2. The Integration Agent runs the full integration test suite locally first, then **against the development API with live dev data** — not mocks. Connection details come from the OpenSpec design artifact. Follow `dev-api-integration-testing`. **When the live dev environment is brought up** — the running dev instance someone can see, against which the integration + Playwright suites run — the orchestrator emits a `deploy` notification (best-effort; see `## Notifications`), passing `--layer` for the layer being brought up (e.g. `backend`, `frontend`, `fullstack`). It invokes the notifier from the target project's root and proceeds immediately:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" deploy --project <name> --layer <layer>
-   ```
-
-   This `deploy` invocation is best-effort and NEVER blocks, fails, or delays bringing the dev environment up — a notifier failure does not affect the deploy or the integration run.
-3. For any front-end deployment or front-end change, the Integration Agent **must** use Playwright to author and run user-flow tests against the **real running development environment** per the `playwright-user-flows` skill — log in as a real user, click buttons, fill forms, navigate flows, assert visible state. Flows and pass criteria come directly from the Phase 1 acceptance criteria. **Every action-call selector carries a v0.9.32 selector witness assertion** (`.toBeVisible()` + `.toBeEnabled()` + a disambiguating role / attribute check) before the action — same discipline as the bug-replicator's `agents/bug-replicator.md`. **And every test run captures a v0.9.32 code-path execution witness** — Playwright `trace: 'on'`, dev API access log tail, cross-checked against the feature's `implementing_handlers[]` from the coverage map's `implementing_commits[]`. The witness produces a `code-path-witness.json` per the same schema as Phase B6's qa-replayer. If at least one implementing handler with a derivable fingerprint is `not_invoked`, the verdict is **`feature-tests-did-not-exercise-implementation`** — the integration tests technically passed but failed to exercise the feature's actual handlers; route the originating team back to test re-authoring (NOT to the implementation — the feature's code may be fine, the test path is wrong). Parallel discipline to v0.9.31's `test-did-not-exercise-fix` at Phase B6 — same failure mode, different phase. Full procedure in `agents/integration.md` workflow step 4.
-3b. **Write the frontend-E2E loop-exit verdict artifact (v3.55.0) — the deliverable of the Playwright run.** For every frontend slice the run touched, the Integration Agent writes `<workspace>/.architect-team/frontend-e2e/<slice>-verdict.json` recording that the flow was a genuine as-the-user run: `{"slice", "verdict": "passed", "executed_against_live_env": true, "live_url", "user_driven_actions": [{"action", "selector"}], "trace_path", "visible_state_assertions": [...], "test_files": [...]}`. The `<slice>` matches the review-evidence filename stem for that slice. `trace_path` is the captured Playwright trace from step 3 (`trace: 'on'`) and must name a file that exists. The `user_driven_actions` are the real click/fill/getByRole/check/selectOption calls (NOT `page.request`/`fetch`), and `visible_state_assertions` are the `toBeVisible`/`toHaveText`/`toHaveURL` checks. Confirm genuineness by running the 22nd Layer-3 tool `verify-frontend-e2e-loop-exit --artifact <verdict.json> --repo-root <workspace> --out <verdict>` — a clean `valid: true` is required; the four escape modes (described-not-executed, API-only, vacuous-navigate-assert, trace-claimed-but-absent) each block. This artifact is what the Phase 8 `_audit_frontend_e2e` loop-exit gate requires — a frontend slice with no genuine passing verdict cannot close the run (see Phase 8's frontend-E2E loop-exit gate).
-3c. **Whole-suite enumeration — the ENTIRE dev suite, not only this slice's flows.** When a frontend codebase in scope carries `<e2e-dir>/suite-manifest.json`, the Integration Agent ENUMERATES that manifest and runs every entry in its `dev` project — the persona journeys, the registered `debug-flow` regressions, and this slice's new flows alike — because Phase 5 is where the whole system is exercised, and a run that re-runs only the flows this task group authored has verified this task group, not the integration. Failures route as solution requirements exactly as today (step 10's routing is unchanged; a failing registered flow becomes an SR like any other). The manifest is the registry of which tests exist; `playwright-suite-builder` owns its contract. Absent a suite manifest, behavior is unchanged — the run exercises the slice's flows as it does today.
-4. **Front-to-back integration is the entire point of Phase 5 — settle every deferred integration-testing debt here.** For every `both`-layer feature, the Phase 5 Playwright run MUST exercise the **real running backend** (real server process, real DB / queue / cache, real responses) — NOT `page.route` happy-path stubs, NOT MSW, NOT an in-memory fake API server, NOT hardcoded fixtures, per `playwright-user-flows`'s "Real backend by default" discipline. A frontend team may have legitimately reached its Phase 3 gate with `integration_testing_review: "n/a"` because the backend was not yet integrated (the note said "DEFERRED TO PHASE 5") — that deferral debt is now DUE. After the Phase 5 run, the Lead creates a `test-completeness-verifier` task in the shared list (teams mode) OR dispatches the `test-completeness-verifier` subagent (subagents mode); for every `both`-layer slice it MUST produce `integration_testing_review: "pass"` (real backend was in the loop). An `n/a` verdict for a `both`-layer slice at Phase 5 is a failure — the real-backend run did not happen. A `mock_backed` audit verdict with no explicit requirements authorization → the verifier writes an SR with `origin.kind: "integration-testing-failure"` and the Lead routes it through `diagnostic-research-team` then a fix team.
-5. **Email integration testing (v0.9.34).** When any implementing file in the feature's coverage map touches email templates or email-sending code, the Integration Agent activates the `email-testing` skill discipline automatically. Every email template in scope gets the full E1-E4 treatment: Mailpit provisioned (E2), template source read for purpose (E3), email triggered via Playwright UI interaction, captured via Mailpit API, every link classified and followed in Playwright to complete the user flow (E4). For any `both`-layer requirement that involves email sends, the coverage map's acceptance criteria MUST include email-flow verification (*"the invite email is sent AND the invite link leads to a working sign-up flow"*). An email link failure routes through the standard Phase 5 failure-routing — RCA, SR with `origin.kind: "email-integration-failure"`, fix team. See `email-testing` skill for full discipline.
-6. **Every test (Playwright and integration) must have a per-step expectation file written BEFORE the test runs, per `root-cause-test-failures`.** On any failure, the Integration Agent runs the mandatory 3-pass root-cause loop and either fixes the expectation (test-author error), the env / fixture (env category), or escalates to the orchestrator via an RCA handoff (product bug). The Integration Agent NEVER silently retries a test, never proposes a fix without an evidence-backed root cause, and never patches symptoms.
-7. **When verifying a fix requires an expensive cycle — a container rebuild, a rolling deploy, a slow CI run — apply `expensive-verification-debugging`.** Deploy / rollout debugging is where one-fix-per-cycle whack-a-mole burns the most wall-clock time. Audit the entire failure pathway statically (every stage from source → build → bundle → image → deploy → runtime), enumerate EVERY defect, batch all fixes, confirm against the cheapest faithful local artifact (a local build, a local container), and spend the expensive cycle once. On a greenfield deploy pipeline that has never run, audit every stage before the first cycle — multiple simultaneous breaks are the expected case. After 2 expensive cycles on one symptom without resolution, STOP and escalate per the skill (an SR routed to `diagnostic-research-team`).
-8. **Visual-fidelity reconciliation across ALL designed screens, per `visual-fidelity-reconciliation` (when any frontend codebase in scope has `DESIGN_MAP.md`).** Phase 5 acts as the regression net — the Integration Agent runs zero-tolerance reconciliation across every screen in every frontend codebase's `DESIGN_MAP.md`, not just the screens the most-recent team touched. Reconciliation renders the **live running app** (Phase 0 of the skill is a hard precondition — no live app, no reconciliation); drift / gaps escalate to the architect-team via handoff, with the team responsible identified via `git log -p --since=<last_designed>` on the affected files.
-8b. **Independent live-app verification — run the `visual-verification-team` after the reconciliation sweep.** A reconciliation report is a self-report, and the one way visual QA reliably fails is an agent reasoning about styles from the code and never rendering the app. So the report does not gate the run on its own: the orchestrator invokes the `visual-verification-team` skill — `visual-capture` agents (×N, by screen-group) start the LIVE app and capture screenshots + computed-style DATA for every `DESIGN_MAP.md` screen (countable artifacts); `visual-analyzer` agents perform the objective structural analysis (a deterministic data diff vs the spec + a pixel diff vs the design reference image + a code cross-check); the `system-architect` then synthesizes the per-screen gap lists holistically — clustering them into root causes (a systemic token regression, an unmigrated screen-set), confirming `screens_captured == screens_analyzed == design_map_screen_count`, and writing the consolidated verdict to `.architect-team/visual-fidelity/verification-verdict-<codebase>-<ts>.json`. The team's verdict — not the reconciliation report — gates Phase 5: `visual_fidelity_review` is not truly `pass` until the team returns `overall: pass`. Each gap cluster becomes an SR (`origin.kind: "visual-fidelity-drift"`); a team `blocked` (the live app would not run) escalates — Phase 5 does not complete on a `blocked` or an `incomplete`.
-9. **Editability-completeness review, per `editability-completeness` (for any feature with a create or edit flow).** Editability is inherently cross-layer (UI control → state → API → request schema → handler → database → read-back), so Phase 5 is its home. The Lead invokes the `editability-completeness` skill: the Lead creates 3 `editability-reviewer` tasks in the shared list (teams mode) OR dispatches 3 `editability-reviewer` subagents in parallel via a single Agent-tool batch (subagents mode). Each reviewer independently enumerates every attribute of every entity the feature creates/edits, classifies which a user should be able to control (reasoning from the requirements + design, escalating genuine ambiguity to the user), and traces each user-controllable attribute end-to-end. The three argue to a converged canonical list of must-be-editable attributes + gaps via direct `SendMessage` (teams mode) or sequential Lead-orchestrated review rounds (subagents mode) — no reviewer spawns additional reviewers. Then the Lead creates a `system-architect` task that reviews that converged map for robustness (Round 3) before it is finalized, exactly as it reviews diagnostic plans. The converged map is not final until the architect's verdict is `pass`. Every gap (a `title` with no field to set it, a control that does not reach the database, an orphan data-model field) becomes a solution requirement with `origin.kind: "editability-gap"` — and the Lead dispatches a fix team DIRECTLY for it (it does NOT route through `diagnostic-research-team`; the converged map is the diagnosis). After the fixes land, the Lead re-creates the 3 reviewer tasks; the loop runs until all three agree zero gaps remain — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses only for a required owner input that cannot be auto-supplied, never on cycle count.
-9b. **Interaction-completeness review, per `interaction-completeness` (for any in-scope frontend slice — any feature with interactive elements or pages).** Interaction completeness is inherently cross-layer (UI control → handler → HTTP client → endpoint, and route → page component), so Phase 5 is its home — it runs alongside the editability-completeness team (step 9) and the visual-fidelity sweep (steps 8–8b), and the three do not overlap (controls/pages vs. attributes vs. appearance). The Lead invokes the `interaction-completeness` skill: the Lead creates 3 `interaction-reviewer` tasks in the shared list (teams mode) OR dispatches 3 `interaction-reviewer` subagents in parallel via a single Agent-tool batch (subagents mode). Each reviewer independently enumerates every interactive element AND every page / screen / route the slice ships, classifies each element by how it is wired (`endpoint-backed` / `client-only` / `confirmed-stub` / `ambiguous`) and each page as `live` / `placeholder` / `confirmed-stub`, traces each non-stub element to its endpoint or client behavior, audits whether each element's Playwright test genuinely drives the UI (a real `page.click` / `page.fill`, not a `page.request.*` direct API call, not a vacuous navigate-and-assert), and applies `dynamic-value-discovery` to flag a value hardcoded where the context shows it should be dynamic. The three argue to a converged interaction map of genuine controls, live pages, and gaps via direct `SendMessage` (teams mode) or sequential Lead-orchestrated review rounds (subagents mode) — no reviewer spawns additional reviewers. Then the Lead creates a `system-architect` task that reviews that converged map for robustness (Round 3) before it is finalized, exactly as it reviews the editability map. The converged map is not final until the architect's verdict is `pass`. Every gap — an `unwired-control`, a `placeholder-page`, or a `hardcoded-dynamic-value` — becomes a solution requirement with `origin.kind` set to that gap kind, and the Lead dispatches a fix team DIRECTLY for it (it does NOT route through `diagnostic-research-team`; the converged map is the diagnosis). An intentionally-inert control or an intentional placeholder page is a `confirmed-stub` ONLY with explicit user confirmation, recorded in the converged map and the change's `coverage-map.json` `confirmed_stubs[]`; an unconfirmed inert control or unconfirmed placeholder page is a gap, never a silent pass. **Pre-population from Phase −1D (v0.9.28):** before enumerating, each reviewer reads every in-scope frontend codebase's `INTERACTION_INTUITION_MAP.md` and pre-populates `confirmed_stubs[]` for every element with `user_verdict: confirmed-stub` (keyed on `element_id`) — the user's earlier intuition-time confirmation flows downstream and the Phase 5 team does NOT re-ask the same question. See `interaction-completeness`'s `### Pre-population from Phase −1D (don't ask the user twice)` section. After the fixes land, the Lead re-creates the 3 reviewer tasks; the loop runs until all three agree zero gaps remain — there is no fixed cycle cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); it pauses only for a required owner input that cannot be auto-supplied, never on cycle count. The verification informs the `ui_interaction_review` review-gate evidence field.
-10. The Integration Agent reports per-test pass/fail. The team cannot proceed to the next task group until every defined criterion passes. On failure routed back to a responsible team, the cycle resumes at Phase 3 for that slice — and the team must consume the RCA handoff as the starting context for the fix.
-11. **Re-run convergence — the Phase 5 reviews are interdependent, not independent.** Any fix that lands during Phase 5 (a visual-fidelity fix-to-spec, an editability gap fix, an interaction-completeness gap fix, an RCA product-bug fix, an integration-testing re-author, an email-flow fix) can drift another review's result — an editability fix changes a component, which can drift visual fidelity; an interaction-completeness fix wires a control, which can drift a Playwright flow; a backend contract fix can break a Playwright flow; an email template fix can change link URLs. Therefore: after ANY Phase 5 fix lands, re-run **all** of steps 2–9b (every Phase 5 review), not just the one that surfaced the fix. Phase 5 exits ONLY when a full pass of steps 2–9b produces zero new fixes and every review passes in the SAME iteration. A review that passed three iterations ago is not "still passing" if the code has changed since.
 
 ## Phase 6 — Outer Loop
 
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-6.md` and execute it in full. Do not work from memory.
+
 Repeat Phase 2 → Phase 5 for each task group in the OpenSpec plan, respecting the dependency graph from Phase 2. Maintain a running ledger:
-
-- Completed task groups
-- Commits produced (with SHA + message + which requirement(s) served)
-- Tests added (unit / integration / e2e) and their pass status
-- Playwright flows executed, with traces
-
-### Target-element verification gate (v2.21.0)
-
-After the Phase 5 cross-layer Playwright runs complete, invoke the 19th Layer 3 tool against every verification artifact that carries a per-element PASS claim:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-target-element-measured --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-target-element.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-target-element-measured --artifact "<workspace>/.architect-team/vao-evidence/<run-id>.json" --out "<workspace>/.architect-team/vao-verdicts/<run-id>-target-element.json"
-```
-
-Any of the 3 severities (`proxy-element-substituted` / `unreachable-state-not-escalated` / `semantic-target-mismatch`) blocks the run. The fix loop routes SRs with `origin.kind: target-state-unreachable-needs-seed-data`. See `common-pipeline-conventions/SKILL.md` `## No proxy-element verification discipline (v2.21.0)` for the canonical home.
 
 ## Phase 7 — Master Review
 
-Once all task groups report complete:
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-7.md` and execute it in full. Do not work from memory.
 
-1. Walk every commit produced during the build. For each, attribute it to one or more requirements via the coverage map.
-2. Re-run `openspec validate --all --strict --json`.
-3. Walk the coverage map and confirm every requirement now has:
-   - Implementation (commit reference)
-   - Passing unit/integration tests
-   - Passing Playwright flows where applicable
-   - A demonstrable artifact (curl example, trace, screenshot)
-   - For every entity-bearing feature: the `editability-completeness` team reached `satisfied` (converged map with zero gaps, all three reviewers agreeing). An unsatisfied editability loop is a coverage gap — the Lead re-creates the editability-reviewer tasks (teams mode) or re-dispatches the editability-reviewer subagents (subagents mode).
-   - For every frontend feature with interactive surface: the `interaction-completeness` team reached `satisfied` (converged interaction map with zero gaps, all three reviewers agreeing). An unsatisfied interaction loop is a coverage gap — the Lead re-creates the interaction-reviewer tasks (teams mode) or re-dispatches the interaction-reviewer subagents (subagents mode).
-4. If any gap exists, the Lead re-dispatches the appropriate teams (re-enter Phase 2) to close it — creating new tasks in the shared list (teams mode) or dispatching fresh subagents (subagents mode). This meta-loop continues until the coverage map is fully green.
-5. **Independent master-review audit — the Lead dispatches the `system-architect` in Master Review Audit mode.** The orchestrator's own coverage-map walk (steps 1–4) is a producer-is-own-checker step: the orchestrator ran the build, then the orchestrator audited it. So after the orchestrator's walk, the Lead creates a `system-architect` task in Master Review Audit mode (teams mode) OR dispatches the `system-architect` subagent in that mode (subagents mode), passing the coverage-map path, the SR directory, the commit ledger, and the review-evidence directory. The agent INDEPENDENTLY re-verifies every coverage-map entry (commit + passing tests + demo artifact) and every SR (`resolved`, with a diagnostic plan where required), re-runs `openspec validate`, and writes a verdict JSON to `<cwd>/.architect-team/master-review/audit-<ISO-8601-UTC>.json` with `overall` (`pass` / `fail`) and per-entry findings. The audit verdict must be `overall: pass` to proceed — if it is `fail`, treat each finding as a gap, re-enter step 4 (the Lead re-dispatches the appropriate team), and re-run the audit. Phase 7 is not complete until the independent audit returns `overall: pass`. **Deterministic enforcement (v3.9.2):** the `pipeline-completion-audit` hook ALSO re-runs `openspec validate --all --strict` itself at this gate (`_audit_openspec_validation`, fired whenever a master-review verdict exists) — so the master-review gate does not rely on the agent's self-reported `openspec_validate` field; any invalid active change (stale / orphaned / malformed) blocks the Phase 8 commit until it is fixed or archived.
-6. Once all requirements are satisfied AND the master-review audit verdict is `overall: pass`, apply `superpowers:verification-before-completion` (evidence before assertions — run the verification commands and confirm output before claiming completion, per `## Plugin prerequisites (v3.9.0)`), then run `openspec archive <change-name>` to merge deltas into the canonical specs.
+Once all task groups report complete:
 
 ## Phase 8 — Final Report
 
-### Deploy mandate final gate (v2.20.0)
+> **STOP.** Before executing this phase, Read `skills/architect-team-pipeline/references/phase-8.md` and execute it in full. Do not work from memory.
 
-If `intake_state.deploy_mandate.active == true`, invoke the 18th Layer 3 tool `verify-deploy-mandate-satisfied` BEFORE emitting the final report — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Deploy-mandate row; it BLOCKS).
-
-A non-zero exit (any of the 4 severities — `deploy-mandate-not-satisfied` / `plan-only-deliverable-on-deploy-mandate` / `adjacent-dependencies-claimed-as-deployment` / `partial-deploy-passed-off-as-deploy`) is a hard-fail. The orchestrator MUST NOT commit or push the run. The fix loop kicks in: route SRs with `origin.kind: "deploy-mandate-not-satisfied"`; the existing team-dispatch surface (backend if missing `deploy_target_url`; frontend if missing `frontend_url` or `unwired_elements_count > 0`) handles each gap.
-
-See `common-pipeline-conventions/SKILL.md` `## Deploy mandate discipline (v2.20.0)` for the canonical home.
-
-### Unilateral-override meta-gate (v3.0.0)
-
-After all per-discipline Phase 8 gates pass, run the `verify-no-unilateral-override` Layer 3 tool as a META-confession check across every text artifact the run produced (final_report, verification_text, verification_notes, remediation_log, qa-replayer verdicts) — per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (the Unilateral-override row; it BLOCKS). The `--sources` input is a JSON dict at `<workspace>/.architect-team/vao-evidence/<run-id>-text-sources.json` mapping source-name → text content (e.g., `{"final_report": "...", "verification_text": "...", "qa_replayer_notes": "..."}`).
-
-A single severity (`unilateral-override-with-virtue-framed-confession`) fires when ANY source contains a virtue-framed opener + element-of-bypass admission. The orchestrator MUST NOT commit on a fail — re-invoke the pipeline against the same user prompt and produce text without the confession ritual.
-
-See `common-pipeline-conventions/SKILL.md` `## Unilateral-override discipline (v3.0.0) — META` for the canonical home + the unified marker dictionary.
-
-Emit a final report containing:
-
-- For each original requirement: implementing commit(s) → test(s) → Playwright flow(s)
-- Total commits, files changed, lines added/removed
-- Total tests added (unit / integration / e2e), all passing
-- All Playwright flows executed, with timing and pass status
-- Appearance proposals per the run's `appearance_mode` (v3.14.0): under `strict`, a READ-ONLY "Appearance proposals (not implemented — strict mode)" listing citing `<workspace>/.architect-team/appearance-proposals/<run-id>.json` and stating how to act on them in a future invocation (imperative, never interrogative — no v2.10.0 follow-up-question phrasings); under `propose`, the per-proposal gate decisions with citations; under `innovate`, every `implemented-innovate` visual delta enumerated
-- Each teammate spawned, its task group, and outcome
-- Final statement: **"Spec `<change-name>` has been implemented."** Followed by the archive path.
-
-### Mock-retirement gate (v3.48.0 — contract-first parallelism CFP-6)
-
-If this run created ANY interface contract at Phase 2 (`contract-first-parallelism`), the parallelism it bought was borrowed against server-side mocks. Closing the run repays it. Run the gate BEFORE the documentation-currency gate and the commit:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --ledger "<workspace>/.architect-team/contracts/ledger.json" || python "${CLAUDE_PLUGIN_ROOT}/scripts/contract/interface_contract.py" gate --ledger "<workspace>/.architect-team/contracts/ledger.json"
-```
-
-**Any surface still `mock-serving` (or earlier) is a BLOCKING finding: the run does not close.** So is any entry the gate reports it could not read — an unrecognized state, an entry that is not an object, or a ledger wrapped in a shape the engine does not know. The gate fails CLOSED on all of them, because a green report on unparseable input is the one outcome worse than no gate. Route it back to the owning backend teammate to flip the surface to real data and verify end-to-end through the same live path the frontend already calls, then transition the ledger entry to `live` with its `verified_by` evidence. "Retire it next run" is not a disposition — it is exactly the deferral `## No end-of-run deferral discipline` forbids, and a mock that outlives its run is the debt the no-fake-data disciplines exist to prevent.
-
-Also confirm no contract drifted while the internals were being built, in the retirement reading (`... drift --json <contract.json> --observed <observed-payload.json> --retirement` against a payload actually captured from the live surface), which additionally refuses a payload still carrying its provisional marker; a drift finding is a real defect, not paperwork — the frontend built against the approved shape.
-
-Then capture the gate's output and close each contract's declared gate (`... satisfy-gate --gate-id cfp-retirement-<contract-id> --evidence <captured-output> --registry "<workspace>/.architect-team/declared-gates.json"`). Those entries are what the declared-gates ship check below and `_audit_declared_gates` block on — the registration is how "the run does not close" is enforced by machinery rather than by this instruction alone.
-
-A run that created no contracts skips this gate: with no ledger file the command prints `no contracts recorded` and exits 0, so an absent or empty ledger is a no-op, not a failure.
-
-
-### Documentation-currency gate (before the final report and the commit)
-
-Per the `documentation-currency` skill, the run does NOT push with stale documentation. Immediately after the mock-retirement gate above, and before the final report is emitted and before the auto-commit:
-
-0. **Bump version first.** Before the doc-updater dispatch, the orchestrator updates `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` to the target version. These two files are the version-source-of-truth; the doc-updater READS them but does NOT write them (they are explicitly outside its Bounded Write scope). Every other version reference across the inventory gets aligned to what those JSON files say.
-1. **Update — the Lead creates a `doc-updater` task (v0.9.23).** The Lead creates a `doc-updater` task in the shared list (teams mode) OR dispatches the `doc-updater` subagent (subagents mode). The agent (opus, bounded `Write` ONLY to the documentation-currency inventory paths, NO `Edit`, NO source-code writes) reads the run's `git diff` against the merge base, the coverage map, the run ledger, and the current state of every inventory doc — `README.md` (per `readme-styling`), `CHANGELOG.md`, `CLAUDE.md` / `AGENTS.md` if present, and the maps (`CODEBASE_MAP.md`, `ROUTE_MAP.md`, `DESIGN_MAP.md`, `INTERACTION_INTUITION_MAP.md`, `INTEGRATION_MAP.md`). It identifies every stale section relative to what the run actually shipped and edits each in place via whole-file rewrites (the agent's allowlist excludes `Edit` to enforce whole-file consistency — partial-update inconsistency where one count is bumped but a related count isn't is the failure mode this prevents). Output: `<cwd>/.architect-team/documentation-currency/updates-<ISO-8601-UTC>.json` — every file touched + every section updated + the triggering justification (diff entry, coverage-map REQ, or count comparison). Promotion rationale (v0.9.23): the previous "the orchestrator performs the updates" sentence cracked when the orchestrator was at end-of-context with a 30-file diff — items got missed. A dedicated agent is the structural fix.
-2. **Audit.** The Lead creates a `system-architect` task in **Documentation Currency Audit** mode (teams mode) OR dispatches the `system-architect` subagent in that mode (subagents mode). Unchanged from v0.9.15. It independently walks the `documentation-currency` inventory against the run's diff + the coverage map + the doc-updater's report and writes a verdict to `<cwd>/.architect-team/documentation-currency/audit-<ISO-8601-UTC>.json` (`overall: pass | fail` + per-doc findings). The `doc-updater` produced the doc updates; the `system-architect` is the independent checker (producer/checker, per the v0.9.13 discipline). The audit's verdict — not the agent's self-report — gates the commit.
-3. **Gate.** A `fail` verdict names the exact stale docs — the orchestrator re-dispatches the `doc-updater` with the audit's findings as additional input, then re-audits. The auto-commit below does not proceed until the latest documentation-currency audit verdict is `overall: pass`; `pipeline-completion-audit.py` enforces this. This is non-negotiable: a stale map breaks the next run's reuse-first design, and a stale README ships a lie.
-
-### Persist + mine the final report
-
-After emitting the final report to the user, persist a copy of the report's text to `<cwd>/.architect-team/runs/<change-name>-<ISO-8601-UTC>.md` and auto-mine it (per `mempalace-integration`):
-
-```bash
-mempalace --palace <palace> mine "<cwd>/.architect-team/runs/<change-name>-<ts>.md" --wing <wing>
-```
-
-This makes the run's outcome semantically queryable from future runs.
-
-### Declared-gates ship check (v3.47.0)
-
-Before the auto-commit below runs, every gate this run DECLARED must be satisfied. Walk `<workspace>/.architect-team/declared-gates.json`: each entry needs a `satisfied_at` and an `evidence_path` that exists and is non-empty. An unsatisfied entry stops the ship step — run the check the entry names, capture its output, append the satisfaction fields, and only then proceed. An absent registry is fail-open (this run declared nothing). The completion audit in step 0 below enforces the same rule via `_audit_declared_gates`, quoting the gate's own `declaration_text` back; checking here first means the run fixes it before staging rather than after. Never edit or delete an entry to make the audit pass — that is the unilateral override the meta-gate catches. Canonical rule: `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`.
-
-### Frontend-E2E loop-exit gate (v3.55.0)
-
-A frontend-impacting change is not done until a real user clicked through it. Before the auto-commit runs, every frontend slice this run shipped must carry a genuine passing E2E verdict at `<workspace>/.architect-team/frontend-e2e/<slice>-verdict.json` — the artifact the Phase 5 integration / frontend agent writes when it runs the Playwright user-flow against the live dev environment (see Phase 5). The run-level `_audit_frontend_e2e` arm in `pipeline-completion-audit.py` (step 0 below) aggregates `files_changed` across `.architect-team/reviews/*.json`, runs the v3.44.0 `changed_files_touch_frontend` detector, and — for any slice that touched a real frontend UI file — BLOCKS the commit unless its verdict is `verdict == "passed"` AND passes DEEP genuineness. The arm REUSES the 22nd Layer-3 tool `verify-frontend-e2e-loop-exit` (not a shallow `len()>=1` count): a verdict whose `user_driven_actions` are all `page.request`/`fetch` (api-only), whose `visible_state_assertions` are only title/navigate asserts (vacuous), that was not executed against a live env, or whose `trace_path` names no existing file is BLOCKED by the arm and named by its escape severity (described-not-executed, API-only, vacuous-navigate-assert, trace-claimed-but-absent). The per-task `frontend_impact_e2e_review` note cannot escape this: the run-level arm requires the EXECUTED, genuine artifact, never the note. Kill-switch `CT6_FRONTEND_E2E_GATE_DISABLED` is the operator escape if the gate ever misfires; a run that touched no frontend is a no-op.
-
-**The gate is scoped to THIS run (v3.57.0), and satisfying it is the run's own job.** `.architect-team/reviews/` is cumulative, so the arm considers only slices this run owns — claimed by a teammate manifest, or written after the active-run marker's `started_at` — and prints how many it excluded as inherited debt. A newly-introduced gate must never wall off the next commit with a previous run's backlog. And when a frontend slice has no verdict yet because the route is not deployed or dev has no data, that is **Phase 5's work, not a question for the user**: bring the environment up (or run `deploy_command`), seed the records the flow needs through the application's own create path, then run the flow. See `common-pipeline-conventions` `## Local -> dev -> test-on-dev is the pipeline's job, not the user's (v3.57.0)`. Escalate only a genuine external blocker — asking *"how do you want to proceed?"* with a recommended option attached is the run asking permission to do its own job.
-
-### Auto-commit and push at the end of a clean pass
-
-The invoking command (`/architect-team`) sets `AUTO_COMMIT` and `AUTO_PUSH` flags from `$ARGUMENTS` (defaults: both `true`; opt-out via `--no-commit` / `--no-push`). At the end of Phase 8, after the final-statement line is emitted, do this:
-
-If `AUTO_COMMIT = true`:
-
-0. **Run the completion audit FIRST — it gates the commit.** From the repo root, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check || python "${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py" --check`. This is the same audit the `Stop` hook runs; running it here, before staging anything, converts "clean pass" from the orchestrator's self-assessment into a checked fact. If it exits non-zero, the run is NOT complete (an open SR, a test-failure SR with no diagnostic plan, an unsatisfied editability loop, an unresolved test-completeness debt, a failing master-review audit verdict, a failing **documentation-currency audit** verdict, or a **frontend-impacting slice with no genuine passing E2E verdict** (`_audit_frontend_e2e` — see the frontend-E2E loop-exit gate below) — the worklist the loop keeps closing until empty; there is NO iteration ceiling) — do NOT auto-commit. Resolve every reported violation and re-run the audit, OR pause to collect required owner input per the run-state rules below. Only an exit-0 audit may proceed to step 1. The auto-commit also requires the Phase 7 **master-review audit** AND the Phase 8 **documentation-currency audit** verdicts to be `overall: pass` — `pipeline-completion-audit.py` enforces both: if a `.architect-team/master-review/audit-*.json` or a `.architect-team/documentation-currency/audit-*.json` verdict exists, its latest `overall` must be `pass`, alongside the existing checks.
-1. `git -C <repo-root> status --porcelain` — enumerate what changed during the run.
-2. Identify the pipeline's working set: every file under `openspec/changes/<change-name>/`, every CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP touched, every file referenced in any review-gate evidence's `files_changed`, and any test files added. Do NOT use `git add -A` — explicitly enumerate.
-3. `git -C <repo-root> add <enumerated-files>`.
-4. Construct the commit message from the Phase 8 report data:
-
-   ```
-   <change-name>: <one-line summary from Final Report>
-
-   - Requirements implemented: <REQ-001, REQ-002, ...> (N total)
-   - Tests added: <unit-count> unit / <integration-count> integration / <e2e-count> e2e — all passing
-   - Coverage map: fully green
-   - Phases −1 → 8 complete; openspec archive landed at <archive-path>
-
-   Dispatch-Mode: <teams|subagents>
-   Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-   ```
-
-   The `Dispatch-Mode:` trailer (v1.5.0) is derived from
-   `.architect-team/intake-state.json`'s `dispatch_mode` field — the
-   orchestrator recorded it at startup per v1.0.0's mode-detection contract.
-   Values are `teams` (Agent Teams primitive) or `subagents` (the ephemeral
-   subagent fallback). The trailer makes `git log --format=%(trailers)`
-   queryable for archeological "which mode produced this commit?" questions
-   without needing to grep JSON. Read the value once at commit-build time;
-   it does NOT change mid-run.
-
-4b. **Default-branch guard — decide the target branch BEFORE committing.** Run `git -C <repo-root> rev-parse --abbrev-ref HEAD`. If the current branch is `main` or `master` AND `--allow-push-to-default` was NOT passed: the pipeline does NOT commit unreviewed work straight onto a default branch. Create and check out a feature branch first — `git -C <repo-root> checkout -b architect-team/<change-name>` — so the commit (step 5) and push (steps 6-8) land there, and the final report tells the user the work is on `architect-team/<change-name>` awaiting their review + a PR. If the current branch is NOT a default branch, OR `--allow-push-to-default` was passed, commit on the current branch as-is.
-5. Commit AS THE RECORDED PERSON — per `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)`, the checkout's identity was resolved (and, on first use, asked) at the front door into `<main-worktree>/.architect-team/git-identity.json`; the commit carries it explicitly, never the repo's ambient git config alone and never a hardcoded author: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- -C <repo-root> commit -m "<message>"` (the wrapper injects `-c user.name= -c user.email=` from the record and REFUSES when there is none), or the explicit pair `git -C <repo-root> -c user.name="<name>" -c user.email="<email>" commit -m "<message>"` read from `git_identity.py status --json`. The PreToolUse gate (Arm 4) refuses a commit that lacks or contradicts the record while the run is active.
-5b. **Immediately after the commit succeeds**, the orchestrator emits a `git_commit` notification (best-effort; see `## Notifications`), passing `--commit` with the new commit SHA. It invokes the notifier from the target project's root and proceeds immediately:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha> || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" git_commit --project <name> --commit <commit-sha>
-   ```
-
-   This `git_commit` invocation is best-effort and NEVER blocks, fails, or alters the commit or the subsequent push — a notifier failure does not affect git in any way.
-
-If `AUTO_PUSH = true` (and the commit succeeded):
-
-6. `git -C <repo-root> rev-parse --abbrev-ref HEAD` to get the branch the commit landed on (the current branch, or the `architect-team/<change-name>` branch created by step 4b).
-7. `git -C <repo-root> push -u origin <that-branch>` — push it to its upstream (`-u` so a freshly-created feature branch gets its upstream set).
-8. Capture the commit SHA and the push range (e.g., `abc1234..def5678`); add them to the final user-facing report. If the commit went to an `architect-team/<change-name>` feature branch (step 4b's default-branch guard), the report MUST tell the user the work is on that branch and recommend opening a PR — do NOT let unreviewed pipeline output sit silently on a default branch.
-
-If `AUTO_COMMIT = false`: skip steps 1-8 entirely. Mention in the final report that changes were left uncommitted at the user's request.
-
-If `AUTO_COMMIT = true` but `AUTO_PUSH = false`: do steps 1-5 only. Mention in the final report that the commit was made locally but not pushed.
-
-If the working tree had unstaged or staged user changes BEFORE the pipeline started: surface their presence in the final report and do NOT include them in the pipeline's commit. The pipeline commits ONLY what the pipeline produced.
-
-### Safety rules for the auto-commit step (non-negotiable)
-
-- NEVER force-push (`--force`).
-- NEVER skip git hooks (`--no-verify`).
-- NEVER amend the previous commit (`--amend`).
-- If a pre-commit hook fails, surface the failure, fix the underlying issue (if it is the pipeline's responsibility), and create a NEW commit. Never bypass the hook.
-- If `git push` fails (non-fast-forward, network, auth), surface the error clearly and stop. Do NOT escalate to force-push.
-- If the repo has detached HEAD or no upstream configured for the current branch, skip the push, mention it in the report, and tell the user how to set the upstream (`git push -u origin <branch>`).
-- Do NOT push to `main` if the change has not been peer-reviewed by a human reviewer AND the repo's branch-protection policy requires reviews — the orchestrator does NOT have judgment to override branch protection. If push is rejected by branch protection, surface the rejection and stop.
-
-### Auto-merge to main (v3.7.0)
-
-When `AUTO_MERGE_MAIN = true` (the default; `--no-auto-merge` opts out) AND the completion audit passed AND the commit landed on `architect-team/<change-name>`: after the push (step 8), probe clean-mergeability and, if clean, merge + prune via `merge_branch_to_main_and_prune` (the polyglot Python pattern; run from the MAIN checkout since the helper runs `git checkout main` there):
-
-```bash
-python3 -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<change-name>', '${WORKTREE_PATH}', push=<AUTO_PUSH>)))" || python -c "import sys,json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import merge_branch_to_main_and_prune; print(json.dumps(merge_branch_to_main_and_prune('architect-team/<change-name>', '${WORKTREE_PATH}', push=<AUTO_PUSH>)))"
-```
-
-- `reason: "merged-and-pruned"` → report merged into `main`, pushed, branch deleted (local + remote), worktree removed. (Skip the End-of-run worktree finalize step below — the worktree is already gone.)
-- `conflict: true` (`reason: "conflict"` / `"conflict-on-merge"`) → the merge changed nothing; fall back to today's behavior: the branch stays pushed, recommend a PR, and run the v3.6.0 finalize step below (persistence warning).
-- `reason: "push-rejected"` (branch protection / non-fast-forward) → STOP, report the rejection, leave the branch + worktree recoverable. NEVER force.
-
-When `AUTO_MERGE_MAIN = false`: skip this step; the branch stays pushed, recommend a PR, and the v3.6.0 finalize step below runs verbatim. Per `common-pipeline-conventions` `## Auto-merge-to-main discipline (v3.7.0)`.
-
-### End-of-run worktree finalize (v3.6.0)
-
-After the auto-commit / push output (and the v3.7.0 auto-merge step, when it did NOT already prune the worktree) and BEFORE the auto-compact prompt, finalize the run worktree (only when this run created one — `AUTO_WORKTREE` was true and `$WORKTREE_PATH` is set). Invoke `finalize_run_worktree` via the polyglot Python pattern per `common-pipeline-conventions` `## Cross-platform Python invocation`:
-
-```bash
-python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import finalize_run_worktree; from pathlib import Path; r = finalize_run_worktree(Path('${WORKTREE_PATH}')); print(r.get('warning') or f\"Worktree finalized: {r.get('reason')}\")" || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import finalize_run_worktree; from pathlib import Path; r = finalize_run_worktree(Path('${WORKTREE_PATH}')); print(r.get('warning') or f\"Worktree finalized: {r.get('reason')}\")"
-```
-
-If the run branch is already merged into `origin/main`, finalize removes the worktree + branch. If not (the common state — branch just pushed, PR pending), it leaves the folder and returns a `warning`; print that `warning` verbatim to the user (it names the path + the manual cleanup command). Unmerged work is NEVER auto-deleted. Best-effort: skip silently if the run had no worktree.
-
-### Mark the run complete (v3.30.0 — the LAST state action of the run)
-
-After the auto-commit / push / auto-merge / worktree-finalize steps have all landed (and only then), mark the active-run lifecycle marker complete — from the workspace root (the directory whose `.architect-team/` holds this run's state):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete
-```
-
-This is what tells the run-continuity enforcement (the Stop-hook continuation guard + the PreToolUse sticky arm + the SessionStart resume directive — see `common-pipeline-conventions` `## Run continuity discipline`) that the run is genuinely DONE. Until this runs, a Stop is blocked as an arbitrary mid-run stop and every fresh/resumed session is directed back into the pipeline. Never run it early: "the audit will pass eventually" is not complete; committed-and-pushed is.
-
-Throughout the run, keep the marker's observability fields current at each phase boundary (best-effort, one line): `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --set phase="Phase 5" slug=<change-name>` — the resume directive and the block messages quote these fields to a resumed session.
-
-### Run-complete notification (v3.34.0 — the run's final email)
-
-**Delivery manifest — the bill of sale (v3.46.0).** Before emitting `run_complete`, produce the run's delivery manifest per the `delivery-manifest` skill. Assemble the manifest data (plain-speak problem statement; stakeholder-executable validation steps, EACH with an expected result; for a feature, the location + name + functionality of every new element; if the user provided a template/example document, match its vocabulary and layout), write it to `<workspace>/.architect-team/delivery/<run-id>-manifest.json`, gate on the engine's zero-error validation, and render the markdown:
-
-```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --repo-root . || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" validate --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --repo-root .
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --out "<workspace>/.architect-team/delivery/<run-id>-manifest.md" --email || python "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/delivery_manifest.py" build --json "<workspace>/.architect-team/delivery/<run-id>-manifest.json" --out "<workspace>/.architect-team/delivery/<run-id>-manifest.md" --email
-```
-
-A blocking validation finding means the manifest is a draft — fix the data and re-validate before publishing (advisories are prose-quality pointers). The rendered manifest embeds into the final email via the `--plan-file` flag on the `run_complete` invocation below, and is presented to the user as the run's closing deliverable (copy-paste ready).
-
-
-Immediately after the run is marked complete (and after Phase 8's own `phase_complete`), emit `run_complete` ONCE — the run's final notification, telling recipients the run finished end-to-end and what it shipped (best-effort, per `## Notifications`; a notifier failure never blocks the close-out):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<run-id>-manifest.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_complete --project <name> --run-id <run-id> --elapsed "<elapsed since run start>" --commit <final-commit-sha> --details "<what shipped: features delivered, test totals, SRs resolved>" --progress "All phases complete — run closed" --plan-file "<workspace>/.architect-team/delivery/<run-id>-manifest.md"
-```
-
-Omit `--commit` when the run produced no commit (`--no-commit`).
-
-### Auto-compact prompt (after the final report; default on)
-
-The invoking command (`/architect-team`) sets `AUTO_COMPACT_PROMPT` from `$ARGUMENTS` (default `true`; opt-out via `--no-compact`). After the Phase 8 final report (and the auto-commit / push output if applicable), emit this block as the very last thing the user sees in this turn:
-
-```
-╔════════════════════════════════════════════════════════════════╗
-║                                                                ║
-║  ◆  READY FOR /compact                                         ║
-║                                                                ║
-║  Pipeline complete. Context is now full of build state.        ║
-║  Run /compact NOW to free space for the next architect-team    ║
-║  invocation. Type exactly:                                     ║
-║                                                                ║
-║      /compact                                                  ║
-║                                                                ║
-║  (Pass --no-compact next time to suppress this prompt.)        ║
-║                                                                ║
-╚════════════════════════════════════════════════════════════════╝
-```
-
-**Why it is a prompt, not an auto-execution:** the orchestrator runs as a model + tools; `/compact` is a slash command processed by the Claude Code REPL itself, not a tool the model can invoke. This block puts the literal command on its own line so the user can copy-paste or one-keystroke-confirm. Pipeline cycles tend to fill context — running `/compact` immediately is the right hygiene before the next invocation.
-
-If `AUTO_COMPACT_PROMPT = false`: skip the block entirely.
-
-Then clean up the team.
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer plus the prod smoke suite (the `safety: prod` entries of `<e2e-dir>/suite-manifest.json`), record the results as evidence, then merge. This single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`, Honest boundaries); Phases 3 and 5 ran the selected sets.
 
 ## Run-state: unbounded solving, concurrency, required-input gates
 
@@ -870,7 +275,7 @@ The marker is ONLY for genuinely-required USER INPUT that the run cannot synthes
 - Never integrate without Phase 4 reconciliation when parallel work exists.
 - Never declare done at Phase 7 with any coverage gap; the Lead re-dispatches the appropriate team instead.
 - Wait for teammates rather than doing their work yourself. **Subagent waits are synchronous and harness-managed** — when you dispatch a subagent via the Task tool, the harness blocks your turn until that subagent finishes (or stops). That IS the wait. You do not need to schedule anything.
-- **NEVER schedule arbitrary wall-clock wakeups, cron jobs, or background timer tools from inside the pipeline.** `ScheduleWakeup`, `CronCreate`, `PushNotification`, and similar deferred-execution tools are reserved for explicit `/loop` dynamic-mode invocations and user-requested cron triggers — they are NEVER appropriate inside a pipeline phase. The pipeline runs synchronously, phase-by-phase, in one continuous flow. When iterating via `/ralph-loop` or `/loop`, those commands manage their own cadence — do not stack timer delays on top. When polling for an external resource (dev server ready, build complete, deploy live), use a tight bounded in-turn poll (e.g., `until curl -fsS <url>; do sleep 2; done` with a hard timeout) — not a scheduled wakeup that ends the turn.
+- **NEVER schedule arbitrary wall-clock wakeups, cron jobs, or background timer tools from inside the pipeline.** `ScheduleWakeup`, `CronCreate`, `PushNotification`, and similar deferred-execution tools are reserved for explicit `/loop` dynamic-mode invocations and user-requested cron triggers — they are NEVER appropriate inside a pipeline phase. The pipeline runs synchronously, phase-by-phase, in one continuous flow. When iterating via the `ct6-converge` workflow or `/loop`, those commands manage their own cadence — do not stack timer delays on top. When polling for an external resource (dev server ready, build complete, deploy live), use a tight bounded in-turn poll (e.g., `until curl -fsS <url>; do sleep 2; done` with a hard timeout) — not a scheduled wakeup that ends the turn.
 - **NEVER respond to the user with "I scheduled a wakeup for N minutes" or "I'll come back to this later" or any phrasing that defers pipeline work via a wall-clock timer.** Pipeline progress is immediate and responsive. If you feel tempted to defer via a timer, you are wrong — either the subagent dispatch handles the wait synchronously, or there is no real reason to wait. Surface the actual blocker to the user (a specific external state being polled, a teammate that needs re-spawning, a missing input, a manual decision required) instead of inserting an opaque delay. The user must never see an arbitrary timer-based deferral.
 - Use direct teammate messaging for cross-team coordination (frontend ↔ backend handoffs, contract changes).
 - Each teammate owns a distinct file scope. Two teammates never edit the same file.
@@ -889,3 +294,28 @@ The marker is ONLY for genuinely-required USER INPUT that the run cannot synthes
 ---
 
 If `$ARGUMENTS` is **genuinely empty**, ask the user what they want the pipeline to build, fix, or change, and do nothing else until they answer. If `$ARGUMENTS` is non-empty — a folder path OR a plain-language requirement (a sentence / paragraph of prose) — proceed; a plain-language requirement is a fully-supported input, never a reason to stop and ask for a folder.
+
+## Reference index
+
+Each phase's full procedure lives in this skill's `references/` folder behind the STOP pointer in its section; `references/INDEX.md` lists what to Read before each phase.
+
+| Section | Reference file | Loaded |
+| --- | --- | --- |
+| `Phase −2 — Triage & Routing (REQUIRED, runs first after the MemPalace wake-up)` | `skills/architect-team-pipeline/references/phase--2.md` | on demand |
+| `Phase 0.1 — Discipline freshness check (v2.18.0)` | `skills/architect-team-pipeline/references/phase-0.1.md` | on demand |
+| `Phase-boundary inbox check (v2.19.0)` | `skills/architect-team-pipeline/references/phase-boundary-inbox-check.md` | on demand |
+| `Phase −1 — Intake & Mapping (REQUIRED, runs before Phase 0)` | `skills/architect-team-pipeline/references/phase--1.md` | on demand |
+| `Phase 0a — Visual-to-API dispatch check (v3.3.1)` | `skills/architect-team-pipeline/references/phase-0a.md` | on demand |
+| `Phase 0b — Backend dispatch check (v3.4.0)` | `skills/architect-team-pipeline/references/phase-0b.md` | on demand |
+| `Phase 0c — Data-engineering dispatch check (v3.5.0)` | `skills/architect-team-pipeline/references/phase-0c.md` | on demand |
+| `Data-eng lane precedence — front door vs. Phase 0c (v3.50.0)` | `skills/architect-team-pipeline/references/data-eng-lane-precedence-front-door-vs-phase-0c.md` | on demand |
+| `Phase 0 — Detection & Normalization` | `skills/architect-team-pipeline/references/phase-0.md` | on demand |
+| `Phase 1 — Planning Validation Loop (hard gate; 100% coverage required)` | `skills/architect-team-pipeline/references/phase-1.md` | on demand |
+| `Phase 2 — Decomposition & Team Spawn` | `skills/architect-team-pipeline/references/phase-2.md` | on demand |
+| `Phase 3 — Team Review Gate (mandatory; per team; pre-completion)` | `skills/architect-team-pipeline/references/phase-3.md` | on demand |
+| `Phase 3b — Solution-Requirement Intake (continuous, runs after every subagent idle)` | `skills/architect-team-pipeline/references/phase-3b.md` | on demand |
+| `Phase 5 — Cross-Layer Integration (frontend + backend)` | `skills/architect-team-pipeline/references/phase-5.md` | on demand |
+| `Phase 6 — Outer Loop` | `skills/architect-team-pipeline/references/phase-6.md` | on demand |
+| `Phase 7 — Master Review` | `skills/architect-team-pipeline/references/phase-7.md` | on demand |
+| `Phase 8 — Final Report` | `skills/architect-team-pipeline/references/phase-8.md` | on demand |
+| `Phase 8 — Final Report (part 2: commit, merge, finalize)` | `skills/architect-team-pipeline/references/phase-8-commit.md` | on demand |

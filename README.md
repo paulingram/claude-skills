@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 67 . 0
+                        ─── C T 6 ───   v 4 . 0 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -36,9 +36,9 @@
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.67.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-4.0.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-8345%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-8872%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -77,17 +77,17 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.67.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v4.0.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.67.0 — git-commit-identity: a run commits as the person driving it
+### v4.0.0 — claude-5-modernization: keep every gate, shed the instruction weight
 
-A shipped skill body carried one maintainer's `git -c user.name=… -c user.email=…` override for sixty-odd releases — so every mini run on every user's machine committed as that maintainer — and the main pipeline's alternative was "whatever git config finds", which on a fresh clone is nothing and on a shared machine is someone else. Neither is a decision the tool may make for the user.
+Two measured facts drove this release. A Claude 5 session ships without `TaskCreate` / `TaskUpdate` unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set, so the Phase 3 evidence gate and the completion lock were silent on the models the plugin now runs on (and the lock looked for `session-<first 8>/` task dirs while the harness writes `<full session id>/`). And the Lead read roughly 141K tokens of its own rules before Phase −2, 13× the 5,000-token budget Claude Code keeps per skill after a compaction. Setup now writes the opt-in with consent, the SessionStart hook warns, the lock reads both layouts and degrades honestly when the task source is absent.
 
-**The front door asks, once.** Every lane command (`/architect-team`, `bug-fix`, `mini`, `data-eng`, `ux-test`, `playwright-suite`) now resolves the checkout's commit identity before anything touches git: a recorded `<main-worktree>/.architect-team/git-identity.json` is used silently; a candidate from the repo's local or global git config is CONFIRMED with the user — never adopted (the very first checkout it ran on offered a typo'd name); nothing found means the user is asked for name + email. A domain gate that fires regardless of `--proposal-first`, records `source` as its evidence trail, never writes the user's git config, and never names a default.
+**The rulebook became a constitution.** `common-pipeline-conventions` went from 258 KB to under 60 KB; every discipline moved whole into a `references/` chapter behind a STOP pointer, and `references/INDEX.md` says what to Read before each phase. The lane and driver skills were split the same way (`architect-team-pipeline` 153 KB → 46 KB). The five agent boilerplate blocks live once, in the new `ct6-agent-core` skill every agent preloads. Models follow roles (fable judgment / opus delivery / sonnet mechanical / haiku classification), reviewer counts follow a tier table, `ralph-loop` is retired for the shipped `ct6-converge` workflow, and `superpowers` / `cartographer` became conditional with a native fallback. `instruction_budget.py` records the weight so it cannot regrow unseen; the lane start load is measured at about 45K tokens, not yet at target.
 
-**Every commit carries it.** The Phase 8 / B8 / M7 / D8 / U9 / P9 steps and the auto-merge helper author commits through the new `hooks/git_identity.py` substrate — `git_identity.py git -- commit …` injects the record and REFUSES when there is none — and `pretool_skill_gate.py` gains Arm 4: during an active run, a commit-authoring `git` command that lacks or contradicts the record is blocked with the exact command to use (`CT6_GIT_IDENTITY_GATE_DISABLED` is the human's lever). A sweep test keeps any person's name out of every shipped surface.
+**Seven capabilities landed behind pointers:** a deletion recoverability guard with soft delete, codified project principles with violation call-outs, impact-based test selection with human always-run pins and one full run before merge (reversing the v3.65.0 whole-suite rule on purpose), sample-first iteration on data changes, private-URL page publishing behind a human-owned opt-in, and a per-project homepage with a timing log and a decisions ledger. The proposal that drove it is `docs/proposals/CT6_MODERNIZATION_PLAN.html`.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
 
@@ -98,7 +98,7 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 ```
 
 ```
-┌─ SKILLS (56) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
+┌─ SKILLS (60) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (fable)            │
 │ ◇ intake-and-mapping                │ ◆ frontend (fable)                    │
 │ ◇ reuse-first-design                │ ◆ backend (fable)                     │
@@ -165,7 +165,7 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 │ ◇ playwright-suite-builder          │                                       │
 │   (v3.65.0 — P0–P9 suite lane)      │                                       │
 │ ◇ verification-planning (v3.66.0)   │                                       │
-├─ COMMANDS (26) ─────────────────────┴───────────────────────────────────────┤
+├─ COMMANDS (29) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team:architect-team-setup                                      │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -203,7 +203,7 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 │   (v3.21.0 — manual triage report; consent + privacy)                       │
 │ ▸ /architect-team:playwright-suite [<codebase-path> | <description>]        │
 │   (v3.65.0 — durable persona-grouped suite + dev/prod manifest, P0–P9)      │
-├─ HOOKS (7 scripts / 8 events) ──────────────────────────────────────────────┤
+├─ HOOKS (9 scripts / 10 events) ─────────────────────────────────────────────┤
 │ ▸ PreToolUse(*)             skill-invocation hard-gate (v3.15.0/1)          │
 │                             + v3.30.0 sticky run arm (active-run marker =>  │
 │                             build/dispatch tools need the Skill re-engaged) │
@@ -836,7 +836,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
   | `skill_invocation_audit` | `"pass"` / `"n/a"` / `"fail"` OR `{verdict, verdict_path}` (v2.0.0 VAO, Layer 6) — `"fail"` blocks |
   | `independent_review` | object — `reviewer` (≠ `teammate`), `verdict` = `"pass"`, `spec_review` / `quality_review` = `"pass"`, `real_not_stubbed` = `true`, `reuse_compliance` = `"ok"`, `reviewed_at` non-empty. Written by the `task-reviewer` agent — the gate cannot open on the teammate's self-review alone. |
 
-  Plus 5 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`) — present only when applicable (a non-empty oracle `interactions[]`, a "verified live" claim, a diff touching frontend presentation surface, a diff adding test files / citing a verification command, or a slice that makes a verification claim, respectively).
+  Plus 6 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`) — present only when applicable (a non-empty oracle `interactions[]`, a "verified live" claim, a diff touching frontend presentation surface, a diff adding test files / citing a verification command, or a slice that makes a verification claim, respectively).
 
 - **Escalation policy:** after 3 consecutive hook rejections on the same `task_id` → teammate stops retrying and writes a `<teammate>-to-orchestrator-stuck-<task_id>` handoff.
 - **References:** [`skills/team-spawning-and-review-gates/SKILL.md`](skills/team-spawning-and-review-gates/SKILL.md), [`hooks/review-gate-task.py`](hooks/review-gate-task.py).

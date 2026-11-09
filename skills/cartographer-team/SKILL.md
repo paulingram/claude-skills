@@ -1,6 +1,7 @@
 ---
 name: cartographer-team
-description: CT6's multi-agent wrapper around the external cartographer plugin call. One cartographer run produces CODEBASE_MAP.md; 3× codebase-map-reviewer agents independently audit the result and confirm 100% coverage in parallel; targeted re-mapping iterates until all 3 reviewers return ok. Wrapped in a ralph-loop with completion-promise "CODEBASE MAP COMPLETE". Caller-configurable output path so frontend-read-only mode (Phase 0b) can route output to .architect-team/frontend-reference/<codebase-slug>/ instead of <codebase>/docs/. v3.4.0.
+description: CT6's multi-agent wrapper around the external cartographer plugin call. One cartographer run produces CODEBASE_MAP.md; 3× codebase-map-reviewer agents independently audit the result and confirm 100% coverage in parallel; targeted re-mapping iterates until all 3 reviewers return ok. Wrapped in a ct6-converge workflow with completion-promise "CODEBASE MAP COMPLETE". Caller-configurable output path so frontend-read-only mode (Phase 0b) can route output to .architect-team/frontend-reference/<codebase-slug>/ instead of <codebase>/docs/. v3.4.0.
+user-invocable: false
 ---
 
 # Cartographer Team
@@ -57,9 +58,9 @@ When `frontend_read_only: true`, after the cartographer plugin returns:
 
 When the `classification` is `frontend` or `fullstack` AND `produce_route_map: true`, additionally dispatch the existing `route-mapper` agent (and the existing `design-fidelity-mapping` skill when design inputs are present) to produce `ROUTE_MAP.md` at the caller-configured `route_map_output_path`. Same read-only treatment applies in `frontend_read_only` mode.
 
-## Phase C3 — 3-reviewer convergence (wrapped in a ralph-loop)
+## Phase C3 — 3-reviewer convergence (wrapped in a ct6-converge workflow)
 
-Wrap the entire convergence in `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"` — the loop runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`):
+Wrap the entire convergence in the `ct6-converge` workflow with completion promise "CODEBASE MAP COMPLETE" — the loop runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`):
 
 1. The orchestrator dispatches 3 `codebase-map-reviewer` agents in parallel via a single Agent-tool batch (subagents mode) OR creates 3 reviewer tasks in the shared list (teams mode). Each reviewer receives:
    - The current `CODEBASE_MAP.md` (and `ROUTE_MAP.md` when applicable) from `output_path`
@@ -82,7 +83,7 @@ Wrap the entire convergence in `/ralph-loop "<review prompt>" --completion-promi
    }
    ```
 
-3. **All 3 ok** → emit `"CODEBASE MAP COMPLETE"`; exit the ralph-loop.
+3. **All 3 ok** → emit `"CODEBASE MAP COMPLETE"`; exit the ct6-converge workflow.
 
 4. **Any deficient** → aggregate the deficiencies; re-trigger the cartographer plugin in update mode (or `route-mapper` for route-specific deficiencies) naming the deficient sections; loop.
 

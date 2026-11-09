@@ -1,6 +1,7 @@
 ---
 name: editability-completeness
 description: Use when a feature that creates or edits entities has been implemented and you must verify that every attribute those entities expose which a user should be able to control actually has a working end-to-end editing path — UI control through state through the API into the database and back. Triggers — a "create a thing" or "edit a thing" flow exists; an entity has attributes (title, name, description, status, tags, owner, ...) and you are not certain every one a user should set is actually settable and persists; a value shows in the UI or the data model but you cannot find where the user sets it; Phase 5 cross-layer verification; an on-demand editability audit via /architect-team:editability-audit. Spawns three editability-reviewer agents that independently reason through what must be editable, argue to a converged list, route gaps as solution requirements, and re-review after fixes until all three agree the editable surface is complete.
+user-invocable: false
 ---
 
 # Editability Completeness — Is Every Attribute That Should Be Editable Actually Editable, End to End

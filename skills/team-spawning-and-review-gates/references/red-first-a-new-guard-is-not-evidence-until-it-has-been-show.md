@@ -1,0 +1,15 @@
+# Red-first — a new guard is not evidence until it has been shown to fail
+
+`tests.added` and `tests.passing` say a test exists and is green. Neither says the test can ever be anything else. A test that asserts something already true, targets a path the runner never collects, or exercises a code path the change did not touch is green on day one and green after the feature is deleted — it is a green light wired to nothing. This is the same rule the bug-fix pipeline has always enforced (the reproduction artifact must reproduce BEFORE it regresses); it applies to every NEW test in every pipeline, not only to bug reproductions.
+
+**For every new test, capture its failure before you trust its pass.** There are exactly three acceptable sources of that red run — name which one you used:
+
+1. **TDD red** (`red_source: "tdd-red"`). The test was written and run BEFORE the implementation existed, and its failure output was captured. This is the default and the cheapest; it is also the only one available for a genuinely new capability whose pre-state cannot be built.
+2. **Pre-change checkout** (`red_source: "pre-change-checkout"`). The test was run against the run's baseline — `git stash`-free, via the orchestrator-provided `baseline_sha` (a `git worktree add` at that SHA, or a `git show $BASELINE_SHA:<path>` reconstruction) — and failed there. Use this when the test was authored after the implementation landed.
+3. **Assertion inversion / mutation** (`red_source: "assertion-inversion"`). The assertion was deliberately inverted, or the line under test deliberately broken, the test was run and observed to FAIL, and the mutation was reverted. Use this when the pre-change state cannot build or the test cannot run against it — it is the fallback that keeps the rule satisfiable, not a shortcut around 1 and 2.
+
+Those three quoted tokens are the only values `verify-check-can-fail` recognizes in a `red_run` block's `red_source`. The field is OPTIONAL — omitting it leaves a minimal artifact valid — but an UNRECOGNIZED value is itself a finding (`new-guard-never-shown-red`), because a red source the tool cannot name is a red source nobody can audit. Name yours.
+
+**Cite the captured failure output in the review evidence** — the artifact path plus which of the three sources produced it. A red run you ran but did not capture is indistinguishable from one you did not run. The deterministic gate is the Layer-3 `verify-check-can-fail` tool (see `verified-agent-output`): a diff-added test file with no cited red run is `new-guard-never-shown-red`, and a cited red-run output containing no failure signature is `red-run-not-red`. Both name the exact test file, so the fix is always concrete.
+
+The same discipline runs one level up, at the CHECK: capture the output of every verification command and read it. `collected 0 items`, `no tests found`, `No test files found`, and a `tsc --noEmit` against a solution-shaped `tsconfig.json` all exit 0 while verifying nothing — a `vacuous-check`. An exit code is not a result.

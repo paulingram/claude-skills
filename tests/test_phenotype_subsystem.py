@@ -1,5 +1,6 @@
 """Structural tests for the phenotype subsystem — dir layout, the seed record, the skill, and the
 trigger wiring across commands/skills."""
+from tests.helpers.surfaces import surface_read
 from tests.helpers.module_loader import load_module
 import json
 from pathlib import Path
@@ -25,7 +26,7 @@ def _load_helper(plugin_root: Path):
 
 
 def _read(p: Path) -> str:
-    return p.read_text(encoding="utf-8")
+    return surface_read(p)
 
 
 # --- subsystem layout ------------------------------------------------------

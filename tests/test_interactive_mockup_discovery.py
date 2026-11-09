@@ -3,6 +3,7 @@ framework is wired in the skill bodies + agent frontmatter + oracle-deriver
 and interaction-intuiter extensions.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -21,7 +22,7 @@ def test_skill_exists(plugin_root: Path):
 
 def test_skill_has_valid_frontmatter(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.startswith("---\n"), "skill must start with YAML frontmatter"
     assert "name: interactive-mockup-discovery" in body
     assert "description:" in body
@@ -33,13 +34,13 @@ def test_skill_has_valid_frontmatter(plugin_root: Path):
 ])
 def test_skill_names_both_passes(plugin_root: Path, pass_phrase: str):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert pass_phrase in body, f"skill missing {pass_phrase}"
 
 
 def test_skill_names_observation_pass(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "observation" in body_lower
     assert "interaction-observer" in body
@@ -47,7 +48,7 @@ def test_skill_names_observation_pass(plugin_root: Path):
 
 def test_skill_names_intent_inference_pass(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "intent inference" in body_lower or "intent-inference" in body_lower
     assert "interaction-intuiter" in body
@@ -65,33 +66,33 @@ def test_skill_names_intent_inference_pass(plugin_root: Path):
 def test_skill_names_all_seven_action_kinds(plugin_root: Path, action_kind: str):
     """REQ-1 — the canonical skill names every action_kind value in the taxonomy."""
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert action_kind in body, f"skill missing action_kind {action_kind!r}"
 
 
 def test_skill_documents_interactions_schema(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     for field in ("trigger_selector", "semantic_label", "action_kind", "observed_effect", "target_url_or_state"):
         assert field in body, f"skill missing schema field {field!r}"
 
 
 def test_skill_documents_interaction_intent_gap(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "interaction_intent_gap" in body
 
 
 def test_skill_documents_phase_minus_1d_integration(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "phase −1d" in body_lower or "phase -1d" in body_lower
 
 
 def test_skill_documents_verify_interactions_honored(plugin_root: Path):
     skill = plugin_root / "skills" / "interactive-mockup-discovery" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "verify-interactions-honored" in body
 
 
@@ -107,16 +108,16 @@ def test_interaction_observer_agent_exists(plugin_root: Path):
 
 def test_interaction_observer_frontmatter(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-observer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "name: interaction-observer" in body
-    assert "model: fable" in body
+    assert "model: sonnet" in body
     assert "description:" in body
     assert "color:" in body
 
 
 def test_interaction_observer_has_uniform_discipline_sections(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-observer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "## Operating context" in body
     assert "## Forbidden git operations" in body
     assert "## Checkpoint discipline" in body
@@ -124,7 +125,7 @@ def test_interaction_observer_has_uniform_discipline_sections(plugin_root: Path)
 
 def test_interaction_observer_documents_four_step_protocol(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-observer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     body_lower = body.lower()
     # The 4 steps named in the proposal: run mockup → enumerate → simulate → record
     assert "run the mockup" in body_lower or "running the mockup" in body_lower or "runs the mockup" in body_lower
@@ -135,7 +136,7 @@ def test_interaction_observer_documents_four_step_protocol(plugin_root: Path):
 
 def test_interaction_observer_documents_bounded_write_scope(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-observer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert ".architect-team/oracle-spec/" in body or "interaction-evidence" in body
 
 
@@ -146,13 +147,13 @@ def test_interaction_observer_documents_bounded_write_scope(plugin_root: Path):
 
 def test_oracle_deriver_names_interactive_mockup_spec_shape(plugin_root: Path):
     agent = plugin_root / "agents" / "oracle-deriver.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "interactive-mockup" in body
 
 
 def test_oracle_deriver_documents_dispatch_to_observer(plugin_root: Path):
     agent = plugin_root / "agents" / "oracle-deriver.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "interaction-observer" in body
 
 
@@ -163,7 +164,7 @@ def test_oracle_deriver_documents_dispatch_to_observer(plugin_root: Path):
 
 def test_interaction_intuiter_has_intent_inference_mode(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-intuiter.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     # The section heading the proposal mandates
     assert "INTENT-INFERENCE mode" in body or "INTENT-INFERENCE" in body or "intent inference" in body.lower()
 
@@ -171,7 +172,7 @@ def test_interaction_intuiter_has_intent_inference_mode(plugin_root: Path):
 def test_interaction_intuiter_documents_mismatch_matrix(plugin_root: Path):
     """The canonical home of the mismatch matrix lives in this agent body."""
     agent = plugin_root / "agents" / "interaction-intuiter.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     # The matrix must name at least 5 representative semantic patterns
     for pattern in ("Logout", "Sign In", "Save", "Cancel", "Delete"):
         assert pattern in body, f"interaction-intuiter mismatch matrix missing {pattern!r}"
@@ -179,7 +180,7 @@ def test_interaction_intuiter_documents_mismatch_matrix(plugin_root: Path):
 
 def test_interaction_intuiter_emits_interaction_intent_gap(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-intuiter.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "interaction_intent_gap" in body
 
 

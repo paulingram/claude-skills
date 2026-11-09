@@ -1,6 +1,7 @@
 ---
 name: verification-planning
 description: Use BEFORE verifying any claim — a fix, a feature, a deploy, a diagnosis — to choose HOW to verify it. Enumerates the verification venues (local run, dev environment, replay of captured artifacts, seeded fixture, production read-only checks), states what each uniquely provides, proves whether the claim depends on it, picks the cheapest faithful venue, and records the choice as a verification_plan artifact. Adds the cheaper-faithful-method-found counterpart to the stuck verdicts (cannot-verify-without-deploy / env-failure / blocked) so "I need to wait for prod" is never the reflex when a faithful cheaper method exists, and a gate that needs a live environment obliges the run to PROVIDE one rather than ask.
+user-invocable: false
 ---
 
 # Verification Planning — verification is a choice, never a lookup
@@ -16,8 +17,11 @@ This skill is the missing primitive. It fires BEFORE verifying anything, it cost
 | **Local run** (unit / integration / a scratch script / a local build or container) | the code path, the built artifact, deterministic inputs | logic, contracts, build/bundle/config, most regressions | seconds |
 | **Replay** (captured traces, request logs, recorded fixtures, a saved failing input) | the exact production-shaped input that failed, without production | reproductions, diagnoses, "does the fix change the captured outcome" | seconds–minutes |
 | **Seeded fixture** (a dev database or store seeded through the application's own create path) | the target STATE a flow needs (the empty-list case, the expired session, the archived row) | flows whose precondition is a data state | minutes |
+| **Stratified sample** (a seeded, stratified subset of the real table with its edge rows and the reported rows, materialized in a warehouse sandbox — `scripts/data_dictionary/sampling.py`) | real data at a fraction of the volume: the claim's own predicate stratified, NULLs / boundaries / duplicates / the named rows included, whole groups kept for aggregate-level changes | data transformations, data defects, "does this change alter these strata" | seconds–minutes |
 | **Dev environment** (the deployed dev instance, real backend, real DB / queue / cache) | the deployed topology — real networking, auth proxy, secrets, cross-service calls | front-to-back integration, deploy-time behaviour, anything the deployed topology alone produces | minutes per cycle |
 | **Production (read-only checks)** | real users' data shape, real traffic, real third parties | a `@prod-safe` smoke check of a shipped change — and NOTHING that mutates (`test-prod-safety-classifier`) | a user decision, never automatic |
+
+A **stratified sample** is the cheapest faithful venue for a data claim whenever the full transformation takes minutes and the dictionary shows the table is large: it exhibits the claim's failure on real rows (the reported ones included) in seconds, and the full run stays the gate it confirms (`data-eng-pipeline` `## Sample-first iteration (v4.0.0)`; the rule in full is `skills/data-eng-pipeline/references/sample-first.md`).
 
 Production is never a superior oracle. Nothing in CT6 states that production verifies something dev cannot; it verifies the same things later, at more risk, with fewer levers. It is the LAST venue, entered only on the user's explicit decision, and only for read-only checks.
 

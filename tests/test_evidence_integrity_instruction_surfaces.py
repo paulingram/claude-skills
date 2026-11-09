@@ -21,6 +21,7 @@ Assertions are phrase-level, not byte-level: they pin the load-bearing content
 (what an agent must do) and leave the surrounding prose free to be rewritten.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -38,7 +39,7 @@ TASK_REVIEWER_AGENT = ("agents", "task-reviewer.md")
 
 
 def _read(plugin_root: Path, parts) -> str:
-    return (plugin_root.joinpath(*parts)).read_text(encoding="utf-8")
+    return surface_read((plugin_root.joinpath(*parts)))
 
 
 def _section(text: str, heading: str) -> str:
@@ -412,7 +413,7 @@ def test_pipeline_body_checks_declared_gates_before_ship(plugin_root: Path, skil
     """Each pipeline's ship-adjacent phase text requires the declared-gates registry
     to be satisfied before the commit / merge proceeds, referencing the canonical
     section rather than re-explaining the rule."""
-    body = (plugin_root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface(skill, root=plugin_root)
     assert "declared-gates.json" in body, (
         f"{skill}: ship text does not name the declared-gates registry"
     )
@@ -448,7 +449,7 @@ def test_pipeline_body_declared_gates_text_is_outside_the_compiled_fence(
 ) -> None:
     """The ship reference is hand-authored body text — it must NOT sit inside a
     ct6:block fence, whose interior belongs to the compilers."""
-    lines = (plugin_root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8").split("\n")
+    lines = skill_surface(skill, root=plugin_root).split("\n")
     inside = False
     for line in lines:
         stripped = line.strip()
@@ -564,7 +565,7 @@ def test_unilateral_override_carries_no_stale_ordinal(plugin_root: Path, rel: st
     """B4 — two tools cannot both be 'the 21st Layer 3 tool'. verify-check-can-fail
     genuinely is the 21st; the unilateral-override sites must name their tool
     without an ordinal."""
-    text = (plugin_root / rel).read_text(encoding="utf-8")
+    text = surface_read(plugin_root / rel)
     offenders = []
     for i, line in enumerate(text.split("\n"), 1):
         low = line.lower()
@@ -750,7 +751,7 @@ def test_vao_package_docstring_is_current(plugin_root: Path) -> None:
     doc = (plugin_root / "hooks" / "vao" / "__init__.py").read_text(encoding="utf-8")
     assert "22 ``verify_*`` tools" not in doc, "package docstring still says 22 tools"
     assert "23 ``verify_*`` tools" not in doc, "package docstring still says 23 tools (v3.66.0 added the 24th)"
-    assert "24 ``verify_*`` tools" in doc
+    assert "26 ``verify_*`` tools" in doc
     for mod in ("check_integrity", "deferral_b", "mention_context", "frontend_e2e",
                 "claim_binding", "diagnosis"):
         assert mod in doc, f"package docstring omits the {mod} module"
@@ -761,7 +762,7 @@ def test_vao_package_docstring_is_current(plugin_root: Path) -> None:
     names = set()
     for p in (plugin_root / "hooks" / "vao").glob("*.py"):
         names |= set(_re.findall(r"^def (verify_[a-z_]+)", p.read_text(encoding="utf-8"), _re.M))
-    assert len(names) == 24, f"package defines {len(names)} verify_* tools, docstring says 24"
+    assert len(names) == 26, f"package defines {len(names)} verify_* tools, docstring says 24"
 
 
 def test_conventions_documents_verdict_hygiene(plugin_root: Path) -> None:

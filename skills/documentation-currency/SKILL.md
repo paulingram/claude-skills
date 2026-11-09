@@ -1,6 +1,7 @@
 ---
 name: documentation-currency
 description: Use when the architect-team pipeline reaches Phase 8 and is about to commit and push — the documentation the project depends on (the maps CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP, plus the project README, CHANGELOG, and CLAUDE.md / AGENTS.md) must be brought current with the shipped change and then independently reviewed before the GitHub push. Also use on demand when documentation is suspected stale. Defines the documentation inventory, what "current" means for each doc, the Phase 8 update-then-audit flow, and the producer/checker split — the orchestrator updates, the system-architect independently audits.
+user-invocable: false
 ---
 
 # Documentation Currency — the docs reflect the code, verified, before every push

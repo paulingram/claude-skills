@@ -6,6 +6,7 @@ generator (round-tripped through the assessor), plus the CLI and the skill
 contract surface.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -157,7 +158,7 @@ def test_cli_generate(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def test_skill_present_and_documents_cmd() -> None:
-    body = (REPO_ROOT / "skills" / "claude-md-efficiency" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("claude-md-efficiency")
     assert body.startswith("---")
     assert "claude_md_efficiency.py" in body
     assert "mempalace-integration" in body  # CMD-1 / CMD-4a reuse

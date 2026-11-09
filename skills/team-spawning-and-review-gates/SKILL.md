@@ -1,6 +1,7 @@
 ---
 name: team-spawning-and-review-gates
 description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v7 — the teammate's 17-field self-review including the 5 Verified Agent Output fields, plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
+user-invocable: false
 ---
 
 # Team Spawning & Review Gates
@@ -15,59 +16,13 @@ You are a long-lived teammate in an architect-team run — not a one-shot subage
 
 ## Non-overlapping file scopes
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/non-overlapping-file-scopes.md` and execute it in full. Do not work from memory.
+
 Two teammates MUST NEVER edit the same file. Period.
 
-### How to assign scopes
-
-1. Read `tasks.md` and the coverage map.
-2. For each task, list every file it will create or modify (use the design.md's Reuse Decisions as the canonical list).
-3. Group tasks by overlapping file sets. Each non-overlapping group becomes one teammate's scope.
-4. If a single task forces overlap (e.g., a contract file that backend writes and frontend consumes), assign the task to ONE owner and have the other consume the result — see "Direct messaging" below.
-
-### What to put in the teammate's brief
-
-**First line (MANDATORY, v3.30.0): the run-continuity teammate token.** Every teams-mode spawn brief AND every subagents-mode dispatch prompt begins with the literal line:
-
-```
-[CT6-TEAMMATE <teammate-name> RUN <run-id-or-slug>]
-```
-
-The `CT6-TEAMMATE` token is how the run-continuity enforcement (`common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`) recognizes a teammate session and stands down — teammates never invoke Skills, so without the token the PreToolUse sticky arm could block the run's own workers. A brief that omits the token risks its teammate being told to resume the pipeline instead of executing its slice; the Lead re-issues the brief with the token if a teammate reports that block.
-
-Then the brief fields:
-
-- `task_ids`: the exact task IDs from `tasks.md` it owns.
-- `files_owned`: the explicit list of files it may write. Anything not in this list is read-only for this teammate.
-- `files_consumed`: files it reads but does not write (with the owning teammate's name where relevant).
-- `acceptance_criteria`: verbatim from the coverage map.
-- `relevant_codebase_map_sections`: paths into CODEBASE_MAP.md.
-- `reuse_decisions`: the relevant entries from `design.md`'s Reuse Decisions section.
-- `plan_approval_mode`: `true` if any of the triggers below apply.
-- `vao_adversarial_role`: the adversarial-reviewer shape paired with this teammate (see the selection rules below).
-
-**Every brief MUST carry the message-payload rule** (see `## Direct teammate-to-teammate messaging` → `### Message payload discipline`). A teammate that does not know `SendMessage` is user-visible will route its evidence through it by default, and the human running the pipeline pays for that in attention. State it in the brief in one line — *escalate through `SendMessage` with the decision and the single fact that forces it, plus the path to your evidence file; put measurement in the file, not the message; never send a completion report — your final report already reaches the Lead.* The escalation obligation itself is unchanged and outranks brevity: a brief that is wrong, or an approach that cannot work, is still reported rather than absorbed.
-
-### Adversarial-reviewer shape selection (v2.0.0 + v3.10.0 `security-hunter`)
-
-Every Phase 3 teammate is paired with an `adversarial-reviewer` whose `vao_adversarial_role` is chosen by the task shape (the agent body `agents/adversarial-reviewer.md` documents the six shapes). The pairing rules:
-
-| Task shape | `vao_adversarial_role`(s) to spawn |
-|---|---|
-| `parity-verb` (match / rebuild / mirror / parity / replicate) | `oracle-divergence-hunter` |
-| `backend-dep` (the slice depends on a backend endpoint / data) | **BOTH `fake-data-hunter` AND `security-hunter`** |
-| `dynamic-value` (renders per-user / per-record values) | `hardcoded-literal-hunter` |
-| `shared-tree` (always-on, every teammate) | `git-discipline-hunter` |
-| any other | `general-anti-pattern-hunter` |
-
-**`security-hunter` trigger rules (v3.10.0) — mandatory when ANY holds:**
-
-1. The task is a **`backend-dep`** shape → spawn BOTH `fake-data-hunter` AND `security-hunter` (a backend-touching slice is exactly where authz / injection / secret defects land).
-2. The teammate's diff **touches `auth/` or any security-sensitive path** (auth, session, crypto, permission, RBAC, token, password, secret) → `security-hunter` is mandatory regardless of task shape.
-3. The change **adds a third-party dependency** (a new entry in any package manifest) → `security-hunter` is mandatory; it checks the dependency-addition justification (a Reuse Decision + a stated reason).
-
-A confirmed `security-hunter` finding is routed as a solution requirement with `origin.kind: "security-finding"` (see `## Solution Requirements`); it is NOT a Layer 3 `verify_*` verdict severity.
-
 ## CDLG overlap — shared callees, not just shared files (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-01)
+
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/cdlg-overlap-shared-callees-not-just-shared-files-lineage-ro.md` and execute it in full. Do not work from memory.
 
 File-path scoping (above) catches the case where two teammates edit the SAME
 file. It does NOT catch the more subtle case the lineage roadmap surfaced: two
@@ -76,64 +31,11 @@ transitively calls a function that item B's slice also touches. Dispatching thos
 two in parallel is a hidden overlap: a change A makes to the shared callee's
 behavior can break B even though their `files_owned` sets are disjoint.
 
-When a Code & Data Lineage Graph (CDLG) exists for the work in scope (built by
-`endpoint-trace-mapping` into `lineage-graph.json`), the parallel-execution graph
-+ the `hooks/locks.py` lock layer consult **CDLG overlap as an ADDITIONAL signal
-alongside the file-path check** — never in place of it. The two signals compose:
-a pair of work-items is safe to run in parallel only when they are disjoint on
-BOTH file scope AND call-graph reachability.
-
-The call-graph overlap verdict is the stdlib helper `cdlg_overlap(graph,
-funcs_a, funcs_b)` in `hooks/locks.py`:
-
-- Inputs: the CDLG (`lineage-graph.json` shape) and the two work-items' `func://`
-  node sets (the functions each slice owns/touches).
-- Rule (REQ-PARA-01): two items overlap iff they **share a `func://` node** OR
-  **one item's function set reaches — via `calls` edges in the graph — a function
-  in the other's set**. The reachability walk reuses the CDLG's `calls`-edge
-  vocabulary from `hooks/lineage_graph.py` (the `REACHABILITY_EDGE_KINDS`
-  concept), so the lock layer consumes the lineage graph rather than re-deriving
-  the edge model.
-- Output: `{"overlap": bool, "shared_functions": [...], "shared_subtree": [...]}`
-  — `shared_functions` names the directly-shared nodes, `shared_subtree` names the
-  transitively-reached shared nodes (the callee two items edit different files but
-  both depend on). A non-empty either list means the orchestrator serializes the
-  two items (or assigns the shared callee to ONE owner and has the other consume
-  the result, exactly as the file-overlap rule prescribes).
-
-So the headline rule becomes: **two items that edit different files but share a
-hot callee are flagged as overlapping** and are NOT dispatched in true parallel —
-closing the file-path-only blind spot.
-
 ## Canonical front→back traversal (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-02)
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/canonical-front-back-traversal-lineage-roadmap-p4-req-cdl-09.md` and execute it in full. Do not work from memory.
+
 The CDLG also enables a single navigable traversal that chains the whole stack:
-
-```
-UI element → endpoint → function tree → data_asset
-```
-
-- **UI element → endpoint** is the inter-service seam — the REQ-DOC-07
-  `serves_route` edge resolved by route/contract matching (NOT call-graph
-  traversal), reusing `INTEGRATION_MAP` + the user-confirmed
-  `INTERACTION_INTUITION_MAP` as priors. This is the REQ-DOC-07 seam the
-  traversal is **built on**: each `serves_route` edge carries its `match_basis`
-  (route pattern / contract) + a `confidence`, and unresolved seams are surfaced,
-  never silently bridged.
-- **endpoint → function tree** is the intra-service call-hierarchy: the `serves`
-  edge (endpoint → handler) and the recursive `calls` edges
-  (`endpoint-trace-mapping`'s nested call-trees).
-- **function tree → data_asset** is the asset-lineage layer: the `reads` /
-  `writes` / `modifies` / `originates` edges from a `func://` node to an
-  `asset://` node (`data-lineage-mapping`).
-
-Walking that chain on the CDLG produces one validated traversal from a UI control
-(an `INTERACTION_INTUITION_MAP` element) all the way to the `data_asset` it
-ultimately reads or writes — for at least the bug subset — with the FE→BE hop
-carrying its match basis + confidence (REQ-PARA-02). This is the "canonical
-front→back map" the roadmap's C5.b calls for: the `fetch()` → handler edge is
-finally resolved to a function, so the traversal does not stop at the endpoint
-boundary.
 
 ## Plan-approval-mode triggers (any one)
 
@@ -150,138 +52,27 @@ If a teammate's scope touches ANY of:
 
 ## Direct teammate-to-teammate messaging
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/direct-teammate-to-teammate-messaging.md` and execute it in full. Do not work from memory.
+
 When two teammates need to coordinate (e.g., backend defines a contract, frontend consumes it):
-
-- The owning teammate publishes its result to a known path (e.g., the contract file, plus a brief in `.architect-team/handoffs/<owner>-to-<consumer>.md`).
-- The consuming teammate is told in its brief: "Wait for the handoff from `<owner>` at `<path>` before starting tasks T-X, T-Y."
-- Every cross-team message MUST be written to `.architect-team/handoffs/<from>-to-<to>-<timestamp>.md` — this is the primary coordination primitive and survives across sessions.
-- If the harness exposes a teammate-messaging mechanism (e.g., `SendMessage`), use it as an optional shortcut in ADDITION to (not in place of) the handoff file. The orchestrator does NOT proxy.
-
-### Message payload discipline — the visible channel carries the decision, the file carries the evidence
-
-**`SendMessage` is rendered into the USER's transcript; a final report is not.** That asymmetry is the whole rule. A subagent's return value reaches the Lead privately, but every `SendMessage` — teammate-to-teammate, teammate-to-Lead, escalation — is surfaced to the human watching the run. So the channel's cost is the user's attention, and its payload must be priced accordingly.
-
-**Send the decision and the one fact that forces it. Put everything else in the file.** The handoff / evidence / verdict file is already the primary primitive (above); it is also where measurement belongs. A message that carries the decision AND its full derivation pays the visible cost twice and buries the ask.
-
-| Send in the message | Write to the file, cite by path |
-|---|---|
-| The decision, refusal, or question — stated first, in one sentence | Tables, matrices, per-arm hashes, row counts, byte ledgers |
-| The single number or fact that forces it | The full derivation, the alternatives considered, the search log |
-| What you need from the reader, and what is blocked until you get it | Test output, command transcripts, per-file diffs |
-| The path to the evidence | Anything the reader does not need in order to answer |
-
-**Do NOT use `SendMessage` for a completion report.** "I finished, here is what I did" belongs in your final report and your evidence file — both already reach the Lead. Reserve the visible channel for what genuinely needs a reader: an escalation, a refusal, a blocking question, a correction to the brief, a cross-team handoff the consumer is waiting on.
-
-This does not weaken escalation. **A teammate that discovers its brief is wrong, or that a mandated approach cannot work, MUST still say so rather than absorbing it silently** — that is the `docs/ETHOS.md` `## Evidence integrity` obligation and it outranks brevity. Say it in three lines with a path, not thirty with a table.
-
-Same rule for the orchestrator writing back to a teammate: a review-gate failure sends the verdict, the one measurement that proves it, and the path to the rest — not the whole reproduction.
 
 ## Reading teammate state
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/reading-teammate-state.md` and execute it in full. Do not work from memory.
+
 An orchestrator coordinating parallel teammates is constantly tempted to convert *absence of a report* into *a finding about the teammate*. It is not one. A teammate is in exactly one of three KNOWABLE states, and only two of them support a conclusion:
-
-| State | How you know it | What it supports |
-|---|---|---|
-| **(a) Reported** | A handoff file under `.architect-team/handoffs/`, a review-evidence file under `.architect-team/reviews/`, or the teammate's own dispatch report is on disk | Any claim the artifact substantiates — including "it left this broken", quoting the artifact |
-| **(b) Idle-event fired** | The `SubagentStop` / teammate-idle hook ran for that teammate (its output is the record) | "It went idle with work outstanding", quoting the hook's structured gap list |
-| **(c) In-flight** | Neither (a) nor (b) has happened yet | **Nothing.** Not "stalled", not "failed", not "stuck", not "did no work" |
-
-**A claim that a teammate stalled, failed, went idle, or left work broken MUST cite (a) or (b); state (c) supports no conclusion.** In-flight is indistinguishable from a teammate that is mid-edit, mid-tool-call, or whose report crossed yours in flight — silence is not a finding. If you need to know, ASK the teammate directly (`SendMessage`) and wait for the answer; the answer is then evidence of kind (a). Reporting a state-(c) teammate as stalled to the user is the *silence conversion* anti-pattern in `docs/ETHOS.md` `## Evidence integrity`.
-
-**Corollary — the mid-edit read.** A suite run on the SHARED working tree while any teammate is in-flight on intersecting scope is a MID-EDIT READ: it samples a tree that is half-way between one teammate's implementation change and its test/expectation update. Red from such a run is **unattributable** until the owner reports — it may be the owner's transient state, not a defect, and it is never attributable to a DIFFERENT teammate whose files the run also swept. Options, in order: scope the run to files no in-flight teammate owns (`git diff $BASELINE_SHA -- <files>` tells you who owns what); wait for the owner's state-(a) report; or run and record the result as *provisional, pending the owner's report* — never as a finding against a named teammate. The non-overlapping file-scope rule at the top of this skill is what makes the scoped option available; the baseline-SHA discipline is what makes it cheap.
 
 ## Review-gate evidence file
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/review-gate-evidence-file.md` and execute it in full. Do not work from memory.
+
 Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
-
-The teammate writes this BEFORE its `TaskUpdate` flips the task to `completed`. The `PostToolUse(TaskUpdate)` hook reads it and exits 2 (blocks completion) if it's missing or any field is invalid.
-
-The 17 top-level review fields are the teammate's OWN **self-review** — a cheap first pass that catches the obvious. They do NOT gate on their own: the `independent_review` block (added in v5) is the verdict of an independent `task-reviewer` agent, and the hook requires it present with `reviewer != teammate` and `verdict == "pass"`. See "## Independent review — the task-reviewer" below.
-
-Schema (v7 — v2.0.0 added the 5 required Verified Agent Output fields `oracle_match_review` / `baseline_clean_review` / `no_fake_data_review` / `adversarial_review` / `skill_invocation_audit`, each accepting either the `pass`/`n/a`/`fail` string OR a `{verdict, verdict_path}` dict citing the on-disk Layer-3 / Layer-6 tool verdict; v0.9.19 added the required `ui_interaction_review` field + optional `ui_interaction_review_note`; v0.9.13 added the required `independent_review` block — an independent task-reviewer's verdict, so the gate cannot pass on self-attestation; v0.9.5 added `integration_testing_review` + optional `integration_testing_review_note`; v0.9.0 added `test_completeness_review` + optional `test_completeness_review_note`; v0.5.0 added `visual_fidelity_review` + optional `visual_fidelity_review_note`). Ground truth is `hooks/review_evidence_schema.py` (`SCHEMA_VERSION = 7`, 17 members in `REQUIRED_EVIDENCE_FIELDS`, 5 `OPTIONAL_VAO_FIELDS`):
-
-```json
-{
-  "task_id": "T-3",
-  "teammate": "backend-auth",
-  "spec_review": "pass",
-  "quality_review": "pass",
-  "real_not_stubbed": true,
-  "tests": { "added": 4, "passing": 4 },
-  "demo_artifact": "curl -s localhost:8000/auth/login -d '{...}' | jq",
-  "files_changed": ["backend/auth.py", "tests/test_auth.py"],
-  "reuse_compliance": "ok",
-  "visual_fidelity_review": "n/a",
-  "visual_fidelity_review_note": "backend-only slice; no DESIGN_MAP",
-  "test_completeness_review": "pass",
-  "integration_testing_review": "pass",
-  "ui_interaction_review": "n/a",
-  "ui_interaction_review_note": "no frontend interactive surface in this slice",
-  "oracle_match_review": "n/a",
-  "baseline_clean_review": { "verdict": "pass", "verdict_path": ".architect-team/vao-verdicts/<run>-baseline-clean.json" },
-  "no_fake_data_review": "n/a",
-  "adversarial_review": { "verdict": "pass", "verdict_path": ".architect-team/vao-verdicts/<run>-adversarial.json" },
-  "skill_invocation_audit": { "verdict": "pass", "verdict_path": ".architect-team/vao-verdicts/<run>-skill-invocation-audit.json" },
-  "independent_review": {
-    "reviewer": "task-reviewer-1",
-    "verdict": "pass",
-    "spec_review": "pass",
-    "quality_review": "pass",
-    "real_not_stubbed": true,
-    "reuse_compliance": "ok",
-    "reviewed_at": "2026-06-09T00:00:00Z"
-  }
-}
-```
-
-The 5 VAO fields accept BOTH forms shown above: the legacy `pass`/`n/a`/`fail` string (`oracle_match_review`, `no_fake_data_review` above) AND the canonical `{verdict, verdict_path}` dict citing the on-disk tool verdict (`baseline_clean_review`, `adversarial_review`, `skill_invocation_audit` above). The 5 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`) are present-only-when-applicable — `interactions_honored_review` only when the run's oracle spec carries a non-empty `interactions[]`, `live_verification_review` only when the evidence claims "verified live", `appearance_scope_review` (v3.14.0) only when the slice's diff touches frontend presentation surface (styling files, components, templates, routes, assets), and `check_integrity_review` (v3.47.0) only when the slice's diff adds test files or cites a verification command, citing the `verify-check-can-fail` verdict, and `claim_instrument_binding_review` (v3.59.0) only when the slice makes a verification CLAIM, citing the `verify-claim-instrument-binding` verdict — the borrowed green, where a real check's real green is lent to a claim that check never measured — so they are omitted from this minimal example.
-
-The 17 top-level fields are the teammate's self-review. The `independent_review` block is written by the `task-reviewer` agent, NOT the teammate.
-
-Required field validity:
-
-- `spec_review` and `quality_review` must be `"pass"`.
-- `real_not_stubbed` must be `true`.
-- `tests.added` must equal `tests.passing`.
-- `tests.added` must be ≥ 1.
-- `demo_artifact` must be a non-empty string.
-- `files_changed` must be a non-empty array.
-- `reuse_compliance` must be `"ok"`.
-- `visual_fidelity_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — drift / gaps detected by `visual-fidelity-reconciliation` MUST be escalated via handoff, not marked complete. Re-run reconciliation after the architect-routed fix and only mark complete when verdict is `"pass"`.
-- `visual_fidelity_review_note` is required (non-empty string) WHEN `visual_fidelity_review == "n/a"`. It must explain which branch applies (no frontend touched, OR no DESIGN_MAP.md exists for the codebase). Not required when value is `"pass"` (the reconciliation JSON paths carry the evidence).
-- `test_completeness_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — test-kind completeness gaps detected by `test-completeness-verifier` MUST be escalated via the SR auto-spawn (`origin.kind: "test-completeness-failure"`), not marked complete. The verifier writes the SR automatically; wait for the orchestrator to re-spawn the fix loop, then re-run the verifier to reach `"pass"`.
-- `test_completeness_review_note` is required (non-empty string) WHEN `test_completeness_review == "n/a"`. It must explain which kind(s) are inapplicable and why (e.g., backend-only slice so Playwright is n/a, OR no testable pure-logic surface for unit tests). Not required when value is `"pass"` (the verifier verdict JSON carries the evidence).
-- `integration_testing_review` must be one of `"pass"` / `"n/a"` / `"fail"`. The hook BLOCKS `"fail"` — a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (`page.route` happy-path stubs, MSW, an in-memory fake API server, hardcoded fixtures) instead of the real running backend MUST be re-authored against the real backend, or escalated via the SR auto-spawn (`origin.kind: "integration-testing-failure"`), not marked complete. Front-to-back integration testing is the DEFAULT for every `both`-layer feature per `playwright-user-flows`'s "Real backend by default" discipline — it is overridden only by an explicit authorization in the requirements folder.
-- `integration_testing_review_note` is required (non-empty string) WHEN `integration_testing_review == "n/a"`. It must give ONE of three legitimate reasons: (1) the slice has no cross-layer surface (pure static frontend with no backend, OR backend-only slice with no frontend); (2) Phase 3 per-team gate where the counterpart layer is not yet integrated — the note says the integration test is DEFERRED TO PHASE 5 (a debt Phase 5 must settle against the real backend; `n/a` is never valid for a `both`-layer slice at Phase 5); (3) the requirements folder explicitly authorizes isolated / mock-backed testing for this requirement — the note quotes the authorization. Not required when value is `"pass"` (the verifier verdict JSON + the demo artifact's real-backend reference carry the evidence).
-- `ui_interaction_review` must be one of `"pass"` / `"n/a"` / `"fail"` (added in v0.9.19 at schema v6; the current schema is v7). It is the gate that every interactive element the slice ships is genuinely user-flow-tested (a real `page.click` / `page.fill` path, not a `page.request.*` direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamically-bound value — or a user-confirmed stub. It gates a genuinely orthogonal axis to `integration_testing_review` (real-interaction-vs-fake-interaction, not real-backend-vs-mock — a test can be real-backend + fake-interaction, or mock-backed + real-interaction). The hook BLOCKS `"fail"` — an unwired control, an unconfirmed placeholder page, or a hardcoded value the context shows should be dynamically bound, detected by the `interaction-completeness` team, MUST be escalated via a solution requirement (`origin.kind: "unwired-control"` / `"placeholder-page"` / `"hardcoded-dynamic-value"`), not marked complete. Re-run the interaction-completeness team after the routed fix lands and only mark complete when the verdict is `"pass"`.
-- `ui_interaction_review_note` is required (non-empty string) WHEN `ui_interaction_review == "n/a"`. It must explain why — the slice has no UI/frontend interactive surface (no interactive elements, no pages / screens / routes — e.g., a backend-only or pure-infra slice). Not required when value is `"pass"` (the interaction-completeness team's converged map carries the evidence).
-- `appearance_scope_review` (v3.14.0 — OPTIONAL; validated when present) must be one of `"pass"` / `"n/a"` / `"fail"`, string OR `{verdict, verdict_path}` dict shape. Required whenever the slice's diff touches frontend presentation surface; `"pass"` means every appearance-affecting delta (visual styling, UI-surface additions/removals/relocations, displayed copy the requirement does not name, asset swaps) traces to one of the three sanctioned mandate sources (requirement text / spec restoration / mandated-capability minimum), an `approved` appearance proposal, or — innovate mode — a logged `implemented-innovate` proposals entry. The hook BLOCKS `"fail"` — revert the unsolicited delta or route it as a proposal per `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`; do not mark complete. `appearance_scope_review_note` is required (non-empty string) WHEN the value is `"n/a"` (the slice touches no frontend presentation surface).
-- `independent_review` is a REQUIRED object — the verdict of the independent `task-reviewer` agent (not the teammate). The hook blocks evidence with no `independent_review` block. Its required sub-fields:
-  - `reviewer` — a non-empty string naming the reviewing agent. It **MUST NOT equal the top-level `teammate` field** — the producer cannot be its own checker. The hook blocks `reviewer == teammate`.
-  - `verdict` — must be `"pass"`. A non-`"pass"` verdict means the `task-reviewer` found the task incomplete; the hook blocks it, and the teammate re-engages on the reviewer's per-gap notes (this is a normal Phase 3 review-gate failure — no SR, no diagnostic-research routing).
-  - `spec_review` and `quality_review` — must be `"pass"`; `real_not_stubbed` — must be `true`; `reuse_compliance` — must be `"ok"`. These are the reviewer's INDEPENDENT findings on the same checks, made after reading the teammate's diff.
-  - `reviewed_at` — a non-empty string (ISO 8601 UTC).
-  - `criteria_findings`, `checks_run`, `notes` are recommended evidence fields (per-criterion trace, the commands the reviewer ran, a summary) — the hook does not require them, but a `task-reviewer` always writes them so the verdict is auditable.
-
-Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry. A failing `independent_review` means re-engage on the reviewer's notes; once fixed, the `task-reviewer` re-reviews and re-writes the block.
-
-**Gates the orchestrator names during the run are recorded, not remembered.** Any condition stated as gating ship / deploy / merge / completion — in a spawn brief, a phase decision, or user-facing prose — is appended to `<workspace>/.architect-team/declared-gates.json` when it is declared and carries `satisfied_at` + an existing non-empty `evidence_path` before the run may complete, per `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`. The Phase-8 / B8 / M7 ship step reads the registry first, and the `_audit_declared_gates` Stop arm blocks on an unsatisfied entry quoting the gate's own words.
 
 ## Red-first — a new guard is not evidence until it has been shown to fail
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/red-first-a-new-guard-is-not-evidence-until-it-has-been-show.md` and execute it in full. Do not work from memory.
+
 `tests.added` and `tests.passing` say a test exists and is green. Neither says the test can ever be anything else. A test that asserts something already true, targets a path the runner never collects, or exercises a code path the change did not touch is green on day one and green after the feature is deleted — it is a green light wired to nothing. This is the same rule the bug-fix pipeline has always enforced (the reproduction artifact must reproduce BEFORE it regresses); it applies to every NEW test in every pipeline, not only to bug reproductions.
-
-**For every new test, capture its failure before you trust its pass.** There are exactly three acceptable sources of that red run — name which one you used:
-
-1. **TDD red** (`red_source: "tdd-red"`). The test was written and run BEFORE the implementation existed, and its failure output was captured. This is the default and the cheapest; it is also the only one available for a genuinely new capability whose pre-state cannot be built.
-2. **Pre-change checkout** (`red_source: "pre-change-checkout"`). The test was run against the run's baseline — `git stash`-free, via the orchestrator-provided `baseline_sha` (a `git worktree add` at that SHA, or a `git show $BASELINE_SHA:<path>` reconstruction) — and failed there. Use this when the test was authored after the implementation landed.
-3. **Assertion inversion / mutation** (`red_source: "assertion-inversion"`). The assertion was deliberately inverted, or the line under test deliberately broken, the test was run and observed to FAIL, and the mutation was reverted. Use this when the pre-change state cannot build or the test cannot run against it — it is the fallback that keeps the rule satisfiable, not a shortcut around 1 and 2.
-
-Those three quoted tokens are the only values `verify-check-can-fail` recognizes in a `red_run` block's `red_source`. The field is OPTIONAL — omitting it leaves a minimal artifact valid — but an UNRECOGNIZED value is itself a finding (`new-guard-never-shown-red`), because a red source the tool cannot name is a red source nobody can audit. Name yours.
-
-**Cite the captured failure output in the review evidence** — the artifact path plus which of the three sources produced it. A red run you ran but did not capture is indistinguishable from one you did not run. The deterministic gate is the Layer-3 `verify-check-can-fail` tool (see `verified-agent-output`): a diff-added test file with no cited red run is `new-guard-never-shown-red`, and a cited red-run output containing no failure signature is `red-run-not-red`. Both name the exact test file, so the fix is always concrete.
-
-The same discipline runs one level up, at the CHECK: capture the output of every verification command and read it. `collected 0 items`, `no tests found`, `No test files found`, and a `tsc --noEmit` against a solution-shaped `tsconfig.json` all exit 0 while verifying nothing — a `vacuous-check`. An exit code is not a result.
 
 ## Teammate manifest
 
@@ -306,248 +97,37 @@ The hook checks that for every `task_id` in `expected_review_evidence`, there's 
 
 ## Baseline SHA capture
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/baseline-sha-capture.md` and execute it in full. Do not work from memory.
+
 The orchestrator captures a single immutable SHA reference at run start and includes it in every teammate's spawn brief. Teammates use it to diff their own work against the run's baseline WITHOUT touching shared git state — no `git stash`, no `git reset`, no race.
-
-This sub-section documents the orchestrator-side mechanics. The forbidden-operations list and the failure-mode worked example live in `common-pipeline-conventions` `## Teammate git discipline` — read that first if you haven't.
-
-### When the capture runs
-
-At pipeline entry, BEFORE the first teammate is dispatched (so every teammate's spawn brief can carry the captured value):
-
-- **architect-team-pipeline:** Phase −2 (Triage & Routing) prelude, alongside the dispatch-mode selection. The capture is one of the first orchestrator actions after the dispatch-mode banner prints.
-- **bug-fix-pipeline:** Phase B−1 entry, before B0 (intake).
-- **mini-architect-team-pipeline:** Phase M0 entry, before M1 (read prompt + brief).
-
-The orchestrator runs `git rev-parse HEAD` once and records the SHA. Re-running the capture mid-run is forbidden — the baseline is the run-start anchor; if it slides, the teammates' diffs become meaningless.
-
-### Capture command
-
-```bash
-BASELINE_SHA=$(git rev-parse HEAD)
-```
-
-The same command resolves in any worktree the run might be executing in (the v1.2.0 auto-worktree, the main checkout, or a `--no-worktree` invocation). `git rev-parse HEAD` returns the SHA of the current branch's tip; it is a read-only probe and safe to call from any state.
-
-### Persisting the captured value
-
-The orchestrator records the SHA in two places:
-
-1. **`<workspace>/.architect-team/intake-state.json`** as the `baseline_sha` field — the same file that already holds the `dispatch_mode` decision (v1.0.0) and the run's other startup metadata.
-2. **Every teammate's spawn brief** at `<workspace>/.architect-team/teammates/<teammate>.json` (the v0.9.13 teammate manifest schema). The brief gains a `baseline_sha` field carrying the same value verbatim.
-
-The teammate manifest schema (from `## Teammate manifest` above) is extended to carry the `baseline_sha` — and, beside it, the `spec_fingerprint` recording the SPEC state the teammate was briefed against:
-
-```json
-{
-  "schema_version": 1,
-  "teammate": "backend-auth",
-  "spawned_at": "<ISO 8601 UTC>",
-  "task_ids": ["T-10", "T-11", "T-12"],
-  "files_owned": ["src/auth/login.py", "tests/auth/test_login.py", "..."],
-  "expected_review_evidence": ["T-10", "T-11", "T-12"],
-  "baseline_sha": "0a21702abc...def",
-  "spec_fingerprint": "3def77ec62e2...cda0"
-}
-```
-
-The teammate reads `baseline_sha` from its manifest at spawn and uses it for all baseline-diff verification within its tasks.
-
-**`spec_fingerprint` (additive).** The two fields are the same idea one axis apart: `baseline_sha` freezes the CODE the teammate started from; `spec_fingerprint` freezes the SPEC it was briefed against — a SHA-256 over the sorted (posix relative path, content) pairs of `openspec/changes/<active-slug>/`, computed by `hooks/spec_fingerprint.py` and written by the orchestrator at Phase 2 dispatch. The field is purely additive: a pre-upgrade manifest without it stays valid, and the `_audit_spec_currency` arm fails open when no manifest carries one. When the orchestrator amends an openspec artifact after dispatch, the fingerprint moves — and every teammate whose scope the amendment touches is owed a re-brief handoff plus an updated manifest fingerprint, per `common-pipeline-conventions` `## Spec currency discipline (mid-run) (v3.47.0)`. A teammate still working against a superseded fingerprint with no re-brief record is the failure that discipline exists to catch: two implementations built to two different readings of one line.
-
-### How teammates use it
-
-Teammates substitute baseline-SHA diffs for `git stash` everywhere they would have stashed:
-
-```bash
-# What have I changed in MY files since the run started?
-git diff $BASELINE_SHA -- <my-files>
-
-# What does the current head differ from baseline?
-git diff $BASELINE_SHA..HEAD
-
-# Which commits in this run touched my files?
-git log $BASELINE_SHA..HEAD --oneline -- <my-files>
-
-# Has another teammate's commit already landed in a file I depend on?
-git log $BASELINE_SHA..HEAD --oneline -- <upstream-file>
-```
-
-Each of these is a read-only operation on the shared git state. Two teammates running `git diff $BASELINE_SHA` concurrently cannot corrupt each other; the operation is idempotent and side-effect-free, the exact opposite of `git stash`.
-
-### What teammates MUST NOT do
-
-For the canonical forbidden-operations list (the 6 forbidden destructive git operations and the rationale for each), see `common-pipeline-conventions` `## Teammate git discipline`. The headline rule: no `git stash` / `git stash pop`, no `git reset --hard`, no `git rebase`, no `git commit --amend`, no `git checkout <other-branch>` / `git checkout .`, no `git clean -f`. The `baseline_sha` value the spawn brief carries is the alternative the orchestrator provides so teammates have a real way to verify their work without touching shared mutable state.
 
 ## Solution Requirements — auto-spawn the dev loop on any surfaced issue
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/solution-requirements-auto-spawn-the-dev-loop-on-any-surface.md` and execute it in full. Do not work from memory.
+
 Whenever an agent surfaces an issue during testing — a Playwright failure, an integration test failure, a live-dev-API regression, a visual-fidelity drift, an RCA product-bug verdict — the agent does NOT just write a handoff and wait. It ALSO writes a structured **solution requirement** that the orchestrator automatically picks up and feeds back into Phase 2 of the dev loop. The loop is closed: issue → solution requirement → fix team spawned → fix flows through Phase 2 → Phase 5 → original test re-runs → verdict pass → originating teammate's task unblocks.
-
-This converts "alert the user" into "fix the system." Alerts that don't trigger remediation are process failures; the discipline is to spawn the remediation, not log the alert.
-
-### File location
-
-```
-<cwd>/.architect-team/solution-requirements/SR-<short-id>-<ISO-8601-UTC>.json
-```
-
-where `<short-id>` is derived from the originating test ID, drifted screen+element, or affected requirement. Use `_safe_id()`-compatible characters only (no `/`, `\`, leading `.`, or `..`).
-
-### Schema
-
-```json
-{
-  "schema_version": 1,
-  "solution_id": "SR-test_user_completes_first_login-2026-05-18T15:00:00Z",
-  "created_at": "<ISO 8601 UTC>",
-  "origin": {
-    "kind": "playwright-failure" | "integration-test-failure" | "live-dev-regression" | "visual-fidelity-drift" | "rca-product-bug" | "visual-qa-audit" | "test-completeness-failure" | "integration-testing-failure" | "editability-gap" | "unwired-control" | "placeholder-page" | "hardcoded-dynamic-value" | "missing-api-for-frontend-element" | "security-finding" | "a11y-gap" | "spec-drift" | "cross-layer-backend-required" | "cross-layer-frontend-required" | "incomplete-implementation-scope-required" | "live-data-wiring-gap" | "affordance-coverage-gap",
-    "discovered_in": "Phase 3" | "Phase 5" | "/architect-team:visual-qa" | "ad-hoc",
-    "discovered_by": "<teammate-name or 'integration' or 'visual-qa'>",
-    "test_id": "<failing test ID, if applicable>",
-    "rca_artifact": "<path to rca/<test-id>-<ts>.json, if applicable>",
-    "reconciliation_artifact": "<path to visual-fidelity/<screen>-<viewport>-<ts>.json, if applicable>",
-    "handoff_artifact": "<path to .architect-team/handoffs/<from>-to-<to>-<ts>.md if also written>"
-  },
-  "problem_summary": "<one-paragraph user-facing description: what the user sees that they should not, in product terms not implementation terms>",
-  "expected_behavior": "<one-paragraph spec citation: what DESIGN_MAP / coverage-map / proposal.md says SHOULD happen>",
-  "evidence": [
-    "<path to log excerpt / screenshot / captured payload>",
-    "<file:line citation>",
-    "..."
-  ],
-  "affected_requirements": ["REQ-012", "REQ-019"],
-  "affected_screens": ["/login", "/dashboard"],
-  "scope": {
-    "files_to_change": ["src/auth/login.py", "src/auth/__init__.py"],
-    "files_to_test": ["tests/integration/test_login_dev_api.py", "tests/playwright/test_login.spec.ts"]
-  },
-  "acceptance_criteria": [
-    "POST /api/auth/login with a soft-deleted account returns 410 Gone with body {error: 'account_deactivated'}",
-    "POST /api/auth/login with a valid account returns 200 with body.user.name as a non-null string matching the DB row's name column",
-    "Existing test_user_completes_first_login passes against the live dev API",
-    "Visual-fidelity reconciliation for /dashboard's user-name banner reaches verdict perfect"
-  ],
-  "suggested_team": "backend-auth",
-  "blast_radius": "single endpoint; no schema changes; safe to deploy with the existing release window",
-  "priority": "critical" | "high" | "medium" | "low",
-  "status": "open"
-}
-```
-
-### Required field validity
-
-- `solution_id` must be unique and `_safe_id()`-compatible.
-- `origin.kind` must be one of the **canonical catalog** values. This is the OPEN canonical catalog (an `origin.kind` is added here when a new discipline introduces one — agents do NOT invent ad-hoc kinds, but the catalog itself grows with the framework):
-  - **Test-failure origins** (route through `diagnostic-research-team` first): `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `live-dev-regression`, `visual-fidelity-drift`, `rca-product-bug`, `visual-qa-audit`, `test-completeness-failure`.
-  - **Converged-map / known-shape origins** (spawn a fix team DIRECTLY): `editability-gap`, `unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`, `missing-api-for-frontend-element`, `live-data-wiring-gap`, `affordance-coverage-gap`, `a11y-gap`, `security-finding`, `spec-drift`.
-  - **Cross-layer / scope origins** (dispatched to the named layer/team): `cross-layer-backend-required`, `cross-layer-frontend-required`, `incomplete-implementation-scope-required`.
-  - **`security-finding` (v3.10.0)** is produced by the `security-hunter` adversarial shape (NOT a Layer 3 `verify_*` severity — it is a code-review finding routed as an SR). It spawns the owning team (backend for an authz / injection / deserialization / secret finding; the dependency-adding team for an unjustified dependency) DIRECTLY; the diagnosis is already complete in the finding's `{class, file, line, evidence, remediation}`.
-  - **`spec-drift`** is written when implementations disagree because the SPEC they read differed — one teammate briefed before an amendment and one after — or when code and spec disagree at review time. It spawns a fix team **DIRECTLY**: the diagnosis ("the spec line changed, and here is which fingerprint each side was briefed against") is already complete, so there is nothing for `diagnostic-research-team` to research. `spec-drift` is deliberately **NOT** a member of `TEST_FAILURE_ORIGINS` (`hooks/shared_rule_constants.py`) — adding it would attach a diagnostic-plan requirement to a diagnosis that is already written, and dilute the test-failure taxonomy with a non-test-failure. The SR's `evidence` cites both manifests' `spec_fingerprint` values and the amended artifact; its `acceptance_criteria` name the reading that wins. Where code and spec disagree, the code wins and the spec is amended in the same phase, per `common-pipeline-conventions` `## Spec currency discipline (mid-run) (v3.47.0)` — never "the readers misread".
-  - **`a11y-gap` (v3.10.0)** is produced by the `interaction-completeness` accessibility axis (sub-kinds `keyboard-unreachable` / `missing-accessible-name` / `axe-violation`); it spawns the owning frontend team DIRECTLY.
-- `editability-gap` SRs — and the three interaction-gap kinds (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) — spawn a fix team DIRECTLY; they do NOT route through `diagnostic-research-team`. The `editability-completeness` team's converged editable-surface map, and the `interaction-completeness` team's converged interaction map, each already name the exact attribute / control / page / value, the exact trace stage or gap kind, and the exact file; the diagnosis is complete, so no diagnostic research is needed. (The test-failure origins — `rca-product-bug`, `playwright-failure`, `integration-test-failure`, `integration-testing-failure`, `test-completeness-failure`, `visual-fidelity-drift` — DO route through `diagnostic-research-team` first; the converged-map-origin kinds do not. These spellings are canonical across the catalog, the runtime constant `hooks/shared_rule_constants.py::TEST_FAILURE_ORIGINS`, and the pipeline routing lists.)
-- **`missing-api-for-frontend-element` SRs (v1.7.0)** also spawn a fix team DIRECTLY — they do NOT route through `diagnostic-research-team` because this is not a test failure; it is a known-shape backend requirement. The frontend agent that authored the SR has already named the endpoint contract (method, path, request shape, response shape, error responses) in the `acceptance_criteria`. Routing: **the orchestrator dispatches the BACKEND agent FIRST** with the SR as input — the backend implements the endpoint per the SR's `acceptance_criteria`, surfaces the actual endpoint shape in its dispatch report, and marks the SR `resolved`. On backend completion, the orchestrator **re-dispatches the FRONTEND agent** with the SR marked `resolved` so the frontend can read the backend's dispatch report, confirm the shape matches its SR (or reconcile against a documented schema diff), and wire up the originally-paused UI element. The element's `interaction-completeness` classification flips from `pending-backend` to `endpoint-backed` once the wire-up lands. The pause-and-return cycle is the v1.7.0 alternative to faking / mocking / hardcoding / silently stubbing — see `common-pipeline-conventions` `## Frontend missing-API discipline` for the canonical rule.
-- `problem_summary` and `expected_behavior` are non-empty strings.
-- `evidence` is a non-empty array; an SR without evidence is an alert dressed as a requirement.
-- `affected_requirements` may be empty if the problem is in territory not yet covered by the coverage map — but then `affected_screens` (for visual) or `scope.files_to_change` MUST be non-empty so the orchestrator can attribute the fix.
-- `acceptance_criteria` MUST include the original failing test as one of its criteria. The fix is only complete when the test that surfaced the issue passes.
-- `suggested_team` is a hint; the orchestrator may route differently based on file ownership.
-- `priority` defaults to `"high"` for any RCA product-bug, `"critical"` for any visual-fidelity drift blocking a designed user journey, and per-case judgment otherwise.
-
-### Orchestrator pickup (architect-team-pipeline behavior)
-
-When the orchestrator resumes (after any subagent signals idle), it MUST:
-
-1. Walk `.architect-team/solution-requirements/*.json`.
-2. For each SR with `status: "open"`:
-   - If `affected_requirements` is non-empty → append entries to the active change's `coverage-map.json` referencing the SR ID; mark each entry `status: "in_progress"` once the fix team is spawned.
-   - If `affected_requirements` is empty → write a new coverage-map entry derived from `acceptance_criteria` + `affected_screens` + `scope`.
-   - Spawn a Phase 2 team per `team-spawning-and-review-gates` rules. The teammate's brief includes the SR ID, the SR file path, the acceptance criteria copied verbatim, the files_owned from `scope.files_to_change`, and a pointer to the original failing test that becomes the team's review-gate verification.
-   - Update SR `status: "in_progress"` and record the spawned teammate name in a new `spawned_teammate` field.
-3. The fix team works through Phase 3 (review gate) → Phase 4 (reconciliation if shared boundary) → Phase 5 (the original failing test re-runs as part of integration).
-4. When the originating test reaches verdict `pass`, the orchestrator marks the SR `status: "resolved"` with a `resolved_at` timestamp and a `resolved_by` commit SHA, then unblocks the ORIGINATING teammate's task. The originating teammate re-runs whatever they were waiting on (visual-fidelity reconciliation, RCA, etc.) and that loop now converges to pass.
-5. Master review (Phase 7) walks every SR and confirms each is `resolved` AND its acceptance criteria are reflected in a passing test in the coverage map.
-
-### What this prevents
-
-- Alerts that sit in a handoff file forever until someone manually triages them.
-- Failures that surface, get logged, and don't translate into a code change.
-- Teammates that mark their task `visual_fidelity_review: "fail"` and leave the fix to the user.
-- Phase 5 failures that route back to a team in name only, with no concrete acceptance criteria attached.
-- Process drift where "we'll fix it next sprint" silently re-enters the backlog instead of the active loop.
-
-### Mandatory consumers (these skills write SRs on every applicable trigger)
-
-- `root-cause-test-failures` Phase C — every `product-bug` RCA verdict writes an SR alongside the handoff. The handoff is for human readability; the SR is for orchestrator action.
-- `visual-fidelity-reconciliation` Phase E — every escalation (out-of-scope file, implementation-extras, spec-ambiguity, cascade-blast-radius) writes an SR. Drift that gets autonomously fixed-to-spec does NOT need an SR (the fix happened in-loop).
-- `playwright-user-flows` — when a Playwright test fails AND the RCA verdict is product-bug, the SR is written by RCA (don't duplicate). When a test reveals a UI contract that the implementation never honored (gap in the original spec), write an SR with `origin.kind: "playwright-failure"`.
-- `dev-api-integration-testing` — when an integration test fails against the live dev API with a backend regression (RCA verdict product-bug), the SR is written by RCA. When the failure is in test-author error or env / fixture / race, fix in-loop without an SR (per root-cause-test-failures Phase C).
-- `test-completeness-verifier` agent — every `overall: fail` writes an SR with `origin.kind: "test-completeness-failure"` so the orchestrator re-spawns the originating team with concrete missing-test acceptance criteria. The originating team re-enters Phase 2 to author the missing tests, passes Phase 3, and the verifier re-runs in Phase 5 to confirm. When the failure is specifically a `both`-layer feature whose happy-path user-flow tests ran against a mocked / fake backend (the `backend_integration_audit` is `mock_backed` with no explicit requirements authorization), the verifier instead uses `origin.kind: "integration-testing-failure"` — the orchestrator routes this through `diagnostic-research-team` (it is a test-failure origin) before spawning the fix team, and the `acceptance_criteria` mandate re-authoring the happy path against the real running backend.
-- `editability-completeness` team — every gap in the converged editable-surface map (an attribute a user should be able to control whose end-to-end trace breaks: a `missing-control`, `dead-control`, `orphan-field`, `no-readback`, or `schema-mismatch`) becomes an SR with `origin.kind: "editability-gap"`. The `acceptance_criteria` are end-to-end and concrete: the create/edit flow has a working control for the attribute, the value reaches the database, the read-back returns it, and a real-backend integration test covers the round-trip. The fix team is spawned directly. After the fixes land, the three `editability-reviewer` agents re-spawn and re-review until the converged map has zero gaps.
-- `interaction-completeness` team — every gap in the converged interaction map becomes an SR whose `origin.kind` is the gap kind: an `unwired-control` (an interactive element that drives no endpoint and no client behavior, with no user confirmation it is an intentional stub — also the kind for a correctly-wired control whose only break is a missing or vacuous user-flow test), a `placeholder-page` (a route wired to a placeholder / "coming soon" / skeleton / mock page where a live page is specified, unconfirmed), or a `hardcoded-dynamic-value` (a value hardcoded as the design's sample literal where the context shows it should be dynamically bound). The `acceptance_criteria` are precise: an `unwired-control` is wired end-to-end (or confirmed as a stub); a `placeholder-page` is replaced by the real live page the design specifies (or confirmed); a `hardcoded-dynamic-value` is bound to its named data source per `dynamic-value-discovery`; and in every case a genuine user-driven Playwright test (real `page.click` / `page.fill`, real UI path, real backend) covers the fix. The fix team is spawned directly. After the fixes land, the three `interaction-reviewer` agents re-spawn and re-review until the converged map has zero gaps. These gaps surface through the `ui_interaction_review` review-gate evidence field.
-- `visual-verification-team` (the `system-architect` Visual Gap Synthesis role) — spawned in Phase 5 (and by `/architect-team:visual-qa`). After the team's `visual-capture` agents render the LIVE app and its `visual-analyzer` agents produce per-screen gap lists, the synthesis clusters the gaps into root causes and writes one SR per gap cluster with `origin.kind: "visual-fidelity-drift"`. The `acceptance_criteria` mandate that the live app match the DESIGN_MAP Oracle for every screen in the cluster, re-verified by the team against the running app. A team `blocked` verdict (the live app would not run) or `incomplete` (the sweep did not cover every screen) escalates to the human, not a fix team — an unrunnable app or an incomplete sweep is a prerequisite defect, not a fix-team task.
-
-### Anti-patterns to reject
-
-| Rationalization | Rebuttal |
-|---|---|
-| "The handoff is enough — the orchestrator can read it" | The handoff is markdown for humans. The SR is JSON for machine action. Without the SR, the orchestrator has nothing structured to spawn a team from. |
-| "I'll write a brief SR and let the fix team figure out the details" | Then the fix team negotiates the spec instead of executing it, and the acceptance criteria drift. Write the full SR with concrete acceptance criteria — the originating test MUST be among them. |
-| "I'll skip the SR if the fix is obvious" | "Obvious" fixes still need acceptance criteria, evidence, and a loop entry. Otherwise the master review (Phase 7) has nothing to walk. |
-| "I'll wait for the orchestrator to ask before writing the SR" | The orchestrator picks up SRs from disk; it does not poll teammates for status. If you don't write the SR, the loop does not re-enter. |
-| "The fix touches files outside my scope; I'll let the user spawn the next team" | That is the scope-out-of-bounds escalation — write the SR with `suggested_team` set to the owning team. The orchestrator routes; the user does not need to be in the loop unless the SR has a spec-ambiguity. |
-| "I'll set priority to medium to be neutral" | RCA product-bugs blocking a documented user journey are critical or high. The priority drives queue ordering at Phase 2 spawn time. Be honest, not modest. |
 
 ## Hook-rejection escalation policy
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/hook-rejection-escalation-policy.md` and execute it in full. Do not work from memory.
+
 When the `PostToolUse(TaskUpdate)` hook rejects a teammate's attempt to mark a task complete (exits 2), the teammate MUST follow this procedure:
-
-**Rule:** never re-attempt `TaskUpdate(status=completed)` for the same `task_id` without a SUBSTANTIVE change since the last rejection — a gap the hook named has been genuinely closed, or new evidence has been written. Re-attempting on the same state is thrash; there is no count after which you stop closing gaps (per `docs/ETHOS.md` principle 8), and there is no count before which thrash is fine.
-
-**Step 1 — Close what you can.** Read the hook's stderr; for every named gap you CAN close inside your own `files_owned`, close it, then re-attempt. Only a gap you cannot close — it lives outside your files, needs another lane's work, or needs an evidence-field waiver only the orchestrator can grant — moves you to Step 2.
-
-**Step 2 — Write an escalation handoff.** Create a file at:
-
-```
-<cwd>/.architect-team/handoffs/<teammate>-to-orchestrator-stuck-<task_id>-<timestamp>.md
-```
-
-The file MUST contain:
-- The task ID.
-- The exact stderr output the hook reported for each rejection (copy verbatim).
-- What was tried to close each reported gap and why each attempt failed.
-- The specific clarification or action the teammate needs from the orchestrator (e.g., a schema correction, a scope reassignment, an evidence-field waiver with justification).
-
-**Step 3 — Wait.** Do not proceed with other tasks that depend on the stuck task. Signal idle. The orchestrator will inspect the handoff, either resolve the blocker (correct the task, update the manifest, or explicitly waive a field) and re-engage, or reassign the task to a different teammate.
-
-**Note:** this policy is currently enforced by documentation (the teammate's own discipline). Code-level enforcement (detecting a re-attempt with no substantive change since the last rejection) is a candidate if real-world data shows teammates ignoring the substantive-change rule.
 
 ## Independent review — the task-reviewer
 
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/independent-review-the-task-reviewer.md` and execute it in full. Do not work from memory.
+
 The 17 top-level evidence fields are the teammate's **self-review**. A self-review is a producer checking its own work — the last producer-is-own-checker gap in the pipeline. The `PostToolUse(TaskUpdate)` hook does shape validation: it can confirm the evidence file is well-formed JSON with `"pass"` values; it cannot confirm those values are *true*. A teammate could write a perfectly-conformant evidence file that lies, and on shape validation alone the gate would open.
 
-So the gate does not open on the self-review. After the teammate writes its self-review and signals its task complete, the orchestrator dispatches an independent **`task-reviewer`** agent (Phase 3 of `architect-team-pipeline`). The dispatch:
-
-1. The teammate finishes its task, writes the 17-field self-review into `<cwd>/.architect-team/reviews/<task-id>.json`, and signals complete.
-2. The orchestrator spawns a `task-reviewer` agent against that `task_id`, passing the `teammate` name, the coverage-map slice, and the teammate's `files_owned`.
-3. The `task-reviewer` is **read-only on source** (no `Edit`). It reads the teammate's `git diff`, confirms each coverage-map acceptance criterion is actually met by the code, runs the repo's linters / type-checkers / the slice's tests itself, greps the diff for stubs / `TODO` / `NotImplementedError` / mock returns / placeholder data, and checks every new file against a Reuse Decision.
-4. The `task-reviewer` writes the `independent_review` block into the SAME evidence file — `reviewer` is itself (never the teammate), `verdict` / `spec_review` / `quality_review` / `real_not_stubbed` / `reuse_compliance` reflect its independent findings.
-5. The hook enforces `independent_review.reviewer != teammate` and `independent_review.verdict == "pass"` — so **the gate structurally cannot open on self-attestation**.
-
-On `verdict: fail`, the `task-reviewer` writes detailed per-gap notes; the teammate re-engages on exactly those gaps and the `task-reviewer` re-reviews. A failed independent review is an ordinary Phase 3 review-gate failure — it does NOT create a Solution Requirement and does NOT route through `diagnostic-research-team` (those are for test failures; a failed review just means the task is not done). The `task-reviewer` never edits source — a gap it finds goes back to the teammate, never patched by the reviewer.
-
-### Hard rule
-
-**The Phase 3 gate never opens on a teammate's self-review alone.** Every completed teammate task gets an independent `task-reviewer` verdict; the evidence file's `independent_review.reviewer` MUST differ from `teammate`, and `independent_review.verdict` MUST be `"pass"`. The orchestrator never writes the `independent_review` block on the teammate's behalf, and a teammate never writes it for itself — the producer cannot be its own checker.
-
 ## Review evidence — what each field means in practice
+
+> **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/review-evidence-what-each-field-means-in-practice.md` and execute it in full. Do not work from memory.
 
 - `spec_review: "pass"` — teammate has self-reviewed against the acceptance criteria in the coverage map and confirms each criterion is met by their code.
 - `quality_review: "pass"` — teammate has run linters, type checkers, and any project quality tools, all green.
 - `real_not_stubbed: true` — teammate has grep'd its diff for `TODO`, `pass`, `NotImplementedError`, mock returns outside test fixtures, and confirms none exist.
 - `reuse_compliance: "ok"` — every new file in `files_changed` corresponds to a Reuse Decision in `design.md`.
 - `independent_review` — the verdict of the independent `task-reviewer` agent (NOT the teammate); see "## Independent review — the task-reviewer" above. Its `reviewer` must differ from `teammate`.
-
-If any of these can't be honestly asserted, the teammate goes back to work — it does not falsify the evidence file. The 17 top-level fields are the teammate's self-review; the teammate writes them honestly, then an independent `task-reviewer` agent reviews the same task's diff and writes the `independent_review` block. The hook enforces `independent_review.reviewer != teammate` and `verdict == "pass"` — the gate cannot open on self-attestation; an independent agent's verdict is required.
 
 ## Anti-patterns to reject
 
@@ -558,3 +138,28 @@ If any of these can't be honestly asserted, the teammate goes back to work — i
 | "Plan-approval mode is slowing me down" | It exists for the triggers above for a reason. Auth/schemas/contracts are where silent breakage costs most. |
 | "I'll skip the manifest — the SubagentStop hook is paranoid" | The hook is exactly what keeps idle subagents from leaving work undone. Write the manifest. |
 | "My self-review all says pass — I'll write the `independent_review` block myself and mark complete" | The producer cannot be its own checker. `independent_review.reviewer` must differ from `teammate`; an independent `task-reviewer` agent writes that block after reading your diff. A teammate filling it in itself is the exact self-attestation the hook rejects. |
+
+## Review tiers (v4.0.0)
+
+> **STOP.** Before dispatching reviewers for any gate, Read `skills/team-spawning-and-review-gates/references/review-tiers.md` and record the gate's tier in the brief.
+
+Tier 3 (three independent reviewers + synthesis, Fable 5.1) is reserved for architecture approval, the master review, and map convergence; tier 2 (producer + one paired adversarial reviewer, mechanical verifiers on Sonnet 5.5) is the default for every Phase 3 task gate; tier 1 (one verifier, often a Layer-3 tool or a `prompt` hook, Haiku 5.5 or no model) covers classification and shape checks. The producer is never its own checker at any tier.
+
+## Reference index
+
+Each heavy section's full text lives in this skill's `references/` folder behind the STOP pointer in its section; `references/INDEX.md` lists what to Read before each phase.
+
+| Section | Reference file | Loaded |
+| --- | --- | --- |
+| `Non-overlapping file scopes` | `skills/team-spawning-and-review-gates/references/non-overlapping-file-scopes.md` | on demand |
+| `CDLG overlap — shared callees, not just shared files (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-01)` | `skills/team-spawning-and-review-gates/references/cdlg-overlap-shared-callees-not-just-shared-files-lineage-ro.md` | on demand |
+| `Canonical front→back traversal (lineage roadmap P4 — REQ-CDL-09 / REQ-PARA-02)` | `skills/team-spawning-and-review-gates/references/canonical-front-back-traversal-lineage-roadmap-p4-req-cdl-09.md` | on demand |
+| `Direct teammate-to-teammate messaging` | `skills/team-spawning-and-review-gates/references/direct-teammate-to-teammate-messaging.md` | on demand |
+| `Reading teammate state` | `skills/team-spawning-and-review-gates/references/reading-teammate-state.md` | on demand |
+| `Review-gate evidence file` | `skills/team-spawning-and-review-gates/references/review-gate-evidence-file.md` | on demand |
+| `Red-first — a new guard is not evidence until it has been shown to fail` | `skills/team-spawning-and-review-gates/references/red-first-a-new-guard-is-not-evidence-until-it-has-been-show.md` | on demand |
+| `Baseline SHA capture` | `skills/team-spawning-and-review-gates/references/baseline-sha-capture.md` | on demand |
+| `Solution Requirements — auto-spawn the dev loop on any surfaced issue` | `skills/team-spawning-and-review-gates/references/solution-requirements-auto-spawn-the-dev-loop-on-any-surface.md` | on demand |
+| `Hook-rejection escalation policy` | `skills/team-spawning-and-review-gates/references/hook-rejection-escalation-policy.md` | on demand |
+| `Independent review — the task-reviewer` | `skills/team-spawning-and-review-gates/references/independent-review-the-task-reviewer.md` | on demand |
+| `Review evidence — what each field means in practice` | `skills/team-spawning-and-review-gates/references/review-evidence-what-each-field-means-in-practice.md` | on demand |

@@ -50,18 +50,18 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
 def test_agent_model_is_fable(plugin_root: Path) -> None:
     """Classifier is lightweight — sonnet, not opus."""
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "fable", "bug-classifier must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
+    assert fm["model"] == "haiku", "bug-classifier is a classification seat: model: haiku under the v4.0.0 role split"
 
 
 def test_agent_tools_minimal_analysis_only(plugin_root: Path) -> None:
-    """Bug-classifier is analysis-only: Read/Glob/Grep/TodoWrite — no Bash, no Edit, no Write."""
+    """Bug-classifier is analysis-only: Read/Glob/Grep/TaskList/TaskUpdate — no Bash, no Edit, no Write."""
     fm, _ = _read(plugin_root)
     tools = set(_tools_list(fm))
-    allowed = {"Read", "Glob", "Grep", "TodoWrite"}
+    allowed = {"Read", "Glob", "Grep", "TaskList", "TaskUpdate"}
     forbidden = {"Bash", "Edit", "Write"}
     assert tools <= allowed, f"bug-classifier tools must be subset of {allowed}; got extras: {tools - allowed}"
     assert tools.isdisjoint(forbidden), f"bug-classifier MUST NOT have any of {forbidden}; got: {tools & forbidden}"
-    # All four allowed tools should be present.
+    # All allowed tools should be present.
     assert tools == allowed, f"bug-classifier tools must be exactly {allowed}; got: {tools}"
 
 

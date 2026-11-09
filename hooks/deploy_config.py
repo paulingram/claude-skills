@@ -12,6 +12,10 @@ presence opts the project into the dev -> test-on-dev -> prod discipline:
   - `prod_deploy.prod_branch` is the production branch (default `main`).
   - `prod_deploy.deploy_command` (null = "prod" is just the merge to prod_branch)
     is a shell command run AFTER dev is green for a real external deploy.
+  - `tests.always_run` (test ids or fnmatch globs) and `tests.full_suite_at`
+    (phases, default ["phase-8"]) are the HUMAN test-selection pins read by
+    `scripts/test_index/` -- a project can say "always run the billing suite" or
+    "run everything at Phase 5 too", and no agent may lower either.
 
 IMMUTABILITY (enforced elsewhere — hooks/pretool_unilateral_override_guard.py):
 this reader is READ-ONLY. The pipeline and every subagent may read the config but
@@ -27,10 +31,15 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 DEPLOY_CONFIG_FILENAME = ".architect-team-deploy.json"
 DEFAULT_PROD_BRANCH = "main"
+
+#: The phases whose FULL suite runs when the human config says nothing. Phase 8
+#: (before the merge to main) is the one scheduled full-suite moment; the
+#: selector treats it as full regardless of what a config lists.
+DEFAULT_FULL_SUITE_AT: tuple = ("phase-8",)
 
 
 def _config_path(project_root) -> Path:
@@ -86,6 +95,39 @@ def deploy_command(project_root) -> Optional[str]:
     ``None`` when unset — in which case "prod" is just the merge to prod_branch."""
     value = _prod_deploy_block(project_root).get("deploy_command")
     return value if isinstance(value, str) and value.strip() else None
+
+
+def _tests_block(project_root) -> Dict[str, Any]:
+    """The `tests` sub-object, or an empty dict when absent/wrong-shape."""
+    data = load_deploy_config(project_root)
+    if not isinstance(data, dict):
+        return {}
+    block = data.get("tests")
+    return block if isinstance(block, dict) else {}
+
+
+def _string_list(value: Any) -> Optional[List[str]]:
+    """``value`` as a list of non-blank strings, or ``None`` when it is not a
+    list (a malformed pin resolves to the default, never to a crash)."""
+    if not isinstance(value, list):
+        return None
+    return [v.strip() for v in value if isinstance(v, str) and v.strip()]
+
+
+def tests_always_run(project_root) -> List[str]:
+    """The human-owned ``tests.always_run`` pins: test ids or fnmatch globs
+    matched by the selector against each test's id and file. Default ``[]``.
+    An agent may read these; it may never remove or narrow one."""
+    return _string_list(_tests_block(project_root).get("always_run")) or []
+
+
+def tests_full_suite_at(project_root) -> List[str]:
+    """The phases at which the FULL suite runs (``tests.full_suite_at``),
+    default ``["phase-8"]``. The value is returned as the human wrote it; the
+    selector additionally treats Phase 8 as a full-suite phase whatever the
+    list says, so the Phase 8 full run is never selectable away."""
+    value = _string_list(_tests_block(project_root).get("full_suite_at"))
+    return list(DEFAULT_FULL_SUITE_AT) if value is None else value
 
 
 def prod_deploy_disabled_by_flag(env: Optional[Dict[str, str]] = None) -> bool:

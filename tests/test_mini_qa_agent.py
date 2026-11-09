@@ -6,7 +6,7 @@ from pathlib import Path
 from tests.helpers import frontmatter
 
 AGENT_NAME = "mini-qa"
-REQUIRED_TOOLS = {"Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite"}
+REQUIRED_TOOLS = {"Read", "Write", "Edit", "Glob", "Grep", "Bash", "TaskUpdate"}
 # Tools that would indicate the agent has too-broad scope:
 FORBIDDEN_TOOLS = {"WebFetch", "WebSearch"}
 

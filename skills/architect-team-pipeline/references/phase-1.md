@@ -1,0 +1,34 @@
+# Phase 1 — Planning Validation Loop (hard gate; 100% coverage required)
+
+**Phenotype seeding (v2.3.0).** If `$PHENOTYPE` is set (the `--phenotype <label>` flag, or an explicit "use the X phenotype" request), OR reuse-first design surfaces a strong phenotype match, follow `skills/phenotypes`: read the phenotype's `blueprint.md`, confirm its variation points + scaffold parameters with the user (domain gate — never silent), emit the scaffold into the change workdir, and treat it as the reuse-first starting point that the coverage map + review gates then validate. A phenotype is reuse-plus-customization (logged in the Reuse Decision Log); it never bypasses Phase 1's 100%-coverage requirement.
+
+Do not exit Phase 1 until every condition below is satisfied.
+
+Loop:
+
+1. Run `openspec validate --all --strict --json`.
+2. Run `openspec status --change <change-name> --json`. Inspect every artifact's `status`.
+3. Build/refresh the **coverage map** per `coverage-mapping` skill: cross-walk OpenSpec specs against the original requirements. Persist as `openspec/changes/<change-name>/coverage-map.json` with shape `{ source_requirement_id, spec_requirement_id, scenarios[], acceptance_criteria[], layer: backend|frontend|both|infra }`.
+4. The loop continues if **any** of the following is true:
+   - Validation reports `valid: false` or any errors.
+   - Any artifact (`proposal`, `specs`, `design`, `tasks`) status is not `done`.
+   - The coverage map has any source requirement without at least one scenario.
+   - Acceptance criteria for any requirement are missing, vague, or non-measurable.
+   - Any front-end requirement lacks an explicit Playwright user-flow specification (URL or route, login state, selectors, input data, expected visible assertions) per `playwright-user-flows`.
+   - Any back-end requirement lacks explicit dev-API integration test criteria per `dev-api-integration-testing` (endpoint, payload, expected response, expected side-effect).
+   - **Any requirement whose `layer` is `both` (spans frontend AND backend) lacks an explicit front-to-back integration test criterion** — i.e., a criterion stating that the happy-path user-flow test runs against the real running backend (real server, real DB / queue / cache), not mocked / fake data, per `playwright-user-flows`'s "Real backend by default" discipline. This is the DEFAULT for every `both`-layer requirement; the ONLY way to satisfy this condition without the criterion is an explicit statement in `$REQ_DIR` authorizing isolated / mock-backed testing for that requirement — in which case the coverage map records the authorization verbatim. Silence in the requirements means integrate, not mock.
+   - `design.md` proposes any new module / file / dependency without a Reuse Decision citing CODEBASE_MAP.md.
+   - Any Reuse Decision cites a file/symbol that does not actually exist in the referenced CODEBASE_MAP.md (verify by reading the map).
+   - The proposal duplicates a capability that already exists in any mapped codebase (cross-check via CODEBASE_MAP.md / INTEGRATION_MAP.md).
+   - `design.md` introduces a new third-party dependency without a documented comparison against existing stack libraries.
+   - `tasks.md` creates a new file where an existing file could be extended, unless the corresponding Reuse Decision justifies it.
+   - **Any `frontend` or `both`-layer requirement that touches a designed screen lacks the confirmed element-action-endpoint triples from `INTERACTION_INTUITION_MAP.md` as explicit acceptance criteria in the coverage map.** Each entry in that screen's intuition map with `user_verdict ∈ {confirmed, corrected}` MUST appear as a Phase 5 verification criterion (a genuine `page.click` / `page.fill` user-flow test driving the confirmed endpoint). When `INTERACTION_INTUITION_MAP.md` is absent for a frontend codebase (e.g., no design source existed), this condition is N/A and the coverage map records that authorization explicitly.
+5. Refine artifacts via `openspec instructions <artifact> --change <change-name> --json` and edit the files directly. Re-run validation.
+6. Exit only when validation passes, all artifacts are `done`, every source requirement maps to scenarios with measurable acceptance criteria, Playwright + dev-API criteria are explicit, and every new module has a verified Reuse Decision.
+7. **Auto-mine to MemPalace** on every coverage-map revision: `mempalace --palace <palace> mine "openspec/changes/<change-name>/coverage-map.json" --wing <wing>`. Mine the final revision when the loop exits.
+
+**Run-start notification — the kickoff email carrying the plan (v3.34.0, best-effort, per `## Notifications`).** The moment this loop exits — the OpenSpec bundle validates and the architecture + solution plan therefore exists — the orchestrator emits `run_start` ONCE, embedding the plan artifacts themselves so stakeholders receive the architecture and solution plan in ONE email (not a pointer to it). Pass `--details` with a 2-4 sentence plain-language summary of the requirement and the chosen solution approach, and one `--plan-file` per bundle artifact. Invoke from the target project's root and proceed immediately regardless of outcome:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <run-id> --details "<requirement + solution-approach summary>" --next-step "Phase 2 — Decomposition & Team Spawn" --plan-file "openspec/changes/<change-name>/proposal.md" --plan-file "openspec/changes/<change-name>/design.md" --plan-file "openspec/changes/<change-name>/tasks.md" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" run_start --project <name> --run-id <run-id> --details "<requirement + solution-approach summary>" --next-step "Phase 2 — Decomposition & Team Spawn" --plan-file "openspec/changes/<change-name>/proposal.md" --plan-file "openspec/changes/<change-name>/design.md" --plan-file "openspec/changes/<change-name>/tasks.md"
+```

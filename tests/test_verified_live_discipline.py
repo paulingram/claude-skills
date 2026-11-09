@@ -3,6 +3,7 @@ in common-pipeline-conventions, qa-replayer, bug-fix-pipeline, and the
 optional schema field.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -17,13 +18,13 @@ from tests.helpers.module_loader import load_module
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "## Verified-live discipline (v2.2.0)" in body
 
 
 def test_canonical_section_appears_once(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.count("## Verified-live discipline (v2.2.0)") == 1
 
 
@@ -37,7 +38,7 @@ def test_canonical_section_appears_once(plugin_root: Path):
 ])
 def test_canonical_section_names_failure_modes(plugin_root: Path, failure_mode: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert failure_mode in body
 
 
@@ -52,7 +53,7 @@ def test_canonical_section_names_failure_modes(plugin_root: Path, failure_mode: 
 ])
 def test_canonical_section_names_attestations(plugin_root: Path, attestation_phrase: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert attestation_phrase in body
 
 
@@ -66,7 +67,7 @@ def test_canonical_section_names_attestations(plugin_root: Path, attestation_phr
 ])
 def test_canonical_section_forbids_anti_patterns(plugin_root: Path, anti_pattern: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert anti_pattern in body
 
 
@@ -75,19 +76,19 @@ def test_canonical_section_forbids_anti_patterns(plugin_root: Path, anti_pattern
 
 def test_canonical_section_references_verify_live_tool(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "verify-live-verification-claim" in body
 
 
 def test_canonical_section_references_qa_replayer(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "qa-replayer" in body
 
 
 def test_canonical_section_references_optional_field(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "live_verification_review" in body
 
 
@@ -98,13 +99,13 @@ def test_canonical_section_references_optional_field(plugin_root: Path):
 
 def test_qa_replayer_has_audit_section(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "## Verification-Claim Audit (v2.2.0)" in body
 
 
 def test_qa_replayer_names_three_self_checks(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "Gesture audit" in body
     assert "Independence audit" in body
     assert "State audit" in body
@@ -112,13 +113,13 @@ def test_qa_replayer_names_three_self_checks(plugin_root: Path):
 
 def test_qa_replayer_documents_new_verdict(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "bug-resolved-verification-suspect" in body
 
 
 def test_qa_replayer_lists_three_suspect_modes(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "gesture-substitution" in body
     assert "self-verification-loop" in body
     assert "prefill-masking" in body
@@ -131,19 +132,19 @@ def test_qa_replayer_lists_three_suspect_modes(plugin_root: Path):
 
 def test_bug_fix_pipeline_has_phase_b6_verification_audit(plugin_root: Path):
     pipeline = plugin_root / "skills" / "bug-fix-pipeline" / "SKILL.md"
-    body = pipeline.read_text(encoding="utf-8")
+    body = surface_read(pipeline)
     assert "Verification-Claim Audit (v2.2.0)" in body
 
 
 def test_bug_fix_pipeline_documents_tool_invocation(plugin_root: Path):
     pipeline = plugin_root / "skills" / "bug-fix-pipeline" / "SKILL.md"
-    body = pipeline.read_text(encoding="utf-8")
+    body = surface_read(pipeline)
     assert "verify-live-verification-claim" in body
 
 
 def test_bug_fix_pipeline_documents_routing_for_suspect_verdict(plugin_root: Path):
     pipeline = plugin_root / "skills" / "bug-fix-pipeline" / "SKILL.md"
-    body = pipeline.read_text(encoding="utf-8")
+    body = surface_read(pipeline)
     assert "bug-resolved-verification-suspect" in body
 
 
@@ -241,13 +242,13 @@ def test_coverage_map_has_all_requirements(plugin_root: Path):
 
 def test_canonical_section_has_external_state_assertion_subsection(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "### External-state assertion (v2.4.0)" in body
 
 
 def test_canonical_section_has_evidence_artifact_citation_subsection(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "### Evidence-artifact citation (v2.4.0)" in body
 
 
@@ -257,7 +258,7 @@ def test_canonical_section_has_evidence_artifact_citation_subsection(plugin_root
 def test_canonical_section_names_external_system_kinds(plugin_root: Path, external_kind: str):
     """The 6 canonical external-system kinds must be named in the v2.4.0 sub-section."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert external_kind in body, f"External-state sub-section missing {external_kind!r}"
 
 
@@ -269,7 +270,7 @@ def test_canonical_section_names_external_system_kinds(plugin_root: Path, extern
 def test_canonical_section_names_external_anti_patterns(plugin_root: Path, anti_pattern_marker: str):
     """The 3 forbidden anti-patterns are named in the v2.4.0 sub-section."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert anti_pattern_marker.lower() in body_lower
 
@@ -283,7 +284,7 @@ def test_canonical_section_names_external_anti_patterns(plugin_root: Path, anti_
 def test_canonical_section_names_artifact_formats(plugin_root: Path, artifact_format: str):
     """Accepted artifact formats are named in the Evidence-artifact sub-section."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert artifact_format.lower() in body_lower
 
@@ -291,7 +292,7 @@ def test_canonical_section_names_artifact_formats(plugin_root: Path, artifact_fo
 def test_canonical_section_names_evidence_required_attributes(plugin_root: Path):
     """The sub-section names structural requirements (exists on disk / > 0 bytes / is a file)."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "exist on disk" in body_lower or "exists on disk" in body_lower
     assert "0 bytes" in body_lower or "> 0 bytes" in body_lower
@@ -301,7 +302,7 @@ def test_canonical_section_names_evidence_required_attributes(plugin_root: Path)
 def test_v2_4_0_subsections_cross_reference_new_fixtures(plugin_root: Path):
     """v2.4.0 canonical positive cases (the 2 new fixtures) are cross-referenced."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "external-state-not-asserted-email-invite.json" in body
     assert "fabricated-verification-table.json" in body
 

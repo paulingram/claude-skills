@@ -3,6 +3,7 @@ skill is present, well-formed, and documents the 4-stage pipeline with
 3-reviewer convergence + per-stage checklists.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -13,7 +14,7 @@ SKILL_PATH = ("skills", "visual-to-api-design", "SKILL.md")
 
 
 def _read_skill(plugin_root: Path) -> str:
-    return plugin_root.joinpath(*SKILL_PATH).read_text(encoding="utf-8")
+    return surface_read(plugin_root.joinpath(*SKILL_PATH))
 
 
 def test_skill_file_exists(plugin_root: Path):

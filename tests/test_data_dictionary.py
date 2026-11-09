@@ -10,6 +10,7 @@ against a local SQLite DB that reproduces the requirements doc's own example: a
 hash, plus a `census_by_zip` table joined onto customers on zip *in code*.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import importlib.util
 import json
@@ -217,7 +218,7 @@ def test_cli_build_sqlite(tmp_path: Path) -> None:
 def test_skill_and_agent_present() -> None:
     skill = REPO_ROOT / "skills" / "data-dictionary" / "SKILL.md"
     assert skill.exists()
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.startswith("---")  # frontmatter
     assert "DATA_DICTIONARY_MAP.md" in body  # standard artifact name (DD-16)
     # the live-DB honesty boundary is stated
@@ -225,7 +226,7 @@ def test_skill_and_agent_present() -> None:
 
 
 def test_skill_documents_provenance_and_maintenance() -> None:
-    body = (REPO_ROOT / "skills" / "data-dictionary" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("data-dictionary")
     for prov in dd.PROVENANCE_TYPES:
         assert prov in body  # DD-13 vocabulary documented in the contract
     assert "maintenance discipline" in body.lower()  # DD-17/18

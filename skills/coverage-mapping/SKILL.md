@@ -1,6 +1,7 @@
 ---
 name: coverage-mapping
 description: Use when building the Phase 1 coverage map, when verifying a team's slice in Phase 3, or when running the Phase 7 master review. Defines the coverage-map.json schema, how to populate it from OpenSpec specs and source requirements, how to detect uncovered requirements, and how to attribute commits to requirements for the final report.
+user-invocable: false
 ---
 
 # Coverage Mapping

@@ -161,6 +161,34 @@ def _targets_existing_deploy_config(file_path: str) -> bool:
     return p.name == _DEPLOY_CONFIG_FILENAME and p.exists()
 
 
+# v4.0.0 -- two more human-owned surfaces on the deploy-config terms.
+_PUBLISH_CONFIG_FILENAME = ".architect-team-publish.json"   # page-publishing opt-in
+_PRINCIPLES_DOC_PARENT = "docs"                              # docs/PROJECT_PRINCIPLES.md
+_PRINCIPLES_DOC_NAME = "PROJECT_PRINCIPLES.md"
+
+
+def _targets_existing_publish_config(file_path: Any) -> bool:
+    """True iff the tool targets an EXISTING ``.architect-team-publish.json``."""
+    if not isinstance(file_path, str) or not file_path:
+        return False
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return False
+    return p.name == _PUBLISH_CONFIG_FILENAME and p.exists()
+
+
+def _targets_project_principles(file_path: Any) -> bool:
+    """True iff the tool targets ``docs/PROJECT_PRINCIPLES.md`` (parent pair),
+    the human-readable twin the principles engine renders. Agents change it
+    only through ``scripts/principles/cli.py``, never with Edit / Write."""
+    if not isinstance(file_path, str) or not file_path:
+        return False
+    norm = file_path.replace("\\", "/")
+    parts = [c for c in norm.split("/") if c]
+    return len(parts) >= 2 and parts[-1] == _PRINCIPLES_DOC_NAME and parts[-2] == _PRINCIPLES_DOC_PARENT
+
+
 # v3.61.0 — recorded MEASUREMENT ARTIFACTS are immutable to agent tools. A
 # hand-written artifact is indistinguishable from a measured one (the named
 # v3.60.0 boundary: there is no trusted signer in-environment, so authenticity
@@ -738,6 +766,32 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     # pipeline-state gate below), because an agent editing/disabling the deploy
     # config is a violation whether or not a pipeline run is active. Only a human
     # may change it once it exists.
+    if _targets_existing_publish_config(file_path):
+        return 2, (
+            "CT6 v4.0.0 PreToolUse guardrail BLOCKED -- publish config immutability.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            f"'{_PUBLISH_CONFIG_FILENAME}' is a HUMAN-AUTHORED opt-in (where shareable "
+            "pages are hosted, with what token lifetime). Once it exists only a human "
+            "edits it; the setup question writes it once with the human's answer.\n"
+            "REQUIRED ACTION: do NOT modify this file. Report the needed change and let "
+            "the human make it."
+        )
+    if _targets_project_principles(file_path):
+        return 2, (
+            "CT6 v4.0.0 PreToolUse guardrail BLOCKED -- project principles are rendered, not edited.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            "docs/PROJECT_PRINCIPLES.md is rendered from .architect-team/principles.json by "
+            "the principles engine. Propose, confirm, add or retire a principle through "
+            "`python scripts/principles/cli.py` (the /architect-team:principles command), "
+            "which re-renders the file; a confirmed principle is the user's decision and "
+            "is never rewritten by hand."
+        )
     if _targets_existing_deploy_config(file_path):
         message = (
             "CT6 v3.44.0 PreToolUse guardrail BLOCKED — deploy config immutability.\n"

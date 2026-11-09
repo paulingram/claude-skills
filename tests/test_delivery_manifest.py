@@ -9,6 +9,7 @@ email render, and the CLI — plus the four-pipeline close-out wiring pins
 skill contract's structural anchors.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 from pathlib import Path
@@ -239,7 +240,7 @@ PIPELINES = (
 
 @pytest.mark.parametrize("rel", PIPELINES)
 def test_pipeline_closeout_produces_the_manifest(rel: str) -> None:
-    body = (REPO_ROOT / rel).read_text(encoding="utf-8")
+    body = surface_read(REPO_ROOT / rel)
     assert "delivery-manifest" in body, f"{rel}: close-out must invoke the skill"
     assert "scripts/delivery/delivery_manifest.py" in body, f"{rel}: engine not wired"
     assert "/.architect-team/delivery/" in body, f"{rel}: manifest artifact path missing"
@@ -249,7 +250,7 @@ def test_pipeline_closeout_produces_the_manifest(rel: str) -> None:
 def test_run_complete_embeds_the_manifest(rel: str) -> None:
     """The final email carries the bill of sale — every run_complete
     invocation embeds the manifest via --plan-file (both polyglot halves)."""
-    body = (REPO_ROOT / rel).read_text(encoding="utf-8")
+    body = surface_read(REPO_ROOT / rel)
     cmd_lines = [l for l in body.split("\n")
                  if 'notify.py" run_complete' in l and l.strip().startswith("python3")]
     assert cmd_lines, f"{rel}: no run_complete invocation found"
@@ -261,7 +262,7 @@ def test_run_complete_embeds_the_manifest(rel: str) -> None:
 
 
 def test_skill_contract_carries_the_pillars_and_template_rule() -> None:
-    body = (REPO_ROOT / "skills" / "delivery-manifest" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("delivery-manifest")
     assert "## The three pillars (what the manifest MUST carry)" in body
     assert "## Template matching (user-provided documents)" in body
     assert "vocabulary and layout" in body

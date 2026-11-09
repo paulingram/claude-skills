@@ -3,6 +3,7 @@ framework is wired in the skill bodies and the canonical SKILL.md is the
 documented home.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def test_vao_skill_exists(plugin_root: Path):
 
 def test_vao_skill_has_valid_frontmatter(plugin_root: Path):
     skill = plugin_root / "skills" / "verified-agent-output" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.startswith("---\n"), "skill must start with YAML frontmatter"
     assert "name: verified-agent-output" in body
     assert "description:" in body
@@ -39,7 +40,7 @@ def test_vao_skill_has_valid_frontmatter(plugin_root: Path):
 def test_vao_skill_names_all_six_layers(plugin_root: Path, layer_phrase: str):
     """REQ-1 — the canonical skill explicitly names all six layers."""
     skill = plugin_root / "skills" / "verified-agent-output" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert layer_phrase in body, f"VAO skill missing canonical mention of {layer_phrase}"
 
 
@@ -53,7 +54,7 @@ def test_vao_skill_names_all_six_layers(plugin_root: Path, layer_phrase: str):
 def test_vao_skill_enumerates_task_shape_taxonomy(plugin_root: Path, shape: str):
     """REQ-1 — the skill names every task shape in the Layer 2 taxonomy."""
     skill = plugin_root / "skills" / "verified-agent-output" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert shape in body, f"VAO skill missing task-shape {shape!r}"
 
 
@@ -67,7 +68,7 @@ def test_vao_skill_enumerates_task_shape_taxonomy(plugin_root: Path, shape: str)
 def test_vao_skill_documents_pairings(plugin_root: Path, pairing):
     """REQ-1 — the skill documents the per-shape adversarial-reviewer pairings."""
     skill = plugin_root / "skills" / "verified-agent-output" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     shape, hunter = pairing
     # The pairing must appear within reasonable proximity in the body.
     assert hunter in body, f"VAO skill missing adversarial-reviewer role {hunter!r}"
@@ -85,7 +86,7 @@ def test_vao_skill_documents_pairings(plugin_root: Path, pairing):
 def test_vao_skill_names_all_five_tools(plugin_root: Path, tool: str):
     """REQ-1 — the canonical skill documents all 5 Layer-3 tools."""
     skill = plugin_root / "skills" / "verified-agent-output" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert tool in body, f"VAO skill missing tool {tool!r}"
 
 

@@ -1,6 +1,7 @@
 ---
 name: warehouse-sql-mining
 description: Use when a data-engineering ask includes SQL objects — stored procedures, views, or functions — and you need the join, filter, and metric shapes plus the table read/write relationships latent in that SQL as corroboration-gated evidence for the data dictionary, the lineage graph, and the data-engineering exploration. A deterministic, stdlib-only vendored T-SQL/ANSI pattern extractor (NOT sqlglot, NOT a full parser) with honest parse-coverage stats so a dialect-specific or malformed object is reported, never silently dropped or mis-parsed. Mined candidates enter at provenance inference and are corroborated through corroborate_definition when sampled data is available — uncorroborated candidates are machine-marked not-accepted, never presented as established truth; the engine lives in scripts/sql_mining/sql_mining.py and this skill is its contract.
+user-invocable: false
 ---
 
 # Warehouse SQL Mining (SQL-MINING-1 … N)

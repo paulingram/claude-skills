@@ -1,443 +1,144 @@
-"""Drift guard for the consolidate-duplicated-rules change (slice-b).
+"""v4.0.0 agent boilerplate contract (proposal change 4).
 
-Establishes a single source of truth for three byte-identical boilerplate
-blocks duplicated across the ``agents/*.md`` files:
+Before v4.0.0 five canonical boilerplate blocks were compiled into all 39 agent
+files and `sync_agent_boilerplate.py --check` held the copies byte-identical.
+v4.0.0 keeps ONE canonical copy in `skills/ct6-agent-core/SKILL.md` (rendered by
+`compile_skills.py` from `agent_boilerplate_blocks.py`) and every agent PRELOADS
+it through its `skills:` frontmatter, so the surface an agent receives is
+unchanged while the duplication is gone. These tests pin the inverse contract:
 
-* ``## Forbidden git operations``   (ALL 34 standard agents — v3.10.0 R4c)
-* ``## Checkpoint discipline``      (ALL 34 standard agents — v3.10.0 R4c)
-* ``## Operating context (v1.0.0)`` (31 prefix-sharing standard agents, 3 variants)
-
-v3.10.0 (R4c) re-synced the 3 VAO agents (adversarial-reviewer,
-interaction-observer, oracle-deriver) to the CANONICAL git + checkpoint blocks
-(oracle-deriver's drifted variant had DROPPED the ``$BASELINE_SHA`` instruction).
-They remain variants for ONLY the ``operating-context`` block, whose heading they
-deliberately OMIT. The per-block variant allowlist therefore differs by block:
-git + checkpoint carry an EMPTY variant list; operating-context keeps the 3.
-
-These tests assert:
-
-1. Every *standard* agent's extracted block is byte-identical to the canonical
-   text in ``scripts/setup/agent_boilerplate_blocks.py`` (the source of truth).
-   For the prefix-mode ``operating-context`` block, "matches" means the block
-   STARTS with the canonical paragraph (agents may append role-specific text).
-2. The allowlisted *variant* agents for a block (per ``spec["variant_agents"]``)
-   are present on disk and recognised as variants -- they are NOT required to
-   match the canonical text. (Only ``operating-context`` has variants now.)
-3. Each block has at least 25 standard agents.
-4. The ``sync_agent_boilerplate.py`` ``--check`` reports IN SYNC against the
-   current tree (the agents already match the canonical blocks), and a plain
-   sync run reports zero changes (idempotent) without modifying any agent file.
-5. The canonical module is stdlib-only and side-effect-free; the sync tool's
-   prefix-mode rewrite preserves appended role-specific text.
-
-Module loaders use the importlib pattern (matches ``tests/test_teams_mode.py``
-and ``tests/test_agent_resume_discipline.py``) because ``scripts/setup`` is not
-an installed package.
+* no agent body carries a canonical block heading (the three operating-context
+  variants keep their role-specific `## Operating context` section);
+* every agent preloads `ct6-agent-core`;
+* the core skill's fenced blocks equal the canonical strings;
+* the sync tool reports IN SYNC on the tree and converts a drifted copy.
 """
 from __future__ import annotations
 
-import importlib.util
+import shutil
 import subprocess
 import sys
-import tempfile
-import shutil
 from pathlib import Path
 from types import ModuleType
 
 import pytest
+
+from tests.helpers import frontmatter
 from tests.helpers.module_loader import load_module
+from tests.helpers.surfaces import agent_surface
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-BLOCK_IDS = ("forbidden-git-operations", "checkpoint-discipline", "operating-context")
-VARIANT_AGENTS = ("adversarial-reviewer", "interaction-observer", "oracle-deriver")
-
-
-def _load_module(name: str, path: Path) -> ModuleType:
-    """Load a ``scripts/setup`` module via importlib (matches teams_mode pattern)."""
-    assert path.exists(), f"module missing at {path}"
-    mod = load_module(path, name)
-    return mod
-
-
-@pytest.fixture(scope="session")
-def blocks_module(plugin_root: Path) -> ModuleType:
-    """Load scripts/setup/agent_boilerplate_blocks.py."""
-    # Ensure the repo root is importable so the module's package-form imports work.
-    root = str(plugin_root)
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    return _load_module(
-        "agent_boilerplate_blocks_under_test",
-        plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py",
-    )
-
-
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def sync_module(plugin_root: Path) -> ModuleType:
-    """Load scripts/setup/sync_agent_boilerplate.py."""
-    root = str(plugin_root)
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    return _load_module(
-        "sync_agent_boilerplate_under_test",
-        plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py",
-    )
+    return load_module(plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py", "sync_v4")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
+def blocks(plugin_root: Path) -> ModuleType:
+    return load_module(plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py", "blocks_v4")
+
+
+@pytest.fixture(scope="module")
+def compile_module(plugin_root: Path) -> ModuleType:
+    return load_module(plugin_root / "scripts" / "setup" / "compile_skills.py", "compile_v4")
+
+
+@pytest.fixture
 def agents_dir(plugin_root: Path) -> Path:
-    d = plugin_root / "agents"
-    assert d.is_dir(), f"agents dir missing at {d}"
-    return d
+    return plugin_root / "agents"
 
 
-# --- 1. standard agents match the canonical block byte-for-byte --------------
+def test_every_agent_preloads_the_core_skill(agents_dir: Path, sync_module: ModuleType) -> None:
+    missing = [p.stem for p in sorted(agents_dir.glob("*.md"))
+               if sync_module.CORE_SKILL not in sync_module.preloaded_skills(p.read_text(encoding="utf-8"))]
+    assert missing == [], f"agents without the ct6-agent-core preload: {missing}"
+    # the preload is a real frontmatter list the harness can parse
+    for p in agents_dir.glob("*.md"):
+        fm, _ = frontmatter.parse(p)
+        assert "ct6-agent-core" in fm.get("skills", []), p.name
 
 
-@pytest.mark.parametrize("block_id", BLOCK_IDS)
-def test_standard_agents_match_canonical(
-    blocks_module: ModuleType, agents_dir: Path, block_id: str
-) -> None:
-    """Every standard agent's extracted block matches the canonical text.
-
-    Equality for ``equals``-mode blocks; prefix-match for the
-    ``operating-context`` block (agents may append role-specific text).
-    """
-    B = blocks_module
-    spec = B.BLOCKS[block_id]
-    heading = spec["heading"]
-    canonical = spec["canonical"]
-    match = spec["match"]
-    failures = []
-    for stem in spec["standard_agents"]:
-        path = agents_dir / f"{stem}.md"
-        assert path.exists(), f"standard agent file missing: {path}"
-        block = B.extract_block(B.read_agent_text(path), heading)
-        if not B.block_matches(block, canonical, match):
-            failures.append(stem)
-    assert not failures, (
-        f"{block_id}: {len(failures)} standard agent(s) drifted from canonical "
-        f"(match={match}): {failures}"
-    )
+def test_no_agent_carries_a_compiled_block(agents_dir: Path, sync_module: ModuleType, blocks: ModuleType) -> None:
+    offenders = {}
+    for p in sorted(agents_dir.glob("*.md")):
+        stray = sync_module.stray_blocks(p.stem, p.read_text(encoding="utf-8"))
+        if stray:
+            offenders[p.stem] = stray
+    assert offenders == {}, offenders
 
 
-# --- 2. variant agents present + recognised (allowlisted) --------------------
+def test_variants_keep_their_role_specific_operating_context(agents_dir: Path, sync_module: ModuleType) -> None:
+    for stem in sync_module.VARIANT_AGENTS:
+        text = (agents_dir / f"{stem}.md").read_text(encoding="utf-8")
+        assert "\n## Operating context\n" in text, f"{stem} lost its variant operating-context section"
 
 
-@pytest.mark.parametrize("block_id", BLOCK_IDS)
-def test_variant_agents_present_and_allowlisted(
-    blocks_module: ModuleType, agents_dir: Path, block_id: str
-) -> None:
-    """Each block's allowlisted variants are classified as variants, not drift.
-
-    v3.10.0 (R4c): the per-block variant list differs — git + checkpoint carry an
-    EMPTY variant list (the 3 VAO agents now match canonical); operating-context
-    keeps the 3 VAO agents as variants.
-    """
-    B = blocks_module
-    spec = B.BLOCKS[block_id]
-    block_variants = set(spec["variant_agents"])
-    if block_id == "operating-context":
-        assert block_variants == set(VARIANT_AGENTS), (
-            f"{block_id}: operating-context must keep the 3 VAO variants: "
-            f"{spec['variant_agents']}"
-        )
-    else:
-        assert block_variants == set(), (
-            f"{block_id}: git/checkpoint must have an EMPTY variant list after R4c: "
-            f"{spec['variant_agents']}"
-        )
-    for stem in block_variants:
-        assert (agents_dir / f"{stem}.md").exists(), f"variant agent missing: {stem}.md"
-    classified = B.classify_agents(block_id, agents_dir)
-    assert set(classified["variant"]) == block_variants, (
-        f"{block_id}: classify did not recognise the expected variants: {classified['variant']}"
-    )
-    # variant agents must NOT appear in the standard bucket
-    assert not (block_variants & set(classified["standard"])), (
-        f"{block_id}: a variant agent leaked into the standard bucket"
-    )
+def test_classification_covers_the_tree(agents_dir: Path, sync_module: ModuleType) -> None:
+    classified = sync_module.classify_agents(agents_dir)
+    assert classified["other"] == [], classified["other"]
+    assert set(classified["variant"]) == set(sync_module.VARIANT_AGENTS)
+    assert len(classified["standard"]) + len(classified["variant"]) == len(list(agents_dir.glob("*.md")))
+    assert len(classified["standard"]) >= 25
 
 
-def test_vao_agents_git_and_checkpoint_blocks_match_canonical(
-    blocks_module: ModuleType, agents_dir: Path
-) -> None:
-    """v3.10.0 (R4c): the 3 VAO agents now carry the CANONICAL git + checkpoint
-    blocks (the re-sync eliminated their drifted paraphrases; oracle-deriver's had
-    DROPPED the ``$BASELINE_SHA`` instruction). They are NO LONGER variants for
-    these two blocks.
-    """
-    B = blocks_module
-    for block_id in ("forbidden-git-operations", "checkpoint-discipline"):
-        spec = B.BLOCKS[block_id]
-        for stem in VARIANT_AGENTS:
-            block = B.extract_block(
-                B.read_agent_text(agents_dir / f"{stem}.md"), spec["heading"]
-            )
-            assert block is not None, f"{stem} unexpectedly missing {spec['heading']}"
-            assert block == spec["canonical"], (
-                f"{stem} {block_id} must equal canonical after the R4c re-sync"
-            )
-    # oracle-deriver specifically must carry the restored $BASELINE_SHA instruction.
-    od = B.read_agent_text(agents_dir / "oracle-deriver.md")
-    assert "$BASELINE_SHA" in od, "oracle-deriver must carry the restored $BASELINE_SHA"
+def test_core_skill_fences_match_the_canonical_blocks(plugin_root: Path, compile_module: ModuleType, blocks: ModuleType) -> None:
+    text = (plugin_root / "skills" / "ct6-agent-core" / "SKILL.md").read_text(encoding="utf-8")
+    for block_id in compile_module.BLOCKS:
+        assert compile_module.fenced_content(text, block_id) == compile_module.render_block(block_id), block_id
+    assert compile_module.render_block("forbidden-git-operations") == blocks.FORBIDDEN_GIT_OPERATIONS
+    assert compile_module.render_block("reporting") == blocks.REPORTING
+    assert compile_module.find_drift(plugin_root / "skills") == []
 
 
-def test_variant_agents_omit_operating_context_heading(
-    blocks_module: ModuleType, agents_dir: Path
-) -> None:
-    """The 3 VAO variants omit the v1.0.0 operating-context heading entirely."""
-    B = blocks_module
-    heading = B.BLOCKS["operating-context"]["heading"]
-    for stem in VARIANT_AGENTS:
-        block = B.extract_block(B.read_agent_text(agents_dir / f"{stem}.md"), heading)
-        assert block is None, (
-            f"{stem} unexpectedly carries '{heading}'; allowlist assumption broken"
-        )
+def test_agent_surface_still_carries_every_block(agents_dir: Path, blocks: ModuleType) -> None:
+    """The surface an agent receives (its file + the preloaded core skill) still
+    carries all five blocks -- the move changed where the text lives, not what
+    the agent is told."""
+    for p in sorted(agents_dir.glob("*.md")):
+        surface = agent_surface(p.stem)
+        for spec in blocks.BLOCKS.values():
+            assert spec["heading"] in surface, f"{p.stem}: {spec['heading']} missing from the surface"
 
 
-# --- 3. each block has at least 25 standard agents ---------------------------
+def test_oracle_deriver_has_baseline_sha(agents_dir: Path) -> None:
+    """The $BASELINE_SHA guidance rides in the canonical forbidden-git block,
+    which every agent now receives through the preloaded core skill."""
+    assert "$BASELINE_SHA" in agent_surface("oracle-deriver")
 
 
-@pytest.mark.parametrize("block_id", BLOCK_IDS)
-def test_at_least_25_standard_agents(
-    blocks_module: ModuleType, agents_dir: Path, block_id: str
-) -> None:
-    """Each block is shared by >= 25 standard agents (consolidation is worthwhile)."""
-    B = blocks_module
-    classified = B.classify_agents(block_id, agents_dir)
-    assert len(classified["standard"]) >= 25, (
-        f"{block_id}: only {len(classified['standard'])} standard agents "
-        f"(expected >= 25): {classified['standard']}"
-    )
-    # The baked standard_agents list must equal the runtime-derived partition.
-    assert set(classified["standard"]) == set(B.BLOCKS[block_id]["standard_agents"]), (
-        f"{block_id}: baked standard_agents != runtime classification\n"
-        f"  baked-only: {set(B.BLOCKS[block_id]['standard_agents']) - set(classified['standard'])}\n"
-        f"  derived-only: {set(classified['standard']) - set(B.BLOCKS[block_id]['standard_agents'])}"
-    )
-
-
-@pytest.mark.parametrize("block_id", BLOCK_IDS)
-def test_no_unclassified_agents(
-    blocks_module: ModuleType, agents_dir: Path, block_id: str
-) -> None:
-    """No agent falls into the 'other' bucket (drifted standard or unknown new agent).
-
-    Every agent must be either a recognised standard match or an allowlisted
-    variant. An 'other' entry means real drift -- the test should go red so a
-    human decides whether it's a new variant or a regression.
-    """
-    B = blocks_module
-    classified = B.classify_agents(block_id, agents_dir)
-    assert classified["other"] == [], (
-        f"{block_id}: unclassified agent(s) (drift or new-agent): {classified['other']}. "
-        f"If intentional, add to standard_agents or variant_agents and re-run the sync."
-    )
-
-
-# --- 4. sync --check is IN SYNC on the current tree; sync is idempotent -------
-
-
-def test_sync_check_reports_in_sync_via_import(
-    sync_module: ModuleType, agents_dir: Path
-) -> None:
-    """find_drift() returns no drift against the current (already-synced) tree."""
-    drifted = sync_module.find_drift(agents_dir)
-    assert drifted == [], f"unexpected drift in standard agents: {drifted}"
+def test_sync_check_reports_in_sync(sync_module: ModuleType, agents_dir: Path) -> None:
+    assert sync_module.find_drift(agents_dir) == []
+    assert sync_module.main(["--check", "--agents-dir", str(agents_dir)]) == 0
 
 
 def test_sync_check_exit_zero_via_subprocess(plugin_root: Path) -> None:
-    """`python scripts/setup/sync_agent_boilerplate.py --check` exits 0 (IN SYNC)."""
-    script = plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py"
     proc = subprocess.run(
-        [sys.executable, str(script), "--check"],
-        cwd=str(plugin_root),
-        capture_output=True,
-        text=True,
+        [sys.executable, str(plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py"), "--check"],
+        capture_output=True, text=True, encoding="utf-8",
     )
-    assert proc.returncode == 0, (
-        f"--check exited {proc.returncode}; stdout={proc.stdout!r} stderr={proc.stderr!r}"
-    )
-    assert "IN SYNC" in proc.stdout, f"unexpected --check output: {proc.stdout!r}"
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "IN SYNC" in proc.stdout
 
 
-def test_sync_main_check_returns_zero(sync_module: ModuleType, agents_dir: Path) -> None:
-    """main(['--check', '--agents-dir', <dir>]) returns 0 against the synced tree."""
-    rc = sync_module.main(["--check", "--agents-dir", str(agents_dir)])
-    assert rc == 0
-
-
-def test_sync_is_idempotent_on_temp_copy(
-    sync_module: ModuleType, agents_dir: Path
-) -> None:
-    """Running sync against a pristine copy of agents/ makes zero changes.
-
-    Uses a temp copy so the real agent files are never written (slice-b must not
-    modify any agents/*.md).
-    """
-    tmp = Path(tempfile.mkdtemp())
-    try:
-        dst = tmp / "agents"
-        shutil.copytree(agents_dir, dst)
-        changed = sync_module.sync(dst)
-        assert changed == [], f"sync changed files on a pristine copy: {changed}"
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
-
-# --- 5. sync repairs drift, preserves appended text, stays idempotent --------
-
-
-def test_sync_repairs_equals_block_byte_exact(
-    blocks_module: ModuleType, sync_module: ModuleType, agents_dir: Path
-) -> None:
-    """A mangled equals-mode block is repaired byte-exactly on a temp copy."""
-    B = blocks_module
-    tmp = Path(tempfile.mkdtemp())
-    try:
-        dst = tmp / "agents"
-        shutil.copytree(agents_dir, dst)
-        target = dst / "backend.md"
-        heading = B.BLOCKS["forbidden-git-operations"]["heading"]
-        # corrupt the block: replace the first content line after the heading
-        text = B.read_agent_text(target)
-        lines = text.split("\n")
-        for i, line in enumerate(lines):
-            if line.rstrip() == heading:
-                lines[i + 2] = "JUNK DRIFT replacing the real first line"
-                break
-        target.write_bytes("\n".join(lines).encode("utf-8"))
-
-        assert "backend" in sync_module.find_drift(dst)
-        changed = sync_module.sync(dst)
-        assert "backend" in changed
-        repaired = B.extract_block(B.read_agent_text(target), heading)
-        assert repaired == B.FORBIDDEN_GIT_OPERATIONS
-        # idempotent second pass
-        assert sync_module.sync(dst) == []
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
-
-def test_sync_prefix_block_preserves_appended_role_text(
-    blocks_module: ModuleType, sync_module: ModuleType, agents_dir: Path
-) -> None:
-    """Rewriting the operating-context prefix preserves an agent's appended text.
-
-    ``mini-qa`` carries the canonical prefix PLUS role-specific text. Mangling
-    the prefix and re-syncing must restore the canonical prefix while leaving the
-    appended text intact (the whole reason this block is prefix-mode).
-    """
-    B = blocks_module
-    heading = B.BLOCKS["operating-context"]["heading"]
-    original_block = B.extract_block(
-        B.read_agent_text(agents_dir / "mini-qa.md"), heading
-    )
-    # sanity: mini-qa really does append text beyond the canonical prefix
-    assert original_block.startswith(B.OPERATING_CONTEXT)
-    assert len(original_block) > len(B.OPERATING_CONTEXT), "mini-qa has no appended text"
-
-    tmp = Path(tempfile.mkdtemp())
-    try:
-        dst = tmp / "agents"
-        shutil.copytree(agents_dir, dst)
-        target = dst / "mini-qa.md"
-        text = B.read_agent_text(target)
-        lines = text.split("\n")
-        for i, line in enumerate(lines):
-            if line.rstrip() == heading:
-                lines[i + 2] = "MANGLED operating context paragraph"
-                break
-        target.write_bytes("\n".join(lines).encode("utf-8"))
-
-        assert "mini-qa" in sync_module.find_drift(dst)
-        sync_module.sync(dst)
-        repaired = B.extract_block(B.read_agent_text(target), heading)
-        assert repaired == original_block, (
-            "prefix repair did not restore mini-qa's block exactly "
-            "(appended role text lost or prefix wrong)"
-        )
-        assert sync_module.sync(dst) == []
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
-
-
-# --- 6. canonical module hygiene ---------------------------------------------
-
-
-def test_canonical_module_is_stdlib_only(plugin_root: Path) -> None:
-    """agent_boilerplate_blocks.py imports only stdlib (no third-party deps)."""
-    body = (plugin_root / "scripts" / "setup" / "agent_boilerplate_blocks.py").read_text(
-        encoding="utf-8"
-    )
-    forbidden = (
-        "import requests",
-        "import yaml",
-        "import httpx",
-        "import aiohttp",
-        "import numpy",
-        "from requests",
-        "import pytest",
-    )
-    for token in forbidden:
-        assert token not in body, f"forbidden non-stdlib import in canonical module: {token}"
-
-
-def test_sync_module_is_stdlib_only(plugin_root: Path) -> None:
-    """sync_agent_boilerplate.py imports only stdlib + the canonical module."""
-    body = (plugin_root / "scripts" / "setup" / "sync_agent_boilerplate.py").read_text(
-        encoding="utf-8"
-    )
-    forbidden = (
-        "import requests",
-        "import yaml",
-        "import httpx",
-        "import aiohttp",
-        "import numpy",
-        "from requests",
-    )
-    for token in forbidden:
-        assert token not in body, f"forbidden non-stdlib import in sync module: {token}"
-
-
-def test_canonical_text_byte_faithful_to_source_agent(
-    blocks_module: ModuleType, agents_dir: Path
-) -> None:
-    """The stored canonical strings round-trip exactly against a real agent file.
-
-    Guards against a hand-edit of the canonical strings that subtly changes the
-    em-dash (U+2014) or spacing -- which would silently mark all 27 standard
-    agents as drifted (equals blocks) or break prefix matching.
-    """
-    B = blocks_module
-    text = B.read_agent_text(agents_dir / "backend.md")
-    assert B.extract_block(text, B.BLOCKS["forbidden-git-operations"]["heading"]) == (
-        B.FORBIDDEN_GIT_OPERATIONS
-    )
-    assert B.extract_block(text, B.BLOCKS["checkpoint-discipline"]["heading"]) == (
-        B.CHECKPOINT_DISCIPLINE
-    )
-    assert B.extract_block(text, B.BLOCKS["operating-context"]["heading"]) == (
-        B.OPERATING_CONTEXT
-    )
-    # the em-dash must survive verbatim in the git + operating-context blocks
-    assert "—" in B.FORBIDDEN_GIT_OPERATIONS
-    assert "—" in B.OPERATING_CONTEXT
-
-
-def test_extract_block_returns_none_for_absent_heading(blocks_module: ModuleType) -> None:
-    """extract_block returns None when the heading is absent."""
-    B = blocks_module
-    assert B.extract_block("# Title\n\nbody text\n", "## Forbidden git operations") is None
-
-
-def test_extract_block_stops_at_next_heading(blocks_module: ModuleType) -> None:
-    """extract_block captures only its own section, stopping at the next '## '."""
-    B = blocks_module
-    text = (
-        "## Forbidden git operations\n\nrule one\nrule two\n\n## Next section\n\nother\n"
-    )
-    block = B.extract_block(text, "## Forbidden git operations")
-    assert block == "## Forbidden git operations\n\nrule one\nrule two"
-    assert "Next section" not in block
+def test_sync_converts_a_drifted_copy(sync_module: ModuleType, blocks: ModuleType, agents_dir: Path, tmp_path: Path) -> None:
+    tmp = tmp_path / "agents"
+    shutil.copytree(agents_dir, tmp)
+    target = tmp / "backend.md"
+    text = target.read_text(encoding="utf-8")
+    # re-introduce a compiled block and drop the preload
+    text = text.replace("skills:\n  - ct6-agent-core\n", "")
+    text = text.rstrip("\n") + "\n\n" + blocks.FORBIDDEN_GIT_OPERATIONS + "\n"
+    target.write_text(text, encoding="utf-8")
+    assert sync_module.find_drift(tmp) == ["backend"]
+    report = sync_module.drift_report(tmp)
+    assert any("does not preload" in r for r in report["backend"])
+    assert any("canonical block" in r for r in report["backend"])
+    assert sync_module.main(["--check", "--agents-dir", str(tmp)]) == 1
+    assert sync_module.sync(tmp) == ["backend"]
+    assert sync_module.find_drift(tmp) == []
+    fixed = target.read_text(encoding="utf-8")
+    assert "## Forbidden git operations" not in fixed
+    assert "ct6-agent-core" in sync_module.preloaded_skills(fixed)
+    assert sync_module.sync(tmp) == []  # idempotent

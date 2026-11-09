@@ -1893,6 +1893,71 @@ def _audit_diagnosis_falsified(root: Path, at: Path) -> list[str]:
     return violations
 
 
+REQUIRED_READS_GATE_DISABLE_ENV = "CT6_REQUIRED_READS_GATE_DISABLED"
+REQUIRED_READS_BLOCKING_ENV = "CT6_REQUIRED_READS_BLOCKING"
+
+
+def _audit_required_reads(root: Path, at: Path) -> list[str]:
+    """v4.0.0 (proposal change 9) -- the referencing mandate's hall monitor.
+
+    Runs the 26th Layer-3 tool ``verify-required-reads`` over the active run's
+    tool-call ledger and the INDEX.md declarations. A ``required-read-skipped``
+    gap is a MEASURED GAP: it is printed to stderr with the chapter and the
+    phase so the Lead sees it, but it does NOT block the stop by default --
+    the tool proves a file was opened, not understood, and blocking on an
+    opened-file check would be the overclaim. ``CT6_REQUIRED_READS_BLOCKING=1``
+    makes the gap blocking for a project that wants it; the kill-switch
+    ``CT6_REQUIRED_READS_GATE_DISABLED=1`` silences the arm. Fail-open when
+    the tool is unimportable or the run has no recorded id.
+    """
+    violations: list[str] = []
+    if os.environ.get(REQUIRED_READS_GATE_DISABLE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
+        return violations
+    run_id = None
+    for name in ("active-run.json", "intake-state.json"):
+        data = _load_json(at / name) if (at / name).exists() else None
+        if isinstance(data, dict):
+            run_id = data.get("run_id") or data.get("slug") or run_id
+            if run_id:
+                break
+    if not run_id:
+        return violations
+    try:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "ct6_required_reads_arm", Path(__file__).resolve().parent / "vao" / "required_reads.py"
+        )
+        if spec is None or spec.loader is None:
+            return violations
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        verdict = mod.verify_required_reads(
+            workspace=root, run_id=str(run_id), plugin_root=Path(__file__).resolve().parents[1]
+        )
+    except Exception:
+        return violations
+    gaps = [g for g in verdict.get("gaps", []) if isinstance(g, dict)]
+    if not gaps:
+        return violations
+    lines = []
+    for g in gaps[:12]:
+        lines.append(
+            f"{g.get('severity', '?')}: {g.get('path') or g.get('chapter') or '?'} "
+            f"(before {g.get('phase') or '?'})"
+        )
+    summary = (
+        f"[CT6 measured gap] verify-required-reads: {len(gaps)} chapter(s) the INDEX "
+        f"requires were not Read before their phase started -- " + "; ".join(lines)
+        + ". The pointer was skipped; read the chapter before continuing that phase "
+        f"(kill-switch {REQUIRED_READS_GATE_DISABLE_ENV}; blocking with {REQUIRED_READS_BLOCKING_ENV}=1)."
+    )
+    if os.environ.get(REQUIRED_READS_BLOCKING_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
+        violations.append(summary)
+    else:
+        print(summary, file=sys.stderr)
+    return violations
+
+
 def audit(root: Path) -> tuple[bool, list[str]]:
     """Audit a workspace. Returns (is_real_run, violations)."""
     at = root / ".architect-team"
@@ -1914,6 +1979,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_frontend_e2e(root, at)
     violations += _audit_release_backing(root, at)
     violations += _audit_diagnosis_falsified(root, at)
+    violations += _audit_required_reads(root, at)
     return True, violations
 
 

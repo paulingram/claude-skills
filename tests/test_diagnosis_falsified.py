@@ -26,6 +26,7 @@ This module pins the closure:
 ASCII-only module; every file read passes encoding="utf-8".
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 import os
@@ -43,7 +44,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _read(plugin_root: Path, *parts: str) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 def _section(body: str, heading: str) -> str:
@@ -238,7 +243,7 @@ def test_facade_reexports_the_tool(plugin_root: Path) -> None:
 
 def test_package_docstring_counts_24_tools(plugin_root: Path) -> None:
     doc = _read(plugin_root, "hooks", "vao", "__init__.py")
-    assert "24 ``verify_*`` tools" in doc, "package docstring must count the 24th tool"
+    assert "26 ``verify_*`` tools" in doc, "package docstring must count the 24th tool"
     assert "diagnosis" in doc, "package docstring must name the diagnosis module"
 
 

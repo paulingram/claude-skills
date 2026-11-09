@@ -1,0 +1,24 @@
+# Notifications (per-project email events — opt-in, best-effort)
+
+Per `common-pipeline-conventions` `## Notifications wiring convention`, the mini pipeline emits the ten recognized events (`run_start`, `phase_start`, `phase_complete`, `waiting_on_agents`, `agents_complete`, `issue_discovered`, `git_commit`, `deploy`, `run_complete`, plus the tick-driven `heartbeat`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
+
+The mini pipeline is the only pipeline that auto-merges to `main`, so observing a Mini-Run on the default branch is exactly the event a stakeholder would want notified on — the v1.0.0 decision is to wire notifications into the mini variant for parity with the main and bug-fix pipelines.
+
+**Informative, not just status (v3.34.0 — the content contract).** Per the canonical rule, every invocation carries meaningful content: `phase_start` passes `--details` with what the phase is about to do *for this change*, `phase_complete` passes `--details` with what the phase actually produced (the bundle drafted, the devs' slices landed, the QA verdict), and both pass `--progress "<N> of 9 M-phases complete — <recap>"`. The FIRST `phase_start` of the run (Phase M0) additionally carries the requirement summary in `--details` — the engagement email. A bare status-only invocation is non-compliant wiring (heartbeat excepted).
+
+**Phase-boundary wiring (`phase_start` / `phase_complete`) — applies to every M-phase.** At the **start of each phase** (Phase M0, M1, M2, M3, M4, M5, M6, M7, M8), as the first action of that phase, the orchestrator emits a `phase_start` event; at the **end of each phase**, as the last action before moving to the next phase, it emits a `phase_complete` event. Both pass `--phase` with the canonical phase name plus the informative flags:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright" --details "<what this phase is about to do for this change>" --progress "<N of 9 M-phases complete — recap>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_start --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright" --details "<what this phase is about to do for this change>" --progress "<N of 9 M-phases complete — recap>"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright" --details "<what the phase produced>" --progress "<N of 9 M-phases complete — recap>" || python "${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py" phase_complete --project <name> --phase "Phase M5 — mini-qa runs unit + integration + narrow Playwright" --details "<what the phase produced>" --progress "<N of 9 M-phases complete — recap>"
+```
+
+**Run-level bookends (v3.34.0).** `run_start` fires ONCE at the end of Phase M3 — the architect's 5-artifact bundle has self-confirmed to a fixed point, so the architecture + solution plan exists — embedding the bundle itself via `--plan-file` (the kickoff email carrying the plan; see the inline wiring at M3). `run_complete` fires ONCE as the run's FINAL notification — at the end of Phase M7 after the auto-merge lands (green path; see the inline wiring there), or at the escalation hand-off if M8 escalates to the full pipeline (the full pipeline's own bookends then take over).
+
+**Dispatch-wait pair (v3.34.0).** At EVERY dispatch-and-wait point the orchestrator emits `waiting_on_agents` (roster + missions via `--agents`) when the dispatch goes out and `agents_complete` (roster + outcomes) when it fully returns — the named points in this pipeline are the Phase M4 parallel dev dispatch (backend-dev + frontend-dev) and the Phase M5 `mini-qa` dispatch.
+
+The remaining moment events (`issue_discovered`, `git_commit`, `deploy`) are wired at specific M-phase steps:
+
+- **`deploy`** — fires at **Phase M5** when `mini-qa` deploys to the dev environment for the Playwright run, with `--layer <layer>`.
+- **`git_commit`** — fires at **Phase M7** immediately after the Mini-Run commit succeeds (BEFORE the auto-merge to main), with `--commit <SHA>`. This is the highest-signal event in any mini-run — the commit will land on `main`.
+- **`issue_discovered`** — fires at **Phase M8** when a `red-with-evidence` verdict from M6 triggers the re-eval loop, with `--summary` carrying the verdict's failure-mode description.

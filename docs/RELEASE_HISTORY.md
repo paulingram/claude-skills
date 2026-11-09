@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.0.0` — claude-5-modernization
 - `v3.67.0` — git-commit-identity
 - `v3.66.0` — executed-diagnosis-and-no-limits
 - `v3.65.0` — playwright-suite-intuition-lifecycle
@@ -167,9 +168,25 @@ Every release, newest first — the one-line index the README used to carry. Ful
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.67.0  ◆  ░▒▓█
+█▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.0.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.0.0 — claude-5-modernization: keep every gate, shed the instruction weight
+
+Two measured facts drove this release. A Claude 5 session ships without `TaskCreate` / `TaskUpdate` unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set, so the Phase 3 evidence gate and the completion lock were silent on the models the plugin now runs on (and the lock looked for `session-<first 8>/` task dirs while the harness writes `<full session id>/`). And the Lead read roughly 141K tokens of its own rules before Phase −2, 13× the 5,000-token budget Claude Code keeps per skill after a compaction. Setup now writes the opt-in with consent, the SessionStart hook warns, the lock reads both layouts and degrades honestly when the task source is absent.
+
+**The rulebook became a constitution.** `common-pipeline-conventions` went from 258 KB to under 60 KB; every discipline moved whole into a `references/` chapter behind a STOP pointer, and `references/INDEX.md` says what to Read before each phase. The lane and driver skills were split the same way (`architect-team-pipeline` 153 KB → 46 KB). The five agent boilerplate blocks live once, in the new `ct6-agent-core` skill every agent preloads. Models follow roles (fable judgment / opus delivery / sonnet mechanical / haiku classification), reviewer counts follow a tier table, `ralph-loop` is retired for the shipped `ct6-converge` workflow, and `superpowers` / `cartographer` became conditional with a native fallback. `instruction_budget.py` records the weight so it cannot regrow unseen; the lane start load is measured at about 45K tokens, not yet at target.
+
+**Seven capabilities landed behind pointers:** a deletion recoverability guard with soft delete, codified project principles with violation call-outs, impact-based test selection with human always-run pins and one full run before merge (reversing the v3.65.0 whole-suite rule on purpose), sample-first iteration on data changes, private-URL page publishing behind a human-owned opt-in, and a per-project homepage with a timing log and a decisions ledger. The proposal that drove it is `docs/proposals/CT6_MODERNIZATION_PLAN.html`.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ### v3.67.0 — git-commit-identity: a run commits as the person driving it
 

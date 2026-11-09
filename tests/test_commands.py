@@ -1,4 +1,5 @@
 """Validate every expected command is present with valid frontmatter."""
+from tests.helpers.surfaces import surface_read
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,9 @@ EXPECTED_COMMANDS: set[str] = {
     "status",
     "absorb-phenotype",
     "visual-to-api",
+    "home",
+    "publish",
+    "principles",
     "classify-test-prod-safety",
     "discipline-status",
     "inject",
@@ -99,7 +103,7 @@ def test_readme_documents_python3_prerequisite(plugin_root: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def _read_command(plugin_root: Path, name: str) -> str:
-    return (plugin_root / "commands" / f"{name}.md").read_text(encoding="utf-8")
+    return surface_read((plugin_root / "commands" / f"{name}.md"))
 
 
 def test_setup_wrapper_carries_ask_for_missing_keys_section(plugin_root: Path) -> None:

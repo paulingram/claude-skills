@@ -540,7 +540,7 @@ def test_apply_model_policy_targets_the_runtime_agents_dir(
     # v3.43.0 delivery-adversarial Opus split) — untouched by the gateway
     # secondary split, which targeted the installed copy resolved from the registry
     repo_agents = Path(__file__).resolve().parents[1] / "agents"
-    assert lever.policy_state(repo_agents) == "deliver-opus-split"
+    assert lever.policy_state(repo_agents) == "role-split"
 
 
 def _wired_main(setup_module: ModuleType, tmp_path: Path, argv: list[str]):

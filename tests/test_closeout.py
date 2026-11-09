@@ -6,6 +6,7 @@ trigger hook `hooks/precompact-closeout.py` (fail-open, reminder-on-stale,
 silent-on-current), and the skill / agent / command surfaces + their wiring.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -287,7 +288,7 @@ def test_precompact_hook_fails_open_on_empty_stdin() -> None:
 # --------------------------------------------------------------------------- #
 
 def test_skill_present_and_documents_co() -> None:
-    body = (REPO_ROOT / "skills" / "closeout" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("closeout")
     assert body.startswith("---")
     assert "closeout_check.py" in body
     assert "documentation-currency" in body
@@ -296,7 +297,7 @@ def test_skill_present_and_documents_co() -> None:
 
 
 def test_agent_present_and_bounded() -> None:
-    body = (REPO_ROOT / "agents" / "closeout-agent.md").read_text(encoding="utf-8")
+    body = agent_surface("closeout-agent")
     assert body.startswith("---")
     assert "closeout_check.py" in body
     low = body.lower()

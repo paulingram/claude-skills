@@ -62,6 +62,13 @@ except ImportError:  # pragma: no cover
 # truth in agent_boilerplate_blocks so skills and agents render identically.
 BLOCKS: Dict[str, str] = {
     "principles": blocks.PRINCIPLES,
+    # v4.0.0 -- the four other agent boilerplate blocks render into the
+    # `ct6-agent-core` skill (preloaded by every agent through its `skills:`
+    # frontmatter) instead of being compiled into 39 agent files.
+    "forbidden-git-operations": blocks.FORBIDDEN_GIT_OPERATIONS,
+    "checkpoint-discipline": blocks.CHECKPOINT_DISCIPLINE,
+    "operating-context": blocks.OPERATING_CONTEXT,
+    "reporting": blocks.REPORTING,
 }
 
 # Backwards-compatible alias used by tests asserting the single-source guarantee:

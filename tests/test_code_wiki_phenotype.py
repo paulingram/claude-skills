@@ -10,6 +10,7 @@ variation + deploy.via cross-seed + provenance), REQ-004 (scaffold integrity + s
 REQ-005 / REQ-008 (engine validate / match gates). The executed demo (REQ-006) + cloud static
 validation (REQ-007) are run artifacts checked by the review gates, not unit-testable here.
 """
+from tests.helpers.surfaces import surface_read
 import importlib.util
 import json
 import os
@@ -56,7 +57,7 @@ FORBIDDEN_LITERALS = [
 
 
 def _read(p: Path) -> str:
-    return p.read_text(encoding="utf-8")
+    return surface_read(p)
 
 
 def _record_dir(plugin_root: Path) -> Path:

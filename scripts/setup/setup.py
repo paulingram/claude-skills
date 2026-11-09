@@ -88,11 +88,14 @@ from typing import Iterable
 # Default location of the user-level installed-plugins manifest.
 INSTALLED_PLUGINS_PATH: Path = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 
-REQUIRED_PLUGINS = {
-    "superpowers@claude-plugins-official",
-    "cartographer@cartographer-marketplace",
-    "ralph-loop@claude-plugins-official",
-}
+# v4.0.0 (proposal change 6): the methodology plugins moved to the CONDITIONAL
+# tier -- preferred when installed, reported and remediated when absent, never
+# gating. The lanes carry a native fallback for each
+# (skills/common-pipeline-conventions/references/native-methodology.md) and the
+# retired ralph-loop's job is done by workflows/ct6-converge.js. The HARD set is
+# therefore empty; the machinery that reads it (`if missing: return 1`) stays so
+# a future hard prerequisite is one registry entry away.
+REQUIRED_PLUGINS: set[str] = set()
 
 # CONDITIONAL tier — a SIBLING registry of REQUIRED_PLUGINS, never an extension
 # of it. A member is verified and reported exactly like a hard prerequisite, but
@@ -106,6 +109,8 @@ REQUIRED_PLUGINS = {
 # spec change, never a convenience edit.
 CONDITIONAL_PLUGINS = {
     "bauplan@bauplan-skills",
+    "superpowers@claude-plugins-official",
+    "cartographer@cartographer-marketplace",
 }
 
 # `tiktoken` is a cartographer RUNTIME dependency (observed missing on a real VM
@@ -138,6 +143,12 @@ ASSUME_YES_ENV_VAR = "CT6_SETUP_ASSUME_YES"
 # (truthy-env / version-parse / settings-json parse) — this file uses it
 # directly.
 TEAMS_ENV_VAR = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+# v4.0.0 -- the Claude 5 task-tool floor. TaskCreate / TaskUpdate are provided by
+# default only on Opus 4.7 / Sonnet 4.6 / Haiku 4.5 and earlier; every other
+# model gets them only with this opt-in. CT6's Phase 3 evidence gate
+# (PostToolUse TaskUpdate / TaskCompleted) and the Stop-hook completion lock
+# read the harness task list, so without the flag both go silent.
+TODO_TOOLS_ENV_VAR = "CLAUDE_CODE_ENABLE_TODO_TOOLS"
 MIN_CLAUDE_VERSION = (2, 1, 32)
 DEFAULT_USER_SETTINGS_PATH: Path = Path.home() / ".claude" / "settings.json"
 
@@ -779,8 +790,8 @@ def _prompt_user_consent(prompt: str) -> str:
         return ""
 
 
-def _settings_has_flag(settings_path: Path) -> bool:
-    """Return True iff settings_path's env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is truthy."""
+def _settings_has_flag(settings_path: Path, var: str = TEAMS_ENV_VAR) -> bool:
+    """Return True iff settings_path's env.<var> is truthy (default: the teams flag)."""
     try:
         if not settings_path.is_file():
             return False
@@ -792,11 +803,11 @@ def _settings_has_flag(settings_path: Path) -> bool:
     env_block = data.get("env")
     if not isinstance(env_block, dict):
         return False
-    return _is_truthy(env_block.get(TEAMS_ENV_VAR))
+    return _is_truthy(env_block.get(var))
 
 
-def _write_flag_to_settings(settings_path: Path) -> None:
-    """Write env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1" to settings_path.
+def _write_flag_to_settings(settings_path: Path, var: str = TEAMS_ENV_VAR) -> None:
+    """Write env.<var>="1" to settings_path (default: the teams flag).
 
     Preserves existing content (idempotent on re-run; merges into an existing
     env block if present). Creates the file + parent dir if missing.
@@ -814,7 +825,7 @@ def _write_flag_to_settings(settings_path: Path) -> None:
     env_block = data.get("env")
     if not isinstance(env_block, dict):
         env_block = {}
-    env_block[TEAMS_ENV_VAR] = "1"
+    env_block[var] = "1"
     data["env"] = env_block
     settings_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -920,6 +931,142 @@ def check_teams_mode(
         return name, "installed", f"wrote {TEAMS_ENV_VAR}=1 to {settings_path}"
     return name, "missing", detail
 
+
+
+def check_task_tools(
+    check_only: bool,
+    no_prompt: bool,
+    env: dict[str, str] | None = None,
+    settings_path: Path | None = None,
+    assume_yes: bool = False,
+) -> tuple[str, str, str | None]:
+    """v4.0.0 -- make sure the session will HAVE the task tools on Claude 5.
+
+    Same consent shape as ``check_teams_mode`` (report in --check-only, print
+    the suggested edit in --no-prompt, write with --yes or an interactive y),
+    without the version probe: the flag is honoured on every Claude Code build
+    that ships the Task tools. Never fatal: a "missing" row is reported, the
+    SessionStart hook keeps warning, and the completion lock degrades honestly
+    (``hooks/open_work.py`` ``task_tools_opted_in``).
+    """
+    name = "task-tools"
+    env = dict(os.environ) if env is None else env
+    settings_path = settings_path or DEFAULT_USER_SETTINGS_PATH
+    flag_in_env = _is_truthy(env.get(TODO_TOOLS_ENV_VAR))
+    flag_in_settings = _settings_has_flag(settings_path, TODO_TOOLS_ENV_VAR)
+    if flag_in_env or flag_in_settings:
+        source = "env" if flag_in_env else "settings.json"
+        return name, "present", f"{TODO_TOOLS_ENV_VAR}=1; flag source: {source}"
+    suggested = json.dumps({"env": {TODO_TOOLS_ENV_VAR: "1"}}, indent=2)
+    detail = (
+        f"{TODO_TOOLS_ENV_VAR}=1 not set in env or {settings_path}. Claude 5 "
+        "models ship without TaskCreate/TaskUpdate; CT6's Phase 3 evidence gate "
+        "and the completion lock read the harness task list. Suggested edit to "
+        f"{settings_path}:\n{suggested}"
+    )
+    if check_only:
+        return name, "missing", detail
+    if assume_yes:
+        try:
+            _write_flag_to_settings(settings_path, TODO_TOOLS_ENV_VAR)
+        except OSError as exc:
+            return name, "failed", f"could not write {settings_path}: {exc}"
+        return name, "installed", f"wrote {TODO_TOOLS_ENV_VAR}=1 to {settings_path} (assumed consent)"
+    if no_prompt or not sys.stdin.isatty():
+        # A non-interactive stdin (CI, a test harness, a piped run) cannot
+        # answer a consent prompt; print the suggested edit instead of hanging.
+        print("\n[task-tools] " + detail, flush=True)
+        return name, "missing", detail
+    prompt = f"Add {TODO_TOOLS_ENV_VAR}=1 to {settings_path}? (y/N): "
+    answer = _prompt_user_consent(prompt)
+    if answer == "y" or answer == "yes":
+        try:
+            _write_flag_to_settings(settings_path, TODO_TOOLS_ENV_VAR)
+        except OSError as exc:
+            return name, "failed", f"could not write {settings_path}: {exc}"
+        return name, "installed", f"wrote {TODO_TOOLS_ENV_VAR}=1 to {settings_path}"
+    return name, "missing", detail
+
+
+
+# ---- v4.0.0 per-project steps (opt-in via --project-root) ----------------------
+
+
+def _load_by_path(rel: str, name: str):
+    import importlib.util as _ilu
+    path = Path(__file__).resolve().parents[2] / rel
+    spec = _ilu.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(rel)
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_publish_config(
+    project_root: Path,
+    check_only: bool,
+    no_prompt: bool,
+    assume_yes: bool = False,
+    stdin_is_tty: bool | None = None,
+) -> tuple[str, str, str | None]:
+    """Ask ONCE where shareable pages live and record the human's answer in
+    `<project>/.architect-team-publish.json` (human-owned afterwards). Never
+    fatal: a 'missing' row only reports that the question is still open.
+    --check-only / --no-prompt / a non-tty stdin print the question and write
+    nothing; --yes records the detected recommendation (Claude artifacts when
+    gcloud is absent)."""
+    name = "page-publishing"
+    cfg = project_root / ".architect-team-publish.json"
+    if cfg.is_file():
+        try:
+            pc = _load_by_path("hooks/publish_config.py", "ct6_publish_config_setup")
+            return name, "present", f"{pc.mode(project_root)}/{pc.adapter(project_root)} recorded in {cfg.name}"
+        except Exception:
+            return name, "present", f"recorded in {cfg.name}"
+    try:
+        sq = _load_by_path("scripts/publish/setup_question.py", "ct6_setup_question")
+        eco = sq.detect_ecosystem()
+        q = sq.question(eco)
+    except Exception as exc:  # the question module is optional plumbing
+        return name, "warn", f"page-publishing question unavailable: {type(exc).__name__}"
+    options = q.get("options", [])
+    labels = [o.get("label", "") for o in options]
+    detail = (q.get("question", "Where should shareable pages live?") + " Options: " + " | ".join(labels)
+              + f". Recommended: {q.get('recommended')}. Record the answer with "
+              f"scripts/publish/setup_question.py or copy .architect-team-publish.example.json to {cfg.name}.")
+    tty = sys.stdin.isatty() if stdin_is_tty is None else stdin_is_tty
+    if check_only or (no_prompt and not assume_yes) or (not assume_yes and not tty):
+        return name, "missing", detail
+    choice = q.get("recommended") or (labels[0] if labels else "Claude artifacts only (default)")
+    if not assume_yes:
+        print("\n[page-publishing] " + q.get("question", "Where should shareable pages live?"))
+        for i, label in enumerate(labels, 1):
+            print(f"  {i}. {label}")
+        answer = _prompt_user_consent(f"Choose 1-{len(labels)} (default: {choice}): ")
+        if answer.isdigit() and 1 <= int(answer) <= len(labels):
+            choice = labels[int(answer) - 1]
+    try:
+        result = sq.write_config({"choice": choice}, project_root)
+    except Exception as exc:
+        return name, "failed", f"could not write {cfg.name}: {exc}"
+    hint = "" if result.get("gitignore_ok", True) else f" ({result.get('gitignore_hint', 'add it to .gitignore')})"
+    return name, "installed", f"recorded '{choice}' in {cfg.name}{hint}"
+
+
+def build_first_homepage(project_root: Path, check_only: bool) -> tuple[str, str, str | None]:
+    """Build the project's first (empty-state) homepage at
+    `<project>/.architect-team/homepage/index.html`. Never fatal."""
+    name = "homepage"
+    out = project_root / ".architect-team" / "homepage" / "index.html"
+    if check_only:
+        return name, ("present" if out.is_file() else "missing"), str(out)
+    try:
+        hb = _load_by_path("scripts/homepage/build.py", "ct6_homepage_build_setup")
+        hb.build(project_root)
+    except Exception as exc:
+        return name, "warn", f"homepage build skipped: {type(exc).__name__}: {exc}"
+    return name, "installed", f"built {out}"
 
 # ---- Main --------------------------------------------------------------------
 
@@ -1187,6 +1334,14 @@ def main(argv: list[str] | None = None) -> int:
              "modified.",
     )
     parser.add_argument(
+        "--project-root",
+        default=None,
+        help="OPT-IN (v4.0.0): a target project's root. When given, setup asks the "
+             "page-publishing question once (writes .architect-team-publish.json) and "
+             "builds the project's first empty-state homepage. Without it neither "
+             "per-project step runs.",
+    )
+    parser.add_argument(
         "--no-prompt",
         action="store_true",
         help="Skip interactive consent prompts (print suggested edits instead). "
@@ -1272,6 +1427,15 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
 
+    # v4.0.0: the Claude 5 task-tool floor (same consent flow; never fatal).
+    rows.append(
+        check_task_tools(
+            check_only=args.check_only,
+            no_prompt=args.no_prompt,
+            assume_yes=assume_yes,
+        )
+    )
+
     # REQ-006 / task 2.4: heuristic fable-availability note (never gates the run).
     rows.append(check_model_default())
 
@@ -1311,6 +1475,14 @@ def main(argv: list[str] | None = None) -> int:
     # project marker rather than on plugin presence, and best-effort: it can only
     # ever emit skipped / note / present / removed / warn, never "failed".
     rows.append(sync_bauplan_guidance(args.claude_md, check_only=args.check_only))
+
+    # v4.0.0 per-project steps, only when the caller names a project root.
+    if args.project_root:
+        project_root = Path(args.project_root).expanduser().resolve()
+        rows.append(check_publish_config(
+            project_root, check_only=args.check_only, no_prompt=args.no_prompt, assume_yes=assume_yes,
+        ))
+        rows.append(build_first_homepage(project_root, check_only=args.check_only))
 
     present, missing = check_plugin_presence(INSTALLED_PLUGINS_PATH, REQUIRED_PLUGINS)
 

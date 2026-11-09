@@ -1,6 +1,7 @@
 """Structural tests for the v2.22.0 No pipeline-bypass discipline."""
 
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import json
 from pathlib import Path
@@ -9,12 +10,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_canonical_section_present_in_common_pipeline_conventions() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     assert "## No pipeline-bypass discipline (v2.22.0)" in body
 
 
 def test_canonical_home_names_5_severities() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     for sev in (
         "pipeline-bypassed-after-slash-command",
@@ -27,7 +28,7 @@ def test_canonical_home_names_5_severities() -> None:
 
 
 def test_canonical_home_names_5_mandatory_pipeline_elements() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     for elt in (
         "Skill invocation",
@@ -40,7 +41,7 @@ def test_canonical_home_names_5_mandatory_pipeline_elements() -> None:
 
 
 def test_canonical_home_includes_verbatim_user_prose() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     assert "I bypassed all of that and built it solo" in section
     assert "no subagents, no independent review, no OpenSpec, no worktree" in section
@@ -48,13 +49,13 @@ def test_canonical_home_includes_verbatim_user_prose() -> None:
 
 
 def test_canonical_home_documents_new_sr_origin_kind() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     assert "pipeline-bypassed-needs-rerun" in section
 
 
 def test_canonical_home_documents_confession_marker_classes() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     for cls in (
         "Bypass admission",
@@ -66,7 +67,7 @@ def test_canonical_home_documents_confession_marker_classes() -> None:
 
 
 def test_canonical_home_cross_references_v2_0_0_layer_6() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     assert "v2.0.0" in section
     assert "Layer 6" in section
@@ -76,12 +77,12 @@ def test_canonical_home_cross_references_v2_0_0_layer_6() -> None:
 
 
 def test_system_architect_has_v2_22_0_section() -> None:
-    body = (REPO_ROOT / "agents" / "system-architect.md").read_text(encoding="utf-8")
+    body = agent_surface("system-architect")
     assert "## No pipeline-bypass discipline (v2.22.0)" in body
 
 
 def test_system_architect_names_forbidden_anti_patterns() -> None:
-    body = (REPO_ROOT / "agents" / "system-architect.md").read_text(encoding="utf-8")
+    body = agent_surface("system-architect")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     for phrase in (
         "I already mapped the codebases",
@@ -92,7 +93,7 @@ def test_system_architect_names_forbidden_anti_patterns() -> None:
 
 
 def test_system_architect_documents_halt_and_disclose_rule() -> None:
-    body = (REPO_ROOT / "agents" / "system-architect.md").read_text(encoding="utf-8")
+    body = agent_surface("system-architect")
     section = body.split("## No pipeline-bypass discipline (v2.22.0)", 1)[1].split("\n## ", 1)[0]
     assert "Halt-and-disclose rule" in section
     assert "BEFORE the first non-pipeline tool call" in section

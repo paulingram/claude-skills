@@ -1,6 +1,6 @@
 ---
 description: Faster bug-focused variant of /architect-team. Takes EITHER a requirements folder (with a bug report) OR a plain-language bug description typed directly — a sentence describing the symptom, what was expected, what actually happened — and drives it through a replicate → reproduce-test → propose → fix → QA-replay loop against the live dev environment. Replication-first; the artifact that reproduces the bug becomes the regression test; the architect rejects symptom-patches and demands generalized fixes (unless the user explicitly authorized a hotfix); the QA-replayer re-runs the artifacts against the deployed dev fix and only `bug-resolved end-to-end` closes the loop. Auto-commits and pushes on a clean Phase B8 pass and emits a /compact prompt to free context. Accepts the SAME two input forms as /architect-team — folder or plain-language prose, both first-class.
-argument-hint: "<requirements-folder | bug description> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first] [--environment production] [--force-bug] [--no-deploy]"
+argument-hint: "<requirements-folder | bug description> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first] [--environment production] [--force-bug] [--no-deploy] [--full-data]"
 ---
 
 # Bug-Fix Pipeline Orchestration
@@ -103,6 +103,7 @@ Flags (each independent — `--no-commit --no-compact` is valid; natural-languag
 - `--no-compact` → `AUTO_COMPACT_PROMPT = false`. (Default `true`.)
 - `--allow-push-to-default` → `ALLOW_PUSH_TO_DEFAULT = true`. (Default `false`.) When false, the pipeline does NOT commit + push unreviewed work straight onto `main` / `master` — it commits to an `architect-team/<bug-slug>` feature branch and recommends a PR.
 - `--proposal-first` → `PROPOSAL_FIRST = true`. (Default `false`.) Runs Phases B−1 → B3 (intake + replication + reproduction-test + the OpenSpec proposal package), then PAUSES for user review before Phase B4. **Domain gates** — the Phase B1 ambiguity-escalation question, the Phase B4 audit `needs-clarification`, the Phase B5 production-deploy escalation — fire regardless of this flag.
+- `--full-data` (v4.0.0) — opt out of sample-first iteration on data changes: run every data step against the full table instead of the stratified sample (`skills/data-eng-pipeline/references/sample-first.md`). Record the opt-out in the final report.
 - `--environment production` → `TARGET_ENVIRONMENT = production`. Forces Phase B5 to escalate before deploying (production deploys are user decisions, never automatic).
 - `--force-bug` → tells the Phase B0 classifier-warning to skip ("this looks like a feature, run /architect-team instead") and proceed anyway. Use when you know it IS a bug despite ambiguous wording.
 - `--no-deploy` → skip Phase B5's auto-deploy step; QA replay (B6) runs against whatever is already deployed. Use when the dev environment is hand-managed.

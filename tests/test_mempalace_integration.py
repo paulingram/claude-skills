@@ -12,6 +12,7 @@ init` from directory structure). The auto-mine assertions therefore check that
 each artifact path is mined, and a regression test guards that no skill /
 agent / command reintroduces a `mine ... --room` command form.
 """
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 import re
 from pathlib import Path
 
@@ -44,7 +45,11 @@ CANONICAL_ROOMS = (
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 # --- command extraction -----------------------------------------------------

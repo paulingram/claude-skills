@@ -687,6 +687,41 @@ def maybe_heal_activation(
         return ""
 
 
+def maybe_warn_task_tools(payload: dict) -> str:
+    """v4.0.0 -- one line when this CT6 workspace may be running without the
+    task tools. Fires only when ALL hold: the cwd is a CT6 workspace (it has an
+    ``.architect-team/`` dir), the ``CLAUDE_CODE_ENABLE_TODO_TOOLS`` opt-in is
+    absent from the env and from ``~/.claude/settings.json``, and the default
+    harness task root does not exist. Pure read; never raises."""
+    try:
+        cwd = payload.get("cwd")
+        if not isinstance(cwd, str) or not cwd.strip():
+            return ""
+        if not (Path(cwd) / ".architect-team").is_dir():
+            return ""
+        ow_path = Path(__file__).resolve().parent / "open_work.py"
+        spec = importlib.util.spec_from_file_location("ct6_open_work_for_sessionstart", ow_path)
+        if spec is None or spec.loader is None:
+            return ""
+        ow = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ow)
+        if ow.task_tools_opted_in():
+            return ""
+        if ow.tasks_root(None).is_dir():
+            return ""
+        return (
+            "[CT6 task tools] No harness task list exists on this machine and "
+            f"{ow.TODO_TOOLS_ENV}=1 is not configured. Claude 5 models ship "
+            "without TaskCreate/TaskUpdate, which CT6's Phase 3 evidence gate "
+            "and completion lock read; the lock will run on the ask-ledger and "
+            "run marker only. Fix: run /architect-team:architect-team-setup "
+            f"(writes the flag to ~/.claude/settings.json) or start Claude with "
+            f"{ow.TODO_TOOLS_ENV}=1."
+        )
+    except Exception:
+        return ""
+
+
 def main() -> int:
     try:
         raw = _read_stdin_utf8() if not sys.stdin.isatty() else ""
@@ -722,7 +757,11 @@ def main() -> int:
         split_note = maybe_heal_model_split()
     except Exception:  # fail open — never wedge a session start on a bug here
         split_note = ""
-    for line in (directive, failover_note, activation_note, split_note):
+    try:
+        task_tools_note = maybe_warn_task_tools(payload)
+    except Exception:  # fail open
+        task_tools_note = ""
+    for line in (directive, failover_note, activation_note, split_note, task_tools_note):
         if line:
             print(line)
     return 0

@@ -21,6 +21,7 @@ These tests assert the discipline is present across the skill + agent so it
 cannot silently regress. (Registration in EXPECTED_SKILLS / EXPECTED_AGENTS is
 asserted by a later teammate per REQ-007 — not here.)
 """
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 from pathlib import Path
 
 import pytest
@@ -64,7 +65,8 @@ PLACEHOLDER_NAMING_SIGNALS = ("Placeholder", "ComingSoon", "Stub", "Mock", "Demo
 # v3.10.0 (R4a): retired LS / NotebookRead / Task dropped; NotebookEdit kept.
 VALID_TOOLS = {
     "Read", "Edit", "Write", "Glob", "Grep", "Bash",
-    "TodoWrite", "NotebookEdit",
+    "NotebookEdit",
+    "TaskCreate", "TaskGet", "TaskList", "TaskUpdate",
     "WebFetch", "WebSearch",
 }
 VALID_MODELS = {"opus", "sonnet", "haiku", "inherit", "fable"}  # v3.32.0 uniform fable default
@@ -75,7 +77,11 @@ REQUIRED_SKILL_KEYS = {"name", "description"}
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 # --- skill exists + valid frontmatter --------------------------------------
@@ -364,7 +370,7 @@ def test_agent_is_opus(plugin_root: Path) -> None:
     """Judgment-heavy review — the reviewer runs on the opus model."""
     fm, _ = frontmatter.parse(plugin_root.joinpath(*AGENT))
     assert fm["model"] in VALID_MODELS, f"interaction-reviewer invalid model {fm['model']!r}"
-    assert fm["model"] == "fable", "interaction-reviewer must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
+    assert fm["model"] == "sonnet", "interaction-reviewer is a mechanical verifier: model: sonnet under the v4.0.0 role split"
 
 
 def test_agent_tools_are_valid(plugin_root: Path) -> None:
