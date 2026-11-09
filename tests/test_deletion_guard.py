@@ -421,6 +421,57 @@ def test_a_variable_whose_value_is_itself_unexpanded_stays_unknown(repo: Path) -
     assert "unexpanded shell variable" in d["permissionDecisionReason"]
 
 
+def test_git_checkout_dash_b_from_a_sha_is_not_a_restore(repo: Path) -> None:
+    """Field report (v4.1.5): `S=/p; W=$S/lanes/x; git -C $W checkout -b new <sha>`
+    asked as "unparsable -- relative path" -- the start-point sha was read as a
+    path to restore, and the chained variable never resolved. Branch creation
+    deletes nothing; the chain resolves through the known S."""
+    sha = _git("rev-parse", "HEAD", cwd=repo)
+    cmd = (f"S={repo.parent}; G=$S/other; git -C $G push origin x 2>&1 | tail -1; "
+           f"W=$S/{repo.name}; git -C $W checkout -b architect-team/followup {sha} 2>&1 | tail -1; "
+           f"git -C $W rev-parse --abbrev-ref HEAD; echo ok")
+    assert _decide(cmd, None) is None
+
+
+@pytest.mark.parametrize("cmd", [
+    "git checkout --orphan gh-pages",
+    "git checkout --detach HEAD~1",
+    "git switch feature/x",
+])
+def test_branch_creations_are_not_restores(repo: Path, cmd: str) -> None:
+    assert _decide(cmd, repo) is None
+
+
+@pytest.mark.parametrize("cmd", ["git checkout -B main origin/main", "git checkout feature/x"])
+def test_a_branch_switch_asks_for_the_shared_state_reason_not_as_unparsable(repo: Path, cmd: str) -> None:
+    """The teammate git discipline's shared-state arm owns these (a branch
+    switch mid-run rewrites shared state); what the restore logic must NOT do
+    is read the branch name as a path."""
+    d = _decide(cmd, repo)
+    assert d is not None and d["permissionDecision"] == "ask"
+    assert "shared git state" in d["permissionDecisionReason"]
+    assert "unparsable" not in d["permissionDecisionReason"]
+
+
+def test_git_checkout_with_pathspec_is_still_a_restore(repo: Path) -> None:
+    (repo / "d.py").write_text("x\n", encoding="utf-8")
+    _git("add", "d.py", cwd=repo)
+    _git("-c", "user.name=S", "-c", "user.email=s@e.t", "commit", "-q", "-m", "d", cwd=repo)
+    (repo / "d.py").write_text("changed\n", encoding="utf-8")
+    d = _decide("git checkout -- d.py", repo)
+    assert d is not None and d["permissionDecision"] == "ask"
+    d2 = _decide("git checkout HEAD d.py", repo)
+    assert d2 is not None and d2["permissionDecision"] == "ask"
+
+
+def test_a_variable_chain_resolves_through_known_names(repo: Path) -> None:
+    (repo / "e.py").write_text("x\n", encoding="utf-8")
+    _git("add", "e.py", cwd=repo)
+    _git("-c", "user.name=S", "-c", "user.email=s@e.t", "commit", "-q", "-m", "e", cwd=repo)
+    d = _decide(f"S={repo.parent}; W=$S/{repo.name}; git -C $W checkout -- e.py", None)
+    assert d is not None and d["permissionDecision"] == "allow", d
+
+
 def test_relative_path_without_cwd_asks(repo: Path) -> None:
     d = _decide("rm notes.txt", None)
     assert d["permissionDecision"] == "ask"
