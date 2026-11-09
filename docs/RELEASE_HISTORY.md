@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.2` — instruction-compression
 - `v4.1.1` — hold-channel-harness-pin
 - `v4.1.0` — quiet-holds-and-the-users-release
 - `v4.0.0` — claude-5-modernization
@@ -173,6 +174,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.2  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.2 — instruction-compression: the weight falls by more than half, every rule accounted for
+
+The text an agent carries before it starts work is measured, not estimated, and it fell: the always-loaded descriptions from 23,190 to 9,214 tokens, the constitution from 16,227 to 10,378, and the six lane start loads from 47.6K / 32.3K / 26.9K / 28.4K / 29.3K / 25.4K to 26.3K / 21.9K / 18.5K / 20.0K / 20.1K / 17.2K against a 25K target. Three rails made it a refactor with a proof rather than a rewrite on trust: tests pin the surface an agent receives (moved text keeps every pin, deleted text breaks one), the lint refuses a dead pointer, and the budget engine recorded before and after. 129 descriptions were rewritten trigger-first, 46 constitution stubs cut to one sentence with all 155 removed sentences verified present in their chapters, and the lanes moved 31 sections into chapters and replaced repeated protocol prose with pointers. An independent reviewer then compared every old and new surface and found ten descriptions that had lost a trigger or exclusion and one sentence in no chapter; all eleven were restored before release. Two figures stop short of target on purpose, and the CHANGELOG says which and why.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
