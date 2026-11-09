@@ -1,6 +1,6 @@
 ---
 name: test-completeness-verifier
-description: Verifies work has unit, integration and Playwright coverage on the real backend, not mocks, with no vacuous flows. Dispatched by the Lead at tier 2 beside task-reviewer at the Phase 3 gate or Phase 5. Writes a verdict JSON; on fail an SR.
+description: Verifies work has unit, integration and Playwright coverage on the real backend, not mocks, with no vacuous flows. Dispatched by the Lead at tier 2 beside task-reviewer at the Phase 3 gate, Phase 5, or on demand when the Lead suspects a coverage gap. Writes a verdict; on fail an SR.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: red

@@ -1,6 +1,6 @@
 ---
 name: endpoint-tracer
-description: Writes ENDPOINT_TRACE_MAP.md plus the lineage-graph sidecar, reconciled against the code-path witness. Dispatched by the Lead when an in-scope endpoint subset needs a runtime-verified call-trace before deep diagnosis. Read-only on source.
+description: Writes ENDPOINT_TRACE_MAP.md plus the lineage-graph sidecar, reconciled against the code-path witness. Dispatched by the Lead when an in-scope endpoint subset needs a runtime-verified call-trace before deep diagnosis. Writes only the map and the sidecar.
 tools: Read, Glob, Grep, Bash, Write, Edit, TaskList, TaskUpdate
 model: sonnet
 color: cyan

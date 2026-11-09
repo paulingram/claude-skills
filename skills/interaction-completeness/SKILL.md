@@ -1,6 +1,6 @@
 ---
 name: interaction-completeness
-description: Use when a feature with UI/UX surface has shipped and must be independently verified genuine -- every control real-user-flow-tested (real page.click / page.fill, not an API call), every page live, no placeholder, every value truly static or data-bound. At the Phase 3 review gate or Phase 5 cross-layer verification.
+description: Use when a feature with UI/UX surface has shipped and must be independently verified genuine -- every control real-user-flow-tested (real page.click / page.fill, not an API call), every page live, no placeholder, every value truly static or data-bound -- at the Phase 3 gate, Phase 5, or whenever a control, route or value is in doubt.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: interaction-observer
-description: Pass 1 of interactive-mockup-discovery -- drives an HTML mockup oracle in headless Playwright, simulates every interaction and records effects into the oracle spec. Dispatched by the Lead at Phase 0.5 on oracle-deriver's request. Read-only.
+description: Pass 1 of interactive-mockup-discovery -- drives an HTML mockup oracle in headless Playwright, simulates every interaction and records effects into the oracle spec. Dispatched by the Lead at Phase 0.5 on oracle-deriver's request. Read-only on source; writes only the interaction evidence and interactions[].
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: green

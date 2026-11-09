@@ -1,6 +1,6 @@
 ---
 name: doc-updater
-description: Documentation-currency updater -- rewrites inventory docs the run's diff made stale. Dispatched by the Lead at Phase 8 (architect-team-pipeline) and Phase B8 (bug-fix-pipeline). Writes only inventory paths, never source, tests or openspec.
+description: Documentation-currency updater -- rewrites inventory docs the run's diff made stale. Dispatched by the Lead at Phase 8 (architect-team-pipeline) and Phase B8 (bug-fix-pipeline). Writes only inventory paths, never source, tests, openspec or the version source.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: orange

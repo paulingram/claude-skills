@@ -1,6 +1,6 @@
 ---
 name: expensive-verification-debugging
-description: Use when debugging a failure whose verification is costly -- container rebuild, ECS / Kubernetes / Cloud Run deploy, slow CI, long compile -- or after two deploy cycles on one bug, whack-a-mole config fixes, a greenfield Docker / Vite / CI build, an env var missing in the bundle. Audit the whole pathway; batch fixes.
+description: Use when debugging a failure whose verification is costly -- container rebuild, ECS / Kubernetes / Cloud Run deploy, slow CI, long compile -- or after two deploy cycles on one bug, whack-a-mole config fixes, "I'll fix this one and redeploy to see", a greenfield Docker / Vite / CI build, an env var missing in the bundle. Audit the whole pathway; batch fixes.
 user-invocable: false
 ---
 

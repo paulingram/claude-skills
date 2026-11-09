@@ -1,6 +1,6 @@
 ---
 name: mini-qa
-description: The mini lane's single QA agent -- selected tests on the real dev API plus up to 3 narrow Playwright flows on live dev. Dispatched by the Lead at Phase M5 of the mini-architect-team-pipeline. Emits green (auto-merge), red or env-failure.
+description: The mini lane's single QA agent -- selected tests on the real dev API plus up to 3 narrow Playwright flows on live dev. Dispatched by the Lead at Phase M5 of the mini-architect-team-pipeline. Emits green (auto-merge), red or env-failure. Not visual, editability, interaction or multi-persona checks (mini-review-sweep).
 tools: Read, Write, Edit, Glob, Grep, Bash, TaskList, TaskUpdate, NotebookEdit
 model: opus
 color: cyan

@@ -1,6 +1,6 @@
 ---
 name: data-dictionary
-description: Use when a codebase consumes data tables/databases and needs a self-contextualizing data dictionary -- derive the model from code, docs or user input, define every field with provenance, sample a reachable DB. Writes DATA_DICTIONARY_MAP.md + data-dictionary.json. Engine scripts/data_dictionary/data_dictionary.py.
+description: Use when a codebase consumes data tables/databases and needs a self-contextualizing data dictionary -- derive the model from code, docs or user input, define every field with provenance, sample a reachable DB. Runs after codebase + integration mapping; refreshed on any database development. Writes DATA_DICTIONARY_MAP.md + data-dictionary.json.
 user-invocable: false
 ---
 

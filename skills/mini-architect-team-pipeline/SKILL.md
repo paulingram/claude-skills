@@ -1,6 +1,6 @@
 ---
 name: mini-architect-team-pipeline
-description: Use when a feature change (5 or fewer acceptance criteria) needs driving end-to-end faster than /architect-team, auto-merge to main on green QA. M0-M8 -- one system-architect, two cross-reviewing devs, one mini-qa agent running unit, integration and 1-3 Playwright flows on live dev; red hands off to the full lane.
+description: Use when a feature change (5 or fewer acceptance criteria) needs driving end-to-end faster than /architect-team, auto-merge to main on green QA. M0-M8 -- one system-architect, two cross-reviewing devs, one mini-qa agent running unit, integration and 1-3 Playwright flows on live dev; persistent red hands off to the full lane.
 user-invocable: false
 ---
 

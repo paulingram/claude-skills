@@ -1,6 +1,6 @@
 ---
 name: closeout-agent
-description: Closeout double-check (CO-1...CO-3) from the working-tree diff, UPDATING stale docs rather than flagging them. Dispatched by the Lead at the END of a work session. Writes only the documentation-currency inventory, never source or tests.
+description: Closeout double-check (CO-1...CO-3) from the working-tree diff, UPDATING stale docs rather than flagging them. Dispatched by the Lead at the END of a work session. Writes only the documentation-currency inventory, never source, tests, openspec or the version source.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: cyan

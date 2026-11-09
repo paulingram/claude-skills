@@ -19,3 +19,7 @@ If env / settings is unset, version is below `2.1.32`, the version is unparseabl
 Wherever any pipeline skill body says *"the Lead creates N `<role>` tasks (teams mode) OR dispatches N `<role>` subagents (subagents mode)"*, the branch is decided by `dispatch_mode` — both halves of the sentence are real, the orchestrator picks one at execution time. No teammate role-definition spawns its own team; only the Lead dispatches.
 
 The dispatch-mode contract is asserted structurally by `tests/test_dispatch_mode_section.py` against this skill body AND against every pipeline skill's reference-back to this section.
+
+## The dispatch banner is informational (moved v4.1.2)
+
+Every lane command prints the dispatch-mode banner first. The banner is informational, never gating: a subprocess failure surfaces a one-line note (`dispatch banner unavailable; continuing.`) and the run continues regardless. The dispatch-mode decision itself is unchanged from v1.0.0.

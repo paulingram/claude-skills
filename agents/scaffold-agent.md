@@ -1,6 +1,6 @@
 ---
 name: scaffold-agent
-description: Generates new domain-specific agent .md files into the plugin's agents/ from existing agents as templates. Dispatched by the Lead on demand. Validates frontmatter and that the tool list names real tools; writes only the new file.
+description: Generates new domain-specific agent .md files into the plugin's agents/ from existing agents as templates. Dispatched by the Lead when a run needs a role no shipped agent covers. Validates frontmatter and that the tool list names real tools; writes only the new file.
 tools: Read, Glob, Write, Edit, Bash, TaskList, TaskUpdate, WebFetch
 model: fable
 color: purple

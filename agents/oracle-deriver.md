@@ -1,6 +1,6 @@
 ---
 name: oracle-deriver
-description: VAO Layer 1 -- walks a named oracle into a frozen, user-confirmed spec. Dispatched by the Lead at Phase 0.5 when the requirement carries a parity verb (match, rebuild, mirror, make like, replicate) or names an oracle. Writes only that spec.
+description: VAO Layer 1 -- walks a named oracle into a frozen, user-confirmed spec. Dispatched by the Lead at Phase 0.5 when the requirement carries a parity verb (match, rebuild, mirror, parity, make like, replicate) or names an oracle. Writes only that spec.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: fable
 color: cyan
