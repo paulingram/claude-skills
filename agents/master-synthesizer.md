@@ -1,6 +1,6 @@
 ---
 name: master-synthesizer
-description: Dispatched by the Lead at the end of Phase −1C as the fixer seat of the ct6-converge integration-map workflow, after the tier-3 panel of three integration-explorers has converged. Reads all 3 drafts and produces a single canonical INTEGRATION_MAP.md with last_synthesized ISO 8601 timestamp. Then presents the master doc to each of the 3 explorers; revises if any explorer flags a missing fact. Returns with the label "INTEGRATION MAP COMPLETE" once all 3 confirm; the recorded ct6-converge verdicts (every explorer ok) are the exit, the string is only the gate's label.
+description: Fixer seat of the ct6-converge integration-map workflow -- merges the three explorer drafts into the canonical INTEGRATION_MAP.md. Dispatched by the Lead at end of Phase -1C after the tier-3 panel of three integration-explorers converges.
 tools: Read, Glob, Write, Edit, TaskList, TaskUpdate
 model: fable
 color: purple

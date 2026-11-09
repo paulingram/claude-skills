@@ -81,3 +81,7 @@ The arm proves a record EXISTS and that every commit CARRIES it; it cannot prove
 | "Asking is a process gate; default-to-action says proceed" | Identity is a domain gate — the user's fact, not a process choice. |
 | "I'll set the user's git config so future commits work" | CT6 writes its own record; the user's git config is theirs. |
 | "It's just the merge commit" | A merge authors a commit. It carries the record like every other. |
+
+## From the constitution stub (moved v4.1.2)
+
+The rule: a run commits as the PERSON driving it, and the tool never decides who that is. The front door resolves it once per checkout (`hooks/git_identity.py resolve`): a recorded `<main-worktree>/.architect-team/git-identity.json` is used silently; a candidate from local/global git config is CONFIRMED with the user first; nothing found means the user is ASKED for name + email — a domain gate, never a hardcoded default, never the user's git config rewritten. Every commit-authoring command then carries the record explicitly (the `git_identity.py git --` wrapper or `-c user.name=… -c user.email=…`), and `pretool_skill_gate.py` Arm 4 refuses one that lacks or contradicts it during an active run (`CT6_GIT_IDENTITY_GATE_DISABLED` is the human's lever).

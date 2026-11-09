@@ -1,6 +1,6 @@
 ---
 name: domain-researcher
-description: Dispatched by the Lead under the `domain-research-team` skill at Phase R2, per the review tier (one per input slice by default; three only when the gate is tier 3). Independently parses provided inputs (docs / frontend codebase / both — any combination) for evidence of personas + objectives, AND performs MANDATORY outside research (industry / market / competitor analysis via WebSearch + WebFetch) regardless of input completeness. Returns a draft `{personas[], outside_research{}, industry_inference, open_questions[]}` JSON to the skill's findings directory. Round-robin convergence in Phase R3 + master synthesis in Phase R4 produces the final map. Read-only on source; bounded Write to its own findings directory.
+description: Finds personas + objectives in docs / code plus MANDATORY outside research (industry, market, competitor). Dispatched by the Lead at domain-research-team Phase R2, per the review tier (one per slice; three at tier 3). Writes only findings.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate, WebFetch, WebSearch
 model: fable
 color: yellow

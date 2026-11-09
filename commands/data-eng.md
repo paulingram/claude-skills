@@ -1,5 +1,5 @@
 ---
-description: Data-engineering lane variant of /architect-team (v3.50.0) — the first-class sibling lane for data-engineering work. Takes EITHER a requirements folder OR a plain-language data-engineering requirement typed directly — a sentence describing the warehouse, pipeline, dbt models, or data dictionary to build, design, or refresh — and drives it through the data-eng-pipeline orchestrator (phases D−1 through D8), which reuses the main pipeline's evidence stack, dispatches data-engineering-exploration verbatim, and adds the warm-catalog-first check plus the catalog-refresh discipline. Auto-commits and pushes on a clean Phase D8 pass and emits a /compact prompt to free context. Accepts the SAME two input forms as /architect-team — folder or plain-language prose, both first-class.
+description: Data-engineering lane of /architect-team. Takes a requirements folder OR a data-engineering requirement (warehouse, pipeline, dbt models, or data dictionary to build, design, or refresh) and drives it through the data-eng-pipeline, D-1 through D8. Commits on a Phase D8 pass.
 argument-hint: "<requirements-folder | data-engineering requirement> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first] [--no-refine] [--no-worktree] [--no-auto-merge] [--appearance strict|propose|innovate] [--full-data]"
 ---
 
@@ -31,23 +31,19 @@ inspects env + settings.json + `claude --version` + the `--no-teams` flag).
 python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from teams_mode import format_dispatch_banner; print(format_dispatch_banner())" 2>&1 || python -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from teams_mode import format_dispatch_banner; print(format_dispatch_banner())" 2>&1 || echo "(dispatch banner unavailable; continuing.)"
 ```
 
-The banner is informational, not gating. A subprocess failure surfaces a
-one-line note and the run continues regardless. The dispatch-mode decision
-itself is unchanged from v1.0.0.
-
 ## Commit identity (v3.67.0) — runs after the banner, before any git-mutating step
 
-This run will author commits, and the tool never decides WHO they are attributed to. Resolve the checkout's recorded commit identity now — once per checkout, before the auto-cleanup / branch-reconciliation / auto-worktree steps below can touch git — per `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)` (full procedure: `skills/common-pipeline-conventions/references/git-commit-identity.md`):
+Resolve the checkout's recorded commit identity before any step below touches git (the rule and its rationale: `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)`, full text `skills/common-pipeline-conventions/references/git-commit-identity.md`):
 
 ```bash
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd "<workspace>" resolve --json
 ```
 
-- `"status": "recorded"` → say *"Committing as `<name> <email>` (recorded for this checkout)"* in one line and continue. No question.
-- `"status": "candidate"` → git's local or global config names someone; that is a PROPOSAL, never adopted silently. Ask via `AskUserQuestion`: *"Commit as `<name> <email>`? (found in this repo's local / your global git config)"* — options **Yes, record it for this checkout** / **No — I'll give a different name and email**. Then `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd "<workspace>" set --name "<name>" --email "<email>" --source confirmed-local-git-config|confirmed-global-git-config` (or `--source asked` when they typed a different one).
-- `"status": "missing"` → ask via `AskUserQuestion` (free text): *"Who should this run's commits be attributed to? Reply `Name <email>`."* Then `set ... --source asked`.
+- `"status": "recorded"` -> say *"Committing as `<name> <email>` (recorded for this checkout)"* in one line and continue.
+- `"status": "candidate"` -> a name found in git config is a PROPOSAL, never adopted silently: confirm it via `AskUserQuestion` (*"Commit as `<name> <email>`?"* -- **Yes, record it for this checkout** / **No, I'll give a different name and email**), then `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd "<workspace>" set --name "<name>" --email "<email>" --source confirmed-local-git-config|confirmed-global-git-config` (`--source asked` when they typed a different one).
+- `"status": "missing"` -> ask via `AskUserQuestion` (free text, *"Reply `Name <email>`"*), then `set ... --source asked`.
 
-This is a **DOMAIN gate** (the v0.9.21 carve-out — the answer is the user's own fact): it fires regardless of `--proposal-first`, it fires ONCE per checkout (the record is the memory), and it NEVER guesses, NEVER reuses a name found in a skill, a CLAUDE.md or another repo, and NEVER writes the user's git config. Every commit-authoring git command this run issues then carries the record (the `git_identity.py git --` wrapper or the explicit `-c user.name= -c user.email=` pair); the PreToolUse gate refuses one that does not.
+A **DOMAIN gate**: it fires regardless of `--proposal-first`, ONCE per checkout, never guesses a name and never writes the user's git config; every commit-authoring git command this run issues then carries the record (the `git_identity.py git --` wrapper or the explicit `-c user.name= -c user.email=` pair).
 
 ## Auto-cleanup of merged worktrees (v1.3.0) — runs first
 
@@ -190,7 +186,7 @@ At the end of Phase D8, after the final report emits **"Data-engineering change 
 1. `git -C <repo-root> status --porcelain` to enumerate what changed.
 2. `git -C <repo-root> add <files-the-lane-touched>` — stage ONLY the files the lane created or modified (the openspec change folder, the data-model / dbt / pipeline source, the refreshed dictionary artifacts, any updated maps). Do NOT use `git add -A`.
 2b. **Default-branch guard:** if the current branch is `main` / `master` and `ALLOW_PUSH_TO_DEFAULT` is false, `git -C <repo-root> checkout -b architect-team/<change-slug>` before committing.
-3. `git -C <repo-root> commit -m "<commit message per the data-eng-pipeline skill's Phase D8 template>"` — authored as the checkout's RECORDED person (v3.67.0 — resolved at the front door above; never ambient git config alone, never a hardcoded author): `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- -C <repo-root> commit -m "<message>"` (the wrapper injects `-c user.name= -c user.email=` from `.architect-team/git-identity.json` and REFUSES when there is none), or the explicit `-c user.name="<name>" -c user.email="<email>"` pair from `git_identity.py status --json`; the PreToolUse gate refuses a commit that lacks or contradicts the record.
+3. `git -C <repo-root> commit -m "<commit message per the data-eng-pipeline skill's Phase D8 template>"` — authored as the checkout's RECORDED person (v3.67.0, resolved at the front door above): `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- -C <repo-root> commit -m "<message>"` (the wrapper injects the recorded `-c user.name= -c user.email=` pair and REFUSES when there is none), or the explicit pair from `git_identity.py status --json`.
 4. `git -C <repo-root> push -u origin <branch>` — push the branch the commit landed on.
 5. Report the commit SHA and push range in the final user-facing report. If the commit landed on `architect-team/<change-slug>`, the report MUST say so and recommend opening a PR.
 

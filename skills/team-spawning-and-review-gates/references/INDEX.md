@@ -19,3 +19,4 @@ Read the chapter for a phase before its first tool call; `verify-required-reads`
 | always | `skills/team-spawning-and-review-gates/references/independent-review-the-task-reviewer.md` | the full text of Independent review |
 | always | `skills/team-spawning-and-review-gates/references/review-evidence-what-each-field-means-in-practice.md` | the full text of Review evidence |
 | phase-2 | `skills/team-spawning-and-review-gates/references/review-tiers.md` | which review tier a gate gets (3 / 2 / 1), how many independent checkers to dispatch and on which model |
+| always | `skills/team-spawning-and-review-gates/references/anti-patterns-to-reject.md` | each rationalization for bending a scope, evidence or review rule and its rebuttal |

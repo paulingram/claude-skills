@@ -1,6 +1,6 @@
 ---
 name: diagnostic-researcher
-description: Dispatched by the Lead as a research fan-out of three whenever a failing test escalates via a solution requirement (origin.kind in rca-product-bug, playwright-failure, integration-test-failure, test-completeness-failure, visual-fidelity-drift); the architect's convergence that follows is the tier-3 gate (ct6-converge). Each researcher independently maps the FULL code flow from test input to failing assertion, then produces ranked diagnostic hypotheses anchored to file-line evidence and falsification tests. Read-only on source code. Output is a structured draft consumed by the system-architect agent for robustness review before any fix team is spawned.
+description: Maps the FULL code flow from test input to failing assertion into ranked evidence-anchored hypotheses. Dispatched by the Lead as a fan-out of three when a failing test escalates via SR, before the architect's tier-3 convergence. Read-only.
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch, Write, TaskList, TaskUpdate
 model: fable
 color: red

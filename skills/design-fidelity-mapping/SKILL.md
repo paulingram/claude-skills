@@ -1,6 +1,6 @@
 ---
 name: design-fidelity-mapping
-description: Use when authoring or refreshing a frontend codebase's UX mapping AND any design artifacts are available — Figma exports, screenshot/mockup images (PNG/JPG/SVG), design tokens files, Storybook configs, brand guidelines, or a codebase `assets/` directory. Triggers - a `designs/` / `screens/` / `mockups/` folder in `$REQ_DIR`, a Figma URL referenced in proposal/design.md, a `tokens.json` / `tailwind.config.{js,ts}` / `theme.ts` / `.storybook/main.{js,ts}` in the codebase, an `assets/` or `public/images/` directory with non-trivial content, OR you are about to author Playwright tests for a UI that has a visual contract that needs codification. Skipped when no design inputs exist — the absence of a DESIGN_MAP.md is not a gap if there are no design inputs.
+description: Use when authoring or refreshing a frontend's UX mapping AND design artifacts exist -- Figma exports, mockup images, design tokens, Storybook, brand guidelines, an assets/ dir, a designs/ or mockups/ folder -- or before Playwright tests for a UI with a visual contract. DESIGN_MAP.md out; skipped without design inputs.
 user-invocable: false
 ---
 

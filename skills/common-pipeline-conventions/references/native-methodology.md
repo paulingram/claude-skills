@@ -53,3 +53,7 @@ by cartographer, so the freshness and homepage surfaces can say so.
 
 The native forms are the same disciplines written short. They do not reproduce
 every refinement the plugins carry; when a plugin is present the lane uses it.
+
+## From the constitution stub (moved v4.1.2)
+
+`superpowers` and `cartographer` are CONDITIONAL plugins — preferred when installed, reported and remediated when absent, never gating. The lane records `methodology: native` and follows the chapter's native forms of brainstorming, test-driven development, systematic debugging, verification before completion and codebase mapping (a native map carries `source: native`); when a plugin is present the lane uses it.

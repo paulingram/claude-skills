@@ -1,5 +1,5 @@
 ---
-description: Inject an in-flight clarification, scope amendment, or separable parallel problem into the currently running architect-team pipeline. The message lands in the per-run inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` and is picked up promptly — on the orchestrator's next wake / dispatch-return, not only at a phase boundary (v3.16.0) — where it is classified as `scope-amendment` (upstream re-run), `clarification` (folds into the next phase), `out-of-scope` (recorded), or `parallel-problem` (opens a concurrent in-run lane) per v2.5.0. Works from the same Claude Code session at a turn boundary OR from a separate terminal session.
+description: Inject an in-flight clarification, scope amendment, out-of-scope note, or separable parallel problem into the running pipeline via the per-run inbox; picked up on the orchestrator's next wake, not only at a phase boundary. Works from the same session OR a separate terminal.
 argument-hint: "<message>"
 ---
 

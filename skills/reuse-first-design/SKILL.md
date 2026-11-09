@@ -1,6 +1,6 @@
 ---
 name: reuse-first-design
-description: Use when authoring or refining any OpenSpec proposal/specs/design/tasks artifact, when making architectural decisions, or when proposing a new module/file/dependency. Enforces extend-before-compose-before-reuse-before-build-new, with a mandatory Reuse Decision Log anchored in CODEBASE_MAP.md and INTEGRATION_MAP.md. Rejects rationalizations like "cleaner as a new module" or "faster to just write it fresh."
+description: Use when authoring or refining an OpenSpec proposal/specs/design/tasks, making architecture decisions, or proposing a new module/file/dependency. Enforces extend-before-compose-before-reuse-before-build-new with a Reuse Decision Log tied to CODEBASE_MAP.md and INTEGRATION_MAP.md; rejects 'cleaner as a new module'.
 user-invocable: false
 ---
 

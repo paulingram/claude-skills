@@ -1,6 +1,6 @@
 ---
 name: interaction-intuition
-description: "Discovery-phase verification discipline that — for every frontend codebase in scope at Phase −1B — cross-walks ROUTE_MAP.md × DESIGN_MAP.md × INTEGRATION_MAP.md and produces an explicit per-element intuition of what action each control takes and which endpoint it likely calls, with confidence high / medium / low / unknown, evidence, and a precise ambiguity question for every low-confidence item. The end of Phase −1 fires a bulk-verify gate: every low-confidence and unknown element is presented to the user as a single numbered list (`all correct` / a list of incorrect indices / `all incorrect`), then a targeted drill-down resolves only the flagged items. The confirmed intuition map is a binding input to Phase 0 spec authoring and Phase 1 coverage criteria. The Phase −1D bulk-verify is a domain gate (the user-confirmation step IS the feature) and fires regardless of the v0.9.20 process-gates-opt-in rule."
+description: Phase -1B discovery verification per frontend codebase -- cross-walks ROUTE_MAP.md x DESIGN_MAP.md x INTEGRATION_MAP.md into a per-element intuition (action, likely endpoint, confidence high / medium / low / unknown). Phase -1D bulk-verifies low-confidence items; the confirmed map binds Phases 0 and 1. A domain gate.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: system-architect
-description: Architectural deep-dives, design refinement, and contract audits dispatched by the Lead on demand (the Phase 2 architect brief plus nine audit modes, from Diagnostic Plan Review to Interface Contract Approval — the tier-3 architecture-approval seat). Analysis-only — produces decisive recommendations with file:line evidence; never writes feature code. Operates strictly from CODEBASE_MAP.md, ROUTE_MAP.md, INTEGRATION_MAP.md, and OpenSpec artifacts.
+description: Architectural deep-dives, design refinement and contract audits -- the Phase 2 architect brief plus nine audit modes. Dispatched by the Lead on demand as the tier-3 architecture-approval seat. Analysis-only; never writes feature code.
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, Write, TaskList, TaskUpdate
 model: fable
 color: blue

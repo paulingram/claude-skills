@@ -1,6 +1,6 @@
 ---
 name: domain-research-team
-description: A 3-researcher domain analysis skill with MANDATORY outside research. Reads provided inputs (a frontend codebase, documentation, or both — any combination is valid), extracts personas + objectives, and AUGMENTS with industry / market / competitor research that every researcher performs independently regardless of input completeness. Round-robin convergence + master-synthesizer produces the final map. Caller-configurable output path so the skill is reusable from intake-and-mapping (INTEGRATION_MAP.md output), visual-to-api-design Stages 1+2 (PERSONA_MAP.md output), the new Phase 0b backend dispatch (PERSONA_MAP.md output to .architect-team/frontend-reference/ when frontend_read_only). v3.4.0.
+description: 3-researcher domain analysis with MANDATORY outside research -- reads a frontend codebase and/or docs, extracts personas and objectives, adds industry / market / competitor research, master-synthesizer converges. For intake-and-mapping (INTEGRATION_MAP.md), visual-to-api-design Stages 1+2 (PERSONA_MAP.md), Phase 0b.
 user-invocable: false
 ---
 

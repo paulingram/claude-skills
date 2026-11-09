@@ -1,5 +1,5 @@
 ---
-description: Ad-hoc interaction with the architect-team plugin's MemPalace store. Supports semantic search, manual mining, status, and wake-up against the per-workspace palace at <workspace>/.mempalace/palace. Use for inspection between pipeline runs, debugging "why didn't the orchestrator find prior context", manually mining ad-hoc notes, or backfilling from existing Claude Code session transcripts. Auto-detects the workspace root via git rev-parse; falls back to cwd when not in a git repo.
+description: Ad-hoc interaction with the MemPalace store -- semantic search, manual mining, status, and wake-up against the per-workspace palace. Use between runs for inspection, debugging why the orchestrator missed prior context, mining ad-hoc notes, or backfilling from session transcripts.
 argument-hint: "<subcommand> [args...] — subcommands: search | mine | status | wake-up | sweep"
 allowed-tools: ["Bash(mempalace:*)", "Bash(git:*)"]
 ---

@@ -17,3 +17,8 @@ Read the chapter for a phase before its first tool call; `verify-required-reads`
 | phase-u7 | `skills/ux-test-builder/references/phase-u7.md` | the full text of Phase U7 |
 | phase-u8 | `skills/ux-test-builder/references/phase-u8.md` | the full text of Phase U8 |
 | phase-u9 | `skills/ux-test-builder/references/phase-u9.md` | the full text of Phase U9 |
+| always | `skills/ux-test-builder/references/plugin-prerequisites.md` | the superpowers pre-flight check, the four superpowers skills this lane invokes by phase, the native fallback and the precedence rule |
+| always | `skills/ux-test-builder/references/inputs.md` | the two first-class input forms and the flags `/architect-team:ux-test` passes |
+| phase-u1 | `skills/ux-test-builder/references/phase-u1.md` | the full procedure of Phase U1 -- the freshness check, the tier-3 map convergence, the principles intake, the homepage rebuild, the -1D bulk-verify gate and the `--dev` / URL target rules |
+| always | `skills/ux-test-builder/references/operating-rules.md` | the full operating rules of this lane |
+| always | `skills/ux-test-builder/references/relationship-to-other-skills.md` | which sibling skills each U-phase reuses and the full UX-test -> bug-fix chain |

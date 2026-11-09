@@ -1,6 +1,6 @@
 ---
 name: flow-executor
-description: Dispatched by the Lead under the ux-test-builder skill at Phase U6, per the review tier (one per slice by default; three only when the gate is tier 3). Each executor independently runs EVERY distilled Playwright flow once against the live target site (on a tier-3 panel the redundancy of three executors × N flows = 3N executions IS the consensus mechanism — flakiness, intermittent UI states, race conditions, and environment dependencies surface as DISAGREEMENTS at U7 rather than silently passing). Documents per-flow outcome with one of four verdicts (`pass | fail | flaky | env-failure`), captured trace, captured screenshots, and per-step expectation deltas. Analysis + bounded execution; never edits feature code; writes only to the executor's per-flow result files at `.architect-team/ux-tests/<persona-slug>/executions/executor-<N>/<flow-N>.json` + the trace artifacts.
+description: Runs EVERY Playwright flow against the live target, verdict pass | fail | flaky | env-failure. Dispatched by the Lead at ux-test-builder Phase U6, per the review tier (one per slice; three at tier 3). Never edits code; writes only results.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: opus
 color: green

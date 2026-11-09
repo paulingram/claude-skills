@@ -1,6 +1,6 @@
 ---
 name: api-design-from-frontend
-description: "Extracts the \"backend logic from frontend\" portion (Stages 5+6+7) of visual-to-api-design as a standalone reusable skill. Stage 5 per-page REST returns → API_RETURNS_MAP.md. Stage 6 consolidated API design + desk-trace play-test → API_DESIGN_MAP.md. Stage 7 backend data architecture → DATA_ARCHITECTURE_MAP.md + openspec change via openspec-propose. Each stage's tier-3 3-reviewer convergence runs as a declared and recorded ct6-converge workflow labelled by its total-agreement completion-promise. Inputs: PERSONA_MAP.md + page catalog + COMPONENT_ARCHITECTURE_MAP.md (or equivalent frontend artifacts). Callers: visual-to-api-design (refactors to delegate Stage 5+ here), architect-team-pipeline Phase 0b (backend dispatch when frontend or docs are referenceable). v3.4.0."
+description: Stages 5-7 of visual-to-api-design as a standalone skill -- derive the backend API from PERSONA_MAP.md, a page catalog and COMPONENT_ARCHITECTURE_MAP.md into API_RETURNS_MAP.md, API_DESIGN_MAP.md, DATA_ARCHITECTURE_MAP.md and an openspec-propose change. Use from Stage 5+ or the Phase 0b backend dispatch.
 user-invocable: false
 ---
 

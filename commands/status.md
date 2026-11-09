@@ -1,5 +1,5 @@
 ---
-description: Show current dispatch mode (Agent Teams vs subagents fallback) + active architect-team worktrees + open solution requirements + last completed run + the project homepage's stale verdict. On-demand "where am I" query for the architect-team plugin. Pure read-only — no filesystem changes, no pipeline invocation, no commit.
+description: Show dispatch mode (Agent Teams vs subagents fallback) + active architect-team worktrees + open solution requirements + last completed run + the homepage's stale verdict. The on-demand where-am-I query. Pure read-only -- no filesystem changes, no pipeline invocation, no commit.
 argument-hint: ""
 ---
 

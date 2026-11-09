@@ -1,6 +1,6 @@
 ---
 name: cartographer-team
-description: CT6's multi-agent wrapper around the CONDITIONAL cartographer plugin call (the native map stands in when the plugin is absent — never an abort). One cartographer run produces CODEBASE_MAP.md; the tier-3 map-convergence gate — 3× codebase-map-reviewer agents independently audit the result and confirm 100% coverage in parallel — iterates targeted re-mapping until all 3 reviewers return ok, run as declare → ct6-converge workflow → record with the completion-promise label "CODEBASE MAP COMPLETE". Caller-configurable output path so frontend-read-only mode (Phase 0b) can route output to .architect-team/frontend-reference/<codebase-slug>/ instead of <codebase>/docs/. v3.4.0.
+description: Multi-agent wrapper around the conditional cartographer plugin (native map fallback, never an abort) producing CODEBASE_MAP.md under the tier-3 map-convergence gate -- 3 codebase-map-reviewer agents via ct6-converge, labelled CODEBASE MAP COMPLETE. Output path caller-configurable (Phase 0b frontend-read-only).
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: structure-optimization
-description: Use when a codebase's structure needs an adversarially-verified restructure plan — the user asks to optimize / reorganize / restructure the directory layout, module placement, or file organization ("optimize the codebase structure", "clean up the layout", "propose a better file structure"), or /architect-team:optimize-structure is invoked. Produces a reference-closed movement plan (every file movement + every reference that must change + every forced refactor, in ordered verifiable batches) as RESTRUCTURE_PLAN.md + movements.json + an OpenSpec change — it PLANS the restructure; execution belongs to /architect-team driving the produced change.
+description: Use when a codebase's structure needs an adversarially-verified restructure plan -- 'optimize the codebase structure', 'clean up the layout', 'propose a better file structure' -- or /architect-team:optimize-structure. Emits RESTRUCTURE_PLAN.md, movements.json, an OpenSpec change. It PLANS; /architect-team executes.
 user-invocable: false
 ---
 

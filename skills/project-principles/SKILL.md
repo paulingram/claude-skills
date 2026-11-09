@@ -1,6 +1,6 @@
 ---
 name: project-principles
-description: Lane-callable discipline for a project's codified principles — the rules that outlive any one run ("every service owns its own tables", "no new ORM", "test names say the behaviour"). Four verbs over one register — extract (at intake, from the project's documents, confirmed with the user before anything binds), add (the user says "codify this"), show, check (before any design, contract, diff or option set is presented, a verdict for every confirmed principle). Carries the confirmed principles in every architect and teammate brief exactly as appearance_mode is carried, tags every design option fits / violates P-xx, lets an autonomous run choose a fitting option and continue, and stops with escalation-pending.md only when every option violates. The deterministic engine lives under scripts/principles/ and this skill is its contract.
+description: A project's codified principles -- rules outliving any one run. Verbs -- extract (at intake, user-confirmed first), add ('codify this'), show, check (verdicts before any design, contract, diff or options). Options tagged fits / violates P-xx; escalation-pending.md only when all violate. Engine scripts/principles/.
 user-invocable: false
 ---
 

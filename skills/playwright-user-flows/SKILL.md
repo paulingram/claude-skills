@@ -1,6 +1,6 @@
 ---
 name: playwright-user-flows
-description: Use when authoring or running Playwright tests for any feature with a frontend component, especially during Phase 5 integration. Mandates a workflow that first establishes who the users are and what they are trying to achieve (escalating to the user via structured questions when intent cannot be derived from product docs/requirements), then exhaustively enumerates every link, button, form input, modal trigger, keyboard shortcut, drag target, and conditional render gate plus the API contracts each touches, then authors tests organized around user journeys (page.goto / click / fill / waitFor) that assert visible state. Rejects endpoint-only testing as a substitute for user-flow testing. Coverage verification proves every user objective, every interactive element, and every error response is exercised.
+description: Use when authoring or running Playwright tests for a frontend feature, especially in Phase 5. Establish users and goals, enumerate every link, button, form input, modal, shortcut, drag target and conditional render plus its API contract, write journey tests asserting visible state. Rejects endpoint-only testing.
 user-invocable: false
 ---
 

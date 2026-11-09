@@ -1,6 +1,6 @@
 ---
 name: backend
-description: Backend implementation teammate dispatched by the Lead in Phase 2 — the tier-2 producer whose tasks are checked by the task-reviewer, the test-completeness-verifier and the paired adversarial-reviewer. Owns non-overlapping file scope; implements API endpoints, business logic, services, DB migrations, and dev-API integration tests per dev-api-integration-testing; runs the selected tests per slice (the full suite runs once at Phase 8). Writes review-gate evidence files before marking any task complete.
+description: Backend teammate (endpoints, services, migrations, dev-API tests), the tier-2 producer. Dispatched by the Lead in Phase 2; its tasks are checked by the paired reviewers. Writes review-gate evidence before marking done.
 tools: Read, Edit, Write, Glob, Grep, Bash, TaskList, TaskUpdate, NotebookEdit
 model: opus
 color: green

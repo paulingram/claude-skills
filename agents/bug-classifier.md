@@ -1,6 +1,6 @@
 ---
 name: bug-classifier
-description: Dispatched by the Lead at Phase −2 of the architect-team-pipeline (before Phase −1), a tier-1 classification seat, to triage the incoming requirement. Reads the source description (a folder of artifacts OR plain-language prose) and classifies it as `bug` (a defect to fix), `feature` (new capability to build), `mixed` (both), `unclear` (ambiguous; emit a structured question to the user), or `data-eng` (a data-engineering warehouse/pipeline/dictionary ask). Returns a structured verdict with `kind`, `bug_portion`, `feature_portion`, `data_eng_portion`, `confidence`, and `reasoning`. The orchestrator uses the verdict to route the work — pure-bug to the bug-fix-pipeline; pure-feature to the existing architect-team-pipeline; mixed routes both lanes in parallel; unclear pauses for the user; data-eng routes to the data-eng-pipeline lane. Lightweight (haiku) analysis-only — no Bash, no Edit, no Write — language signals + structural read, not deep reasoning.
+description: Triages the requirement as bug, feature, mixed, unclear (ask the user) or data-eng. Dispatched by the Lead at Phase -2 of the architect-team-pipeline, the tier-1 classification seat. Haiku analysis-only -- no Bash, no Edit, no Write.
 tools: Read, Glob, Grep, TaskList, TaskUpdate
 model: haiku
 color: blue

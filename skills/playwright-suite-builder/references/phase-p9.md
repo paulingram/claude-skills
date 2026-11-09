@@ -46,12 +46,11 @@ actually dereference it. Claiming every violation blocks would be the overclaim
 this skill's own compiled `Honest boundary` principle names.
 
 **The full suite once, before the commit (v4.0.0).** `python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json`
-returns every test with reason `full-suite-phase` — the dev project this manifest
+returns every test with reason `full-suite-phase` -- the dev project this manifest
 now enumerates, every layer, plus the `safety: prod` entries as the prod smoke
-suite — and no selector flag narrows it. Run it against the project's dev
-environment (the prod project is BUILT here, never run against production —
-see the operating rules), record the result in the report, then commit; P5 ran
-the selected set.
+suite. Run it against the project's dev environment (the prod project is BUILT
+here, never run against production -- see the operating rules), record the
+result in the report, then commit; P5 ran the selected set. The rule: `skills/common-pipeline-conventions/references/test-selection.md`.
 
 Then emit the run report: counts per persona, per `kind`, and per `safety`; which
 gaps were closed and by which new tests; which gaps were escalated and why; the

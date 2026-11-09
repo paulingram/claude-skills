@@ -1,6 +1,6 @@
 ---
 name: proposal-refiner
-description: Use when the architect-team / bug-fix / ux-test pipeline receives free-text prose (not a directory of OpenSpec / Superpowers artifacts), OR when /architect-team:refine-prompt is invoked standalone. Conversationally refines the prompt with codebase-map grounding and multi-axis clarity grading (clarity / scope / acceptance / grounding / conflict / scope-fidelity), iterating with the user until satisfied, then outputs a structured refined-prompt markdown the downstream pipeline consumes. A domain gate, not a process gate — the user-confirmation step IS the deliverable; --no-refine bypasses it. The body documents the R1-R6 phases, the six grading axes, standalone-vs-pipeline mode, and the scope-fidelity domain gate per `common-pipeline-conventions` `## Scope discipline`.
+description: Use when the architect-team / bug-fix / ux-test pipeline receives free-text prose (not OpenSpec / Superpowers artifacts), or /architect-team:refine-prompt runs standalone. Refines with codebase-map grounding and clarity grading until the user agrees, emitting refined-prompt markdown. Domain gate; --no-refine bypasses.
 user-invocable: false
 ---
 

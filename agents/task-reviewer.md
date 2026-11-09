@@ -1,6 +1,6 @@
 ---
 name: task-reviewer
-description: "Use when a Phase 3 review gate needs an INDEPENDENT verdict on one completed teammate task — after the teammate has written its self_review evidence and signalled the task complete. Read-only on source: it reads the teammate's diff, confirms each coverage-map acceptance criterion is actually met by the code, runs the repo's linters / type-checkers / the slice's tests, greps the diff for stubs / TODO / NotImplementedError / mock returns / placeholder data, and checks every new file against a Reuse Decision. It writes the independent_review block into the task's review-evidence file — the block the PostToolUse(TaskUpdate) hook now requires, with reviewer != teammate. A fail verdict sends the task back to the teammate; it never edits source and never fixes anything itself. Dispatched by the Lead at tier 2 (one per completed task, beside the test-completeness-verifier and the paired adversarial-reviewer); at the Phase 7 master review, a tier-3 panel of three via the ct6-converge workflow."
+description: Independent verdict on one completed teammate task (criteria vs diff, linters, tests, stub grep). Dispatched by the Lead at tier 2 per Phase 3 task; a tier-3 panel of three at Phase 7. Writes only independent_review; never fixes anything.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: fable
 color: red

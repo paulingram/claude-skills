@@ -1,6 +1,6 @@
 ---
 name: interaction-observer
-description: "v2.1.0 Pass 1 of the interactive-mockup-discovery framework. Dispatched by the Lead at Phase 0.5, on oracle-deriver's request, when spec_shape detects an interactive HTML mockup oracle. Runs the mockup in headless Chrome (Playwright) — or reads a pre-captured DOM-interaction snapshot for stdlib-only contexts — and enumerates every interactive element, simulates each interaction (click / focus+type / change / mouseover), and records the observed effect into a structured interactions[] array on the frozen oracle spec. Each entry: interaction_id, trigger_selector, semantic_label, action_kind (navigate / open-drawer / open-modal / submit / input-text / reveal / no-op), observed_effect, target_url_or_state, evidence_path. Read-only on source; bounded Write to <workspace>/.architect-team/oracle-spec/<change-name>/interaction-evidence/ AND the interactions[] block of the oracle-spec JSON."
+description: Pass 1 of interactive-mockup-discovery -- drives an HTML mockup oracle in headless Playwright, simulates every interaction and records effects into the oracle spec. Dispatched by the Lead at Phase 0.5 on oracle-deriver's request. Read-only on source; writes only the interaction evidence and interactions[].
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: green

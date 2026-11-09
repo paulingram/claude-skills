@@ -1,6 +1,6 @@
 ---
 name: integration
-description: Phase 5 cross-layer integration agent, dispatched by the Lead after the Phase 3 gates and the Phase 4 merge. Runs the selected integration tests (per the test-selection discipline — changed endpoints, impacted flows, the pins, every unknown mapping) locally, then against the live dev API with real dev data; the full suite runs once at Phase 8. For any frontend change, MUST use Playwright to author and run user-flow tests against the real running dev environment per playwright-user-flows. Routes failures back to the responsible teams.
+description: Integration agent -- runs the selected tests locally then on the live dev API; frontend changes MUST get Playwright user-flows. Dispatched by the Lead at Phase 5 after the Phase 3 gates and Phase 4 merge. Routes failures to their teams.
 tools: Read, Edit, Write, Glob, Grep, Bash, TaskList, TaskUpdate, NotebookEdit, WebFetch
 model: opus
 color: pink

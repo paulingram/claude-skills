@@ -1,6 +1,6 @@
 ---
 name: visual-to-api-design
-description: Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE the API design from what the screens reveal — the Phase 0 "review this codebase / design the API for this visual" case. Runs the Exploration Pipeline, a scope-gated 7-stage flow with tier-3 3-reviewer convergence per stage (each convergence declared, run as a ct6-converge workflow labelled by its total-agreement completion-promise, and recorded) and per-stage checklists that gate the next stage's freeze. The body documents every stage, the checklists, the ct6-converge workflow governance, the openspec-skill conversion, and the original 4-stage flow that remains valid as a strict subset.
+description: Use when architect-team runs on a visual codebase (UI present, requirements absent or partial) and must DERIVE the API design from the screens -- the Phase 0 'design the API for this visual' case. The Exploration Pipeline -- 7 stages, tier-3 ct6-converge review per stage, checklists, openspec conversion last.
 user-invocable: false
 ---
 

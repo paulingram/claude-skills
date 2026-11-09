@@ -97,3 +97,7 @@ disk -- the same named residual every filesystem gate in this plugin carries.
 The record, the decisions-ledger line and the stand-down artifact make a
 misuse a deliberate act on a named surface, visible after the fact; they do
 not make it impossible.
+
+## From the constitution stub (moved v4.1.2)
+
+A held turn is held because registered work is open, and nothing an agent writes releases it. Releasing a hold is the USER's verb -- the `/architect-team:unlock` command over `hooks/completion_unlock.py`, sanctioned only inside the user's own command turn (the PreToolUse gate refuses its `release` verb from any other turn, the command is `disable-model-invocation: true`, and no Stop hold text names it). Under a hold you have two moves: finish the work, or run the read-only `inspect` verb and tell the user plainly what is open so THEY decide. The release writes a durable record of the user's words, waives gates visibly (never fakes them satisfied), and is reported on the project homepage.

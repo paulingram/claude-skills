@@ -1,6 +1,6 @@
 ---
 name: interactive-mockup-discovery
-description: Two-pass discovery of interactive HTML mockups as oracle artifacts. Pass 1 (observation) runs the mockup in headless Chrome and records every interactive element's observed behavior; Pass 2 (intent inference) flags semantic-vs-observed mismatches (e.g., "Logout" button routing to /dashboard) and surfaces them at the existing Phase −1D bulk-verify gate so the user-resolved intent — not the mockup's literal behavior — becomes the binding contract. Adds a 6th spec_shape to oracle-deriver, a new interaction-observer agent, an INTENT-INFERENCE mode to interaction-intuiter, a new Layer 3 tool (verify-interactions-honored), and an OPTIONAL schema v7 field.
+description: Two-pass discovery of interactive HTML mockups as oracles. Pass 1 runs the mockup in headless Chrome recording observed behavior; Pass 2 infers intent, surfacing semantic-vs-observed mismatches at the Phase -1D bulk-verify gate so user-resolved intent binds. Adds interaction-observer and verify-interactions-honored.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: email-testing
-description: "Use when a QA agent (bug-replicator, flow-executor, integration) detects email-touching work in its slice — template files, SMTP / transactional-email client imports, or email-sending function calls. The cross-cutting email-testing discipline that uses Mailpit (a local SMTP trap, zero external dependencies) as the default capture engine. The body documents the four phases (E1 detect email surface, E2 provision Mailpit, E3 capture sent emails + classify every link by reading template source, E4 follow every link in Playwright and complete each user flow it initiates), the rule that the agent reads the template source BEFORE the send, that EVERY link in EVERY email is tested (not just the primary CTA), mandatory teardown, and the project-level design.md provider override."
+description: Use when a QA agent (bug-replicator, flow-executor, integration) detects email-touching work in its slice -- templates, SMTP / transactional-email imports, send calls. Mailpit captures -- E1-E4 detect, provision, classify every link from template source, follow each in Playwright; teardown; design.md provider override.
 user-invocable: false
 ---
 

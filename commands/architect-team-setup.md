@@ -1,5 +1,5 @@
 ---
-description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), reports the CONDITIONAL plugins (superpowers, cartographer — preferred when installed, never gating since v4.0.0; the shipped ct6-converge workflow replaces the retired ralph-loop), writes the Claude 5 task-tool opt-in, verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32), and with --project-root asks the one page-publishing question and builds the project's first homepage.
+description: One-time plugin setup -- installs dependencies (openspec CLI, Python test tools, Playwright + browsers), reports conditional plugins (superpowers, cartographer -- never gating), writes the task-tool opt-in, checks Agent-Teams requirements; --project-root also builds the homepage.
 argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall] [--project-root <path>] [--codex] [--no-codex] [--external-llm] [--no-external-llm] [--secondary <openai|zai>]"
 allowed-tools: ["Bash(python:*)", "Bash(python3:*)", "AskUserQuestion"]
 ---

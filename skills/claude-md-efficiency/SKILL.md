@@ -1,6 +1,6 @@
 ---
 name: claude-md-efficiency
-description: Use when MemPalace is installed and you are authoring or auditing a project's CLAUDE.md (or AGENTS.md). When MemPalace is present, CLAUDE.md becomes a thin POINTER document — it tells the agent WHERE to find things so context is loaded on demand, rather than CONTAINING the full context — and it stays very small. Carries two parts — standards that point to a reference DB / reference MemPalace, and customizations the user can toggle on/off. The deterministic assessor + generator live in scripts/claude_md/claude_md_efficiency.py; this skill is the contract. CONDITIONAL on MemPalace being installed — with no MemPalace, a self-contained CLAUDE.md is correct and this discipline does not apply.
+description: Use when MemPalace is installed and authoring or auditing a project's CLAUDE.md (or AGENTS.md) -- it becomes a thin pointer document (pointers to a reference DB / MemPalace, plus toggleable customizations) and stays small. Engine scripts/claude_md/claude_md_efficiency.py. Not for projects without MemPalace.
 ---
 
 # Claude.md Efficiency (CMD-1 … CMD-4)

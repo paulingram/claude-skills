@@ -1,6 +1,6 @@
 ---
 name: test-run-watcher
-description: Dispatched by the Lead under the `test-run-monitor` skill at Phase M2. Drives the source-specific adapter (LocalAdapter / CIAdapter / ProductionQAAdapter) selected at Phase M1, executes the chosen test source, tails its output, and captures structured per-finding JSON files to `<workspace>/.architect-team/monitor-runs/<run-id>/findings/`. Strictly passive — no source modification, no mid-run inbox injection, no SR filing. The watcher's output is consumed by `monitor-synthesizer` at Phase M3 to produce the final per-run report.
+description: Drives the Phase M1 adapter (local / CI / production QA), runs the test source, captures per-finding JSON. Dispatched by the Lead at test-run-monitor Phase M2. Strictly passive -- no source modification, no mid-run injection, no SR filing.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate, WebFetch
 model: sonnet
 color: cyan

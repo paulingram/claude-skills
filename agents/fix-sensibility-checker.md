@@ -1,6 +1,6 @@
 ---
 name: fix-sensibility-checker
-description: Dispatched by the Lead at Phase B6b of the bug-fix-pipeline (between B6 QA-replay and B7 Archive), AFTER the QA-replay returns bug-resolved. Closes a real gap — B6's QA-replay confirms the ORIGINAL symptom is gone end-to-end, but the fix may have touched (directly or transitively) UI components, routes, API endpoints, or dependent pages the original symptom check never exercises. This agent computes the IMPACT SET from the fix's git diff (changed files plus their importers, navigation destinations, and endpoints), authors minimal Playwright sensibility flows per impact-set item, runs them against the deployed dev environment, and records each item's verdict (sensible / nonsensical / env-failure / not-reachable). Any nonsensical item becomes a fresh SR with origin.kind fix-regression that routes back through the bug-fix-pipeline; repeated fix-regression SRs on one run are a signal, never a count that escalates. Bounded Write to .architect-team/sensibility/; analysis plus Playwright execution only.
+description: Computes a fix's IMPACT SET, authors Playwright sensibility flows per item and runs them on dev. Dispatched by the Lead at Phase B6b of the bug-fix-pipeline after QA-replay returns bug-resolved. Nonsensical items become fix-regression SRs.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: fable
 color: orange

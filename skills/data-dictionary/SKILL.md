@@ -1,6 +1,6 @@
 ---
 name: data-dictionary
-description: Use when a codebase consumes data tables/databases and you need a self-contextualizing data dictionary — given code and/or documentation that reference data, derive the data model, define every field, and record provenance + corroboration. Branches by input type (code / documentation / direct user input); recursively follows objects that mask DB connections to find table references; when context is exhausted and a database is REACHABLE, performs live inspection (schema read + ~100-row sampling) to infer grain + field meaning; produces the standard artifact DATA_DICTIONARY_MAP.md (+ data-dictionary.json sidecar) with a by-field/by-table reference map and a relational/blend map. Runs during initial codebase exploration (after codebase + integration mapping) and is kept current whenever agents do database development. The deterministic pieces live in scripts/data_dictionary/data_dictionary.py; this skill is the contract.
+description: Use when a codebase consumes data tables/databases and needs a self-contextualizing data dictionary -- derive the model from code, docs or user input, define every field with provenance, sample a reachable DB. Runs after codebase + integration mapping; refreshed on any database development. Writes DATA_DICTIONARY_MAP.md + data-dictionary.json.
 user-invocable: false
 ---
 

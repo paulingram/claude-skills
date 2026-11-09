@@ -1,6 +1,6 @@
 ---
 name: project-homepage
-description: Lane-callable discipline for the per-project CT6 homepage — one self-contained static HTML page at .architect-team/homepage/index.html showing structure, settings (keys and set/unset only, never a secret value), the decisions ledger, map freshness verdicts, the lineage-graph summary, the test index and suite manifest, and run performance from the timing log. Defines the rebuild moments (setup empty state, Phase -1 after the maps, Phase 8 by doc-updater, on demand via /architect-team:home), the publishing rule (claude mode republishes the same artifact; private-url mode serves base_url/slug/p/token), the estimate rule for any how-long question (answer from timings.py estimate, state basis_n, refuse below five samples, history not a promise), and the decisions-ledger duty of every deciding phase. The deterministic engines live under scripts/homepage/ and hooks/timings_log.py + hooks/decisions_ledger.py.
+description: The per-project CT6 homepage -- a static HTML page of structure, settings (keys only), decisions ledger, map freshness, test index, suite manifest, run timings. Rebuilt at setup, Phase -1, Phase 8 (doc-updater), or via /architect-team:home. How-long answers cite the timing log with basis_n, refused under five samples.
 user-invocable: false
 ---
 

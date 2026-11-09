@@ -1,5 +1,5 @@
 ---
-description: Publish a self-contained HTML page where the project's human-owned publish config says pages live -- claude mode (default) hands the file to the Claude Artifact tool, private-url mode mints a tokened link through the local-port / gcp-signed-url / gcp-cloud-run / nominated-host adapter and records it in the publish registry. Also revokes a token, lists recorded tokens, and reports the local server's status. Drives the page-publishing skill.
+description: Publish an HTML page where the project's publish config says -- claude mode (default) hands it to the Claude Artifact tool, private-url mode mints a tokened link via the local-port / gcp-signed-url / gcp-cloud-run / nominated-host adapter. Also revoke, list tokens, server status.
 argument-hint: "<file.html> [--name <page-name>] [--slug <project-slug>] [--force] | --revoke <token> | --list | --status | --stop | --check <file.html>"
 ---
 

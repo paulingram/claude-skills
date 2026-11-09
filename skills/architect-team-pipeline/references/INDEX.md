@@ -24,3 +24,11 @@ Read the chapter for a phase before its first tool call; `verify-required-reads`
 | phase-7 | `skills/architect-team-pipeline/references/phase-7.md` | the full procedure of Phase 7 |
 | phase-8 | `skills/architect-team-pipeline/references/phase-8-commit.md` | the commit, merge, finalize and notification steps that close the run |
 | phase-8 | `skills/architect-team-pipeline/references/phase-8.md` | the full procedure of Phase 8 |
+| always | `skills/architect-team-pipeline/references/plugin-prerequisites.md` | the superpowers pre-flight check, the four superpowers skills this lane invokes by phase, the native fallback and the precedence rule |
+| always | `skills/architect-team-pipeline/references/default-mode-of-operation.md` | the opt-in process gates, the process-versus-domain gate carve-out, proposal-first mode and in-flight clarification handling |
+| always | `skills/architect-team-pipeline/references/inputs.md` | the two first-class input forms, the detection rule, and the refusals that are bugs |
+| always | `skills/architect-team-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md` | the ten events, the informative-content contract, the phase-boundary and dispatch-wait wiring, the run-level bookends |
+| always | `skills/architect-team-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md` | the unscoped wake-up command, why it precedes Phase -2, and the wing-scoped second wake-up |
+| phase-4 | `skills/architect-team-pipeline/references/phase-4.md` | the full procedure of Phase 4 |
+| always | `skills/architect-team-pipeline/references/run-state.md` | unbounded solving, oscillation handling, the shared-state concurrency model and the required-input marker |
+| always | `skills/architect-team-pipeline/references/operating-rules.md` | the full operating rules of this lane |

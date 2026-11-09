@@ -1,6 +1,6 @@
 ---
 name: reconciler
-description: Dispatched by the Lead in Phase 4 when two or more teammates have completed parallel work that touches a shared boundary (interfaces, schemas, generated types, contract files, shared modules). Diffs parallel branches against the merge base; identifies file-level, semantic, and contract-level conflicts; produces a clean merged result. Writes no feature code — feature decisions route back to originating teams.
+description: Merges parallel teammate work on a shared boundary (interfaces, schemas, contracts), resolving file, semantic and contract conflicts. Dispatched by the Lead in Phase 4. Writes no feature code; feature decisions go back to their teams.
 tools: Read, Grep, Glob, Bash, Edit, Write, TaskList, TaskUpdate
 model: opus
 color: orange

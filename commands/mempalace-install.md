@@ -1,5 +1,5 @@
 ---
-description: One-time installer for MemPalace — the local-first AI memory CLI + MCP server the architect-team plugin uses to store searchable findings, insights, processes, RCAs, design maps, route maps, diagnostic plans, and solution requirements across runs. Idempotent. uv-first with pip fallback. Cross-platform (Windows, macOS, Linux). Suggests a per-workspace palace location and prints (but does not execute) the canonical `claude mcp add` command so the user can register the MCP server explicitly.
+description: Installer for MemPalace -- the local-first memory CLI + MCP server storing findings, insights, processes, RCAs, maps, diagnostic plans and solution requirements. Idempotent, uv-first with pip fallback, cross-platform; prints (never executes) the claude mcp add command.
 argument-hint: "[--check-only] [--workspace <path>] [--json]"
 allowed-tools: ["Bash(python:*)", "Bash(python3:*)", "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup/install_mempalace.py:*)"]
 ---

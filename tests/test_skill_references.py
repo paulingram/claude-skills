@@ -115,7 +115,26 @@ EXTRACTIONS = {
     #     user's unlock command and the two moves an agent has under a hold.
     #   v4.1.0 verification pass: 64873 -> 64906. The cancel row and the deletion
     #     stub wording corrected to what ships; the notifier count reads ten.
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 64906),
+    #   v4.1.2 stub compaction: 64906 -> 41783. Every stub (46 of the 50 STOP
+    #     sections; Dispatch mode is kept whole by design and three already
+    #     carried only the pointer) keeps its heading and
+    #     STOP line byte-for-byte and carries ONE sentence after the pointer in
+    #     place of the chapter's first paragraph; every removed sentence was
+    #     checked against the chapter and the 18 not already there were appended
+    #     under `## From the constitution stub (moved v4.1.2)` (uniform-plugin-
+    #     usage 1, git-commit-identity 3, deletion-discipline 2, test-selection 3,
+    #     converge-workflows 3, native-methodology 2, completion-unlock 4). The
+    #     In-flight clarification body (the one-paragraph rule + the `### Parallel
+    #     lanes (v3.16.0)` subsection, ~7.9 KB) moved verbatim into
+    #     references/in-flight-clarification-discipline.md the same way, so the
+    #     v3.42.0 "stays INLINE" note above is superseded. The surface
+    #     (tests/helpers/surfaces.py) still carries every sentence; the raw body
+    #     keeps the raw-read pins (the three in-flight detection signals, "no
+    #     contract-first protocol is running", "never a hardcoded default").
+    #   v4.1.2 description compression: 41783 -> 41510. The frontmatter
+    #     description shrank from 579 to 306 chars (trigger-first rewrite of
+    #     every skill description); the body is byte-for-byte unchanged.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 41510),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

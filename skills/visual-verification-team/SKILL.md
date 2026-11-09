@@ -1,6 +1,6 @@
 ---
 name: visual-verification-team
-description: Use when visual-fidelity reconciliation needs to be independently verified against the live running app — at Phase 5, or via the visual-qa command. Spawns a three-role team — visual-capture agents start the live app and capture screenshots plus computed-style DATA for every DESIGN_MAP screen (countable, hard-to-fake artifacts); visual-analyzer agents perform objective structural analysis (a deterministic data diff of the captured values against the design spec, a pixel diff against the design reference image, and a code cross-check); then the system-architect synthesizes the per-screen gap lists holistically, clustering them into root causes and routing fixes. Replaces the single-agent verifier — capture, analysis, and synthesis are separate roles so no one agent can cut a step inside itself.
+description: Use when visual-fidelity reconciliation needs independent verification on the live app -- Phase 5 or the visual-qa command. Visual-capture agents take screenshots and computed-style data per DESIGN_MAP screen, visual-analyzer agents diff them against the design, the system-architect clusters gaps by root cause.
 user-invocable: false
 ---
 

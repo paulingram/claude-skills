@@ -1,6 +1,6 @@
 ---
 name: verification-planning
-description: Use BEFORE verifying any claim — a fix, a feature, a deploy, a diagnosis — to choose HOW to verify it. Enumerates the verification venues (local run, dev environment, replay of captured artifacts, seeded fixture, production read-only checks), states what each uniquely provides, proves whether the claim depends on it, picks the cheapest faithful venue, and records the choice as a verification_plan artifact. Adds the cheaper-faithful-method-found counterpart to the stuck verdicts (cannot-verify-without-deploy / env-failure / blocked) so "I need to wait for prod" is never the reflex when a faithful cheaper method exists, and a gate that needs a live environment obliges the run to PROVIDE one rather than ask.
+description: Use BEFORE verifying any claim -- fix, feature, deploy, diagnosis -- to choose HOW. Enumerate venues (local, dev, replay, seeded fixture, prod read-only), pick the cheapest faithful one, record a verification_plan. Adds cheaper-faithful-method-found; a gate needing a live environment makes the run PROVIDE one.
 user-invocable: false
 ---
 

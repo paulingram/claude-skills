@@ -1,5 +1,5 @@
 ---
-description: Mass-classify every Playwright / QA test file in a codebase as `@prod-safe` (only reads — safe against ANY deployed environment including production) or `@not-prod-safe` (contains mutations). Produces a per-file classification report at `<workspace>/.architect-team/test-prod-safety/classification-report-<ts>.json` listing every file's existing annotation, the auto-classifier verdict, and the detected mutation/read-only signatures. With `--write-annotations`, modifies files in-place to inject the top-of-file annotation comment. Default is `--dry-run`. Ambiguous classifications escalate to the user instead of silently guessing.
+description: Mass-classify Playwright / QA test files as @prod-safe (reads only, safe against production) or @not-prod-safe (mutations) into a per-file report. Default --dry-run; --write-annotations injects the top-of-file annotation. Ambiguous files escalate to the user, never guessed.
 argument-hint: "[<glob | codebase-path>] [--write-annotations] [--dry-run]"
 ---
 
