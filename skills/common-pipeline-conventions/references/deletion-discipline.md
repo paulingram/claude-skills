@@ -79,3 +79,7 @@ In `claude -p`, a cloud session, a scheduled task, or any surface with no human 
 | "The hook asked, I'll use a glob so it can't see the path" | A glob is `unparsable` → `ask`. Evasion is classified more strictly and is a discipline violation on its own. |
 | "`git clean -fd` is the fastest way to reset the run dir" | It is on the forbidden list for exactly that reason: it also deletes every other teammate's `.architect-team/` evidence. Denied inside a run. |
 | "It's committed, so deleting is free" | Committed LOCALLY. Check the hint: if HEAD is not on a remote branch, push first or accept the exposure knowingly. |
+
+## From the constitution stub (moved v4.1.2)
+
+Soft delete is the default — the `trash` verb of `hooks/deletion_guard.py` moves the content into the run's trash with a restore manifest — and a hard delete proceeds only when the guard's classifier (a PreToolUse hook on `Bash`) proves the content survives elsewhere: temp / gitignored / tracked-and-clean targets are allowed (tracked-and-clean with the restore command), tracked-and-dirty / untracked / outside-a-repo / unparsable targets ASK, and the shared-state git operations are denied during an active run. `CT6_DELETION_GUARD_DISABLED` is the human's lever.

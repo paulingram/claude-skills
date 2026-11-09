@@ -110,3 +110,7 @@ The workflow proves the reviewers returned `ok`; it does not make them right.
 Evidence rules apply inside each reviewer. The record proves the loop converged
 and was written down; it cannot prove the artifacts are good — that is what the
 tier table's independent reviewers are for.
+
+## From the constitution stub (moved v4.1.2)
+
+Every reviewer-convergence gate runs as DECLARE → `ct6-converge` workflow → RECORD: the gate `converge:<kind>` is declared into `declared-gates.json` first, `workflows/ct6-converge.js` dispatches N blind reviewers in parallel with one fixer per round and no self-imposed round cap, and the record script writes `.architect-team/converge/<kind>-<ts>.json` and satisfies the gate only when `converged` is true and the final round's `ok` count equals the reviewer count. The promise string is the gate's label, never the exit test; `ralph-loop` is retired. Reviewer counts follow `skills/team-spawning-and-review-gates/references/review-tiers.md` (three for a tier-3 gate, one paired reviewer for tier 2).

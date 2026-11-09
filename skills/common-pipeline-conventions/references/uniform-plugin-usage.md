@@ -60,3 +60,7 @@ Every implementing pipeline shows the SAME uniform values. `ux-test` has no open
 | `bug-fix` | declare → the `ct6-converge` workflow with completion promise "…" → record | conditional (reports + native fallback, never blocks) | brainstorming / TDD / systematic-debugging / verification-before-completion | `--all --strict --json` | `archive <change-name>` |
 | `mini` | declare → the `ct6-converge` workflow with completion promise "…" → record | conditional (reports + native fallback, never blocks) | brainstorming / TDD / systematic-debugging / verification-before-completion | `--all --strict --json` | `archive <change-name>` |
 | `ux-test` | declare → the `ct6-converge` workflow with completion promise "…" → record | conditional (reports + native fallback, never blocks) | brainstorming / TDD / systematic-debugging / verification-before-completion | `n/a` (no change) | `n/a` (no change) |
+
+## From the constitution stub (moved v4.1.2)
+
+This is the single source of truth for HOW every CT6 pipeline invokes its orchestration and methodology dependencies — the native `ct6-converge` workflow (declared before, recorded after), the CONDITIONAL superpowers plugin with its native fallback (not a hard dependency since v4.0.0), and the OpenSpec CLI/skills.
