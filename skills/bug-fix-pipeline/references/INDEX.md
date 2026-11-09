@@ -22,3 +22,8 @@ Read the chapter for a phase before its first tool call; `verify-required-reads`
 | phase-b7 | `skills/bug-fix-pipeline/references/phase-b7.md` | the full text of Phase B7 |
 | phase-b8 | `skills/bug-fix-pipeline/references/phase-b8.md` | the full text of Phase B8 |
 | always | `skills/bug-fix-pipeline/references/anti-patterns-to-reject.md` | the full text of Anti-patterns to reject |
+| always | `skills/bug-fix-pipeline/references/plugin-prerequisites.md` | the superpowers pre-flight check, the four superpowers skills this lane invokes by phase, the native fallback and the precedence rule |
+| always | `skills/bug-fix-pipeline/references/inputs.md` | the two first-class input forms, the detection rule, and the flags this lane reads |
+| always | `skills/bug-fix-pipeline/references/phase-boundary-inbox-check.md` | the in-flight inbox read at every phase boundary and after every background-dispatch return |
+| always | `skills/bug-fix-pipeline/references/operating-rules.md` | the full operating rules of this lane |
+| always | `skills/bug-fix-pipeline/references/relationship-to-other-skills.md` | which sibling skills each phase reuses and how |

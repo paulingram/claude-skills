@@ -26,7 +26,7 @@ On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. 
 
 ### The full suite once, before the merge (v4.0.0)
 
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer plus the dev Playwright project enumerated from `<e2e-dir>/suite-manifest.json` (when one exists), record the results as evidence, then commit and merge. M4 and M5 ran the selected sets; this single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`).
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase`. Run every layer plus the dev Playwright project enumerated from `<e2e-dir>/suite-manifest.json` (when one exists), record the results as evidence, then commit and merge; M4 and M5 ran the selected sets. The rule: `skills/common-pipeline-conventions/references/test-selection.md`.
 
 ### Doc-currency single-pass
 
@@ -49,7 +49,7 @@ Before staging, run `openspec archive <slug>` to merge the change's spec deltas 
    Dispatch-Mode: <teams|subagents>
    Co-Authored-By: Claude <noreply@anthropic.com>
    ```
-   Identity (v3.67.0): the commit is authored as the checkout's RECORDED person — `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- commit ...` (or the explicit `-c user.name="<name>" -c user.email="<email>"` pair from `.architect-team/git-identity.json`) per `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)`. Never a hardcoded author, never ambient git config alone; the front door asked on first use, and the PreToolUse gate refuses a commit that lacks or contradicts the record.
+   Identity (v3.67.0): the commit is authored as the checkout's RECORDED person — `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- commit ...` (or the explicit `-c user.name="<name>" -c user.email="<email>"` pair from `.architect-team/git-identity.json`) per `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)` -- never a hardcoded author, never ambient git config alone (`skills/common-pipeline-conventions/references/git-commit-identity.md`).
 
    The `Dispatch-Mode:` trailer (v1.5.0) is derived from
    `.architect-team/intake-state.json`'s `dispatch_mode` field — recorded

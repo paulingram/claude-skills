@@ -2,7 +2,7 @@
 
 ### The full suite once, before the merge (v4.0.0)
 
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer plus the prod smoke suite (the `safety: prod` entries of `<e2e-dir>/suite-manifest.json`, when one exists), record the results as evidence, then commit and merge. This single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`, Honest boundaries); B5 ran the selected set and B6 replayed the reproduction artifacts.
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase`. Run every layer plus the prod smoke suite (the `safety: prod` entries of `<e2e-dir>/suite-manifest.json`, when one exists), record the results as evidence, then commit and merge; B5 ran the selected set and B6 replayed the reproduction artifacts. The rule: `skills/common-pipeline-conventions/references/test-selection.md`.
 
 ### Run-metric recording (v3.8.0)
 

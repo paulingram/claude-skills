@@ -17,3 +17,7 @@ Read the chapter for a phase before its first tool call; `verify-required-reads`
 | phase-m5 | `skills/mini-architect-team-pipeline/references/phase-m5.md` | the full text of Phase M5 |
 | phase-m7 | `skills/mini-architect-team-pipeline/references/phase-m7.md` | the full text of Phase M7 |
 | phase-m8 | `skills/mini-architect-team-pipeline/references/phase-m8.md` | the full text of Phase M8 |
+| always | `skills/mini-architect-team-pipeline/references/plugin-prerequisites.md` | the superpowers pre-flight check, the four superpowers skills this lane invokes by phase, the native fallback and the precedence rule |
+| always | `skills/mini-architect-team-pipeline/references/phase-boundary-inbox-check.md` | the in-flight inbox read at every mini phase boundary and after every background-dispatch return |
+| phase-m2 | `skills/mini-architect-team-pipeline/references/phase-m2.md` | the full procedure of Phase M2 -- the single-architect dispatch, the five artifacts, and the `## QA Guidance` contract |
+| always | `skills/mini-architect-team-pipeline/references/operating-rules.md` | the full operating rules of this lane |

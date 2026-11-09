@@ -29,39 +29,21 @@ See `docs/ETHOS.md` for the full text.
 
 ## Plugin prerequisites (v3.9.0)
 
-**superpowers is a CONDITIONAL plugin (v4.0.0; it was a hard dependency from v3.9.0 to v3.67.0).** A pre-flight check still runs as the very first action of this pipeline and resolves availability either way: (a) `~/.claude/plugins/installed_plugins.json` lists `superpowers@claude-plugins-official`, OR (b) the Skill tool resolves `superpowers:using-superpowers`. When it is present the lane uses the superpowers skills named below. When it is absent the lane does NOT abort: it prints one line naming the gap and the install remediation (`/plugin marketplace add claude-plugins-official` then `/plugin install superpowers`), records `methodology: native` in `intake-state.json`, and runs the same disciplines in their native form per `skills/common-pipeline-conventions/references/native-methodology.md`. The same rule covers `cartographer` (native mapping fallback in that chapter) and the retired `ralph-loop`, whose job the `ct6-converge` workflow does (`skills/common-pipeline-conventions/references/converge-workflows.md`). The canonical source of truth is `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)`.
+> **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/plugin-prerequisites.md` and execute it in full. Do not work from memory.
 
-This pipeline concretely invokes these superpowers skills at its phases (via the Skill tool):
-
-- `superpowers:brainstorming` — design / intake (Phase B3 proposal authoring, before drafting the fix design).
-- `superpowers:test-driven-development` — implementation (Phase B2 reproduction-as-regression-test + Phase B5 implement, before writing the fix code).
-- `superpowers:systematic-debugging` — RCA / diagnosis (Phase B1 replication + Phase B3 diagnostic-research-team, before proposing any fix).
-- `superpowers:verification-before-completion` — review / completion gates (Phase B6 QA replay + Phase B7 archive, before claiming the bug resolved).
-
-**Precedence.** User `CLAUDE.md` / `AGENTS.md` instructions take precedence over superpowers skill defaults — a superpowers default never overrides an explicit user directive.
+`superpowers` and `cartographer` are CONDITIONAL plugins: the pre-flight check runs first and resolves availability, and an absent plugin degrades to the native forms in `skills/common-pipeline-conventions/references/native-methodology.md` instead of aborting the run.
 
 ## Five non-negotiable disciplines
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/five-non-negotiable-disciplines.md` and execute it in full. Do not work from memory.
 
-1. **Replicate first.** Phase B1 reproduces the symptom — a Playwright user-flow for frontend bugs, a backend script for backend bugs — against the live dev environment, BEFORE any fix is proposed. A fix without a replication is a guess and gets rejected at the architect review (Phase B4).
-2. **Reproduction IS the regression test.** The Playwright flow / backend script that demonstrated the bug becomes the test the QA replay verifies against post-fix. No "now write a test" second step. For frontend bugs the agent ALSO writes a **backend diagnostic test** so the regression is covered on both sides of the contract.
-3. **Generalize, never symptom-patch.** The `system-architect` Bug-Fix Generalization Audit at Phase B4 rejects fixes that special-case the failing input — a literal user-id in a conditional, a hard-coded category name in a switch. The override is explicit: the user has to say *"hard-code it"* / *"hotfix this one"* / equivalent. Silence is NOT authorization.
-4. **QA replay against live dev.** Phase B6 dispatches the `qa-replayer` against the deployed fix, re-running the original replication artifacts verbatim. The pass criterion is *"the originating symptom is gone end-to-end"* — not "the test passes," but the original failure mode is no longer reproducible — AND *"the code-path execution witness confirms the fix's buggy handler was actually invoked by the test"* (v0.9.31). A test that passes via a different code path (selector misidentification, precondition skip, sibling-handler entry) is the failure mode v0.9.31's witness exists to catch; the new verdict `test-did-not-exercise-fix` routes back to **Phase B2** (re-author the test) instead of B3 (re-propose the fix), because the FIX may be correct and the TEST may be wrong — separate axes, separate recovery paths.
-5. **Live-dev-environment-by-default.** Phase B5 ALWAYS deploys the fix to the dev environment (per the target project's `design.md` `## Dev Environment` section) before Phase B6 testing. Builds confirmed green first. Choosing HOW to verify each claim along the way is the `verification-planning` skill's enumerate-and-choose step — the dev deploy is the default venue for the end-to-end confirmation, never a substitute for the cheapest faithful check a local run, a replay, or a seeded fixture settles first. Production is an explicit opt-in exception (`--environment production`) that escalates a structured question to the user.
+Replicate first; the reproduction IS the regression test; generalize, never symptom-patch; QA replay against live dev; live-dev-by-default with production as an explicit opt-in.
 
 ## Inputs
 
-`$REQ_DIR` (bound by `/architect-team:bug-fix` from the user's argument) is the **bug**. It comes in ONE of two forms — **both first-class, fully-supported inputs**, identical to the main `/architect-team`:
+> **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/inputs.md` and execute it in full. Do not work from memory.
 
-1. **A requirements folder** — a filesystem path that resolves to an existing directory holding bug-report artifacts, screenshots, prior diagnostic notes, or an OpenSpec brief.
-2. **A plain-language requirement** — prose typed directly as the argument: a sentence or paragraph describing the symptom, the user's experience, expected vs. actual behavior. The prose ITSELF is the requirement; it is NOT a path.
-
-The v0.9.17 same-input-forms rules apply verbatim — **do NOT refuse plain-language prose**, **do NOT treat the first word of a sentence as a path**, **do NOT ask the user for a folder when prose was given**. Ask only when `$REQ_DIR` is genuinely empty. The codebase the bug applies to is the cwd (a git repo) unless the prose explicitly names another path.
-
-**Detect the form:** if `$REQ_DIR` is a single token resolving to an existing directory → form 1 (folder). Otherwise → form 2 (plain-language). When unsure, it is form 2.
-
-**Flags the `/architect-team:bug-fix` command binds and this lane reads.** `--environment production` (B5 escalates before any production deploy), `--no-deploy` (B5 skips the dev deploy and B6b is skipped with a note in the report), `--force-bug` (B0 skips the classifier warning), `--proposal-first` (pause after B3), and — v4.0.0 — **`--full-data`**: sample-first iteration is OFF for the run. Absent the flag (the default), a data defect follows the stratified sample plan at B1 and B6 (`skills/data-eng-pipeline/references/sample-first.md`); with it, B1 replicates and B6 replays against the full table, no sample plan is produced or referenced, and the B7 report records the opt-out. A project principle that forbids sampling has the same effect and is named in the report.
+`$REQ_DIR` is the bug in ONE of two first-class forms -- a requirements folder OR plain-language prose -- and prose is never refused, never read as a path, and never traded for a folder; the chapter also names the flags this lane reads.
 
 ## Dispatch mode
 
@@ -85,19 +67,19 @@ A bug-fix run is `strict` by nature: the mandate is the named symptom, and resto
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/augment-never-replace-precedence.md` and execute it in full. Do not work from memory.
 
-When a run arms an optional third-party capability, the armed skill operates INSIDE this lane's mandates rather than in place of them — the rule itself, the skill-to-phase binding, the conflict record, and the narrow platform-safety carve-out all live in `common-pipeline-conventions` `## Augment-never-replace discipline (v3.63.0)`. Concretely for this lane: the arming verdict for the optional `bauplan` lakehouse capability is resolved at the top of Phase B−1, alongside the dispatch-mode and `appearance_mode` selections — a `bauplan_project.yml` anywhere in the target repo (`_has_bauplan_markers` in `hooks/discipline_registry.py`, recursive, so a monorepo subdirectory marker counts) arms it silently, while stated Bauplan intent with no marker surfaces exactly one confirmation owed BEFORE the first bauplan-specific dispatch — resolved through `resolve_bauplan_arming` in `scripts/bauplan/arming.py` and recorded as `{armed, signal, requires_confirmation, disposition}` at `<workspace>/.architect-team/bug-fix/<bug-slug>/bauplan-arming.json`. That confirmation joins this lane's domain gates above: it fires regardless of `--proposal-first`, because the user's answer determines what gets built. **Every Bauplan pointer in this body is gated on that verdict:** an unarmed run — the ordinary case — reads no Bauplan instruction at all, and B1 through B8 proceed exactly as they do today. An armed run whose `bauplan` plugin turns out to be absent warns and degrades (the generic path, with the missed capability and its remediation named in the B7 report); it never blocks.
+When a run arms an optional third-party capability (Bauplan is the first), the armed skill operates INSIDE this lane's mandates; the arming verdict is resolved at the top of Phase B-1 and an unarmed run reads no Bauplan instruction at all.
 
 ## Notifications (per-project email events — opt-in, best-effort)
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md` and execute it in full. Do not work from memory.
 
-Per `common-pipeline-conventions` `## Notifications wiring convention`, this pipeline emits the ten recognized events (`run_start`, `phase_start`, `phase_complete`, `waiting_on_agents`, `agents_complete`, `issue_discovered`, `git_commit`, `deploy`, `run_complete`, plus the tick-driven `heartbeat`) via the notifier CLI at `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`. The discipline is opt-in (gated on `.architect-team-notify.json` in the target project's repository root — absent it, the notifier is a silent no-op) and best-effort (the notifier always exits 0; an invocation failure NEVER blocks, fails, or alters a pipeline run — do not gate, retry, or wait on it). Every invocation uses the polyglot `python3 ... || python ...` form per `common-pipeline-conventions` `## Cross-platform Python invocation`.
+This pipeline emits the ten recognized notifier events via `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`, opt-in on `.architect-team-notify.json` and strictly best-effort.
 
 ## MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md` and execute it in full. Do not work from memory.
 
-Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which points at the canonical rule in `mempalace-integration` `## Phase A — Wake-up at pipeline start`): when the bug-fix pipeline is invoked DIRECTLY via `/architect-team:bug-fix` (not routed in from the main pipeline's Phase −2), the unscoped wake-up runs as the earliest action of this pipeline — before any subagent dispatch, including the Phase B−1 intake-and-mapping flow. Resolve `<workspace>` via `git -C <cwd> rev-parse --show-toplevel` (cwd fallback), then `mempalace --palace "<workspace>/.mempalace/palace" wake-up`. Include the wake-up output verbatim — the bug-fix loop benefits from prior-context recall (past bug-replications mined to `bug-replications`, past QA-replay verdicts mined to `qa-replays`, past architect generalization-audit verdicts mined to `bug-fix-audits`). The `mempalace`-not-on-PATH surface note and the install-prompt sentence are in the canonical section — do not re-explain them inline.
+When invoked DIRECTLY via `/architect-team:bug-fix`, the unscoped `mempalace wake-up` runs as the earliest action of this pipeline, before any subagent dispatch, and its output is kept verbatim.
 
 ## Phase B0.1 — Discipline freshness check (v2.18.0)
 
@@ -105,15 +87,15 @@ Same shape as the main pipeline's Phase 0.1 — invoke `verify-discipline-regist
 
 ## Phase-boundary inbox check (v2.19.0)
 
-Same shape as the main pipeline's `## Phase-boundary inbox check` — at the start of every numbered bug-fix phase (B−1 / B0 / B1 / B2 / B3 / B4 / B5 / B6 / B6b / B7 / B8) AND **after every background-dispatch return / wake** (v3.16.0 — dispatch teammates with `run_in_background: true` so the inbox drains promptly, not only at phase boundaries), read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` via `hooks.inflight_inbox.unprocessed_messages`, classify each new message per v2.5.0 (incl. `parallel-problem` → spawn a concurrent lane with a disjoint `hooks/locks.py` lock, recording `lane_id` via `mark_processed`), mark_processed. Phase B8 invokes the 17th Layer 3 tool `verify-inflight-clarifications-processed` to gate against silently-ignored messages (per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)`, the In-flight inbox row).
+> **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-boundary-inbox-check.md` and execute it in full. Do not work from memory.
 
-See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection mechanism (v2.19.0)` for the canonical home + `## In-flight clarification discipline (v2.5.0)` `### Parallel lanes (v3.16.0)` for the responsiveness + parallel-lane protocol.
+At the start of every bug-fix phase AND after every background-dispatch return, read the in-flight inbox at `<workspace>/.architect-team/inbox/<run-id>.jsonl` and process every new message before proceeding.
 
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b-1.md` and execute it in full. Do not work from memory.
 
-Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase `ct6-converge` workflow with cartographer + route-mapper + the tier-3 reviewer convergence (the `codebase-map` and `integration-map` presets, declared before and recorded after); same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.
+Follow the `intake-and-mapping` skill verbatim: the same codebase discovery, the same tier-3 `ct6-converge` map convergence (declared before, recorded after), the same freshness rules, the same MemPalace wake-up + mining.
 
 ## Phase B0 — Detection & Normalization
 
@@ -127,77 +109,67 @@ The change-name convention: bug-fix changes get the same `architect-team/<bug-sl
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b1.md` and execute it in full. Do not work from memory.
 
-The Lead creates a `bug-replicator` task in the shared list (teams mode) OR dispatches the `bug-replicator` subagent (subagents mode), one per affected codebase (usually just one). Bracket the dispatch with the v3.34.0 dispatch-wait pair per `## Notifications` — emit `waiting_on_agents` (`--agents "bug-replicator-<codebase> — reproduce: <symptom one-liner>"`) as the dispatch goes out, and `agents_complete` (`--agents "bug-replicator-<codebase> — <verdict>"`) when every replicator has returned its verdict. Inputs to the agent:
+The Lead dispatches one `bug-replicator` per affected codebase, bracketed by the dispatch-wait notification pair, to reproduce the symptom against the live dev environment.
 
 ## Structured bug-isolation (v3.8.0)
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/structured-bug-isolation.md` and execute it in full. Do not work from memory.
 
-Closes REQ-DIAG-01 / REQ-DIAG-02 / REQ-DIAG-05 (the P0 "quick wins" of the CT6 Lineage & Logical Bug-Isolation Upgrade — `docs/LINEAGE_UPGRADE_REQUIREMENTS.md`). The historical failure: diagnosis discovered the relevant code path *while theorizing* — a deep-analysis subagent was dispatched before anyone had frozen the endpoint scope or established, with an executed call, whether the defect even lived on the API side. Cheap, decisive checks were skipped in favor of expensive reasoning. v3.8.0 inserts a **structured pre-diagnosis sequence** so the cheap checks always precede deep analysis.
+A structured pre-diagnosis sequence makes the cheap, decisive checks (frozen endpoint scope, an executed discriminant call) precede any deep analysis (REQ-DIAG-01 / 02 / 05).
 
 ## Phase B2 — Reproduction-artifact promotion + backend diagnostic
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b2.md` and execute it in full. Do not work from memory.
 
-The replication artifact from B1 IS the regression test — this is `superpowers:test-driven-development` in its purest form (the failing test exists before the fix code is written, per `## Plugin prerequisites (v3.9.0)`). Move it to its permanent location in the target codebase's test directory if it isn't already there. The pair the QA replayer will run at B6:
+The B1 replication artifact IS the regression test: promote it to its permanent location and pair it with the backend diagnostic the QA replayer runs at B6.
 
 ## Phase B3 — OpenSpec proposal authoring
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b3.md` and execute it in full. Do not work from memory.
 
-Author a slim OpenSpec change at `openspec/changes/<bug-slug>/`. Apply `superpowers:brainstorming` to settle the fix's design intent before drafting (per `## Plugin prerequisites (v3.9.0)`); when the root cause is unclear, the `diagnostic-research-team` dispatch carries `superpowers:systematic-debugging`. The artifact chain is the same as a feature change: `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`, `coverage-map.json`. The proposal:
+Author a slim OpenSpec change at `openspec/changes/<bug-slug>/` with the same artifact chain as a feature change, grounded in the replication and the root cause.
 
 ## Phase B4 — Bug-Fix Generalization Audit
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b4.md` and execute it in full. Do not work from memory.
 
-The Lead creates a `system-architect` task in **Bug-Fix Generalization Audit** mode (teams mode) OR dispatches the `system-architect` subagent in that mode (subagents mode). Inputs:
+The `system-architect` runs the Bug-Fix Generalization Audit on the proposal; its verdict gates B5.
 
 ## Phase B5 — Implement + deploy to dev
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b5.md` and execute it in full. Do not work from memory.
 
-The Lead creates ONE focused fix-team task in the shared list (teams mode) OR dispatches ONE focused fix-team subagent (subagents mode) — a `frontend` or `backend` agent depending on layer; for `both`-layer bugs, the Lead sequences them or runs them in parallel with non-overlapping file scope per the main pipeline's Phase 2 rules — usually a bug fix is single-layer or has a clear primary. Brief includes:
+ONE focused fix-team agent implements the fix, runs the selected tests, and deploys to the dev environment before B6.
 
 ## Phase B6 — QA replay against live dev
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b6.md` and execute it in full. Do not work from memory.
 
-The QA replay is this pipeline's `superpowers:verification-before-completion` gate — evidence (the originating symptom is gone end-to-end against the live dev environment) before any claim that the bug is resolved, per `## Plugin prerequisites (v3.9.0)`.
+The `qa-replayer` re-runs the replication artifacts verbatim against the deployed dev fix; only symptom-gone-end-to-end plus the code-path execution witness closes the loop.
 
 ## Phase B6b — Logical Sensibility Check (v0.9.29)
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b6b.md` and execute it in full. Do not work from memory.
 
-After Phase B6 returns `bug-resolved` and BEFORE Phase B7's archive, the orchestrator runs a logical sensibility check on the impact set of the fix. Closes a real-world gap surfaced by user feedback:
+After `bug-resolved` and BEFORE B7 archives, the orchestrator runs a logical sensibility check on the fix's impact set.
 
 ## Phase B7 — Archive + Report
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b7.md` and execute it in full. Do not work from memory.
 
-On `bug-resolved` at B6 (AND the v2.21.0 target-element gate passing):
+On `bug-resolved` at B6 (and the target-element gate passing), archive the change and report.
 
 ## Phase B8 — Commit + push
 
 > **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b8.md` and execute it in full. Do not work from memory.
 
-As part of Phase B8, record the run's §6 success metrics via `hooks/run_metrics.record_run_metrics(workspace, run_id, metrics)` — `dev_loop_iterations`, `first_pass_fix`, `oscillation_count`, `bug_still_present_count`, `fix_regression_count`, `fe_api_verdict` (from `discriminant.json`), `layer_fixed`, the derived `wrong_layer`, and the REQ-DOC-06 `cdlg_edge_recall` / `cdlg_hallucination_rate` (None until the CDLG ships). The metrics land at `<workspace>/.architect-team/run-metrics/<run_id>.json` and are mined to MemPalace run-history. See `common-pipeline-conventions/SKILL.md` `## Run metrics + success measurement (v3.8.0)` for the canonical home + the frozen-bug-benchmark protocol.
+Phase B8 runs the full suite once, commits as the checkout's recorded identity, records the run's success metrics, pushes, and auto-merges a clean branch.
 
 ## Operating rules (non-negotiable)
 
-The bug-fix pipeline inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — including the no-arbitrary-timers rule, the unbounded-solving discipline (no iteration ceiling; loop until resolved), the shared-state concurrency model, the required-input-marker discipline, the safety rules for the auto-commit step, and the documentation-currency gate. **Plus**:
+> **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/operating-rules.md` and execute it in full. Do not work from memory.
 
-- **Replicate before propose.** Phase B1 MUST return `reproduced` before B3 can run. A proposal authored on an un-reproduced bug is the failure mode this skill exists to prevent.
-- **Reproduction is the regression test.** No "now write the test" second step. The replication artifact IS the test.
-- **Frontend bugs MUST have a backend diagnostic.** Phase B2's backend-diagnostic mandate is non-negotiable for `frontend` and `both`-layer bug-fix runs. A regression that one layer catches and the other misses is the failure mode the dual artifact prevents.
-- **Generalization is non-negotiable.** The Phase B4 audit's verdict gates B5. A `needs-generalization` or `needs-replacement` verdict returns the proposal to B3; the implementing team does NOT proceed until the architect's verdict is `pass`.
-- **QA replay against live dev.** Phase B6 runs against the deployed dev environment, not against local code. The pass criterion is symptom-gone-end-to-end.
-- **Production deploys escalate.** Phase B5 NEVER auto-deploys to production. The `--environment production` flag triggers an explicit user-confirmation question.
-- **Unbounded solving (v3.8.0).** There is NO iteration bound or ceiling — the bug-fix loop runs until the symptom is gone end-to-end. Never abort on iteration count. On a recurring fix-regression, continue from a DIFFERENT angle (re-route through diagnostic-research, broaden scope, alternate strategy) and surface the recurrence loudly WITHOUT halting. The only interruptions are reaching resolution or pausing to collect required owner input (the required-input marker). Per `common-pipeline-conventions` `## Unbounded solving discipline`.
-- **Don't silently narrow the prompt's scope (v1.4.0).** If the bug-fix pipeline's reading of the user's report is materially narrower than the prompt's literal meaning — particularly when the report contains a parity-implying verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) — surface the scope decision via `AskUserQuestion` BEFORE Phase B1 replication. The user's answer becomes the contract; silent reframing is the anti-pattern. Per `common-pipeline-conventions` `## Scope discipline`. Structurally the same shape as the v0.9.36 anti-deferral rule below, fired EARLIER in the timeline (intake instead of mid-run).
-- **Teammates MUST NOT run destructive git operations (v1.6.0).** The bug-fix pipeline's `bug-replicator`, `backend`, `frontend`, `qa-replayer`, and `fix-sensibility-checker` teammates MUST NOT run `git stash` / `git stash pop`, `git reset --hard`, `git rebase`, `git commit --amend`, `git checkout <other-branch>` / `git checkout .`, or `git clean -f`. These manipulate state shared across teammates within the same run and caused the heirship-app-v2 reflog clobbering (concurrent stash + pop interleaving lost three of four teammates' work). For baseline verification, the orchestrator captures `BASELINE_SHA=$(git rev-parse HEAD)` at the bug-fix Phase B−1 entry and includes it in every teammate's spawn brief; teammates run `git diff $BASELINE_SHA -- <my-files>` instead of stashing. Per `common-pipeline-conventions` `## Teammate git discipline`.
-- **Fix every bug you identify — never defer to "separate runs" (v0.9.36).** When the pipeline identifies multiple bugs (from replication, from QA replay, from sensibility checks, or from the user's description listing several symptoms), it fixes ALL of them in the current run. The orchestrator does NOT cluster bugs and then decide some clusters "merit a focused `/architect-team:bug-fix` run" or "would suffer in depth if batched here." That is the pipeline refusing to do its job. If the user listed 5 bugs, fix 5 bugs. If QA replay surfaces a regression, fix it in-loop (that is what the B6→B3 cycle exists for). If sensibility checks find 3 broken pages, those become SRs that resolve in-run. The ONLY legitimate deferral is an explicit user instruction ("skip this one for now", "don't fix cluster D") — silence is NOT deferral authorization.
-- **Testing must be EXECUTED, not described (v0.9.36).** The B1 replication artifact must be actually run against the live dev environment with its output captured. The B6 QA replay must actually re-run the artifacts against the deployed fix. "The test would pass" / "the fix addresses the root cause so the test should pass" / "I verified by reading the code" are NOT testing — they are guessing. The verdict files at `.architect-team/bug-fix/<bug-slug>/` are the structural proof; the `pipeline-completion-audit` hook blocks without them.
+The bug-fix pipeline inherits every operating rule of `architect-team-pipeline` and adds its own: replicate before propose, reproduction is the regression test, generalize, QA replay against live dev, production escalates, unbounded solving, fix every bug found, execute every test.
 
 ## Anti-patterns to reject
 
@@ -205,13 +177,9 @@ The bug-fix pipeline inherits every operating rule from `architect-team-pipeline
 
 ## Relationship to other skills
 
-- `architect-team-pipeline` (sibling) — same orchestration discipline, different shape. Bug-fix pipeline is reached via `/architect-team:bug-fix` (explicit) or via the main pipeline's Phase −2 triage when the classifier returns `bug` (or in parallel for `mixed`).
-- `intake-and-mapping` (Phase B−1) — reused verbatim. Same maps, same freshness rules.
-- `playwright-user-flows` (Phase B1 frontend, B6 QA replay) — the bug-replicator drives Playwright per this skill; the QA replayer re-runs it the same way.
-- `dev-api-integration-testing` (Phase B1 backend, B2 backend diagnostic, B6 QA replay) — same.
-- `root-cause-test-failures` — applies when B1 returns `could-not-reproduce` or when B6 returns an unclear `bug-still-present` (the diagnostic loop runs through the orchestrator's normal channels).
-- `coverage-mapping` + `reuse-first-design` (Phase B3) — same authoring disciplines as a feature proposal.
-- `documentation-currency` (Phase B8) — the doc-currency gate runs before the auto-commit, same as the main pipeline. v0.9.23 promoted the update step to the dedicated `doc-updater` agent; the audit (system-architect Documentation Currency Audit mode) and the commit-blocking enforcement are unchanged.
+> **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/relationship-to-other-skills.md` and execute it in full. Do not work from memory.
+
+This lane reuses `intake-and-mapping`, `playwright-user-flows`, `dev-api-integration-testing`, `root-cause-test-failures`, `coverage-mapping` + `reuse-first-design` and `documentation-currency` at the phases the chapter names.
 
 ## Same input forms as architect-team-pipeline
 
@@ -246,3 +214,8 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Phase B7 — Archive + Report` | `skills/bug-fix-pipeline/references/phase-b7.md` | on demand |
 | `Phase B8 — Commit + push` | `skills/bug-fix-pipeline/references/phase-b8.md` | on demand |
 | `Anti-patterns to reject` | `skills/bug-fix-pipeline/references/anti-patterns-to-reject.md` | on demand |
+| `Plugin prerequisites (v3.9.0)` | `skills/bug-fix-pipeline/references/plugin-prerequisites.md` | on demand |
+| `Inputs` | `skills/bug-fix-pipeline/references/inputs.md` | on demand |
+| `Phase-boundary inbox check (v2.19.0)` | `skills/bug-fix-pipeline/references/phase-boundary-inbox-check.md` | on demand |
+| `Operating rules (non-negotiable)` | `skills/bug-fix-pipeline/references/operating-rules.md` | on demand |
+| `Relationship to other skills` | `skills/bug-fix-pipeline/references/relationship-to-other-skills.md` | on demand |

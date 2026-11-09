@@ -2,7 +2,7 @@
 
 ### The full suite once, before the merge to main (v4.0.0)
 
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer plus the prod smoke suite (the `safety: prod` entries of `<e2e-dir>/suite-manifest.json`), record the results as evidence, then merge. This single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`, Honest boundaries); Phases 3 and 5 ran the selected sets.
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase`. Run every layer plus the prod smoke suite (the `safety: prod` entries of `<e2e-dir>/suite-manifest.json`), record the results as evidence, then merge; Phases 3 and 5 ran the selected sets. The rule, and why this single full run is the safety net: `skills/common-pipeline-conventions/references/test-selection.md`.
 
 ### Deploy mandate final gate (v2.20.0)
 

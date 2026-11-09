@@ -25,17 +25,17 @@ $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/
 
 ## Commit identity (v3.67.0) — runs after the banner, before any git-mutating step
 
-This run will author commits, and the tool never decides WHO they are attributed to. Resolve the checkout's recorded commit identity now — once per checkout, before the auto-worktree step below can touch git — per `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)` (full procedure: `skills/common-pipeline-conventions/references/git-commit-identity.md`):
+Resolve the checkout's recorded commit identity before any step below touches git (the rule and its rationale: `common-pipeline-conventions` `## Git commit identity discipline (v3.67.0)`, full text `skills/common-pipeline-conventions/references/git-commit-identity.md`):
 
 ```bash
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd "<workspace>" resolve --json
 ```
 
-- `"status": "recorded"` → say *"Committing as `<name> <email>` (recorded for this checkout)"* in one line and continue. No question.
-- `"status": "candidate"` → git's local or global config names someone; that is a PROPOSAL, never adopted silently. Ask via `AskUserQuestion`: *"Commit as `<name> <email>`? (found in this repo's local / your global git config)"* — options **Yes, record it for this checkout** / **No — I'll give a different name and email**. Then `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd "<workspace>" set --name "<name>" --email "<email>" --source confirmed-local-git-config|confirmed-global-git-config` (or `--source asked` when they typed a different one).
-- `"status": "missing"` → ask via `AskUserQuestion` (free text): *"Who should this run's commits be attributed to? Reply `Name <email>`."* Then `set ... --source asked`.
+- `"status": "recorded"` -> say *"Committing as `<name> <email>` (recorded for this checkout)"* in one line and continue.
+- `"status": "candidate"` -> a name found in git config is a PROPOSAL, never adopted silently: confirm it via `AskUserQuestion` (*"Commit as `<name> <email>`?"* -- **Yes, record it for this checkout** / **No, I'll give a different name and email**), then `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd "<workspace>" set --name "<name>" --email "<email>" --source confirmed-local-git-config|confirmed-global-git-config` (`--source asked` when they typed a different one).
+- `"status": "missing"` -> ask via `AskUserQuestion` (free text, *"Reply `Name <email>`"*), then `set ... --source asked`.
 
-This is a **DOMAIN gate** (the v0.9.21 carve-out — the answer is the user's own fact): it fires regardless of `--proposal-first`, it fires ONCE per checkout (the record is the memory), and it NEVER guesses, NEVER reuses a name found in a skill, a CLAUDE.md or another repo, and NEVER writes the user's git config. Every commit-authoring git command this run issues then carries the record (the `git_identity.py git --` wrapper or the explicit `-c user.name= -c user.email=` pair); the PreToolUse gate refuses one that does not.
+A **DOMAIN gate**: it fires regardless of `--proposal-first`, ONCE per checkout, never guesses a name and never writes the user's git config; every commit-authoring git command this run issues then carries the record (the `git_identity.py git --` wrapper or the explicit `-c user.name= -c user.email=` pair).
 
 ## Argument parsing (do this first, before invoking the skill)
 
@@ -165,13 +165,10 @@ At the end of Phase P9, after the run report:
 2b. **Default-branch guard:** if the current branch is `main` / `master` AND
    `ALLOW_PUSH_TO_DEFAULT` is false, `git -C <repo-root> checkout -b architect-team/playwright-suite-<codebase-slug>`
    before committing.
-3. Commit as the checkout's RECORDED person (v3.67.0 — resolved at the front
-   door; never ambient git config alone, never a hardcoded author):
+3. Commit as the checkout's RECORDED person (v3.67.0, resolved at the front door):
    `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- -C <repo-root> commit -m "<commit message>"`
-   (the wrapper injects `-c user.name= -c user.email=` from
-   `.architect-team/git-identity.json` and REFUSES when there is none), or the
-   explicit `-c user.name="<name>" -c user.email="<email>"` pair from
-   `git_identity.py status --json`.
+   (the wrapper injects the recorded `-c user.name= -c user.email=` pair and
+   REFUSES when there is none), or the explicit pair from `git_identity.py status --json`.
 4. `git -C <repo-root> push -u origin <branch>`.
 5. Report the commit SHA and the push range. If the commit landed on a feature
    branch, say so and recommend opening a PR.

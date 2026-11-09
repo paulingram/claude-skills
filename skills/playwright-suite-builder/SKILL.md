@@ -44,44 +44,9 @@ See `docs/ETHOS.md` for the full text.
 
 ## The suite manifest — the durable registry
 
-One manifest per frontend codebase, at `<e2e-dir>/suite-manifest.json`,
-**committed in the target repo**. It is the single artifact answering "which
-tests are written", it binds each test to the intuition-map elements it covers,
-and it is what a full-integration run enumerates.
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/suite-manifest.md` and execute it in full. Do not work from memory.
 
-Top-level fields — `schema_version`, `e2e_dir`, `personas[]`, `last_built`,
-`prod_exceptions[]`, and **`tests[]`**, the array the per-test entries below live
-in. All six are REQUIRED; a manifest missing any one of them is a blocking
-validation finding, and `tests[]` is the one most easily forgotten because the
-table describes its contents rather than the array. Per-test entries:
-
-| Field | Meaning |
-|---|---|
-| `file` | path to the spec, relative to the repo root |
-| `test_names[]` | the test titles inside that file |
-| `persona` | which persona slug this test is for |
-| `kind` | `journey`, `debug-flow`, or `prod-check` |
-| `source` | `user-flow`, `explorer`, `gap-fill`, `bug-path`, or `pre-existing` |
-| `covers_elements[]` | intuition-map `element_id`s this test exercises |
-| `covers_routes[]` | routes this test traverses |
-| `safety` | `dev` or `prod` — the classifier verdict, bound per test |
-| `mutates_data` | bool — the classifier's mutation finding |
-| `origin_ref` | SR path / bug slug, or `null` |
-
-**These fields are STRINGS, not merely present.** Every per-test field except
-`mutates_data` (a real boolean) and `origin_ref` (a string or `null`) must be a
-non-blank string. A falsy non-string value — `false`, `0`, `[]` — is treated as
-**ABSENT**, not as a value, and blocks.
-
-That distinction is not pedantry. A `teardown: false` once passed the
-present-not-blank check, because `false` is neither `None` nor `""`, and it
-authorized a production-mutating test. The JSON looks like it says something; the
-validator read it as saying nothing. Write the string.
-
-The schema, its validation, and the `verify-suite-manifest` ship check are
-implemented by the stdlib-only engine at
-`scripts/playwright_suite/manifest.py`. The skill is the contract; the engine is
-the mechanism.
+One `<e2e-dir>/suite-manifest.json` per frontend codebase, committed in the target repo, binds every test to a persona, the intuition-map elements it covers and its dev / prod safety verdict; `scripts/playwright_suite/manifest.py` validates it.
 
 ## The migration boundary
 
@@ -98,44 +63,9 @@ in a project is what creates its manifest.
 
 ## Phase P0 — Target + e2e-dir resolution
 
-Identify the frontend codebase(s) in scope (one run per codebase; a monorepo with
-three frontends gets three manifests). For each, resolve `<e2e-dir>` by the
-ladder below. **The suite follows the target repo's own convention** — this skill
-imposes its structure INSIDE whatever layout the project already uses, and never
-relocates an existing suite.
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p0.md` and execute it in full. Do not work from memory.
 
-1. **The Playwright config's `testDir`** — read `playwright.config.{ts,js,mjs}`.
-   If it declares a `testDir`, that directory IS `<e2e-dir>`. It wins outright.
-2. **An existing conventional e2e directory** — `e2e/`, `tests/e2e/`,
-   `test/e2e/`, `cypress/e2e/` when Playwright specs live there, or whichever
-   directory the repo's existing browser tests already occupy. The most populated
-   candidate wins; a tie escalates rather than guessing.
-
-   **What counts as a spec** — the engine's published suffix family: a `.spec.*`
-   or `.test.*` stem with a JS/TS extension (`js`, `jsx`, `ts`, `tsx`, `mjs`,
-   `cjs`), matched case-insensitively and anchored on the leading dot — twelve
-   suffixes in all. Both stems count, so `checkout.test.ts` is as much a suite
-   member as `checkout.spec.ts`. Reconciliation walks the same family in both
-   directions, which is why an unlisted `.test.tsx` is a finding rather than
-   something the sweep quietly cannot see.
-3. **Create `e2e/`** — **only when none exists.** A fresh directory is the last
-   rung of the ladder, never the first.
-
-Record the resolved path in the manifest's `e2e_dir`. Read the Playwright config
-in full — the existing `projects[]`, `baseURL`, and `use` blocks are what P7
-extends rather than replaces.
-
-**Project principles at intake (v4.0.0, per `project-principles`).** Once per
-project: when `<workspace>/.architect-team/principles.json` is absent, run
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" default-set --workspace <ws>`
-(proposed never binds); when the user provided a document, run
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" extract-candidates <file>`,
-`Read` it, and confirm the drafted statements in ONE `AskUserQuestion` (a domain
-gate; nothing becomes confirmed silently). Every checker dispatched at P3 and
-every authoring brief at P5 carries the output of `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>`
-under a `Confirmed project principles` heading — a testing principle ("test names
-say the behaviour", "no mocked backend in e2e") binds the suite exactly as it
-binds a feature slice.
+Resolve `<e2e-dir>` by the ladder (the Playwright config's `testDir`, then an existing conventional e2e directory, then `e2e/` only when none exists) and confirm the project principles once per project.
 
 ## Phase P1 — Inventory
 
@@ -156,89 +86,33 @@ Absent a manifest, this phase creates one in memory; the write happens at P9.
 
 ## Phase P2 — Intuition-map freshness
 
-Compare the map's `last_intuited` frontmatter timestamp against the most recent
-commit touching frontend paths. **Reuse the existing detection in
-`hooks/frontend_impact.py`** — the same classifier the pipeline already uses to
-decide whether a change is frontend-impacting. Do not re-derive "what counts as a
-frontend file" here; a second definition is a second thing to drift.
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p2.md` and execute it in full. Do not work from memory.
 
-- **Map absent** — call the `intuition-map-lifecycle` `ensure` verb. Authoring
-  against a missing map is forbidden.
-- **Map stale** (`last_intuited` older than the most recent frontend-touching
-  commit) — route the refresh through `intuition-map-lifecycle` `ensure` /
-  re-intuit. Never hand-patch the map here.
-- **New `low` / `unknown` items produced by the refresh** — these go to the
-  bulk-verify gate BEFORE any authoring proceeds. The gate is a domain gate and
-  fires regardless of `--proposal-first`, per
-  `skills/interaction-intuition` `## Domain-gate carve-out`.
-- **Map current** — proceed.
-
-`playwright-user-flows`' standing rule holds unchanged here: tests are never
-built on a stale map. Once the map is current, rebuild the project homepage so
-its Maps panel never shows a pre-refresh verdict (v4.0.0, best-effort, never
-blocking — `project-homepage` `## Rebuild moments`):
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || python "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || echo "(homepage rebuild skipped; continuing.)"
-```
+Compare the map's `last_intuited` against the latest frontend-touching commit via `hooks/frontend_impact.py`; an absent or stale map goes through `intuition-map-lifecycle` `ensure`, and new `low` / `unknown` items hit the bulk-verify gate before any authoring.
 
 ## Phase P3 — Review the existing tests
 
-**Dispatch the existing checkers. Never duplicate them.** The two reviewers this
-phase runs already exist, already carry their own rubrics, and already route
-their own findings:
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p3.md` and execute it in full. Do not work from memory.
 
-- **`test-completeness-verifier`** — vacuous navigate-and-assert flows,
-  `page.request` substitutes standing in for real interaction, mock-backed happy
-  paths, fixture hygiene, and per-kind coverage.
-- **`interaction-completeness`** — element wiring, placeholder pages, and
-  controls that look live but are not.
-
-Scope each dispatch to the inventoried suite rather than a single slice.
-
-**Review tier (v4.0.0, per `skills/team-spawning-and-review-gates/references/review-tiers.md`).** A suite-wide review is a
-whole-surface convergence, not a slice, so `interaction-completeness` runs here
-at its Phase 7 count: the `ct6-converge` workflow with the `interaction` preset
-(`kind: "interaction"`, `promise: "INTERACTION COMPLETE"`,
-`reviewerAgent: "architect-team:interaction-reviewer"`, `reviewers: 3`),
-DECLARED before the workflow runs and RECORDED after it per `skills/architect-team-pipeline/references/phase--1.md` `### Converge record protocol (v4.0.0)` —
-the recorded all-`ok` round is the exit condition, the promise only the label.
-`test-completeness-verifier` is a single mechanical verifier (the verifier seat
-of tier 2); it does not fan out. Findings
-route exactly as they already do — a gap becomes a P5 work item, and anything
-meeting the existing SR bar becomes a solution requirement through the normal
-path. This skill adds no new reviewer role, no new verdict vocabulary, and no
-second opinion on top of theirs.
+Dispatch the existing checkers suite-wide -- `interaction-completeness` as a declared and recorded tier-3 `ct6-converge` workflow, `test-completeness-verifier` as the single mechanical verifier -- and never duplicate either rubric.
 
 ## Phase P4 — Gap analysis
 
 > **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p4.md` and execute it in full. Do not work from memory.
 
-Coverage is the union of the manifest's `covers_elements[]` and the
-persona-times-goal journeys, measured against the CONFIRMED intuition map and the
-existing user-intent maps. The math is `skills/playwright-user-flows`
-**Phase C**'s, applied suite-wide instead of per-feature — every confirmed map
-element wants a covering test, every `(persona, goal)` pair wants a journey,
-every journey wants a test, every failure branch wants one too.
+Coverage is measured suite-wide against the CONFIRMED intuition map and the user-intent maps with `playwright-user-flows` Phase C's math.
 
 ## Phase P5 — Gap-fill authoring
 
 > **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p5.md` and execute it in full. Do not work from memory.
 
-**`PROPOSAL_FIRST` pauses here.** When the run was invoked with
-`--proposal-first`, P0–P4 complete and the run STOPS before authoring anything,
-presenting the gap analysis for review; P5 and P7 resume only on the user's
-go-ahead. This is a process gate and is opt-in — it is off by default. The domain
-gates (P2 bulk-verify, P4 unknown-persona escalation, P8 prod-mutation
-authorization) are unaffected and fire either way.
+`PROPOSAL_FIRST` pauses here; otherwise author every gap-fill test per the full `playwright-user-flows` discipline and run the selected set.
 
 ## Phase P6 — Debug-flow registration
 
 > **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p6.md` and execute it in full. Do not work from memory.
 
-Sweep the resolved bug artifacts the workspace already carries —
-`.architect-team/solution-requirements/`, the run history, `ux-tests/*/bugs/`,
-and committed Phase B2 reproduction specs. For each resolved bug path:
+Sweep the resolved bug artifacts the workspace carries and register each bug path as a `debug-flow` with a live `origin_ref`.
 
 ## Phase P7 — Persona grouping
 
@@ -263,39 +137,19 @@ drift after the fact is not a substitute for not creating it.
 
 > **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p8.md` and execute it in full. Do not work from memory.
 
-Invoke `skills/test-prod-safety-classifier` per test and bind its verdict INTO
-the manifest — `safety` (`dev` / `prod`) and `mutates_data` (bool) are recorded
-per entry. The classifier is the existing discipline and the existing annotation
-contract; this phase is where its verdict stops being a report and becomes a
-registry fact.
+Invoke `test-prod-safety-classifier` per test and bind `safety` and `mutates_data` into the manifest; the prod project is default-deny.
 
 ## Phase P9 — Manifest write + report
 
 > **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p9.md` and execute it in full. Do not work from memory.
 
-Validate the assembled manifest with the engine and write it to
-`<e2e-dir>/suite-manifest.json`. A validation error means the manifest is not
-written — a half-valid registry is worse than a stale one, because everything
-downstream trusts it.
+Validate the assembled manifest with the engine, write `<e2e-dir>/suite-manifest.json` only when valid, run the full suite once, and emit the run report.
 
 ## Running the suite
 
 > **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/running-the-suite.md` and execute it in full. Do not work from memory.
 
-- **Dev suite** — the `dev` Playwright project, against the project's dev
-  environment. This is what the merge-boundary full run (Phase 8 / B8 / M7 /
-  D8 / U9 / P9 — `select --phase 8`) enumerates from the manifest and executes
-  in its entirety; Phase 5 and its lane equivalents run the SELECTED flows
-  (`skills/common-pipeline-conventions/references/test-selection.md`).
-- **Prod smoke suite** — the `prod` project is a first-class runnable smoke suite
-  against the production URL, and `skills/test-run-monitor` names it as a
-  runnable TEST SOURCE through its existing **command-spawn path
-  (`LocalAdapter`)**. Pass the prod project's Playwright command (e.g.
-  `playwright test --project=prod`) as the monitor's input with the target
-  pointed at production; the monitor's existing source table resolves a bare test
-  command to `LocalAdapter` and spawns it. No new input form, no new
-  prerequisite, no adapter change. Read-only by construction, enforced by P8 and
-  re-checked by `verify-suite-manifest`.
+The `dev` project is what the merge-boundary full run (`select --phase 8`) enumerates in its entirety; the `prod` project is a read-only smoke suite that `test-run-monitor` spawns through its `LocalAdapter` path.
 
 ## Operating rules (non-negotiable)
 
@@ -346,3 +200,7 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Phase P8 — Dev/prod classification` | `skills/playwright-suite-builder/references/phase-p8.md` | on demand |
 | `Phase P9 — Manifest write + report` | `skills/playwright-suite-builder/references/phase-p9.md` | on demand |
 | `Running the suite` | `skills/playwright-suite-builder/references/running-the-suite.md` | on demand |
+| `The suite manifest — the durable registry` | `skills/playwright-suite-builder/references/suite-manifest.md` | on demand |
+| `Phase P0 — Target + e2e-dir resolution` | `skills/playwright-suite-builder/references/phase-p0.md` | on demand |
+| `Phase P2 — Intuition-map freshness` | `skills/playwright-suite-builder/references/phase-p2.md` | on demand |
+| `Phase P3 — Review the existing tests` | `skills/playwright-suite-builder/references/phase-p3.md` | on demand |

@@ -4,7 +4,7 @@ Phase **D8 is the main pipeline's Phase 8 close-out run verbatim** — the docum
 
 ### The full suite once, before the merge (v4.0.0)
 
-`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer — the transformation tests, the validation rules, the analytics-API integration tests, plus the prod smoke suite when a `suite-manifest.json` exists — record the results as evidence, then commit and merge. D3 and D5 ran the selected sets; this single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`).
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase`. Run every layer -- the transformation tests, the validation rules, the analytics-API integration tests, plus the prod smoke suite when a `suite-manifest.json` exists -- record the results as evidence, then commit and merge; D3 and D5 ran the selected sets. The rule: `skills/common-pipeline-conventions/references/test-selection.md`.
 
 ### Homepage rebuild in the documentation-currency step (v4.0.0, best-effort, never blocking)
 

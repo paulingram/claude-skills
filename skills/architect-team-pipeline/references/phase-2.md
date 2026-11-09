@@ -18,7 +18,7 @@
    - The subagent definition to inherit (e.g., "use the `backend` agent type").
    - The relevant CODEBASE_MAP.md sections and the Reuse Decisions for this teammate's slice. The teammate MUST honor them — any deviation requires returning to the orchestrator for re-approval.
    - **The confirmed project principles block (v4.0.0)** — the output of `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>` pasted verbatim under a `Confirmed project principles` heading, exactly as `appearance_mode` / `deploy_mandate` / `baseline_sha` are carried (`project-principles` `### show — and the binding rule`). A brief without the block is incomplete; `(none confirmed)` is written out, never omitted.
-   - **The review tier of its Phase 3 gate** — tier 2 per `skills/team-spawning-and-review-gates/references/review-tiers.md`: the teammate's self-review is the producer side, ONE paired independent reviewer follows, a third verdict only on disagreement.
+   - **The review tier of its Phase 3 gate** — tier 2 per `skills/team-spawning-and-review-gates/references/review-tiers.md`, the teammate's self-review being the producer side.
 5. Before the teammate begins, write `<cwd>/.architect-team/teammates/<teammate-name>.json` per the full teammate manifest schema defined in `team-spawning-and-review-gates` (fields: `schema_version`, `teammate`, `spawned_at`, `task_ids`, `files_owned`, `expected_review_evidence`). The `SubagentStop` hook reads this manifest to validate on idle.
 6. State explicitly to each teammate: **do not mark your tasks complete until the Team Review Gate passes (Phase 3).**
 
