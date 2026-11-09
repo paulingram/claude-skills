@@ -124,7 +124,11 @@ understanding the problem deserved; that decision was never the agent's to make.
 
 These principles are not filed away; they are wired in. Reuse-first lives in the
 Reuse Decision Log and the `reuse-first-design` discipline. Producer-≠-checker
-lives in the independent-review and adversarial-review gates. Honest-boundary and
+lives in the independent-review and adversarial-review gates, in the review tiers
+that size each gate (`team-spawning-and-review-gates/references/review-tiers.md`),
+and in the `ct6-converge` workflow (`workflows/ct6-converge.js`) that runs every
+reviewer-convergence loop on typed verdicts rather than the producer's own claim
+(it replaced `ralph-loop` in v4.0.0). Honest-boundary and
 evidence-before-assertion live in the verification gates and the refusal to mark
 `pass` on work that was not executed. Unbounded solving lives in the run-continuity
 substrate and the worklist the completion audit keeps closing. Default-to-action
@@ -198,13 +202,17 @@ Two consequences follow, and the second is the one that gets re-litigated:
 
 **A self-asserted exit is not an exit.** A completion promise the model types, a
 summary it judges sufficient, a note explaining why the gate does not apply — each
-is the same move wearing different clothes. This is why the top-level run is NOT
-wrapped in ralph-loop: ralph-loop exits on a literal `<promise>` string compared by
-string equality, with nothing verifying its truth (its own system message says
-*"do not lie to exit!"*). Adopting it at the top level would relocate this failure,
-not remove it. ralph-loop keeps its place in the convergence sub-loops inside the
-skills that use it, where the exit condition is other agents' agreement rather than
-the looping agent's own claim. Do not "helpfully" re-adopt it as a completion gate.
+is the same move wearing different clothes. This is why the top-level run was never
+wrapped in `ralph-loop` (the plugin CT6 used for its convergence loops from v3.8.0
+until it was retired in v4.0.0): it exited on a literal `<promise>` string compared
+by string equality, with nothing verifying its truth (its own system message said
+*"do not lie to exit!"*). Adopting that at the top level would relocate this failure,
+not remove it. Its successor, the `ct6-converge` Workflow script
+(`workflows/ct6-converge.js`), keeps the same place — the convergence sub-loops
+inside the skills that use it — and a stricter exit: typed verdicts from reviewers
+who are not the producer, where a reviewer's silence is never read as ok. The
+top-level run is still not wrapped in it. Do not "helpfully" adopt any promise
+string or workflow exit as a completion gate.
 
 **While the list is non-empty, the turn output is one line of state, not a
 narrative.** The report IS the boundary-drawing act — composing it requires deciding

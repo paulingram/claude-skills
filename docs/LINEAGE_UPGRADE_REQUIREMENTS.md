@@ -15,7 +15,7 @@ note: "Formalizes the source transcript into enumerated requirements, a current-
 
 | Field | Value |
 |---|---|
-| Status | Draft (revision 2) — awaiting owner decisions (§9) |
+| Status | Draft (revision 2) — awaiting owner decisions (§9). **Read against the current rules (v4.0.0):** REQ-DOC-08 / REQ-SAFE-01's "hard token/time budget" predates the v3.66.0 no-self-imposed-limits rule (`docs/ETHOS.md` principle 8) — any per-trace budget must be one the USER states explicitly, never an agent-chosen cap; P1's CDLG (`hooks/lineage_graph.py`, `endpoint-trace-mapping`, `data-lineage-mapping`) and the runtime-witness grounding shipped at v3.8.0, and the transitive-freshness check (REQ-DOC-04) is what `services/knowledge_server/freshness.py` composes today |
 | Created | 2026-06-08 |
 | Source | `AI Agent System Mapping and Automated Bug Diagnosis Strategy_transcript.txt` (dictated design notes) |
 | Scope | New/extended CT6 **skills + agents + artifacts** that the pipeline produces *inside target codebases* |

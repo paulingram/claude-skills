@@ -86,8 +86,14 @@ Every file conforms to the structural contract for its class. This dimension is
      name. `description` is a substantive string (> 20 chars).
    - **Agent:** `name`, `description`, `tools`, `model`, `color`. `name` MUST
      equal the file stem. `tools` is a non-empty subset of the valid tool set
-     (`Read, Edit, Write, Glob, Grep, Bash, TodoWrite, NotebookEdit, WebFetch,
-     WebSearch`) with none of the retired tokens (`LS`, `NotebookRead`, `Task`).
+     (`Read, Edit, Write, Glob, Grep, Bash, NotebookEdit, TaskCreate, TaskGet,
+     TaskList, TaskUpdate, WebFetch, WebSearch` — `tests/test_agents.py`
+     `VALID_TOOLS`) with none of the retired tokens (`LS`, `NotebookRead`,
+     `Task`). `TodoWrite` is not in the set: v4.0.0 moved every agent to
+     `TaskList, TaskUpdate` (the Task tools the Phase 3 gate and the completion
+     lock read), and an agent re-introducing it fails the frontmatter test.
+     Since v4.0.0 an agent also preloads `ct6-agent-core` through a `skills:`
+     frontmatter list instead of carrying compiled boilerplate blocks.
      `model` ∈ {`opus`, `sonnet`, `haiku`, `inherit`}. `color` ∈ the documented
      palette (`red, blue, green, yellow, purple, orange, pink, cyan`).
    - **Command:** `description` (substantive string).

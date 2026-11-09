@@ -12,7 +12,11 @@ rest are **judgment** — followed by the author, verified in review, not linted
 ## The shape
 
 Every release adds ONE new entry at the TOP of `CHANGELOG.md`, directly under the
-`# Changelog` preamble. The prior entries are never touched.
+`# Changelog` preamble. The prior entries are never edited. Since v4.0.0 the file is
+ROTATED: it carries the ten most recent entries, and every older entry moves
+**verbatim** to `docs/CHANGELOG_ARCHIVE.md` (append-only history is preserved there;
+the per-release narrative for every version is `docs/RELEASE_HISTORY.md`). A move is
+not an edit — the archived text is byte-identical to what the head file carried.
 
 ```
 ## [<x.y.z>] — <YYYY-MM-DD> — <slug> (<verdict-first one-line summary>)
@@ -77,7 +81,8 @@ regression contract. Depth scales with the release; a docs-only PATCH is short, 
 MINOR feature is a full narrative.
 
 ### 7. Append-only history — *judgment*
-No historical entry is ever edited. Corrections to a past release are made in a NEW
+No historical entry is ever edited — not in this file and not after it rotates into
+`docs/CHANGELOG_ARCHIVE.md`. Corrections to a past release are made in a NEW
 entry that names the miss, never by rewriting the old text. (Current-state facts
 that live OUTSIDE the changelog — the README, the maps — are refreshed in place;
 the changelog's own history is not.)
