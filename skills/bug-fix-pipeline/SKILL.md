@@ -8,7 +8,7 @@ user-invocable: false
 
 The `architect-team-pipeline` is excellent for greenfield features and substantial new capability work. For a known-bug-with-a-clear-symptom — *"the row-action menu's Delete button doesn't actually delete; clicking it just closes the menu"* — its 100%-coverage planning gate, parallel team spawn, six Phase 5 review teams, and master-review audit are weight a 30-line fix doesn't need. The `bug-fix-pipeline` keeps the discipline that matters (maps must be fresh; the proposal must be real; the fix must be generalized; testing must be against the live system) and replaces what doesn't apply to a bug fix with the discipline specific to one.
 
-You are the **Team Lead** for the bug-fix variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a tight loop that takes a bug — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution against the live dev environment.
+You are the **Team Lead** for the bug-fix variant. Your role is **System Architect** operating under the Superpowers methodology (its native forms in `skills/common-pipeline-conventions/references/native-methodology.md` when that CONDITIONAL plugin is absent). You coordinate a tight loop that takes a bug — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution against the live dev environment.
 
 <!-- ct6:block:principles:begin -->
 ## Operating principles
@@ -61,6 +61,8 @@ The v0.9.17 same-input-forms rules apply verbatim — **do NOT refuse plain-lang
 
 **Detect the form:** if `$REQ_DIR` is a single token resolving to an existing directory → form 1 (folder). Otherwise → form 2 (plain-language). When unsure, it is form 2.
 
+**Flags the `/architect-team:bug-fix` command binds and this lane reads.** `--environment production` (B5 escalates before any production deploy), `--no-deploy` (B5 skips the dev deploy and B6b is skipped with a note in the report), `--force-bug` (B0 skips the classifier warning), `--proposal-first` (pause after B3), and — v4.0.0 — **`--full-data`**: sample-first iteration is OFF for the run. Absent the flag (the default), a data defect follows the stratified sample plan at B1 and B6 (`skills/data-eng-pipeline/references/sample-first.md`); with it, B1 replicates and B6 replays against the full table, no sample plan is produced or referenced, and the B7 report records the opt-out. A project principle that forbids sampling has the same effect and is named in the report.
+
 ## Dispatch mode
 
 Per `common-pipeline-conventions` `## Dispatch mode (v1.0.0)`, the selection (env `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` + `claude --version >= 2.1.32` + `--no-teams` flag, also readable from `~/.claude/settings.json`) is computed ONCE — for the bug-fix pipeline, at the top of Phase B−1 — and persisted as `dispatch_mode: "teams"` or `dispatch_mode: "subagents"` to `<workspace>/.architect-team/intake-state.json` (the bug-fix pipeline reuses the main pipeline's `intake-state.json`); every later phase reads it to branch between teams mode and subagents mode. The primitives of each mode, the hook branching, the branch-sentence rule, and the Lead-only dispatch rule are spelled out in the canonical section — do not re-explain them inline.
@@ -109,11 +111,9 @@ See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection
 
 ## Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)
 
-Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase ct6-converge workflow with cartographer + route-mapper + 3-reviewer convergence; same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.
+> **STOP.** Before acting under this section, Read `skills/bug-fix-pipeline/references/phase-b-1.md` and execute it in full. Do not work from memory.
 
-**The freshness pre-scan is non-negotiable.** A bug fix proposed against a stale map is the second-worst class of bug fix (after one proposed without replication). If the maps are current per the freshness rules, Phase B−1 short-circuits cleanly and the loop moves to B0 quickly.
-
-Per the v0.9.21 Phase −1D step in `intake-and-mapping`: if any frontend codebase is in scope and a low-confidence interaction-intuition union exists at the end of Phase −1, the bulk-verify gate fires before B0. This is a domain gate; it applies here too.
+Follow the `intake-and-mapping` skill verbatim — same codebase discovery (read `$REQ_DIR/codebases.json` → frontmatter → cwd → ask user); same per-codebase `ct6-converge` workflow with cartographer + route-mapper + the tier-3 reviewer convergence (the `codebase-map` and `integration-map` presets, declared before and recorded after); same map-freshness rules (read `last_mapped` and compare against `git log -1 --format=%cI`; re-derive if stale or if `map_invalidated`); same integration mapping; same MemPalace wake-up + mining.
 
 ## Phase B0 — Detection & Normalization
 
@@ -234,6 +234,7 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Augment-never-replace precedence (v3.63.0)` | `skills/bug-fix-pipeline/references/augment-never-replace-precedence.md` | on demand |
 | `Notifications (per-project email events — opt-in, best-effort)` | `skills/bug-fix-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md` | on demand |
 | `MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)` | `skills/bug-fix-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md` | on demand |
+| `Phase B−1 — Intake & Mapping (REQUIRED, runs before Phase B0)` | `skills/bug-fix-pipeline/references/phase-b-1.md` | on demand |
 | `Phase B1 — Bug Replication` | `skills/bug-fix-pipeline/references/phase-b1.md` | on demand |
 | `Structured bug-isolation (v3.8.0)` | `skills/bug-fix-pipeline/references/structured-bug-isolation.md` | on demand |
 | `Phase B2 — Reproduction-artifact promotion + backend diagnostic` | `skills/bug-fix-pipeline/references/phase-b2.md` | on demand |

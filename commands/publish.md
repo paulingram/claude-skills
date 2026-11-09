@@ -1,6 +1,6 @@
 ---
 description: Publish a self-contained HTML page where the project's human-owned publish config says pages live -- claude mode (default) hands the file to the Claude Artifact tool, private-url mode mints a tokened link through the local-port / gcp-signed-url / gcp-cloud-run / nominated-host adapter and records it in the publish registry. Also revokes a token, lists recorded tokens, and reports the local server's status. Drives the page-publishing skill.
-argument-hint: "<file.html> [--name <page-name>] [--slug <project-slug>] [--force] | --revoke <token> | --list | --status | --check <file.html>"
+argument-hint: "<file.html> [--name <page-name>] [--slug <project-slug>] [--force] | --revoke <token> | --list | --status | --stop | --check <file.html>"
 ---
 
 # /architect-team:publish
@@ -24,7 +24,14 @@ Strip the recognised flags from `$ARGUMENTS`; what remains is the page path.
 - `--revoke <token>` → revoke that token; no page path expected.
 - `--list` → list every recorded token with `live` / `expired` / `revoked`.
 - `--status` → the local-port server's status (pid, host, port, scheme, logs).
+- `--stop` → stop the local-port server (the engine's `serve-stop`).
 - `--check <file.html>` → lint the page against the page contract only.
+
+The engine's own global options sit BEFORE the subcommand: `--project-root <ws>`
+(the workspace whose `.architect-team-publish.json` applies; default cwd — pass
+it when this command runs outside the workspace root), `--home <dir>` (the
+registry / server root, default `~`) and `--json`. `publish` also takes
+`--no-server-start` (local-port only: do not start the background server).
 
 Natural-language equivalents: *"revoke this link"* → `--revoke`; *"what have I
 published"* / *"list the links"* → `--list`; *"is the page server running"* →
@@ -49,6 +56,7 @@ Revoke / list / status / check:
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/publish/publish.py" revoke "<token>"
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/publish/publish.py" list
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/publish/publish.py" serve-status
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/publish/publish.py" serve-stop
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/publish/publish.py" check "<file.html>"
 ```
 
@@ -79,6 +87,6 @@ human-owned and written once by setup.
 - `skills/page-publishing/SKILL.md` -- the contract this command drives (the
   page contract, the two modes, the adapters, the honest boundary).
 - `scripts/publish/publish.py` -- the engine (publish / revoke / list /
-  serve-status / check).
+  serve-status / serve-stop / check).
 - `hooks/publish_config.py` -- the read-only config reader; the committed
   template is `.architect-team-publish.example.json`.

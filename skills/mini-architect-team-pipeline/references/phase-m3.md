@@ -12,6 +12,7 @@ Each pass must answer at minimum:
 3. Does the file scope in `tasks.md` not overlap between backend and frontend?
 4. Does the proposal's WHY still match the user's prose / folder?
 5. Are the maps the architect cited at M2 still in working context?
+6. Does every design option the bundle presents carry a principles verdict (v4.0.0)? Before the bundle is handed to M4 — the mini variant's "presented" moment — the architect writes the `principles-verdicts/v1` sidecar beside `design.md` (one verdict per confirmed principle; every option tagged `fits` / `violates P-xx`) and runs `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" check --verdicts <sidecar> --workspace <ws> --json`; a fitting option is chosen and the run continues, and only when every option violates does it stop with `escalation-pending.md` (`project-principles` `## The autonomous-run rule`).
 
 The self-confirm pass is **structural + semantic**, not free-form refinement. If the architect finds itself rewriting the proposal's voice or scope on a second pass, that's a sign M2 was wrong — note this in the unresolved section rather than spinning.
 

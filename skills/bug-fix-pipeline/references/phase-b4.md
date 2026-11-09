@@ -7,6 +7,8 @@ The Lead creates a `system-architect` task in **Bug-Fix Generalization Audit** m
 - The proposal + `design.md` + the diff of the proposed fix (when the fix is implementation-ready) OR the spec'd approach (when the fix isn't yet implemented).
 - The relevant CODEBASE_MAP + INTEGRATION_MAP.
 
+**Review tier 2** (per `skills/team-spawning-and-review-gates/references/review-tiers.md`): the B3 author is the producer, this audit is the ONE paired independent verdict, and a disagreement IS the `needs-generalization` / `needs-replacement` loop back to B3 — no third reviewer is dispatched by default. The brief names `review_tier: 2` and carries the confirmed project principles block (`python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>`).
+
 The audit's verdict is one of:
 
 - **`pass`** — the fix addresses the *class* of bug and is correctly scoped. No special-casing of the failing input. The architect cites the class explicitly: *"This fix addresses the class of bugs where a soft-delete is treated as a hard-delete by the row-action handler; the change to the handler correctly affects every row, not just the one the user reported."*

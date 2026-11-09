@@ -1,5 +1,5 @@
 ---
-description: Produce an adversarially-verified codebase-restructure PLAN — analyze the code + codebase maps (producing them via cartographer-team if missing/stale), converge ×3 independent structure-analyst drafts gated by a deterministic every-file partition check, close every movement's reference-impact set (imports / configs / CI / docs / string paths, file:line evidence), refute the whole via ×3 structure-adversary rounds until two consecutive all-clean rounds, architect-audit it, and ship RESTRUCTURE_PLAN.md + movements.json + a strict-validated OpenSpec change. Plan-only by default — execution belongs to /architect-team driving the produced change (--execute hands off immediately). Commits the produced artifacts (never source moves) unless --no-commit; emits a /compact prompt unless --no-compact.
+description: Produce an adversarially-verified codebase-restructure PLAN — analyze the code + codebase maps (producing them via cartographer-team if missing/stale), converge the structure-analyst draft at the per-slice review tier (tier 2 — one independent draft, a second only when the partition check contests it; three only at tier 3) gated by a deterministic every-file partition check, close every movement's reference-impact set (imports / configs / CI / docs / string paths, file:line evidence), refute the whole via ×3 structure-adversary rounds until two consecutive all-clean rounds, architect-audit it, and ship RESTRUCTURE_PLAN.md + movements.json + a strict-validated OpenSpec change. Plan-only by default — execution belongs to /architect-team driving the produced change (--execute hands off immediately). Commits the produced artifacts (never source moves) unless --no-commit; emits a /compact prompt unless --no-compact.
 argument-hint: "[codebase-path | --all] [--objective \"<prose>\"] [--execute] [--no-commit] [--no-push] [--no-compact]"
 ---
 
@@ -9,7 +9,7 @@ You are running the structure-optimization pipeline. The user invoked this with 
 
 ## Dispatch mode banner — runs first
 
-As the very first user-visible action, print the dispatch-mode banner (Agent Teams vs subagents fallback) so the user knows which dispatch primitive will drive the ×3 analyst / ×3 adversary convergence loops. Best-effort — subprocess failure surfaces a one-line note and the run continues.
+As the very first user-visible action, print the dispatch-mode banner (Agent Teams vs subagents fallback) so the user knows which dispatch primitive will drive the analyst (tier 2) / ×3 adversary (tier 3) convergence loops. Best-effort — subprocess failure surfaces a one-line note and the run continues.
 
 ```!
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/teams_mode.py" --banner --command "/architect-team:optimize-structure"
@@ -49,7 +49,7 @@ Invoke the `structure-optimization` skill from this plugin (use the Skill tool w
 }
 ```
 
-The skill drives Stages S0–S8: maps current via `cartographer-team` (freshness-checked; produced if missing) → ×3 `structure-analyst` independent drafts → ct6-converge workflow convergence gated by the deterministic partition check (`STRUCTURE PROPOSAL CONVERGED`) → sharded `reference-tracer` closure into `movements.json` → ×3 `structure-adversary` refutation rounds until two consecutive all-clean rounds (`RESTRUCTURE PLAN VERIFIED`) → `system-architect` Restructure Plan Audit → `RESTRUCTURE_PLAN.md` assembly → `openspec-propose` authoring + `openspec validate --all --strict --json` (`OPENSPEC AUTHORING COMPLETE`) → return + handoff.
+The skill drives Stages S0–S8: maps current via `cartographer-team` (freshness-checked; produced if missing) → `structure-analyst` drafts at the per-slice review tier (tier 2 per `skills/team-spawning-and-review-gates/references/review-tiers.md` — one independent draft, a second only when the partition check contests it, three only at tier 3) → ct6-converge workflow convergence (the `structure-proposal` gate, declared before and recorded after per `skills/architect-team-pipeline/references/phase--1.md` `### Converge record protocol (v4.0.0)`) gated by the deterministic partition check (`STRUCTURE PROPOSAL CONVERGED` is the gate's label; the recorded all-ok round is the exit) → sharded `reference-tracer` closure into `movements.json` → ×3 `structure-adversary` refutation rounds (review tier 3 — the architecture-grade refutation; the `restructure-plan` gate declared + recorded the same way) until two consecutive all-clean rounds (`RESTRUCTURE PLAN VERIFIED`) → `system-architect` Restructure Plan Audit → `RESTRUCTURE_PLAN.md` assembly → `openspec-propose` authoring + `openspec validate --all --strict --json` (`OPENSPEC AUTHORING COMPLETE`) → return + handoff.
 
 Follow the skill exactly — including the partition-check gate, the two-consecutive-clean-rounds exit rule, and the producer/checker role separation.
 

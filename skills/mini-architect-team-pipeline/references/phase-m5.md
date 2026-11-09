@@ -9,7 +9,7 @@ The Lead creates a `mini-qa` task in the shared list (teams mode) OR dispatches 
 - The slug.
 - The current cycle number `<N>` (1 on first invocation; M8 increments on re-eval).
 
-`mini-qa` runs per its agent spec: read QA Guidance, verify unit + integration coverage exists, run both suites, author ≤ 3 Playwright flows, deploy to dev, run Playwright against the live dev URL, emit verdict.
+`mini-qa` runs per its agent spec: read QA Guidance, verify unit + integration coverage exists, run the SELECTED set of both suites — `python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase M5 --baseline <run-base-sha> --json` over the M4 change set (the record already carries every `always_run` pin and every `unknown-mapping` test, and the verdict cites its path; the whole suite runs ONCE, at M7 — v4.0.0, `skills/common-pipeline-conventions/references/test-selection.md`) — author ≤ 3 Playwright flows, deploy to dev, run Playwright against the live dev URL, emit verdict.
 
 **Deploy notification (best-effort, per `## Notifications`).** When `mini-qa` brings the dev environment up for the Playwright run, the orchestrator emits a `deploy` event with `--layer <layer>`. Invoke from the target project's root and proceed immediately regardless of the notifier's outcome:
 

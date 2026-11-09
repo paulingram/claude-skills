@@ -1,6 +1,6 @@
 ---
 name: ux-test-builder
-description: "A persona-driven UX-test orchestrator. Takes a persona description + objectives + target site (URL or `--dev` for the project's dev environment) + credentials (env-var reference, never the secret). Maps the site (fresh or freshness-checked via `intake-and-mapping`), drafts a literal Playwright flow matching the user's request, dispatches 3 `flow-explorer` agents to propose 10-15 additional adjacent flows each, distills to a unique set, authors one `.spec.ts` per flow, dispatches 3 `flow-executor` agents to run every flow in parallel against the live target, resolves verdict disagreements via loop-until-converged convergence (no fixed cycle cap), documents bugs, and auto-routes them through the existing `bug-fix-pipeline` (v0.9.22). The capability is the structural bridge between 'human describes a persona's UX concern' and 'the bug-fix-pipeline has the work queued.' Reached via `/architect-team:ux-test`."
+description: "A persona-driven UX-test orchestrator. Takes a persona description + objectives + target site (URL or `--dev` for the project's dev environment) + credentials (env-var reference, never the secret). Maps the site (fresh or freshness-checked via `intake-and-mapping`), drafts a literal Playwright flow matching the user's request, dispatches `flow-explorer` agents per the review tier (one by default, three only at tier 3) to propose 10-15 adjacent flows each, distills to a unique set, authors one `.spec.ts` per flow, dispatches `flow-executor` agents per the review tier (one runs every flow against the live target, a second re-runs disputed flows), resolves verdict disagreements via loop-until-converged convergence (no fixed cycle cap), documents bugs, and auto-routes them through the existing `bug-fix-pipeline` (v0.9.22). The capability is the structural bridge between 'human describes a persona's UX concern' and 'the bug-fix-pipeline has the work queued.' Reached via `/architect-team:ux-test`."
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 The plugin's existing Playwright disciplines (`playwright-user-flows`, `interaction-intuition`, `interaction-completeness`) all operate on *the system being built*. The `ux-test-builder` capability answers a different question: *given a persona + an objective + a target site, does the site let the person do what they need AND the adjacent things they'd realistically need, without breaking?*
 
-You are the **Team Lead** for the UX-test variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a 10-phase loop (U0 → U9) that takes a UX concern, expands it via independent agents to discover adjacent capability, runs the whole flow set against a live target, and feeds bugs into the bug-fix-pipeline.
+You are the **Team Lead** for the UX-test variant. Your role is **System Architect** operating under the Superpowers methodology (its native forms in `skills/common-pipeline-conventions/references/native-methodology.md` when that CONDITIONAL plugin is absent). You coordinate a 10-phase loop (U0 → U9) that takes a UX concern, expands it via independent agents to discover adjacent capability, runs the whole flow set against a live target, and feeds bugs into the bug-fix-pipeline.
 
 <!-- ct6:block:principles:begin -->
 ## Operating principles
@@ -45,10 +45,10 @@ This pipeline concretely invokes these superpowers skills at its phases (via the
 > **STOP.** Before acting under this section, Read `skills/ux-test-builder/references/five-non-negotiable-disciplines.md` and execute it in full. Do not work from memory.
 
 1. **Real-site testing.** All execution runs against the live target site (URL or the project's dev environment). NEVER mocked — no `page.route` happy-path stubs, no MSW, no fake API server. Per `playwright-user-flows`'s "Real backend by default" rule.
-2. **3-agent convergence at both expansion and execution.** Three `flow-explorer` agents independently propose adjacencies at U3; three `flow-executor` agents independently run every flow at U6; disagreements at U7 resolve via the same loop-until-converged pattern used in `editability-completeness` / `interaction-completeness` (no fixed cycle cap).
+2. **Convergence by review tier at both expansion and execution (3-agent convergence only on a tier-3 panel).** `flow-explorer` agents are dispatched at U3 per `skills/team-spawning-and-review-gates/references/review-tiers.md` — ONE by default, a panel of three only when the user or a project principle raises the gate to tier 3 — and each independently proposes adjacencies; `flow-executor` agents are dispatched at U6 the same way — ONE runs every flow by default (review tier 2: the authored flow's expected effect is the producer side, the executor the paired independent verdict), a SECOND re-runs only the flows the first disputes, a panel of three only at tier 3; disagreements at U7 resolve via the same loop-until-converged pattern used in `editability-completeness` / `interaction-completeness` (no fixed cycle cap).
 3. **Literal-first-then-expand.** Phase U2 authors ONE literal Playwright flow matching the user's described task verbatim BEFORE the explorers expand. The literal is flow #1 in the eventual distilled set; the explorers add flows #2-N. NEVER skip the literal — the user asked for that specific flow.
 4. **Bug-route-not-just-document.** Every flow with consensus verdict `fail` becomes a solution requirement with `origin.kind: "ux-flow-failure"` and auto-routes through the existing `bug-fix-pipeline`. Documenting bugs without routing them is the failure mode this skill prevents.
-5. **Explorer-expansion-is-context-aware.** The 3 `flow-explorer` agents are explicitly prompted to discover ADJACENT capabilities the literal description missed (additional entry points for the same action, alternate flows to the same outcome, related pages where the same data surfaces, settings the persona would adjust, multi-step workflows). They MUST NOT rephrase the literal flow — that's flow #1 already.
+5. **Explorer-expansion-is-context-aware.** The `flow-explorer` agents (one, or the tier-3 panel) are explicitly prompted to discover ADJACENT capabilities the literal description missed (additional entry points for the same action, alternate flows to the same outcome, related pages where the same data surfaces, settings the persona would adjust, multi-step workflows). They MUST NOT rephrase the literal flow — that's flow #1 already.
 
 ## Inputs
 
@@ -92,7 +92,15 @@ The orchestrator captures the persona description, objectives, target, and crede
 
 ## Phase U1 — Site mapping (reuses `intake-and-mapping`)
 
-Phase U1 reuses the `intake-and-mapping` discipline VERBATIM. The orchestrator runs the per-codebase freshness check on `CODEBASE_MAP.md` / `ROUTE_MAP.md` / `DESIGN_MAP.md` / `INTERACTION_INTUITION_MAP.md`. If any is stale (doc older than the most recent commit OR `map_invalidated` flagged), re-derive via `cartographer` + `route-mapper` + `interaction-intuiter` per the standard 3-reviewer ct6-converge workflow. If the maps are current, short-circuit.
+Phase U1 reuses the `intake-and-mapping` discipline VERBATIM. The orchestrator runs the per-codebase freshness check on `CODEBASE_MAP.md` / `ROUTE_MAP.md` / `DESIGN_MAP.md` / `INTERACTION_INTUITION_MAP.md`. If any is stale (doc older than the most recent commit OR `map_invalidated` flagged), re-derive via `cartographer` (or the native mapping form in `skills/common-pipeline-conventions/references/native-methodology.md` when that CONDITIONAL plugin is absent) + `route-mapper` + `interaction-intuiter` per the standard tier-3 `ct6-converge` map convergence — the `codebase-map` preset (`reviewers: 3`, promise `CODEBASE MAP COMPLETE`), DECLARED before the workflow runs and RECORDED after it per `skills/architect-team-pipeline/references/phase--1.md` `### Converge record protocol (v4.0.0)`; the recorded all-`ok` round is the exit, the promise only the label. If the maps are current, short-circuit.
+
+**Project principles at intake (v4.0.0, per `project-principles`).** Once per project: when `<workspace>/.architect-team/principles.json` is absent, run `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" default-set --workspace <ws>` (proposed never binds); when the user provided a document, run `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" extract-candidates <file>`, `Read` it, and confirm the drafted statements in ONE `AskUserQuestion` (a domain gate; nothing becomes confirmed silently). Every explorer and executor brief carries the output of `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>` exactly as the intake record is carried.
+
+**Homepage rebuild once the maps are current (v4.0.0, best-effort, never blocking).** After the freshness check (and any re-derive) has left the maps current (`project-homepage` `## Rebuild moments`):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || python "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || echo "(homepage rebuild skipped; continuing.)"
+```
 
 The Phase −1D bulk-verify gate still fires when low-confidence interaction-intuition items surface (per the v0.9.21 domain-gate rule). The user resolves them BEFORE U3 expansion begins — the explorers need confirmed intuitions to propose accurate flows.
 
@@ -105,11 +113,11 @@ The Phase −1D bulk-verify gate still fires when low-confidence interaction-int
 
 The orchestrator applies `superpowers:brainstorming` to nail down the persona's intent + the exact literal task before authoring (per `## Plugin prerequisites (v3.9.0)`), then authors ONE Playwright `.spec.ts` matching the user's described task VERBATIM. Per `playwright-user-flows`:
 
-## Phase U3 — Flow expansion (3 `flow-explorer` agents in parallel)
+## Phase U3 — Flow expansion (`flow-explorer` agents per the review tier)
 
 > **STOP.** Before acting under this section, Read `skills/ux-test-builder/references/phase-u3.md` and execute it in full. Do not work from memory.
 
-The orchestrator dispatches 3 `flow-explorer` agents in PARALLEL. Each receives:
+The orchestrator dispatches `flow-explorer` agents per the review tier (`skills/team-spawning-and-review-gates/references/review-tiers.md`): ONE by default, a panel of three in PARALLEL only when the user or a project principle raises the gate to tier 3. Each receives:
 
 ## Phase U4 — Distillation (orchestrator-serialized)
 
@@ -128,7 +136,7 @@ One `.spec.ts` per distilled flow at `<cwd>/.architect-team/ux-tests/<persona-sl
 - **Selector witness assertions (v0.9.32) — MANDATORY for every action-call selector** (`.toBeVisible()` + `.toBeEnabled()` + a disambiguating role / attribute check). Same authoring discipline as the bug-replicator's `agents/bug-replicator.md` Step 2.
 - **`expected_user_effect` block (v0.9.32) — MANDATORY per flow.** The U5 orchestrator emits an `expected_user_effect` field on every flow's spec (placed in a `<flow-N>-<slug>.effect.json` companion file at the same path) describing the concrete observable outcome the persona accomplishes by running this flow. The field is the input to U6's **flow-effect witness** (a flow that passes Playwright's assertion but didn't actually achieve the persona's intent is the failure mode the witness closes). Each effect is one of `dom_state_change` (an element appears/disappears/changes), `network_request` (a specific endpoint was called with a specific status), `url_change` (the URL landed at a specific route), or `console_sentinel` (a sentinel logged). Examples:
 
-## Phase U6 — Parallel execution (3 `flow-executor` agents)
+## Phase U6 — Execution (`flow-executor` agents per the review tier)
 
 > **STOP.** Before acting under this section, Read `skills/ux-test-builder/references/phase-u6.md` and execute it in full. Do not work from memory.
 
@@ -157,10 +165,10 @@ Emit a summary report at `<cwd>/.architect-team/runs/ux-test-<persona-slug>-<ts>
 The UX-test-builder inherits every operating rule from `architect-team-pipeline`'s `## Operating rules (non-negotiable)` section — the no-arbitrary-timers rule, the unbounded-solving discipline (no iteration ceiling; loop until success), the shared-state concurrency model, the required-input-marker discipline, the safety rules for auto-commit. **Plus**:
 
 - **Real-site testing.** All execution at U2 + U5 + U6 + the bug-fix pipeline's downstream B6 + B6b runs against the live target. NEVER mocked.
-- **Independent expansion at U3.** The 3 explorers do NOT consult each other during U3.
+- **Independent expansion at U3.** The explorers (one by default; a panel of three at tier 3) do NOT consult each other during U3.
 - **Literal first.** Phase U2 always runs BEFORE Phase U3 — the literal flow is the user's exact ask and gets its own pass.
 - **Semantic distillation at U4.** Dedup is by goal + steps + rationale, not just string-match.
-- **3 executor redundancy at U6.** Each flow runs 3 times (once per executor) so flakiness surfaces as disagreement.
+- **Tier-2 executor redundancy at U6.** Each flow runs once under the paired executor; a disputed flow runs again under a second executor, and three times only on a tier-3 panel — so flakiness surfaces as disagreement rather than as a silent pass.
 - **Loop-until-converged at U7 (v3.8.0).** Disagreement → re-examination cycles until consensus, no fixed cycle cap. Persistent irreconcilable divergence surfaces to the owner as required input while the run continues — it never halts on cycle count.
 - **Bug-route at U8.** Every `fail` becomes an SR; SRs auto-route through `bug-fix-pipeline`. Documenting bugs without routing is forbidden.
 - **No credential leaks.** Raw secrets are NEVER persisted in any artifact (intake / proposal / verdict / trace / screenshot / report).
@@ -186,10 +194,10 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Notifications (per-project email events — opt-in, best-effort)` | `skills/ux-test-builder/references/notifications-per-project-email-events-opt-in-best-effort.md` | on demand |
 | `Phase U0 — Intake` | `skills/ux-test-builder/references/phase-u0.md` | on demand |
 | `Phase U2 — Literal flow draft` | `skills/ux-test-builder/references/phase-u2.md` | on demand |
-| `Phase U3 — Flow expansion (3 `flow-explorer` agents in parallel)` | `skills/ux-test-builder/references/phase-u3.md` | on demand |
+| `Phase U3 — Flow expansion (`flow-explorer` agents per the review tier)` | `skills/ux-test-builder/references/phase-u3.md` | on demand |
 | `Phase U4 — Distillation (orchestrator-serialized)` | `skills/ux-test-builder/references/phase-u4.md` | on demand |
 | `Phase U5 — Playwright authoring per distilled flow` | `skills/ux-test-builder/references/phase-u5.md` | on demand |
-| `Phase U6 — Parallel execution (3 `flow-executor` agents)` | `skills/ux-test-builder/references/phase-u6.md` | on demand |
+| `Phase U6 — Execution (`flow-executor` agents per the review tier)` | `skills/ux-test-builder/references/phase-u6.md` | on demand |
 | `Phase U7 — Consensus on disagreements` | `skills/ux-test-builder/references/phase-u7.md` | on demand |
 | `Phase U8 — Bug routing to bug-fix-pipeline` | `skills/ux-test-builder/references/phase-u8.md` | on demand |
 | `Phase U9 — Final report` | `skills/ux-test-builder/references/phase-u9.md` | on demand |

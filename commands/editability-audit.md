@@ -1,5 +1,5 @@
 ---
-description: Run an on-demand editability-completeness audit against one or all codebases. Spawns three editability-reviewer agents that independently enumerate every attribute of every entity the codebase creates or edits, reason through which a user should be able to control, and trace each end-to-end (UI control → state → API → request schema → handler → database → read-back). The three argue to a converged list of must-be-editable attributes and gaps; every gap is written as a solution requirement. Reports the converged map; the architect-team pipeline acts on the SRs. Emits a /compact prompt at the end unless --no-compact.
+description: Run an on-demand editability-completeness audit against one or all codebases. Runs the whole-surface convergence at the Phase 7 count (review tier 3 — three editability-reviewer agents via the ct6-converge editability preset, declared before and recorded after) that independently enumerate every attribute of every entity the codebase creates or edits, reason through which a user should be able to control, and trace each end-to-end (UI control → state → API → request schema → handler → database → read-back). The three argue to a converged list of must-be-editable attributes and gaps; every gap is written as a solution requirement. Reports the converged map; the architect-team pipeline acts on the SRs. Emits a /compact prompt at the end unless --no-compact.
 argument-hint: "[codebase-path] [--feature <name>] [--no-compact]"
 ---
 
@@ -33,7 +33,7 @@ If the codebase has no create/edit flow at all (a pure read-only/display app), r
 
 ## Step 2 — Run the editability-completeness team
 
-Invoke the `editability-completeness` skill (use the Skill tool with `skill: editability-completeness`). It runs the three-reviewer team:
+Invoke the `editability-completeness` skill (use the Skill tool with `skill: editability-completeness`). A standalone audit of a codebase or feature is the whole-surface (Phase 7) shape, so it runs at **review tier 3** per `skills/team-spawning-and-review-gates/references/review-tiers.md` — inside a pipeline run the per-slice gate is tier 2 (one paired reviewer, a third verdict only on disagreement; `skills/architect-team-pipeline/references/phase-5.md`). The three-reviewer team runs as the `ct6-converge` workflow with the `editability` preset (`kind: "editability"`, `promise: "EDITABILITY COMPLETE"`, `reviewerAgent: "architect-team:editability-reviewer"`, `reviewers: 3`), DECLARED before the workflow runs and RECORDED after it per `skills/architect-team-pipeline/references/phase--1.md` `### Converge record protocol (v4.0.0)` — the recorded all-`ok` round, not the promise string, is the exit:
 
 1. **Round 1** — spawn three `editability-reviewer` agents in parallel; each independently enumerates attributes, classifies them, and traces each user-controllable one end-to-end.
 2. **Round 2** — the three argue to convergence (round-robin, evidence-cited) until they hold one identical canonical list of must-be-editable attributes + gaps.
@@ -89,7 +89,7 @@ The model cannot programmatically execute `/compact` — it is a user-typed REPL
 
 ## Operating rules (non-negotiable)
 
-- Three reviewers, always — independent in Round 1, arguing to convergence in Round 2.
+- Three reviewers for this standalone whole-surface audit (tier 3) — independent in Round 1, arguing to convergence in Round 2, the gate declared and recorded; the per-slice gate inside a run is tier 2.
 - The reviewers are analysis-only. This command produces the converged map + the solution requirements; it does NOT edit feature code. Adding a missing field end-to-end goes through the architect-team pipeline's review gates.
 - Every classification cites a source; every trace stage cites `file:line`.
 - Ambiguous attributes are surfaced to the user as structured questions — never default-guessed.

@@ -1,6 +1,6 @@
 ---
-description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), verifies prerequisite plugins (superpowers, cartographer, ct6-converge workflow) are installed, and verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32).
-argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall] [--codex] [--no-codex] [--external-llm] [--no-external-llm] [--secondary <openai|zai>]"
+description: One-time setup for the architect-team plugin. Checks for and installs required dependencies (openspec CLI, Python test tools, Playwright + browsers), reports the CONDITIONAL plugins (superpowers, cartographer — preferred when installed, never gating since v4.0.0; the shipped ct6-converge workflow replaces the retired ralph-loop), writes the Claude 5 task-tool opt-in, verifies the v1.0.0 Agent-Teams requirements (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS + Claude Code ≥ 2.1.32), and with --project-root asks the one page-publishing question and builds the project's first homepage.
+argument-hint: "[--check-only] [--no-prompt] [--yes] [--force-reinstall] [--project-root <path>] [--codex] [--no-codex] [--external-llm] [--no-external-llm] [--secondary <openai|zai>]"
 allowed-tools: ["Bash(python:*)", "Bash(python3:*)", "AskUserQuestion"]
 ---
 
@@ -21,6 +21,7 @@ After the script finishes, summarize:
 - Conditional plugins missing (with the exact `/plugin install` command to run; none gates setup since v4.0.0)
 - Any failures and how to remediate them
 - The v1.0.0 Agent-Teams mode status (see section below)
+- With `--project-root <path>` (v4.0.0): the publish mode the page-publishing question recorded and the path of the first homepage build (see the per-project section below)
 
 If `cartographer` or `superpowers` are missing (v4.0.0: CONDITIONAL plugins -- preferred when installed, never gating; the lanes fall back to `skills/common-pipeline-conventions/references/native-methodology.md`), report the gap and give the user the corresponding `/plugin install <name>@<marketplace>` commands; the retired `ralph-loop` plugin is no longer needed, its job is done by the shipped `ct6-converge` workflow. The setup script cannot install plugins on the user's behalf.
 
@@ -32,6 +33,15 @@ If `cartographer` or `superpowers` are missing (v4.0.0: CONDITIONAL plugins -- p
 ```
 
 `superpowers` is on the built-in `claude-plugins-official` marketplace, so it needs only the single `/plugin install` step.
+
+## Per-project setup — the page-publishing question and the first homepage (v4.0.0)
+
+`setup.py --project-root <path>` is OPT-IN: when given, setup runs two per-project steps that never run without it. Neither gates setup — a failure degrades to a `warn` row carrying its remediation.
+
+1. **The one page-publishing question — asked ONCE per project, via `AskUserQuestion`, by you.** `scripts/publish/setup_question.py detect` reports the ecosystem (is `gcloud` on PATH AND logged in; does the box have a globally routable address — from local interface info only, no network call; which `Host` aliases `~/.ssh/config` names) and `scripts/publish/setup_question.py question` prints the exact payload. Ask it with the header `Pages`, the four option labels EXACTLY as the script prints them — **Claude artifacts only (default)**, **GCP signed URL (recommended when gcloud is present)**, **A port on this machine**, **A host I nominate** — the `Detected:` line, the security notes said plainly (a private link carries its token IN THE URL and leaks through history, chat logs and referrers; a port on this machine is a listening service, plain HTTP unless a certificate is supplied; a GCP bucket or Cloud Run service costs money and needs IAM; nothing is opened, uploaded or deployed until the answer is recorded), and the recommendation the script computed (GCP signed URL when gcloud is ready, otherwise Claude artifacts only). Setup records the answer ONCE into `<project>/.architect-team-publish.json` — human-owned and agent-immutable (the PreToolUse override guard blocks every later agent edit; the committed template is `.architect-team-publish.example.json`) — and never overwrites an existing config unless the user asked. A missing `gcloud` or `ssh` only changes which option is recommended: it is reported with its remediation and never gates. With `--no-prompt` the question is printed, not asked, and no config is written; `--check-only` never writes.
+2. **The first homepage build — the designed empty state.** Setup then runs `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<project>" --json` (polyglot `|| python ...`) so `<project>/.architect-team/homepage/index.html` exists with every panel naming what will appear there (`project-homepage` `## Rebuild moments`). The page is rebuilt at Phase −1 after the maps, at Phase 8 by `doc-updater`, and on demand by `/architect-team:home`; `/architect-team:status` prints its stale verdict. Report the page path and the recorded publish mode in the summary.
+
+`setup.py` also writes `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` into `~/.claude/settings.json` `env` with the same consent flow as the Agent-Teams flag (v4.0.0 — a Claude 5 session ships without the `TaskCreate` / `TaskUpdate` tools the Phase 3 evidence gate and the completion lock read).
 
 ## Model policy — the secondary role split (v3.40.0)
 

@@ -53,6 +53,12 @@ When no flag forces the verdict, proceed to step 1.
 
 3. **Auto-mine the verdict + the routing decision** to MemPalace at `--room triage-verdicts` for prior-context recall. The classifier's signal calibration improves run-over-run as the corpus grows.
 
+4. **Append the triage decision to the decisions ledger (v4.0.0, best-effort).** At the moment the route is chosen, ONE line naming the lane chosen and every lane rejected with the classifier's reason — the homepage's Decisions panel renders it (`project-homepage` `## The decisions-ledger duty`). A ledger failure never blocks or alters the routing:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/decisions_ledger.py" add --workspace "<workspace>" --kind triage --summary "routed <requirement one-liner> to <lane>" --chosen "<lane>" --rejected "<other lane>=<classifier reasoning>" --ref "<cwd>/.architect-team/triage/<run-id>-<ts>.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/decisions_ledger.py" add --workspace "<workspace>" --kind triage --summary "routed <requirement one-liner> to <lane>" --chosen "<lane>" --rejected "<other lane>=<classifier reasoning>" --ref "<cwd>/.architect-team/triage/<run-id>-<ts>.json"
+   ```
+
 The triage layer is bounded at depth 1: a `mixed` spawn sets `triage_done: true` on the feature-pipeline subagent, which skips Phase −2 and proceeds directly to Phase −1 — Intake & Mapping. A `mixed` spawn does NOT spawn another `mixed` (the spawned feature-pipeline can't itself triage). The MemPalace wake-up (above this section) STILL runs in spawned subagents — it is unconditional.
 
 ### Phase −2 deploy-mandate detection (v2.20.0)
@@ -71,3 +77,5 @@ When `mandate.active == false`, no deploy-mandate state is set; the v2.20.0 tool
 ### Phase −2 appearance-mode binding (v3.14.0)
 
 Alongside the deploy-mandate detection, the orchestrator binds the run's `appearance_mode` — `strict` (the DEFAULT) / `propose` / `innovate` — from the `--appearance` flag (or its parse-time natural-language equivalents), persists it into `<workspace>/.architect-team/intake-state.json`, and carries it in every teammate's spawn brief (extending the v0.9.13 manifest schema, same as `deploy_mandate` / `baseline_sha`). An explicit visual ask in the requirement prose puts the NAMED surfaces in scope under `strict`; when the prompt asks to "improve" / "update" a UI surface and it is genuinely ambiguous whether the LOOK may change, surface ONE `AskUserQuestion` at intake (domain gate). Phase 3's review gate (the schema v7 optional `appearance_scope_review` field — the hook BLOCKS `fail`), the Phase 7 Master Review Audit's run-diff walk, and Phase 8's final-report proposals rule all read this binding. Canonical home: `common-pipeline-conventions` `## Appearance-change policy discipline (v3.14.0)`.
+
+The binding is a decision, so it is appended to the decisions ledger the moment it is made (v4.0.0, best-effort, never blocking): `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/decisions_ledger.py" add --workspace "<workspace>" --kind appearance --summary "appearance_mode bound to <mode>" --chosen "<mode>" --rejected "<other mode>=<why: flag / prose signal / default>" || python "${CLAUDE_PLUGIN_ROOT}/hooks/decisions_ledger.py" add --workspace "<workspace>" --kind appearance --summary "appearance_mode bound to <mode>" --chosen "<mode>" --rejected "<other mode>=<why: flag / prose signal / default>"`.

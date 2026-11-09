@@ -1,6 +1,6 @@
 ---
 description: Show, add, retire or extract the current project's codified principles (the project-principles register at .architect-team/principles.json, rendered to docs/PROJECT_PRINCIPLES.md). Read-only by default — `show` lists the confirmed, proposed and retired principles with their sources; `add` codifies a rule the user states (confirmed immediately); `retire` removes one with a recorded reason; `extract` prints candidate statements from a document for the user to confirm. The same engine every pipeline lane consults at intake and before presenting a design.
-argument-hint: "[show | add \"<statement>\" --scope <scope> | retire P-xx --reason \"...\" | extract <file>] [--workspace <path>]"
+argument-hint: "[show | brief | add \"<statement>\" --scope <scope> | retire P-xx --reason \"...\" | extract <file>] [--workspace <path>]"
 ---
 
 # /architect-team:principles
@@ -31,6 +31,7 @@ $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/setup/
 ## Argument parsing
 
 - `show` (default) → list the register. Read-only.
+- `brief` → print the confirmed-principles block a spawn brief carries — the text the lanes paste verbatim under `Confirmed project principles` in every architect and teammate brief (`(none confirmed)` is written out, never omitted). Read-only.
 - `add "<statement>" --scope <scope>` → codify a rule the USER stated; confirmed
   immediately (the user saying it is the confirmation). `<scope>` is one of
   `architecture` `data-model` `naming` `reuse` `testing` `ui` `process`
@@ -58,6 +59,9 @@ result; the old `python3 X || python X` form would re-run the verb on it).
 ```bash
 # show (default)
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" show --workspace "${WORKSPACE}"
+
+# brief
+$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace "${WORKSPACE}"
 
 # add
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" add --workspace "${WORKSPACE}" --statement "<statement>" --scope <scope> --quote "<the user's words>"
@@ -107,8 +111,13 @@ is NOT written — nothing becomes confirmed silently.
   `<workspace>/.architect-team/principles.json` by hand — the engine CLI is the only writer.
 - Best-effort on the banner; the engine's own exit code is the command's.
 - An empty register is reported as such and the user is offered
-  `default-set` (the reuse-first ladder as PROPOSED `P-R1`..`P-R4`) — never run
-  on the user's behalf without asking.
+  `default-set` (the reuse-first ladder as PROPOSED `P-R1`..`P-R4`) — this
+  standalone command never runs it without asking. (The pipeline lanes DO run it
+  at intake when `.architect-team/principles.json` is absent, because it only
+  PROPOSES — a proposed principle never binds until the user confirms it.)
+- The lanes' `check` verb (`cli.py check --verdicts <sidecar> --workspace <ws>`,
+  the same validator as `hooks/vao/principles.py`) is not exposed here; it runs
+  before a design, contract, diff or option set is presented.
 
 ## Cross-references
 

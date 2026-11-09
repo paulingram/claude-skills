@@ -533,13 +533,23 @@ def test_mini_review_sweep_adds_the_full_suite_run(plugin_root: Path) -> None:
 
 
 def test_mini_pipeline_stays_narrow(plugin_root: Path) -> None:
-    """Regression guard (green from the first run): only the SWEEP gained the
-    full-suite run. The mini lane's whole theory is fast at runtime, audited in
-    batch — pulling whole-suite enumeration into it would undo that."""
+    """Regression guard: the mini lane stays narrow AT RUNTIME — M4 / M5 never
+    enumerate the suite manifest; the batched sweep audits in bulk. v4.0.0 gave
+    EVERY lane's merge boundary one full run (`select --phase 8`, per
+    `common-pipeline-conventions/references/test-selection.md`), so M7's
+    "full suite once, before the merge" subsection is the ONE place the mini
+    surface may name the manifest. Everywhere else the token stays forbidden."""
     body = _read(plugin_root, MINI_PIPELINE)
-    assert "suite-manifest" not in body, (
-        "mini-architect-team-pipeline must NOT name suite-manifest enumeration — "
-        "mini stays narrow; the batched sweep runs the suite"
+    merge_boundary = "### The full suite once, before the merge (v4.0.0)"
+    assert merge_boundary in body, (
+        "M7 must carry the merge-boundary full run (v4.0.0 test-selection discipline)"
+    )
+    start = body.index(merge_boundary)
+    ends = [i for i in (body.find("\n### ", start + 1), body.find("\n## ", start + 1)) if i > 0]
+    outside = body[:start] + (body[min(ends):] if ends else "")
+    assert "suite-manifest" not in outside, (
+        "mini-architect-team-pipeline must NOT name suite-manifest enumeration outside "
+        "M7's merge-boundary full run — mini stays narrow at runtime; the batched sweep runs the suite"
     )
 
 

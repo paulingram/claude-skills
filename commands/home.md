@@ -21,8 +21,11 @@ the project's own files: its only writes land under
   and which sources moved. Exit is always 0; the verdict is in the output.
 - `--publish` -> after building (or rebuilding), publish per the project's
   `.architect-team-publish.json`: `mode: claude` republishes the SAME artifact
-  URL via the Artifact tool; `mode: private-url` serves `<base_url>/<slug>/`
-  through `python scripts/publish/publish.py publish <page> --name index`. With
+  URL via the Artifact tool; `mode: private-url` serves the page at its token
+  directory `<base_url>/<slug>/p/<token>/` (never a token-free
+  `<base_url>/<slug>/` — a path without a live token is 404 on every adapter
+  that checks tokens, per `page-publishing`) through
+  `python scripts/publish/publish.py publish <page> --name index`. With
   no publish config, say so and print the local path instead.
 
 Natural-language equivalents: *"show me the project page"* -> no flag;
@@ -46,7 +49,9 @@ Build / rebuild:
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "$(pwd)" --json 2>&1 || python "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "$(pwd)" --json 2>&1
 ```
 
-The build prints `out` (the page path), `built_at`, `sources_read` /
+`build` is the engine's default subcommand, so the bare form above and
+`build.py build --workspace ...` are the same call; `--out <path>` overrides the
+page path. The build prints `out` (the page path), `built_at`, `sources_read` /
 `sources_total`, the per-source `hashes`, `stale_before` (what had moved since
 the previous build) and `map_verdicts`. Exit `3` means the build failed and
 the previous page, if any, is unchanged -- report the stderr line, do not

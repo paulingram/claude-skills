@@ -10,6 +10,7 @@ Read the chapter for a phase before its first tool call; `verify-required-reads`
 | always | `skills/bug-fix-pipeline/references/augment-never-replace-precedence.md` | the full text of Augment-never-replace precedence |
 | always | `skills/bug-fix-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md` | the full text of Notifications |
 | always | `skills/bug-fix-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md` | the full text of MemPalace wake-up |
+| phase-b-1 | `skills/bug-fix-pipeline/references/phase-b-1.md` | the full text of Phase B−1 — the tier-3 map convergence (declared + recorded), the appearance ledger line, the principles intake, the homepage rebuild |
 | phase-b1 | `skills/bug-fix-pipeline/references/phase-b1.md` | the full text of Phase B1 |
 | always | `skills/bug-fix-pipeline/references/structured-bug-isolation.md` | the full text of Structured bug-isolation |
 | phase-b2 | `skills/bug-fix-pipeline/references/phase-b2.md` | the full text of Phase B2 |

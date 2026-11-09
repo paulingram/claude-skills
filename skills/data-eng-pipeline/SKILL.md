@@ -10,7 +10,7 @@ The `architect-team-pipeline` is excellent for greenfield features and substanti
 
 The `data-eng-pipeline` is the first-class **data-engineering lane** — a sibling to `bug-fix-pipeline`, reached at the front door when the Phase −2 classifier returns `kind: data-eng` (or via `/architect-team:data-eng` / `--data-eng`). It keeps the discipline that matters (maps must be fresh; the plan must validate; the evidence stack is non-negotiable; docs ship current) and adds exactly **two new disciplines** — the D−1 warm-catalog-first check and the D7 catalog-refresh — wired to the Run A knowledge server (`services/knowledge_server/`, installed via `/architect-team:knowledge-install`) and the `scripts/data_dictionary/data_dictionary.py` engine.
 
-You are the **Team Lead** for the data-engineering variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate the D−1…D8 flow that takes a data-engineering ask — a folder of artifacts OR a plain-language description typed directly — and drives it to tested, integrated, catalog-warm production code.
+You are the **Team Lead** for the data-engineering variant. Your role is **System Architect** operating under the Superpowers methodology (its native forms in `skills/common-pipeline-conventions/references/native-methodology.md` when that CONDITIONAL plugin is absent). You coordinate the D−1…D8 flow that takes a data-engineering ask — a folder of artifacts OR a plain-language description typed directly — and drives it to tested, integrated, catalog-warm production code.
 
 <!-- ct6:block:principles:begin -->
 ## Operating principles
@@ -42,6 +42,8 @@ See `docs/ETHOS.md` for the full text.
 
 The v0.9.17 same-input-forms rules apply verbatim — do NOT refuse plain-language prose, do NOT treat the first word of a sentence as a path, do NOT ask the user for a folder when prose was given. Detect the form: a single token resolving to an existing directory → form 1; otherwise → form 2. When unsure, it is form 2. The codebase the ask applies to is the cwd (a git repo) unless the prose names another path.
 
+**Flags the `/architect-team:data-eng` command binds and this lane reads.** `--proposal-first` (pause after D1), `--appearance` (strict by nature), the commit / push / merge flags D8 reads, and — v4.0.0 — **`--full-data`**: sample-first iteration is OFF for the run. Absent the flag (the default), a transformation that targets a subset of a large table is iterated on the stratified sample plan at D2 (the Sample-first iteration section below); with it, every data step runs against the full table, no sample plan is produced or referenced, and the D8 report records the opt-out. A project principle that forbids sampling has the same effect and is named in the report.
+
 ## Dispatch mode
 
 Per `common-pipeline-conventions` `## Dispatch mode (v1.0.0)`, the selection is computed ONCE — at the top of Phase D−1 — and persisted as `dispatch_mode` to `<workspace>/.architect-team/intake-state.json` (this lane reuses the main pipeline's `intake-state.json`); every later phase reads it to branch between teams mode and subagents mode. The primitives of each mode, the hook branching, and the Lead-only dispatch rule are spelled out in the canonical section — do not re-explain them inline.
@@ -65,7 +67,7 @@ Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which poi
 
 > **STOP.** Before acting under this section, Read `skills/data-eng-pipeline/references/phase-d-1.md` and execute it in full. Do not work from memory.
 
-Two parts. **Part A (intake & mapping)** follows the `intake-and-mapping` skill verbatim — same codebase discovery (`$REQ_DIR/codebases.json` → frontmatter → cwd → ask user), same per-codebase ct6-converge workflow with cartographer + route-mapper + 3-reviewer convergence, same map-freshness rules, same integration mapping, same wing-scoped MemPalace wake-up + mining. The freshness pre-scan is non-negotiable; a data plan proposed against a stale map is worth as little as a bug fix proposed without a replication.
+Two parts. **Part A (intake & mapping)** follows the `intake-and-mapping` skill verbatim — same codebase discovery (`$REQ_DIR/codebases.json` → frontmatter → cwd → ask user), same per-codebase `ct6-converge` workflow with cartographer + route-mapper + the tier-3 reviewer convergence (the `codebase-map` and `integration-map` presets, declared before and recorded after), same map-freshness rules, same integration mapping, same wing-scoped MemPalace wake-up + mining. The freshness pre-scan is non-negotiable; a data plan proposed against a stale map is worth as little as a bug fix proposed without a replication.
 
 ## Phase D0 — Exploration (dispatch `data-engineering-exploration` VERBATIM)
 
@@ -75,11 +77,11 @@ The exploration is a solved problem. Dispatch the `data-engineering-exploration`
 
 ## Phase D1 — Planning validation (Phase 1 semantics)
 
-Run the main pipeline's **Phase 1** planning-validation gate against the OpenSpec change the exploration authored, at the same bar as any other openspec input — `openspec validate --all --strict` reports valid, every artifact is `done`, the coverage map reaches 100% source-requirement coverage, and Reuse Decisions cite `reuse-first-design`. The data-specific binding from Phase 0c applies verbatim: **the Stage 6 validation rules become explicit acceptance criteria in the coverage map** (one acceptance criterion per validation rule per transformation), and a transformation missing its validation criterion or its lineage emission is a Phase 1 loop-failure condition. The `dev-api-integration-testing` criteria are primary for any analytics-API surface. The gate loops until green; there is no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Auto-mine the validated coverage map to MemPalace, and emit the `run_start` notification once the plan validates.
+Run the main pipeline's **Phase 1** planning-validation gate against the OpenSpec change the exploration authored, at the same bar as any other openspec input — `openspec validate --all --strict` reports valid, every artifact is `done`, the coverage map reaches 100% source-requirement coverage, and Reuse Decisions cite `reuse-first-design`. The data-specific binding from Phase 0c applies verbatim: **the Stage 6 validation rules become explicit acceptance criteria in the coverage map** (one acceptance criterion per validation rule per transformation), and a transformation missing its validation criterion or its lineage emission is a Phase 1 loop-failure condition. The `dev-api-integration-testing` criteria are primary for any analytics-API surface. The Phase 1 architect brief carries the confirmed project principles block (`python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>`, v4.0.0) and the plan's options are checked against the register before the plan is presented. The gate loops until green; there is no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Auto-mine the validated coverage map to MemPalace, and emit the `run_start` notification once the plan validates.
 
 ## Sample-first iteration (v4.0.0)
 
-A data change that targets a subset of a large table — a filter, a partition, an entity type, a date range, an aggregate per key — is iterated on a **stratified sample first** and run against the full data last. Default on; `--full-data` or a project principle opts out, and the final report records either. Before the D2 implementation of such a transformation:
+A data change that targets a subset of a large table — a filter, a partition, an entity type, a date range, an aggregate per key — is iterated on a **stratified sample first** and run against the full data last. Default on; when `--full-data` was passed (or a project principle forbids sampling) D2 references no sample plan — every data step runs in full — and the D8 report records the opt-out and its source. Absent the flag, before the D2 implementation of such a transformation:
 
 - **Decide** — `python scripts/data_dictionary/sampling.py should-sample --dictionary docs/data-dictionary.json --table <T> --json`; skip only when the dictionary POSITIVELY shows the table is small (an unknown row count keeps sampling on).
 - **Plan** — `plan --table <T> --predicate <the columns the change depends on> --change-kind filter|aggregate|window|dedup|join [--reported-rows rows.json] --out <workspace>/.architect-team/data-eng/<slug>/sample-plan.json`; aggregate-level kinds keep whole groups (`group_preserving_keys`).
@@ -101,6 +103,8 @@ Phases **D2 through D6 are the main pipeline's Phases 2–6 run verbatim** — t
 After the transformation lands and passes D2–D6, refresh the catalog so the next run starts warm. This is the symmetric partner of D−1's warm-catalog-first check — D−1 reads the catalog, D7 rewrites it.
 
 ## Phase D8 — Close-out (Phase 8 verbatim)
+
+> **STOP.** Before acting under this section, Read `skills/data-eng-pipeline/references/phase-d8.md` and execute it in full. Do not work from memory.
 
 Phase **D8 is the main pipeline's Phase 8 close-out run verbatim** — the documentation-currency gate FIRST (the `doc-updater` agent dispatch + the independent `system-architect` Documentation Currency Audit per `documentation-currency`; the audit verdict, not a self-report, gates the commit), then the completion-audit gate, the default-branch guard, the delivery manifest (the bill of sale, per `delivery-manifest`), the commit with the standard message template, and the push. Auto-merge to main (`--no-auto-merge` opts out) when the completion audit passed and the work is on `architect-team/<slug>`; a conflict falls back to a PR, never `--force`. The human-authored `.architect-team-deploy.json` dev→test→prod opt-in is honored exactly as the main pipeline honors it (and is immutable to agents). Mark the run complete via `hooks/run_continuity.py --mark-complete` as the last state action, emit `run_complete` with the delivery manifest embedded, and emit the auto-compact prompt (unless `--no-compact`).
 
@@ -129,3 +133,5 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Phase D0 — Exploration (dispatch `data-engineering-exploration` VERBATIM)` | `skills/data-eng-pipeline/references/phase-d0.md` | on demand |
 | `Phase D2–D6 — Implement, review, and verify (Phases 2–6 verbatim)` | `skills/data-eng-pipeline/references/phase-d2.md` | on demand |
 | `Phase D7 — Catalog refresh (the second new discipline)` | `skills/data-eng-pipeline/references/phase-d7.md` | on demand |
+| `Phase D8 — Close-out (Phase 8 verbatim)` | `skills/data-eng-pipeline/references/phase-d8.md` | on demand |
+| `Sample-first iteration (v4.0.0)` | `skills/data-eng-pipeline/references/sample-first.md` | on demand |

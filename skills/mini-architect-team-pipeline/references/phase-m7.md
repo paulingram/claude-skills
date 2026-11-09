@@ -24,9 +24,17 @@ After the override meta-gate and BEFORE the auto-merge sequence, walk `<workspac
 
 On `verdict: green` from M6, the orchestrator performs the auto-merge sequence. **This is the only point in any architect-team pipeline that pushes to `main` directly.**
 
+### The full suite once, before the merge (v4.0.0)
+
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer plus the dev Playwright project enumerated from `<e2e-dir>/suite-manifest.json` (when one exists), record the results as evidence, then commit and merge. M4 and M5 ran the selected sets; this single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`).
+
 ### Doc-currency single-pass
 
-Per `documentation-currency`, run a single-pass doc update (no producer/checker split) covering: `README.md`, `CHANGELOG.md`, `CODEBASE_MAP.md`, `INTEGRATION_MAP.md`, `CLAUDE.md`, per-codebase `ROUTE_MAP.md` / `DESIGN_MAP.md` if they exist and are touched. The mini variant runs this in-line rather than spawning a separate `doc-updater` agent — the architect handles it.
+Per `documentation-currency`, run a single-pass doc update (no producer/checker split) covering: `README.md`, `CHANGELOG.md`, `CODEBASE_MAP.md`, `INTEGRATION_MAP.md`, `CLAUDE.md`, per-codebase `ROUTE_MAP.md` / `DESIGN_MAP.md` if they exist and are touched. The mini variant runs this in-line rather than spawning a separate `doc-updater` agent — the architect handles it. The pass ends with a homepage rebuild (v4.0.0, best-effort, never blocking — the page is part of the documentation inventory, `project-homepage` `## Rebuild moments`):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || python "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || echo "(homepage rebuild skipped; continuing.)"
+```
 
 ### OpenSpec archive (uniform parity)
 

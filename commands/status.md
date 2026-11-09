@@ -1,5 +1,5 @@
 ---
-description: Show current dispatch mode (Agent Teams vs subagents fallback) + active architect-team worktrees + open solution requirements + last completed run. On-demand "where am I" query for the architect-team plugin. Pure read-only — no filesystem changes, no pipeline invocation, no commit.
+description: Show current dispatch mode (Agent Teams vs subagents fallback) + active architect-team worktrees + open solution requirements + last completed run + the project homepage's stale verdict. On-demand "where am I" query for the architect-team plugin. Pure read-only — no filesystem changes, no pipeline invocation, no commit.
 argument-hint: ""
 ---
 
@@ -11,8 +11,8 @@ Mirrors the v1.3.0 `/architect-team:cleanup-worktrees` shape: an explicit
 user-facing utility command for asking *"what's happening with the plugin
 right now?"* without starting a new pipeline run.
 
-The report has 4 sections, each a brief block — the whole report fits in
-~25 lines.
+The report has 5 sections, each a brief block — the whole report fits in
+~30 lines.
 
 ## Section 1 — Dispatch mode banner
 
@@ -57,6 +57,20 @@ If the directory is empty or absent, print *"(no completed runs recorded)"*.
 
 ```bash
 ls -t .architect-team/runs/ 2>/dev/null | head -1 | xargs -I{} echo "Last completed run: {}" 2>/dev/null || echo "(no completed runs recorded)"
+```
+
+## Section 5 — Homepage
+
+Print the per-project homepage's stale verdict (v4.0.0). The page lives at
+`.architect-team/homepage/index.html`; it is built by `/architect-team:home`
+(and at setup with `--project-root`), rebuilt at Phase −1 after the maps and at
+Phase 8 by `doc-updater`. `build.py stale` compares the previous build's recorded
+hashes with the sources now and prints the verdict, since when, and which sources
+moved. Read-only — this section never builds the page; when none exists it says
+so and names the command that builds it.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" stale --workspace "$(pwd)" 2>&1 || echo "(homepage not built; run /architect-team:home)"
 ```
 
 ## Out of scope

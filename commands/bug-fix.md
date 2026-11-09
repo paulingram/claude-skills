@@ -186,7 +186,7 @@ At the end of Phase B8, after the final report emits **"Bug `<bug-slug>` has bee
 1. `git -C <repo-root> status --porcelain` to enumerate what changed.
 2. `git -C <repo-root> add <files-the-pipeline-touched>` — stage ONLY the files the pipeline created or modified (the openspec change folder, the reproduction artifacts, the fix's source-code changes, any updated maps). Do NOT use `git add -A`.
 2b. **Default-branch guard:** if the current branch is `main` / `master` and `ALLOW_PUSH_TO_DEFAULT` is false, `git -C <repo-root> checkout -b architect-team/<bug-slug>` before committing.
-3. `git -C <repo-root> commit -m "<commit message per the bug-fix-pipeline skill's Phase B8 template>"` — using the repo's local git config.
+3. `git -C <repo-root> commit -m "<commit message per the bug-fix-pipeline skill's Phase B8 template>"` — authored as the checkout's RECORDED person (v3.67.0 — resolved at the front door above; never ambient git config alone, never a hardcoded author): `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- -C <repo-root> commit -m "<message>"` (the wrapper injects `-c user.name= -c user.email=` from `.architect-team/git-identity.json` and REFUSES when there is none), or the explicit `-c user.name="<name>" -c user.email="<email>"` pair from `git_identity.py status --json`; the PreToolUse gate refuses a commit that lacks or contradicts the record.
 4. `git -C <repo-root> push -u origin <branch>` — push the branch the commit landed on.
 5. Report the commit SHA and push range in the final user-facing report. If the commit landed on `architect-team/<bug-slug>`, the report MUST say so and recommend opening a PR.
 

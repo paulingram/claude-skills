@@ -1,5 +1,9 @@
 # Phase B8 — Commit + push
 
+### The full suite once, before the merge (v4.0.0)
+
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/test_index/cli.py" select --workspace <ws> --phase 8 --json` returns every test with reason `full-suite-phase` -- no selector flag narrows it and `tests.full_suite_at` in `.architect-team-deploy.json` can only ADD phases. Run every layer plus the prod smoke suite (the `safety: prod` entries of `<e2e-dir>/suite-manifest.json`, when one exists), record the results as evidence, then commit and merge. This single full run is the safety net for everything the test index did not know (`skills/common-pipeline-conventions/references/test-selection.md`, Honest boundaries); B5 ran the selected set and B6 replayed the reproduction artifacts.
+
 ### Run-metric recording (v3.8.0)
 
 As part of Phase B8, record the run's §6 success metrics via `hooks/run_metrics.record_run_metrics(workspace, run_id, metrics)` — `dev_loop_iterations`, `first_pass_fix`, `oscillation_count`, `bug_still_present_count`, `fix_regression_count`, `fe_api_verdict` (from `discriminant.json`), `layer_fixed`, the derived `wrong_layer`, and the REQ-DOC-06 `cdlg_edge_recall` / `cdlg_hallucination_rate` (None until the CDLG ships). The metrics land at `<workspace>/.architect-team/run-metrics/<run_id>.json` and are mined to MemPalace run-history. See `common-pipeline-conventions/SKILL.md` `## Run metrics + success measurement (v3.8.0)` for the canonical home + the frozen-bug-benchmark protocol.
@@ -24,6 +28,7 @@ Same flow as `architect-team-pipeline` Phase 8 — **documentation-currency gate
 
 0. **Bump version first** — the orchestrator updates `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` to the target version. The bug-fix pipeline's typical version bump is a patch (e.g., `0.9.22` → `0.9.23`) since a bug-fix loop ships a small slice; the orchestrator decides the level.
 1. **Update — the Lead creates a `doc-updater` task** (v0.9.23, opus, bounded `Write` only to the documentation-currency inventory paths) in the shared list (teams mode) OR dispatches the `doc-updater` subagent (subagents mode). Same dispatch shape as the main pipeline's Phase 8. The agent reads the bug-fix loop's `git diff` (typically small — one or two files plus the new test artifact) and updates whatever inventory docs the diff invalidated. For a tiny bug-fix diff the agent walks the inventory, finds zero stale sections, writes a report with `updates: []` (or a minimal CHANGELOG entry), and exits cheaply. The cost of the dispatch is negligible; the value is structural — bug fixes are not exempt from the doc-currency gate.
+1b. **Rebuild the homepage (v4.0.0, best-effort, never blocking).** The page is part of the documentation inventory; the doc-updater's currency walk ends with a rebuild from the now-current sources (`project-homepage` `## Rebuild moments`): `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || python "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || echo "(homepage rebuild skipped; continuing.)"`.
 2. **Audit — the Lead creates a `system-architect` task** in Documentation Currency Audit mode (teams mode) OR dispatches the `system-architect` subagent in that mode (subagents mode). Unchanged from v0.9.15. Independent verification.
 3. **Gate.** `pipeline-completion-audit.py` blocks the commit until the audit verdict is `overall: pass` — same enforcement as the main pipeline.
 

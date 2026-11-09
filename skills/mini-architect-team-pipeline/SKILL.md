@@ -6,9 +6,9 @@ user-invocable: false
 
 # mini-architect-team-pipeline
 
-The `/architect-team` pipeline is correct-by-construction at 8 phases, 26 agents, and ×3 reviewer convergence at multiple points. That's right for high-stakes work and unfamiliar codebases — but it's overkill for a small feature in a codebase the maps already cover. The mini variant trades depth of review at runtime for batch review later: any drift surfaces on the next `/architect-team:mini-review-sweep` and becomes a solution requirement the existing `bug-fix-pipeline` auto-spawn picks up.
+The `/architect-team` pipeline is correct-by-construction at 8 phases, 39 agents, and tier-3 reviewer convergence at its map, architecture and master-review gates (`skills/team-spawning-and-review-gates/references/review-tiers.md`). That's right for high-stakes work and unfamiliar codebases — but it's overkill for a small feature in a codebase the maps already cover. The mini variant trades depth of review at runtime for batch review later: any drift surfaces on the next `/architect-team:mini-review-sweep` and becomes a solution requirement the existing `bug-fix-pipeline` auto-spawn picks up.
 
-You are the **Team Lead** for the mini variant. Your role is **System Architect** operating under the Superpowers methodology. You coordinate a tight loop that takes a requirement — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution merged to `main`.
+You are the **Team Lead** for the mini variant. Your role is **System Architect** operating under the Superpowers methodology (its native forms in `skills/common-pipeline-conventions/references/native-methodology.md` when that CONDITIONAL plugin is absent). You coordinate a tight loop that takes a requirement — a folder of artifacts OR a plain-language description typed directly — and drives it to a verified resolution merged to `main`.
 
 <!-- ct6:block:principles:begin -->
 ## Operating principles
@@ -79,7 +79,7 @@ Per `common-pipeline-conventions` `## MemPalace wake-up precondition` (which poi
 
 - **No proposal-refiner Q&A loop** — the architect grounds prose directly. If ambiguous, the architect surfaces ONE clarification batch before drafting; no iterative grading loop.
 - **No Phase −2 bug-classifier triage** — feature work is assumed. (Bug fixes use `/architect-team:bug-fix`.)
-- **No ×3 reviewer convergence anywhere** — single architect, two devs (cross-reviewing each other), one QA.
+- **No tier-3 reviewer convergence anywhere** except the cross-codebase `INTEGRATION_MAP.md` refresh at M1 — single architect, two devs (cross-reviewing each other at review tier 2), one QA.
 - **No `task-reviewer` agent at the review gate** — the devs cross-review each other's diffs; the v7 review-evidence schema's reviewer-is-the-other-dev pattern still satisfies the existing reviewer-≠-teammate hook check.
 - **No `test-completeness-verifier` at gate time** — `mini-qa` does its own coverage check against `## QA Guidance`.
 - **No visual / editability / interaction reviewers at runtime** — deferred to `/architect-team:mini-review-sweep`.
@@ -98,40 +98,19 @@ See `common-pipeline-conventions/SKILL.md` `## In-flight clarification injection
 
 ## Phase M0 — Intake
 
+> **STOP.** Before acting under this section, Read `skills/mini-architect-team-pipeline/references/phase-m0.md` and execute it in full. Do not work from memory.
+
 Detect the input form per `## Inputs`. Resolve `$REQ_DIR`:
-
-- Folder form → `$REQ_DIR` is the resolved directory.
-- Prose form → write the verbatim prose to `.architect-team/mini/<slug>/prompt.md`; `$REQ_DIR` is that file's directory.
-
-Derive `<slug>` as `YYYY-MM-DD-<lowercase-kebab-of-the-prompt-or-folder-name>` (e.g., `2026-05-26-add-bulk-export`). The slug feeds the Mini-Run trailer at Phase M7.
-
-Create a working branch off `main`:
-
-```bash
-git fetch origin
-git checkout -b mini/<slug> origin/main
-```
-
-If the cwd is not on `main` already, this is fine — the mini variant always branches from the remote's `main` so the auto-merge at M7 has a known base.
-
-**MemPalace wake-up.** Already run as the earliest action of Phase M0 per the `## MemPalace wake-up` section above (which references the canonical rule in `mempalace-integration` `## Phase A`). Per `mempalace-integration`, persist run artifacts (the OpenSpec bundle, the QA verdicts, the architect's M3 diffs) as the run progresses.
 
 ## Phase M1 — Maps freshness check
 
+> **STOP.** Before acting under this section, Read `skills/mini-architect-team-pipeline/references/phase-m1.md` and execute it in full. Do not work from memory.
+
 The mini variant uses **cached maps** wherever possible. Per `intake-and-mapping`, for each codebase the requirement touches:
-
-1. Locate `<codebase>/docs/CODEBASE_MAP.md` and `<codebase>/docs/ROUTE_MAP.md` and the root `docs/INTEGRATION_MAP.md`.
-2. Compare each map's `last_mapped` (or equivalent timestamp in its frontmatter) to the newest mtime of source files in its scope.
-3. **Map fresh** (`last_mapped` ≥ newest src mtime) → use it as-is.
-4. **Map stale or missing** → refresh **only the affected codebase**. Single-pass: dispatch `cartographer` for `CODEBASE_MAP.md` and `route-mapper` for `ROUTE_MAP.md`. **Do NOT** spawn ×3 reviewers; do NOT regenerate `INTEGRATION_MAP.md` unless the change crosses codebases. Single-pass refresh is the mini variant's whole-pipeline shape; trust the cartographer's first pass.
-
-A stale `INTEGRATION_MAP.md` is the one case worth a ×3 escalation — but only when the change crosses codebases. For an in-codebase change, ignore stale integration-map sections.
-
-Persist the maps (fresh or refreshed) into the working context for M2.
 
 ## Phase M2 — Architect drafts the 5-artifact OpenSpec bundle
 
-The Lead creates a `system-architect` task in the shared list (teams mode) OR dispatches the `system-architect` subagent (subagents mode), with the prompt + the cached maps from M1. The architect produces the **full 5-artifact OpenSpec bundle** in one pass at `openspec/changes/<slug>/`:
+The Lead creates a `system-architect` task in the shared list (teams mode) OR dispatches the `system-architect` subagent (subagents mode), with the prompt + the cached maps from M1 + the confirmed project principles block (the output of `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>`, carried exactly as `appearance_mode` is — v4.0.0). The architect produces the **full 5-artifact OpenSpec bundle** in one pass at `openspec/changes/<slug>/`:
 
 - `proposal.md` — the WHY, the WHAT, and a mandatory `## QA Guidance` section (see contract below).
 - `design.md` — architectural decisions.
@@ -139,7 +118,7 @@ The Lead creates a `system-architect` task in the shared list (teams mode) OR di
 - `tasks.md` — the work breakdown with non-overlapping file scope for backend vs. frontend (per `team-spawning-and-review-gates`).
 - `coverage-map.json` — per `coverage-mapping`, **plus** a top-level `qa_guidance` block mirroring the markdown section.
 
-The mini variant produces all five so the OpenSpec archive looks identical to a full-pipeline change; no per-capability ×3 review.
+The mini variant produces all five so the OpenSpec archive looks identical to a full-pipeline change; no per-capability tier-3 review.
 
 ### The ## QA Guidance contract
 
@@ -208,6 +187,8 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Notifications (per-project email events — opt-in, best-effort)` | `skills/mini-architect-team-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md` | on demand |
 | `MemPalace wake-up (REQUIRED — runs before ANY subagent dispatch)` | `skills/mini-architect-team-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md` | on demand |
 | `What this skill does NOT do` | `skills/mini-architect-team-pipeline/references/what-this-skill-does-not-do.md` | on demand |
+| `Phase M0 — Intake` | `skills/mini-architect-team-pipeline/references/phase-m0.md` | on demand |
+| `Phase M1 — Maps freshness check` | `skills/mini-architect-team-pipeline/references/phase-m1.md` | on demand |
 | `QA Guidance` | `skills/mini-architect-team-pipeline/references/qa-guidance.md` | on demand |
 | `Phase M3 — Architect self-confirm loop` | `skills/mini-architect-team-pipeline/references/phase-m3.md` | on demand |
 | `Phase M4 — Parallel dev dispatch (backend + frontend, cross-review)` | `skills/mini-architect-team-pipeline/references/phase-m4.md` | on demand |

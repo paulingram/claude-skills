@@ -2,7 +2,7 @@
 
 - **No proposal-refiner Q&A loop** — the architect grounds prose directly. If ambiguous, the architect surfaces ONE clarification batch before drafting; no iterative grading loop.
 - **No Phase −2 bug-classifier triage** — feature work is assumed. (Bug fixes use `/architect-team:bug-fix`.)
-- **No ×3 reviewer convergence anywhere** — single architect, two devs (cross-reviewing each other), one QA.
+- **No tier-3 reviewer convergence anywhere** except the cross-codebase `INTEGRATION_MAP.md` refresh at M1 — single architect, two devs (cross-reviewing each other at review tier 2), one QA.
 - **No `task-reviewer` agent at the review gate** — the devs cross-review each other's diffs; the v7 review-evidence schema's reviewer-is-the-other-dev pattern still satisfies the existing reviewer-≠-teammate hook check.
 - **No `test-completeness-verifier` at gate time** — `mini-qa` does its own coverage check against `## QA Guidance`.
 - **No visual / editability / interaction reviewers at runtime** — deferred to `/architect-team:mini-review-sweep`.
