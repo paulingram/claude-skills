@@ -1,6 +1,6 @@
 ---
 name: project-homepage
-description: Lane-callable discipline for the per-project CT6 homepage — one self-contained static HTML page at .architect-team/homepage/index.html showing structure, settings (keys and set/unset only, never a secret value), the decisions ledger, map freshness verdicts, the lineage-graph summary, the test index and suite manifest, and run performance from the timing log. Defines the rebuild moments (setup empty state, Phase -1 after the maps, Phase 8 by doc-updater, on demand via /architect-team:home), the publishing rule (claude mode republishes the same artifact; private-url mode serves base_url/slug), the estimate rule for any how-long question (answer from timings.py estimate, state basis_n, refuse below five samples, history not a promise), and the decisions-ledger duty of every deciding phase. The deterministic engines live under scripts/homepage/ and hooks/timings_log.py + hooks/decisions_ledger.py.
+description: Lane-callable discipline for the per-project CT6 homepage — one self-contained static HTML page at .architect-team/homepage/index.html showing structure, settings (keys and set/unset only, never a secret value), the decisions ledger, map freshness verdicts, the lineage-graph summary, the test index and suite manifest, and run performance from the timing log. Defines the rebuild moments (setup empty state, Phase -1 after the maps, Phase 8 by doc-updater, on demand via /architect-team:home), the publishing rule (claude mode republishes the same artifact; private-url mode serves base_url/slug/p/token), the estimate rule for any how-long question (answer from timings.py estimate, state basis_n, refuse below five samples, history not a promise), and the decisions-ledger duty of every deciding phase. The deterministic engines live under scripts/homepage/ and hooks/timings_log.py + hooks/decisions_ledger.py.
 user-invocable: false
 ---
 
@@ -79,7 +79,7 @@ setting (`.architect-team-publish.json`, human-owned):
   republish to the SAME artifact URL on every rebuild. The file path is stable
   (`.architect-team/homepage/index.html`), so the link is stable; a rebuild
   never mints a new artifact.
-- **`mode: private-url`** -- serve at `<base_url>/<slug>/` via the publish CLI:
+- **`mode: private-url`** -- serve at `<base_url>/<slug>/p/<token>/` (never token-free) via the publish CLI:
   `python scripts/publish/publish.py publish .architect-team/homepage/index.html --name index`
   (the `page-publishing` change owns that CLI; this skill only calls it). The
   slug defaults to the repository name; many projects share one host under

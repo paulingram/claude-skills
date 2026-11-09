@@ -23,6 +23,7 @@ the file was opened, not that it was understood.
 | always | `skills/common-pipeline-conventions/references/in-flight-clarification-discipline.md` | how a mid-run user message is folded into the run |
 | always | `skills/common-pipeline-conventions/references/deletion-discipline.md` | how deletion is classified and why soft delete is the default |
 | always | `skills/common-pipeline-conventions/references/converge-workflows.md` | how reviewer convergence runs as the ct6-converge workflow, never as a prose loop |
+| always | `skills/common-pipeline-conventions/references/completion-unlock.md` | why a held turn is finished or reported, never released by the agent; what the user's unlock command does |
 | phase--2 | `skills/common-pipeline-conventions/references/native-methodology.md` | what to do when superpowers or cartographer is absent (never abort) |
 | phase--2 | `skills/common-pipeline-conventions/references/dispatch-mode.md` | how teams mode vs subagents mode is chosen and recorded |
 | phase--2 | `skills/common-pipeline-conventions/references/notifications-wiring-convention.md` | which run events are emitted and that they never block |

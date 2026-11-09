@@ -424,7 +424,7 @@ def _audit_editability(at: Path) -> list[str]:
             if any(feature_dir.iterdir()):
                 violations.append(
                     f"editability review for '{feature_dir.name}' has reviewer drafts "
-                    f"but no converged map — the three reviewers did not converge"
+                    f"but no converged map — the reviewers at this gate's tier did not converge"
                 )
             continue
         latest = _load_json(maps[-1])
@@ -759,6 +759,18 @@ def _audit_declared_gates(at: Path) -> list[str]:
 
         satisfied_at = entry.get("satisfied_at")
         if not isinstance(satisfied_at, str) or not satisfied_at.strip():
+            # v4.1.0 — a gate the USER released. The waiver is honoured only
+            # when its evidence is a release record under
+            # .architect-team/releases/ that exists and has content: the file
+            # the user's /unlock command writes, never a bare flag an agent can
+            # set. A waiver with any other evidence falls through to the
+            # unsatisfied violation below, which quotes the gate's own words.
+            waiver = _user_waiver_problem(at, entry)
+            if waiver is None:
+                continue
+            if waiver:
+                violations.append(f"declared gate '{gate_id}' carries a waiver that does not hold: {waiver}: {quoted}")
+                continue
             violations.append(
                 f"declared gate '{gate_id}' has no satisfied_at — it was "
                 f"declared and never satisfied: {quoted}. Run the gate's check, "
@@ -811,6 +823,44 @@ def _audit_declared_gates(at: Path) -> list[str]:
                 f"{evidence_path!r} which could not be read ({e}): {quoted}"
             )
     return violations
+
+
+USER_WAIVER_RELEASES_DIRNAME = "releases"
+
+
+def _user_waiver_problem(at: Path, entry: dict) -> str | None:
+    """Classify a declared-gate entry's user waiver (v4.1.0).
+
+    Returns ``None`` when the entry carries a VALID waiver (the arm skips it),
+    ``""`` when it carries no waiver at all (the arm reports it unsatisfied),
+    or a sentence naming why the waiver does not hold (the arm reports that).
+    Valid means: ``waived_at`` set, ``waived_by == "user"``, and
+    ``evidence_path`` resolving INSIDE the workspace to an existing non-empty
+    file under ``.architect-team/releases/``. The arm never reads what the
+    record says -- the user's words are for the human reader; the arm checks
+    only that the record the command writes is really there."""
+    waived_at = entry.get("waived_at")
+    if not isinstance(waived_at, str) or not waived_at.strip():
+        return ""
+    if str(entry.get("waived_by") or "").strip().lower() != "user":
+        return "waived_by is not 'user' (only the user's own command releases a gate)"
+    evidence = entry.get("evidence_path")
+    if not isinstance(evidence, str) or not evidence.strip():
+        return "the waiver cites no evidence_path (a release record is required)"
+    resolved = _resolve_state_path(at, evidence.strip())
+    try:
+        if not _is_within_workspace(at, resolved):
+            return f"the waiver's evidence resolves outside the workspace ({resolved})"
+        rp = resolved.resolve()
+        if rp.parent.name != USER_WAIVER_RELEASES_DIRNAME or rp.parent.parent != at.resolve():
+            return f"the waiver's evidence is not a release record under {at.name}/{USER_WAIVER_RELEASES_DIRNAME}/ ({evidence})"
+        if not resolved.is_file():
+            return f"the waiver cites a release record that does not exist ({evidence})"
+        if not _has_substantive_content(resolved):
+            return f"the waiver cites an EMPTY release record ({evidence})"
+    except OSError as e:
+        return f"the waiver's evidence could not be read ({e})"
+    return None
 
 
 def _git_lines(root: Path, args: list[str]) -> list[str] | None:

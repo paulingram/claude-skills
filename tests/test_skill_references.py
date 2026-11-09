@@ -110,7 +110,10 @@ EXTRACTIONS = {
     #     pointer + first paragraph and their Reference-index rows, so every
     #     chapter is reachable from the constitution; the Uniform-plugin-usage
     #     stub was reworded for the conditional-plugin / declare-record state.
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 63816),
+    #   v4.1.0: 63816 -> 64873. The `## Completion-hold release (v4.1.0)` stub
+    #     (STOP pointer + first paragraph) and its Reference-index row: the
+    #     user's unlock command and the two moves an agent has under a hold.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 64873),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

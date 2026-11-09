@@ -165,6 +165,18 @@ def _targets_existing_deploy_config(file_path: str) -> bool:
 _PUBLISH_CONFIG_FILENAME = ".architect-team-publish.json"   # page-publishing opt-in
 _PRINCIPLES_DOC_PARENT = "docs"                              # docs/PROJECT_PRINCIPLES.md
 _PRINCIPLES_DOC_NAME = "PROJECT_PRINCIPLES.md"
+_RELEASES_DIRNAME = "releases"                               # .architect-team/releases/*.json (v4.1.0)
+
+
+def _targets_release_record(file_path: Any) -> bool:
+    """True iff the tool targets a file under ``.architect-team/releases/`` --
+    the records the user's /architect-team:unlock command writes. Parent-pair
+    keyed like the measurements arm, so some project's own ``releases/``
+    directory stays out of scope."""
+    if not isinstance(file_path, str) or not file_path.strip():
+        return False
+    parts = [p for p in file_path.strip().replace("\\", "/").split("/") if p]
+    return len(parts) >= 3 and parts[-2] == _RELEASES_DIRNAME and parts[-3] == ".architect-team"
 
 
 def _targets_existing_publish_config(file_path: Any) -> bool:
@@ -768,6 +780,26 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     # pipeline-state gate below), because an agent editing/disabling the deploy
     # config is a violation whether or not a pipeline run is active. Only a human
     # may change it once it exists.
+    if _targets_release_record(file_path):
+        return 2, (
+            "CT6 v4.1.0 PreToolUse guardrail BLOCKED -- a completion-hold release "
+            "record is written by the user's command, never authored or edited.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            "Files under .architect-team/releases/ are the evidence that the USER "
+            "released a hold, in their own words. The Stop hook honours a waived "
+            "gate only because such a record exists; hand-writing one manufactures "
+            "a release nobody asked for, and editing one rewrites what they said.\n"
+            "\n"
+            "REQUIRED ACTION: none for you. If the user wants a hold released, they "
+            "type the command; its engine writes the record. If a record is wrong, "
+            "tell the user -- it is theirs to correct.\n"
+            "\n"
+            "HONEST BOUNDARY: Bash can still write these files; this rule makes it "
+            "a deliberate act on a named surface, not an accident."
+        )
     if _targets_existing_publish_config(file_path):
         return 2, (
             "CT6 v4.0.0 PreToolUse guardrail BLOCKED -- publish config immutability.\n"

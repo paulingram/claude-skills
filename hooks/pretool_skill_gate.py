@@ -817,6 +817,91 @@ def _format_identity_block(cwd: str, command: str, reason: str, record: dict[str
     )
 
 
+# ---------------------------------------------------------------------------
+# Arm 5 (v4.1.0) — the completion-hold release is the USER's verb
+#
+# `hooks/completion_unlock.py release` closes every source the Stop hook reads
+# (open tasks, open asks, declared gates, the run marker) under a record of
+# the user's words. It is sanctioned ONLY inside the user's own
+# `/architect-team:unlock` command turn. This arm refuses the verb from a
+# Bash command unless the LATEST genuine user prompt in this session's
+# transcript carries the command marker -- so an agent held by the lock
+# cannot reach for it as a way out, and a worker/sidechain session can never
+# release the Lead's hold. `inspect` and `status` are read-only and never
+# gated. Unlike arms 3 and 4 this arm DOES consult the transcript: the whole
+# question is who asked. Fail-CLOSED on a missing transcript (the one place
+# in this module where "cannot verify" means "refuse"), fail-open only on an
+# internal error. Kill-switch: CT6_UNLOCK_GATE_DISABLED (launch environment).
+# ---------------------------------------------------------------------------
+UNLOCK_GATE_DISABLE_ENV = "CT6_UNLOCK_GATE_DISABLED"
+UNLOCK_COMMAND = "/architect-team:unlock"
+_UNLOCK_RELEASE_RE = re.compile(r"completion_unlock(?:\.py)?\b[^\n;&|]*?\brelease\b")
+_UNLOCK_MARKER_RE = re.compile(
+    r"<command-name>\s*/?(?:architect-team:)?unlock\s*</command-name>", re.IGNORECASE
+)
+
+
+def _unlock_gate_disabled() -> bool:
+    v = os.environ.get(UNLOCK_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _format_unlock_block(command: str, why: str) -> str:
+    return (
+        "CT6 v4.1.0 PreToolUse guardrail BLOCKED — the completion-hold release "
+        "is the USER's verb, not the agent's.\n"
+        "\n"
+        f"  - tool about to fire: Bash\n"
+        f"  - command: {command.strip()[:300]}\n"
+        f"  - reason: {why}\n"
+        "\n"
+        f"`completion_unlock.py release` runs only inside the user's own {UNLOCK_COMMAND} "
+        "command turn, with their words as --reason. A held turn is held because "
+        "registered work is open; the way out is to finish it, or to tell the user "
+        "plainly what is open and let THEM decide. `inspect` is always allowed and "
+        "shows exactly that. Never run the release verb as a way to end a run.\n"
+        f"\nIf a human genuinely wants this gate off: {UNLOCK_GATE_DISABLE_ENV}=1 in the "
+        "environment Claude Code was launched from is their lever."
+    )
+
+
+def _unlock_release_check(payload: dict[str, Any]) -> tuple[int, str]:
+    """Refuse `completion_unlock.py release` unless the latest genuine user
+    prompt is the /architect-team:unlock command and this is not a worker."""
+    try:
+        if _unlock_gate_disabled():
+            return 0, ""
+        inp = payload.get("tool_input") or payload.get("input") or payload.get("args")
+        if not isinstance(inp, dict):
+            return 0, ""
+        command = inp.get("command")
+        if not isinstance(command, str) or not _UNLOCK_RELEASE_RE.search(command):
+            return 0, ""
+        transcript_path = (
+            payload.get("transcript_path")
+            or payload.get("transcriptPath")
+            or payload.get("transcript")
+        )
+        if not transcript_path:
+            return 2, _format_unlock_block(command, "no transcript to show that the user typed the command")
+        records = _read_records(Path(str(transcript_path)))
+        if not records:
+            return 2, _format_unlock_block(command, "the transcript is empty or unreadable, so the user's command cannot be shown")
+        head, truncated = _transcript_head_and_truncation(str(transcript_path), records)
+        if _is_worker_session(records, head, truncated):
+            return 2, _format_unlock_block(command, "a teammate or subagent session never releases the Lead's hold")
+        last_prompt: dict[str, Any] | None = None
+        for rec in records:
+            if _is_user_prompt(rec):
+                last_prompt = rec
+        if last_prompt is None or not _UNLOCK_MARKER_RE.search(_text(last_prompt)):
+            return 2, _format_unlock_block(
+                command, f"the latest user prompt is not the {UNLOCK_COMMAND} command")
+        return 0, ""
+    except Exception:
+        return 0, ""  # fail open on an internal error, never wedge the session
+
+
 def _git_identity_check(payload: dict[str, Any]) -> tuple[int, str]:
     """Refuse a commit-authoring Bash command in an active run that lacks or
     contradicts the recorded identity. Fail-open on every uncertainty EXCEPT
@@ -925,6 +1010,11 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
         if code:
             return code, msg
     if tool == "Bash":
+        # Arm 5 (v4.1.0) — the completion-hold release is the user's verb.
+        # ADDITIVE, checked first: it keys on the command text alone.
+        code, msg = _unlock_release_check(payload)
+        if code:
+            return code, msg
         # Arm 4 (v3.67.0) — commit identity during an active run. ADDITIVE:
         # Bash is not a `_BLOCKED_TOOLS` member, so when this arm does not block
         # the payload falls through to the normal always-allowed path below.

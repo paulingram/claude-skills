@@ -24,6 +24,7 @@ EXPECTED_COMMANDS: set[str] = {
     "visual-to-api",
     "home",
     "publish",
+    "unlock",  # v4.1.0: the user's completion-hold release
     "principles",
     "classify-test-prod-safety",
     "discipline-status",

@@ -28,6 +28,13 @@ changes is how many checkers, and which model does the checking.
 4. The tier and the models used are written into the Phase 3 evidence file so
    the Stop audit and the homepage can report them.
 
+5. A **research fan-out** (three `diagnostic-researcher` or `domain-researcher`
+   seats exploring in parallel) is not a review tier: nothing is being verified
+   yet, so the table is silent on it and the lanes label it a fan-out. The
+   CONVERGENCE that follows it -- the map or the ranked cause the panel must
+   agree on -- is a tier-3 gate and runs as a declared and recorded
+   `ct6-converge` workflow.
+
 ## Why
 
 `×3 in parallel` appeared 80 times across the v3.67.0 surfaces. Three

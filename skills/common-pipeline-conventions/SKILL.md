@@ -340,6 +340,12 @@ Every reviewer-convergence gate runs as DECLARE → `ct6-converge` workflow → 
 
 `superpowers` and `cartographer` are CONDITIONAL plugins — preferred when installed, reported and remediated when absent, never gating. The lane records `methodology: native` and follows the chapter's native forms of brainstorming, test-driven development, systematic debugging, verification before completion and codebase mapping (a native map carries `source: native`); when a plugin is present the lane uses it.
 
+## Completion-hold release (v4.1.0)
+
+> **STOP.** When a turn is being held and you are deciding what to do about it, Read `skills/common-pipeline-conventions/references/completion-unlock.md` and act within it. Do not look for the exit.
+
+A held turn is held because registered work is open, and nothing an agent writes releases it. Releasing a hold is the USER's verb -- the `/architect-team:unlock` command over `hooks/completion_unlock.py`, sanctioned only inside the user's own command turn (the PreToolUse gate refuses its `release` verb from any other turn, the command is `disable-model-invocation: true`, and no Stop hold text names it). Under a hold you have two moves: finish the work, or run the read-only `inspect` verb and tell the user plainly what is open so THEY decide. The release writes a durable record of the user's words, waives gates visibly (never fakes them satisfied), and is reported on the project homepage.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.
@@ -420,3 +426,4 @@ Heavy, rarely-fired procedure detail lives in this skill's `references/` folder 
 | `Test selection discipline (v4.0.0)` | `skills/common-pipeline-conventions/references/test-selection.md` | on demand |
 | `Converge workflows (v4.0.0)` | `skills/common-pipeline-conventions/references/converge-workflows.md` | on demand |
 | `Native methodology (v4.0.0)` | `skills/common-pipeline-conventions/references/native-methodology.md` | on demand |
+| `Completion-hold release (v4.1.0)` | `skills/common-pipeline-conventions/references/completion-unlock.md` | on demand |

@@ -203,7 +203,7 @@ At the end of Phase 8, after the final report emits "Spec `<change-name>` has be
 - Coverage map: fully green
 - Phases −1 → 8 complete; openspec archive landed at <archive-path>
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"` — authored as the checkout's RECORDED person (v3.67.0 — resolved at the front door above; never ambient git config alone, never a hardcoded author): `$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/git_identity.py" --cwd <repo-root> git -- -C <repo-root> commit -m "<message>"` (the wrapper injects `-c user.name= -c user.email=` from `.architect-team/git-identity.json` and REFUSES when there is none), or the explicit `-c user.name="<name>" -c user.email="<email>"` pair from `git_identity.py status --json`; the PreToolUse gate refuses a commit that lacks or contradicts the record.
 4. `git -C <repo-root> push -u origin <branch>` — push the branch the commit landed on (the current branch, or the `architect-team/<change-name>` branch from step 2b).

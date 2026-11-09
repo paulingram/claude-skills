@@ -412,7 +412,12 @@ def test_engine_runs_over_the_real_in_scope_set() -> None:
     #   123 -> 124  v3.66.0 executed-diagnosis + verification-planning: +1 skill
     #               (verification-planning). The 24th Layer-3 tool
     #               (hooks/vao/diagnosis.py) is hooks/-tier and adds nothing here.
-    assert result["files_checked"] == 131, result["files_checked"]
+    #   124 -> 131  v4.0.0 claude-5-modernization: +4 skills (ct6-agent-core,
+    #               project-principles, page-publishing, project-homepage) and
+    #               +3 commands (principles, publish, home).
+    #   131 -> 132  v4.1.0: +1 command (unlock, the user's completion-hold
+    #               release); hooks/completion_unlock.py is hooks/-tier.
+    assert result["files_checked"] == 132, result["files_checked"]
     assert isinstance(result["findings"], list)
 
 

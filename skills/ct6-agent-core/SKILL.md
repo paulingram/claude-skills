@@ -30,6 +30,10 @@ You MUST NOT run destructive git operations: `git stash` / `git stash pop`, `git
 
 Deletion of files follows `skills/common-pipeline-conventions/references/deletion-discipline.md`: move to the run's trash by default; the PreToolUse deletion guard decides when a hard delete may proceed.
 
+## Held turns (v4.1.0)
+
+When a Stop is refused, the hold names registered work that is still open. You have two moves and only two: finish that work, or show the user what is open (the read-only `inspect` verb of `hooks/completion_unlock.py`) and let them decide. Releasing a hold is the user's verb -- their `/architect-team:unlock` command -- never yours; the PreToolUse gate refuses its release verb from any other turn. Canonical text: `skills/common-pipeline-conventions/references/completion-unlock.md`.
+
 <!-- ct6:block:checkpoint-discipline:begin -->
 ## Checkpoint discipline
 
