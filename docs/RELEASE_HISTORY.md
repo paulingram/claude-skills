@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.0` — quiet-holds-and-the-users-release
 - `v4.0.0` — claude-5-modernization
 - `v3.67.0` — git-commit-identity
 - `v3.66.0` — executed-diagnosis-and-no-limits
@@ -171,6 +172,20 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.0 — quiet-holds-and-the-users-release: the Stop hook holds the turn without shouting, and only the user can let it go
+
+Two field reports from the first v4.0.0 runs. First, the completion lock's worklist and the continuation guard's CONTINUE directive — text written for the AGENT — were being rendered in the user's main view on every refused stop, because a Stop hook's exit-2 stderr (and `decision: block`) is shown as a hook-error notification. The hold now travels as `hookSpecificOutput.additionalContext` in hook JSON on stdout: Claude Code keeps the turn open through the same loop protections, labels it `Stop hook feedback` in the transcript, and the user's screen stays clean (`CT6_STOP_HOLD_MODE=block` restores the old channel; `CT6_STOP_USER_NOTICE=1` adds a one-line count for the user). Second, holds outlived the work — a task nobody closed, an ask the transcript never resolved, a converge gate never recorded — and outlived the user's own "good enough, move on with what you have". **`/architect-team:unlock`** is the user's verb for that: it inspects what holds the turn and, under one durable record of the user's words, retires the open tasks, resolves the open asks, WAIVES the unsatisfied gates (never fakes them satisfied), stands the run down and appends a decision the homepage shows. It is the user's alone: the command is `disable-model-invocation`, the skill gate's Arm 5 refuses the release verb unless the latest genuine user prompt is that command, the override guard refuses hand-written release records, and no Stop hold text names it. Every agent now carries the two moves it has under a hold — finish the work, or show the user what is open.
+
+The same release closes the v4.0.0 documentation debt across every surface (README, CLAUDE.md, the maps, 60 skills, 39 agents, 30 commands, the hook and setup docstrings): every reviewer-convergence site names its tier and runs as declare → `ct6-converge` → record, superpowers and cartographer read as conditional everywhere, the selected-tests rule and the v4.0.0 engines are wired into every lane phase, and seven commit templates drop a model-named trailer.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

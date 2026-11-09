@@ -20,7 +20,7 @@ The "do not re-execute" system note is a hint preventing accidental re-invocatio
 
 ### The audit verdict
 
-The Stop hook reads the session's tool-call ledger at `.architect-team/run-history/<run-id>-toolcalls.jsonl` (where `<run-id>` is the canonical run identifier). For every explicit Skill-invocation request, asserts the matching `Skill` tool invocation appears in the ledger AFTER the request's timestamp. If any request has no matching invocation, the audit exits 2 with the failure report and writes the verdict to `.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json`.
+The Stop hook reads the session's tool-call ledger at `.architect-team/run-history/<run-id>-toolcalls.jsonl` (where `<run-id>` is the canonical run identifier). For every explicit Skill-invocation request, asserts the matching `Skill` tool invocation appears in the ledger AFTER the request's timestamp. If any request has no matching invocation, the audit refuses the stop with the failure report (since v4.1.0 as hook JSON on stdout -- transcript feedback the agent reads, exit 0; the standalone `--check` CLI still exits 2) and writes the verdict to `.architect-team/vao-verdicts/<run-id>-skill-invocation-audit.json`.
 
 Schema v7's `skill_invocation_audit` field MUST cite this verdict path; a missing field or a `fail` verdict blocks the run at the review-evidence hook.
 

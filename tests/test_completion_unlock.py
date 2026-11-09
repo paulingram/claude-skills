@@ -339,8 +339,8 @@ def test_cli_round_trip(ws, tasks_root):
 def test_module_is_ascii_and_stdlib():
     src = UNLOCK.read_text(encoding="utf-8")
     src.encode("ascii")
-    allowed = {"__future__", "argparse", "contextlib", "io", "json", "sys", "datetime", "pathlib", "typing",
-               "hooks", "open_work", "run_continuity", "decisions_ledger"}
+    allowed = {"__future__", "argparse", "contextlib", "io", "json", "sys", "pathlib", "typing",
+               "hooks", "open_work", "run_continuity", "decisions_ledger", "shared_util"}
     import ast
     for node in ast.walk(ast.parse(src)):
         names = []

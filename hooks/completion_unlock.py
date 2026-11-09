@@ -49,7 +49,6 @@ import contextlib
 import io
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -57,10 +56,12 @@ try:  # pragma: no cover - exercised by both import paths
     from hooks import open_work as _ow
     from hooks import run_continuity as _rc
     from hooks import decisions_ledger as _dl
+    from hooks.shared_util import _utc_now_iso
 except ImportError:  # pragma: no cover - bare-module fallback
     import open_work as _ow  # type: ignore[no-redef]
     import run_continuity as _rc  # type: ignore[no-redef]
     import decisions_ledger as _dl  # type: ignore[no-redef]
+    from shared_util import _utc_now_iso  # type: ignore[no-redef]
 
 SCHEMA = "ct6-unlock/v1"
 COMMAND = "/architect-team:unlock"
@@ -69,10 +70,6 @@ RELEASES_DIRNAME = "releases"
 DECLARED_GATES_FILENAME = "declared-gates.json"
 WAIVED_BY_USER = "user"
 SCOPES = ("tasks", "asks", "gates", "run")
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _at(root: Path) -> Path:

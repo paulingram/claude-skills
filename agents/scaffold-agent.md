@@ -33,7 +33,7 @@ If any of these are missing, ASK before generating. Specifically:
 3. **Validate the frontmatter:**
    - `name` matches the file name (without `.md`).
    - `description` is a substantive one-line description (≥ 20 chars).
-   - `tools` is a comma-separated list of valid Claude Code tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `NotebookEdit`, `WebFetch`, `WebSearch`). Do NOT use the retired `LS` (covered by `Glob`/`Read`/`Bash`), `NotebookRead` (merged into `Read`), `Task` (teammates do not spawn other agents), or `TodoWrite` (replaced by the Task tools in v4.0.0) tokens.
+   - `tools` is a comma-separated list of valid Claude Code tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `NotebookEdit`, `WebFetch`, `WebSearch`). Do NOT use the retired `LS` (covered by `Glob`/`Read`/`Bash`), `NotebookRead` (merged into `Read`), `Task` (teammates do not spawn other agents), or the retired todo-list tool (replaced by the Task tools in v4.0.0) tokens.
    - `model` is one of `fable`, `opus`, `sonnet`, `haiku` (or `inherit`), matching the role split above.
    - `color` is one of `blue`, `cyan`, `green`, `orange`, `pink`, `purple`, `red`, `yellow`.
    - `skills:` lists `ct6-agent-core` — every agent preloads it; the operating context, forbidden git operations, checkpoint discipline, operating principles and reporting rules arrive through that preload. Never paste those blocks into the body: `scripts/setup/sync_agent_boilerplate.py --check` refuses a stray copy.

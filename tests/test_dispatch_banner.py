@@ -370,7 +370,7 @@ def test_architect_team_pipeline_phase8_documents_dispatch_mode_trailer(
     )
     # Must appear in the commit-message template block — the Co-Authored-By
     # trailer is the canonical neighbor.
-    co_auth_idx = text.find("Co-Authored-By: Claude Opus")
+    co_auth_idx = text.find("Co-Authored-By: Claude <noreply@anthropic.com>")
     dispatch_idx = text.find("Dispatch-Mode:")
     assert co_auth_idx >= 0 and dispatch_idx >= 0
     # Dispatch-Mode trailer must be near (within ~200 chars of) the
@@ -390,7 +390,7 @@ def test_bug_fix_pipeline_phase_b8_documents_dispatch_mode_trailer(
     assert "Dispatch-Mode:" in text, (
         "bug-fix-pipeline Phase B8 must add a `Dispatch-Mode:` trailer"
     )
-    co_auth_idx = text.find("Co-Authored-By: Claude Opus")
+    co_auth_idx = text.find("Co-Authored-By: Claude <noreply@anthropic.com>")
     dispatch_idx = text.find("Dispatch-Mode:")
     assert co_auth_idx >= 0 and dispatch_idx >= 0
     assert abs(dispatch_idx - co_auth_idx) < 500
@@ -403,7 +403,7 @@ def test_mini_pipeline_m7_documents_dispatch_mode_trailer(plugin_root: Path) -> 
     assert "Dispatch-Mode:" in text, (
         "mini-pipeline M7 must add a `Dispatch-Mode:` trailer"
     )
-    co_auth_idx = text.find("Co-Authored-By: Claude Opus")
+    co_auth_idx = text.find("Co-Authored-By: Claude <noreply@anthropic.com>")
     dispatch_idx = text.find("Dispatch-Mode:")
     assert co_auth_idx >= 0 and dispatch_idx >= 0
     assert abs(dispatch_idx - co_auth_idx) < 500
@@ -417,7 +417,7 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     version-bump consistency check tracks WHICHEVER version is the current
     release. The test name preserves its v1.5.0 origin (it was added in v1.5.0)
     but its semantic intent is 'plugin metadata is at the current release
-    version', which the current release (v4.0.0 — claude-5-modernization)
+    version', which the current release (v4.1.0 — quiet-holds-and-the-users-release)
     makes 3.67.0. NOTE: the v3.40.1 release bumped the manifests without
     updating this pin (red on the shipped 3.40.1 tree) — the pin is updated
     here together with each release's CHANGELOG entry."""
@@ -427,6 +427,6 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "4.0.0"
+    assert plugin_json["version"] == "4.1.0"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "4.0.0"
+    assert marketplace_json["plugins"][0]["version"] == "4.1.0"
