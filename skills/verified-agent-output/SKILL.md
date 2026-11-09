@@ -52,10 +52,10 @@ Trade-off: `--no-vao` re-opens the v1.x failure modes (scope-narrowing, git-stas
 
 ## Where this skill plugs in
 
-- `hooks/vao_tools.py` — the Layer-3 facade + CLI (the five originals verify-oracle-match, verify-baseline-clean, verify-no-fake-data, verify-every-element, verify-rendered-parity, plus the fifteen discipline tools and the 21st, verify-check-can-fail).
+- `hooks/vao_tools.py` — the Layer-3 facade + CLI: **26 tools** (v4.0.0) — the five originals verify-oracle-match, verify-baseline-clean, verify-no-fake-data, verify-every-element, verify-rendered-parity; the discipline tools (verify-check-can-fail was the 21st, v3.47.0; verify-diagnosis-falsified the 24th, v3.66.0); and the two v4.0.0 additions `verify-principles-respected` (`hooks/vao/principles.py`, the project-principles gate) and `verify-required-reads` (`hooks/vao/required_reads.py`, the INDEX-declared required reads, a measured gap).
 - `hooks/vao/check_integrity.py` — the 21st Layer-3 tool's module (v3.47.0).
 - `hooks/skill_invocation_audit.py` — the Layer 6 Stop-hook auditor.
-- `hooks/review_evidence_schema.py` — schema v7 declaring the five required VAO fields.
+- `hooks/review_evidence_schema.py` — schema v7: 17 required fields (the five required VAO fields among them) + 6 optional tool-mediated fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`).
 - `hooks/pipeline-completion-audit.py` — extended to assert VAO verdicts + delegate to Layer 6.
 - `agents/oracle-deriver.md` — the Phase 0.5 agent.
 - `agents/adversarial-reviewer.md` — the Phase 3 paired adversarial agent.

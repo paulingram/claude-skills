@@ -26,7 +26,7 @@ The hook blocks any evidence file missing any field OR carrying a `fail` verdict
 
 ### The OPTIONAL tool-mediated fields (validated when present)
 
-Four fields are present-only-when-applicable. Each follows the identical contract: **absent ⇒ the evidence file is still valid v7** (no gap is attributable to the field), **present ⇒ the value MUST be `pass` / `n/a` / `fail` in either the string or the `{verdict, verdict_path}` dict shape, and a `fail` BLOCKS completion at the review gate**.
+Six fields are present-only-when-applicable. Each follows the identical contract: **absent ⇒ the evidence file is still valid v7** (no gap is attributable to the field), **present ⇒ the value MUST be `pass` / `n/a` / `fail` in either the string or the `{verdict, verdict_path}` dict shape, and a `fail` BLOCKS completion at the review gate**.
 
 | Optional field | Present when | Cites |
 |---|---|---|
@@ -34,6 +34,8 @@ Four fields are present-only-when-applicable. Each follows the identical contrac
 | `live_verification_review` | the evidence claims "verified live" | the `verify-live-verification-claim` verdict |
 | `appearance_scope_review` | the slice's diff touches frontend presentation surface | the appearance-scope verdict / trace |
 | `check_integrity_review` (v3.47.0) | the slice's diff adds test files, or any verification command is cited as evidence | the `verify-check-can-fail` verdict path |
+| `claim_instrument_binding_review` (v3.59.0) | the evidence cites a green check as proof of a claim — the "borrowed green" | the `verify-claim-instrument-binding` verdict path (the cited instrument actually measured the claim) |
+| `principles_review` (v4.0.0) | the workspace carries confirmed project principles (`.architect-team/principles.json`) and the slice presents a design / contract / diff / option set | the `verify-principles-respected` verdict path; `n/a` with a note when no principle is confirmed |
 
 `check_integrity_review` carries the same blocking semantics as the rest: absent is fine, `pass` / `n/a` are fine, and a `fail` value BLOCKS the review gate exactly as a `fail` on a required field does — the check-integrity finding is escalated and fixed, never marked complete around.
 

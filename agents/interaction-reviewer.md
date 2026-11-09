@@ -90,7 +90,7 @@ open_disputes: [
 ]
 ```
 
-Loop until your `open_disputes` is empty and the three drafts hold an identical converged interaction map. A dispute that survives **4 round-robin rounds** is genuinely undetermined by the evidence — move it to `escalations` (for the human) and drop it from the blocking set so convergence completes.
+Loop until your `open_disputes` is empty and the panel's drafts hold an identical converged interaction map. A dispute that no cited evidence can settle (the sources are exhausted and the panel still disagrees — exhausted evidence, never a round count) is genuinely undetermined by the evidence — move it to `escalations` (for the human) and drop it from the blocking set so convergence completes.
 
 ## Round 3 — system-architect robustness review
 

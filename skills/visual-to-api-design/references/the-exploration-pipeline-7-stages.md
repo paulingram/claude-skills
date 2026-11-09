@@ -2,15 +2,17 @@
 
 The Exploration Pipeline runs 7 stages. Frontend stages (1–6) run only when frontend is in scope; the backend stage (7) runs only when backend is in scope; Stage 0 always runs and decides the branch. Each stage produces a frozen JSON artifact at `<workspace>/.architect-team/visual-to-api-design/<feature-slug>/stage-<N>-<name>.json` AND (for the stages that own a standardized doc) one of the five canonical `*_MAP.md` documents in `<codebase>/docs/`. Each stage runs the v0.9.19 3-reviewer convergence protocol (Round 1 independent → Round 2 round-robin → Round 3 architect) **inside a `ct6-converge` workflow**, and reads the prior stage's frozen artifact as its CHECKLIST.
 
-### Governance — every stage's convergence runs inside a ct6-converge workflow
+### Governance — every stage's convergence runs inside a ct6-converge workflow, declared and recorded
 
-Every stage's 3-reviewer doc-passing convergence is wrapped in the `ct6-converge` workflow skill (the `ct6-converge` workflow command). The loop body is the 3-reviewer convergence; the loop's `--completion-promise` is **total agreement across all reviewers that the stage document meets every required step (100% fidelity)**. The loop exits ONLY when all three reviewers AND the Round-3 architect agree the stage doc satisfies every checklist item; the loop runs until that completion-promise is satisfied — there is **no iteration cap** (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each stage below names its own promise string. The canonical invocation shape (matching `intake-and-mapping`):
+Every stage's 3-reviewer doc-passing convergence is a tier-3 gate (each stage freezes a map) run as declare → the `ct6-converge` workflow → record per `skills/common-pipeline-conventions/references/converge-workflows.md`. The loop body is the 3-reviewer convergence; the workflow's `promise` is **total agreement across all reviewers that the stage document meets every required step (100% fidelity)** — the gate's LABEL, not its exit test. The loop exits ONLY when all three reviewers AND the Round-3 architect agree the stage doc satisfies every checklist item and the record says so (`converged: true`, three `ok` verdicts in the final round); there is **no iteration cap** (per `common-pipeline-conventions` `## Unbounded solving discipline`), and a human `maxRounds` pauses the gate rather than passing it. Each stage below names its own promise string. The canonical invocation shape (matching `intake-and-mapping`):
 
 ```bash
-the `ct6-converge` workflow with completion promise "<STAGE-N PROMISE>"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" declare --workspace <ws> --kind stage-<n> --promise "<STAGE-N PROMISE>" --reviewers 3
+#   Workflow({ name: "ct6-converge", args: { kind: "stage-<n>", promise: "<STAGE-N PROMISE>", reviewers: 3, artifacts: ["<stage artifact>", "<stage *_MAP.md>"] } })   # the `ct6-converge` workflow with completion promise "<STAGE-N PROMISE>"
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" record --workspace <ws> --kind stage-<n> --result '<the workflow JSON>'
 ```
 
-When the convergence reaches total agreement, the loop body emits the stage's exact promise line, which trips the completion-promise and exits the loop. The loop never halts on iteration count and never freezes a half-agreed artifact — it keeps converging. If a stage genuinely cannot converge because the requirement is unsettleable from the available inputs (a product decision only the owner can make), it routes an `api-design-stage-incomplete` SR surfacing that specific required owner input — loudly, while the run continues working everything else — rather than stopping.
+When the convergence reaches total agreement, the workflow returns `converged: true` and the orchestrator records it, which satisfies the declared gate; typing the promise line changes nothing. The loop never halts on iteration count and never freezes a half-agreed artifact — it keeps converging. If a stage genuinely cannot converge because the requirement is unsettleable from the available inputs (a product decision only the owner can make), it routes an `api-design-stage-incomplete` SR surfacing that specific required owner input — loudly, while the run continues working everything else — rather than stopping.
 
 ### Run-time inputs — `language`, `component_libraries`, `ancillary_docs`
 
@@ -44,7 +46,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Required output** (`stage-0-scope.json`): `{stage: 0, name: "scope-detection", scope: "frontend-only" | "backend-only" | "both", frontend_in_scope: bool, backend_in_scope: bool, classification_source: "intake-and-mapping", frozen_at, _human_review_required}`.
 
-**ct6-converge workflow:** the 3-reviewer scope-classification convergence is wrapped in the `ct6-converge` workflow with completion promise "STAGE-0 SCOPE COMPLETE — all reviewers agree on scope + branch". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** the 3-reviewer scope-classification convergence is wrapped in the `ct6-converge` workflow with completion promise "STAGE-0 SCOPE COMPLETE — all reviewers agree on scope + branch". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 1 — Personas + application classification
 
@@ -56,7 +58,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Required output:** the existing `stage-1-context.json` (see subset section) with `ancillary_docs_read: [...]` added — the list of ancillary docs consumed.
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-1 CONTEXT COMPLETE — all reviewers agree personas + classification are complete". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-1 CONTEXT COMPLETE — all reviewers agree personas + classification are complete". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 2 — Per-persona objectives → `PERSONA_MAP.md`
 
@@ -66,7 +68,7 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Stage-2 CHECKLIST against Stage 1:** every persona in Stage 1's persona list MUST appear as a `PERSONA_MAP.md` section; the count MUST match.
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-2 PERSONA_MAP COMPLETE — all reviewers agree every persona has an objective section". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-2 PERSONA_MAP COMPLETE — all reviewers agree every persona has an objective section". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 3a — Page/element catalog
 
@@ -80,6 +82,6 @@ These are auto-generated whenever the Exploration Pipeline runs against a projec
 
 **Required output** (`stage-3a-page-element-catalog.json`): per page, every element with `{type, html_attributes, value_class}` plus the existing subset fields (`element_id`, `classification`, `blurb`, `is_dynamic`, `needs_backend`, `backend_endpoint_hint`).
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-3A CATALOG COMPLETE — all reviewers agree every element is captured with attributes + value_class". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-3A CATALOG COMPLETE — all reviewers agree every element is captured with attributes + value_class". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 > **STOP.** This chapter continues in `skills/visual-to-api-design/references/the-exploration-pipeline-7-stages-part-2.md`; Read it before acting on the later stages.

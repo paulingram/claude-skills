@@ -14,7 +14,7 @@ Three disciplines:
 2. **Refuse to rationalize.** When a test deviates from prediction, "the most likely cause" is not allowed without evidence. Every candidate cause must be supported by a log line, a captured payload, a stack frame, a screenshot, a diff against a known-good run, or a reproduction recipe.
 3. **Three passes, minimum.** Run the root-cause loop three times before claiming you understand the failure. Pass 1 traces data forward; Pass 2 traces calls backward; Pass 3 falsifies. If the three passes converge on the same root cause, you have it. If they diverge, run a fourth pass against the strongest remaining candidate.
 
-This skill builds on `superpowers:systematic-debugging` and operationalizes its principles inside the architect-team review-gate and escalation conventions.
+This skill builds on `superpowers:systematic-debugging` (a CONDITIONAL plugin since v4.0.0 — when it is absent the native systematic-debugging form in `skills/common-pipeline-conventions/references/native-methodology.md` applies) and operationalizes its principles inside the architect-team review-gate and escalation conventions.
 
 ## Phase A — Predict expected behavior BEFORE running the test
 

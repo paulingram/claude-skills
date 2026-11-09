@@ -1,6 +1,6 @@
 ---
 name: api-design-from-frontend
-description: "Extracts the \"backend logic from frontend\" portion (Stages 5+6+7) of visual-to-api-design as a standalone reusable skill. Stage 5 per-page REST returns → API_RETURNS_MAP.md. Stage 6 consolidated API design + desk-trace play-test → API_DESIGN_MAP.md. Stage 7 backend data architecture → DATA_ARCHITECTURE_MAP.md + openspec change via openspec-propose. Each stage's 3-reviewer convergence wraps in a ct6-converge workflow with total-agreement completion-promise. Inputs: PERSONA_MAP.md + page catalog + COMPONENT_ARCHITECTURE_MAP.md (or equivalent frontend artifacts). Callers: visual-to-api-design (refactors to delegate Stage 5+ here), architect-team-pipeline Phase 0b (backend dispatch when frontend or docs are referenceable). v3.4.0."
+description: "Extracts the \"backend logic from frontend\" portion (Stages 5+6+7) of visual-to-api-design as a standalone reusable skill. Stage 5 per-page REST returns → API_RETURNS_MAP.md. Stage 6 consolidated API design + desk-trace play-test → API_DESIGN_MAP.md. Stage 7 backend data architecture → DATA_ARCHITECTURE_MAP.md + openspec change via openspec-propose. Each stage's tier-3 3-reviewer convergence runs as a declared and recorded ct6-converge workflow labelled by its total-agreement completion-promise. Inputs: PERSONA_MAP.md + page catalog + COMPONENT_ARCHITECTURE_MAP.md (or equivalent frontend artifacts). Callers: visual-to-api-design (refactors to delegate Stage 5+ here), architect-team-pipeline Phase 0b (backend dispatch when frontend or docs are referenceable). v3.4.0."
 user-invocable: false
 ---
 
@@ -38,7 +38,7 @@ The caller passes a structured `inputs` object:
 
 ## Phase A1 — Stage 5: per-page REST returns
 
-For every page (or analogous unit — modal / widget / dashboard panel) in the input artifacts, derive the REST returns the page needs. Apply the v0.9.19 3-reviewer convergence pattern wrapped in the `ct6-converge` workflow with completion promise "API RETURNS MAP COMPLETE". The loop runs until the completion-promise is satisfied (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
+For every page (or analogous unit — modal / widget / dashboard panel) in the input artifacts, derive the REST returns the page needs. Apply the v0.9.19 3-reviewer convergence pattern (tier 3 — the stage freezes a map) as the `ct6-converge` workflow with completion promise "API RETURNS MAP COMPLETE", declared before and recorded after per `skills/common-pipeline-conventions/references/converge-workflows.md` (`kind: api-returns-map`, `reviewers: 3`). The promise is the gate's label; the loop runs until the record says converged (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 For each page entry:
 
@@ -58,7 +58,7 @@ For each page entry:
 
 Output: `<output_dir>/API_RETURNS_MAP.md` with frontmatter `{generated_at, pages_count, returns_count}`.
 
-**3-reviewer convergence:** 3 reviewers independently check every page is covered, every return traces to ≥ 1 element on the page, and no two returns are duplicates of each other. Iterates until all 3 say `ok`.
+**3-reviewer convergence:** 3 reviewers independently check every page is covered, every return traces to ≥ 1 element on the page, and no two returns are duplicates of each other. Iterates until the record shows all 3 `ok`.
 
 ## Phase A2 — Stage 6: consolidated API design + desk-trace play-test
 
@@ -94,7 +94,7 @@ For each endpoint:
 
 Output: `<output_dir>/API_DESIGN_MAP.md` with frontmatter `{generated_at, endpoints_count, user_types[]}`.
 
-3-reviewer convergence wrapped in the `ct6-converge` workflow with completion promise "API DESIGN MAP COMPLETE". The loop runs until the completion-promise is satisfied (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
+Tier-3 3-reviewer convergence as the `ct6-converge` workflow with completion promise "API DESIGN MAP COMPLETE" (`kind: api-design-map`, declared before and recorded after). The promise is the gate's label; the loop runs until the record says converged (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 ## Phase A3 — Stage 7: backend data architecture + OpenSpec authoring
 
@@ -136,7 +136,7 @@ Output: `<output_dir>/DATA_ARCHITECTURE_MAP.md` with frontmatter `{generated_at,
 
 Hand-written OpenSpec JSON is forbidden.
 
-3-reviewer convergence wrapped in the `ct6-converge` workflow with completion promise "DATA ARCHITECTURE MAP COMPLETE". The loop runs until the completion-promise is satisfied (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
+Tier-3 3-reviewer convergence as the `ct6-converge` workflow with completion promise "DATA ARCHITECTURE MAP COMPLETE" (`kind: data-architecture-map`, declared before and recorded after). The promise is the gate's label; the loop runs until the record says converged (total reviewer agreement); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 ## Phase A4 — Return verdict
 
@@ -169,7 +169,7 @@ When `frontend_read_only: true`:
 
 - v3.0.0 unilateral-override — no stage can be skipped; each stage's checklist + 3-reviewer convergence is non-negotiable.
 - visual-to-api-design Operating Rules #1–12 — stages frozen in order, checklists gate freezes, 3-reviewer convergence per stage, read-only on source, cross-stage references by SHA, no deferral, Stage 6 covers every Stage 5 element, every stage in ct6-converge workflow, OpenSpec via the openspec skill, scope-gated stages, run-time inputs read never guessed, 4-stage subset stays valid.
-- v0.9.19 3-reviewer convergence — the canonical pattern per stage.
+- v0.9.19 3-reviewer convergence — the canonical pattern per stage; tier 3 under v4.0.0 because each stage freezes a map, run as declare → `ct6-converge` workflow → record.
 
 ## What this skill is NOT
 

@@ -6,7 +6,7 @@ Position: a new phase inserted between Phase 0 (Detection & Normalization) and P
 
 Trigger: the requirement contains a parity verb (`match`, `rebuild`, `mirror`, `parity`, `make like`, `replicate`) OR names an oracle codebase / design mockup / reference URL.
 
-Mechanism: a dedicated `oracle-deriver` agent (opus, read-only) walks the named oracle and produces a structured canonical spec at `<workspace>/.architect-team/oracle-spec/<change-name>.json` with these top-level fields:
+Mechanism: a dedicated `oracle-deriver` agent (fable under `--split role`, read-only) walks the named oracle and produces a structured canonical spec at `<workspace>/.architect-team/oracle-spec/<change-name>.json` with these top-level fields:
 
 ```json
 {
@@ -214,6 +214,15 @@ These two carry no discipline section of their own under their CLI name; their o
 |---|---|---|
 | `verify-affordance-coverage` | `hooks/vao_tools.py::verify_affordance_coverage` | Every detected dynamic affordance class is addressed — tested, confirmed-stub, or explicitly out-of-scope; an unaddressed class is `affordance-not-addressed`. Canonical discipline: `common-pipeline-conventions` `## Dynamic affordance discovery discipline (v2.13.0)`. |
 | `verify-per-persona-path-coverage` | `hooks/vao_tools.py::verify_per_persona_path_coverage` | Each persona's declared path is actually exercised end-to-end rather than one persona's run standing in for all of them. Canonical discipline: `common-pipeline-conventions` `## Multi-persona path-coverage discipline (v2.11.0)`. |
+
+#### The v4.0.0 additions — 26 tools in all
+
+`hooks/vao_tools.py` lists 26 subcommands since v4.0.0 (24 at v3.66.0, when `verify-diagnosis-falsified` landed). The two additions have their own homes and are listed here so the inventory in this chapter is complete:
+
+| Tool | Module | What it gates | Canonical home |
+|---|---|---|---|
+| `verify-principles-respected` | `hooks/vao/principles.py` | every confirmed project principle has a recorded verdict in the `principles-verdicts/v1` sidecar; a knowing violation is a gap, `all-options-violate` is the hard stop; cited by the optional `principles_review` field | `skills/project-principles/SKILL.md` |
+| `verify-required-reads` | `hooks/vao/required_reads.py` | every chapter an `INDEX.md` declares for a phase was Read before that phase started; `required-read-skipped` is a MEASURED GAP (blocking only with `CT6_REQUIRED_READS_BLOCKING=1`) | `skills/common-pipeline-conventions/references/INDEX.md` |
 
 Each tool writes its verdict JSON to `<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`. The schema v7 `*_review` field cites the verdict path; the hook reads the cited file at validation time.
 

@@ -44,7 +44,7 @@ The refiner is a DOMAIN gate (per the v0.9.21 carve-out), not a process gate —
 
 ## Phase R2 — Initial clarity audit + grade
 
-Dispatch the `prompt-refiner` agent (model: opus) with the inputs from R1. The agent produces an initial multi-axis grade:
+Dispatch the `prompt-refiner` agent (model: fable — a judgment seat under `--split role`) with the inputs from R1. The agent produces an initial multi-axis grade:
 
 | Axis | What it measures | Range |
 |---|---|---|

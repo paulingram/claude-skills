@@ -4,7 +4,7 @@ v3.5.0 ships a structured exploration pipeline for data engineering / data archi
 
 ### The 7 stages
 
-Each stage's 3-reviewer convergence wraps in `ct6-converge` workflow with total-agreement completion-promise (same governance pattern as `visual-to-api-design` and `api-design-from-frontend`).
+Each stage's 3-reviewer convergence (tier 3 — every stage freezes a map, so it is a map-convergence gate) runs as declare → `ct6-converge` workflow → record (`references/converge-workflows.md`), with the stage's total-agreement completion promise as the gate's label and the recorded verdicts as the exit condition (same governance pattern as `visual-to-api-design` and `api-design-from-frontend`).
 
 | Stage | Goal | Output | Reviewer convergence promise |
 |---|---|---|---|

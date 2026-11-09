@@ -1,6 +1,6 @@
 ---
 name: interaction-completeness
-description: Use when a feature with UI/UX surface has been implemented and you must independently verify the shipped UI is genuine — every interactive element is real-user-flow-tested (real page.click / page.fill, not a direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamic data-binding rather than hardcoded sample data. Fires at Phase 3 review-gate or Phase 5 cross-layer verification, or whenever you are not certain each control genuinely works, a route may be a placeholder, or a value may be hardcoded where it should be dynamic. The body documents the full triggers and the three-reviewer team that enumerates, classifies, traces, audits test authenticity, converges, routes gaps as solution requirements, and re-reviews after fixes.
+description: Use when a feature with UI/UX surface has been implemented and you must independently verify the shipped UI is genuine — every interactive element is real-user-flow-tested (real page.click / page.fill, not a direct API call, not a vacuous navigate-and-assert) and correctly wired, every page is the real live page rather than a placeholder, and every displayed value is correctly a static literal or a dynamic data-binding rather than hardcoded sample data. Fires at Phase 3 review-gate or Phase 5 cross-layer verification, or whenever you are not certain each control genuinely works, a route may be a placeholder, or a value may be hardcoded where it should be dynamic. The body documents the full triggers and the tiered reviewer panel (one paired reviewer per slice, three at the Phase 7 sweep) that enumerates, classifies, traces, audits test authenticity, converges, routes gaps as solution requirements, and re-reviews after fixes.
 user-invocable: false
 ---
 
@@ -26,15 +26,17 @@ Four disciplines:
 3. **Verify every non-stub element has a genuine user-driven Playwright test.** Not a `page.request.*` direct API call. Not a `page.evaluate(() => fetch(...))`. Not a vacuous navigate-and-assert that calls itself a flow while issuing zero genuine interaction calls. A real user test reaches the element with `page.click` / `page.fill` / `page.selectOption` / `page.check` / `page.press` / `page.setInputFiles` and asserts the real resulting UI and side effect.
 4. **Trace every element to its endpoint or client behavior.** An `endpoint-backed` control: control → handler → HTTP client call → the endpoint, with the request actually issued on the user's click. A `client-only` control: control → the navigation / state change / overlay it drives. A break or an absence, for an element that should work, is a gap.
 
-This is a judgment-heavy task — "intuit the actual steps a user would take, confirm the experience is active as if they were a front-end user" — so it runs as a **three-agent team that argues to convergence**, and it is **multi-pass**: after the gaps are fixed, the team re-reviews until all three agree the interactive surface is genuine.
+This is a judgment-heavy task — "intuit the actual steps a user would take, confirm the experience is active as if they were a front-end user" — so it runs as a **reviewer panel that argues to convergence**, sized by the review tier of the gate it serves (`skills/team-spawning-and-review-gates/references/review-tiers.md`): ONE paired `interaction-reviewer` for a slice at Phase 3 / Phase 5 (tier 2, a second independent reviewer only on disagreement), three independent `interaction-reviewer` agents in parallel for the Phase 7 sweep (tier 3). It is **multi-pass**: after the gaps are fixed, the panel re-reviews until every reviewer at the gate's tier agrees the interactive surface is genuine.
 
-## The team: three reviewers, argue to convergence, act, repeat
+## The team: three reviewers at tier 3, one paired reviewer at tier 2 — argue to convergence, act, repeat
 
 The orchestrator runs this skill as a loop-until-converged outer loop (no fixed pass cap — per `common-pipeline-conventions` `## Unbounded solving discipline`). One **pass** is: independent analysis → argue to convergence → `system-architect` Round-3 robustness review → gaps become solution requirements → the normal fix loop acts → re-spawn for the next pass.
 
+The panel's width is the gate's tier (`skills/team-spawning-and-review-gates/references/review-tiers.md`): **tier 2** — one `interaction-reviewer`, independent of the producing frontend teammate, whose own self-review evidence is the other side of the argument, with a second independent `interaction-reviewer` giving the deciding third verdict when the two disagree — at a Phase 3 / Phase 5 slice gate; **tier 3** — three `interaction-reviewer` agents in parallel — at the Phase 7 sweep and whenever a project principle or the user raises the tier (a tier-3 gate is never lowered below 2). At either tier the loop runs as declare → `ct6-converge` workflow → record per `skills/common-pipeline-conventions/references/converge-workflows.md`: tier 3 is the `ct6-converge` workflow with completion promise "INTERACTION COMPLETE" (the `interaction` preset, `reviewers: 3`), tier 2 the same protocol with `reviewers: 1`; the promise is the gate's label and the recorded verdicts are the exit. The rounds below are written for the tier-3 panel; at tier 2 read "the other drafts" as the producing teammate's self-review evidence plus the paired reviewer's draft.
+
 ### Pass P, Round 1 — independent analysis (parallel)
 
-The orchestrator spawns **three `interaction-reviewer` agents in parallel**. Each receives the same brief (the feature, the requirements / `$REQ_DIR`, the relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP, the coverage-map slice, the evidence-listed Playwright test files) and its reviewer index (1, 2, 3).
+The orchestrator spawns the panel — **three `interaction-reviewer` agents in parallel** at tier 3, one at tier 2. Each receives the same brief (the feature, the requirements / `$REQ_DIR`, the relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP, the coverage-map slice, the evidence-listed Playwright test files) and its reviewer index (1, 2, 3 — or 1 alone at tier 2).
 
 Each reviewer INDEPENDENTLY — no consulting the others — does the full job: enumerate every interactive element and every page, classify each element's wiring and each page's genuineness, trace each non-stub element to its endpoint or client behavior, audit each element's Playwright test for authenticity, apply `dynamic-value-discovery` to every displayed value, and write its draft interaction map to:
 
@@ -42,26 +44,26 @@ Each reviewer INDEPENDENTLY — no consulting the others — does the full job: 
 <cwd>/.architect-team/interaction/<feature-slug>/reviewer-<N>-pass<P>-<ts>.json
 ```
 
-Independence is the rigor: three independent judgments about what genuinely works catch the classification errors a single reviewer rationalizes past.
+Independence is the rigor: a judgment made without seeing the producer's reasoning catches the classification errors a self-reviewing producer rationalizes past, and at tier 3 three such judgments also catch what one reviewer rationalizes past.
 
 ### Pass P, Round 2 — argue to convergence (round-robin)
 
-After all three drafts exist, the reviewers converge. Each reviewer reads the other two drafts and, for every element where the **wiring classification**, every page where the **page classification**, or any **gap verdict** differs across drafts, debates it:
+After every draft at the gate's tier exists, the panel converges. Each reviewer reads the other drafts (at tier 2: the producing teammate's self-review evidence) and, for every element where the **wiring classification**, every page where the **page classification**, or any **gap verdict** differs across drafts, debates it:
 
 - The reviewer who disagrees must either cite evidence — a line from the requirements, the design, the `ROUTE_MAP.md`, the route table, the component code, the test file — that changes the others' position, OR be persuaded by their evidence and revise its own draft.
 - "It looks like a real page" is not evidence. "The route table maps `/reports` to `<ComingSoon />` and proposal.md line 14 specifies a live reports dashboard" is evidence. "`ReportsPage.tsx` renders three lorem-ipsum paragraphs and issues no fetch" is evidence.
 
-After each round-robin round each reviewer emits: `agreement: [<elements/pages where I now match both others>]` and `open_disputes: [<element/page: my classification vs theirs, with my evidence>]`. Loop until every reviewer's `open_disputes` is empty — the three now hold an identical converged interaction map. A dispute that survives **4 round-robin rounds** is genuinely undetermined by the available evidence: it moves to `escalations` (the human decides) and is removed from the blocking set so convergence does not stall.
+After each round-robin round each reviewer emits: `agreement: [<elements/pages where I now match both others>]` and `open_disputes: [<element/page: my classification vs theirs, with my evidence>]`. Loop until every reviewer's `open_disputes` is empty — the panel now holds an identical converged interaction map. At tier 2, a dispute between the paired reviewer and the producer's evidence that one round of cited evidence does not settle goes to a second independent `interaction-reviewer`, whose verdict is final for that round (the review-tier rule). A dispute that no cited evidence can settle — each side has exhausted the requirements, the design, the route table and the component code and still disagrees — is genuinely undetermined by the available evidence: it moves to `escalations` (the human decides — a named missing input, the one sanctioned pause) and is removed from the blocking set so convergence does not stall. The trigger is exhausted evidence, never a round count (`docs/ETHOS.md` principle 8).
 
 This is the "argue until they have a clear list of asks" the team exists to produce.
 
 ### Pass P, Round 3 — system-architect robustness review (independent falsifier)
 
-Three reviewers converging is not the same as three reviewers being right. They can converge on the same wrong classification — the classic failure is all three classifying a route `live` because the component "looks built" without any of them noticing it issues no API call where the design requires data, or all three accepting a navigate-and-assert test as a genuine flow. Convergence-without-an-independent-check is itself a hole. So, after Round 2, the orchestrator dispatches the `system-architect` agent to review the converged interaction map for **robustness** — exactly as `editability-completeness` and `diagnostic-research-team` do after their reviewers.
+Reviewers converging is not the same as reviewers being right. They can converge on the same wrong classification — the classic failure is every reviewer classifying a route `live` because the component "looks built" without any of them noticing it issues no API call where the design requires data, or every reviewer accepting a navigate-and-assert test as a genuine flow. Convergence-without-an-independent-check is itself a hole. So, after Round 2, the orchestrator dispatches the `system-architect` agent to review the converged interaction map for **robustness** — exactly as `editability-completeness` and `diagnostic-research-team` do after their reviewers.
 
 The architect does NOT re-do the enumeration. It asks: is the converged result robust?
 
-- **Shared blind spot.** Did all three reviewers classify some element or page the same way without any of them citing real evidence — a converged guess wearing the costume of consensus? Each `client-only`, `confirmed-stub`, and `live` classification must be justified, not just agreed.
+- **Shared blind spot.** Did every reviewer classify some element or page the same way without any of them citing real evidence — a converged guess wearing the costume of consensus? Each `client-only`, `confirmed-stub`, and `live` classification must be justified, not just agreed.
 - **Coverage.** Is there an interactive element in the component code, or a route in the `ROUTE_MAP.md` / route table, that the converged map never classified at all?
 - **Test-authenticity rigor.** For every element marked as having a genuine test, does the converged map cite the actual `page.click` / `page.fill` line — or did the reviewers wave a "user-flow test" through on its filename?
 - **Placeholder honesty.** Did a `placeholder` page get classified `live` because its component compiles, even though it makes no API call where the design requires data, or its content is "coming soon" / lorem ipsum?
@@ -88,12 +90,12 @@ The `ui_interaction_review` review-gate evidence field surfaces this verificatio
 
 ### Act, then re-review (the multi-pass outer loop)
 
-The fix teams act on the SRs through the normal Phase 2 → Phase 5 dev loop with full review gates. When the fixes land, the orchestrator **re-spawns the three reviewers for Pass P+1** — a fresh independent analysis, not a diff. They re-enumerate, re-classify, re-trace, re-audit.
+The fix teams act on the SRs through the normal Phase 2 → Phase 5 dev loop with full review gates. When the fixes land, the orchestrator **re-spawns the panel, at the same tier, for Pass P+1** — a fresh independent analysis, not a diff. They re-enumerate, re-classify, re-trace, re-audit.
 
-- If Pass P+1's converged map has an **empty `gaps[]` AND all three reviewers agree** → **satisfied**. Exit the loop.
+- If Pass P+1's converged map has an **empty `gaps[]` AND every reviewer at the gate's tier agrees** → **satisfied**. Exit the loop.
 - Else → another act + re-review cycle.
 
-The outer loop runs until all three reviewers agree on an empty `gaps[]` — there is NO fixed pass cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each pass that still shows gaps spawns the next act + re-review cycle; the loop continues until satisfied. If an element's or page's intended behavior is genuinely unsettled in the requirements (an `ambiguous` classification only the owner can resolve), the orchestrator surfaces that specific element/page to the owner as required input — loudly, while continuing to close every other gap — and resumes once it is decided. The loop never halts on pass count; only a genuine required-owner-decision (not exhaustion) pauses it.
+The outer loop runs until every reviewer at the gate's tier agrees on an empty `gaps[]` — there is NO fixed pass cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each pass that still shows gaps spawns the next act + re-review cycle; the loop continues until satisfied. If an element's or page's intended behavior is genuinely unsettled in the requirements (an `ambiguous` classification only the owner can resolve), the orchestrator surfaces that specific element/page to the owner as required input — loudly, while continuing to close every other gap — and resumes once it is decided. The loop never halts on pass count; only a genuine required-owner-decision (not exhaustion) pauses it.
 
 ## The element wiring-classification rubric (the "is this control genuinely wired" core)
 
@@ -283,7 +285,7 @@ A `test_is_genuine` or `test_asserts_effect` failure on an otherwise correctly-w
 }
 ```
 
-`satisfied` is `true` only when `gaps` is empty and all three reviewers confirmed the converged map.
+`satisfied` is `true` only when `gaps` is empty and every reviewer at the gate's tier confirmed the converged map (all three at tier 3; the paired reviewer — and the deciding third verdict when one was needed — at tier 2). `reviewers_agreed` lists exactly the reviewers that were dispatched; the example above is a tier-3 record.
 
 Per `mempalace-integration`, the orchestrator auto-mines each converged map to MemPalace: `mempalace --palace <palace> mine "<converged-map path>" --wing <wing>` (`mine` takes `--wing` only — rooms are auto-detected from the mined file's directory layout). Future runs against the same project can then search prior interaction maps before re-reviewing.
 
@@ -300,14 +302,14 @@ They are complementary. A feature can pass all of the above and still fail this 
 ## Where this skill plugs into the pipeline
 
 - **Phase 3 (review gate).** For any frontend slice, the verification informs the `ui_interaction_review` review-gate evidence field — the structural gate that every interactive element is genuinely UI-tested and correctly wired, every page is live, and every value is correctly static or dynamic, or a confirmed stub.
-- **Phase 5 (cross-layer integration).** The mandatory home. Interaction completeness is inherently cross-layer (UI + API); Phase 5 is where both layers are integrated. For any feature with interactive surface, the orchestrator runs the full interaction-completeness team (three reviewers, converge, Round-3 architect review, gaps → SRs, multi-pass) alongside the editability-completeness team and the visual-fidelity regression sweep.
-- **Phase 7 (master review).** Confirms the interaction-completeness team reached `satisfied` for every frontend feature. An unsatisfied interaction loop is a coverage gap; re-spawn.
+- **Phase 5 (cross-layer integration).** The mandatory home. Interaction completeness is inherently cross-layer (UI + API); Phase 5 is where both layers are integrated. For any feature with interactive surface, the orchestrator runs the full interaction-completeness panel at the slice gate's tier (one paired reviewer, converge, Round-3 architect review, gaps → SRs, multi-pass) alongside the editability-completeness panel and the visual-fidelity regression sweep.
+- **Phase 7 (master review).** Confirms the interaction-completeness panel reached `satisfied` for every frontend feature and runs the tier-3 sweep across the shipped feature set — three reviewers via the `ct6-converge` workflow with completion promise "INTERACTION COMPLETE" (the `interaction` preset), declared and recorded. An unsatisfied interaction loop is a coverage gap; re-spawn.
 
 ## Live-data wiring axis (v2.6.0)
 
-When the slice carries a `wiring_mandate` annotation (set by Phase 2's architect brief whenever the requirement uses parity-implying wording — *"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"* / *"hook up the real API"*), the 3 `interaction-reviewer` agents **extend** their existing Round-1 mandate. NO new agent role is added; the swarm IS the existing 3 parallel reviewers. The v0.9.19 3-reviewer convergence protocol is unchanged in shape — only what each reviewer audits is extended.
+When the slice carries a `wiring_mandate` annotation (set by Phase 2's architect brief whenever the requirement uses parity-implying wording — *"wire to live data"* / *"remove mocks"* / *"stop using fixtures"* / *"use real backend"* / *"hook up the real API"*), the `interaction-reviewer` panel at the gate's tier **extends** its existing Round-1 mandate. NO new agent role is added; the swarm IS the existing panel (one paired reviewer per slice, three at the Phase 7 sweep). The convergence protocol is unchanged in shape — only what each reviewer audits is extended.
 
-Each reviewer independently runs the **v2.6.0 audit** (in addition to the existing element/page/test/dynamic-value audits) and writes findings into a `live_data_wiring_findings` block in their Round-1 draft. The block carries one entry per gap with the named severity, the file:line or trace anchor, and a one-line citation. Round-2 convergence reasons across all three `live_data_wiring_findings` blocks the same way it reasons across element classifications.
+Each reviewer independently runs the **v2.6.0 audit** (in addition to the existing element/page/test/dynamic-value audits) and writes findings into a `live_data_wiring_findings` block in their Round-1 draft. The block carries one entry per gap with the named severity, the file:line or trace anchor, and a one-line citation. Round-2 convergence reasons across every reviewer's `live_data_wiring_findings` block the same way it reasons across element classifications.
 
 The audit follows the 2-pass workflow (per `common-pipeline-conventions/SKILL.md` § *Live-data wiring discipline*):
 
@@ -330,7 +332,7 @@ A converged `live_data_wiring_findings` entry becomes a `live-data-wiring-gap` s
 
 ## Accessibility axis (v3.10.0)
 
-For every UI-bearing slice the 3 `interaction-reviewer` agents ALSO audit accessibility — the same 3-reviewer Round-1 extension as the live-data axis (NO new agent role; the swarm IS the existing 3 reviewers; the v0.9.19 convergence protocol is unchanged in shape). Each reviewer writes findings into an `a11y_findings` block in their Round-1 draft; Round-2 convergence merges all three the same way it merges element classifications.
+For every UI-bearing slice the `interaction-reviewer` panel ALSO audits accessibility — the same Round-1 extension as the live-data axis (NO new agent role; the swarm IS the existing panel at the gate's tier; the convergence protocol is unchanged in shape). Each reviewer writes findings into an `a11y_findings` block in their Round-1 draft; Round-2 convergence merges every reviewer's block the same way it merges element classifications.
 
 The three things each reviewer audits, for every interactive element in the slice:
 
@@ -352,8 +354,8 @@ A converged `a11y_findings` entry becomes a solution requirement with `origin.ki
 
 ## Hard rules (non-negotiable)
 
-- Three reviewers, always — independent in Round 1, arguing in Round 2. Two cannot triangulate a judgment call; the third is the tie-break and the falsifier.
-- The Round 3 `system-architect` robustness review is a non-negotiable gate. Three reviewers converging is not proof they are right — they can converge on a shared blind spot. The converged map is not final, and no `interaction-gap` SR is written, until the architect's verdict is `pass`.
+- The reviewer tier follows the gate (v4.0.0): three reviewers at the Phase 7 sweep (tier 3); one paired reviewer at a slice gate (tier 2) with a third independent verdict only on disagreement — independent in Round 1, arguing in Round 2. The producer is never its own checker at any tier, and a disagreement is never settled by the producer.
+- The Round 3 `system-architect` robustness review is a non-negotiable gate. Reviewers converging is not proof they are right — they can converge on a shared blind spot. The converged map is not final, and no `interaction-gap` SR is written, until the architect's verdict is `pass`.
 - Reviewers are **analysis-only**. They classify, trace, audit, and write the map and the SRs. They do NOT write feature code — wiring a control or building a live page is real dev work that must go through Phase 2 → Phase 5 review gates, the reuse-first ladder, and the test requirements. A reviewer that edits a component bypasses every one of those.
 - Every classification carries `reasoning` citing a source (requirements / design / `ROUTE_MAP.md` / route table / component code / test file). A classification with no citation is a guess.
 - Every trace stage carries `file:line` evidence. "Looks fine" is not a verdict.
@@ -362,5 +364,5 @@ A converged `a11y_findings` entry becomes a solution requirement with `origin.ki
 - A `confirmed-stub` requires explicit user confirmation and is recorded in BOTH the converged map and `coverage-map.json` `confirmed_stubs[]`. An unconfirmed inert control or unconfirmed placeholder page is a gap, never a silent pass.
 - Ambiguous elements and pages escalate to the human with a structured question. Never default-guess a classification under time pressure.
 - Apply `dynamic-value-discovery` to every displayed value; a value hardcoded where the context shows it should be dynamic is a `hardcoded-dynamic-value` gap.
-- The loop is multi-pass and runs until all three reviewers agree on zero gaps (no fixed pass cap, v3.8.0). After a fix, re-review from scratch — do not assume the fix was complete.
+- The loop is multi-pass and runs until every reviewer at the gate's tier agrees on zero gaps (no fixed pass cap, v3.8.0). After a fix, re-review from scratch — do not assume the fix was complete.
 - An interaction-gap SR spawns a fix team directly; it does not route through `diagnostic-research-team` (the gap is already fully diagnosed).

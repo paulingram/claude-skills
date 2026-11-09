@@ -47,13 +47,13 @@ Both passes must agree. A passing Playwright assessment WITH residual mock impor
 | `network-not-intercepted` | `wiring_mandate.endpoints[]` includes endpoint E; Playwright captured requests do NOT include a request to E — UI sourced data elsewhere (cached mock / hardcoded constant / local fixture) |
 | `async-status-not-surfaced` | `wiring_mandate.async_states_expected[]` includes state S; Playwright UI text has no element naming the state — user sees nothing when work is in progress |
 
-### The 3-reviewer Phase 5 swarm extension
+### The reviewer-panel Phase 5 swarm extension (tiered since v4.0.0)
 
-The user explicitly asked: *"maybe we swarm the testing."* The existing v0.9.19 `interaction-completeness` Phase 5 protocol ALREADY dispatches 3 `interaction-reviewer` agents in parallel and converges. THAT IS THE SWARM. v2.6.0 extends each of the 3 reviewers' mandate — when the slice carries `wiring_mandate: "live"`, each reviewer independently:
+The user explicitly asked: *"maybe we swarm the testing."* The existing `interaction-completeness` Phase 5 protocol ALREADY dispatches the gate's reviewer panel and converges — one paired `interaction-reviewer` per slice (tier 2), three in parallel at the Phase 7 sweep (tier 3), per `skills/team-spawning-and-review-gates/references/review-tiers.md`. THAT IS THE SWARM. v2.6.0 extends every reviewer's mandate — when the slice carries `wiring_mandate: "live"`, each reviewer independently:
 
 1. Runs the 2-pass workflow (Playwright assess + code-side audit).
 2. Writes `live_data_wiring_findings[]` to its convergence report.
-3. The round-1 convergence requires all 3 reviewers to report ZERO findings; disagreements go to round 2; the round-3 architect robustness review checks the converged findings + the deterministic `verify_live_data_wiring` tool verdict (both must agree).
+3. The round-1 convergence requires every reviewer at the gate's tier to report ZERO findings; a disagreement (producer evidence vs reviewer finding at tier 2, or a split panel at tier 3) goes to round 2 — at tier 2 a second independent reviewer gives the deciding verdict; the round-3 architect robustness review checks the converged findings + the deterministic `verify_live_data_wiring` tool verdict (both must agree).
 
 No new agent dispatches. Zero net cost in the existing protocol's dispatch budget; richer assessment from the existing swarm.
 
@@ -113,7 +113,7 @@ When the `wiring_mandate` does NOT carry a `shared_mock_sources` field, the v2.7
 
 - `hooks/vao_tools.py::verify_live_data_wiring` — the deterministic Layer 3 tool (9th in the VAO module; 6 severities in v2.7.0).
 - `hooks/vao_tools.py::_MOCK_STATE_SIGNATURES` — the canonical pattern list ≥ 12 entries.
-- `skills/interaction-completeness/SKILL.md` `## Live-data wiring axis (v2.6.0)` — the 3-reviewer swarm extension.
+- `skills/interaction-completeness/SKILL.md` `## Live-data wiring axis (v2.6.0)` — the reviewer-panel swarm extension (tier per gate).
 - `agents/interaction-reviewer.md` `## Live-data wiring audit (v2.6.0)` — the per-reviewer audit protocol (extended in v2.7.0 with the sweep step).
 - `agents/frontend.md` `## Pattern propagation mandate (v2.7.0)` — the implementer-side discipline.
 - `tests/fixtures/vao/live-data-mock-residue.json` — v2.6.0 canonical case (verbatim heirship-app-v3).

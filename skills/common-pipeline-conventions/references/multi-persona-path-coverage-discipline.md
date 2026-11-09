@@ -86,7 +86,7 @@ The implementer's slice-end report and the qa-replayer's post-fix verification M
 | `interaction-completeness` | Every interactive element is wired | The elements ARE wired — for the ONE persona's view |
 | `verify_live_data_wiring` (v2.6.0) | Mock state survived production code | Mock state didn't survive — but only one persona's path was checked |
 | `dev-api-integration-testing` | Tests exercise real backend | They do — for one persona's HTTP requests |
-| `interaction-completeness` 3-reviewer swarm | 3 reviewers converge on element classification | They classify for ONE persona's view, not across personas |
+| `interaction-completeness` reviewer panel | the panel (one paired reviewer per slice, three at the Phase 7 sweep) converges on element classification | They classify for ONE persona's view, not across personas |
 
 v2.11.0 is the first layer that asks: **"given this feature serves N personas, did the verification exercise EVERY persona's entry point AND assert cross-persona data sync?"**
 
@@ -96,7 +96,7 @@ v2.11.0 is the first layer that asks: **"given this feature serves N personas, d
 - `hooks/vao_tools.py::_LOADING_STATE_UI_HINTS` + `_DOUBLE_SUBMIT_TIMING_THRESHOLD_MS` — the canonical detection constants.
 - `agents/qa-replayer.md` `## Multi-persona path-coverage discipline (v2.11.0)` — post-fix per-persona re-replay gate.
 - `agents/frontend.md` `## Multi-persona path-coverage discipline (v2.11.0)` — implementer's per-persona test mandate.
-- `agents/interaction-reviewer.md` `## Multi-persona path-coverage discipline (v2.11.0)` — 3-reviewer swarm extension.
+- `agents/interaction-reviewer.md` `## Multi-persona path-coverage discipline (v2.11.0)` — reviewer-panel swarm extension.
 - `agents/bug-replicator.md` `## Multi-persona path-coverage discipline (v2.11.0)` — cross-persona repro test mandate.
 - `tests/fixtures/vao/multi-persona-path-coverage-gap.json` — verbatim heirship canonical case (4 personas; only 1 tested; cross-persona sync broken; double-submit caused duplicate matters).
 - `tests/test_vao_per_persona_path_coverage.py` + `tests/test_multi_persona_path_coverage_discipline.py` — structural tests.

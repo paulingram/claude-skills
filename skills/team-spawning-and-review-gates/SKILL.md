@@ -68,6 +68,8 @@ An orchestrator coordinating parallel teammates is constantly tempted to convert
 
 Path: `<cwd>/.architect-team/reviews/<task-id>.json`.
 
+The Phase 3 task gate is a **tier-2** gate (`## Review tiers (v4.0.0)` below): the producer's 17-field self-review plus ONE paired independent verdict — the `task-reviewer`'s `independent_review` block, with `test-completeness-verifier` on the mechanical side — and a third independent verdict only when the two disagree. Three parallel reviewers are reserved for tier-3 gates (architecture approval, master review, map convergence). Schema v7 carries 17 required fields and 6 optional tool-mediated fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`).
+
 ## Red-first — a new guard is not evidence until it has been shown to fail
 
 > **STOP.** Before acting under this section, Read `skills/team-spawning-and-review-gates/references/red-first-a-new-guard-is-not-evidence-until-it-has-been-show.md` and execute it in full. Do not work from memory.
@@ -163,3 +165,4 @@ Each heavy section's full text lives in this skill's `references/` folder behind
 | `Hook-rejection escalation policy` | `skills/team-spawning-and-review-gates/references/hook-rejection-escalation-policy.md` | on demand |
 | `Independent review — the task-reviewer` | `skills/team-spawning-and-review-gates/references/independent-review-the-task-reviewer.md` | on demand |
 | `Review evidence — what each field means in practice` | `skills/team-spawning-and-review-gates/references/review-evidence-what-each-field-means-in-practice.md` | on demand |
+| `Review tiers (v4.0.0)` | `skills/team-spawning-and-review-gates/references/review-tiers.md` | on demand |

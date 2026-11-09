@@ -1,12 +1,12 @@
 ---
 name: visual-to-api-design
-description: Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE the API design from what the screens reveal — the Phase 0 "review this codebase / design the API for this visual" case. Runs the Exploration Pipeline, a scope-gated 7-stage flow with 3-reviewer convergence per stage (each convergence wrapped in a ct6-converge workflow whose completion-promise is total reviewer agreement) and per-stage checklists that gate the next stage's freeze. The body documents every stage, the checklists, the ct6-converge workflow governance, the openspec-skill conversion, and the original 4-stage flow that remains valid as a strict subset.
+description: Use when the architect-team is invoked against a visual codebase (UI present, requirements absent OR partially specified) and must DERIVE the API design from what the screens reveal — the Phase 0 "review this codebase / design the API for this visual" case. Runs the Exploration Pipeline, a scope-gated 7-stage flow with tier-3 3-reviewer convergence per stage (each convergence declared, run as a ct6-converge workflow labelled by its total-agreement completion-promise, and recorded) and per-stage checklists that gate the next stage's freeze. The body documents every stage, the checklists, the ct6-converge workflow governance, the openspec-skill conversion, and the original 4-stage flow that remains valid as a strict subset.
 user-invocable: false
 ---
 
 # Visual-to-API Design Pipeline (the Exploration Pipeline)
 
-When the architect-team is given a visual codebase (a UI repo, a Figma export, a deployed site URL) but no explicit requirements OR only partial requirements, this skill produces the API design — and, when frontend is in scope, the persona research, page/element catalog, reusable-component architecture, per-page REST returns, and consolidated API design — that the visual code implies. This is the **Exploration Pipeline**: a scope-gated **7-stage** flow, each stage frozen before the next begins, each stage reviewed by 3 independent agents in convergence (the v0.9.19 pattern) **inside a `ct6-converge` workflow** whose completion-promise is total reviewer agreement, each stage's output the explicit checklist the next stage must satisfy.
+When the architect-team is given a visual codebase (a UI repo, a Figma export, a deployed site URL) but no explicit requirements OR only partial requirements, this skill produces the API design — and, when frontend is in scope, the persona research, page/element catalog, reusable-component architecture, per-page REST returns, and consolidated API design — that the visual code implies. This is the **Exploration Pipeline**: a scope-gated **7-stage** flow, each stage frozen before the next begins, each stage reviewed by 3 independent agents in convergence (the v0.9.19 pattern — tier 3, because every stage freezes a map) **inside a `ct6-converge` workflow** declared before and recorded after, whose completion promise (total reviewer agreement) labels the gate while the recorded verdicts are the exit, each stage's output the explicit checklist the next stage must satisfy.
 
 **The original 4-stage flow is a strict SUBSET of the 7-stage pipeline** (see `## The 4 stages (the original subset)` below): Stage 1 (context discovery) is a subset of Exploration Stage 1, Stage 2 (per-persona research) of Exploration Stage 2, Stage 3 (page catalog) of Exploration Stage 3a, and Stage 4 (backend design from frontend) of Exploration Stages 5+6+7. The 4-stage subset and the `/architect-team:visual-to-api` command remain valid and unchanged.
 
@@ -44,7 +44,7 @@ A stage cannot freeze until its checklist returns `verdict: pass`. The orchestra
 
 ## 3-reviewer convergence per stage
 
-Each stage dispatches 3 reviewer agents in parallel (same v0.9.19 pattern as `interaction-completeness`):
+Each stage freezes a map, so each stage is a tier-3 gate (`skills/team-spawning-and-review-gates/references/review-tiers.md`): it dispatches 3 reviewer agents in parallel (the v0.9.19 pattern `interaction-completeness` used before its own gates were tiered):
 
 1. **Round 1 (independent):** each reviewer produces their own draft of the stage's required output.
 2. **Round 2 (round-robin):** each reviewer reads the other two's drafts; disputes resolve by re-reading evidence; agreements crystallize.
@@ -72,12 +72,12 @@ The skill is invoked at Phase 0 (Detection & Normalization) when ANY of the foll
 
 > **STOP.** Before acting under this section, Read `skills/visual-to-api-design/references/cross-references.md` and execute it in full. Do not work from memory.
 
-- `skills/interaction-completeness/SKILL.md` — the v0.9.19 3-reviewer convergence pattern this skill reuses per stage.
+- `skills/interaction-completeness/SKILL.md` — the v0.9.19 3-reviewer convergence pattern this skill reuses per stage (kept at tier 3 here because every stage freezes a map; `interaction-completeness` itself is tiered per gate since v4.0.0).
 - `skills/intake-and-mapping/SKILL.md` — produces the codebase scan that Stage 1 reads.
 - `hooks/vao_tools.py::verify_affordance_coverage` — the 13th Layer 3 tool that catches the file-upload-style affordance gap Stage 3 element classifications must address.
 - `agents/system-architect.md` `Visual-to-API Design Audit` mode (NEW v2.13.0) — runs Round 3 of every stage.
 - `agents/codebase-map-reviewer.md` — the existing reviewer pattern this skill's per-stage reviewers extend.
-- `ct6-converge` workflow (the `ct6-converge` workflow skill) — every Exploration Pipeline stage's 3-reviewer convergence runs INSIDE this loop with a total-agreement completion-promise (same pattern as `intake-and-mapping`).
+- the `ct6-converge` workflow (`workflows/ct6-converge.js`, declared before and recorded after per `skills/common-pipeline-conventions/references/converge-workflows.md`) — every Exploration Pipeline stage's 3-reviewer convergence runs INSIDE it with a total-agreement completion promise as the gate's label (same pattern as `intake-and-mapping`).
 - The openspec skill — `openspec-propose` / `opsx:propose` — the OpenSpec authoring mechanism Stages 4 and 7 call (never hand-written JSON).
 - `skills/design-fidelity-mapping/SKILL.md` (DESIGN_MAP) — Stage 3a reuses its per-element type/attribute/static-dynamic capture; unconditional raw-HTML-attribute capture is added on top.
 - `skills/frontend-route-mapping/SKILL.md` (ROUTE_MAP) — Stage 3b reuses the route inventory and annotates each route with impacted personas.
@@ -92,12 +92,12 @@ The skill is invoked at Phase 0 (Detection & Normalization) when ANY of the foll
 
 1. **Stages are frozen in order.** Stage N+1 cannot start until Stage N's artifact is frozen + architect-pass.
 2. **Checklists gate the freeze.** A stage's converged artifact cannot freeze until its checklist returns `verdict: pass`.
-3. **3-reviewer convergence per stage** — never 2, never 1.
+3. **3-reviewer convergence per stage** — tier 3 by design (each stage freezes a map); never 2, never 1.
 4. **Read-only on source.** Reviewers produce artifacts; they don't edit the codebase.
 5. **Cross-stage references by SHA.** Each stage's artifact carries `based_on_stage_<N-1>: "<sha-of-prior-artifact>"` so downstream verification can prove the chain.
 6. **No deferral.** Per v2.10.0 — every stage that finds a gap routes an SR (`api-design-stage-incomplete`); it does not catalogue the gaps as "deferred" at the end of the run.
 7. **Stage 4's API layer MUST cover every Stage 3 element marked `needs_backend: true`.** No partial API designs; the v2.7.0 pattern-propagation discipline applies (no follow-up offers).
-8. **Every stage runs inside a ct6-converge workflow.** Each of the 7 Exploration Pipeline stages wraps its 3-reviewer convergence in `ct6-converge` workflow with an explicit `--completion-promise` = total reviewer agreement (100% fidelity). There is no iteration cap — the loop runs until convergence. A stage cannot freeze on partial agreement; a genuinely unsettleable requirement (needing an owner decision) routes an `api-design-stage-incomplete` SR for required owner input while the run continues.
+8. **Every stage runs inside a ct6-converge workflow, declared and recorded.** Each of the 7 Exploration Pipeline stages wraps its 3-reviewer convergence in the `ct6-converge` workflow (`kind: stage-<n>`, `reviewers: 3`) with an explicit `promise` = total reviewer agreement (100% fidelity) as the gate's label; the gate is declared before the workflow and recorded after it (`skills/common-pipeline-conventions/references/converge-workflows.md`), and the recorded verdicts are the exit. There is no iteration cap — the loop runs until convergence is recorded. A stage cannot freeze on partial agreement; a genuinely unsettleable requirement (needing an owner decision) routes an `api-design-stage-incomplete` SR for required owner input while the run continues.
 9. **OpenSpec is authored via the openspec skill.** Stages 4 and 7 produce OpenSpec via `openspec-propose` / `opsx:propose` — NEVER hand-written OpenSpec JSON or spec files.
 10. **Scope gates the frontend/backend stages.** Stage 0 classifies `frontend-only | backend-only | both`; the frontend stages (1–6) run iff frontend is in scope and the backend stage (7) runs iff backend is in scope.
 11. **Run-time inputs are read, never guessed.** `language`, `component_libraries`, and `ancillary_docs` come from the brief frontmatter or project config; absence (when FE/component work is in scope) escalates via a domain gate.

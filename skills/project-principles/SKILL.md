@@ -57,8 +57,9 @@ both: they fill the gaps a project's principles leave, they never override one.
    `P-R*` defaults): confirm all / confirm some / none. The question quotes each
    source. Nothing becomes confirmed silently — a candidate the user did not
    confirm stays `proposed`, and a proposed principle does not bind.
-5. `propose` each confirmed-by-user candidate with `--source extracted --file
-   <path> --quote "<verbatim>"`, then `confirm` it. Record what the user said in
+5. `propose` each confirmed-by-user candidate with `--statement "<the drafted
+   rule>" --scope <scope> --source extracted --file <path> --quote "<verbatim>"`,
+   then `confirm <id>` it. Record what the user said in
    the run's clarifications log.
 
 ### add — "codify this"
@@ -89,7 +90,10 @@ principle (`respected` / `violated` / `not-applicable`), each `violated` with
 $(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/hooks/vao/principles.py" --workspace "<ws>" --verdicts "<sidecar>" --json
 ```
 
-Exit `0` is valid, `2` is a gap list to act on, `3` is an unreadable input. The
+Exit `0` is valid, `2` is a gap list to act on, `3` is an unreadable input
+(`scripts/principles/cli.py check --verdicts <sidecar> --workspace <ws>` runs the same
+validation from the engine CLI; the `hooks/vao_tools.py verify-principles-respected`
+subcommand is the Layer-3 facade for it). The
 review-gate evidence cites the verdict in the optional `principles_review` field
 (`hooks/review_evidence_schema.py`: `pass` must cite the verdict path; `fail`
 blocks; `n/a` with a note when the workspace has no confirmed principles).
@@ -160,4 +164,10 @@ agent's and the confirmation is the user's.
 - `skills/common-pipeline-conventions` — the spawn-brief manifest this skill's
   block rides in, beside `appearance_mode` and `deploy_mandate`.
 - `skills/verified-agent-output` — `verify-principles-respected` is a Layer-3
-  tool; `principles_review` is its review-gate field.
+  tool (one of the 26); `principles_review` is its review-gate field.
+
+## Reference index
+
+| Section | Reference file | Loaded |
+| --- | --- | --- |
+| the two schemas (`principles.json` register, `principles-verdicts/v1` sidecar) | `skills/project-principles/references/principles-schema.md` | on demand — before writing a sidecar or editing the register through the CLI |

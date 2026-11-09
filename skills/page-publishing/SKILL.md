@@ -28,7 +28,7 @@ Inside a Claude Code session the native Artifact guidance is also available and
 is the better DESIGN reference; defer to it for design, and hold the page to the
 contract below so it stays portable off Claude.
 
-## The page contract (read `references/page-contract.md`)
+## The page contract (read `skills/page-publishing/references/page-contract.md`)
 
 One self-contained HTML file; color tokens for light and dark via
 `prefers-color-scheme` AND `data-theme`; inline SVG for diagrams; responsive at
@@ -164,3 +164,9 @@ the engine returned.
 - Every private link is printed with its token, its expiry and the honest
   boundary; every `--revoke` is confirmed from the registry, not assumed.
 - `gcp-cloud-run` generates; a human deploys.
+
+## Reference index
+
+| Section | Reference file | Loaded |
+| --- | --- | --- |
+| `The page contract` | `skills/page-publishing/references/page-contract.md` | on demand — before authoring or linting a page |

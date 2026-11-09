@@ -1,11 +1,11 @@
 # Cross-references
 
-- `skills/interaction-completeness/SKILL.md` — the v0.9.19 3-reviewer convergence pattern this skill reuses per stage.
+- `skills/interaction-completeness/SKILL.md` — the v0.9.19 3-reviewer convergence pattern this skill reuses per stage (kept at tier 3 here because every stage freezes a map; `interaction-completeness` itself is tiered per gate since v4.0.0).
 - `skills/intake-and-mapping/SKILL.md` — produces the codebase scan that Stage 1 reads.
 - `hooks/vao_tools.py::verify_affordance_coverage` — the 13th Layer 3 tool that catches the file-upload-style affordance gap Stage 3 element classifications must address.
 - `agents/system-architect.md` `Visual-to-API Design Audit` mode (NEW v2.13.0) — runs Round 3 of every stage.
 - `agents/codebase-map-reviewer.md` — the existing reviewer pattern this skill's per-stage reviewers extend.
-- `ct6-converge` workflow (the `ct6-converge` workflow skill) — every Exploration Pipeline stage's 3-reviewer convergence runs INSIDE this loop with a total-agreement completion-promise (same pattern as `intake-and-mapping`).
+- the `ct6-converge` workflow (`workflows/ct6-converge.js`, declared before and recorded after per `skills/common-pipeline-conventions/references/converge-workflows.md`) — every Exploration Pipeline stage's 3-reviewer convergence runs INSIDE it with a total-agreement completion promise as the gate's label (same pattern as `intake-and-mapping`).
 - The openspec skill — `openspec-propose` / `opsx:propose` — the OpenSpec authoring mechanism Stages 4 and 7 call (never hand-written JSON).
 - `skills/design-fidelity-mapping/SKILL.md` (DESIGN_MAP) — Stage 3a reuses its per-element type/attribute/static-dynamic capture; unconditional raw-HTML-attribute capture is added on top.
 - `skills/frontend-route-mapping/SKILL.md` (ROUTE_MAP) — Stage 3b reuses the route inventory and annotates each route with impacted personas.

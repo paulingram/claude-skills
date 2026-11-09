@@ -10,7 +10,7 @@
 
 **Stage-3b CHECKLIST:** every route in the ROUTE_MAP has at least one impacted persona OR an explicit `impacted_personas: []` with a justification (e.g., a public/unauthenticated route); every persona in `PERSONA_MAP.md` is referenced by at least one route.
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-3B ROUTE-PERSONA COMPLETE — all reviewers agree every route is annotated with impacted personas". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-3B ROUTE-PERSONA COMPLETE — all reviewers agree every route is annotated with impacted personas". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 3c — Reusable-component architecture → `COMPONENT_ARCHITECTURE_MAP.md` (NET-NEW)
 
@@ -27,7 +27,7 @@
 
 **Stage-3c CHECKLIST against Stage 3a:** the UNION of every component's `covers_element_ids` MUST equal the full set of element_ids in the Stage 3a catalog (100% coverage). Every component declares a `placement` (pixel-perfect or structural) and an `expected_payload`.
 
-**ct6-converge workflow:** the >=3-agent doc-passing convergence is wrapped in the `ct6-converge` workflow with completion promise "STAGE-3C COMPONENT-ARCHITECTURE COMPLETE — all reviewers agree 100% element coverage + placement + payload". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** the >=3-agent doc-passing convergence is wrapped in the `ct6-converge` workflow with completion promise "STAGE-3C COMPONENT-ARCHITECTURE COMPLETE — all reviewers agree 100% element coverage + placement + payload". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 4 — Conversion → OpenSpec via the openspec skill
 
@@ -43,7 +43,7 @@
 
 **Stage-4 CHECKLIST:** 100% of the conversion plan is represented in the OpenSpec; the OpenSpec was authored via the openspec skill (not hand-written).
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-4 OPENSPEC-CONVERSION COMPLETE — all reviewers agree 100% of the plan is converted via the openspec skill". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-4 OPENSPEC-CONVERSION COMPLETE — all reviewers agree 100% of the plan is converted via the openspec skill". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 5 — Per-page REST returns → `API_RETURNS_MAP.md`
 
@@ -79,7 +79,7 @@
 
 **Stage-5 CHECKLIST against Stage 3a + Stage 3c:** every `value_class: dynamic` element maps to a return field; the over-fetch check returns 0 unconsumed top-level fields per page; shared-data pages reuse one shape.
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-5 API_RETURNS COMPLETE — all reviewers agree 100% of dynamic elements have an efficient return source (0 over-fetch)". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-5 API_RETURNS COMPLETE — all reviewers agree 100% of dynamic elements have an efficient return source (0 over-fetch)". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 6 — Consolidated API design + play-test → `API_DESIGN_MAP.md`
 
@@ -98,7 +98,7 @@
 
 **Stage-6 CHECKLIST against Stage 5 + Stage 3c:** every page satisfiable from the consolidated set; no two endpoints serve identical element sets; 100% of pages carry a play-test desk-trace; CRUD present where the data model needs it; returns shaped by user-type.
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-6 API_DESIGN COMPLETE — all reviewers agree the consolidated API satisfies 100% of pages (desk-traced) with max reuse". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-6 API_DESIGN COMPLETE — all reviewers agree the consolidated API satisfies 100% of pages (desk-traced) with max reuse". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Stage 7 — Backend data architecture + phenotype gates → `DATA_ARCHITECTURE_MAP.md`
 
@@ -119,11 +119,11 @@
 
 **Stage-7 CHECKLIST against Stage 6 + Stage 1:** the schema covers every data point implied by the consolidated API (Stage 6) and every persona need (Stage 1/2); the three phenotype domain gates fired; the final requirements are OpenSpec authored via the openspec skill.
 
-**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-7 DATA_ARCHITECTURE COMPLETE — all reviewers agree the schema is extensible, DB types selected, phenotype gates fired, OpenSpec emitted via the openspec skill". The loop runs until the completion-promise is satisfied (no iteration cap).
+**ct6-converge workflow:** wrapped in the `ct6-converge` workflow with completion promise "STAGE-7 DATA_ARCHITECTURE COMPLETE — all reviewers agree the schema is extensible, DB types selected, phenotype gates fired, OpenSpec emitted via the openspec skill". The promise is the gate's label; the loop runs until the record says converged (no iteration cap).
 
 ### Exploration Pipeline — stage→doc→ct6-converge workflow→checklist summary
 
-| Stage | Scope gate | Reuses | Output doc | OpenSpec skill | ct6-converge workflow completion-promise (abbrev.) |
+| Stage | Scope gate | Reuses | Output doc | OpenSpec skill | ct6-converge workflow completion-promise = gate label (abbrev.) |
 |---|---|---|---|---|---|
 | 0 — Scope detection | always | `intake-and-mapping` | `stage-0-scope.json` | — | STAGE-0 SCOPE COMPLETE |
 | 1 — Personas + classification | frontend | Exploration Stage 1 (context discovery) | `stage-1-context.json` (+ `ancillary_docs_read`) | — | STAGE-1 CONTEXT COMPLETE |

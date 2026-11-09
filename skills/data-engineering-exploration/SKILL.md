@@ -6,7 +6,7 @@ user-invocable: false
 
 # Data Engineering Exploration
 
-You are the **Data Engineering Exploration orchestrator**. Drive the 7-stage flow that converts a data engineering ask + any available reference material into a complete data architecture + transformation logic spec + validation/lineage/observability plan + OpenSpec change. Each stage's 3-reviewer convergence runs inside `ct6-converge` workflow with a total-agreement completion-promise. Each ct6-converge workflow runs until its completion-promise is satisfied (total reviewer agreement); there is no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
+You are the **Data Engineering Exploration orchestrator**. Drive the 7-stage flow that converts a data engineering ask + any available reference material into a complete data architecture + transformation logic spec + validation/lineage/observability plan + OpenSpec change. Each stage's 3-reviewer convergence (tier 3 — every stage freezes a map) runs as declare → `ct6-converge` workflow → record (`skills/common-pipeline-conventions/references/converge-workflows.md`) with a total-agreement completion promise as the gate's label. Each loop runs until the record says converged (total reviewer agreement); there is no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 ## When this skill runs
 
@@ -70,7 +70,7 @@ The `domain-research-team` skill's mandatory outside-research mandate fires — 
 
 **Stage-1 checklist:** every persona / data consumer identified + every regulatory constraint cataloged + industry data-stack patterns documented + competitor stack approach summarized.
 
-**Convergence promise:** `"DOMAIN CONTEXT COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "DOMAIN CONTEXT COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"DOMAIN CONTEXT COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "DOMAIN CONTEXT COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 2 — Conceptual data model
 
@@ -114,7 +114,7 @@ Schema:
 
 **Stage-2 checklist:** every entity from Stage 1's domain context represented; every business rule cited to evidence; PII / PHI / PCI classification per attribute; SCD strategy per dimension.
 
-**Convergence promise:** `"DATA MODEL COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "DATA MODEL COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"DATA MODEL COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "DATA MODEL COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 3 — Service design
 
@@ -162,7 +162,7 @@ Stage 3 emits a `phenotype_proposals` block in the output map:
 
 **Stage-3 checklist:** every subsystem assigned a pattern + tool; every tool choice has a rationale citing Stage 1 + Stage 4 evidence; phenotype proposals consult the convergence rules.
 
-**Convergence promise:** `"SERVICE DESIGN COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "SERVICE DESIGN COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"SERVICE DESIGN COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "SERVICE DESIGN COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 4 — Volume + velocity analysis
 
@@ -200,7 +200,7 @@ For each entity from Stage 2:
 
 **Sample-first hand-off (v4.0.0).** This profile — `current_rows`, `cardinality_concerns`, the arrival pattern — is what the lane's sample plan is judged against when a D2 transformation is iterated sample-first (`data-eng-pipeline` `## Sample-first iteration (v4.0.0)`): `scripts/data_dictionary/sampling.py plan` reads the dictionary's grain, keys, partitions, and row count, and the Stage 4 numbers fill in what the dictionary lacks (an unknown row count, a high-cardinality stratum), so record the resulting `sample-plan.json` beside this map.
 
-**Convergence promise:** `"VOLUME VELOCITY COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "VOLUME VELOCITY COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"VOLUME VELOCITY COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "VOLUME VELOCITY COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 5 — Data security
 
@@ -230,7 +230,7 @@ Output: `<exploration-dir>/stage-5/DATA_SECURITY_MAP.md`.
 
 **Stage-5 checklist:** every entity has a security classification; every PII / PHI / PCI attribute has encryption + access control assigned; retention policies cite regulatory scopes; audit logging requirements cover access + modify + export.
 
-**Convergence promise:** `"DATA SECURITY COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "DATA SECURITY COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"DATA SECURITY COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "DATA SECURITY COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 6 — MANDATORY validation + lineage + observability (the v3.5.0 non-negotiable)
 
@@ -339,7 +339,7 @@ The mandate itself does not move, per `common-pipeline-conventions` `## Augment-
 
 **Failures iterate** until every checklist item passes — Stage 6 is the gate the v3.5.0 mandate enforces.
 
-**Convergence promise:** `"VALIDATION LINEAGE COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "VALIDATION LINEAGE COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"VALIDATION LINEAGE COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "VALIDATION LINEAGE COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Stage 7 — OpenSpec authoring
 
@@ -356,7 +356,7 @@ Each spec REQ MUST cite at least one Stage 1-6 source for traceability.
 
 **Stage-7 checklist:** OpenSpec validates strict; every Stage 2 entity → REQ; every Stage 6 validation rule → acceptance criterion; phenotype seed proposals routed via domain gate; tasks decomposed.
 
-**Convergence promise:** `"OPENSPEC AUTHORING COMPLETE"`. Wrapped in the canonical flag form the `ct6-converge` workflow with completion promise "OPENSPEC AUTHORING COMPLETE" — loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+**Convergence promise:** `"OPENSPEC AUTHORING COMPLETE"`. Run as declare → the `ct6-converge` workflow with completion promise "OPENSPEC AUTHORING COMPLETE" → record (tier 3, `reviewers: 3`, per `skills/common-pipeline-conventions/references/converge-workflows.md`); the promise is the gate's label and the loop runs until the record says converged; no iteration cap (v3.8.0 unbounded solving).
 
 ## Phase D8 — Return verdict
 
@@ -387,7 +387,7 @@ Return to the caller:
 ## Disciplines this skill respects
 
 - v3.0.0 unilateral-override — no stage can be skipped; each stage's checklist + 3-reviewer convergence is non-negotiable.
-- v0.9.19 3-reviewer convergence — the canonical pattern per stage.
+- v0.9.19 3-reviewer convergence — the canonical pattern per stage; tier 3 under v4.0.0 because each stage freezes a map, run as declare → `ct6-converge` workflow → record.
 - v3.5.0 phenotype convergence rules — Stage 3 phenotype proposals consult the rules table.
 - visual-to-api-design operating rules — applied verbatim to this skill (stages frozen in order, checklists gate freezes, read-only on source, cross-stage references by SHA, no deferral, OpenSpec via openspec skill, etc.).
 - The mandatory validation + lineage + observability defaults (Stage 6) — non-negotiable by user mandate.

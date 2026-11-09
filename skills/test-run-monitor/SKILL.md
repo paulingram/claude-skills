@@ -99,7 +99,7 @@ Dispatch `test-run-watcher` (sonnet, color teal) with the bound source spec + ad
 
 ## Phase M3 — Synthesize (dispatch the monitor-synthesizer agent)
 
-Dispatch `monitor-synthesizer` (opus, color teal) with the run-id + the findings directory. The synthesizer's job:
+Dispatch `monitor-synthesizer` (sonnet under `--split role`, color teal) with the run-id + the findings directory. The synthesizer's job:
 
 1. **Read every finding** from the findings directory.
 2. **Classify each finding** into one of the 4 categories per `common-pipeline-conventions/SKILL.md` `## Test-run monitor discipline (v3.3.0)`:

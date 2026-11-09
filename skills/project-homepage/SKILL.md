@@ -32,7 +32,7 @@ Title `<project> · CT6 Home`. Seven panels plus a Runs list:
 The header stamp carries `built_at`, the count of sources read, and a
 `<details>` table with each source's path, state, sha256 and mtime. A **stale
 since** banner compares the previous build's recorded hashes
-(`homepage/build-state.json`) with the sources now; `build.py stale --json`
+(`homepage/build-state.json`) with the sources now; `build.py stale --workspace "$(pwd)" --json`
 gives the same verdict from a shell, and the SessionStart hook may call
 `is_stale(workspace)`.
 
@@ -62,8 +62,10 @@ The call is the same everywhere (polyglot Python per
 `common-pipeline-conventions` `## Cross-platform Python invocation`):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "$(pwd)" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" build --workspace "$(pwd)" [--out <path>] --json
 ```
+
+(`build` is the default verb, so the bare `build.py --workspace ...` form is equivalent; `stale` is the other verb.)
 
 A rebuild never blocks a phase: a build failure is reported (exit 3) and the
 previous page stays in place with its own stamp.
@@ -93,8 +95,10 @@ When the user asks how long something will take -- a run, a phase, an agent,
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/timings.py" estimate --workspace "$(pwd)" \
-  --lane bug-fix [--phase B3] [--agent backend] [--size medium] [--json]
+  --lane bug-fix [--phase B3] [--agent backend] [--size medium] [--kind agent|task|phase|run] [--min-n N] [--also-user-level] [--json]
 ```
+
+(`timings.py stats --workspace <ws> [--group-by lane,phase,agent] [--also-user-level] [--json]` is the Performance panel's source.)
 
 - State `basis_n` (how many recorded intervals the number rests on) and the
   median + p90 it returns, in the words the CLI uses.

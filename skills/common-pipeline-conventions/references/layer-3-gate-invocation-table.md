@@ -15,6 +15,10 @@ $(command -v python3 || command -v python) "<P>/hooks/vao_tools.py" <subcommand>
 | Deploy-mandate final gate (v2.20.0) | `verify-deploy-mandate-satisfied` | `--artifact <evidence> --mandate <intake-state> --final-report <report>` | Phase 8 / B8 / M7 (only when `deploy_mandate.active`) | BLOCKS |
 | Unilateral-override meta-gate (v3.0.0) | `verify-no-unilateral-override` | `--sources <text-sources>` | Phase 8 / B8 / M7 | BLOCKS |
 | Heartbeat tick (v3.10.0) | (notify) `scripts/notify/notify.py heartbeat` + `run_metrics.heartbeat_snapshot` | `--project <name>` | >30-min phases + post-first-hour boundaries | never gates / never caps |
+| Project principles (v4.0.0) | `verify-principles-respected` | `--workspace "<W>" --verdicts <principles-verdicts/v1 sidecar>` | before any design / contract / diff / option set is PRESENTED (Phase 1 / 2 / 3 and the B / M / D analogues); cited by the optional `principles_review` evidence field | gaps block that gate (exit `2`); `all-options-violate` is the hard stop (`skills/project-principles/SKILL.md`) |
+| Required reads (v4.0.0) | `verify-required-reads` | `--workspace "<W>" --run-id "<R>" [--phase <P>]` | every phase boundary + the Stop audit arm `_audit_required_reads` | MEASURED GAP (`required-read-skipped`), blocking only with `CT6_REQUIRED_READS_BLOCKING=1`; kill-switch `CT6_REQUIRED_READS_GATE_DISABLED` |
+
+This table names the gates the pipeline bodies call by name; `hooks/vao_tools.py` is the complete inventory of the **26** Layer-3 tools (v4.0.0 added `verify-principles-respected` and `verify-required-reads` to the 24 of v3.66.0), and `skills/verified-agent-output/SKILL.md` is the framework they belong to.
 
 A body's gate reference is one line — e.g. *"Phase 8 runs the Deploy-mandate final gate + the Unilateral-override meta-gate per `common-pipeline-conventions` `## Layer 3 gate invocation table (v3.10.0)` (both BLOCK)."* The gate's one-sentence operative stub (what it blocks on / that it's best-effort) stays inline at the phase; the bash form lives here.
 

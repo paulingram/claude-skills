@@ -1,6 +1,6 @@
 ---
 name: editability-completeness
-description: Use when a feature that creates or edits entities has been implemented and you must verify that every attribute those entities expose which a user should be able to control actually has a working end-to-end editing path — UI control through state through the API into the database and back. Triggers — a "create a thing" or "edit a thing" flow exists; an entity has attributes (title, name, description, status, tags, owner, ...) and you are not certain every one a user should set is actually settable and persists; a value shows in the UI or the data model but you cannot find where the user sets it; Phase 5 cross-layer verification; an on-demand editability audit via /architect-team:editability-audit. Spawns three editability-reviewer agents that independently reason through what must be editable, argue to a converged list, route gaps as solution requirements, and re-review after fixes until all three agree the editable surface is complete.
+description: Use when a feature that creates or edits entities has been implemented and you must verify that every attribute those entities expose which a user should be able to control actually has a working end-to-end editing path — UI control through state through the API into the database and back. Triggers — a "create a thing" or "edit a thing" flow exists; an entity has attributes (title, name, description, status, tags, owner, ...) and you are not certain every one a user should set is actually settable and persists; a value shows in the UI or the data model but you cannot find where the user sets it; Phase 5 cross-layer verification; an on-demand editability audit via /architect-team:editability-audit. Spawns editability-reviewer agents at the gate's review tier (one per slice, three at the Phase 7 sweep) that independently reason through what must be editable, argue to a converged list, route gaps as solution requirements, and re-review after fixes until the editable surface is complete.
 user-invocable: false
 ---
 
@@ -16,15 +16,17 @@ Three disciplines:
 2. **Classify by who controls it — reason from the context of the ask.** For each attribute, decide who sets it: the user (at create, at edit, or both), the system, a derivation, or an action/transition. This is a judgment call. Make it from THIS feature's requirements and design — not from the attribute's name. The same name (`status`, `slug`, `priority`) is a user choice in one product and system-managed in another. When the requirements genuinely do not determine it, escalate to the human; never guess.
 3. **Trace every user-controllable attribute end-to-end.** UI control → component/form state → API request payload → API request schema → backend handler → database write → read-back. A break at ANY stage, for an attribute that should be editable, is a gap. A control that exists but whose value never reaches the database is exactly as broken as a missing control.
 
-This is a judgment-heavy task — "intuit what a real user would expect to control" — so it runs as a **three-agent team that argues to convergence**, and it is **multi-pass**: after the gaps are fixed, the team re-reviews until all three agree the editable surface is complete.
+This is a judgment-heavy task — "intuit what a real user would expect to control" — so it runs as a **reviewer panel that argues to convergence**, sized by the review tier of the gate it serves (`skills/team-spawning-and-review-gates/references/review-tiers.md`): ONE paired `editability-reviewer` for a slice at Phase 3 / Phase 5 (tier 2, a second independent reviewer only on disagreement), three independent `editability-reviewer` agents in parallel for the Phase 7 sweep (tier 3). It is **multi-pass**: after the gaps are fixed, the panel re-reviews until every reviewer at the gate's tier agrees the editable surface is complete.
 
-## The team: three reviewers, argue to convergence, act, repeat
+## The team: three reviewers at tier 3, one paired reviewer at tier 2 — argue to convergence, act, repeat
 
 The orchestrator (or the `/architect-team:editability-audit` command) runs this skill as a loop-until-converged outer loop (no fixed pass cap — per `common-pipeline-conventions` `## Unbounded solving discipline`). One **pass** is: independent analysis → argue to convergence → gaps become solution requirements → the normal fix loop acts → re-spawn for the next pass.
 
+The panel's width is the gate's tier (`skills/team-spawning-and-review-gates/references/review-tiers.md`): **tier 2** — one `editability-reviewer`, independent of the producing teammate, whose own self-review evidence is the other side of the argument, with a second independent `editability-reviewer` giving the deciding third verdict when the two disagree — at a Phase 3 / Phase 5 slice gate and for an on-demand audit of one feature; **tier 3** — three `editability-reviewer` agents in parallel — at the Phase 7 sweep and whenever a project principle or the user raises the tier (a tier-3 gate is never lowered below 2). At either tier the loop runs as declare → `ct6-converge` workflow → record per `skills/common-pipeline-conventions/references/converge-workflows.md`: tier 3 is the `ct6-converge` workflow with completion promise "EDITABILITY COMPLETE" (the `editability` preset, `reviewers: 3`), tier 2 the same protocol with `reviewers: 1`; the promise is the gate's label and the recorded verdicts are the exit. The rounds below are written for the tier-3 panel; at tier 2 read "the other drafts" as the producing teammate's self-review evidence plus the paired reviewer's draft.
+
 ### Pass P, Round 1 — independent analysis (parallel)
 
-The orchestrator spawns **three `editability-reviewer` agents in parallel**. Each receives the same brief (the feature, the requirements / `$REQ_DIR`, the relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP, the coverage-map slice) and its reviewer index (1, 2, 3).
+The orchestrator spawns the panel — **three `editability-reviewer` agents in parallel** at tier 3, one at tier 2. Each receives the same brief (the feature, the requirements / `$REQ_DIR`, the relevant CODEBASE_MAP / ROUTE_MAP / DESIGN_MAP / INTEGRATION_MAP, the coverage-map slice) and its reviewer index (1, 2, 3 — or 1 alone at tier 2).
 
 Each reviewer INDEPENDENTLY — no consulting the others — does the full job: enumerate entities + attributes, classify each attribute, trace each user-controllable attribute end-to-end, and write its draft editable-surface map to:
 
@@ -32,28 +34,28 @@ Each reviewer INDEPENDENTLY — no consulting the others — does the full job: 
 <cwd>/.architect-team/editability/<feature-slug>/reviewer-<N>-pass<P>-<ts>.json
 ```
 
-Independence is the rigor: three independent judgments about what must be editable catch the classification errors a single reviewer rationalizes past.
+Independence is the rigor: a judgment made without seeing the producer's reasoning catches the classification errors a self-reviewing producer rationalizes past, and at tier 3 three such judgments also catch what one reviewer rationalizes past.
 
 ### Pass P, Round 2 — argue to convergence (round-robin)
 
-After all three drafts exist, the reviewers converge. Each reviewer reads the other two drafts and, for every attribute where the **classification** or the **gap verdict** differs across drafts, debates it:
+After every draft at the gate's tier exists, the panel converges. Each reviewer reads the other drafts (at tier 2: the producing teammate's self-review evidence) and, for every attribute where the **classification** or the **gap verdict** differs across drafts, debates it:
 
 - The reviewer who disagrees must either cite evidence — a line from the requirements, the design, the data model, the domain — that changes the others' position, OR be persuaded by their evidence and revise its own draft.
 - "It feels like it should be editable" is not evidence. "The proposal says 'users name their projects'" is evidence. "`created_at` is in the migrations with a `DEFAULT now()` and no UI anywhere references it" is evidence.
 
-After each round-robin round each reviewer emits: `agreement: [<attributes where I now match both others>]` and `open_disputes: [<attribute: my classification vs theirs, with my evidence>]`. Loop until every reviewer's `open_disputes` is empty — the three now hold an identical canonical list. A dispute that survives **4 round-robin rounds** is genuinely undetermined by the available evidence: it moves to `escalations` (the human decides) and is removed from the blocking set so convergence does not stall.
+After each round-robin round each reviewer emits: `agreement: [<attributes where I now match both others>]` and `open_disputes: [<attribute: my classification vs theirs, with my evidence>]`. Loop until every reviewer's `open_disputes` is empty — the panel now holds an identical canonical list. At tier 2, a dispute between the paired reviewer and the producer's evidence that one round of cited evidence does not settle goes to a second independent `editability-reviewer`, whose verdict is final for that round (the review-tier rule). A dispute that no cited evidence can settle — each side has exhausted the requirements, the design and the data model and still disagrees — is genuinely undetermined by the available evidence: it moves to `escalations` (the human decides — a named missing input, the one sanctioned pause) and is removed from the blocking set so convergence does not stall. The trigger is exhausted evidence, never a round count (`docs/ETHOS.md` principle 8).
 
 This is the "argue until they have a clear list of asks" the team exists to produce.
 
 ### Pass P, Round 3 — system-architect robustness review (independent falsifier)
 
-Three reviewers converging is not the same as three reviewers being right. They can converge on the same wrong classification — the classic failure is all three defaulting an ambiguous `status` to `system-managed` because none of them seriously considered it could be `dynamic-via-action`. Convergence-without-an-independent-check is itself a hole. So, after Round 2, the orchestrator dispatches the `system-architect` agent to review the converged editable-surface map for **robustness** — exactly as `diagnostic-research-team` does after its three researchers.
+Reviewers converging is not the same as reviewers being right. They can converge on the same wrong classification — the classic failure is every reviewer defaulting an ambiguous `status` to `system-managed` because none of them seriously considered it could be `dynamic-via-action`. Convergence-without-an-independent-check is itself a hole. So, after Round 2, the orchestrator dispatches the `system-architect` agent to review the converged editable-surface map for **robustness** — exactly as `diagnostic-research-team` does after its three researchers.
 
 The architect does NOT re-do the enumeration. It asks: is the converged result robust?
 
-- **Shared blind spot.** Did all three reviewers classify some attribute the same way without any of them citing real evidence — a converged guess wearing the costume of consensus? Each `system-managed` / `derived` classification must be justified, not just agreed.
+- **Shared blind spot.** Did every reviewer classify some attribute the same way without any of them citing real evidence — a converged guess wearing the costume of consensus? Each `system-managed` / `derived` classification must be justified, not just agreed.
 - **Coverage.** Is there an attribute in the data model or the design that the converged map never classified at all?
-- **Diversity of the editable set.** If the converged map says almost nothing is `user-editable`, is that the product, or three reviewers being conservative in lockstep?
+- **Diversity of the editable set.** If the converged map says almost nothing is `user-editable`, is that the product, or the reviewers being conservative in lockstep?
 - **Trace depth.** For every `user-editable` attribute marked `complete`, does the trace actually carry `file:line` evidence at all seven stages, or did the reviewers wave a stage through?
 - **Escalation honesty.** Did a genuinely ambiguous attribute get force-classified to avoid an escalation?
 
@@ -77,12 +79,12 @@ Every entry in the converged map's `gaps[]` becomes a **solution requirement** p
 
 ### Act, then re-review (the multi-pass outer loop)
 
-The fix teams act on the SRs through the normal Phase 2 → Phase 5 dev loop with full review gates. When the fixes land, the orchestrator **re-spawns the three reviewers for Pass P+1** — a fresh independent analysis, not a diff. They re-enumerate, re-classify, re-trace.
+The fix teams act on the SRs through the normal Phase 2 → Phase 5 dev loop with full review gates. When the fixes land, the orchestrator **re-spawns the panel, at the same tier, for Pass P+1** — a fresh independent analysis, not a diff. They re-enumerate, re-classify, re-trace.
 
-- If Pass P+1's converged map has an **empty `gaps[]` AND all three reviewers agree** → **satisfied**. Exit the loop.
+- If Pass P+1's converged map has an **empty `gaps[]` AND every reviewer at the gate's tier agrees** → **satisfied**. Exit the loop.
 - Else → another act + re-review cycle.
 
-The outer loop runs until all three reviewers agree on an empty `gaps[]` — there is NO fixed pass cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each pass that still shows gaps spawns the next act + re-review cycle; the loop continues until satisfied. If a specific attribute's editability is genuinely unsettled in the requirements (an `ambiguous` classification only the owner can resolve), the orchestrator surfaces that specific attribute to the owner as required input — loudly, while continuing to close every other gap — and resumes once it is decided. The loop never halts on pass count; only a genuine required-owner-decision (not exhaustion) pauses it.
+The outer loop runs until every reviewer at the gate's tier agrees on an empty `gaps[]` — there is NO fixed pass cap (per `common-pipeline-conventions` `## Unbounded solving discipline`). Each pass that still shows gaps spawns the next act + re-review cycle; the loop continues until satisfied. If a specific attribute's editability is genuinely unsettled in the requirements (an `ambiguous` classification only the owner can resolve), the orchestrator surfaces that specific attribute to the owner as required input — loudly, while continuing to close every other gap — and resumes once it is decided. The loop never halts on pass count; only a genuine required-owner-decision (not exhaustion) pauses it.
 
 ## The editability classification rubric (the "intuit what must be editable" core)
 
@@ -180,7 +182,7 @@ A `gap` is any must-be-editable attribute whose trace breaks. Record the kind:
 }
 ```
 
-`satisfied` is `true` only when `gaps` is empty and all three reviewers confirmed the converged map.
+`satisfied` is `true` only when `gaps` is empty and every reviewer at the gate's tier confirmed the converged map (all three at tier 3; the paired reviewer — and the deciding third verdict when one was needed — at tier 2). `reviewers_agreed` lists exactly the reviewers that were dispatched; the example above is a tier-3 record.
 
 Per `mempalace-integration`, the orchestrator auto-mines each converged map to MemPalace: `mempalace --palace <palace> mine "<converged-map path>" --wing <wing>` (`mine` takes `--wing` only — rooms are auto-detected from the mined file's directory layout). Future runs against the same project can then search prior editable-surface maps before re-reviewing.
 
@@ -196,18 +198,18 @@ They are complementary. A feature can pass all of the above and still fail this 
 ## Where this skill plugs into the pipeline
 
 - **Phase 1 (planning).** Informs the coverage map: for each entity a requirement introduces, the spec should already enumerate the user-editable attributes. The planning validation can consult this skill's rubric to avoid under-specifying.
-- **Phase 5 (cross-layer integration).** The mandatory home. Editability is inherently cross-layer (UI + API + DB); Phase 5 is where both layers are integrated. For any feature with a create or edit flow, the orchestrator runs the full editability-completeness team (three reviewers, converge, gaps → SRs, multi-pass) alongside the visual-fidelity regression sweep.
-- **Phase 7 (master review).** Confirms the editability team reached `satisfied` for every entity-bearing feature. An unsatisfied editability loop is a coverage gap; re-spawn.
+- **Phase 5 (cross-layer integration).** The mandatory home. Editability is inherently cross-layer (UI + API + DB); Phase 5 is where both layers are integrated. For any feature with a create or edit flow, the orchestrator runs the full editability-completeness panel at the slice gate's tier (one paired reviewer, converge, Round-3 architect review, gaps → SRs, multi-pass) alongside the visual-fidelity regression sweep.
+- **Phase 7 (master review).** Confirms the editability panel reached `satisfied` for every entity-bearing feature and runs the tier-3 sweep across the shipped feature set — three reviewers via the `ct6-converge` workflow with completion promise "EDITABILITY COMPLETE" (the `editability` preset), declared and recorded. An unsatisfied editability loop is a coverage gap; re-spawn.
 - **`/architect-team:editability-audit`.** On-demand invocation against an existing codebase.
 
 ## Hard rules (non-negotiable)
 
-- Three reviewers, always — independent in Round 1, arguing in Round 2. Two cannot triangulate a judgment call; the third is the tie-break and the falsifier.
-- The Round 3 `system-architect` robustness review is a non-negotiable gate. Three reviewers converging is not proof they are right — they can converge on a shared blind spot. The converged map is not final, and no `editability-gap` SR is written, until the architect's verdict is `pass`.
+- The reviewer tier follows the gate (v4.0.0): three reviewers at the Phase 7 sweep (tier 3); one paired reviewer at a slice gate (tier 2) with a third independent verdict only on disagreement — independent in Round 1, arguing in Round 2. The producer is never its own checker at any tier, and a disagreement is never settled by the producer.
+- The Round 3 `system-architect` robustness review is a non-negotiable gate. Reviewers converging is not proof they are right — they can converge on a shared blind spot. The converged map is not final, and no `editability-gap` SR is written, until the architect's verdict is `pass`.
 - Reviewers are **analysis-only**. They classify, trace, and write the map and the SRs. They do NOT write feature code — adding a field end-to-end is real dev work that must go through Phase 2 → Phase 5 review gates, the reuse-first ladder, and the test requirements. A reviewer that edits a component bypasses every one of those.
 - Every classification carries `reasoning` citing a source (requirements / design / data model). A classification with no citation is a guess.
 - Every trace stage carries `file:line` evidence. "Looks fine" is not a verdict.
 - Enumerate from all four sources (DB schema, API schemas, design, components) — the union. A field in the data model but in no design screen is still in scope (it may be an `orphan-field` gap or correctly `system-managed`).
 - Ambiguous attributes escalate to the human. Never default-guess a classification under time pressure.
-- The loop is multi-pass and runs until all three reviewers agree on zero gaps (no fixed pass cap, v3.8.0). After a fix, re-review from scratch — do not assume the fix was complete.
+- The loop is multi-pass and runs until every reviewer at the gate's tier agrees on zero gaps (no fixed pass cap, v3.8.0). After a fix, re-review from scratch — do not assume the fix was complete.
 - An editability-gap SR spawns a fix team directly; it does not route through `diagnostic-research-team` (the gap is already fully diagnosed).

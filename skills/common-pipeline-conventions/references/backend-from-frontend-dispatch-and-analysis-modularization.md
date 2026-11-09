@@ -4,7 +4,7 @@ v3.4.0 extracts the analysis primitives previously inline in `intake-and-mapping
 
 | Job | Old home (inline) | New home (skill) |
 |---|---|---|
-| Run cartographer + 3-reviewer convergence + targeted re-mapping | `intake-and-mapping` step B (inline block) | `cartographer-team` skill |
+| Run cartographer (or the native map when the conditional plugin is absent) + tier-3 3-reviewer convergence + targeted re-mapping | `intake-and-mapping` step B (inline block) | `cartographer-team` skill |
 | Run 3-researcher convergence with codebase + outside research | `intake-and-mapping` step C (inline); `visual-to-api-design` Stages 1+2 (inline) | `domain-research-team` skill |
 | Per-page returns + consolidated API design + backend data architecture (the "backend logic from frontend" portion of the Exploration Pipeline) | `visual-to-api-design` Stages 5+6+7 (inline) | `api-design-from-frontend` skill |
 
@@ -35,14 +35,14 @@ The intent: the frontend codebase is examined as evidence; it is never modified.
 
 The `domain-research-team` skill REQUIRES every researcher to perform outside research (industry / market / competitors / related products), **regardless of whether docs or a frontend codebase are provided as inputs** (driver in CHANGELOG v3.4.0: *"it must … actually perform outside research … even if docs are provided"*). Concrete implementation:
 
-- The new `domain-researcher` agent (opus, color amber) carries `WebFetch` + `WebSearch` in its tool allowlist (in addition to the standard read/glob/grep/bash/write set).
+- The new `domain-researcher` agent (fable under `--split role` — a research/judgment seat; color amber) carries `WebFetch` + `WebSearch` in its tool allowlist (in addition to the standard read/glob/grep/bash/write set).
 - Phase R2 of `domain-research-team` is the "Outside research" phase — every researcher independently runs queries against the industry / market / competitor surface relevant to the inputs.
 - The skill's completion-promise (`DOMAIN RESEARCH COMPLETE`) requires that every researcher's output JSON include a non-empty `outside_research` block (with at least 1 industry query, 1 market context query, 1 competitor product cited).
 - If a researcher returns an empty `outside_research` block, the ct6-converge workflow iterates with the deficiency surfaced.
 
 ### Cross-references
 
-- `skills/cartographer-team/SKILL.md` — the new cartographer + 3-reviewer skill body.
+- `skills/cartographer-team/SKILL.md` — the cartographer + tier-3 map-convergence skill body.
 - `skills/domain-research-team/SKILL.md` — the new 3-researcher + master-synthesizer skill body with outside-research mandate.
 - `skills/api-design-from-frontend/SKILL.md` — the new Stages 5+6+7 extraction.
 - `agents/domain-researcher.md` — the new researcher agent (WebFetch + WebSearch enabled).

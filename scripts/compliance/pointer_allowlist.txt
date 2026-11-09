@@ -36,8 +36,6 @@ docs/SQL_MINING_MAP.md
 # ---------------------------------------------------------------------------
 # cited by skills/playwright-user-flows/SKILL.md (line 263 at HEAD 4e13058)
 skills/playwright-user-flows/references/local-dev-test-discipline.md
-# cited by agents/qa-replayer.md
-agents/references/local-dev-test-discipline.md
 
 # ---------------------------------------------------------------------------
 # dead headings -- class: version-suffix drift. The cite is the heading's stable

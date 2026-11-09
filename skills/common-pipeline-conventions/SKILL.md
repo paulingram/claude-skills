@@ -281,7 +281,7 @@ Canonical home of the bug-fix run-metric discipline (REQ-CDL-02 / REQ-SAFE-02; `
 
 > **STOP.** Before acting under this section, Read `skills/common-pipeline-conventions/references/uniform-plugin-usage.md` and execute it in full. Do not work from memory.
 
-This is the single source of truth for HOW every CT6 pipeline invokes its plugin dependencies — the ct6-converge workflow, the superpowers plugin, and the OpenSpec CLI/skills. The point is **predictable behavior regardless of which pipeline runs**: the full (`architect-team-pipeline`), bug-fix (`bug-fix-pipeline`), mini (`mini-architect-team-pipeline`), and ux-test (`ux-test-builder`) bodies all reference THIS section rather than re-describing the invocation form locally, so a single edit propagates. A pipeline body MUST NOT re-spell these invocations inline.
+This is the single source of truth for HOW every CT6 pipeline invokes its orchestration and methodology dependencies — the native `ct6-converge` workflow (declared before, recorded after), the CONDITIONAL superpowers plugin with its native fallback (not a hard dependency since v4.0.0), and the OpenSpec CLI/skills. The point is **predictable behavior regardless of which pipeline runs**: the full (`architect-team-pipeline`), bug-fix (`bug-fix-pipeline`), mini (`mini-architect-team-pipeline`), and ux-test (`ux-test-builder`) bodies all reference THIS section rather than re-describing the invocation form locally, so a single edit propagates. A pipeline body MUST NOT re-spell these invocations inline.
 ## Layer 3 gate invocation table (v3.10.0)
 
 > **STOP.** Before acting under this section, Read `skills/common-pipeline-conventions/references/layer-3-gate-invocation-table.md` and execute it in full. Do not work from memory.
@@ -316,6 +316,30 @@ Agents MUST NOT make unsolicited changes to frontend APPEARANCE. When the user a
 
 The rule: a run commits as the PERSON driving it, and the tool never decides who that is. The front door resolves it once per checkout (`hooks/git_identity.py resolve`): a recorded `<main-worktree>/.architect-team/git-identity.json` is used silently; a candidate from local/global git config is CONFIRMED with the user first; nothing found means the user is ASKED for name + email — a domain gate, never a hardcoded default, never the user's git config rewritten. Every commit-authoring command then carries the record explicitly (the `git_identity.py git --` wrapper or `-c user.name=… -c user.email=…`), and `pretool_skill_gate.py` Arm 4 refuses one that lacks or contradicts it during an active run (`CT6_GIT_IDENTITY_GATE_DISABLED` is the human's lever).
 
+## Deletion discipline (v4.0.0)
+
+> **STOP.** Before deleting, trashing or pruning any file, directory or run artifact, Read `skills/common-pipeline-conventions/references/deletion-discipline.md` and execute it in full. Do not work from memory.
+
+Deletion is a decision about recoverability, and the agent does not make it from memory. Soft delete is the default — the `trash` verb of `hooks/deletion_guard.py` moves the content into the run's trash with a restore manifest — and a hard delete proceeds only when the guard's classifier (a PreToolUse hook on `Bash`) proves the content survives elsewhere: temp / gitignored / tracked-and-clean targets are allowed with the restore command, tracked-and-dirty / untracked / outside-a-repo / unparsable targets ASK, and the shared-state git operations are denied during an active run. `CT6_DELETION_GUARD_DISABLED` is the human's lever.
+
+## Test selection discipline (v4.0.0)
+
+> **STOP.** Before any phase runs a test suite, Read `skills/common-pipeline-conventions/references/test-selection.md` and select through `scripts/test_index/cli.py`. Do not run "the whole suite" from habit.
+
+Every gate runs the tests SELECTED for its change set — Phase 3 per slice (`select --phase 3`), Phase 5 the selected integration tests plus the impacted flows (`select --phase 5`) — plus the human-owned pins (`.architect-team-deploy.json` `tests.always_run`) and every unknown-mapping test; the full suite runs ONCE, at Phase 8 before the merge (`select --phase 8` is not narrowable), which REVERSES the v3.65.0 "ENTIRE dev suite at Phase 5" rule on purpose. Every selection writes a `test-selection-<ts>.json` record the evidence file cites; an agent never lowers a pin. The B / M / D / U / P lanes apply the same three tiers at their own merge boundaries.
+
+## Converge workflows (v4.0.0)
+
+> **STOP.** Before running any "N reviewers loop until all ok" gate, Read `skills/common-pipeline-conventions/references/converge-workflows.md` and run the gate exactly as it says. Do not describe the loop in prose.
+
+Every reviewer-convergence gate runs as DECLARE → `ct6-converge` workflow → RECORD: the gate `converge:<kind>` is declared into `declared-gates.json` first, `workflows/ct6-converge.js` dispatches N blind reviewers in parallel with one fixer per round and no self-imposed round cap, and the record script writes `.architect-team/converge/<kind>-<ts>.json` and satisfies the gate only when `converged` is true and the final round's `ok` count equals the reviewer count. The promise string is the gate's label, never the exit test; `ralph-loop` is retired. Reviewer counts follow `skills/team-spawning-and-review-gates/references/review-tiers.md` (three for a tier-3 gate, one paired reviewer for tier 2).
+
+## Native methodology (v4.0.0)
+
+> **STOP.** When a lane's pre-flight finds `superpowers` or `cartographer` absent, Read `skills/common-pipeline-conventions/references/native-methodology.md` and run the lane with the native forms. Never abort for a missing optional plugin.
+
+`superpowers` and `cartographer` are CONDITIONAL plugins — preferred when installed, reported and remediated when absent, never gating. The lane records `methodology: native` and follows the chapter's native forms of brainstorming, test-driven development, systematic debugging, verification before completion and codebase mapping (a native map carries `source: native`); when a plugin is present the lane uses it.
+
 ## Where this skill plugs in
 
 - `architect-team-pipeline/SKILL.md` references this skill's four sections in place of re-explaining the rules.
@@ -323,7 +347,7 @@ The rule: a run commits as the PERSON driving it, and the tool never decides who
 - `mini-architect-team-pipeline/SKILL.md` references this skill's four sections (the mini pipeline's notifications wiring is included per the v1.0.0 decision to give mini-runs the same observability as the other two pipelines).
 - `team-spawning-and-review-gates/SKILL.md` cross-references the dispatch-mode section for its teams-mode vs subagents-mode review-gate primitives.
 - `mempalace-integration/SKILL.md` is the canonical home of the wake-up rule itself; this skill points there. v1.1.0 — the mempalace palace path resolves through `shared_state_dir()`, matching the shared-state split documented in `## Running in parallel sessions`.
-- `superpowers:using-git-worktrees` is the upstream skill for worktree lifecycle mechanics (`add` / `remove` / branch hygiene). `## Running in parallel sessions` references it rather than re-explaining.
+- `superpowers:using-git-worktrees` is the upstream skill for worktree lifecycle mechanics (`add` / `remove` / branch hygiene) when the CONDITIONAL `superpowers` plugin is installed; `## Running in parallel sessions` references it rather than re-explaining, and `scripts/setup/worktree_lifecycle.py` is the native path that runs either way.
 - `scripts/setup/worktree_paths.py` is the resolution primitive — `shared_state_dir()` / `run_state_dir()` / `is_worktree()` — used by the lock layer and the MemPalace integration.
 - `scripts/setup/worktree_lifecycle.py` is the v1.2.0 lifecycle helper — `create_run_worktree()` / `cleanup_run_worktree()` / `current_worktree_is_run()` / `current_run_slug()` — used by the 3 pipeline slash commands' auto-worktree step.
 - `tests/test_dispatch_mode_section.py` asserts the dispatch-mode contract against this skill body AND against every pipeline skill's reference-back.
@@ -392,3 +416,7 @@ Heavy, rarely-fired procedure detail lives in this skill's `references/` folder 
 | `Local -> dev -> test-on-dev is the pipeline's job, not the user's (v3.57.0)` | `skills/common-pipeline-conventions/references/local-dev-test-discipline.md` | on demand |
 | `Augment-never-replace discipline (v3.63.0)` | `skills/common-pipeline-conventions/references/augment-never-replace.md` | on demand |
 | `Git commit identity discipline (v3.67.0)` | `skills/common-pipeline-conventions/references/git-commit-identity.md` | on demand |
+| `Deletion discipline (v4.0.0)` | `skills/common-pipeline-conventions/references/deletion-discipline.md` | on demand |
+| `Test selection discipline (v4.0.0)` | `skills/common-pipeline-conventions/references/test-selection.md` | on demand |
+| `Converge workflows (v4.0.0)` | `skills/common-pipeline-conventions/references/converge-workflows.md` | on demand |
+| `Native methodology (v4.0.0)` | `skills/common-pipeline-conventions/references/native-methodology.md` | on demand |
