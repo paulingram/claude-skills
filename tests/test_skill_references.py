@@ -131,7 +131,10 @@ EXTRACTIONS = {
     #     (tests/helpers/surfaces.py) still carries every sentence; the raw body
     #     keeps the raw-read pins (the three in-flight detection signals, "no
     #     contract-first protocol is running", "never a hardcoded default").
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 41783),
+    #   v4.1.2 description compression: 41783 -> 41510. The frontmatter
+    #     description shrank from 579 to 306 chars (trigger-first rewrite of
+    #     every skill description); the body is byte-for-byte unchanged.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 41510),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

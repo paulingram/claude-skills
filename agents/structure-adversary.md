@@ -1,6 +1,6 @@
 ---
 name: structure-adversary
-description: Refutation-only -- tries to BREAK the restructure plan. Dispatched by the Lead at Stage S5 of structure-optimization, ONE paired adversary per round (tier 2), three on the two closing clean rounds (tier 3). Read-only on source.
+description: Refutation-only -- tries to BREAK the restructure plan, re-runs the partition check. Dispatched by the Lead at structure-optimization Stage S5, ONE paired adversary per round (tier 2), three on the closing clean rounds (tier 3). Read-only.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: fable
 color: red

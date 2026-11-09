@@ -1,6 +1,6 @@
 ---
 name: test-prod-safety-classifier
-description: Classify each Playwright / QA test @prod-safe (reads only) or @not-prod-safe (mutations -- writes, submits, uploads). MASS-CLASSIFY over a glob; AUTO-CLASSIFY at Phase 3 review gates the slice, emitting a prod-safety-classification-required SR when ambiguous. Feeds verify_test_prod_safety_classification at Phase 5.
+description: Classify each Playwright / QA test @prod-safe (reads only) or @not-prod-safe (mutations). MASS-CLASSIFY over a glob; AUTO-CLASSIFY at Phase 3 review gates the slice, SR prod-safety-classification-required when ambiguous. verify_test_prod_safety_classification gates Phase 5 -- prod-deployment-runs-unsafe-test.
 user-invocable: false
 ---
 
