@@ -335,6 +335,57 @@ def test_unparsable_targets_ask(repo: Path, command: str, needle: str) -> None:
     assert needle in d["permissionDecisionReason"], command
 
 
+_COMMIT_WITH_HEREDOC = (
+    "W=/tmp/w/lanes/cleanup; git -C $W add pipelines/engine/src/tools/roll_freeze.py "
+    "pipelines/engine/tests/test_roll_freeze.py && git -C $W -c user.name=\"Someone\" "
+    "-c user.email=\"someone@example.com\" commit -q -F - <<'EOF'\n"
+    "roll_freeze: point the default --config at _engine/config/products.yaml\n\n"
+    "MASTER_CONFIG was parents[1] / \"config\" / \"products.yaml\", which resolves to\n"
+    "src/engine/config/products.yaml, a path that does not exist. The engine's\n"
+    "config is parents[3] / \"config\" / \"products.yaml\" (the same file run.DEFAULT_CONFIG\n"
+    "names). The existing tests supply their own config, so none of them saw it.\n\n"
+    "Co-Authored-By: Someone <someone@example.com>\n"
+    "EOF\n"
+    "git -C $W log --oneline -1"
+)
+
+
+def test_a_commit_message_heredoc_with_an_apostrophe_is_silent(repo: Path) -> None:
+    """Field report (v4.1.3): a `git commit -F - <<'EOF'` whose message carried
+    "the engine's" failed the tokenizer on the heredoc body and asked as
+    unparsable. Heredoc bodies are data, not commands; the guard is silent."""
+    assert _decide(_COMMIT_WITH_HEREDOC, repo) is None
+
+
+def test_a_heredoc_body_that_mentions_rm_is_still_data(repo: Path) -> None:
+    cmd = "git commit -q -F - <<'EOF'\nremove the stale helper (rm -rf was never run)\nEOF\n"
+    assert _decide(cmd, repo) is None
+
+
+def test_an_unbalanced_quote_in_a_non_deleting_command_is_silent(repo: Path) -> None:
+    assert _decide("echo 'it's fine", repo) is None
+    assert _decide("printf '%s' \"don't\" | cat", repo) is None
+
+
+def test_an_unbalanced_quote_in_a_deletion_shaped_command_still_asks(repo: Path) -> None:
+    d = _decide("rm -rf \"half quoted", repo)
+    assert d is not None and d["permissionDecision"] == "ask"
+    assert "unparsable" in d["permissionDecisionReason"]
+
+
+def test_a_python_heredoc_that_deletes_is_still_seen(repo: Path) -> None:
+    cmd = "python3 - <<'EOF'\nimport shutil\nshutil.rmtree('build')\nEOF\n"
+    d = _decide(cmd, repo)
+    assert d is not None, "the python-heredoc path reads the full text"
+
+
+def test_strip_heredocs_keeps_the_opener_and_drops_the_body() -> None:
+    text = "cat > f <<EOF\nline one\nrm -rf /\nEOF\necho done"
+    assert guard.strip_heredocs(text) == "cat > f <<EOF\necho done"
+    assert guard.strip_heredocs("echo plain") == "echo plain"
+    assert guard.strip_heredocs("cat <<'X'\nnever closed") == "cat <<'X'"
+
+
 def test_relative_path_without_cwd_asks(repo: Path) -> None:
     d = _decide("rm notes.txt", None)
     assert d["permissionDecision"] == "ask"
