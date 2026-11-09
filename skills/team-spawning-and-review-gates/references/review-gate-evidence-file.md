@@ -75,3 +75,11 @@ Required field validity:
 Any missing or failing field → hook blocks. Re-engage on the failing item, fix, update evidence, retry. A failing `independent_review` means re-engage on the reviewer's notes; once fixed, the `task-reviewer` re-reviews and re-writes the block.
 
 **Gates the orchestrator names during the run are recorded, not remembered.** Any condition stated as gating ship / deploy / merge / completion — in a spawn brief, a phase decision, or user-facing prose — is appended to `<workspace>/.architect-team/declared-gates.json` when it is declared and carries `satisfied_at` + an existing non-empty `evidence_path` before the run may complete, per `common-pipeline-conventions` `## Declared-gates discipline (v3.47.0)`. The Phase-8 / B8 / M7 ship step reads the registry first, and the `_audit_declared_gates` Stop arm blocks on an unsatisfied entry quoting the gate's own words.
+
+### From the SKILL.md stub (moved v4.1.2)
+
+The Phase 3 task gate is a **tier-2** gate (`## Review tiers (v4.0.0)` below): the producer's 17-field self-review plus ONE paired independent verdict — the `task-reviewer`'s `independent_review` block, with `test-completeness-verifier` on the mechanical side — and a third independent verdict only when the two disagree.
+
+Three parallel reviewers are reserved for tier-3 gates (architecture approval, master review, map convergence).
+
+Schema v7 carries 17 required fields and 6 optional tool-mediated fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`).

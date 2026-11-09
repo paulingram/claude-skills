@@ -1,0 +1,5 @@
+# Claude Design offer detection (additive design-input source)
+
+When `$REQ_DIR` prose carries a Claude Design offer — a `claude.ai/design/p/<id>` link and/or a `claude_design` MCP mention — invoke the `claude-design-import` skill to fetch and materialize the design project to `<workspace>/.architect-team/claude-design/<project-id>/`, then treat that materialized directory as a design-input source for the rest of Phase −1 (the route-mapper's `DESIGN_MAP.md` per `design-fidelity-mapping`, and the `oracle-deriver` interactive-mockup walk). Detect the offer with `detect_claude_design_offer` from `scripts/claude_design/claude_design_import.py`.
+
+This is ADDITIVE — an additional design-input source ALONGSIDE the existing local/zip discovery, never a replacement. When no Claude Design offer is present (`detected` is false), the existing local design-input discovery proceeds unchanged. When the `claude_design` MCP is unavailable, `claude-design-import` instructs the user to connect it and run `/design-login`, and on the user declining auto-falls-back to the local/zip path so the run never dead-ends.
