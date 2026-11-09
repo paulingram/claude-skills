@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """Agent-model lever — rewrite the agents/*.md frontmatter ``model:`` field.
 
-The v3.32.0 default ships all agents as ``model: fable`` (Fable 5, wherever it is
-available). This stdlib-only CLI is the sanctioned, deterministic lever for that
-field AND the IMPLEMENTED Opus 5 fallback for a harness that predates the fable
-alias: ``python scripts/setup/set_default_model.py --model opus``.
+Since v4.0.0 the SHIPPED default is the model-by-role split (``--split role``:
+15 fable / 9 opus / 14 sonnet / 1 haiku, ``ROLE_SPLIT_MODELS`` below); the
+v3.32.0 uniform ``model: fable`` default (Fable 5, wherever it is available) is
+now the ``uniform-fable`` policy this lever can still apply on demand. This
+stdlib-only CLI is the sanctioned, deterministic lever for that field AND the
+IMPLEMENTED Opus 5 fallback for a harness that predates the fable alias:
+``python scripts/setup/set_default_model.py --model opus``.
 
 v3.35.0 added the availability-gated secondary role split: architecture/control/
 design agents stay on ``fable`` while development, code-checking, and testing

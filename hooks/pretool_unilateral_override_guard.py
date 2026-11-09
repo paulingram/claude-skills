@@ -1,24 +1,41 @@
 #!/usr/bin/env python3
-"""v3.0.0 PreToolUse runtime guardrail.
+"""PreToolUse runtime guardrail -- seven arms over Edit / Write / NotebookEdit.
 
-Fires BEFORE Edit / Write / NotebookEdit tool calls when:
+Registered in hooks/hooks.json as PreToolUse[Edit|Write|NotebookEdit]; the
+payload is read from stdin as JSON. `check_payload` runs SIX UNCONDITIONAL
+immutability arms first -- each fires whether or not a pipeline run is active,
+in this order -- and only then the run-gated pipeline-bypass arm:
 
-  1. An active pipeline run is in flight (workspace's `.architect-team/
-     intake-state.json` exists with `status: in_progress` and `phase < 8`).
-  2. The about-to-fire tool targets a source file (NOT under
-     `.architect-team/` / `.mempalace/` / `openspec/changes/`).
-  3. No `Skill(architect-team-pipeline)` (or sibling pipeline skill)
-     invocation appears in the run's toolcall ledger yet.
+  1. v3.56.0 completion-lock ground truth: the ask-ledger, a Claude Code
+     settings file (`.claude/settings.json` / `settings.local.json`), or the
+     harness task store the Stop-hook completion lock reads (link aliases
+     of each included).
+  2. v4.1.0 completion-hold release records under `.architect-team/releases/`
+     (written only by the user's own `/architect-team:unlock` command).
+  3. v4.0.0 an EXISTING `.architect-team-publish.json` (the page-publishing
+     opt-in).
+  4. v4.0.0 `docs/PROJECT_PRINCIPLES.md` (rendered from
+     `.architect-team/principles.json` by the principles engine, never
+     hand-edited).
+  5. v3.44.0 an EXISTING `.architect-team-deploy.json` (the human-authored
+     deploy config).
+  6. v3.61.0 recorded measurement artifacts under `docs/measurements/`
+     (creation is refused too -- a hand-written artifact IS the forgery).
+  7. v3.0.0 pipeline bypass, the only RUN-GATED arm. It fires when all of:
+     an active pipeline run is in flight (the workspace's `.architect-team/
+     intake-state.json` has `status: in_progress` and `phase < 8`); the tool
+     targets a source file (NOT under `.architect-team/` / `.mempalace/` /
+     `openspec/changes/`); and no `Skill(architect-team-pipeline)` (or
+     sibling pipeline skill) invocation appears in the run's toolcall ledger
+     yet.
 
-When all three conditions hold, exit 2 to block the tool call. The stderr
-message names the violation + the disclosure-required alternative.
-
-Use:
-  Registered in hooks/hooks.json as PreToolUse[Edit|Write|NotebookEdit].
-  Payload is read from stdin as JSON.
-
-Backwards-compat: when no active pipeline state is detected, the hook is a
-silent no-op (exit 0). Stdlib-only.
+Any arm that matches exits 2 to block the tool call; the stderr message names
+the violation + the required alternative (for arm 7, the disclosure-required
+alternative). Arms 1-6 need no pipeline state at all, so a plain session
+with no CT6 run is still refused on those surfaces; arm 7 alone stands down
+when no active run is detected. A tool other than Edit / Write / NotebookEdit,
+a payload with no file path, or a path no arm matches is allowed (exit 0).
+Stdlib-only.
 """
 
 from __future__ import annotations

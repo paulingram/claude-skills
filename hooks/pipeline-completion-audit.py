@@ -59,8 +59,13 @@ files themselves cannot carry (see the per-function docstrings):
   `verify-check-can-fail` verdict must exist (a new guard never shown red is not
   yet evidence).
 - `_audit_declared_gates` — every entry in `.architect-team/declared-gates.json`
-  must carry `satisfied_at` + an evidence file with bytes in it (a gate you name
-  is a gate you keep).
+  must carry `satisfied_at` + an evidence file with non-whitespace content (a
+  gate you name is a gate you keep). Since v4.1.0 a USER waiver is honoured in
+  place of that pair -- `waived_at` + `waived_by: user` + an `evidence_path`
+  resolving to a non-empty record under `.architect-team/releases/`, the file
+  the USER's own release command writes, never a flag an agent sets -- and a
+  cited `ct6-converge/v1` record is READ, not just found (`converged: false`
+  blocks).
 - `_audit_spec_currency` — no teammate with unfinished expected work may still
   be carrying a superseded `spec_fingerprint` with no re-brief record.
 

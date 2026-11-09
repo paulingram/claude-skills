@@ -19,8 +19,8 @@ matching the same shape.
 Companion: hooks/pretool_unilateral_override_guard.py fires at action time
 (PreToolUse), BEFORE the agent has the chance to produce confession language.
 This module's `detect_virtue_framed_override` is the post-hoc detector used
-by `hooks/vao_tools.py::verify_no_unilateral_override` (the 21st Layer 3
-tool) at Phase 8 / Phase B8 / Phase M7.
+by `hooks/vao_tools.py::verify_no_unilateral_override` (one of the 26
+Layer-3 tools) at Phase 8 / Phase B8 / Phase M7.
 
 Stdlib-only.
 """

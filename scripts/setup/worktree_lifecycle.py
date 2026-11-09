@@ -4,9 +4,10 @@
 v1.1.0 shipped `scripts/setup/worktree_paths.py` — the worktree-aware
 state-resolution sibling that answers WHERE state lives (shared vs. per-run).
 v1.2.0 ships THIS module — the side-effecting lifecycle helper that CREATES,
-DETECTS, and TEARS DOWN architect-team-run worktrees, so the three pipeline
-slash commands (`/architect-team`, `/architect-team:bug-fix`,
-`/architect-team:mini`) can auto-create a worktree by default before invoking
+DETECTS, and TEARS DOWN architect-team-run worktrees, so the six lane
+slash commands (`/architect-team:architect-team`, `/architect-team:bug-fix`,
+`/architect-team:mini`, `/architect-team:data-eng`, `/architect-team:ux-test`,
+`/architect-team:playwright-suite`) can auto-create a worktree by default before invoking
 the pipeline skill. v1.3.0 extends the module with two auto-cleanup helpers
 (`list_merged_architect_team_worktrees`, `cleanup_merged_worktrees`) so the
 same slash commands can sweep merged-and-forgotten worktrees from prior runs

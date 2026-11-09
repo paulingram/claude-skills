@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Agent-teams mode detection for the architect-team plugin (v1.0.0).
 
-The pipeline skills (`architect-team-pipeline`, `bug-fix-pipeline`,
-`mini-architect-team-pipeline`) call `is_teams_mode_available()` at startup to
+The pipeline-driving skills (the seven in `pretool_skill_gate._PIPELINE_SKILLS`:
+`architect-team-pipeline`, `bug-fix-pipeline`, `mini-architect-team-pipeline`,
+`ux-test-builder`, `data-eng-pipeline`, `playwright-suite-builder`,
+`proposal-refiner`) call `is_teams_mode_available()` at startup to
 decide whether to dispatch in teams mode (Lead + long-lived teammates + shared
 task list) or subagents mode (the v0.9.36 ephemeral-Agent-tool path).
 

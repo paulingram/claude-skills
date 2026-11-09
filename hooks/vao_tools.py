@@ -14,9 +14,10 @@ change — the package is the structural home the monolith should have had.
 
 The 26 tools live in the per-family modules listed in ``hooks/vao/__init__.py``;
 see ``_REEXPORT_MAP`` below for the name->module mapping. Each tool is
-deterministic (bit-stable output), writes its verdict JSON to
-``<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`` by default, and is
-callable as a Python function AND via the ``vao`` CLI subcommand. Stdlib only.
+deterministic (bit-stable output), writes its verdict JSON to the ``--out``
+path (required on every CLI subcommand; the convention is
+``.architect-team/vao-verdicts/<task-id>-<tool>.json``), and is callable as a
+Python function AND via the ``vao`` CLI subcommand. Stdlib only.
 """
 from __future__ import annotations
 

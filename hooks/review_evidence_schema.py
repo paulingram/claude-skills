@@ -239,7 +239,7 @@ def _detect_trigger_mode(payload: dict[str, Any]) -> str:
     The two shapes carry different field names (`tool_name` + `tool_input.taskId`
     vs. `task.id`; `subagent.name` vs. `teammate.name`), but the enforcement
     contract — same evidence file at `.architect-team/reviews/<task-id>.json`,
-    same v6 validation, same exit-2 block-with-feedback semantics — is identical.
+    same v7 validation, same exit-2 block-with-feedback semantics — is identical.
 
     Heuristic (see `openspec/changes/agent-teams-refactor/specs/agent-teams-mode/spec.md`
     REQ-4 + https://code.claude.com/docs/en/hooks for payload references):

@@ -154,8 +154,11 @@ TODO_TOOLS_ENV_VAR = "CLAUDE_CODE_ENABLE_TODO_TOOLS"
 MIN_CLAUDE_VERSION = (2, 1, 32)
 DEFAULT_USER_SETTINGS_PATH: Path = Path.home() / ".claude" / "settings.json"
 
-# Fable 5 is the plugin's default agent model. Fable 5 is brand-new and the
-# `fable` agent-model alias ships only with Fable-5-aware Claude Code releases;
+# Agents ship on the v4.0.0 role split (`set_default_model.py --split role`:
+# fable on the 15 judgment seats, opus on the 9 delivery seats, sonnet on the
+# 14 mechanical seats, haiku on the 1 classification seat). Fable 5 is
+# brand-new and the `fable` agent-model alias ships only with Fable-5-aware
+# Claude Code releases;
 # that shipping version is NOT knowable from here, so setup does NOT gate on a
 # version threshold (SETUP-ADV-1: a threshold would be false precision — the
 # TEAMS minimum 2.1.32 is not the fable-alias version). Instead check_model_default()
@@ -1074,23 +1077,31 @@ def build_first_homepage(project_root: Path, check_only: bool) -> tuple[str, str
 
 
 def check_model_default(remediation: str | None = None) -> tuple[str, str, str | None]:
-    """Informational note: the plugin pins all agents to model 'fable' (Fable 5).
+    """Informational note: agents ship on the v4.0.0 role split; the fable
+    seats need a Fable-5-aware harness.
 
-    UNCONDITIONAL by design (SETUP-ADV-1). Fable 5 is brand-new and the `fable`
-    agent-model alias ships only with Fable-5-aware Claude Code releases; that
-    version is NOT knowable from setup, so a version gate would be false precision.
-    Instead this ALWAYS returns ONE informational `note` line stating the default
-    and carrying the deterministic Opus fallback lever
+    UNCONDITIONAL by design (SETUP-ADV-1). The shipped state is the role split
+    (`set_default_model.py --split role`, ROLE_SPLIT_MODELS: fable on the
+    judgment seats, opus on the delivery seats, sonnet on the mechanical seats,
+    haiku on classification -- 15 / 9 / 14 / 1; `--check` reports `role-split`).
+    Fable 5 is brand-new and the `fable` agent-model alias ships only with
+    Fable-5-aware Claude Code releases; that version is NOT knowable from
+    setup, so a version gate would be false precision. Instead this ALWAYS
+    returns ONE informational `note` line stating the shipped model policy and
+    carrying the deterministic uniform-Opus fallback lever
     (`set_default_model.py --model opus`) for a harness that predates the alias.
     It never fails the run, never gates, and never auto-applies the fallback.
     """
-    name = "model-default (agents pinned to 'fable' — Fable 5)"
+    name = "model-default (v4.0.0 role split: fable / opus / sonnet / haiku)"
     if remediation is None:
         remediation = FABLE_FALLBACK_REMEDIATION
     detail = (
-        "agents default to model 'fable' (Fable 5). If agents fail to spawn because "
-        "your Claude Code predates the 'fable' alias, restore the Opus fallback "
-        f"with: {remediation}"
+        "agents ship on the v4.0.0 role split (fable on judgment seats, opus on "
+        "delivery seats, sonnet on mechanical seats, haiku on classification -- "
+        "15 / 9 / 14 / 1; `set_default_model.py --check` reports role-split). If "
+        "the fable-seated agents fail to spawn because your Claude Code predates "
+        "the 'fable' alias, the uniform Opus fallback lever remains: "
+        f"{remediation}"
     )
     return name, "note", detail
 
