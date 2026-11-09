@@ -16,6 +16,7 @@ parses - on every surface including the pre-existing `interaction-intuition`
 description, whose text this change must not alter.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -1552,7 +1553,7 @@ def test_lifecycle_cross_reference_resolves_to_a_real_section(plugin_root: Path)
     """
     body = _body(plugin_root, LIFECYCLE_SKILL)
     intake_path = plugin_root / "skills" / "intake-and-mapping" / "SKILL.md"
-    intake = intake_path.read_text(encoding="utf-8")
+    intake = surface_read(intake_path)
 
     # Which phase does intake-and-mapping ACTUALLY file the intuiter dispatch under?
     import re

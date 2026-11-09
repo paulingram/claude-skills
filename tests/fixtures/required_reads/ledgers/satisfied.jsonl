@@ -1,0 +1,11 @@
+{"ts": "2026-11-08T09:59:00Z", "tool": "Read", "args": {"file_path": "/work/plugin/skills/common-pipeline-conventions/references/always-rules.md"}}
+{"ts": "2026-11-08T10:00:00Z", "tool": "Skill", "args": {"skill": "architect-team-pipeline"}}
+{"ts": "2026-11-08T10:00:05Z", "tool": "Read", "args": {"file_path": "/work/plugin/skills/common-pipeline-conventions/references/intake.md"}}
+{"ts": "2026-11-08T10:00:10Z", "tool": "Bash", "args": {"command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py\" --set phase=\"Phase -1\" slug=demo"}}
+{"ts": "2026-11-08T10:01:00Z", "tool": "Read", "args": {"file_path": "/work/plugin/skills/common-pipeline-conventions/references/contract-first-parallelism.md"}}
+{"ts": "2026-11-08T10:01:05Z", "tool": "Bash", "args": {"command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py\" phase_start --project demo --phase \"Phase 2 -- Decomposition & Team Spawn\" --details \"spawn\""}}
+{"ts": "2026-11-08T10:02:00Z", "tool": "Agent", "args": {"subagent_type": "architect-team:backend"}}
+{"ts": "2026-11-08T10:30:00Z", "tool": "Read", "args": {"file_path": "/work/plugin/skills/common-pipeline-conventions/references/integration-discipline.md"}}
+{"ts": "2026-11-08T10:30:05Z", "phase": "Phase 5", "tool": "TaskCreate", "args": {"subject": "Phase 5 integration"}}
+{"ts": "2026-11-08T11:00:00Z", "tool": "Read", "args": {"file_path": "/work/plugin/skills/common-pipeline-conventions/references/diagnosis.md"}}
+{"ts": "2026-11-08T11:00:05Z", "tool": "Bash", "args": {"command": "python hooks/run_continuity.py --set phase=B3 slug=demo"}}

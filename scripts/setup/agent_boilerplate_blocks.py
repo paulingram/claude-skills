@@ -1,20 +1,31 @@
 # -*- coding: utf-8 -*-
-"""Canonical boilerplate-block text for architect-team agent files.
+"""Canonical boilerplate-block text for the CT6 agents.
 
-SINGLE SOURCE OF TRUTH for three byte-identical boilerplate sections that are
-duplicated across the ~30 ``agents/*.md`` files:
+SINGLE SOURCE OF TRUTH for the five canonical boilerplate blocks every agent
+receives:
 
 * ``## Forbidden git operations``   (v1.6.0 discipline)
 * ``## Checkpoint discipline``      (v1.8.0 discipline)
 * ``## Operating context (v1.0.0)`` (the shared teammate-context paragraph)
+* ``## Operating principles``       (the compact ETHOS block)
+* ``## Reporting and escalation``   (the message-payload discipline)
+
+Until v3.67.0 these were compiled INTO every ``agents/*.md`` file and held
+byte-identical there by ``sync_agent_boilerplate.py``. Since v4.0.0 (proposal
+change 4) the strings render ONCE, into the fenced ``ct6:block:*`` sections of
+``skills/ct6-agent-core/SKILL.md`` (``compile_skills.py``), and every agent
+PRELOADS that skill through its ``skills:`` frontmatter; no agent body carries
+a compiled block any more, and ``sync_agent_boilerplate.py --check`` guards
+that inverse contract. The surface an agent receives is unchanged.
 
 This module is **stdlib-only and has no import-time side effects**. It exposes:
 
 * ``BLOCKS`` -- a dict keyed by block id, each value carrying the ``heading``,
   the ``canonical`` text, the ``match`` mode, the list of ``standard_agents``
-  that must carry the canonical form, and the ``variant_agents`` that are
-  explicitly ALLOWLISTED as carrying a deliberately different (role-specific)
-  form and are therefore NOT required to match the canonical text.
+  (the agents that receive the canonical form through the preload) and the
+  ``variant_agents`` that keep a deliberately different (role-specific) form
+  of that section in their own body and are therefore NOT held to the
+  canonical text.
 * ``extract_block(text, heading)`` -- pull a single ``## ``-delimited block out
   of an agent file's text (universal-newline form), returning the heading line
   through the last non-blank line before the next ``## `` heading, or ``None``
@@ -29,24 +40,18 @@ This module is **stdlib-only and has no import-time side effects**. It exposes:
 
 Design notes
 ------------
-* The ``operating-context`` block is special: 27 agents share a **byte-identical
-  leading paragraph** (the canonical text below). 21 of them carry ONLY that
-  paragraph; the other 6 (bug-replicator, diagnostic-researcher,
-  editability-reviewer, interaction-reviewer, mini-qa, qa-replayer) append
-  role-specific text after it. Both kinds are ``standard_agents`` for this block
-  because they all begin with the canonical prefix; the matcher for this block
-  is therefore PREFIX-based (``match == "prefix"``), and the sync tool rewrites
-  only the prefix region while preserving any appended text. The other two
-  blocks are matched with full equality (``"equals"``).
-* The three VAO agents (adversarial-reviewer, interaction-observer,
-  oracle-deriver) carry deliberately role-specific variant forms of the git and
-  checkpoint blocks and OMIT the v1.0.0 operating-context heading entirely. They
-  are the ``variant_agents`` for all three blocks and are never rewritten.
+* The ``operating-context`` block is the one with role-specific variants: the
+  three VAO agents (adversarial-reviewer, interaction-observer, oracle-deriver)
+  keep their own ``## Operating context`` section in their body and are the
+  ``variant_agents`` for this block; every other agent receives the canonical
+  paragraph through the preload. Its matcher is PREFIX-based (``match ==
+  "prefix"``) because role-specific text may follow the canonical paragraph;
+  the other blocks are matched with full equality (``"equals"``).
 
 The ``standard_agents`` / ``variant_agents`` lists below are baked from an
-inventory of the tree; ``classify_agents`` re-derives the partition at runtime so
-drift surfaces in the sync tool and the drift-guard tests rather than going
-unnoticed.
+inventory of the tree. ``sync_agent_boilerplate.classify_agents`` is the live
+guard (preload present, no stray block); this module's ``classify_agents`` is
+the pre-v4.0.0 body-based partition, kept for callers of the old contract.
 """
 
 from __future__ import annotations
@@ -63,10 +68,11 @@ CHECKPOINT_DISCIPLINE = '## Checkpoint discipline\n\nWhen your work is expected 
 OPERATING_CONTEXT = '## Operating context (v1.0.0)\n\nPer `skills/team-spawning-and-review-gates/SKILL.md` `## Operating context (v1.0.0) — for teammate agents`, you are a long-lived teammate in an architect-team run — not a one-shot subagent; you stay in your role across multiple tasks within this run, you receive tasks from the Lead and write a solution requirement for any follow-up that needs a different agent type, and you do NOT spawn other agents or teams yourself.'
 
 # The compact operating-principles block. This is the SINGLE CANONICAL SOURCE for
-# CT6's load-bearing principles as they are injected into every agent AND into the
-# five pipeline-driving skills: the agent sync tool inserts/refreshes it as a
-# `## Operating principles` section, and scripts/setup/compile_skills.py imports
-# this exact string to fill the `ct6:block:principles` fences in the skills. The
+# CT6's load-bearing principles as every agent and the pipeline-driving skills
+# receive them: scripts/setup/compile_skills.py imports this exact string to fill
+# the `ct6:block:principles` fences -- in `skills/ct6-agent-core/SKILL.md`, which
+# every agent preloads (v4.0.0; before that the sync tool compiled it into each
+# agent), in the six lane skills and in the conventions. The
 # full statements (each with its named anti-pattern) live in `docs/ETHOS.md`; this
 # block is the compact, always-loaded reminder that points there.
 PRINCIPLES = (
@@ -131,13 +137,14 @@ REPORTING = (
 REPORTING_HEADING = "## Reporting and escalation"
 
 # --- the three VAO agents (R4c, v3.10.0) -------------------------------------
-# These three (adversarial-reviewer, interaction-observer, oracle-deriver) now
-# carry the CANONICAL git + checkpoint blocks like every other agent — the
-# v3.10.0 R4c re-sync eliminated their drifted paraphrases (oracle-deriver's
-# variant had DROPPED the $BASELINE_SHA instruction). They remain variants for
-# ONLY the operating-context block, whose `## Operating context (v1.0.0)`
-# heading they deliberately OMIT (they are not Phase-2/3 teammates with the
-# shared long-lived-teammate contract).
+# These three (adversarial-reviewer, interaction-observer, oracle-deriver)
+# receive the CANONICAL git + checkpoint blocks like every other agent (through
+# the ct6-agent-core preload since v4.0.0) -- the v3.10.0 R4c re-sync had
+# eliminated their drifted paraphrases (oracle-deriver's variant had DROPPED
+# the $BASELINE_SHA instruction). They remain variants for ONLY the
+# operating-context block: they keep a role-specific `## Operating context`
+# section of their own instead of the v1.0.0 canonical paragraph (they are not
+# Phase-2/3 teammates with the shared long-lived-teammate contract).
 OPERATING_CONTEXT_VARIANT_AGENTS = [
     "adversarial-reviewer", "interaction-observer", "oracle-deriver",
 ]
@@ -173,10 +180,10 @@ STANDARD_AGENTS_OPERATING_CONTEXT = [
     a for a in STANDARD_AGENTS_FORBIDDEN_GIT
     if a not in OPERATING_CONTEXT_VARIANT_AGENTS
 ]
-# Operating-principles: EVERY agent carries it — the principles are universal and
-# do not vary by role (unlike operating-context, which the 3 VAO agents omit). The
-# block is inserted after the checkpoint block (a universal anchor every agent has)
-# and thereafter kept byte-identical to the canonical text like any equals block.
+# Operating-principles: EVERY agent receives it -- the principles are universal
+# and do not vary by role (unlike operating-context, which the 3 VAO agents
+# carry in their own form). The block renders into ct6-agent-core after the
+# checkpoint block, byte-identical to the canonical text like any equals block.
 STANDARD_AGENTS_PRINCIPLES = list(STANDARD_AGENTS_FORBIDDEN_GIT)
 STANDARD_AGENTS_REPORTING = list(STANDARD_AGENTS_FORBIDDEN_GIT)
 
@@ -207,12 +214,10 @@ BLOCKS = {
         "standard_agents": list(STANDARD_AGENTS_OPERATING_CONTEXT),
         "variant_agents": list(OPERATING_CONTEXT_VARIANT_AGENTS),
     },
-    # The principles block is unique among the boilerplate blocks in that it is
-    # INSERTED where absent (after the checkpoint anchor) rather than only
-    # replaced-in-place — every agent is a standard agent for it, so a fresh agent
-    # gets the block automatically on the next sync. `insert_after_heading` names
-    # the anchor block the sync tool places it after; once present it is a normal
-    # equals block.
+    # `insert_after_heading` names the anchor the pre-v4.0.0 per-agent sync
+    # INSERTED this block after when it was absent (the checkpoint block); it
+    # also fixes the block order inside ct6-agent-core. Every agent is a
+    # standard agent for it. Once present it is a normal equals block.
     "principles": {
         "heading": PRINCIPLES_HEADING,
         "canonical": PRINCIPLES,
@@ -319,6 +324,11 @@ def block_matches(block_text, canonical: str, match: str) -> bool:
 
 def classify_agents(block_id: str, agents_dir) -> dict:
     """Partition ``agents_dir/*.md`` for ``block_id`` into standard/variant/other.
+
+    This is the pre-v4.0.0 BODY-based partition. Since v4.0.0 no agent body
+    carries a canonical block (the text arrives through the ct6-agent-core
+    preload), so on the shipped tree every non-variant agent lands in ``other``;
+    the live guard is ``sync_agent_boilerplate.classify_agents``.
 
     * ``standard`` -- files whose extracted block matches the canonical text
       (under the block's match mode) AND which are not allowlisted variants.

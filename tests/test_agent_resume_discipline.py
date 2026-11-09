@@ -20,6 +20,7 @@ Exercises `scripts/setup/agent_resume.py` and the documentation surfaces:
 Module loader matches `tests/test_teams_mode.py` (importlib + module fixture).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import importlib.util
 import json
@@ -411,25 +412,19 @@ def test_read_checkpoint_default_dir_resolution_does_not_raise(
 
 def test_canonical_skill_has_resume_section(plugin_root: Path) -> None:
     """REQ-2 scenario: resume discipline section exists exactly once."""
-    body = (
-        plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions", root=plugin_root)
     assert body.count("## Background-agent resume discipline") == 1
 
 
 def test_canonical_skill_has_checkpoint_section(plugin_root: Path) -> None:
     """REQ-2 scenario: checkpoint discipline section exists exactly once."""
-    body = (
-        plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions", root=plugin_root)
     assert body.count("## Agent checkpoint discipline") == 1
 
 
 def test_resume_section_documents_wrap_call(plugin_root: Path) -> None:
     """REQ-2 scenario: resume discipline documents the wrap-call rule."""
-    body = (
-        plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions", root=plugin_root)
     section = _extract_section(body, "## Background-agent resume discipline")
     assert "wrap_agent_result" in section
     # Names the truncation criteria.
@@ -444,9 +439,7 @@ def test_checkpoint_section_documents_schema_and_cadence(
     plugin_root: Path,
 ) -> None:
     """REQ-2 scenario: checkpoint discipline documents schema + cadence."""
-    body = (
-        plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions", root=plugin_root)
     section = _extract_section(body, "## Agent checkpoint discipline")
     # Path.
     assert ".architect-team/agent-checkpoints/" in section
@@ -475,7 +468,7 @@ def test_every_agent_has_checkpoint_discipline_section(plugin_root: Path) -> Non
     agents_dir = plugin_root / "agents"
     missing: list[str] = []
     for path in sorted(agents_dir.glob("*.md")):
-        body = path.read_text(encoding="utf-8")
+        body = surface_read(path)
         if "## Checkpoint discipline" not in body:
             missing.append(path.name)
     assert not missing, f"agents missing checkpoint section: {missing}"
@@ -493,7 +486,7 @@ def test_every_agent_section_references_canonical(plugin_root: Path) -> None:
     """Each agent's section cross-references the canonical."""
     agents_dir = plugin_root / "agents"
     for path in sorted(agents_dir.glob("*.md")):
-        body = path.read_text(encoding="utf-8")
+        body = surface_read(path)
         section = _extract_section(body, "## Checkpoint discipline")
         assert "common-pipeline-conventions" in section, (
             f"{path.name}: checkpoint section missing canonical cross-ref"
@@ -515,9 +508,7 @@ def test_pipeline_references_wrap_agent_result(
     plugin_root: Path, skill_name: str
 ) -> None:
     """REQ-4 scenario: each pipeline body references wrap_agent_result."""
-    body = (
-        plugin_root / "skills" / skill_name / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    body = skill_surface(skill_name, root=plugin_root)
     assert "wrap_agent_result" in body, (
         f"{skill_name} body missing wrap_agent_result reference"
     )

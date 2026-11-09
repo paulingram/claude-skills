@@ -84,7 +84,7 @@ TBD - created by archiving change verified-agent-output. Update Purpose after ar
 
 - **WHEN** the agent's output contract is described in its body
 - **THEN** it writes the `adversarial_review` block into the SAME `<cwd>/.architect-team/reviews/<task-id>.json` the teammate wrote
-- **AND** the block contains `reviewer`, `shape`, `verdict`, `tool_invoked`, `tool_verdict_path`, `findings`, `reviewed_at` fields
+- **AND** the block contains `reviewer`, `shape`, `verdict`, `tool_invoked`, `verdict_path`, `findings`, `reviewed_at` fields
 
 ### Requirement: A vao_tools.py module ships the five verification tools
 

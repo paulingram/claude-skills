@@ -14,6 +14,7 @@ The deterministic behavior of the CDLG core is covered by
 tests/test_lineage_graph.py — these tests only cover the markdown contracts.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -36,7 +37,7 @@ def skill_path(plugin_root: Path) -> Path:
 @pytest.fixture(scope="module")
 def skill_text(skill_path: Path) -> str:
     assert skill_path.exists(), f"skill missing at {skill_path}"
-    return skill_path.read_text(encoding="utf-8")
+    return surface_read(skill_path)
 
 
 def test_skill_exists_and_frontmatter_valid(skill_path: Path) -> None:
@@ -126,7 +127,9 @@ def agent_path(plugin_root: Path) -> Path:
 @pytest.fixture(scope="module")
 def agent_text(agent_path: Path) -> str:
     assert agent_path.exists(), f"agent missing at {agent_path}"
-    return agent_path.read_text(encoding="utf-8")
+    # v4.0.0: the boilerplate blocks reach the agent through the preloaded
+    # ct6-agent-core skill, so the surface is the file plus that skill.
+    return surface_read(agent_path)
 
 
 def test_agent_exists_and_frontmatter_valid(agent_path: Path) -> None:

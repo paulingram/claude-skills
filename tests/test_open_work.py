@@ -505,7 +505,7 @@ def test_missing_session_dir_is_a_clean_empty_result(tmp_path: Path) -> None:
 def test_empty_session_id_yields_no_directory(tmp_path: Path) -> None:
     for sid in ("", None):
         read = ow.read_harness_tasks(sid, tmp_path)
-        assert read == {"items": [], "unreadable": [], "dir": None}
+        assert read == {"items": [], "unreadable": [], "dir": None, "unavailable": None}
 
 
 def test_session_dir_is_the_first_eight_characters(tmp_path: Path) -> None:

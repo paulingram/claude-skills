@@ -1,0 +1,5 @@
+from fixpkg import pricing
+
+
+def test_price_for():
+    assert pricing.price_for(pricing.models.Item("a", 100), 3) == 300

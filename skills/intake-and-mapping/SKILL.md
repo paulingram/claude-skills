@@ -1,13 +1,14 @@
 ---
 name: intake-and-mapping
-description: Use when entering Phase −1 of the architect-team pipeline, when any agent needs to consult codebase or integration maps, or when checking whether existing maps need refresh. Defines codebase discovery rules, the per-codebase ralph-loop with 3 reviewers (exit string "CODEBASE MAP COMPLETE"), frontend detection that triggers the route-mapper, and the integration ralph-loop with 3 explorers + master-synthesizer (exit string "INTEGRATION MAP COMPLETE"). Handles re-entry freshness checks against git commit timestamps.
+description: Use when entering Phase −1 of the architect-team pipeline, when any agent needs to consult codebase or integration maps, or when checking whether existing maps need refresh. Defines codebase discovery rules, the per-codebase tier-3 map convergence (3 reviewers, declared and recorded around the ct6-converge workflow labelled "CODEBASE MAP COMPLETE"), frontend detection that triggers the route-mapper, and the integration map convergence with 3 explorers + master-synthesizer (tier 3, labelled "INTEGRATION MAP COMPLETE"). Handles re-entry freshness checks against git commit timestamps.
+user-invocable: false
 ---
 
 # Intake & Mapping
 
 The pipeline cannot reason about a codebase it has not mapped. This skill defines how the orchestrator builds, validates, and refreshes the structural knowledge it needs before any planning or implementation work begins.
 
-**Consumers.** This skill is the Phase −1 discipline for both `architect-team-pipeline` and `bug-fix-pipeline` (v0.9.22). The bug-fix pipeline's Phase B−1 reuses this skill VERBATIM — same codebase discovery, same per-codebase ralph loop with cartographer + route-mapper + 3-reviewer convergence, same map-freshness rules, same integration mapping, same MemPalace mining. A bug fix proposed against a stale map is the second-worst class of bug fix (after one proposed without replication) — so no shortcut, no abbreviated version. The freshness pre-scan applies identically to both pipelines.
+**Consumers.** This skill is the Phase −1 discipline for both `architect-team-pipeline` and `bug-fix-pipeline` (v0.9.22). The bug-fix pipeline's Phase B−1 reuses this skill VERBATIM — same codebase discovery, same per-codebase tier-3 map convergence (cartographer — or the native map — + route-mapper + 3 reviewers, declared and recorded around the `ct6-converge` workflow), same map-freshness rules, same integration mapping, same MemPalace mining. A bug fix proposed against a stale map is the second-worst class of bug fix (after one proposed without replication) — so no shortcut, no abbreviated version. The freshness pre-scan applies identically to both pipelines.
 
 ## Codebase discovery
 
@@ -39,9 +40,9 @@ When `$REQ_DIR` prose carries a Claude Design offer — a `claude.ai/design/p/<i
 
 This is ADDITIVE — an additional design-input source ALONGSIDE the existing local/zip discovery, never a replacement. When no Claude Design offer is present (`detected` is false), the existing local design-input discovery proceeds unchanged. When the `claude_design` MCP is unavailable, `claude-design-import` instructs the user to connect it and run `/design-login`, and on the user declining auto-falls-back to the local/zip path so the run never dead-ends.
 
-## Per-codebase mapping (one ralph loop per codebase, dispatched in parallel across codebases)
+## Per-codebase mapping (one ct6-converge workflow per codebase, dispatched in parallel across codebases)
 
-Each codebase's mapping work is independent of every other codebase's mapping work — only the later integration mapping depends on all per-codebase maps being done. So all per-codebase mapping ralph loops are dispatched in PARALLEL via a single Agent-tool batch — one teammate per codebase. For a 1-codebase workspace this is a no-op; for a multi-codebase workspace it cuts wall-clock by a factor of the codebase count. Within each codebase's ralph loop:
+Each codebase's mapping work is independent of every other codebase's mapping work — only the later integration mapping depends on all per-codebase maps being done. So all per-codebase mapping ct6-converge workflow runs are dispatched in PARALLEL via a single Agent-tool batch — one teammate per codebase. For a 1-codebase workspace this is a no-op; for a multi-codebase workspace it cuts wall-clock by a factor of the codebase count. Within each codebase's ct6-converge workflow:
 
 ### Step 1: Freshness check (short-circuit if current)
 
@@ -51,11 +52,11 @@ Each codebase's mapping work is independent of every other codebase's mapping wo
 - Mark `CURRENT` and skip remap ONLY if all three hold: the doc exists, doc-timestamp ≥ latest-commit-timestamp, AND this codebase is NOT in `map_invalidated`.
 - Else → remap. Cartographer auto-selects full vs update mode based on the change scope it detects.
 
-**Map invalidation (closes the wrong-but-fresh-map hole).** A timestamp newer than the last commit only proves the map is *recent* — not *correct*. If any agent later in the run discovers the map is materially wrong — a teammate finds a module the map never listed, the integration agent finds an integration the map missed, a diagnostic-researcher traces a path the map mis-described — that agent records the codebase in `intake-state.json`'s `map_invalidated` array. That flag forces the NEXT run's Step 1 to re-derive + re-review the map regardless of timestamps, so a wrong map can never silently survive on freshness alone. The flag is cleared for a codebase once its re-derived map passes the Step 3 three-reviewer loop.
+**Map invalidation (closes the wrong-but-fresh-map hole).** A timestamp newer than the last commit only proves the map is *recent* — not *correct*. If any agent later in the run discovers the map is materially wrong — a teammate finds a module the map never listed, the integration agent finds an integration the map missed, a diagnostic-researcher traces a path the map mis-described — that agent records the codebase in `intake-state.json`'s `map_invalidated` array. That flag forces the NEXT run's Step 1 to re-derive + re-review the map regardless of timestamps, so a wrong map can never silently survive on freshness alone. The flag is cleared for a codebase once its re-derived map passes the Step 4 tier-3 convergence (three reviewers, recorded).
 
 ### Step 2: Run cartographer-team (v3.4.0 — delegates to the new skill)
 
-As of v3.4.0, the cartographer + 3-reviewer convergence flow is encapsulated in the `cartographer-team` skill (`skills/cartographer-team/SKILL.md`). Steps 2 + 3 + the 3-reviewer loop in Step 4 are now ONE dispatch to that skill.
+As of v3.4.0, the cartographer (or native map) + tier-3 3-reviewer convergence flow is encapsulated in the `cartographer-team` skill (`skills/cartographer-team/SKILL.md`). Steps 2 + 3 + the 3-reviewer loop in Step 4 are now ONE dispatch to that skill.
 
 Invoke `cartographer-team` (use the Skill tool with `skill: cartographer-team`) with:
 
@@ -80,19 +81,21 @@ The skill body documents the full 5-phase flow internally (C1 freshness pre-chec
 
 `cartographer-team` produces `ROUTE_MAP.md` for frontend / fullstack classifications when `produce_route_map: true`. Same skill, same convergence pattern, same output location.
 
-The route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill IF AND ONLY IF design inputs exist (screenshots/Figma in `$REQ_DIR`, design tokens / Storybook / assets in the codebase). The codebase-map-reviewers MUST NOT flag the absence of DESIGN_MAP.md when no design inputs exist — it is intentionally conditional. When design inputs DO exist, all three docs (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP) are reviewed together by the 3-reviewer ralph loop.
+The route-mapper additionally produces `<codebase>/docs/DESIGN_MAP.md` per the `design-fidelity-mapping` skill IF AND ONLY IF design inputs exist (screenshots/Figma in `$REQ_DIR`, design tokens / Storybook / assets in the codebase). The codebase-map-reviewers MUST NOT flag the absence of DESIGN_MAP.md when no design inputs exist — it is intentionally conditional. When design inputs DO exist, all three docs (CODEBASE_MAP, ROUTE_MAP, DESIGN_MAP) are reviewed together by the tier-3 (3-reviewer) `ct6-converge` workflow.
 
-### Step 4: Review ralph loop (exit string "CODEBASE MAP COMPLETE")
+### Step 4: Review convergence — tier 3, declare → ct6-converge workflow → record (label "CODEBASE MAP COMPLETE")
 
-Wrap the review in:
+Map convergence is a tier-3 gate (three independent reviewers — `skills/team-spawning-and-review-gates/references/review-tiers.md`) and runs under the declare → run → record protocol of `skills/common-pipeline-conventions/references/converge-workflows.md`:
 
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" declare --workspace <ws> --kind codebase-map --promise "CODEBASE MAP COMPLETE" --reviewers 3
+#   Workflow({ name: "ct6-converge", args: { kind: "codebase-map", promise: "CODEBASE MAP COMPLETE", reviewers: 3, reviewerAgent: "architect-team:codebase-map-reviewer", fixerAgent: "architect-team:route-mapper", artifacts: ["<codebase>/docs/CODEBASE_MAP.md", "<codebase>/docs/ROUTE_MAP.md"] } })
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" record --workspace <ws> --kind codebase-map --result '<the workflow JSON>'
 ```
-/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"
-```
 
-The loop runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
+This is the `ct6-converge` workflow with completion promise "CODEBASE MAP COMPLETE" — the promise is the declared gate's label, and the record (all 3 reviewers `ok` in the final round) is what satisfies it. No iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); a human `maxRounds` pauses the gate, it never passes it.
 
-Where the review prompt instructs the orchestrator to:
+Inside the workflow, each round:
 
 1. Spawn 3 `codebase-map-reviewer` agents IN PARALLEL (single message, multiple Task tool calls). Each receives:
    - The codebase root path.
@@ -106,11 +109,11 @@ Where the review prompt instructs the orchestrator to:
          "evidence": "<file:line or symbol the reviewer found that isn't reflected>" }
      ] }
    ```
-3. If all 3 return `status == "ok"` → emit the exact line `CODEBASE MAP COMPLETE` (this triggers the ralph-loop completion promise and exits).
+3. If all 3 return `status == "ok"` → the workflow returns `converged: true`; the orchestrator records it (`record.py record`), which satisfies the gate labelled `CODEBASE MAP COMPLETE`. Typing the label changes nothing — the record is the exit.
 4. Otherwise: aggregate the deficiencies (deduplicate, sort by `map` then `section`), dispatch a targeted update request:
    - For `map: codebase` deficiencies → re-trigger cartographer in update mode, naming the deficient sections.
    - For `map: route` deficiencies → re-trigger route-mapper with the deficient routes/sections.
-5. Loop until the completion-promise fires. There is no iteration cap — the loop drives on convergence (all 3 reviewers `ok`), not a count.
+5. Loop until the record says converged. There is no iteration cap — the loop drives on recorded convergence (all 3 reviewers `ok`), not a count and not a typed string.
 
 If the map genuinely cannot converge because a required input only the owner can supply is missing (e.g. an inaccessible private dependency the reviewers cannot read), surface that specific required input to the owner — loudly, while continuing all other work — and resume once it is provided. The loop never halts on iteration count.
 
@@ -123,7 +126,7 @@ After every codebase has a complete map AND `INTEGRATION_MAP.md` is synthesized 
 
 Per the `interaction-intuition` skill:
 
-1. **Per-frontend-codebase intuiter dispatch.** For each codebase that produced a `ROUTE_MAP.md` in the per-codebase ralph loop above, dispatch the `interaction-intuiter` agent. It reads that codebase's `ROUTE_MAP.md`, its `DESIGN_MAP.md` (when present), `<workspace>/docs/INTEGRATION_MAP.md`, and `$REQ_DIR` — and writes `<codebase>/docs/INTERACTION_INTUITION_MAP.md` with `confirmed: false`. The per-codebase intuiter dispatches run in parallel.
+1. **Per-frontend-codebase intuiter dispatch.** For each codebase that produced a `ROUTE_MAP.md` in the per-codebase ct6-converge workflow above, dispatch the `interaction-intuiter` agent. It reads that codebase's `ROUTE_MAP.md`, its `DESIGN_MAP.md` (when present), `<workspace>/docs/INTEGRATION_MAP.md`, and `$REQ_DIR` — and writes `<codebase>/docs/INTERACTION_INTUITION_MAP.md` with `confirmed: false`. The per-codebase intuiter dispatches run in parallel.
 2. **Auto-mine the intuition maps** to MemPalace.
 3. **Bulk-verify gate.** The orchestrator gathers across every map every element with `confidence ∈ {low, unknown}` OR (`confidence == medium` AND `ambiguity_question != null`). If the gathered set is non-empty, present it to the user as a single numbered list and parse the reply per one of three formats (`all correct` / a list of incorrect item-number integers / `all incorrect`). Items the user did NOT flag are auto-`confirmed`.
 4. **Drill-down round.** One targeted follow-up per flagged item — `AskUserQuestion` (4 options × 4 questions per message) when the candidate set fits; free-form otherwise. Each answer writes `user_verdict`, `confirmed_action`, `confirmed_endpoint`, and (when applicable) `correction_note` to the matching entry (keyed on `element_id`).
@@ -133,7 +136,7 @@ Phase −1D is a domain gate, not a process gate — it fires whenever the gathe
 
 ## Integration mapping (v3.4.0 — delegates to domain-research-team)
 
-As of v3.4.0, the integration-synthesis flow (3 researchers in parallel + round-robin convergence + master-synthesizer) is encapsulated in the `domain-research-team` skill (`skills/domain-research-team/SKILL.md`).
+As of v3.4.0, the integration-synthesis flow (3 researchers in parallel + round-robin convergence + master-synthesizer — a tier-3 map convergence) is encapsulated in the `domain-research-team` skill (`skills/domain-research-team/SKILL.md`).
 
 Invoke `domain-research-team` (use the Skill tool with `skill: domain-research-team`) with:
 
@@ -159,11 +162,7 @@ The prior 3 `integration-explorer` agents are now invoked AS researchers by `dom
 
 The pre-v3.4.0 inline flow ran 3 `integration-explorer` agents directly with the synthesis prompt below. That flow now runs INSIDE `domain-research-team` Phase R2. The prompt below documents the conceptual contract; the skill body documents the canonical implementation:
 
-```
-/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE"
-```
-
-The loop runs until the completion-promise is satisfied (all 3 explorers confirm); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
+the `ct6-converge` workflow with completion promise "INTEGRATION MAP COMPLETE" — the `integration-map` preset, tier 3, declared before and recorded after per `skills/common-pipeline-conventions/references/converge-workflows.md`. The loop runs until the record says converged (all 3 explorers confirm); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`).
 
 Synthesis prompt (legacy reference):
 
@@ -177,7 +176,7 @@ Synthesis prompt (legacy reference):
    - YAML frontmatter: `last_synthesized: <ISO 8601 UTC>`, `codebases: [<names>]`, `source_drafts: [<paths>]`.
    - Sections: Overview, Per-Pair Integration table, Contracts/Schemas catalog, Deployment topology, Known failure modes, Open questions.
 5. **Confirmation pass:** present the master doc to each of the 3 original explorers; each must reply with `confirms: true` or list discrepancies. Master-synthesizer revises until all 3 confirm.
-6. When all 3 confirm → emit `INTEGRATION MAP COMPLETE`.
+6. When all 3 confirm → the workflow returns `converged: true` and the record satisfies the gate labelled `INTEGRATION MAP COMPLETE`.
 
 ## Re-entry state
 
@@ -205,7 +204,7 @@ After Phase −1 completes (or short-circuits), persist:
 On the NEXT invocation of `/architect-team`:
 
 1. Re-run discovery (the codebase set may have changed).
-2. For each codebase: compare current `git log -1 --format=%cI` against the persisted `head_commit_time`. If unchanged → use existing maps. If changed → re-run mapping per the per-codebase ralph loop above.
+2. For each codebase: compare current `git log -1 --format=%cI` against the persisted `head_commit_time`. If unchanged → use existing maps. If changed → re-run mapping per the per-codebase ct6-converge workflow above.
 3. If any codebase map regenerated → re-run integration mapping. Else use existing `INTEGRATION_MAP.md`.
 4. Update `intake-state.json` at the end.
 
@@ -213,8 +212,8 @@ On the NEXT invocation of `/architect-team`:
 
 | Rationalization | Rebuttal |
 |---|---|
-| "The map is mostly right, I'll just proceed" | Mostly-right plus undetected gaps is how parallel teams produce conflicting code. The 3-reviewer ralph loop is cheap insurance. |
+| "The map is mostly right, I'll just proceed" | Mostly-right plus undetected gaps is how parallel teams produce conflicting code. The tier-3 (3-reviewer) convergence is cheap insurance for a map. |
 | "Cartographer already handles freshness, we don't need our own check" | Cartographer's check is per-doc. Ours covers integration-map freshness across codebases. Both run. |
-| "Just one reviewer is enough" | Single reviewers miss things consistently. The 3-agent independent verdict is the whole point. |
+| "Just one reviewer is enough" | Single reviewers miss things consistently. Map convergence is a tier-3 gate; the 3-agent independent verdict is the whole point. |
 | "Skip integration mapping for single-codebase work" | Run it anyway — it generates the INTEGRATION_MAP.md the reuse-first-design skill consults. The doc may be short, but the file must exist. |
 | "The design-recon classified these screens UNCHANGED, so downstream agents can skip verifying them" | A Phase −1B classification of *what changed* is a re-mapping signal — it tells the mapping loop what to re-derive. It is NOT a fidelity verdict. Downstream verification (`visual-fidelity-reconciliation`, `editability-completeness`) must NEVER consume an intake "UNCHANGED" label as a reason to skip a screen — it verifies against the Oracle directly. And during a design-baseline migration "UNCHANGED" inverts entirely: an unchanged screen has not been migrated, so it is drifted. A classification answers a different question than verification — never let one stand in for the other. |

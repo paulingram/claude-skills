@@ -1,0 +1,3557 @@
+{
+  "agent_dispatch": {
+    "adversarial-reviewer": {
+      "agent_tokens": 2635,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 4425
+    },
+    "backend": {
+      "agent_tokens": 5423,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 7213
+    },
+    "bug-classifier": {
+      "agent_tokens": 5213,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 7003
+    },
+    "bug-replicator": {
+      "agent_tokens": 5650,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 7440
+    },
+    "closeout-agent": {
+      "agent_tokens": 1412,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3202
+    },
+    "codebase-map-reviewer": {
+      "agent_tokens": 1565,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3355
+    },
+    "diagnostic-researcher": {
+      "agent_tokens": 4520,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 6310
+    },
+    "doc-updater": {
+      "agent_tokens": 3445,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 5235
+    },
+    "domain-researcher": {
+      "agent_tokens": 1640,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3430
+    },
+    "editability-reviewer": {
+      "agent_tokens": 2639,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 4429
+    },
+    "endpoint-tracer": {
+      "agent_tokens": 1599,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3389
+    },
+    "fix-sensibility-checker": {
+      "agent_tokens": 3399,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 5189
+    },
+    "flow-executor": {
+      "agent_tokens": 4145,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 5935
+    },
+    "flow-explorer": {
+      "agent_tokens": 2477,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 4267
+    },
+    "frontend": {
+      "agent_tokens": 12879,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 14669
+    },
+    "integration": {
+      "agent_tokens": 6416,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 8206
+    },
+    "integration-explorer": {
+      "agent_tokens": 983,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 2773
+    },
+    "interaction-intuiter": {
+      "agent_tokens": 4599,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 6389
+    },
+    "interaction-observer": {
+      "agent_tokens": 3075,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 4865
+    },
+    "interaction-reviewer": {
+      "agent_tokens": 6802,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 8592
+    },
+    "master-synthesizer": {
+      "agent_tokens": 847,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 2637
+    },
+    "mcp-design-agent": {
+      "agent_tokens": 1018,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 2808
+    },
+    "mini-qa": {
+      "agent_tokens": 1981,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3771
+    },
+    "monitor-synthesizer": {
+      "agent_tokens": 1374,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3164
+    },
+    "oracle-deriver": {
+      "agent_tokens": 3207,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 4997
+    },
+    "prompt-refiner": {
+      "agent_tokens": 4537,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 6327
+    },
+    "qa-replayer": {
+      "agent_tokens": 10499,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 12289
+    },
+    "reconciler": {
+      "agent_tokens": 913,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 2703
+    },
+    "reference-tracer": {
+      "agent_tokens": 1439,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3229
+    },
+    "route-mapper": {
+      "agent_tokens": 3680,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 5470
+    },
+    "scaffold-agent": {
+      "agent_tokens": 942,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 2732
+    },
+    "structure-adversary": {
+      "agent_tokens": 2037,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3827
+    },
+    "structure-analyst": {
+      "agent_tokens": 1713,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3503
+    },
+    "system-architect": {
+      "agent_tokens": 19624,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 21414
+    },
+    "task-reviewer": {
+      "agent_tokens": 3552,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 5342
+    },
+    "test-completeness-verifier": {
+      "agent_tokens": 7959,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 9749
+    },
+    "test-run-watcher": {
+      "agent_tokens": 1348,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3138
+    },
+    "visual-analyzer": {
+      "agent_tokens": 1742,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3532
+    },
+    "visual-capture": {
+      "agent_tokens": 1580,
+      "skill_tokens": 1790,
+      "skills": [
+        {
+          "path": "skills/ct6-agent-core/SKILL.md",
+          "present": true,
+          "skill": "ct6-agent-core",
+          "tokens": 1790
+        }
+      ],
+      "tokens": 3370
+    }
+  },
+  "always_loaded": {
+    "basis": "sum of frontmatter description tokens across skills, agents and commands",
+    "by_class": {
+      "agent": 6712,
+      "command": 4231,
+      "skill": 10910
+    },
+    "limit": 8000,
+    "over_budget": true,
+    "tokens": 21853
+  },
+  "breaches": [
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 6555,
+      "limit": 5000,
+      "measured": 11555,
+      "surface": "skills/architect-team-pipeline/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 3740,
+      "limit": 5000,
+      "measured": 8740,
+      "surface": "skills/bug-fix-pipeline/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 9904,
+      "limit": 5000,
+      "measured": 14904,
+      "surface": "skills/common-pipeline-conventions/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 15,
+      "limit": 5000,
+      "measured": 5015,
+      "surface": "skills/data-eng-pipeline/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 653,
+      "limit": 5000,
+      "measured": 5653,
+      "surface": "skills/data-engineering-exploration/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 4037,
+      "limit": 5000,
+      "measured": 9037,
+      "surface": "skills/design-fidelity-mapping/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 1962,
+      "limit": 5000,
+      "measured": 6962,
+      "surface": "skills/diagnostic-research-team/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 713,
+      "limit": 5000,
+      "measured": 5713,
+      "surface": "skills/editability-completeness/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 544,
+      "limit": 5000,
+      "measured": 5544,
+      "surface": "skills/email-testing/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 116,
+      "limit": 5000,
+      "measured": 5116,
+      "surface": "skills/expensive-verification-debugging/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 6783,
+      "limit": 5000,
+      "measured": 11783,
+      "surface": "skills/interaction-completeness/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 1771,
+      "limit": 5000,
+      "measured": 6771,
+      "surface": "skills/mempalace-integration/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 1467,
+      "limit": 5000,
+      "measured": 6467,
+      "surface": "skills/mini-architect-team-pipeline/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 1147,
+      "limit": 5000,
+      "measured": 6147,
+      "surface": "skills/playwright-suite-builder/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 233,
+      "limit": 5000,
+      "measured": 5233,
+      "surface": "skills/readme-styling/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 320,
+      "limit": 5000,
+      "measured": 5320,
+      "surface": "skills/root-cause-test-failures/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 3414,
+      "limit": 5000,
+      "measured": 8414,
+      "surface": "skills/structure-optimization/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 316,
+      "limit": 5000,
+      "measured": 5316,
+      "surface": "skills/ux-test-builder/SKILL.md"
+    },
+    {
+      "budget": "chapter_max_tokens",
+      "excess": 6208,
+      "limit": 5000,
+      "measured": 11208,
+      "surface": "skills/visual-fidelity-reconciliation/SKILL.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 635,
+      "limit": 2000,
+      "measured": 2635,
+      "surface": "agents/adversarial-reviewer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 3423,
+      "limit": 2000,
+      "measured": 5423,
+      "surface": "agents/backend.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 3213,
+      "limit": 2000,
+      "measured": 5213,
+      "surface": "agents/bug-classifier.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 3650,
+      "limit": 2000,
+      "measured": 5650,
+      "surface": "agents/bug-replicator.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 2520,
+      "limit": 2000,
+      "measured": 4520,
+      "surface": "agents/diagnostic-researcher.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 1445,
+      "limit": 2000,
+      "measured": 3445,
+      "surface": "agents/doc-updater.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 639,
+      "limit": 2000,
+      "measured": 2639,
+      "surface": "agents/editability-reviewer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 1399,
+      "limit": 2000,
+      "measured": 3399,
+      "surface": "agents/fix-sensibility-checker.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 2145,
+      "limit": 2000,
+      "measured": 4145,
+      "surface": "agents/flow-executor.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 477,
+      "limit": 2000,
+      "measured": 2477,
+      "surface": "agents/flow-explorer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 10879,
+      "limit": 2000,
+      "measured": 12879,
+      "surface": "agents/frontend.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 4416,
+      "limit": 2000,
+      "measured": 6416,
+      "surface": "agents/integration.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 2599,
+      "limit": 2000,
+      "measured": 4599,
+      "surface": "agents/interaction-intuiter.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 1075,
+      "limit": 2000,
+      "measured": 3075,
+      "surface": "agents/interaction-observer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 4802,
+      "limit": 2000,
+      "measured": 6802,
+      "surface": "agents/interaction-reviewer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 1207,
+      "limit": 2000,
+      "measured": 3207,
+      "surface": "agents/oracle-deriver.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 2537,
+      "limit": 2000,
+      "measured": 4537,
+      "surface": "agents/prompt-refiner.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 8499,
+      "limit": 2000,
+      "measured": 10499,
+      "surface": "agents/qa-replayer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 1680,
+      "limit": 2000,
+      "measured": 3680,
+      "surface": "agents/route-mapper.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 37,
+      "limit": 2000,
+      "measured": 2037,
+      "surface": "agents/structure-adversary.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 17624,
+      "limit": 2000,
+      "measured": 19624,
+      "surface": "agents/system-architect.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 1552,
+      "limit": 2000,
+      "measured": 3552,
+      "surface": "agents/task-reviewer.md"
+    },
+    {
+      "budget": "agent_max_tokens",
+      "excess": 5959,
+      "limit": 2000,
+      "measured": 7959,
+      "surface": "agents/test-completeness-verifier.md"
+    },
+    {
+      "budget": "lane_start_max_tokens",
+      "excess": 20196,
+      "limit": 25000,
+      "measured": 45196,
+      "surface": "lane:architect-team"
+    },
+    {
+      "budget": "lane_start_max_tokens",
+      "excess": 5658,
+      "limit": 25000,
+      "measured": 30658,
+      "surface": "lane:bug-fix"
+    },
+    {
+      "budget": "lane_start_max_tokens",
+      "excess": 748,
+      "limit": 25000,
+      "measured": 25748,
+      "surface": "lane:mini"
+    },
+    {
+      "budget": "lane_start_max_tokens",
+      "excess": 1456,
+      "limit": 25000,
+      "measured": 26456,
+      "surface": "lane:data-eng"
+    },
+    {
+      "budget": "lane_start_max_tokens",
+      "excess": 2107,
+      "limit": 25000,
+      "measured": 27107,
+      "surface": "lane:ux-test"
+    },
+    {
+      "budget": "always_loaded_max_tokens",
+      "excess": 13853,
+      "limit": 8000,
+      "measured": 21853,
+      "surface": "always-loaded"
+    }
+  ],
+  "budgets": {
+    "agent_max_tokens": 2000,
+    "always_loaded_max_tokens": 8000,
+    "chapter_max_tokens": 5000,
+    "lane_start_max_tokens": 25000,
+    "skill_md_max_lines": 500
+  },
+  "estimator": "bytes/4",
+  "estimator_detail": "tokens = ceil(utf8_bytes / 4); not a tokenizer, a shared yardstick",
+  "head": "4e130584a26b4b467e7a3d0eceae0debf9e3f842",
+  "label": "budget-2026-11-09",
+  "lane_rule": "lane command + lane SKILL.md + common-pipeline-conventions SKILL.md (+ the fixed start_skills list for architect-team); a fixed component list, not a parse of the lane prose",
+  "lanes": {
+    "architect-team": {
+      "components": [
+        {
+          "path": "commands/architect-team.md",
+          "present": true,
+          "tokens": 8476
+        },
+        {
+          "path": "skills/architect-team-pipeline/SKILL.md",
+          "present": true,
+          "tokens": 11555
+        },
+        {
+          "path": "skills/common-pipeline-conventions/SKILL.md",
+          "present": true,
+          "tokens": 14904
+        },
+        {
+          "path": "skills/team-spawning-and-review-gates/SKILL.md",
+          "present": true,
+          "tokens": 3461
+        },
+        {
+          "path": "skills/verified-agent-output/SKILL.md",
+          "present": true,
+          "tokens": 2002
+        },
+        {
+          "path": "skills/intake-and-mapping/SKILL.md",
+          "present": true,
+          "tokens": 4798
+        }
+      ],
+      "limit": 25000,
+      "missing": [],
+      "over_budget": true,
+      "tokens": 45196
+    },
+    "bug-fix": {
+      "components": [
+        {
+          "path": "commands/bug-fix.md",
+          "present": true,
+          "tokens": 7014
+        },
+        {
+          "path": "skills/bug-fix-pipeline/SKILL.md",
+          "present": true,
+          "tokens": 8740
+        },
+        {
+          "path": "skills/common-pipeline-conventions/SKILL.md",
+          "present": true,
+          "tokens": 14904
+        }
+      ],
+      "limit": 25000,
+      "missing": [],
+      "over_budget": true,
+      "tokens": 30658
+    },
+    "data-eng": {
+      "components": [
+        {
+          "path": "commands/data-eng.md",
+          "present": true,
+          "tokens": 6537
+        },
+        {
+          "path": "skills/data-eng-pipeline/SKILL.md",
+          "present": true,
+          "tokens": 5015
+        },
+        {
+          "path": "skills/common-pipeline-conventions/SKILL.md",
+          "present": true,
+          "tokens": 14904
+        }
+      ],
+      "limit": 25000,
+      "missing": [],
+      "over_budget": true,
+      "tokens": 26456
+    },
+    "mini": {
+      "components": [
+        {
+          "path": "commands/mini.md",
+          "present": true,
+          "tokens": 4377
+        },
+        {
+          "path": "skills/mini-architect-team-pipeline/SKILL.md",
+          "present": true,
+          "tokens": 6467
+        },
+        {
+          "path": "skills/common-pipeline-conventions/SKILL.md",
+          "present": true,
+          "tokens": 14904
+        }
+      ],
+      "limit": 25000,
+      "missing": [],
+      "over_budget": true,
+      "tokens": 25748
+    },
+    "playwright-suite": {
+      "components": [
+        {
+          "path": "commands/playwright-suite.md",
+          "present": true,
+          "tokens": 3593
+        },
+        {
+          "path": "skills/playwright-suite-builder/SKILL.md",
+          "present": true,
+          "tokens": 6147
+        },
+        {
+          "path": "skills/common-pipeline-conventions/SKILL.md",
+          "present": true,
+          "tokens": 14904
+        }
+      ],
+      "limit": 25000,
+      "missing": [],
+      "over_budget": false,
+      "tokens": 24644
+    },
+    "ux-test": {
+      "components": [
+        {
+          "path": "commands/ux-test.md",
+          "present": true,
+          "tokens": 6887
+        },
+        {
+          "path": "skills/ux-test-builder/SKILL.md",
+          "present": true,
+          "tokens": 5316
+        },
+        {
+          "path": "skills/common-pipeline-conventions/SKILL.md",
+          "present": true,
+          "tokens": 14904
+        }
+      ],
+      "limit": 25000,
+      "missing": [],
+      "over_budget": true,
+      "tokens": 27107
+    }
+  },
+  "provenance": "measured",
+  "provisional": false,
+  "release_label": false,
+  "repo_root": "/home/user/claude-skills",
+  "schema": "instruction-budget/v1",
+  "surfaces": [
+    {
+      "bytes": 2333,
+      "class": "command",
+      "description_tokens": 66,
+      "lines": 36,
+      "path": "commands/absorb-phenotype.md",
+      "tokens": 584
+    },
+    {
+      "bytes": 23496,
+      "class": "command",
+      "description_tokens": 90,
+      "lines": 178,
+      "path": "commands/architect-team-setup.md",
+      "tokens": 5874
+    },
+    {
+      "bytes": 33902,
+      "class": "command",
+      "description_tokens": 126,
+      "lines": 268,
+      "path": "commands/architect-team.md",
+      "tokens": 8476
+    },
+    {
+      "bytes": 28056,
+      "class": "command",
+      "description_tokens": 222,
+      "lines": 254,
+      "path": "commands/bug-fix.md",
+      "tokens": 7014
+    },
+    {
+      "bytes": 6306,
+      "class": "command",
+      "description_tokens": 159,
+      "lines": 96,
+      "path": "commands/classify-test-prod-safety.md",
+      "tokens": 1577
+    },
+    {
+      "bytes": 3565,
+      "class": "command",
+      "description_tokens": 76,
+      "lines": 65,
+      "path": "commands/cleanup-worktrees.md",
+      "tokens": 892
+    },
+    {
+      "bytes": 4293,
+      "class": "command",
+      "description_tokens": 128,
+      "lines": 86,
+      "path": "commands/closeout.md",
+      "tokens": 1074
+    },
+    {
+      "bytes": 26145,
+      "class": "command",
+      "description_tokens": 198,
+      "lines": 252,
+      "path": "commands/data-eng.md",
+      "tokens": 6537
+    },
+    {
+      "bytes": 5829,
+      "class": "command",
+      "description_tokens": 98,
+      "lines": 105,
+      "path": "commands/discipline-status.md",
+      "tokens": 1458
+    },
+    {
+      "bytes": 6845,
+      "class": "command",
+      "description_tokens": 159,
+      "lines": 97,
+      "path": "commands/editability-audit.md",
+      "tokens": 1712
+    },
+    {
+      "bytes": 3902,
+      "class": "command",
+      "description_tokens": 110,
+      "lines": 80,
+      "path": "commands/home.md",
+      "tokens": 976
+    },
+    {
+      "bytes": 7352,
+      "class": "command",
+      "description_tokens": 162,
+      "lines": 137,
+      "path": "commands/inject.md",
+      "tokens": 1838
+    },
+    {
+      "bytes": 9384,
+      "class": "command",
+      "description_tokens": 214,
+      "lines": 134,
+      "path": "commands/knowledge-install.md",
+      "tokens": 2346
+    },
+    {
+      "bytes": 9231,
+      "class": "command",
+      "description_tokens": 171,
+      "lines": 137,
+      "path": "commands/librarian-install.md",
+      "tokens": 2308
+    },
+    {
+      "bytes": 3396,
+      "class": "command",
+      "description_tokens": 118,
+      "lines": 64,
+      "path": "commands/logit.md",
+      "tokens": 849
+    },
+    {
+      "bytes": 4548,
+      "class": "command",
+      "description_tokens": 121,
+      "lines": 84,
+      "path": "commands/memory.md",
+      "tokens": 1137
+    },
+    {
+      "bytes": 5174,
+      "class": "command",
+      "description_tokens": 124,
+      "lines": 51,
+      "path": "commands/mempalace-install.md",
+      "tokens": 1294
+    },
+    {
+      "bytes": 4725,
+      "class": "command",
+      "description_tokens": 189,
+      "lines": 35,
+      "path": "commands/mini-review-sweep.md",
+      "tokens": 1182
+    },
+    {
+      "bytes": 17507,
+      "class": "command",
+      "description_tokens": 241,
+      "lines": 161,
+      "path": "commands/mini.md",
+      "tokens": 4377
+    },
+    {
+      "bytes": 6814,
+      "class": "command",
+      "description_tokens": 123,
+      "lines": 131,
+      "path": "commands/monitor-tests.md",
+      "tokens": 1704
+    },
+    {
+      "bytes": 10168,
+      "class": "command",
+      "description_tokens": 202,
+      "lines": 121,
+      "path": "commands/optimize-structure.md",
+      "tokens": 2542
+    },
+    {
+      "bytes": 14369,
+      "class": "command",
+      "description_tokens": 190,
+      "lines": 228,
+      "path": "commands/playwright-suite.md",
+      "tokens": 3593
+    },
+    {
+      "bytes": 6193,
+      "class": "command",
+      "description_tokens": 140,
+      "lines": 121,
+      "path": "commands/principles.md",
+      "tokens": 1549
+    },
+    {
+      "bytes": 4364,
+      "class": "command",
+      "description_tokens": 111,
+      "lines": 84,
+      "path": "commands/publish.md",
+      "tokens": 1091
+    },
+    {
+      "bytes": 6267,
+      "class": "command",
+      "description_tokens": 78,
+      "lines": 68,
+      "path": "commands/refine-prompt.md",
+      "tokens": 1567
+    },
+    {
+      "bytes": 3492,
+      "class": "command",
+      "description_tokens": 71,
+      "lines": 70,
+      "path": "commands/status.md",
+      "tokens": 873
+    },
+    {
+      "bytes": 27548,
+      "class": "command",
+      "description_tokens": 224,
+      "lines": 264,
+      "path": "commands/ux-test.md",
+      "tokens": 6887
+    },
+    {
+      "bytes": 17473,
+      "class": "command",
+      "description_tokens": 111,
+      "lines": 185,
+      "path": "commands/visual-qa.md",
+      "tokens": 4369
+    },
+    {
+      "bytes": 12625,
+      "class": "command",
+      "description_tokens": 209,
+      "lines": 169,
+      "path": "commands/visual-to-api.md",
+      "tokens": 3157
+    },
+    {
+      "bytes": 9820,
+      "class": "skill",
+      "description_tokens": 186,
+      "lines": 178,
+      "path": "skills/api-design-from-frontend/SKILL.md",
+      "tokens": 2455
+    },
+    {
+      "bytes": 46217,
+      "class": "skill",
+      "description_tokens": 181,
+      "lines": 321,
+      "path": "skills/architect-team-pipeline/SKILL.md",
+      "tokens": 11555
+    },
+    {
+      "bytes": 2373,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 26,
+      "path": "skills/architect-team-pipeline/references/INDEX.md",
+      "tokens": 594
+    },
+    {
+      "bytes": 3005,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 11,
+      "path": "skills/architect-team-pipeline/references/data-eng-lane-precedence-front-door-vs-phase-0c.md",
+      "tokens": 752
+    },
+    {
+      "bytes": 9368,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 34,
+      "path": "skills/architect-team-pipeline/references/phase--1.md",
+      "tokens": 2342
+    },
+    {
+      "bytes": 8861,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 73,
+      "path": "skills/architect-team-pipeline/references/phase--2.md",
+      "tokens": 2216
+    },
+    {
+      "bytes": 1999,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/architect-team-pipeline/references/phase-0.1.md",
+      "tokens": 500
+    },
+    {
+      "bytes": 2484,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 19,
+      "path": "skills/architect-team-pipeline/references/phase-0.md",
+      "tokens": 621
+    },
+    {
+      "bytes": 4691,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 41,
+      "path": "skills/architect-team-pipeline/references/phase-0a.md",
+      "tokens": 1173
+    },
+    {
+      "bytes": 5542,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 37,
+      "path": "skills/architect-team-pipeline/references/phase-0b.md",
+      "tokens": 1386
+    },
+    {
+      "bytes": 4746,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 47,
+      "path": "skills/architect-team-pipeline/references/phase-0c.md",
+      "tokens": 1187
+    },
+    {
+      "bytes": 5958,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 34,
+      "path": "skills/architect-team-pipeline/references/phase-1.md",
+      "tokens": 1490
+    },
+    {
+      "bytes": 5852,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 31,
+      "path": "skills/architect-team-pipeline/references/phase-2.md",
+      "tokens": 1463
+    },
+    {
+      "bytes": 8309,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 31,
+      "path": "skills/architect-team-pipeline/references/phase-3.md",
+      "tokens": 2078
+    },
+    {
+      "bytes": 6859,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 26,
+      "path": "skills/architect-team-pipeline/references/phase-3b.md",
+      "tokens": 1715
+    },
+    {
+      "bytes": 17889,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 25,
+      "path": "skills/architect-team-pipeline/references/phase-5.md",
+      "tokens": 4473
+    },
+    {
+      "bytes": 1392,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 18,
+      "path": "skills/architect-team-pipeline/references/phase-6.md",
+      "tokens": 348
+    },
+    {
+      "bytes": 3476,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 16,
+      "path": "skills/architect-team-pipeline/references/phase-7.md",
+      "tokens": 869
+    },
+    {
+      "bytes": 17296,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 150,
+      "path": "skills/architect-team-pipeline/references/phase-8-commit.md",
+      "tokens": 4324
+    },
+    {
+      "bytes": 13647,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 79,
+      "path": "skills/architect-team-pipeline/references/phase-8.md",
+      "tokens": 3412
+    },
+    {
+      "bytes": 1928,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 20,
+      "path": "skills/architect-team-pipeline/references/phase-boundary-inbox-check.md",
+      "tokens": 482
+    },
+    {
+      "bytes": 34960,
+      "class": "skill",
+      "description_tokens": 193,
+      "lines": 247,
+      "path": "skills/bug-fix-pipeline/SKILL.md",
+      "tokens": 8740
+    },
+    {
+      "bytes": 2010,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 23,
+      "path": "skills/bug-fix-pipeline/references/INDEX.md",
+      "tokens": 503
+    },
+    {
+      "bytes": 3697,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 17,
+      "path": "skills/bug-fix-pipeline/references/anti-patterns-to-reject.md",
+      "tokens": 925
+    },
+    {
+      "bytes": 1640,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 3,
+      "path": "skills/bug-fix-pipeline/references/augment-never-replace-precedence.md",
+      "tokens": 410
+    },
+    {
+      "bytes": 2487,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 7,
+      "path": "skills/bug-fix-pipeline/references/five-non-negotiable-disciplines.md",
+      "tokens": 622
+    },
+    {
+      "bytes": 3243,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 11,
+      "path": "skills/bug-fix-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md",
+      "tokens": 811
+    },
+    {
+      "bytes": 4833,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 22,
+      "path": "skills/bug-fix-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md",
+      "tokens": 1209
+    },
+    {
+      "bytes": 6747,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 45,
+      "path": "skills/bug-fix-pipeline/references/phase-b1.md",
+      "tokens": 1687
+    },
+    {
+      "bytes": 3905,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 16,
+      "path": "skills/bug-fix-pipeline/references/phase-b2.md",
+      "tokens": 977
+    },
+    {
+      "bytes": 7176,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 35,
+      "path": "skills/bug-fix-pipeline/references/phase-b3.md",
+      "tokens": 1794
+    },
+    {
+      "bytes": 2392,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 20,
+      "path": "skills/bug-fix-pipeline/references/phase-b4.md",
+      "tokens": 598
+    },
+    {
+      "bytes": 3385,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 26,
+      "path": "skills/bug-fix-pipeline/references/phase-b5.md",
+      "tokens": 847
+    },
+    {
+      "bytes": 12583,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 83,
+      "path": "skills/bug-fix-pipeline/references/phase-b6.md",
+      "tokens": 3146
+    },
+    {
+      "bytes": 7662,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 50,
+      "path": "skills/bug-fix-pipeline/references/phase-b6b.md",
+      "tokens": 1916
+    },
+    {
+      "bytes": 1328,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/bug-fix-pipeline/references/phase-b7.md",
+      "tokens": 332
+    },
+    {
+      "bytes": 12194,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 81,
+      "path": "skills/bug-fix-pipeline/references/phase-b8.md",
+      "tokens": 3049
+    },
+    {
+      "bytes": 8365,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 81,
+      "path": "skills/bug-fix-pipeline/references/structured-bug-isolation.md",
+      "tokens": 2092
+    },
+    {
+      "bytes": 8160,
+      "class": "skill",
+      "description_tokens": 137,
+      "lines": 138,
+      "path": "skills/cartographer-team/SKILL.md",
+      "tokens": 2040
+    },
+    {
+      "bytes": 6967,
+      "class": "skill",
+      "description_tokens": 172,
+      "lines": 116,
+      "path": "skills/claude-design-import/SKILL.md",
+      "tokens": 1742
+    },
+    {
+      "bytes": 5134,
+      "class": "skill",
+      "description_tokens": 176,
+      "lines": 92,
+      "path": "skills/claude-md-efficiency/SKILL.md",
+      "tokens": 1284
+    },
+    {
+      "bytes": 5933,
+      "class": "skill",
+      "description_tokens": 175,
+      "lines": 106,
+      "path": "skills/closeout/SKILL.md",
+      "tokens": 1484
+    },
+    {
+      "bytes": 59615,
+      "class": "skill",
+      "description_tokens": 144,
+      "lines": 394,
+      "path": "skills/common-pipeline-conventions/SKILL.md",
+      "tokens": 14904
+    },
+    {
+      "bytes": 8361,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 67,
+      "path": "skills/common-pipeline-conventions/references/INDEX.md",
+      "tokens": 2091
+    },
+    {
+      "bytes": 2765,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 34,
+      "path": "skills/common-pipeline-conventions/references/agent-checkpoint-discipline.md",
+      "tokens": 692
+    },
+    {
+      "bytes": 14097,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 105,
+      "path": "skills/common-pipeline-conventions/references/appearance-change-policy-discipline.md",
+      "tokens": 3525
+    },
+    {
+      "bytes": 9612,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 81,
+      "path": "skills/common-pipeline-conventions/references/augment-never-replace.md",
+      "tokens": 2403
+    },
+    {
+      "bytes": 6587,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 54,
+      "path": "skills/common-pipeline-conventions/references/auto-merge-to-main-discipline.md",
+      "tokens": 1647
+    },
+    {
+      "bytes": 12892,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 119,
+      "path": "skills/common-pipeline-conventions/references/auto-worktree-lifecycle.md",
+      "tokens": 3223
+    },
+    {
+      "bytes": 6159,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 53,
+      "path": "skills/common-pipeline-conventions/references/backend-from-frontend-dispatch-and-analysis-modularization.md",
+      "tokens": 1540
+    },
+    {
+      "bytes": 3203,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 44,
+      "path": "skills/common-pipeline-conventions/references/background-agent-resume-discipline.md",
+      "tokens": 801
+    },
+    {
+      "bytes": 6474,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 74,
+      "path": "skills/common-pipeline-conventions/references/codebase-discipline-registry.md",
+      "tokens": 1619
+    },
+    {
+      "bytes": 2311,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 11,
+      "path": "skills/common-pipeline-conventions/references/contract-first-parallelism.md",
+      "tokens": 578
+    },
+    {
+      "bytes": 2806,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 45,
+      "path": "skills/common-pipeline-conventions/references/converge-workflows.md",
+      "tokens": 702
+    },
+    {
+      "bytes": 8689,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 63,
+      "path": "skills/common-pipeline-conventions/references/data-engineering-exploration-discipline.md",
+      "tokens": 2173
+    },
+    {
+      "bytes": 3309,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 27,
+      "path": "skills/common-pipeline-conventions/references/declared-gates-discipline.md",
+      "tokens": 828
+    },
+    {
+      "bytes": 9600,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 81,
+      "path": "skills/common-pipeline-conventions/references/deletion-discipline.md",
+      "tokens": 2400
+    },
+    {
+      "bytes": 6346,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 62,
+      "path": "skills/common-pipeline-conventions/references/deploy-mandate-discipline.md",
+      "tokens": 1587
+    },
+    {
+      "bytes": 4037,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 21,
+      "path": "skills/common-pipeline-conventions/references/dispatch-mode.md",
+      "tokens": 1010
+    },
+    {
+      "bytes": 5530,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 58,
+      "path": "skills/common-pipeline-conventions/references/dynamic-affordance-discovery-discipline.md",
+      "tokens": 1383
+    },
+    {
+      "bytes": 4844,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 28,
+      "path": "skills/common-pipeline-conventions/references/exploration-documentation-standard.md",
+      "tokens": 1211
+    },
+    {
+      "bytes": 5846,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 38,
+      "path": "skills/common-pipeline-conventions/references/frontend-missing-api-discipline.md",
+      "tokens": 1462
+    },
+    {
+      "bytes": 7322,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 83,
+      "path": "skills/common-pipeline-conventions/references/git-commit-identity.md",
+      "tokens": 1831
+    },
+    {
+      "bytes": 9679,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 94,
+      "path": "skills/common-pipeline-conventions/references/in-flight-clarification-discipline.md",
+      "tokens": 2420
+    },
+    {
+      "bytes": 5967,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 65,
+      "path": "skills/common-pipeline-conventions/references/in-flight-clarification-injection-mechanism.md",
+      "tokens": 1492
+    },
+    {
+      "bytes": 3265,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 25,
+      "path": "skills/common-pipeline-conventions/references/layer-3-gate-invocation-table.md",
+      "tokens": 817
+    },
+    {
+      "bytes": 11402,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 122,
+      "path": "skills/common-pipeline-conventions/references/live-data-wiring-discipline.md",
+      "tokens": 2851
+    },
+    {
+      "bytes": 3008,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 17,
+      "path": "skills/common-pipeline-conventions/references/local-dev-test-discipline.md",
+      "tokens": 752
+    },
+    {
+      "bytes": 8240,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 103,
+      "path": "skills/common-pipeline-conventions/references/multi-persona-path-coverage-discipline.md",
+      "tokens": 2060
+    },
+    {
+      "bytes": 2809,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 53,
+      "path": "skills/common-pipeline-conventions/references/native-methodology.md",
+      "tokens": 703
+    },
+    {
+      "bytes": 6370,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 66,
+      "path": "skills/common-pipeline-conventions/references/no-end-of-run-deferral-discipline.md",
+      "tokens": 1593
+    },
+    {
+      "bytes": 6220,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 62,
+      "path": "skills/common-pipeline-conventions/references/no-implementation-time-scope-cut-discipline.md",
+      "tokens": 1555
+    },
+    {
+      "bytes": 5685,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 48,
+      "path": "skills/common-pipeline-conventions/references/no-pipeline-bypass-discipline.md",
+      "tokens": 1422
+    },
+    {
+      "bytes": 5888,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 63,
+      "path": "skills/common-pipeline-conventions/references/no-proxy-element-verification-discipline.md",
+      "tokens": 1472
+    },
+    {
+      "bytes": 5419,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 65,
+      "path": "skills/common-pipeline-conventions/references/no-standing-red-discipline.md",
+      "tokens": 1355
+    },
+    {
+      "bytes": 8300,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 43,
+      "path": "skills/common-pipeline-conventions/references/notifications-wiring-convention.md",
+      "tokens": 2075
+    },
+    {
+      "bytes": 3633,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 34,
+      "path": "skills/common-pipeline-conventions/references/phenotype-convergence-rules.md",
+      "tokens": 909
+    },
+    {
+      "bytes": 6523,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 69,
+      "path": "skills/common-pipeline-conventions/references/prod-safe-test-classification-discipline.md",
+      "tokens": 1631
+    },
+    {
+      "bytes": 8625,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 39,
+      "path": "skills/common-pipeline-conventions/references/run-continuity-discipline.md",
+      "tokens": 2157
+    },
+    {
+      "bytes": 3968,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 37,
+      "path": "skills/common-pipeline-conventions/references/run-metrics-and-success-measurement.md",
+      "tokens": 992
+    },
+    {
+      "bytes": 4906,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 42,
+      "path": "skills/common-pipeline-conventions/references/running-in-parallel-sessions.md",
+      "tokens": 1227
+    },
+    {
+      "bytes": 7989,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 58,
+      "path": "skills/common-pipeline-conventions/references/scope-discipline.md",
+      "tokens": 1998
+    },
+    {
+      "bytes": 4186,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 29,
+      "path": "skills/common-pipeline-conventions/references/scope-fidelity-discipline-family.md",
+      "tokens": 1047
+    },
+    {
+      "bytes": 4600,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 33,
+      "path": "skills/common-pipeline-conventions/references/skill-invocation-discipline.md",
+      "tokens": 1150
+    },
+    {
+      "bytes": 3049,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/common-pipeline-conventions/references/spec-currency-discipline-mid-run.md",
+      "tokens": 763
+    },
+    {
+      "bytes": 5028,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 47,
+      "path": "skills/common-pipeline-conventions/references/teammate-git-discipline.md",
+      "tokens": 1257
+    },
+    {
+      "bytes": 4240,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 80,
+      "path": "skills/common-pipeline-conventions/references/test-run-monitor-discipline.md",
+      "tokens": 1060
+    },
+    {
+      "bytes": 9257,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 61,
+      "path": "skills/common-pipeline-conventions/references/test-selection.md",
+      "tokens": 2315
+    },
+    {
+      "bytes": 6026,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 39,
+      "path": "skills/common-pipeline-conventions/references/unbounded-solving-discipline.md",
+      "tokens": 1507
+    },
+    {
+      "bytes": 6695,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 57,
+      "path": "skills/common-pipeline-conventions/references/uniform-plugin-usage.md",
+      "tokens": 1674
+    },
+    {
+      "bytes": 5228,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 54,
+      "path": "skills/common-pipeline-conventions/references/unilateral-override-discipline.md",
+      "tokens": 1307
+    },
+    {
+      "bytes": 3107,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 32,
+      "path": "skills/common-pipeline-conventions/references/ux-test-environment-sequencing-discipline.md",
+      "tokens": 777
+    },
+    {
+      "bytes": 10256,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 110,
+      "path": "skills/common-pipeline-conventions/references/verified-live-discipline.md",
+      "tokens": 2564
+    },
+    {
+      "bytes": 18173,
+      "class": "skill",
+      "description_tokens": 243,
+      "lines": 295,
+      "path": "skills/contract-first-parallelism/SKILL.md",
+      "tokens": 4544
+    },
+    {
+      "bytes": 8918,
+      "class": "skill",
+      "description_tokens": 84,
+      "lines": 160,
+      "path": "skills/coverage-mapping/SKILL.md",
+      "tokens": 2230
+    },
+    {
+      "bytes": 7159,
+      "class": "skill",
+      "description_tokens": 104,
+      "lines": 70,
+      "path": "skills/ct6-agent-core/SKILL.md",
+      "tokens": 1790
+    },
+    {
+      "bytes": 10569,
+      "class": "skill",
+      "description_tokens": 224,
+      "lines": 170,
+      "path": "skills/data-annotations/SKILL.md",
+      "tokens": 2643
+    },
+    {
+      "bytes": 14604,
+      "class": "skill",
+      "description_tokens": 234,
+      "lines": 225,
+      "path": "skills/data-dictionary/SKILL.md",
+      "tokens": 3651
+    },
+    {
+      "bytes": 20058,
+      "class": "skill",
+      "description_tokens": 244,
+      "lines": 131,
+      "path": "skills/data-eng-pipeline/SKILL.md",
+      "tokens": 5015
+    },
+    {
+      "bytes": 911,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 13,
+      "path": "skills/data-eng-pipeline/references/INDEX.md",
+      "tokens": 228
+    },
+    {
+      "bytes": 1776,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 8,
+      "path": "skills/data-eng-pipeline/references/cross-cutting-disciplines-canonical-homes-not-re-explained-h.md",
+      "tokens": 444
+    },
+    {
+      "bytes": 4623,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 13,
+      "path": "skills/data-eng-pipeline/references/phase-d-1.md",
+      "tokens": 1156
+    },
+    {
+      "bytes": 3715,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 9,
+      "path": "skills/data-eng-pipeline/references/phase-d0.md",
+      "tokens": 929
+    },
+    {
+      "bytes": 3470,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 13,
+      "path": "skills/data-eng-pipeline/references/phase-d2.md",
+      "tokens": 868
+    },
+    {
+      "bytes": 1957,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 10,
+      "path": "skills/data-eng-pipeline/references/phase-d7.md",
+      "tokens": 490
+    },
+    {
+      "bytes": 8172,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 46,
+      "path": "skills/data-eng-pipeline/references/sample-first.md",
+      "tokens": 2043
+    },
+    {
+      "bytes": 22609,
+      "class": "skill",
+      "description_tokens": 246,
+      "lines": 400,
+      "path": "skills/data-engineering-exploration/SKILL.md",
+      "tokens": 5653
+    },
+    {
+      "bytes": 13860,
+      "class": "skill",
+      "description_tokens": 216,
+      "lines": 214,
+      "path": "skills/data-lineage-mapping/SKILL.md",
+      "tokens": 3465
+    },
+    {
+      "bytes": 10835,
+      "class": "skill",
+      "description_tokens": 238,
+      "lines": 167,
+      "path": "skills/delivery-manifest/SKILL.md",
+      "tokens": 2709
+    },
+    {
+      "bytes": 36147,
+      "class": "skill",
+      "description_tokens": 192,
+      "lines": 444,
+      "path": "skills/design-fidelity-mapping/SKILL.md",
+      "tokens": 9037
+    },
+    {
+      "bytes": 9235,
+      "class": "skill",
+      "description_tokens": 95,
+      "lines": 104,
+      "path": "skills/dev-api-integration-testing/SKILL.md",
+      "tokens": 2309
+    },
+    {
+      "bytes": 27847,
+      "class": "skill",
+      "description_tokens": 172,
+      "lines": 231,
+      "path": "skills/diagnostic-research-team/SKILL.md",
+      "tokens": 6962
+    },
+    {
+      "bytes": 10783,
+      "class": "skill",
+      "description_tokens": 159,
+      "lines": 65,
+      "path": "skills/documentation-currency/SKILL.md",
+      "tokens": 2696
+    },
+    {
+      "bytes": 9585,
+      "class": "skill",
+      "description_tokens": 176,
+      "lines": 160,
+      "path": "skills/domain-research-team/SKILL.md",
+      "tokens": 2397
+    },
+    {
+      "bytes": 16182,
+      "class": "skill",
+      "description_tokens": 199,
+      "lines": 126,
+      "path": "skills/dynamic-value-discovery/SKILL.md",
+      "tokens": 4046
+    },
+    {
+      "bytes": 22852,
+      "class": "skill",
+      "description_tokens": 239,
+      "lines": 213,
+      "path": "skills/editability-completeness/SKILL.md",
+      "tokens": 5713
+    },
+    {
+      "bytes": 22173,
+      "class": "skill",
+      "description_tokens": 196,
+      "lines": 401,
+      "path": "skills/email-testing/SKILL.md",
+      "tokens": 5544
+    },
+    {
+      "bytes": 10866,
+      "class": "skill",
+      "description_tokens": 170,
+      "lines": 192,
+      "path": "skills/endpoint-trace-mapping/SKILL.md",
+      "tokens": 2717
+    },
+    {
+      "bytes": 20461,
+      "class": "skill",
+      "description_tokens": 204,
+      "lines": 169,
+      "path": "skills/expensive-verification-debugging/SKILL.md",
+      "tokens": 5116
+    },
+    {
+      "bytes": 6993,
+      "class": "skill",
+      "description_tokens": 78,
+      "lines": 124,
+      "path": "skills/frontend-route-mapping/SKILL.md",
+      "tokens": 1749
+    },
+    {
+      "bytes": 5544,
+      "class": "skill",
+      "description_tokens": 209,
+      "lines": 92,
+      "path": "skills/helpdesk/SKILL.md",
+      "tokens": 1386
+    },
+    {
+      "bytes": 19192,
+      "class": "skill",
+      "description_tokens": 136,
+      "lines": 221,
+      "path": "skills/intake-and-mapping/SKILL.md",
+      "tokens": 4798
+    },
+    {
+      "bytes": 47132,
+      "class": "skill",
+      "description_tokens": 220,
+      "lines": 366,
+      "path": "skills/interaction-completeness/SKILL.md",
+      "tokens": 11783
+    },
+    {
+      "bytes": 19429,
+      "class": "skill",
+      "description_tokens": 232,
+      "lines": 176,
+      "path": "skills/interaction-intuition/SKILL.md",
+      "tokens": 4858
+    },
+    {
+      "bytes": 13617,
+      "class": "skill",
+      "description_tokens": 166,
+      "lines": 194,
+      "path": "skills/interactive-mockup-discovery/SKILL.md",
+      "tokens": 3405
+    },
+    {
+      "bytes": 19340,
+      "class": "skill",
+      "description_tokens": 226,
+      "lines": 316,
+      "path": "skills/intuition-map-lifecycle/SKILL.md",
+      "tokens": 4835
+    },
+    {
+      "bytes": 6101,
+      "class": "skill",
+      "description_tokens": 180,
+      "lines": 107,
+      "path": "skills/mcp-output-contract-design/SKILL.md",
+      "tokens": 1526
+    },
+    {
+      "bytes": 27083,
+      "class": "skill",
+      "description_tokens": 172,
+      "lines": 291,
+      "path": "skills/mempalace-integration/SKILL.md",
+      "tokens": 6771
+    },
+    {
+      "bytes": 25865,
+      "class": "skill",
+      "description_tokens": 237,
+      "lines": 216,
+      "path": "skills/mini-architect-team-pipeline/SKILL.md",
+      "tokens": 6467
+    },
+    {
+      "bytes": 1467,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 17,
+      "path": "skills/mini-architect-team-pipeline/references/INDEX.md",
+      "tokens": 367
+    },
+    {
+      "bytes": 1336,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 5,
+      "path": "skills/mini-architect-team-pipeline/references/mempalace-wake-up-required-runs-before-any-subagent-dispatch.md",
+      "tokens": 334
+    },
+    {
+      "bytes": 4968,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 24,
+      "path": "skills/mini-architect-team-pipeline/references/notifications-per-project-email-events-opt-in-best-effort.md",
+      "tokens": 1242
+    },
+    {
+      "bytes": 2832,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 22,
+      "path": "skills/mini-architect-team-pipeline/references/phase-m3.md",
+      "tokens": 708
+    },
+    {
+      "bytes": 3491,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 23,
+      "path": "skills/mini-architect-team-pipeline/references/phase-m4.md",
+      "tokens": 873
+    },
+    {
+      "bytes": 1946,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 24,
+      "path": "skills/mini-architect-team-pipeline/references/phase-m5.md",
+      "tokens": 487
+    },
+    {
+      "bytes": 16050,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 165,
+      "path": "skills/mini-architect-team-pipeline/references/phase-m7.md",
+      "tokens": 4013
+    },
+    {
+      "bytes": 4229,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 56,
+      "path": "skills/mini-architect-team-pipeline/references/phase-m8.md",
+      "tokens": 1058
+    },
+    {
+      "bytes": 1375,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 25,
+      "path": "skills/mini-architect-team-pipeline/references/qa-guidance.md",
+      "tokens": 344
+    },
+    {
+      "bytes": 2264,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 16,
+      "path": "skills/mini-architect-team-pipeline/references/what-this-skill-does-not-do.md",
+      "tokens": 566
+    },
+    {
+      "bytes": 9665,
+      "class": "skill",
+      "description_tokens": 227,
+      "lines": 166,
+      "path": "skills/page-publishing/SKILL.md",
+      "tokens": 2417
+    },
+    {
+      "bytes": 3744,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 81,
+      "path": "skills/page-publishing/references/page-contract.md",
+      "tokens": 936
+    },
+    {
+      "bytes": 6214,
+      "class": "skill",
+      "description_tokens": 109,
+      "lines": 87,
+      "path": "skills/phenotype-absorption/SKILL.md",
+      "tokens": 1554
+    },
+    {
+      "bytes": 7385,
+      "class": "skill",
+      "description_tokens": 123,
+      "lines": 122,
+      "path": "skills/phenotypes/SKILL.md",
+      "tokens": 1847
+    },
+    {
+      "bytes": 24586,
+      "class": "skill",
+      "description_tokens": 203,
+      "lines": 421,
+      "path": "skills/playwright-suite-builder/SKILL.md",
+      "tokens": 6147
+    },
+    {
+      "bytes": 5843,
+      "class": "skill",
+      "description_tokens": 203,
+      "lines": 47,
+      "path": "skills/playwright-user-flows/SKILL.md",
+      "tokens": 1461
+    },
+    {
+      "bytes": 951,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 12,
+      "path": "skills/playwright-user-flows/references/INDEX.md",
+      "tokens": 238
+    },
+    {
+      "bytes": 7993,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 28,
+      "path": "skills/playwright-user-flows/references/anti-pattern-rationalizations-to-reject.md",
+      "tokens": 1999
+    },
+    {
+      "bytes": 16081,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 245,
+      "path": "skills/playwright-user-flows/references/phase-a-examination-mandatory-before-any-test-code.md",
+      "tokens": 4021
+    },
+    {
+      "bytes": 19664,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 235,
+      "path": "skills/playwright-user-flows/references/phase-b-test-authoring-informed-by-the-inventory-and-the-use.md",
+      "tokens": 4916
+    },
+    {
+      "bytes": 11211,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 93,
+      "path": "skills/playwright-user-flows/references/phase-c-coverage-verification-before-submitting-tests.md",
+      "tokens": 2803
+    },
+    {
+      "bytes": 9336,
+      "class": "skill",
+      "description_tokens": 227,
+      "lines": 161,
+      "path": "skills/project-homepage/SKILL.md",
+      "tokens": 2334
+    },
+    {
+      "bytes": 9935,
+      "class": "skill",
+      "description_tokens": 211,
+      "lines": 163,
+      "path": "skills/project-principles/SKILL.md",
+      "tokens": 2484
+    },
+    {
+      "bytes": 7677,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 149,
+      "path": "skills/project-principles/references/principles-schema.md",
+      "tokens": 1920
+    },
+    {
+      "bytes": 16946,
+      "class": "skill",
+      "description_tokens": 195,
+      "lines": 222,
+      "path": "skills/proposal-refiner/SKILL.md",
+      "tokens": 4237
+    },
+    {
+      "bytes": 20931,
+      "class": "skill",
+      "description_tokens": 236,
+      "lines": 287,
+      "path": "skills/readme-styling/SKILL.md",
+      "tokens": 5233
+    },
+    {
+      "bytes": 7208,
+      "class": "skill",
+      "description_tokens": 102,
+      "lines": 104,
+      "path": "skills/reuse-first-design/SKILL.md",
+      "tokens": 1802
+    },
+    {
+      "bytes": 21277,
+      "class": "skill",
+      "description_tokens": 153,
+      "lines": 258,
+      "path": "skills/root-cause-test-failures/SKILL.md",
+      "tokens": 5320
+    },
+    {
+      "bytes": 33654,
+      "class": "skill",
+      "description_tokens": 164,
+      "lines": 278,
+      "path": "skills/structure-optimization/SKILL.md",
+      "tokens": 8414
+    },
+    {
+      "bytes": 13844,
+      "class": "skill",
+      "description_tokens": 137,
+      "lines": 165,
+      "path": "skills/team-spawning-and-review-gates/SKILL.md",
+      "tokens": 3461
+    },
+    {
+      "bytes": 2196,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 20,
+      "path": "skills/team-spawning-and-review-gates/references/INDEX.md",
+      "tokens": 549
+    },
+    {
+      "bytes": 5161,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 73,
+      "path": "skills/team-spawning-and-review-gates/references/baseline-sha-capture.md",
+      "tokens": 1291
+    },
+    {
+      "bytes": 1583,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 29,
+      "path": "skills/team-spawning-and-review-gates/references/canonical-front-back-traversal-lineage-roadmap-p4-req-cdl-09.md",
+      "tokens": 396
+    },
+    {
+      "bytes": 2367,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 37,
+      "path": "skills/team-spawning-and-review-gates/references/cdlg-overlap-shared-callees-not-just-shared-files-lineage-ro.md",
+      "tokens": 592
+    },
+    {
+      "bytes": 3010,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 27,
+      "path": "skills/team-spawning-and-review-gates/references/direct-teammate-to-teammate-messaging.md",
+      "tokens": 753
+    },
+    {
+      "bytes": 2025,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 23,
+      "path": "skills/team-spawning-and-review-gates/references/hook-rejection-escalation-policy.md",
+      "tokens": 507
+    },
+    {
+      "bytes": 2868,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 17,
+      "path": "skills/team-spawning-and-review-gates/references/independent-review-the-task-reviewer.md",
+      "tokens": 717
+    },
+    {
+      "bytes": 4440,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 53,
+      "path": "skills/team-spawning-and-review-gates/references/non-overlapping-file-scopes.md",
+      "tokens": 1110
+    },
+    {
+      "bytes": 2425,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 13,
+      "path": "skills/team-spawning-and-review-gates/references/reading-teammate-state.md",
+      "tokens": 607
+    },
+    {
+      "bytes": 3050,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/team-spawning-and-review-gates/references/red-first-a-new-guard-is-not-evidence-until-it-has-been-show.md",
+      "tokens": 763
+    },
+    {
+      "bytes": 1304,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 9,
+      "path": "skills/team-spawning-and-review-gates/references/review-evidence-what-each-field-means-in-practice.md",
+      "tokens": 326
+    },
+    {
+      "bytes": 12373,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 76,
+      "path": "skills/team-spawning-and-review-gates/references/review-gate-evidence-file.md",
+      "tokens": 3094
+    },
+    {
+      "bytes": 2709,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 44,
+      "path": "skills/team-spawning-and-review-gates/references/review-tiers.md",
+      "tokens": 678
+    },
+    {
+      "bytes": 17981,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 118,
+      "path": "skills/team-spawning-and-review-gates/references/solution-requirements-auto-spawn-the-dev-loop-on-any-surface.md",
+      "tokens": 4496
+    },
+    {
+      "bytes": 9942,
+      "class": "skill",
+      "description_tokens": 220,
+      "lines": 129,
+      "path": "skills/test-prod-safety-classifier/SKILL.md",
+      "tokens": 2486
+    },
+    {
+      "bytes": 10866,
+      "class": "skill",
+      "description_tokens": 90,
+      "lines": 150,
+      "path": "skills/test-run-monitor/SKILL.md",
+      "tokens": 2717
+    },
+    {
+      "bytes": 4725,
+      "class": "skill",
+      "description_tokens": 188,
+      "lines": 78,
+      "path": "skills/token-compression/SKILL.md",
+      "tokens": 1182
+    },
+    {
+      "bytes": 21264,
+      "class": "skill",
+      "description_tokens": 230,
+      "lines": 195,
+      "path": "skills/ux-test-builder/SKILL.md",
+      "tokens": 5316
+    },
+    {
+      "bytes": 1464,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 19,
+      "path": "skills/ux-test-builder/references/INDEX.md",
+      "tokens": 366
+    },
+    {
+      "bytes": 1640,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 7,
+      "path": "skills/ux-test-builder/references/five-non-negotiable-disciplines.md",
+      "tokens": 410
+    },
+    {
+      "bytes": 4354,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 18,
+      "path": "skills/ux-test-builder/references/notifications-per-project-email-events-opt-in-best-effort.md",
+      "tokens": 1089
+    },
+    {
+      "bytes": 1749,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 32,
+      "path": "skills/ux-test-builder/references/phase-u0.md",
+      "tokens": 438
+    },
+    {
+      "bytes": 2365,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 14,
+      "path": "skills/ux-test-builder/references/phase-u2.md",
+      "tokens": 592
+    },
+    {
+      "bytes": 1776,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/ux-test-builder/references/phase-u3.md",
+      "tokens": 444
+    },
+    {
+      "bytes": 2079,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 11,
+      "path": "skills/ux-test-builder/references/phase-u4.md",
+      "tokens": 520
+    },
+    {
+      "bytes": 4228,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 24,
+      "path": "skills/ux-test-builder/references/phase-u5.md",
+      "tokens": 1057
+    },
+    {
+      "bytes": 3698,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 38,
+      "path": "skills/ux-test-builder/references/phase-u6.md",
+      "tokens": 925
+    },
+    {
+      "bytes": 1550,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/ux-test-builder/references/phase-u7.md",
+      "tokens": 388
+    },
+    {
+      "bytes": 2794,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 34,
+      "path": "skills/ux-test-builder/references/phase-u8.md",
+      "tokens": 699
+    },
+    {
+      "bytes": 6623,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 42,
+      "path": "skills/ux-test-builder/references/phase-u9.md",
+      "tokens": 1656
+    },
+    {
+      "bytes": 12815,
+      "class": "skill",
+      "description_tokens": 180,
+      "lines": 94,
+      "path": "skills/verification-planning/SKILL.md",
+      "tokens": 3204
+    },
+    {
+      "bytes": 8005,
+      "class": "skill",
+      "description_tokens": 87,
+      "lines": 92,
+      "path": "skills/verified-agent-output/SKILL.md",
+      "tokens": 2002
+    },
+    {
+      "bytes": 1021,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 13,
+      "path": "skills/verified-agent-output/references/INDEX.md",
+      "tokens": 256
+    },
+    {
+      "bytes": 1335,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 14,
+      "path": "skills/verified-agent-output/references/composition-with-existing-patterns-v2-0-0-adds-layers-remove.md",
+      "tokens": 334
+    },
+    {
+      "bytes": 1759,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 15,
+      "path": "skills/verified-agent-output/references/failure-mode-mapping-the-audit-trail.md",
+      "tokens": 440
+    },
+    {
+      "bytes": 3637,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 44,
+      "path": "skills/verified-agent-output/references/schema-v7-the-breaking-change.md",
+      "tokens": 910
+    },
+    {
+      "bytes": 4423,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 61,
+      "path": "skills/verified-agent-output/references/the-six-layers-part-2.md",
+      "tokens": 1106
+    },
+    {
+      "bytes": 17780,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 220,
+      "path": "skills/verified-agent-output/references/the-six-layers.md",
+      "tokens": 4445
+    },
+    {
+      "bytes": 44829,
+      "class": "skill",
+      "description_tokens": 174,
+      "lines": 409,
+      "path": "skills/visual-fidelity-reconciliation/SKILL.md",
+      "tokens": 11208
+    },
+    {
+      "bytes": 13890,
+      "class": "skill",
+      "description_tokens": 177,
+      "lines": 117,
+      "path": "skills/visual-to-api-design/SKILL.md",
+      "tokens": 3473
+    },
+    {
+      "bytes": 1171,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": true,
+      "lines": 14,
+      "path": "skills/visual-to-api-design/references/INDEX.md",
+      "tokens": 293
+    },
+    {
+      "bytes": 2800,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 17,
+      "path": "skills/visual-to-api-design/references/cross-references.md",
+      "tokens": 700
+    },
+    {
+      "bytes": 9300,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 193,
+      "path": "skills/visual-to-api-design/references/the-4-stages-the-original-subset.md",
+      "tokens": 2325
+    },
+    {
+      "bytes": 14909,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 139,
+      "path": "skills/visual-to-api-design/references/the-exploration-pipeline-7-stages-part-2.md",
+      "tokens": 3728
+    },
+    {
+      "bytes": 10560,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 85,
+      "path": "skills/visual-to-api-design/references/the-exploration-pipeline-7-stages.md",
+      "tokens": 2640
+    },
+    {
+      "bytes": 2370,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 5,
+      "path": "skills/visual-to-api-design/references/the-failure-shape-this-closes-verbatim-from-the-user.md",
+      "tokens": 593
+    },
+    {
+      "bytes": 2155,
+      "class": "chapter",
+      "description_tokens": 0,
+      "is_index": false,
+      "lines": 19,
+      "path": "skills/visual-to-api-design/references/when-this-skill-runs.md",
+      "tokens": 539
+    },
+    {
+      "bytes": 12297,
+      "class": "skill",
+      "description_tokens": 203,
+      "lines": 86,
+      "path": "skills/visual-verification-team/SKILL.md",
+      "tokens": 3075
+    },
+    {
+      "bytes": 10484,
+      "class": "skill",
+      "description_tokens": 216,
+      "lines": 178,
+      "path": "skills/warehouse-sql-mining/SKILL.md",
+      "tokens": 2621
+    },
+    {
+      "bytes": 10540,
+      "class": "agent",
+      "description_tokens": 222,
+      "lines": 137,
+      "path": "agents/adversarial-reviewer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 2635
+    },
+    {
+      "bytes": 21689,
+      "class": "agent",
+      "description_tokens": 71,
+      "lines": 156,
+      "path": "agents/backend.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 5423
+    },
+    {
+      "bytes": 20849,
+      "class": "agent",
+      "description_tokens": 231,
+      "lines": 245,
+      "path": "agents/bug-classifier.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 5213
+    },
+    {
+      "bytes": 22598,
+      "class": "agent",
+      "description_tokens": 188,
+      "lines": 218,
+      "path": "agents/bug-replicator.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 5650
+    },
+    {
+      "bytes": 5646,
+      "class": "agent",
+      "description_tokens": 240,
+      "lines": 107,
+      "path": "agents/closeout-agent.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1412
+    },
+    {
+      "bytes": 6257,
+      "class": "agent",
+      "description_tokens": 102,
+      "lines": 79,
+      "path": "agents/codebase-map-reviewer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1565
+    },
+    {
+      "bytes": 18078,
+      "class": "agent",
+      "description_tokens": 147,
+      "lines": 192,
+      "path": "agents/diagnostic-researcher.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 4520
+    },
+    {
+      "bytes": 13780,
+      "class": "agent",
+      "description_tokens": 250,
+      "lines": 167,
+      "path": "agents/doc-updater.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 3445
+    },
+    {
+      "bytes": 6559,
+      "class": "agent",
+      "description_tokens": 155,
+      "lines": 121,
+      "path": "agents/domain-researcher.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1640
+    },
+    {
+      "bytes": 10553,
+      "class": "agent",
+      "description_tokens": 170,
+      "lines": 117,
+      "path": "agents/editability-reviewer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 2639
+    },
+    {
+      "bytes": 6394,
+      "class": "agent",
+      "description_tokens": 162,
+      "lines": 113,
+      "path": "agents/endpoint-tracer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1599
+    },
+    {
+      "bytes": 13593,
+      "class": "agent",
+      "description_tokens": 251,
+      "lines": 186,
+      "path": "agents/fix-sensibility-checker.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 3399
+    },
+    {
+      "bytes": 16579,
+      "class": "agent",
+      "description_tokens": 191,
+      "lines": 193,
+      "path": "agents/flow-executor.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 4145
+    },
+    {
+      "bytes": 9908,
+      "class": "agent",
+      "description_tokens": 228,
+      "lines": 126,
+      "path": "agents/flow-explorer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 2477
+    },
+    {
+      "bytes": 51513,
+      "class": "agent",
+      "description_tokens": 64,
+      "lines": 376,
+      "path": "agents/frontend.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 12879
+    },
+    {
+      "bytes": 3931,
+      "class": "agent",
+      "description_tokens": 88,
+      "lines": 64,
+      "path": "agents/integration-explorer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 983
+    },
+    {
+      "bytes": 25663,
+      "class": "agent",
+      "description_tokens": 82,
+      "lines": 163,
+      "path": "agents/integration.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 6416
+    },
+    {
+      "bytes": 18394,
+      "class": "agent",
+      "description_tokens": 215,
+      "lines": 215,
+      "path": "agents/interaction-intuiter.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 4599
+    },
+    {
+      "bytes": 12299,
+      "class": "agent",
+      "description_tokens": 215,
+      "lines": 187,
+      "path": "agents/interaction-observer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 3075
+    },
+    {
+      "bytes": 27205,
+      "class": "agent",
+      "description_tokens": 238,
+      "lines": 245,
+      "path": "agents/interaction-reviewer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 6802
+    },
+    {
+      "bytes": 3385,
+      "class": "agent",
+      "description_tokens": 89,
+      "lines": 55,
+      "path": "agents/master-synthesizer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 847
+    },
+    {
+      "bytes": 4070,
+      "class": "agent",
+      "description_tokens": 155,
+      "lines": 86,
+      "path": "agents/mcp-design-agent.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1018
+    },
+    {
+      "bytes": 7922,
+      "class": "agent",
+      "description_tokens": 247,
+      "lines": 122,
+      "path": "agents/mini-qa.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1981
+    },
+    {
+      "bytes": 5494,
+      "class": "agent",
+      "description_tokens": 145,
+      "lines": 122,
+      "path": "agents/monitor-synthesizer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1374
+    },
+    {
+      "bytes": 12825,
+      "class": "agent",
+      "description_tokens": 226,
+      "lines": 164,
+      "path": "agents/oracle-deriver.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 3207
+    },
+    {
+      "bytes": 18148,
+      "class": "agent",
+      "description_tokens": 245,
+      "lines": 198,
+      "path": "agents/prompt-refiner.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 4537
+    },
+    {
+      "bytes": 41994,
+      "class": "agent",
+      "description_tokens": 251,
+      "lines": 479,
+      "path": "agents/qa-replayer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 10499
+    },
+    {
+      "bytes": 3650,
+      "class": "agent",
+      "description_tokens": 100,
+      "lines": 42,
+      "path": "agents/reconciler.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 913
+    },
+    {
+      "bytes": 5756,
+      "class": "agent",
+      "description_tokens": 176,
+      "lines": 71,
+      "path": "agents/reference-tracer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1439
+    },
+    {
+      "bytes": 14717,
+      "class": "agent",
+      "description_tokens": 190,
+      "lines": 181,
+      "path": "agents/route-mapper.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 3680
+    },
+    {
+      "bytes": 3767,
+      "class": "agent",
+      "description_tokens": 77,
+      "lines": 48,
+      "path": "agents/scaffold-agent.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 942
+    },
+    {
+      "bytes": 8147,
+      "class": "agent",
+      "description_tokens": 192,
+      "lines": 64,
+      "path": "agents/structure-adversary.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 2037
+    },
+    {
+      "bytes": 6849,
+      "class": "agent",
+      "description_tokens": 173,
+      "lines": 63,
+      "path": "agents/structure-analyst.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1713
+    },
+    {
+      "bytes": 78495,
+      "class": "agent",
+      "description_tokens": 79,
+      "lines": 674,
+      "path": "agents/system-architect.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 19624
+    },
+    {
+      "bytes": 14206,
+      "class": "agent",
+      "description_tokens": 196,
+      "lines": 148,
+      "path": "agents/task-reviewer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 3552
+    },
+    {
+      "bytes": 31834,
+      "class": "agent",
+      "description_tokens": 248,
+      "lines": 328,
+      "path": "agents/test-completeness-verifier.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 7959
+    },
+    {
+      "bytes": 5391,
+      "class": "agent",
+      "description_tokens": 129,
+      "lines": 104,
+      "path": "agents/test-run-watcher.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1348
+    },
+    {
+      "bytes": 6965,
+      "class": "agent",
+      "description_tokens": 142,
+      "lines": 88,
+      "path": "agents/visual-analyzer.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1742
+    },
+    {
+      "bytes": 6317,
+      "class": "agent",
+      "description_tokens": 142,
+      "lines": 67,
+      "path": "agents/visual-capture.md",
+      "skills": [
+        "ct6-agent-core"
+      ],
+      "tokens": 1580
+    }
+  ],
+  "timestamp": "2026-11-09T00:31:41Z",
+  "totals": {
+    "agent": {
+      "count": 39,
+      "lines": 6511,
+      "max_lines": 674,
+      "max_tokens": 19624,
+      "tokens": 150508
+    },
+    "breaches": 48,
+    "breaches_by_budget": {
+      "agent_max_tokens": 23,
+      "always_loaded_max_tokens": 1,
+      "chapter_max_tokens": 19,
+      "lane_start_max_tokens": 5,
+      "skill_md_max_lines": 0
+    },
+    "chapter": {
+      "count": 148,
+      "lines": 7072,
+      "max_lines": 245,
+      "max_tokens": 4916,
+      "tokens": 205706
+    },
+    "command": {
+      "count": 29,
+      "lines": 3761,
+      "max_lines": 268,
+      "max_tokens": 8476,
+      "tokens": 78837
+    },
+    "skill": {
+      "count": 60,
+      "lines": 11641,
+      "max_lines": 444,
+      "max_tokens": 14904,
+      "tokens": 254014
+    },
+    "surfaces": 276,
+    "tokens": 689065
+  },
+  "tree_dirty": true,
+  "tree_state": {
+    "detail": "269 untracked path(s); tracked diff present",
+    "digest": "6bbce808149af71c",
+    "dirty": true,
+    "head": "4e130584a26b4b467e7a3d0eceae0debf9e3f842",
+    "helper": "suite_measurement.tree_digest",
+    "source": "git"
+  }
+}

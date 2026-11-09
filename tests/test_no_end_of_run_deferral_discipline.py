@@ -17,6 +17,7 @@ Want me to continue with the deferred 7? I'd take them cluster-by-cluster
 fix is strong"
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 from pathlib import Path
@@ -30,13 +31,13 @@ import pytest
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "## No end-of-run deferral discipline (v2.10.0)" in body
 
 
 def test_canonical_section_appears_once_as_h2(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.count("\n## No end-of-run deferral discipline (v2.10.0)\n") == 1
 
 
@@ -47,13 +48,13 @@ def test_canonical_section_appears_once_as_h2(plugin_root: Path):
 ])
 def test_canonical_section_names_severity(plugin_root: Path, severity: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert severity in body
 
 
 def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "⏳ Deferred" in body or "Deferred — 7 bugs" in body
     assert "Want me to continue" in body
     assert "Your call" in body
@@ -69,13 +70,13 @@ def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
 ])
 def test_canonical_section_documents_canonical_markers(plugin_root: Path, marker: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert marker in body, f"canonical marker {marker!r} missing"
 
 
 def test_canonical_section_documents_three_valid_dispositions(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8").lower()
+    body = surface_read(skill).lower()
     # Three valid disposition channels must be named
     assert "fixed in this change" in body
     assert "solution requirement" in body
@@ -84,7 +85,7 @@ def test_canonical_section_documents_three_valid_dispositions(plugin_root: Path)
 
 def test_canonical_section_distinguishes_from_neighbor_disciplines(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     # Comparison table must reference at least 3 prior disciplines
     refs = ["v0.9.36", "v1.4.0", "v2.8.0"]
     for ref in refs:
@@ -103,7 +104,7 @@ def test_canonical_section_distinguishes_from_neighbor_disciplines(plugin_root: 
 ])
 def test_agent_body_has_v2_10_0_section(plugin_root: Path, agent_file: str):
     agent = plugin_root / "agents" / agent_file
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "## No end-of-run deferral discipline (v2.10.0)" in body, (
         f"agents/{agent_file} missing v2.10.0 section"
     )
@@ -112,14 +113,14 @@ def test_agent_body_has_v2_10_0_section(plugin_root: Path, agent_file: str):
 def test_system_architect_names_end_of_run_deferral_finding_field(plugin_root: Path):
     """The Master Review Audit verdict must add an end_of_run_deferral_finding block."""
     agent = plugin_root / "agents" / "system-architect.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "end_of_run_deferral_finding" in body
 
 
 def test_qa_replayer_names_end_of_run_deferral_finding_field(plugin_root: Path):
     """The qa-replayer verdict must add an end_of_run_deferral_finding block."""
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "end_of_run_deferral_finding" in body
 
 
@@ -130,7 +131,7 @@ def test_qa_replayer_names_end_of_run_deferral_finding_field(plugin_root: Path):
 def test_implementer_agents_name_three_dispositions(plugin_root: Path, agent_file: str):
     """frontend.md + backend.md must enumerate the 3 valid item dispositions."""
     agent = plugin_root / "agents" / agent_file
-    body = agent.read_text(encoding="utf-8").lower()
+    body = surface_read(agent).lower()
     # Three dispositions: fixed in diff, SR routed, confirmed-stub
     assert "fixed in" in body
     assert "sr" in body or "solution requirement" in body
@@ -149,7 +150,7 @@ def test_implementer_agents_name_three_dispositions(plugin_root: Path, agent_fil
 ])
 def test_frontend_agent_lists_forbidden_phrases(plugin_root: Path, forbidden_phrase: str):
     agent = plugin_root / "agents" / "frontend.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert forbidden_phrase in body, (
         f"frontend.md does not list forbidden phrase {forbidden_phrase!r}"
     )
@@ -189,7 +190,7 @@ def test_corrected_fixture_has_dispositions_for_every_item(plugin_root: Path):
 
 def test_canonical_section_cross_references_layer3_tool(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "verify_no_end_of_run_deferral" in body
     assert "_DEFERRAL_CATALOG_MARKERS" in body
     assert "_FOLLOWUP_QUESTION_MARKERS" in body
@@ -197,5 +198,5 @@ def test_canonical_section_cross_references_layer3_tool(plugin_root: Path):
 
 def test_canonical_section_cross_references_fixture(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "in-scope-deferral-cluster-list.json" in body

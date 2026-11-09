@@ -657,3 +657,32 @@ def test_runtime_agents_dir_hermetic_under_suite(mod: ModuleType) -> None:
     file, so a bare runtime_agents_dir() inside the suite ALWAYS falls back to
     the repo agents/ — no test can reach the real installed plugin copy."""
     assert mod.runtime_agents_dir() == mod._default_agents_dir()
+
+
+# --- v4.0.0 model-by-role split ---------------------------------------------- #
+
+
+def test_role_split_classifies_every_shipped_agent(mod: ModuleType, tmp_agents: Path) -> None:
+    stems = {p.stem for p in tmp_agents.glob("*.md")}
+    assert set(mod.ROLE_SPLIT_MODELS) == stems, set(mod.ROLE_SPLIT_MODELS) ^ stems
+    assert set(mod.ROLE_SPLIT_MODELS.values()) == {"fable", "opus", "sonnet", "haiku"}
+    assert mod.role_split_model("never-heard-of-it") == "fable"
+
+
+def test_apply_role_split_reaches_the_four_tier_distribution(mod: ModuleType, tmp_agents: Path) -> None:
+    mod.set_model(tmp_agents, "fable")
+    changed = mod.apply_role_split(tmp_agents)
+    assert changed, "the role split must change something on a uniform-fable tree"
+    assert mod.distribution(tmp_agents) == {"fable": 15, "opus": 9, "sonnet": 14, "haiku": 1}
+    assert mod.apply_role_split(tmp_agents) == []  # idempotent
+    for p in tmp_agents.glob("*.md"):
+        assert mod.read_model_value(p.read_text(encoding="utf-8")) == mod.ROLE_SPLIT_MODELS[p.stem]
+
+
+def test_cli_split_role(mod: ModuleType, tmp_agents: Path, capsys) -> None:
+    mod.set_model(tmp_agents, "opus")
+    rc = mod.main(["--split", "role", "--agents-dir", str(tmp_agents)])
+    assert rc == 0
+    assert mod.distribution(tmp_agents) == {"fable": 15, "opus": 9, "sonnet": 14, "haiku": 1}
+    assert mod.POLICY_ROLE_SPLIT in capsys.readouterr().out
+

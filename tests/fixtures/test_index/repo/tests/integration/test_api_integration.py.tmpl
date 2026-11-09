@@ -1,0 +1,5 @@
+from fixpkg import api
+
+
+def test_checkout_total():
+    assert api.checkout_total(["a:100", "b:50"], 2) == 300

@@ -11,6 +11,7 @@ offer detection (URL form, MCP-mention form, `?file=`/`Implement:` parse, no-off
 skill / wiring instruction surface. All offline (no network, no live MCP).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -405,7 +406,7 @@ def test_no_import_side_effects() -> None:
 # --------------------------------------------------------------------------- #
 
 def test_skill_present_and_documents_the_engine() -> None:
-    body = (REPO_ROOT / "skills" / "claude-design-import" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("claude-design-import")
     assert body.startswith("---")
     assert "claude_design_import.py" in body                 # cites the engine
     assert "oracle-deriver" in body                          # routes into the VAO path
@@ -414,18 +415,18 @@ def test_skill_present_and_documents_the_engine() -> None:
 
 
 def test_oracle_deriver_recognizes_materialized_project() -> None:
-    body = (REPO_ROOT / "agents" / "oracle-deriver.md").read_text(encoding="utf-8")
+    body = agent_surface("oracle-deriver")
     assert "claude-design-import" in body
     assert "interactive-mockup" in body.lower()
 
 
 def test_design_fidelity_mapping_lists_materialized_dir() -> None:
-    body = (REPO_ROOT / "skills" / "design-fidelity-mapping" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("design-fidelity-mapping")
     assert "claude-design-import" in body
 
 
 def test_intake_and_mapping_documents_additive_source() -> None:
-    body = (REPO_ROOT / "skills" / "intake-and-mapping" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("intake-and-mapping")
     assert "claude-design-import" in body
 
 

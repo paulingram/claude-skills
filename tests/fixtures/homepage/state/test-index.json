@@ -1,0 +1,9 @@
+{
+  "schema": "test-index/v1",
+  "built_at": "2026-08-01T09:30:00Z",
+  "tests": {
+    "tests/test_totals.py::test_sum": {"files": ["tests/test_totals.py"], "kind": "unit", "trust": "static", "always_run": true},
+    "tests/test_totals.py::test_tax": {"files": ["tests/test_totals.py"], "kind": "unit", "trust": "runtime-witnessed", "always_run": false},
+    "e2e/personas/shopper/checkout.spec.ts::completes": {"files": ["e2e/personas/shopper/checkout.spec.ts"], "kind": "e2e", "trust": "runtime-witnessed", "always_run": false}
+  }
+}

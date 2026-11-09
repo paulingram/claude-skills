@@ -8,6 +8,7 @@ against the tool-call ledger; an explicit request with no matching ``Skill``
 invocation is a hook-blocking violation.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import importlib.util
 import json
@@ -456,7 +457,7 @@ def test_common_pipeline_conventions_documents_skill_invocation_discipline(plugi
     """REQ-16 — common-pipeline-conventions/SKILL.md MUST contain the
     canonical `## Skill-invocation discipline (v2.0.0)` section."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "## Skill-invocation discipline (v2.0.0)" in body, (
         "common-pipeline-conventions must contain the canonical "
         "## Skill-invocation discipline (v2.0.0) section"
@@ -466,7 +467,7 @@ def test_common_pipeline_conventions_documents_skill_invocation_discipline(plugi
 def test_common_pipeline_conventions_documents_user_precedence_rule(plugin_root: Path):
     """The section must name the user-precedence rule explicitly."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "user explicit instructions" in body_lower or "user explicit instruction" in body_lower, (
         "the section must name the user-precedence rule"
@@ -479,7 +480,7 @@ def test_common_pipeline_conventions_documents_user_precedence_rule(plugin_root:
 def test_common_pipeline_conventions_forbids_methodology_by_hand(plugin_root: Path):
     """The section must name the forbidden anti-pattern."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "methodology by hand" in body_lower or "by hand" in body_lower, (
         "the section must name 'applied methodology by hand' as the forbidden anti-pattern"
@@ -489,7 +490,7 @@ def test_common_pipeline_conventions_forbids_methodology_by_hand(plugin_root: Pa
 def test_common_pipeline_conventions_names_both_surface_forms(plugin_root: Path):
     """The section must name both the slash-command form AND the prose form."""
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     body_lower = body.lower()
     assert "slash" in body_lower, "the section must name the slash-command form"
     assert "prose" in body_lower, "the section must name the prose form"

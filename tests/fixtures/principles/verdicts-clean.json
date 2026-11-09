@@ -1,0 +1,8 @@
+{
+  "schema": "principles-verdicts/v1",
+  "subject": {"kind": "design", "ref": "openspec/changes/orders/design.md"},
+  "verdicts": [
+    {"id": "P-01", "verdict": "respected", "why": "orders keeps its own tables", "where": "design.md section 3"},
+    {"id": "P-02", "verdict": "not-applicable"}
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "dev": {"url": "https://dev.shop.example", "enabled": true},
+  "test": {"url": "", "enabled": false},
+  "prod": {"url": "https://shop.example", "enabled": false, "auth_header_env": "SHOP_PROD_AUTH"}
+}

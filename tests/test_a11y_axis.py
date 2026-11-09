@@ -12,6 +12,7 @@ Asserts:
 Stdlib-only; structural.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -25,7 +26,7 @@ A11Y_SUBKINDS = ("keyboard-unreachable", "missing-accessible-name", "axe-violati
 
 
 def _read(p: Path) -> str:
-    return p.read_text(encoding="utf-8")
+    return surface_read(p)
 
 
 # ---- 1. the skill section ---------------------------------------------------

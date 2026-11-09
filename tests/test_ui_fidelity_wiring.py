@@ -22,6 +22,7 @@ registration of the new skills/agent, are sibling teammates' tasks and are
 intentionally NOT re-asserted here. Style follows `tests/test_hooks_structure.py`
 and `tests/test_interaction_completeness.py`.
 """
+from tests.helpers.surfaces import surface_read
 from pathlib import Path
 
 import pytest
@@ -57,7 +58,7 @@ USER_INTERACTION_CALLS = (
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    text = target.read_text(encoding="utf-8")
+    text = surface_read(target)
     assert text.strip(), f"{target} is empty"
     return text
 

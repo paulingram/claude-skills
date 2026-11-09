@@ -7,6 +7,7 @@ every doc is updated AND independently reviewed by the system-architect
 (Documentation Currency Audit mode). These tests assert the discipline is
 present across the skill, the agent, the pipeline, and the Stop hook.
 """
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,11 @@ COMPLETION_HOOK = ("hooks", "pipeline-completion-audit.py")
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 # --- the skill --------------------------------------------------------------

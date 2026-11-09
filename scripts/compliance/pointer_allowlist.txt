@@ -1,0 +1,89 @@
+# scripts/compliance/pointer_allowlist.txt
+#
+# The ONLY suppression for the dead-pointer / dead-heading checks in
+# scripts/compliance/instruction_compliance.py (proposal change 9, condition 2).
+#
+# One entry per line:
+#   <resolved repo-relative path>             suppresses `dead-pointer` for that
+#                                             target wherever it is cited
+#   <resolved repo-relative path>#<heading>   suppresses `dead-heading` for that
+#                                             exact heading literal of that target
+# A '#' at column 0 starts a comment. A heading entry's '#' is part of the entry
+# (no whitespace before it); keep comments on their own lines.
+#
+# Every entry below PRE-DATED the checks (HEAD 4e13058, 2026-11-08) and carries
+# its classification. Remove an entry the moment its pointer is fixed; add one
+# only with the same justification written beside it. The lint reports which
+# entries were hit (`pointer_allowlist_hits`), so a stale entry is visible.
+
+# ---------------------------------------------------------------------------
+# dead pointers -- class: per-codebase OUTPUT artifact named as a bare docs/
+# path. The skill WRITES this file into the TARGET codebase; it is not a pointer
+# into this repo. The house convention for such names is `<codebase>/docs/X.md`
+# (see skills/architect-team-pipeline/SKILL.md Phase -1B), which the pointer
+# grammar does not match. Fix: write the `<codebase>/` prefix and delete the entry.
+# ---------------------------------------------------------------------------
+# cited by skills/data-dictionary/SKILL.md and skills/data-annotations/SKILL.md
+docs/DATA_DICTIONARY_MAP.md
+# cited by skills/warehouse-sql-mining/SKILL.md
+docs/SQL_MINING_MAP.md
+
+# ---------------------------------------------------------------------------
+# dead pointers -- class: relative `references/` pointer from a file that has no
+# references/ directory. The chapter exists at
+# skills/common-pipeline-conventions/references/local-dev-test-discipline.md;
+# the cite must be repo-relative. Fix: spell the full path and delete the entry.
+# ---------------------------------------------------------------------------
+# cited by skills/playwright-user-flows/SKILL.md (line 263 at HEAD 4e13058)
+skills/playwright-user-flows/references/local-dev-test-discipline.md
+
+# ---------------------------------------------------------------------------
+# dead headings -- class: version-suffix drift. The cite is the heading's stable
+# prefix; the real heading carries a trailing "(vX.Y.Z ...)". The rule is exact
+# (suffixes are not stripped), so either cite the heading as written or drop
+# the version suffix from the heading itself.
+# ---------------------------------------------------------------------------
+# real: "## Evidence integrity (v3.47.0; fourth rule v3.59.0)"
+# cited by all 39 agents/*.md (compiled boilerplate -- fix in
+# scripts/setup/sync_agent_boilerplate.py's source block, not per file) and by
+# skills/team-spawning-and-review-gates/SKILL.md (twice)
+docs/ETHOS.md### Evidence integrity
+# real: "## A cause is a hypothesis until it survives an executed falsification (v3.66.0)"
+# cited by skills/bug-fix-pipeline/SKILL.md:311 and agents/diagnostic-researcher.md:144
+docs/ETHOS.md### A cause is a hypothesis until it survives an executed falsification
+
+# ---------------------------------------------------------------------------
+# dead headings -- class: subtitle drift. The cite is the heading's title; the
+# real heading continues with an em-dash subtitle or a parenthetical.
+# ---------------------------------------------------------------------------
+# real: "## Solution Requirements -- auto-spawn the dev loop on any surfaced issue"
+# cited by agents/backend.md:92
+skills/team-spawning-and-review-gates/SKILL.md### Solution Requirements
+# real: "## Restructure Plan Audit (structure-optimization Stage S6)"
+# cited by commands/optimize-structure.md:118
+agents/system-architect.md### Restructure Plan Audit
+# real: "## Stage 6 -- MANDATORY validation + lineage + observability (the v3.5.0 non-negotiable)"
+# cited by skills/common-pipeline-conventions/references/augment-never-replace.md:63
+skills/data-engineering-exploration/SKILL.md### Stage 6
+# real: "## Phase B1 -- Bug Replication"
+# cited by skills/common-pipeline-conventions/references/augment-never-replace.md:64
+skills/bug-fix-pipeline/SKILL.md### Phase B1
+# real: "## Default mode of operation -- drive end-to-end, don't ask obvious things"
+# cited by skills/common-pipeline-conventions/references/in-flight-clarification-discipline.md:90
+skills/architect-team-pipeline/SKILL.md### Default mode of operation
+# real: "## Startup branch reconciliation (v3.7.0) -- runs after the v1.3.0 sweep"
+# cited by skills/common-pipeline-conventions/SKILL.md:239 at HEAD (moving to
+# references/auto-merge-to-main-discipline.md in the restructure)
+commands/mini.md### Startup branch reconciliation (v3.7.0)
+
+# ---------------------------------------------------------------------------
+# dead headings -- class: absent section. No heading of the cited file contains
+# the cited title at all; the pointer is stale or names the wrong file.
+# ---------------------------------------------------------------------------
+# no "task-shape" heading exists in the cited file; cited by
+# skills/verified-agent-output/SKILL.md:397
+skills/team-spawning-and-review-gates/SKILL.md### VAO task-shape pairing
+# the section lives in skills/verified-agent-output/SKILL.md itself as
+# "### Layer 4 -- Run-history shape detection (Phase -2)", not in the conventions
+# skill; cited by skills/verified-agent-output/SKILL.md:398
+skills/common-pipeline-conventions/SKILL.md### Run-history shape detection (v2.0.0)

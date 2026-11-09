@@ -18,7 +18,7 @@ REQUIRED_BODY_SECTIONS = (
     "## What this agent does NOT do",
 )
 
-EXPECTED_TOOLS_IN_ALLOWLIST = ("Read", "Glob", "Grep", "Bash", "Write", "TodoWrite")
+EXPECTED_TOOLS_IN_ALLOWLIST = ("Read", "Glob", "Grep", "Bash", "Write", "TaskUpdate")
 
 
 def _agent_path(plugin_root: Path) -> Path:
@@ -49,7 +49,7 @@ def test_agent_frontmatter_has_required_keys(plugin_root: Path) -> None:
 
 def test_agent_model_is_fable(plugin_root: Path) -> None:
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "fable", "interaction-intuiter must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
+    assert fm["model"] == "sonnet", "interaction-intuiter is an observation seat: model: sonnet under the v4.0.0 role split"
 
 
 def test_agent_tools_no_edit(plugin_root: Path) -> None:

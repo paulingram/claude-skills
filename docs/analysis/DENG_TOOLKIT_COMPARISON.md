@@ -2,7 +2,7 @@
 
 **Run:** deng-comparison-20260802 · **Author:** system-architect · **Status:** analysis-only, no code changes proposed for immediate execution
 **Citation convention:** deng-toolkit paths are relative to the read-only clone at `.architect-team/reference/deng-toolkit/`; CT6 paths are relative to this repo's root. All line numbers were verified against the files as read on 2026-08-02.
-**Baselines compared:** deng-toolkit v1.0.0 (`.claude-plugin/plugin.json:3`, 16 commits, 2026-01-22 → 2026-01-29, one author under two git identities) vs CT6 v3.48.1 (`.claude-plugin/plugin.json:4`; 50 skills / 39 agents / 23 commands / 7 hooks / 21 Layer-3 tools; suite 6690 passing + 6 skipped across 223 test files, `CHANGELOG.md:20`).
+**Baselines compared:** deng-toolkit v1.0.0 (`.claude-plugin/plugin.json:3`, 16 commits, 2026-01-22 → 2026-01-29, one author under two git identities) vs CT6 v3.48.1 (`.claude-plugin/plugin.json:4`; 50 skills / 39 agents / 23 commands / 7 hooks / 21 Layer-3 tools; suite 6690 passing + 6 skipped across 223 test files, `CHANGELOG.md:20`). The CT6 figures are the v3.48.1 baseline this comparison was written against; CT6 is at v4.0.0 as of this doc's last refresh (60 skills / 39 agents / 29 commands / 9 hook scripts over 10 events / 26 Layer-3 tools; suite 8874 passing + 2 skipped across 274 test files), and the data-eng gaps named in §3 were closed by the v3.49.0–v3.54.0 knowledge-server / data-dictionary / annotations / SQL-mining / JSON-LD work and the v4.0.0 sample-first engine (`scripts/data_dictionary/sampling.py`) — read §3 as the state at v3.48.1, not today's.
 
 ---
 

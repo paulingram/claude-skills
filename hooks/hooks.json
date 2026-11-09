@@ -40,6 +40,16 @@
             "async": false
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/deletion_guard.py\"",
+            "async": false
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -72,6 +82,11 @@
             "type": "command",
             "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/review-gate-task.py\"",
             "async": false
+          },
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/timings_log.py\"",
+            "async": false
           }
         ]
       }
@@ -83,6 +98,11 @@
           {
             "type": "command",
             "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate-idle-check.py\"",
+            "async": false
+          },
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/timings_log.py\"",
             "async": false
           }
         ]
@@ -108,6 +128,11 @@
             "type": "command",
             "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/pipeline-completion-audit.py\"",
             "async": false
+          },
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/timings_log.py\"",
+            "async": false
           }
         ]
       }
@@ -131,6 +156,30 @@
           {
             "type": "command",
             "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/sessionstart-run-continuity.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/timings_log.py\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$(command -v python3 || command -v python) \"${CLAUDE_PLUGIN_ROOT}/hooks/timings_log.py\"",
             "async": false
           }
         ]

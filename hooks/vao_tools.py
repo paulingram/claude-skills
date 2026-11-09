@@ -3,7 +3,7 @@
 verification tools, as a thin facade over the ``hooks/vao/`` package.
 
 R2 (v3.10.0) split the former ~5,200-line monolith into the ``hooks/vao/``
-package of per-discipline-family modules (each <= 900 lines). This module
+package of per-discipline-family modules. This module
 remains the stable public surface: it re-exports every ``verify_*`` function,
 module-level constant, and helper the test suite references (so
 ``vao_tools.<name>`` and ``from hooks.vao_tools import <name>`` keep working,
@@ -12,11 +12,12 @@ preserves the ``python hooks/vao_tools.py <subcommand>`` CLI byte-for-byte
 (same argparse subcommands, exit codes, and verdict-file writes). No behavior
 change — the package is the structural home the monolith should have had.
 
-The 22 tools live in the per-family modules listed in ``hooks/vao/__init__.py``;
+The 26 tools live in the per-family modules listed in ``hooks/vao/__init__.py``;
 see ``_REEXPORT_MAP`` below for the name->module mapping. Each tool is
-deterministic (bit-stable output), writes its verdict JSON to
-``<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`` by default, and is
-callable as a Python function AND via the ``vao`` CLI subcommand. Stdlib only.
+deterministic (bit-stable output), writes its verdict JSON to the ``--out``
+path (required on every CLI subcommand; the convention is
+``.architect-team/vao-verdicts/<task-id>-<tool>.json``), and is callable as a
+Python function AND via the ``vao`` CLI subcommand. Stdlib only.
 """
 from __future__ import annotations
 
@@ -56,6 +57,9 @@ _REEXPORT_MAP = {
     'frontend_e2e': ('_E2E_USER_ACTION_RE', '_E2E_USER_LOCATOR_RE', '_E2E_API_ACTION_RE', '_E2E_VISIBLE_STATE_RE', '_e2e_action_text', '_e2e_is_user_driven_action', '_e2e_is_visible_state_assertion', '_e2e_resolve_trace', 'verify_frontend_e2e_loop_exit',),
     'claim_binding': ('_ACCEPTED_WITNESS_KINDS', '_TREE_SCOPE_MARKERS', '_ABSENCE_ASSERTION_MARKERS', '_is_absence_assertion', '_path_under_any', '_test_ids_intersect', '_output_names_cited_test', '_claim_is_tree_scoped', 'verify_claim_instrument_binding',),
     'diagnosis': ('verify_diagnosis_falsified',),
+    # v4.0.0 -- the 25th and 26th tools
+    'principles': ('verify_principles_respected',),
+    'required_reads': ('verify_required_reads',),
 }
 
 
@@ -254,6 +258,18 @@ def main(argv: list[str] | None = None) -> int:
     dxf.add_argument("--artifact", required=True, help="Path to the diagnostic-plan SIDECAR JSON with leading_hypothesis{} + competitors[] + root_cause_claimed.")
     dxf.add_argument("--out", required=True, help="Path to write the verdict JSON.")
 
+    # v4.0.0 -- the 25th tool: every confirmed project principle has a verdict and
+    # an autonomous choice fits (hooks/vao/principles.py).
+    pr = sub.add_parser("verify-principles-respected")
+    pr.add_argument("--workspace", required=True, help="Workspace root holding .architect-team/principles.json.")
+    pr.add_argument("--verdicts", required=True, help="Path to the principles-verdicts sidecar JSON.")
+    pr.add_argument("--out", required=True, help="Path to write the verdict JSON.")
+
+    # v4.0.0 -- the 26th tool: every chapter an INDEX requires was Read before its
+    # phase started (hooks/vao/required_reads.py).
+    rr = sub.add_parser("verify-required-reads")
+    _import_vao_submodule("required_reads").add_cli_arguments(rr)
+
     args = parser.parse_args(argv)
 
     if args.tool == "verify-oracle-match":
@@ -418,6 +434,13 @@ def main(argv: list[str] | None = None) -> int:
             plan_sidecar=_load_json(args.artifact),
             out_path=args.out,
         )
+        ok = verdict["valid"]
+    elif args.tool == "verify-principles-respected":
+        return _import_vao_submodule("principles").main(
+            ["--workspace", args.workspace, "--verdicts", args.verdicts, "--out", args.out]
+        )
+    elif args.tool == "verify-required-reads":
+        verdict = _import_vao_submodule("required_reads").run_from_args(args)
         ok = verdict["valid"]
     else:  # pragma: no cover
         return 2

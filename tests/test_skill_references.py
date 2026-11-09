@@ -95,7 +95,27 @@ EXTRACTIONS = {
     #     Reference-index row. Fits inside the room the v3.66.0 extraction
     #     made; 763 bytes of headroom remain, so the NEXT addition pays by
     #     extraction again.
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 258527),
+    #   v4.0.0 transition:    258527 -> 59615 (the constitution split, proposal
+    #     change 2): every discipline section over 1300 bytes moved whole into
+    #     references/<slug>.md behind a STOP pointer + its first paragraph; the
+    #     ranked "Read this first", "No self-imposed limits", the compiled
+    #     principles and the structural sections stay inline. This REVERSES the
+    #     v3.42.0 "keep every gate/discipline inline" conservatism: the gates
+    #     are enforced by hooks and Layer-3 tools, the prose is read on demand,
+    #     and tests read the surface (SKILL.md with its chapters spliced in
+    #     place -- tests/helpers/surfaces.py), not the raw body.
+    #   v4.0.0 doc-debt pass: 59615 -> 63816. Four chapters that other v4.0.0
+    #     workers created without a stub (deletion-discipline, test-selection,
+    #     converge-workflows, native-methodology) gained their `## ` stub + STOP
+    #     pointer + first paragraph and their Reference-index rows, so every
+    #     chapter is reachable from the constitution; the Uniform-plugin-usage
+    #     stub was reworded for the conditional-plugin / declare-record state.
+    #   v4.1.0: 63816 -> 64873. The `## Completion-hold release (v4.1.0)` stub
+    #     (STOP pointer + first paragraph) and its Reference-index row: the
+    #     user's unlock command and the two moves an agent has under a hold.
+    #   v4.1.0 verification pass: 64873 -> 64906. The cancel row and the deletion
+    #     stub wording corrected to what ships; the notifier count reads ten.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 64906),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

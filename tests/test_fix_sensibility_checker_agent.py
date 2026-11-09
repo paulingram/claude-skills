@@ -40,7 +40,7 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
 
 def test_agent_model_is_opus(plugin_root: Path) -> None:
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "opus", (
+    assert fm["model"] == "fable", (  # v4.0.0 role split: adversarial seats run on fable
         "fix-sensibility-checker is adversarial (hunts regressions in the fix's "
         "impact set) — model: opus under the v3.43.0 delivery-adversarial split; "
         "lever scripts/setup/set_default_model.py --split delivery")

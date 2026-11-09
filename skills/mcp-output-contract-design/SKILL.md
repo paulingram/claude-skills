@@ -1,6 +1,7 @@
 ---
 name: mcp-output-contract-design
 description: Use when designing or reviewing an application that embeds an LLM agent and you need the agent's output to be guaranteed consistent and standardized. Encapsulates best-in-class output-standardization techniques (MCP-1…3) — an explicit output contract (a closed JSON Schema), a structured-output mechanism the model is FORCED to call, validation of every produced value against the contract, and retry-on-mismatch. Applies whenever an embedded agent is asked to produce something, so its outputs are reliable to parse and consume. The deterministic contract builder + validator + completeness assessor live in scripts/mcp_design/output_contract.py; this skill is the contract and the mcp-design-agent is the worker.
+user-invocable: false
 ---
 
 # MCP Output-Contract Design (MCP-1 … MCP-3)

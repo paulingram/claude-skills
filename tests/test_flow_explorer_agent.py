@@ -38,7 +38,7 @@ def test_agent_frontmatter_required_keys(plugin_root: Path) -> None:
 
 def test_agent_model_is_fable(plugin_root: Path) -> None:
     fm, _ = _read(plugin_root)
-    assert fm["model"] == "fable"
+    assert fm["model"] == "sonnet"  # v4.0.0 role split: exploration/extraction seat
 
 
 def test_agent_tools_no_edit(plugin_root: Path) -> None:

@@ -61,7 +61,7 @@ The pipeline releases when the user EXPLICITLY says one of:
 
 | Channel | Examples |
 |---|---|
-| **Explicit cancel command** | `/architect-team cancel`, `/architect-team stop`, `/architect-team:cancel`, `/architect-team:stop` |
+| **Explicit cancel direction** | plain text that names the run and a cancel / stop verb (there is no `/architect-team:cancel` or `:stop` command; the one shipped release verb is the user's `/architect-team:unlock`) |
 | **New explicit Skill-invocation request** | `/architect-team:<other-command>` — recognized via v2.0.0 Layer 6's slash + prose regex |
 | **Plain prose cancellation** | "cancel the run", "stop the pipeline", "abort", "kill this run", "abandon this", "wrong direction, start over" |
 

@@ -143,6 +143,22 @@ VALID_FRONTEND_IMPACT_E2E_VALUES = {"pass", "n/a", "fail"}
 # task that made no verification CLAIM (a pure docs edit, a rename); it is NOT a
 # way to opt a real claim out of binding.
 VALID_CLAIM_BINDING_VALUES = {"pass", "n/a", "fail"}
+
+# principles_review is OPTIONAL (NOT in REQUIRED_EVIDENCE_FIELDS) -- the
+# codified-project-principles field, added on exactly the `appearance_scope_review`
+# precedent (v3.14.0): validated only when present, so every earlier evidence
+# file stays valid; same string / dict shape; `fail` BLOCKS. It cites the
+# Layer-3 `verify-principles-respected` verdict (hooks/vao/principles.py): proof
+# that every CONFIRMED project principle in `.architect-team/principles.json`
+# was considered against the task's design / contract / diff and a verdict
+# recorded with a cause. Like `check_integrity_review`, a `pass` MUST cite the
+# verdict path (the dict shape's `verdict_path` or the sibling
+# `principles_review_verdict_path`) -- "we respected the principles" without
+# the verdict is the self-attestation the field exists to refuse. `n/a` (with
+# the note) is for a workspace with no confirmed principles or a task that
+# presents no design / contract / diff.
+VALID_PRINCIPLES_REVIEW_VALUES = {"pass", "n/a", "fail"}
+PRINCIPLES_REVIEW_VERDICT_PATH_FIELD = "principles_review_verdict_path"
 # v3.62.0 — the evidence-binding field. OPTIONAL and deliberately not
 # validated here: `task_subject` binds an evidence file to the TASK it claims
 # (task ids are small integers reused across lanes and runs — both mis-keying
@@ -174,6 +190,10 @@ OPTIONAL_VAO_FIELDS = (
     # `fail`-blocks-only first; promoting it to conditionally-required is a
     # one-line change once there is evidence about its false-positive rate.
     "claim_instrument_binding_review",
+    # codified project principles -- optional on the same terms as every
+    # sibling above; the `fail`-blocks + pass-must-cite enforcement is the
+    # `principles_review` block in `_validate_vao_fields` below.
+    "principles_review",
 )
 
 # v5 (v0.9.13). The `independent_review` block is written by an independent
@@ -219,7 +239,7 @@ def _detect_trigger_mode(payload: dict[str, Any]) -> str:
     The two shapes carry different field names (`tool_name` + `tool_input.taskId`
     vs. `task.id`; `subagent.name` vs. `teammate.name`), but the enforcement
     contract — same evidence file at `.architect-team/reviews/<task-id>.json`,
-    same v6 validation, same exit-2 block-with-feedback semantics — is identical.
+    same v7 validation, same exit-2 block-with-feedback semantics — is identical.
 
     Heuristic (see `openspec/changes/agent-teams-refactor/specs/agent-teams-mode/spec.md`
     REQ-4 + https://code.claude.com/docs/en/hooks for payload references):
@@ -800,7 +820,56 @@ def _validate_vao_fields(evidence: dict[str, Any]) -> list[str]:
             note_field="claim_instrument_binding_review_note",
         )
 
+    # principles_review is OPTIONAL. Validate only when the field is present
+    # (earlier evidence files lack it and remain valid). Same string/dict-shape
+    # contract as the other v7 fields, PLUS the pass-citation rule below (the
+    # `check_integrity_review` precedent).
+    if "principles_review" in evidence:
+        gaps += _validate_vao_field(
+            evidence,
+            "principles_review",
+            VALID_PRINCIPLES_REVIEW_VALUES,
+            "`verify-principles-respected` found the task's design / contract / "
+            "diff was not held to the project's CONFIRMED principles. One of the "
+            "hard gaps fired -- principle-without-verdict (a confirmed principle "
+            "was never considered), violated-without-cause (a violation with no "
+            "why / where), principle-violated (a knowing violation with no quoted "
+            "user instruction overriding it), chosen-option-violates (an "
+            "autonomous run picked a violating option while a fitting one "
+            "existed), or all-options-violate (the hard stop: every option breaks "
+            "a principle -- escalate, never pick silently). Revise the artifact "
+            "to respect the principles (or record the user's explicit override) "
+            "and re-run the tool; do not mark complete.",
+            note_field="principles_review_note",
+        )
+        gaps += _validate_principles_citation(evidence)
+
     return gaps
+
+
+def _validate_principles_citation(evidence: dict[str, Any]) -> list[str]:
+    """A passing `principles_review` MUST cite the verdict it derived from.
+
+    The dict shape's `verdict_path` requirement is already enforced by
+    `_validate_vao_field`; this closes the string shape exactly as
+    `_validate_check_integrity_citation` does: a bare `principles_review: "pass"`
+    with no `principles_review_verdict_path` is an attestation, not a verdict.
+    """
+    value = evidence.get("principles_review")
+    if isinstance(value, dict):
+        return []  # citation already required by the dict-shape contract
+    if value != "pass":
+        return []
+    cited = evidence.get(PRINCIPLES_REVIEW_VERDICT_PATH_FIELD)
+    if isinstance(cited, str) and cited.strip():
+        return []
+    return [
+        "principles_review='pass' requires a citation -- either the dict-shape "
+        "{'verdict': 'pass', 'verdict_path': <path>} or a non-empty "
+        f"'{PRINCIPLES_REVIEW_VERDICT_PATH_FIELD}' naming the "
+        "verify-principles-respected verdict JSON. 'We respected the principles' "
+        "without the verdict is the self-attestation this field refuses."
+    ]
 
 
 def _validate_check_integrity_citation(evidence: dict[str, Any]) -> list[str]:

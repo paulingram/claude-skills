@@ -8,6 +8,7 @@ images); the system-architect synthesizes the gaps holistically into root
 causes. These tests assert the three-role skill + agents + wire-up are present
 and that the data-not-images discipline is stated.
 """
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,11 @@ VFR = ("skills", "visual-fidelity-reconciliation", "SKILL.md")
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 # --- the skill: three roles + the data-not-images rule ---------------------
@@ -76,7 +81,7 @@ def test_skill_synthesizes_holistically_into_clusters(plugin_root: Path) -> None
 
 def test_capture_agent_is_fable_and_mechanical(plugin_root: Path) -> None:
     content = _read(plugin_root, CAPTURE)
-    assert "model: fable" in content, "visual-capture must be model: fable (v3.32.0 uniform default; lever scripts/setup/set_default_model.py)"
+    assert "model: sonnet" in content, "visual-capture is a mechanical capture seat: model: sonnet under the v4.0.0 role split (lever scripts/setup/set_default_model.py --split role)"
     assert "no verdict" in content.lower() or "never judge" in content.lower() or (
         "mechanical" in content.lower()
     ), "visual-capture does not establish that it is mechanical and produces no verdicts"

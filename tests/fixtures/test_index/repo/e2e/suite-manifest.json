@@ -1,0 +1,36 @@
+{
+  "schema_version": "playwright-suite-manifest/v1",
+  "e2e_dir": "e2e",
+  "personas": ["shopper", "ops"],
+  "last_built": "2026-11-01T09:00:00Z",
+  "prod_exceptions": [],
+  "tests": [
+    {
+      "file": "e2e/personas/shopper/checkout.spec.ts",
+      "test_names": [
+        "shopper completes a card checkout",
+        "shopper sees the order in their history"
+      ],
+      "persona": "shopper",
+      "kind": "journey",
+      "source": "user-flow",
+      "covers_elements": ["cart__summary__checkout__1", "checkout__form__pay__1"],
+      "covers_routes": ["/cart", "/checkout", "/orders"],
+      "safety": "dev",
+      "mutates_data": true,
+      "origin_ref": null
+    },
+    {
+      "file": "e2e/personas/ops/health.spec.ts",
+      "test_names": ["ops sees the health badge"],
+      "persona": "ops",
+      "kind": "prod-check",
+      "source": "gap-fill",
+      "covers_elements": ["home__status__badge__1"],
+      "covers_routes": ["/"],
+      "safety": "prod",
+      "mutates_data": false,
+      "origin_ref": null
+    }
+  ]
+}

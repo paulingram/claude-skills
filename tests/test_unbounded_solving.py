@@ -18,6 +18,7 @@ Windows cp1252 portability: every file read passes ``encoding="utf-8"`` and this
 module is ASCII-only as Python source.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from tests.helpers.module_loader import load_module
 import json
@@ -27,6 +28,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 CONVENTIONS = ("skills", "common-pipeline-conventions", "SKILL.md")
 
@@ -55,7 +57,11 @@ FORBIDDEN_HALT_PROSE = [
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 # ---------------------------------------------------------------------------
@@ -196,8 +202,8 @@ def test_high_iteration_count_passes_audit(script: Path, tmp_path: Path) -> None
         json.dumps({"dev_loop_iterations": 999}), encoding="utf-8"
     )
     r = _run_check(script, tmp_path)
-    assert r.returncode == 0, (
-        f"a high dev_loop_iterations must NOT block; stderr={r.stderr!r}"
+    assert allowed(r), (
+        f"a high dev_loop_iterations must NOT block; stderr={hook_text(r)!r}"
     )
 
 
@@ -215,8 +221,8 @@ def test_open_sr_still_fails_audit_with_high_iterations(script: Path, tmp_path: 
         encoding="utf-8",
     )
     r = _run_check(script, tmp_path)
-    assert r.returncode == 2, f"an open SR must still block; stderr={r.stderr!r}"
-    assert "SR-1" in r.stderr
+    assert blocked(r), f"an open SR must still block; stderr={hook_text(r)!r}"
+    assert "SR-1" in hook_text(r)
 
 
 def test_blocked_message_frames_violations_as_worklist(script: Path, tmp_path: Path) -> None:
@@ -231,12 +237,12 @@ def test_blocked_message_frames_violations_as_worklist(script: Path, tmp_path: P
         encoding="utf-8",
     )
     r = _run_check(script, tmp_path)
-    assert r.returncode == 2
-    low = r.stderr.lower()
+    assert blocked(r)
+    low = hook_text(r).lower()
     assert "worklist" in low, "the BLOCKED message must reframe violations as a worklist"
     assert "no iteration ceiling" in low or "there is no iteration" in low, (
         "the BLOCKED message must state there is no iteration ceiling"
     )
     # The required-input + active-work dispositions are KEPT.
-    assert "escalation-pending.md" in r.stderr
-    assert "in-progress.md" in r.stderr
+    assert "escalation-pending.md" in hook_text(r)
+    assert "in-progress.md" in hook_text(r)

@@ -11,6 +11,7 @@ audit the whole failure pathway, find the cheapest faithful artifact, batch
 every fix, spend the expensive cycle once. These tests assert the discipline
 is present across the skill + its wire-up so it cannot silently regress.
 """
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 from pathlib import Path
 
 import pytest
@@ -27,7 +28,11 @@ DIAGNOSTIC_RESEARCHER = ("agents", "diagnostic-researcher.md")
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 def test_skill_exists_and_non_empty(plugin_root: Path) -> None:

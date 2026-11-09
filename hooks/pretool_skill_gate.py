@@ -9,14 +9,16 @@ The gap this closes: when a user invokes a plugin command that mandates a skill
 (e.g. ``/architect-team:architect-team`` — the command body *instructs* the model
 to invoke a ``Skill``, but nothing FORCES it), the model can "drive the pipeline
 by hand" and never call the ``Skill`` tool. Soft prompts (the user's CLAUDE.md
-directive, the command body, the using-superpowers skill) are routinely
-rationalized past. Deterministic code cannot be.
+directive, the command body, the ``using-superpowers`` skill -- conditional
+since v4.0.0, with ``references/native-methodology.md`` as the fallback) are
+routinely rationalized past. Deterministic code cannot be.
 
 Behaviour: when the session transcript's MOST RECENT genuine user prompt is an
 unsatisfied pipeline-command request (no matching ``Skill`` tool call appears
 AFTER it), this hook BLOCKS (exit 2) the first BUILD / DISPATCH tool call —
-``Edit`` / ``Write`` / ``NotebookEdit`` / ``Agent`` / ``Task`` (the tools that
-actually do the pipeline's work) — and tells the model to invoke the required
+``Edit`` / ``Write`` / ``NotebookEdit`` / ``Agent`` / ``Task`` / ``TaskCreate``
+/ ``TaskUpdate`` / ``TaskStop`` (``_BLOCKED_TOOLS`` -- the tools that actually
+do the pipeline's work) — and tells the model to invoke the required
 Skill first. It deliberately does NOT block read-only investigation
 (``Read`` / ``Grep`` / ``Glob`` / ``ToolSearch`` / ...) or the slash-command
 WRAPPER's own documented pre-Skill setup (the dispatch banner, worktree
@@ -47,11 +49,41 @@ architect team is engaged for a run, the run is driven through the pipeline
 until it completes or the USER explicitly stands it down — never abandoned to
 hand-solving because a resume prompt didn't repeat the command.
 
+v3.61.0 adds a THIRD arm -- TASK DELETION during an active run.
+``TaskUpdate(status="deleted")`` unlinks the harness task file that the
+Stop-hook completion lock reads as ground truth, so a deletion during an
+ACTIVE run released the lock without the work closing. While
+``active-run.json`` says the run is active (and the marker is not stale) the
+deletion is refused; ``status: "completed"`` stays fully legitimate. The arm
+is payload-only (tool_name + tool_input + cwd + marker, NO transcript
+dependence), ``escalation-pending.md`` does not stand it down, and it has its
+OWN kill-switch, ``CT6_TASK_DELETE_GATE_DISABLED``.
+
+v3.67.0 adds a FOURTH arm -- COMMIT IDENTITY during an active run. A
+commit-authoring ``git`` command (``commit`` / ``merge`` / ``revert``) in a
+``Bash`` call is refused while the run is ACTIVE if the checkout has no
+recorded identity (``<main-worktree>/.architect-team/git-identity.json``, see
+``hooks/git_identity.py``), the command carries none, or it carries a
+DIFFERENT one. Same payload-only shape as arm 3; own kill-switch
+``CT6_GIT_IDENTITY_GATE_DISABLED``.
+
+v4.1.0 adds a FIFTH arm -- the COMPLETION-HOLD RELEASE is the user's verb.
+``hooks/completion_unlock.py release`` (a ``Bash`` call) is allowed ONLY when
+the LATEST genuine user prompt in this session's transcript carries the
+user's own ``/architect-team:unlock`` command marker and the session is not a
+worker. Unlike arms 3 and 4 this arm DOES read the transcript (the whole
+question is who asked), and it is the one arm in this module that fails
+CLOSED: no transcript path, an empty or unreadable transcript, a
+teammate/sidechain session, or any other latest prompt all refuse the verb
+(only an internal error still allows). ``inspect`` and ``status`` are
+read-only and never gated. Own kill-switch ``CT6_UNLOCK_GATE_DISABLED``.
+
 SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - The ``Skill`` tool itself is ALWAYS allowed (else the model could never
   satisfy the mandate).
-- Only BUILD/DISPATCH tools gate (``Edit`` / ``Write`` / ``NotebookEdit`` /
-  ``Agent`` / ``Task`` ...); read-only investigation (``Read`` / ``Grep`` / ...)
+- Only BUILD/DISPATCH tools gate under arms 1 and 2 (``Edit`` / ``Write`` /
+  ``NotebookEdit`` / ``Agent`` / ``Task`` / ``TaskCreate`` / ``TaskUpdate`` /
+  ``TaskStop`` -- ``_BLOCKED_TOOLS``); read-only investigation (``Read`` / ``Grep`` / ...)
   and the command wrapper's ``Bash`` setup are NEVER blocked (the v3.15.1 fix
   for over-firing on the wrapper's documented pre-Skill steps).
 - Scoped to pipeline-DRIVING commands only (expected skill is a pipeline skill);
@@ -60,7 +92,7 @@ SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - Arm 1 stays anchored to the SINGLE most-recent genuine user prompt; the
   sticky arm activates ONLY on an explicit ``active-run.json`` marker with
   ``status: "active"`` and an explicit ``cwd`` in the payload.
-- BOTH arms stand down for a WORKER session — a pipeline teammate (the
+- Arms 1 and 2 BOTH stand down for a WORKER session — a pipeline teammate (the
   ``CT6-TEAMMATE`` spawn-brief token, or the brief-shaped-first-prompt
   fallback) or a sidechain/subagent transcript (no genuine user prompt).
   Blocking the pipeline's own workers would brick the run; a subagent cannot
@@ -80,13 +112,23 @@ SAFETY (this hook can block a tool call, so it is deliberately conservative):
 - The USER's explicit direction to work outside the pipeline is honoured via
   ``python hooks/run_continuity.py --stand-down "<their words>"`` — an
   auditable artifact, not a silent bypass.
-- No transcript path / unreadable transcript / no pending request => allow.
+- No transcript path / unreadable transcript / no pending request => allow for
+  arms 1 and 2 (arm 5 is the deliberate exception: it REFUSES the release verb
+  when no transcript can show who asked); arms 3 and 4 never read the
+  transcript at all.
 - ANY unexpected error => allow (fail open — never wedge a session on a bug).
 
-Exit codes: 0 = allow. 2 = block (a pending skill-invocation mandate, or an
-active run awaiting resume-via-Skill).
-Registered in ``hooks/hooks.json`` as ``PreToolUse[*]``. Payload read from stdin.
-Stdlib-only.
+Exit codes: 0 = allow. 2 = block, for any of: a pending skill-invocation
+mandate (arm 1); an active run awaiting resume-via-Skill (arm 2); a
+``TaskUpdate(status="deleted")`` during an active run (arm 3); a
+commit-authoring ``git`` command during an active run with no, or a
+different, recorded identity (arm 4); a ``completion_unlock.py release``
+outside the user's own ``/architect-team:unlock`` command turn (arm 5).
+Wired in ``hooks/hooks.json`` TWICE: ``PreToolUse[*]`` runs ``check_payload``
+(the five arms) and ``PostToolUse[Skill]`` runs ``record_engagement`` --
+``main()`` branches on the payload's ``hook_event_name`` (a ``PostToolUse``
+payload records the engaged run marker and returns 0; anything else is
+gated). Payload read from stdin. Stdlib-only.
 """
 from __future__ import annotations
 
@@ -348,8 +390,9 @@ def _is_user_prompt(rec: dict[str, Any]) -> bool:
         looks stale -> every later tool call is blocked.
       - ``promptSource == "system"`` — injected ``<task-notification>`` records.
       - ``isSidechain: true`` — subagent transcripts (a subagent cannot call the
-        user-facing Skill, and per the using-superpowers rule subagents skip
-        skill-loading).
+        user-facing Skill, and per the using-superpowers rule -- superpowers is
+        conditional since v4.0.0; the native fallback keeps the same rule --
+        subagents skip skill-loading).
       - a ``<teammate-message ...>`` envelope — a SendMessage-injected PEER
         message (from the Lead or another teammate). It arrives as a
         ``role: user`` record but is NOT a fresh human prompt; without this
@@ -817,6 +860,91 @@ def _format_identity_block(cwd: str, command: str, reason: str, record: dict[str
     )
 
 
+# ---------------------------------------------------------------------------
+# Arm 5 (v4.1.0) — the completion-hold release is the USER's verb
+#
+# `hooks/completion_unlock.py release` closes every source the Stop hook reads
+# (open tasks, open asks, declared gates, the run marker) under a record of
+# the user's words. It is sanctioned ONLY inside the user's own
+# `/architect-team:unlock` command turn. This arm refuses the verb from a
+# Bash command unless the LATEST genuine user prompt in this session's
+# transcript carries the command marker -- so an agent held by the lock
+# cannot reach for it as a way out, and a worker/sidechain session can never
+# release the Lead's hold. `inspect` and `status` are read-only and never
+# gated. Unlike arms 3 and 4 this arm DOES consult the transcript: the whole
+# question is who asked. Fail-CLOSED on a missing transcript (the one place
+# in this module where "cannot verify" means "refuse"), fail-open only on an
+# internal error. Kill-switch: CT6_UNLOCK_GATE_DISABLED (launch environment).
+# ---------------------------------------------------------------------------
+UNLOCK_GATE_DISABLE_ENV = "CT6_UNLOCK_GATE_DISABLED"
+UNLOCK_COMMAND = "/architect-team:unlock"
+_UNLOCK_RELEASE_RE = re.compile(r"completion_unlock(?:\.py)?\b[^\n;&|]*?\brelease\b")
+_UNLOCK_MARKER_RE = re.compile(
+    r"<command-name>\s*/?(?:architect-team:)?unlock\s*</command-name>", re.IGNORECASE
+)
+
+
+def _unlock_gate_disabled() -> bool:
+    v = os.environ.get(UNLOCK_GATE_DISABLE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _format_unlock_block(command: str, why: str) -> str:
+    return (
+        "CT6 v4.1.0 PreToolUse guardrail BLOCKED — the completion-hold release "
+        "is the USER's verb, not the agent's.\n"
+        "\n"
+        f"  - tool about to fire: Bash\n"
+        f"  - command: {command.strip()[:300]}\n"
+        f"  - reason: {why}\n"
+        "\n"
+        f"`completion_unlock.py release` runs only inside the user's own {UNLOCK_COMMAND} "
+        "command turn, with their words as --reason. A held turn is held because "
+        "registered work is open; the way out is to finish it, or to tell the user "
+        "plainly what is open and let THEM decide. `inspect` is always allowed and "
+        "shows exactly that. Never run the release verb as a way to end a run.\n"
+        f"\nIf a human genuinely wants this gate off: {UNLOCK_GATE_DISABLE_ENV}=1 in the "
+        "environment Claude Code was launched from is their lever."
+    )
+
+
+def _unlock_release_check(payload: dict[str, Any]) -> tuple[int, str]:
+    """Refuse `completion_unlock.py release` unless the latest genuine user
+    prompt is the /architect-team:unlock command and this is not a worker."""
+    try:
+        if _unlock_gate_disabled():
+            return 0, ""
+        inp = payload.get("tool_input") or payload.get("input") or payload.get("args")
+        if not isinstance(inp, dict):
+            return 0, ""
+        command = inp.get("command")
+        if not isinstance(command, str) or not _UNLOCK_RELEASE_RE.search(command):
+            return 0, ""
+        transcript_path = (
+            payload.get("transcript_path")
+            or payload.get("transcriptPath")
+            or payload.get("transcript")
+        )
+        if not transcript_path:
+            return 2, _format_unlock_block(command, "no transcript to show that the user typed the command")
+        records = _read_records(Path(str(transcript_path)))
+        if not records:
+            return 2, _format_unlock_block(command, "the transcript is empty or unreadable, so the user's command cannot be shown")
+        head, truncated = _transcript_head_and_truncation(str(transcript_path), records)
+        if _is_worker_session(records, head, truncated):
+            return 2, _format_unlock_block(command, "a teammate or subagent session never releases the Lead's hold")
+        last_prompt: dict[str, Any] | None = None
+        for rec in records:
+            if _is_user_prompt(rec):
+                last_prompt = rec
+        if last_prompt is None or not _UNLOCK_MARKER_RE.search(_text(last_prompt)):
+            return 2, _format_unlock_block(
+                command, f"the latest user prompt is not the {UNLOCK_COMMAND} command")
+        return 0, ""
+    except Exception:
+        return 0, ""  # fail open on an internal error, never wedge the session
+
+
 def _git_identity_check(payload: dict[str, Any]) -> tuple[int, str]:
     """Refuse a commit-authoring Bash command in an active run that lacks or
     contradicts the recorded identity. Fail-open on every uncertainty EXCEPT
@@ -908,9 +1036,14 @@ def record_engagement(payload: dict[str, Any]) -> None:
 def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     """Inspect a PreToolUse payload -> ``(exit_code, stderr_message)``.
 
-    Pure function — safe to call from tests with any payload shape. Two arms:
-    arm 1 is the v3.15.0 most-recent-prompt mandate; arm 2 is the v3.30.0
-    sticky active-run check (consulted only when arm 1 does not block)."""
+    Pure function — safe to call from tests with any payload shape. Five arms,
+    consulted in this order: arm 3 (v3.61.0 task deletion; ``TaskUpdate``
+    only), arm 5 (v4.1.0 completion-hold release; ``Bash`` only), arm 4
+    (v3.67.0 commit identity; ``Bash`` only), then -- for ``_BLOCKED_TOOLS``
+    after the always-allowed ``Skill`` / read-only / setup tools -- arm 1 (the
+    v3.15.0 most-recent-prompt mandate) and arm 2 (the v3.30.0 sticky
+    active-run check, consulted only when arm 1 does not block). Arms 3-5 are
+    ADDITIVE: when one does not block, the payload falls through."""
     tool = (payload.get("tool_name") or payload.get("tool") or "").strip()
     if tool == "TaskUpdate":
         # Arm 3 (v3.61.0) — deletion during an active run. ADDITIVE, never a
@@ -925,6 +1058,11 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
         if code:
             return code, msg
     if tool == "Bash":
+        # Arm 5 (v4.1.0) — the completion-hold release is the user's verb.
+        # ADDITIVE, checked first: it keys on the command text alone.
+        code, msg = _unlock_release_check(payload)
+        if code:
+            return code, msg
         # Arm 4 (v3.67.0) — commit identity during an active run. ADDITIVE:
         # Bash is not a `_BLOCKED_TOOLS` member, so when this arm does not block
         # the payload falls through to the normal always-allowed path below.

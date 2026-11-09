@@ -6,6 +6,7 @@ Covers the deterministic machine `scripts/mcp_design/output_contract.py`:
 completeness), the CLI, and the skill + agent contract surfaces.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -200,7 +201,7 @@ def test_cli_build_validate_assess(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def test_skill_present_and_documents_mcp() -> None:
-    body = (REPO_ROOT / "skills" / "mcp-output-contract-design" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("mcp-output-contract-design")
     assert body.startswith("---")
     assert "output_contract.py" in body
     for tag in ("MCP-1", "MCP-2", "MCP-3"):
@@ -210,7 +211,7 @@ def test_skill_present_and_documents_mcp() -> None:
 
 
 def test_agent_present() -> None:
-    body = (REPO_ROOT / "agents" / "mcp-design-agent.md").read_text(encoding="utf-8")
+    body = agent_surface("mcp-design-agent")
     assert body.startswith("---")
     assert "output_contract.py" in body
     low = body.lower()

@@ -7,16 +7,17 @@ Behavior (in order):
   3. openspec CLI: shutil.which → if missing or --force-reinstall, npm install -g @fission-ai/openspec@latest.
   4. Python test tools (pytest, pytest-asyncio, httpx).
   5. Playwright (Python pkg) + chromium browser.
-  6. Plugin presence check (read ~/.claude/plugins/installed_plugins.json) for:
-       - superpowers@claude-plugins-official
-       - cartographer@cartographer-marketplace
-       - ralph-loop@claude-plugins-official
-     These are HARD prerequisites. A MISSING required plugin is a HARD failure
-     (exit 1) — superpowers especially is a hard dependency of the pipeline,
-     NOT a soft warning. The script cannot self-install Claude plugins.
+  6. Plugin presence check (read ~/.claude/plugins/installed_plugins.json) for
+     REQUIRED_PLUGINS. Since v4.0.0 that set is EMPTY: superpowers and
+     cartographer moved to the conditional tier (6a) with a native fallback in
+     the lanes, and ralph-loop is retired (workflows/ct6-converge.js does its
+     job). The machinery stays: a MISSING member of REQUIRED_PLUGINS would be
+     a HARD failure (exit 1). The script cannot self-install Claude plugins.
   6a. Conditional plugin tier (CONDITIONAL_PLUGINS): plugins that are valuable
       on a project of a particular shape and pure cost everywhere else (today:
-      bauplan@bauplan-skills). These are checked and REPORTED — present or
+      bauplan@bauplan-skills, plus the methodology plugins superpowers and
+      cartographer -- preferred when installed, never gating). These are
+      checked and REPORTED -- present or
       absent, with the same remediation lines a hard prerequisite gets — but
       the tier NEVER contributes to the exit code. It is deliberately kept out
       of both exit paths: it is not in REQUIRED_PLUGINS (so it cannot reach
@@ -52,18 +53,19 @@ Flags:
                       code-checking/testing agents). Also enabled by
                       CT6_CODEX_56_AVAILABLE=1.
   --no-codex          Codex 5.6 is NOT available: apply the uniform fable policy
-                      — this moves OFF the shipped delivery split rather than
-                      restoring it (the Opus fallback stays the
-                      set_default_model.py --model opus lever). Overrides the env var.
+                      -- this moves OFF the shipped role split (v4.0.0; the
+                      v3.43.0 delivery split before it) rather than restoring
+                      it (the Opus fallback stays the set_default_model.py
+                      --model opus lever). Overrides the env var.
                       With neither flag nor env var, the model state is left
                       untouched (the shipped default IS the operating model).
 
 Exit:
   0  Everything we control is present and ok.
   1  At least one required prerequisite is missing and cannot be self-installed.
-     This is a HARD block: a missing REQUIRED Claude plugin (superpowers /
-     cartographer / ralph-loop) OR a missing openspec-propose skill yields
-     exit 1. superpowers is a hard dependency, not a soft warning. A missing
+     This is a HARD block: a missing REQUIRED_PLUGINS member (the set is empty
+     since v4.0.0 -- superpowers and cartographer are conditional, ralph-loop
+     is retired) OR a missing openspec-propose skill yields exit 1. A missing
      CONDITIONAL_PLUGINS member does NOT: that tier never contributes to any
      exit code, in either direction.
   2  An installation failed.
@@ -88,11 +90,14 @@ from typing import Iterable
 # Default location of the user-level installed-plugins manifest.
 INSTALLED_PLUGINS_PATH: Path = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
 
-REQUIRED_PLUGINS = {
-    "superpowers@claude-plugins-official",
-    "cartographer@cartographer-marketplace",
-    "ralph-loop@claude-plugins-official",
-}
+# v4.0.0 (proposal change 6): the methodology plugins moved to the CONDITIONAL
+# tier -- preferred when installed, reported and remediated when absent, never
+# gating. The lanes carry a native fallback for each
+# (skills/common-pipeline-conventions/references/native-methodology.md) and the
+# retired ralph-loop's job is done by workflows/ct6-converge.js. The HARD set is
+# therefore empty; the machinery that reads it (`if missing: return 1`) stays so
+# a future hard prerequisite is one registry entry away.
+REQUIRED_PLUGINS: set[str] = set()
 
 # CONDITIONAL tier — a SIBLING registry of REQUIRED_PLUGINS, never an extension
 # of it. A member is verified and reported exactly like a hard prerequisite, but
@@ -106,6 +111,8 @@ REQUIRED_PLUGINS = {
 # spec change, never a convenience edit.
 CONDITIONAL_PLUGINS = {
     "bauplan@bauplan-skills",
+    "superpowers@claude-plugins-official",
+    "cartographer@cartographer-marketplace",
 }
 
 # `tiktoken` is a cartographer RUNTIME dependency (observed missing on a real VM
@@ -138,11 +145,20 @@ ASSUME_YES_ENV_VAR = "CT6_SETUP_ASSUME_YES"
 # (truthy-env / version-parse / settings-json parse) — this file uses it
 # directly.
 TEAMS_ENV_VAR = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+# v4.0.0 -- the Claude 5 task-tool floor. TaskCreate / TaskUpdate are provided by
+# default only on Opus 4.7 / Sonnet 4.6 / Haiku 4.5 and earlier; every other
+# model gets them only with this opt-in. CT6's Phase 3 evidence gate
+# (PostToolUse TaskUpdate / TaskCompleted) and the Stop-hook completion lock
+# read the harness task list, so without the flag both go silent.
+TODO_TOOLS_ENV_VAR = "CLAUDE_CODE_ENABLE_TODO_TOOLS"
 MIN_CLAUDE_VERSION = (2, 1, 32)
 DEFAULT_USER_SETTINGS_PATH: Path = Path.home() / ".claude" / "settings.json"
 
-# Fable 5 is the plugin's default agent model. Fable 5 is brand-new and the
-# `fable` agent-model alias ships only with Fable-5-aware Claude Code releases;
+# Agents ship on the v4.0.0 role split (`set_default_model.py --split role`:
+# fable on the 15 judgment seats, opus on the 9 delivery seats, sonnet on the
+# 14 mechanical seats, haiku on the 1 classification seat). Fable 5 is
+# brand-new and the `fable` agent-model alias ships only with Fable-5-aware
+# Claude Code releases;
 # that shipping version is NOT knowable from here, so setup does NOT gate on a
 # version threshold (SETUP-ADV-1: a threshold would be false precision — the
 # TEAMS minimum 2.1.32 is not the fable-alias version). Instead check_model_default()
@@ -779,8 +795,8 @@ def _prompt_user_consent(prompt: str) -> str:
         return ""
 
 
-def _settings_has_flag(settings_path: Path) -> bool:
-    """Return True iff settings_path's env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is truthy."""
+def _settings_has_flag(settings_path: Path, var: str = TEAMS_ENV_VAR) -> bool:
+    """Return True iff settings_path's env.<var> is truthy (default: the teams flag)."""
     try:
         if not settings_path.is_file():
             return False
@@ -792,11 +808,11 @@ def _settings_has_flag(settings_path: Path) -> bool:
     env_block = data.get("env")
     if not isinstance(env_block, dict):
         return False
-    return _is_truthy(env_block.get(TEAMS_ENV_VAR))
+    return _is_truthy(env_block.get(var))
 
 
-def _write_flag_to_settings(settings_path: Path) -> None:
-    """Write env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1" to settings_path.
+def _write_flag_to_settings(settings_path: Path, var: str = TEAMS_ENV_VAR) -> None:
+    """Write env.<var>="1" to settings_path (default: the teams flag).
 
     Preserves existing content (idempotent on re-run; merges into an existing
     env block if present). Creates the file + parent dir if missing.
@@ -814,7 +830,7 @@ def _write_flag_to_settings(settings_path: Path) -> None:
     env_block = data.get("env")
     if not isinstance(env_block, dict):
         env_block = {}
-    env_block[TEAMS_ENV_VAR] = "1"
+    env_block[var] = "1"
     data["env"] = env_block
     settings_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -921,27 +937,171 @@ def check_teams_mode(
     return name, "missing", detail
 
 
+
+def check_task_tools(
+    check_only: bool,
+    no_prompt: bool,
+    env: dict[str, str] | None = None,
+    settings_path: Path | None = None,
+    assume_yes: bool = False,
+) -> tuple[str, str, str | None]:
+    """v4.0.0 -- make sure the session will HAVE the task tools on Claude 5.
+
+    Same consent shape as ``check_teams_mode`` (report in --check-only, print
+    the suggested edit in --no-prompt, write with --yes or an interactive y),
+    without the version probe: the flag is honoured on every Claude Code build
+    that ships the Task tools. Never fatal: a "missing" row is reported, the
+    SessionStart hook keeps warning, and the completion lock degrades honestly
+    (``hooks/open_work.py`` ``task_tools_opted_in``).
+    """
+    name = "task-tools"
+    env = dict(os.environ) if env is None else env
+    settings_path = settings_path or DEFAULT_USER_SETTINGS_PATH
+    flag_in_env = _is_truthy(env.get(TODO_TOOLS_ENV_VAR))
+    flag_in_settings = _settings_has_flag(settings_path, TODO_TOOLS_ENV_VAR)
+    if flag_in_env or flag_in_settings:
+        source = "env" if flag_in_env else "settings.json"
+        return name, "present", f"{TODO_TOOLS_ENV_VAR}=1; flag source: {source}"
+    suggested = json.dumps({"env": {TODO_TOOLS_ENV_VAR: "1"}}, indent=2)
+    detail = (
+        f"{TODO_TOOLS_ENV_VAR}=1 not set in env or {settings_path}. Claude 5 "
+        "models ship without TaskCreate/TaskUpdate; CT6's Phase 3 evidence gate "
+        "and the completion lock read the harness task list. Suggested edit to "
+        f"{settings_path}:\n{suggested}"
+    )
+    if check_only:
+        return name, "missing", detail
+    if assume_yes:
+        try:
+            _write_flag_to_settings(settings_path, TODO_TOOLS_ENV_VAR)
+        except OSError as exc:
+            return name, "failed", f"could not write {settings_path}: {exc}"
+        return name, "installed", f"wrote {TODO_TOOLS_ENV_VAR}=1 to {settings_path} (assumed consent)"
+    if no_prompt or not sys.stdin.isatty():
+        # A non-interactive stdin (CI, a test harness, a piped run) cannot
+        # answer a consent prompt; print the suggested edit instead of hanging.
+        print("\n[task-tools] " + detail, flush=True)
+        return name, "missing", detail
+    prompt = f"Add {TODO_TOOLS_ENV_VAR}=1 to {settings_path}? (y/N): "
+    answer = _prompt_user_consent(prompt)
+    if answer == "y" or answer == "yes":
+        try:
+            _write_flag_to_settings(settings_path, TODO_TOOLS_ENV_VAR)
+        except OSError as exc:
+            return name, "failed", f"could not write {settings_path}: {exc}"
+        return name, "installed", f"wrote {TODO_TOOLS_ENV_VAR}=1 to {settings_path}"
+    return name, "missing", detail
+
+
+
+# ---- v4.0.0 per-project steps (opt-in via --project-root) ----------------------
+
+
+def _load_by_path(rel: str, name: str):
+    import importlib.util as _ilu
+    path = Path(__file__).resolve().parents[2] / rel
+    spec = _ilu.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(rel)
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_publish_config(
+    project_root: Path,
+    check_only: bool,
+    no_prompt: bool,
+    assume_yes: bool = False,
+    stdin_is_tty: bool | None = None,
+) -> tuple[str, str, str | None]:
+    """Ask ONCE where shareable pages live and record the human's answer in
+    `<project>/.architect-team-publish.json` (human-owned afterwards). Never
+    fatal: a 'missing' row only reports that the question is still open.
+    --check-only / --no-prompt / a non-tty stdin print the question and write
+    nothing; --yes records the detected recommendation (Claude artifacts when
+    gcloud is absent)."""
+    name = "page-publishing"
+    cfg = project_root / ".architect-team-publish.json"
+    if cfg.is_file():
+        try:
+            pc = _load_by_path("hooks/publish_config.py", "ct6_publish_config_setup")
+            return name, "present", f"{pc.mode(project_root)}/{pc.adapter(project_root)} recorded in {cfg.name}"
+        except Exception:
+            return name, "present", f"recorded in {cfg.name}"
+    try:
+        sq = _load_by_path("scripts/publish/setup_question.py", "ct6_setup_question")
+        eco = sq.detect_ecosystem()
+        q = sq.question(eco)
+    except Exception as exc:  # the question module is optional plumbing
+        return name, "warn", f"page-publishing question unavailable: {type(exc).__name__}"
+    options = q.get("options", [])
+    labels = [o.get("label", "") for o in options]
+    detail = (q.get("question", "Where should shareable pages live?") + " Options: " + " | ".join(labels)
+              + f". Recommended: {q.get('recommended')}. Record the answer with "
+              f"scripts/publish/setup_question.py or copy .architect-team-publish.example.json to {cfg.name}.")
+    tty = sys.stdin.isatty() if stdin_is_tty is None else stdin_is_tty
+    if check_only or (no_prompt and not assume_yes) or (not assume_yes and not tty):
+        return name, "missing", detail
+    choice = q.get("recommended") or (labels[0] if labels else "Claude artifacts only (default)")
+    if not assume_yes:
+        print("\n[page-publishing] " + q.get("question", "Where should shareable pages live?"))
+        for i, label in enumerate(labels, 1):
+            print(f"  {i}. {label}")
+        answer = _prompt_user_consent(f"Choose 1-{len(labels)} (default: {choice}): ")
+        if answer.isdigit() and 1 <= int(answer) <= len(labels):
+            choice = labels[int(answer) - 1]
+    try:
+        result = sq.write_config({"choice": choice}, project_root)
+    except Exception as exc:
+        return name, "failed", f"could not write {cfg.name}: {exc}"
+    hint = "" if result.get("gitignore_ok", True) else f" ({result.get('gitignore_hint', 'add it to .gitignore')})"
+    return name, "installed", f"recorded '{choice}' in {cfg.name}{hint}"
+
+
+def build_first_homepage(project_root: Path, check_only: bool) -> tuple[str, str, str | None]:
+    """Build the project's first (empty-state) homepage at
+    `<project>/.architect-team/homepage/index.html`. Never fatal."""
+    name = "homepage"
+    out = project_root / ".architect-team" / "homepage" / "index.html"
+    if check_only:
+        return name, ("present" if out.is_file() else "missing"), str(out)
+    try:
+        hb = _load_by_path("scripts/homepage/build.py", "ct6_homepage_build_setup")
+        hb.build(project_root)
+    except Exception as exc:
+        return name, "warn", f"homepage build skipped: {type(exc).__name__}: {exc}"
+    return name, "installed", f"built {out}"
+
 # ---- Main --------------------------------------------------------------------
 
 
 def check_model_default(remediation: str | None = None) -> tuple[str, str, str | None]:
-    """Informational note: the plugin pins all agents to model 'fable' (Fable 5).
+    """Informational note: agents ship on the v4.0.0 role split; the fable
+    seats need a Fable-5-aware harness.
 
-    UNCONDITIONAL by design (SETUP-ADV-1). Fable 5 is brand-new and the `fable`
-    agent-model alias ships only with Fable-5-aware Claude Code releases; that
-    version is NOT knowable from setup, so a version gate would be false precision.
-    Instead this ALWAYS returns ONE informational `note` line stating the default
-    and carrying the deterministic Opus fallback lever
+    UNCONDITIONAL by design (SETUP-ADV-1). The shipped state is the role split
+    (`set_default_model.py --split role`, ROLE_SPLIT_MODELS: fable on the
+    judgment seats, opus on the delivery seats, sonnet on the mechanical seats,
+    haiku on classification -- 15 / 9 / 14 / 1; `--check` reports `role-split`).
+    Fable 5 is brand-new and the `fable` agent-model alias ships only with
+    Fable-5-aware Claude Code releases; that version is NOT knowable from
+    setup, so a version gate would be false precision. Instead this ALWAYS
+    returns ONE informational `note` line stating the shipped model policy and
+    carrying the deterministic uniform-Opus fallback lever
     (`set_default_model.py --model opus`) for a harness that predates the alias.
     It never fails the run, never gates, and never auto-applies the fallback.
     """
-    name = "model-default (agents pinned to 'fable' — Fable 5)"
+    name = "model-default (v4.0.0 role split: fable / opus / sonnet / haiku)"
     if remediation is None:
         remediation = FABLE_FALLBACK_REMEDIATION
     detail = (
-        "agents default to model 'fable' (Fable 5). If agents fail to spawn because "
-        "your Claude Code predates the 'fable' alias, restore the Opus fallback "
-        f"with: {remediation}"
+        "agents ship on the v4.0.0 role split (fable on judgment seats, opus on "
+        "delivery seats, sonnet on mechanical seats, haiku on classification -- "
+        "15 / 9 / 14 / 1; `set_default_model.py --check` reports role-split). If "
+        "the fable-seated agents fail to spawn because your Claude Code predates "
+        "the 'fable' alias, the uniform Opus fallback lever remains: "
+        f"{remediation}"
     )
     return name, "note", detail
 
@@ -954,10 +1114,10 @@ def check_model_default(remediation: str | None = None) -> tuple[str, str, str |
 # INPUT (--codex / --no-codex / CT6_CODEX_56_AVAILABLE) — never probed, the same
 # injected-availability convention as service_config.resolve_model (SETUP-ADV-1:
 # a harness probe here would be false precision). With no signal at all the model
-# state is left untouched: the shipped v3.43.0 delivery-adversarial split (12
-# delivery + adversarial agents on `opus`, 27 planning / validation / review
-# agents on `fable`) IS the operating model, and a user's manual lever state is
-# never silently clobbered.
+# state is left untouched: the shipped v4.0.0 role split (15 fable / 9 opus /
+# 14 sonnet / 1 haiku, `set_default_model.py --split role`; the v3.43.0
+# delivery-adversarial split before it) IS the operating model, and a user's
+# manual lever state is never silently clobbered.
 
 def _load_model_lever():
     """Load the sibling set_default_model.py module (works however setup.py
@@ -997,9 +1157,9 @@ def check_codex_option() -> tuple[str, str, str | None]:
     available but nothing is rewritten (the current operating model stays)."""
     name = "model-policy (Codex 5.6 role split — not requested)"
     detail = (
-        "no Codex 5.6 signal — the committed model state stays as shipped (the "
-        "v3.43.0 delivery-adversarial split: 12 delivery + adversarial agents on "
-        "'opus', 27 planning/validation/review agents on 'fable'; Opus fallback "
+        "no Codex 5.6 signal -- the committed model state stays as shipped (the "
+        "v4.0.0 role split: fable on judgment seats, opus on delivery seats, "
+        "sonnet on mechanical verification, haiku on classification; Opus fallback "
         "lever unchanged). If this harness has Codex 5.6, rerun with --codex (or "
         "set CT6_CODEX_56_AVAILABLE=1) to put development/code-checking/testing "
         "agents on ct6-secondary while architecture/control/design agents stay on "
@@ -1040,7 +1200,7 @@ def apply_model_policy(
             detail = (
                 f"check-only: current policy state is '{state}'; a normal run would "
                 f"apply '{target}'"
-                + ("" if codex_signal else " (moving off the shipped delivery split)")
+                + ("" if codex_signal else " (moving off the shipped role split)")
                 + f". Manual lever: {manual}"
             )
             return name, "note", detail
@@ -1051,7 +1211,7 @@ def apply_model_policy(
                 f"{lever.SECONDARY_ALIAS} now drives development/code-checking/testing agents"
                 if codex_signal
                 else f"Codex 5.6 unavailable — applied '{policy}': uniform fable, "
-                f"which moves OFF the shipped delivery split rather than restoring "
+                f"which moves OFF the shipped role split rather than restoring "
                 f"it; Opus fallback lever unchanged"
             )
             return name, "applied", f"{what} ({len(changed)} file(s) rewritten)."
@@ -1187,6 +1347,14 @@ def main(argv: list[str] | None = None) -> int:
              "modified.",
     )
     parser.add_argument(
+        "--project-root",
+        default=None,
+        help="OPT-IN (v4.0.0): a target project's root. When given, setup asks the "
+             "page-publishing question once (writes .architect-team-publish.json) and "
+             "builds the project's first empty-state homepage. Without it neither "
+             "per-project step runs.",
+    )
+    parser.add_argument(
         "--no-prompt",
         action="store_true",
         help="Skip interactive consent prompts (print suggested edits instead). "
@@ -1235,7 +1403,7 @@ def main(argv: list[str] | None = None) -> int:
         "--no-codex",
         action="store_true",
         help="Codex 5.6 is NOT available: apply the uniform fable policy, moving "
-             "off the shipped delivery split. Overrides CT6_CODEX_56_AVAILABLE.",
+             "off the shipped role split. Overrides CT6_CODEX_56_AVAILABLE.",
     )
     args = parser.parse_args(argv)
 
@@ -1266,6 +1434,15 @@ def main(argv: list[str] | None = None) -> int:
     # v1.0.0 agent-teams mode check + optional consented settings.json write.
     rows.append(
         check_teams_mode(
+            check_only=args.check_only,
+            no_prompt=args.no_prompt,
+            assume_yes=assume_yes,
+        )
+    )
+
+    # v4.0.0: the Claude 5 task-tool floor (same consent flow; never fatal).
+    rows.append(
+        check_task_tools(
             check_only=args.check_only,
             no_prompt=args.no_prompt,
             assume_yes=assume_yes,
@@ -1312,6 +1489,14 @@ def main(argv: list[str] | None = None) -> int:
     # ever emit skipped / note / present / removed / warn, never "failed".
     rows.append(sync_bauplan_guidance(args.claude_md, check_only=args.check_only))
 
+    # v4.0.0 per-project steps, only when the caller names a project root.
+    if args.project_root:
+        project_root = Path(args.project_root).expanduser().resolve()
+        rows.append(check_publish_config(
+            project_root, check_only=args.check_only, no_prompt=args.no_prompt, assume_yes=assume_yes,
+        ))
+        rows.append(build_first_homepage(project_root, check_only=args.check_only))
+
     present, missing = check_plugin_presence(INSTALLED_PLUGINS_PATH, REQUIRED_PLUGINS)
 
     # Conditional tier: the SAME presence check, kept in its own variables so it
@@ -1341,7 +1526,9 @@ def main(argv: list[str] | None = None) -> int:
     if any(r[1] == "failed" for r in rows):
         return 2
     # HARD block: a missing REQUIRED plugin OR a missing openspec-propose skill
-    # is a non-recoverable prerequisite gap. superpowers is a hard dependency.
+    # is a non-recoverable prerequisite gap. (REQUIRED_PLUGINS is empty since
+    # v4.0.0, so only the openspec-propose arm can fire today; the branch stays
+    # so a future hard prerequisite is one registry entry away.)
     if missing:
         return 1
     if openspec_propose_row[1] == "missing":

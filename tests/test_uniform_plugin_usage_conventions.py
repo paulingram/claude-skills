@@ -17,6 +17,7 @@ Windows cp1252 portability: every file read passes ``encoding="utf-8"`` and this
 module is ASCII-only as Python source.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -31,7 +32,7 @@ CANONICAL_HEADING = "## Uniform plugin usage (v3.9.0)"
 # these must be present for the source-of-truth to be complete.
 REQUIRED_SUBSTRINGS = [
     CANONICAL_HEADING,
-    "--completion-promise",
+    "completion promise",
     "superpowers:brainstorming",
     "superpowers:test-driven-development",
     "superpowers:systematic-debugging",
@@ -44,7 +45,11 @@ REQUIRED_SUBSTRINGS = [
 def _read(plugin_root: Path, parts: tuple[str, ...]) -> str:
     target = plugin_root.joinpath(*parts)
     assert target.exists(), f"{target} missing"
-    return target.read_text(encoding="utf-8")
+    if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+        return skill_surface(parts[1], root=plugin_root)
+    if len(parts) == 2 and parts[0] == "agents" and parts[1].endswith(".md"):
+        return agent_surface(parts[1], root=plugin_root)
+    return surface_read(target)
 
 
 def _section(body: str) -> str:
@@ -100,7 +105,7 @@ def test_precedence_statement_mentions_user_instruction_files(plugin_root: Path)
 
 def test_ralph_loop_form_has_no_max_iterations_cap(plugin_root: Path) -> None:
     section = _section(_read(plugin_root, CONVENTIONS))
-    assert "/ralph-loop" in section
+    assert "ct6-converge" in section
     # The section may NEGATE the cap explicitly ("NO --max-iterations") — that is
     # expected. What it must NOT do is USE the flag as part of the canonical
     # invocation form, i.e. a literal `--max-iterations <N>` with a value.

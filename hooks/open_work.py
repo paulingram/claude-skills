@@ -7,9 +7,11 @@ stopping condition somewhere the AGENT controls — an instruction it reads, a
 promise string it types, a summary it decides is complete enough. This module
 puts the stopping condition in files the HARNESS writes:
 
-  * the harness task list at ``~/.claude/tasks/session-<first-8>/<taskId>.json``
-    (``status`` in ``pending`` / ``in_progress`` / ``completed``, plus an
-    ``owner``), and
+  * the harness task list at ``~/.claude/tasks/<full session id>/<taskId>.json``
+    (the layout Claude Code writes today; older builds wrote
+    ``session-<first 8>/`` and :func:`session_task_dir` resolves both), each
+    file carrying ``status`` in ``pending`` / ``in_progress`` / ``completed``
+    plus an ``owner``, and
   * the session transcript, from which the user's directives are DERIVED into
     an accumulating ask-ledger — so an agent cannot decline to register an ask
     it would rather not do.
@@ -92,6 +94,12 @@ DISABLE_OUTPUT_ENV = "CT6_TURN_OUTPUT_GATE_DISABLED"  # turn-output rule
 #: The injected task-root override. This is the TEST SEAM — the suite points it
 #: at a tmp_path so no test can reach the developer's real ``~/.claude/tasks``.
 TASKS_ROOT_ENV = "CT6_TASKS_ROOT"
+#: v4.0.0 (the Claude 5 task-tool floor) -- the harness provides TaskCreate /
+#: TaskUpdate by default only on Opus 4.7 / Sonnet 4.6 / Haiku 4.5 and earlier;
+#: every other model (all of Claude 5) gets them only when this env var is set
+#: (in the shell or in ``~/.claude/settings.json`` ``env``). Cloud and
+#: background sessions always have them.
+TODO_TOOLS_ENV = "CLAUDE_CODE_ENABLE_TODO_TOOLS"
 
 #: The task-abandonment window (v3.64.0, D1). Harness task lists OUTLIVE
 #: sessions — resume / continue / compact keeps the same store, teams keep the
@@ -244,6 +252,64 @@ def tasks_root(explicit: str | Path | None = None) -> Path:
     return Path.home() / ".claude" / "tasks"
 
 
+def tasks_root_is_default(explicit: str | Path | None = None) -> bool:
+    """True when ``tasks_root(explicit)`` resolved to the real ``~/.claude/tasks``.
+
+    The distinction carries the v4.0.0 floor rule: a REDIRECTED root that does
+    not exist is unknown state (F13, blocks); the DEFAULT root being absent is
+    the ordinary state of a machine whose harness never created it -- either
+    nothing was ever registered, or the model does not provide the task tools.
+    """
+    if explicit:
+        return False
+    return not os.environ.get(TASKS_ROOT_ENV, "").strip()
+
+
+def _truthy_flag(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def task_tools_opted_in(
+    env: "dict[str, str] | os._Environ[str] | None" = None,
+    settings_path: str | Path | None = None,
+) -> bool:
+    """True when the ``CLAUDE_CODE_ENABLE_TODO_TOOLS`` opt-in is configured.
+
+    Checked in the process environment first, then in the ``env`` block of
+    ``~/.claude/settings.json`` (or ``settings_path``). Read-only; never raises.
+    """
+    env = os.environ if env is None else env
+    if _truthy_flag(env.get(TODO_TOOLS_ENV)):
+        return True
+    path = Path(settings_path) if settings_path else Path.home() / ".claude" / "settings.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    block = data.get("env") if isinstance(data, dict) else None
+    return isinstance(block, dict) and _truthy_flag(block.get(TODO_TOOLS_ENV))
+
+
+def session_task_dir(root: Path, session_id: str) -> Path:
+    """The directory holding one session's task files.
+
+    Claude Code has written ``<root>/<full session id>/<n>.json`` since the
+    Task tools replaced TodoWrite; older builds wrote
+    ``<root>/session-<first 8 chars>/``. Whichever exists wins (full id first);
+    when neither exists the full-id path is returned so callers report the
+    layout the current harness would create.
+    """
+    sid = (session_id or "").strip()
+    candidates = [root / sid, root / f"session-{sid[:8]}"]
+    for cand in candidates:
+        try:
+            if cand.is_dir():
+                return cand
+        except Exception:
+            continue
+    return candidates[0]
+
+
 def _read_failure_reason(exc: BaseException) -> str:
     """A short, human-readable reason for a source-read failure."""
     if isinstance(exc, json.JSONDecodeError):
@@ -270,13 +336,15 @@ def read_harness_tasks(
     as empty. A missing session dir is genuinely empty and yields no unreadable
     entry — a session that never registered a task must not be blocked.
     """
-    result: dict[str, Any] = {"items": [], "unreadable": [], "dir": None}
+    result: dict[str, Any] = {
+        "items": [], "unreadable": [], "dir": None, "unavailable": None,
+    }
     sid = session_id.strip() if isinstance(session_id, str) else ""
     if not sid:
         return result
 
     resolved_root = tasks_root(root)
-    session_dir = resolved_root / f"session-{sid[:8]}"
+    session_dir = session_task_dir(resolved_root, sid)
     result["dir"] = str(session_dir)
     # v3.60.0 (F13) — a missing ROOT is unknown; a missing SESSION DIR is empty.
     # These were collapsed, and the difference is the whole contract: this
@@ -289,6 +357,30 @@ def read_harness_tasks(
     # registered nothing is the ordinary state and must never wedge.
     try:
         if not resolved_root.is_dir():
+            if tasks_root_is_default(root):
+                # v4.0.0 -- the DEFAULT root is absent. The harness creates it
+                # the first time a task is registered, and Claude 5 models do
+                # not provide the task tools at all unless CLAUDE_CODE_ENABLE_
+                # TODO_TOOLS=1 is configured. Either way this source is
+                # UNAVAILABLE, which is a measured gap the caller surfaces as an
+                # advisory note -- not unknown state that wedges every Stop on a
+                # fresh machine (reproduced 2026-11-08: a Linux box with no
+                # ~/.claude/tasks blocked every turn end). The REDIRECTED root
+                # below keeps the F13 contract: pointing the gate at nothing is
+                # unknown, and unknown blocks.
+                if task_tools_opted_in():
+                    why = ("no task has been registered on this machine yet "
+                           "(the opt-in is configured)")
+                else:
+                    why = ("this session's model may not provide the task "
+                           f"tools -- Claude 5 models need {TODO_TOOLS_ENV}=1 "
+                           "in the environment or in ~/.claude/settings.json "
+                           "env (run /architect-team:architect-team-setup)")
+                result["unavailable"] = {
+                    "path": str(resolved_root),
+                    "reason": f"the harness task root does not exist: {why}",
+                }
+                return result
             result["unreadable"].append({
                 "path": str(resolved_root),
                 "reason": "the harness task root does not exist, so whether "
@@ -1335,6 +1427,14 @@ def evaluate_completion_lock(
     if not tasks_disabled():
         read = read_harness_tasks(session_id, tasks_root)
         result["tasks_dir"] = read.get("dir")
+        if read.get("unavailable"):
+            # v4.0.0 -- the task-list source is absent on this machine; the
+            # lock proceeds on the ask-ledger and the run marker and SAYS so.
+            result["advisory_notes"].append(
+                "the harness task-list source is unavailable: "
+                f"{read['unavailable']['reason']} -- NOT refusing this stop; "
+                "the lock proceeds on the ask-ledger and the run marker"
+            )
         if read["unreadable"]:
             result["unreadable"].extend(read["unreadable"])
             sources.add(DISABLE_TASKS_ENV)
@@ -1553,14 +1653,14 @@ def _cmd_retire(
     sid = (session or "").strip()
     sid = sid[len("session-"):] if sid.startswith("session-") else sid
     if not sid:
-        print("retire needs --session <session-id> (or the session-<first8> "
+        print("retire needs --session <session-id> (or the legacy session-<first8> "
               "dir name) naming which task list holds the dead work.",
               file=sys.stderr)
         return 2
     read = read_harness_tasks(sid, tasks_root_arg)
     store = Path(str(read.get("dir")))
     if not store.is_dir():
-        print(f"no harness task store at {store} — nothing to retire. "
+        print(f"no harness task store at {store} (nor the legacy spelling {store.parent / ('session-' + sid[:8])}) — nothing to retire. "
               f"(root: {tasks_root(tasks_root_arg)})", file=sys.stderr)
         return 1
     problems = list(read.get("unreadable") or [])
@@ -1648,8 +1748,9 @@ def main(argv: list[str] | None = None) -> int:
              "live tasks unless --force)",
     )
     p_retire.add_argument("--session", required=True,
-                          help="session id, its first 8 chars, or the "
-                               "session-<first8> dir name")
+                          help="session id (the task-dir name in today's "
+                               "layout), or the legacy session-<first8> dir "
+                               "name / its first 8 chars")
     p_retire.add_argument("--reason", required=True,
                           help="why the work is being closed without being "
                                "done; recorded on every retired task")

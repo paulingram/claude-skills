@@ -1,11 +1,12 @@
 ---
 name: cartographer-team
-description: CT6's multi-agent wrapper around the external cartographer plugin call. One cartographer run produces CODEBASE_MAP.md; 3× codebase-map-reviewer agents independently audit the result and confirm 100% coverage in parallel; targeted re-mapping iterates until all 3 reviewers return ok. Wrapped in a ralph-loop with completion-promise "CODEBASE MAP COMPLETE". Caller-configurable output path so frontend-read-only mode (Phase 0b) can route output to .architect-team/frontend-reference/<codebase-slug>/ instead of <codebase>/docs/. v3.4.0.
+description: CT6's multi-agent wrapper around the CONDITIONAL cartographer plugin call (the native map stands in when the plugin is absent — never an abort). One cartographer run produces CODEBASE_MAP.md; the tier-3 map-convergence gate — 3× codebase-map-reviewer agents independently audit the result and confirm 100% coverage in parallel — iterates targeted re-mapping until all 3 reviewers return ok, run as declare → ct6-converge workflow → record with the completion-promise label "CODEBASE MAP COMPLETE". Caller-configurable output path so frontend-read-only mode (Phase 0b) can route output to .architect-team/frontend-reference/<codebase-slug>/ instead of <codebase>/docs/. v3.4.0.
+user-invocable: false
 ---
 
 # Cartographer Team
 
-You are the **Cartographer Team orchestrator**. Drive one cartographer-plugin run + 3× `codebase-map-reviewer` agents in parallel, aggregate their deficiencies, re-trigger targeted cartographer updates, and loop until all 3 reviewers return `ok`. Caller-configurable output path.
+You are the **Cartographer Team orchestrator**. Drive one cartographer-plugin run (or the native map when the conditional plugin is absent) + the tier-3 map-convergence gate — 3× `codebase-map-reviewer` agents in parallel — aggregate their deficiencies, re-trigger targeted updates, and loop until the recorded convergence says all 3 reviewers returned `ok`. Caller-configurable output path.
 
 ## When this skill runs
 
@@ -42,13 +43,15 @@ If `freshness_check: true` AND a map already exists at `output_path`:
 
 1. Read the map's `last_mapped` frontmatter.
 2. Run `git -C <codebase_path> log -1 --format=%cI` to get the latest commit timestamp.
-3. If `last_mapped >= latest-commit` AND `intake-state.json::map_invalidated` does NOT include this `codebase_path` → return the existing map; emit completion promise; exit.
+3. If `last_mapped >= latest-commit` AND `intake-state.json::map_invalidated` does NOT include this `codebase_path` → return the existing map (a freshness short-circuit: no convergence gate is declared, and the verdict records `freshness_short_circuited: true`); exit.
 
 Else proceed to C2.
 
 ## Phase C2 — Run cartographer
 
 Trigger the external `cartographer` plugin's own flow against `codebase_path` (per `intake-and-mapping/SKILL.md` step 2). The plugin produces a draft `CODEBASE_MAP.md` at the codebase's standard location.
+
+**When the plugin is absent (CONDITIONAL since v4.0.0 — `CONDITIONAL_PLUGINS` in `scripts/setup/setup.py`, never gating):** the orchestrator does not abort. It reports the gap with the install remediation, produces the draft map natively per the codebase-mapping section of `skills/common-pipeline-conventions/references/native-methodology.md` — the house shape from a read of the tree, frontmatter `source: native` — and C3 reviews it exactly as it reviews a plugin-produced map. The `source: native` field keeps the record honest about where the map came from.
 
 When `frontend_read_only: true`, after the cartographer plugin returns:
 
@@ -57,9 +60,17 @@ When `frontend_read_only: true`, after the cartographer plugin returns:
 
 When the `classification` is `frontend` or `fullstack` AND `produce_route_map: true`, additionally dispatch the existing `route-mapper` agent (and the existing `design-fidelity-mapping` skill when design inputs are present) to produce `ROUTE_MAP.md` at the caller-configured `route_map_output_path`. Same read-only treatment applies in `frontend_read_only` mode.
 
-## Phase C3 — 3-reviewer convergence (wrapped in a ralph-loop)
+## Phase C3 — 3-reviewer convergence (tier 3: declare → ct6-converge workflow → record)
 
-Wrap the entire convergence in `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"` — the loop runs until the completion-promise is satisfied (all 3 reviewers return `ok`); no iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`):
+Map convergence is a **tier-3** gate (`skills/team-spawning-and-review-gates/references/review-tiers.md`): three independent reviewers, run as the `ct6-converge` workflow with completion promise "CODEBASE MAP COMPLETE" (the `codebase-map` preset) under the declare → run → record protocol of `skills/common-pipeline-conventions/references/converge-workflows.md`:
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" declare --workspace <ws> --kind codebase-map --promise "CODEBASE MAP COMPLETE" --reviewers 3
+#   Workflow({ name: "ct6-converge", args: { kind: "codebase-map", promise: "CODEBASE MAP COMPLETE", reviewers: 3, reviewerAgent: "architect-team:codebase-map-reviewer", fixerAgent: "architect-team:route-mapper", artifacts: ["<output_path>", "<route_map_output_path>"] } })
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" record --workspace <ws> --kind codebase-map --result '<the workflow JSON>'
+```
+
+The promise is the declared gate's label; the record — `converged: true` with all 3 reviewers `ok` in the final round — is what satisfies it. No iteration cap (per `common-pipeline-conventions` `## Unbounded solving discipline`); a human-set `maxRounds` pauses the gate, it never passes it. Inside the workflow each round is:
 
 1. The orchestrator dispatches 3 `codebase-map-reviewer` agents in parallel via a single Agent-tool batch (subagents mode) OR creates 3 reviewer tasks in the shared list (teams mode). Each reviewer receives:
    - The current `CODEBASE_MAP.md` (and `ROUTE_MAP.md` when applicable) from `output_path`
@@ -82,7 +93,7 @@ Wrap the entire convergence in `/ralph-loop "<review prompt>" --completion-promi
    }
    ```
 
-3. **All 3 ok** → emit `"CODEBASE MAP COMPLETE"`; exit the ralph-loop.
+3. **All 3 ok** → the workflow returns `converged: true`; the orchestrator records it (`record.py record`), which satisfies the declared gate labelled `CODEBASE MAP COMPLETE`. Nothing exits on a typed string.
 
 4. **Any deficient** → aggregate the deficiencies; re-trigger the cartographer plugin in update mode (or `route-mapper` for route-specific deficiencies) naming the deficient sections; loop.
 
@@ -127,11 +138,12 @@ A violation (write inside the frontend codebase during `frontend_read_only: true
 
 - v3.0.0 unilateral-override — the cartographer cannot decide to skip the 3-reviewer convergence.
 - v1.6.0 teammate-git-discipline — no destructive git ops; teammates use `git diff <BASELINE_SHA>` for verification only.
-- v0.9.19 3-reviewer convergence — the canonical pattern this skill implements.
+- v0.9.19 3-reviewer convergence, tiered in v4.0.0 — map convergence stays tier 3 (three reviewers) and runs as declare → `ct6-converge` workflow → record (`skills/common-pipeline-conventions/references/converge-workflows.md`).
+- v4.0.0 conditional plugins — an absent `cartographer` is reported and remediated, never an abort; the native map stands in and says so (`source: native`).
 - v3.3.0 test-run monitor — N/A (this is an analysis skill, not a test runner).
 
 ## What this skill is NOT
 
 - Not a code generator. It produces structural maps, not code.
-- Not the cartographer plugin itself. It WRAPS the external cartographer plugin call with CT6's multi-agent audit pattern.
-- Not a fix loop. Persistent deficiencies (10+ iterations without convergence) become a caller-side escalation; this skill does not file them itself.
+- Not the cartographer plugin itself. It WRAPS the external cartographer plugin call — or, when that conditional plugin is absent, the native map — with CT6's tier-3 audit pattern.
+- Not a fix loop. A deficiency the reviewers cannot close because an input only the owner holds is missing becomes a caller-side escalation naming that input (never an iteration count); this skill does not file SRs itself.

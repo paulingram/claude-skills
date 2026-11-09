@@ -29,6 +29,7 @@ import pytest
 
 from hooks.vao_tools import verify_frontend_e2e_loop_exit
 from tests.helpers.module_loader import load_module
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIX = REPO_ROOT / "tests" / "fixtures" / "vao"
@@ -189,7 +190,7 @@ def test_cli_exit_zero_on_genuine(tmp_path: Path) -> None:
         text=True, capture_output=True,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     assert out.is_file()
 
 
@@ -202,7 +203,7 @@ def test_cli_exit_two_on_escape(tmp_path: Path) -> None:
         text=True, capture_output=True,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
-    assert r.returncode == 2, r.stderr
+    assert blocked(r), hook_text(r)
 
 
 # ===========================================================================

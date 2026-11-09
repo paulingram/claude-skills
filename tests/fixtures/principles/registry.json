@@ -1,0 +1,70 @@
+{
+  "principles": [
+    {
+      "added_at": "2026-11-01T09:00:00Z",
+      "added_by": "architect",
+      "confirmed_at": "2026-11-01T09:05:00Z",
+      "id": "P-01",
+      "retire_reason": null,
+      "retired_at": null,
+      "scope": "data-model",
+      "source": {
+        "file": "docs/conventions.md",
+        "kind": "extracted",
+        "quote": "Every service owns its own tables; no cross-service joins."
+      },
+      "statement": "Every service owns its own tables; no cross-service joins.",
+      "status": "confirmed"
+    },
+    {
+      "added_at": "2026-11-01T09:00:00Z",
+      "added_by": "user",
+      "confirmed_at": "2026-11-01T09:00:00Z",
+      "id": "P-02",
+      "retire_reason": null,
+      "retired_at": null,
+      "scope": "architecture",
+      "source": {
+        "file": null,
+        "kind": "user-stated",
+        "quote": "no new ORM, ever"
+      },
+      "statement": "No new ORM.",
+      "status": "confirmed"
+    },
+    {
+      "added_at": "2026-11-01T09:00:00Z",
+      "added_by": "architect",
+      "confirmed_at": null,
+      "id": "P-03",
+      "retire_reason": null,
+      "retired_at": null,
+      "scope": "testing",
+      "source": {
+        "file": "docs/conventions.md",
+        "kind": "extracted",
+        "quote": "Tests must run offline with no network access."
+      },
+      "statement": "Tests run offline.",
+      "status": "proposed"
+    },
+    {
+      "added_at": "2026-11-01T09:00:00Z",
+      "added_by": "user",
+      "confirmed_at": "2026-11-01T09:00:00Z",
+      "id": "P-04",
+      "retire_reason": "superseded by the platform logging policy",
+      "retired_at": "2026-11-02T09:00:00Z",
+      "scope": "security",
+      "source": {
+        "file": null,
+        "kind": "user-stated",
+        "quote": null
+      },
+      "statement": "Never log a customer secret.",
+      "status": "retired"
+    }
+  ],
+  "schema": "project-principles/v1",
+  "soft_cap": 15
+}

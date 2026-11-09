@@ -10,6 +10,8 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.0` — quiet-holds-and-the-users-release
+- `v4.0.0` — claude-5-modernization
 - `v3.67.0` — git-commit-identity
 - `v3.66.0` — executed-diagnosis-and-no-limits
 - `v3.65.0` — playwright-suite-intuition-lifecycle
@@ -167,9 +169,39 @@ Every release, newest first — the one-line index the README used to carry. Ful
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.67.0  ◆  ░▒▓█
+█▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.0 — quiet-holds-and-the-users-release: the Stop hook holds the turn without shouting, and only the user can let it go
+
+Two field reports from the first v4.0.0 runs. First, the completion lock's worklist and the continuation guard's CONTINUE directive — text written for the AGENT — were being rendered in the user's main view on every refused stop, because a Stop hook's exit-2 stderr (and `decision: block`) is shown as a hook-error notification. The hold now travels as `hookSpecificOutput.additionalContext` in hook JSON on stdout: Claude Code keeps the turn open through the same loop protections, labels it `Stop hook feedback` in the transcript, and the user's screen stays clean (`CT6_STOP_HOLD_MODE=block` restores the old channel; `CT6_STOP_USER_NOTICE=1` adds a one-line count for the user). Second, holds outlived the work — a task nobody closed, an ask the transcript never resolved, a converge gate never recorded — and outlived the user's own "good enough, move on with what you have". **`/architect-team:unlock`** is the user's verb for that: it inspects what holds the turn and, under one durable record of the user's words, retires the open tasks, resolves the open asks, WAIVES the unsatisfied gates (never fakes them satisfied), stands the run down and appends a decision the homepage shows. It is the user's alone: the command is `disable-model-invocation`, the skill gate's Arm 5 refuses the release verb unless the latest genuine user prompt is that command, the override guard refuses hand-written release records, and no Stop hold text names it. Every agent now carries the two moves it has under a hold — finish the work, or show the user what is open.
+
+The same release closes the v4.0.0 documentation debt across every surface (README, CLAUDE.md, the maps, 60 skills, 39 agents, 30 commands, the hook and setup docstrings): every reviewer-convergence site names its tier and runs as declare → `ct6-converge` → record, superpowers and cartographer read as conditional everywhere, the selected-tests rule and the v4.0.0 engines are wired into every lane phase, and eight commit templates drop a model-named trailer.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md).
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.0.0  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.0.0 — claude-5-modernization: keep every gate, shed the instruction weight
+
+Two measured facts drove this release. A Claude 5 session ships without `TaskCreate` / `TaskUpdate` unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set, so the Phase 3 evidence gate and the completion lock were silent on the models the plugin now runs on (and the lock looked for `session-<first 8>/` task dirs while the harness writes `<full session id>/`). And the Lead read roughly 141K tokens of its own rules before Phase −2, 13× the 5,000-token budget Claude Code keeps per skill after a compaction. Setup now writes the opt-in with consent, the SessionStart hook warns, the lock reads both layouts and degrades honestly when the task source is absent.
+
+**The rulebook became a constitution.** `common-pipeline-conventions` went from 258 KB to under 60 KB; every discipline moved whole into a `references/` chapter behind a STOP pointer, and `references/INDEX.md` says what to Read before each phase. The lane and driver skills were split the same way (`architect-team-pipeline` 153 KB → 46 KB). The five agent boilerplate blocks live once, in the new `ct6-agent-core` skill every agent preloads. Models follow roles (fable judgment / opus delivery / sonnet mechanical / haiku classification), reviewer counts follow a tier table, `ralph-loop` is retired for the shipped `ct6-converge` workflow, and `superpowers` / `cartographer` became conditional with a native fallback. `instruction_budget.py` records the weight so it cannot regrow unseen; the lane start load is measured at about 45K tokens, not yet at target.
+
+**Seven capabilities landed behind pointers:** a deletion recoverability guard with soft delete, codified project principles with violation call-outs, impact-based test selection with human always-run pins and one full run before merge (reversing the v3.65.0 whole-suite rule on purpose), sample-first iteration on data changes, private-URL page publishing behind a human-owned opt-in, and a per-project homepage with a timing log and a decisions ledger. The proposal that drove it is `docs/proposals/CT6_MODERNIZATION_PLAN.html`.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ### v3.67.0 — git-commit-identity: a run commits as the person driving it
 

@@ -4,7 +4,7 @@ The house shape for a `CHANGELOG.md` entry, distilled from the conventions the
 existing entries already follow. It is the contract for
 `scripts/docs_tooling/changelog_check.py` — the deterministic half of this rubric.
 
-Two invariants are **machine-checked** by that engine (a suite-enforced gate); the
+Two invariants are **machine-checked** by that engine (a suite-enforced gate) and a third — the top entry's suite count must be backed by a recorded bracket under `docs/measurements/` — by the same engine behind `--require-measurements` (v3.60.0; the release gate CLAUDE.md names); the
 rest are **judgment** — followed by the author, verified in review, not linted.
 
 ---
@@ -12,7 +12,11 @@ rest are **judgment** — followed by the author, verified in review, not linted
 ## The shape
 
 Every release adds ONE new entry at the TOP of `CHANGELOG.md`, directly under the
-`# Changelog` preamble. The prior entries are never touched.
+`# Changelog` preamble. The prior entries are never edited. Since v4.0.0 the file is
+ROTATED: it carries the ten most recent entries, and every older entry moves
+**verbatim** to `docs/CHANGELOG_ARCHIVE.md` (append-only history is preserved there;
+the per-release narrative for every version is `docs/RELEASE_HISTORY.md`). A move is
+not an edit — the archived text is byte-identical to what the head file carried.
 
 ```
 ## [<x.y.z>] — <YYYY-MM-DD> — <slug> (<verdict-first one-line summary>)
@@ -77,7 +81,8 @@ regression contract. Depth scales with the release; a docs-only PATCH is short, 
 MINOR feature is a full narrative.
 
 ### 7. Append-only history — *judgment*
-No historical entry is ever edited. Corrections to a past release are made in a NEW
+No historical entry is ever edited — not in this file and not after it rotates into
+`docs/CHANGELOG_ARCHIVE.md`. Corrections to a past release are made in a NEW
 entry that names the miss, never by rewriting the old text. (Current-state facts
 that live OUTSIDE the changelog — the README, the maps — are refreshed in place;
 the changelog's own history is not.)
@@ -86,7 +91,7 @@ the changelog's own history is not.)
 
 ## What the check does *not* enforce
 
-`changelog_check.py` verifies only rules 4 and 5 — the two invariants a machine can
+`changelog_check.py` verifies rules 4 and 5 (always) and the suite line's measurement backing (behind `--require-measurements`) — the invariants a machine can
 judge without reading intent. Rules 1, 2, 3, 6, and 7 are LLM-judgment: a reviewer
 confirms the headline leads with the verdict, the numbers are real, divergences are
 named, the narrative is sufficient, and no historical entry was rewritten. A clean

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {"id": "func://fixture/fixpkg/models.py#parse_item", "kind": "function", "path": "fixpkg/models.py", "name": "parse_item"},
+    {"id": "func://fixture/fixpkg/pricing.py#price_for", "kind": "function", "path": "fixpkg/pricing.py", "name": "price_for"},
+    {"id": "func://fixture/fixpkg/api.py#checkout_total", "kind": "function", "path": "fixpkg/api.py", "name": "checkout_total"},
+    {"id": "endpoint://fixture/POST /api/checkout", "kind": "endpoint", "path": "fixpkg/api.py", "name": "POST /api/checkout"}
+  ],
+  "edges": [
+    {"src": "endpoint://fixture/POST /api/checkout", "dst": "func://fixture/fixpkg/api.py#checkout_total", "kind": "serves"},
+    {"src": "func://fixture/fixpkg/api.py#checkout_total", "dst": "func://fixture/fixpkg/pricing.py#price_for", "kind": "calls"},
+    {"src": "func://fixture/fixpkg/pricing.py#price_for", "dst": "func://fixture/fixpkg/models.py#parse_item", "kind": "calls"}
+  ]
+}

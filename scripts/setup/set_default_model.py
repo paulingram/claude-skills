@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """Agent-model lever — rewrite the agents/*.md frontmatter ``model:`` field.
 
-The v3.32.0 default ships all agents as ``model: fable`` (Fable 5, wherever it is
-available). This stdlib-only CLI is the sanctioned, deterministic lever for that
-field AND the IMPLEMENTED Opus 5 fallback for a harness that predates the fable
-alias: ``python scripts/setup/set_default_model.py --model opus``.
+Since v4.0.0 the SHIPPED default is the model-by-role split (``--split role``:
+15 fable / 9 opus / 14 sonnet / 1 haiku, ``ROLE_SPLIT_MODELS`` below); the
+v3.32.0 uniform ``model: fable`` default (Fable 5, wherever it is available) is
+now the ``uniform-fable`` policy this lever can still apply on demand. This
+stdlib-only CLI is the sanctioned, deterministic lever for that field AND the
+IMPLEMENTED Opus 5 fallback for a harness that predates the fable alias:
+``python scripts/setup/set_default_model.py --model opus``.
 
 v3.35.0 added the availability-gated secondary role split: architecture/control/
 design agents stay on ``fable`` while development, code-checking, and testing
@@ -19,7 +22,8 @@ backward compatibility and migration detection. Availability is an INPUT (a flag
 or the ``CT6_CODEX_56_AVAILABLE`` env var), never probed here — the same injected-
 availability convention as ``services/common/service_config.py``'s
 ``resolve_model``. With the signal SET-but-falsy the policy resolves to uniform
-``fable``, which moves OFF the shipped delivery split rather than restoring it;
+``fable``, which moves OFF the shipped split (the v4.0.0 role split; the v3.43.0
+delivery split before it) rather than restoring it;
 with the signal ABSENT the model state is left untouched (the existing
 ``--model opus`` uniform lever remains the Opus fallback where fable itself is
 unavailable).
@@ -37,15 +41,22 @@ Behaviour
 * ``--split delivery`` applies the v3.43.0 delivery-adversarial Opus split: the
   12 delivery + adversarial agents (``DELIVERY_ADVERSARIAL_AGENTS``) take
   ``model: opus``, every planning / validation / review agent stays on ``fable``.
-  This is the shipped default state; ``opus`` is a real Claude id (no gateway
-  impersonation). It is a DIFFERENT axis than the secondary split above.
+  This WAS the shipped default from v3.43.0 to v3.67.0 and still applies on
+  demand; ``opus`` is a real Claude id (no gateway impersonation). It is a
+  DIFFERENT axis than the secondary split above.
+* ``--split role`` applies the v4.0.0 model-by-role split (``ROLE_SPLIT_MODELS``):
+  fable on the 15 judgment seats, opus on the 9 delivery / execution seats,
+  sonnet on the 14 mechanical verification / extraction / observation /
+  documentation seats, haiku on ``bug-classifier``. This is the SHIPPED default
+  since v4.0.0 (``policy_state`` reports ``role-split``).
 * ``--auto`` resolves the policy from ``CT6_CODEX_56_AVAILABLE``: truthy => the
   secondary split; SET-but-falsy => the ``uniform-fable`` policy, which moves OFF
-  the shipped delivery split above rather than restoring it; ABSENT => no signal —
+  the shipped role split above rather than restoring it; ABSENT => no signal --
   the model state is left untouched (a manually applied lever state, e.g. the Opus
   fallback, is never silently clobbered).
 * ``--check`` prints the model distribution, uniformity, and the recognized policy
-  state (``uniform-fable`` / ``secondary-split`` / ``uniform-<m>`` / ``mixed``).
+  state (``uniform-fable`` / ``secondary-split`` / ``role-split`` /
+  ``deliver-opus-split`` / ``uniform-<m>`` / ``mixed``).
   Readers may still encounter ``codex-split`` in legacy state files, but this lever
   emits the single canonical ``secondary-split`` policy string.
 * ``--agents-dir`` overrides the target directory (default: the repo's agents/).
@@ -140,7 +151,7 @@ LEGACY_POLICY_CODEX_SPLIT = "codex-split"
 
 # Availability signal for --auto (and for setup.py). Truthy => Codex 5.6 is
 # available in this harness. SET-but-falsy => apply the ``uniform-fable`` policy,
-# which moves OFF the shipped delivery split rather than restoring it (opus
+# which moves OFF the shipped role split rather than restoring it (opus
 # fallback via --model opus where fable itself is absent). ABSENT => no signal;
 # the model state is left untouched.
 CODEX_ENV_VAR = "CT6_CODEX_56_AVAILABLE"
@@ -231,6 +242,72 @@ def deliver_role_model(stem: str) -> str:
     return OPUS_MODEL if stem in DELIVERY_ADVERSARIAL_AGENTS else "fable"
 
 
+# --- Model-by-role split (v4.0.0, proposal change 5) -------------------------- #
+# The shipped default from v4.0.0 on. Four tiers, chosen by what the role does:
+#   fable  - judgment-heavy seats: architecture, adversarial attack, synthesis,
+#            independent verdicts, deep research, map convergence reviewers.
+#   opus   - delivery: agents that write or merge product code, and the agents
+#            that reproduce / execute to surface failures (the v3.43.0 set).
+#   sonnet - mechanical verification, extraction, observation, documentation.
+#   haiku  - classification and routing.
+# Every shipped stem is listed; an unclassified stem fails safe to ``fable``.
+ROLE_SPLIT_MODELS: Dict[str, str] = {
+    # fable - judgment
+    "system-architect": "fable", "adversarial-reviewer": "fable",
+    "structure-adversary": "fable", "task-reviewer": "fable",
+    "master-synthesizer": "fable", "diagnostic-researcher": "fable",
+    "oracle-deriver": "fable", "fix-sensibility-checker": "fable",
+    "prompt-refiner": "fable", "domain-researcher": "fable",
+    "codebase-map-reviewer": "fable", "integration-explorer": "fable",
+    "structure-analyst": "fable", "mcp-design-agent": "fable",
+    "scaffold-agent": "fable",
+    # opus - delivery and execution
+    "backend": "opus", "frontend": "opus", "integration": "opus",
+    "reconciler": "opus", "mini-qa": "opus", "bug-replicator": "opus",
+    "qa-replayer": "opus", "flow-executor": "opus", "visual-analyzer": "opus",
+    # sonnet - mechanical verification / extraction / observation / docs
+    "test-completeness-verifier": "sonnet", "editability-reviewer": "sonnet",
+    "interaction-reviewer": "sonnet", "interaction-observer": "sonnet",
+    "interaction-intuiter": "sonnet", "visual-capture": "sonnet",
+    "test-run-watcher": "sonnet", "monitor-synthesizer": "sonnet",
+    "reference-tracer": "sonnet", "route-mapper": "sonnet",
+    "endpoint-tracer": "sonnet", "flow-explorer": "sonnet",
+    "doc-updater": "sonnet", "closeout-agent": "sonnet",
+    # haiku - classification
+    "bug-classifier": "haiku",
+}
+POLICY_ROLE_SPLIT = "role-split"
+
+
+def role_split_model(stem: str) -> str:
+    """The v4.0.0 model-by-role target for an agent stem (unclassified -> fable)."""
+    return ROLE_SPLIT_MODELS.get(stem, "fable")
+
+
+def role_split_targets(agents_dir) -> Dict[str, str]:
+    """``{stem: target_model}`` for every agent under the role split."""
+    agents_dir = pathlib.Path(agents_dir)
+    return {path.stem: role_split_model(path.stem) for path in sorted(agents_dir.glob("*.md"))}
+
+
+def apply_role_split(agents_dir) -> List[str]:
+    """Apply the v4.0.0 model-by-role split. Returns sorted changed stems;
+    idempotent; only the frontmatter model line is ever touched."""
+    agents_dir = pathlib.Path(agents_dir)
+    targets = role_split_targets(agents_dir)
+    changed: List[str] = []
+    for path in sorted(agents_dir.glob("*.md")):
+        text_lf, newline, trailing = _read(path)
+        new = rewrite_model_line(text_lf, targets[path.stem])
+        if new is None or new == text_lf:
+            continue
+        if trailing and not new.endswith("\n"):
+            new += "\n"
+        if _write_if_changed(path, new, newline):
+            changed.append(path.stem)
+    return sorted(changed)
+
+
 def codex_available(env: Optional[Mapping[str, str]] = None) -> bool:
     """True when the ``CT6_CODEX_56_AVAILABLE`` signal is truthy in ``env``
     (defaults to ``os.environ``). Absent or falsy => False."""
@@ -261,9 +338,9 @@ def _default_agents_dir() -> pathlib.Path:
 # ~/.claude/plugins/cache/<marketplace>/architect-team/<version>/agents — NOT the
 # dev checkout this file may live in. A split applied to a dev checkout never
 # affects the runtime and is silently reverted by the next git operation (the
-# committed ship state is the v3.43.0 delivery-adversarial split — 12 delivery
-# + adversarial agents on ``opus``, 27 planning / validation / review agents on
-# ``fable``). Install-time policy therefore targets the INSTALLED copy when one
+# committed ship state is the v4.0.0 role split -- 15 fable / 9 opus / 14 sonnet
+# / 1 haiku, ``--split role``; the v3.43.0 delivery-adversarial split before
+# it). Install-time policy therefore targets the INSTALLED copy when one
 # exists; the repo agents/ stays the fallback for repos that ARE the runtime
 # plugin (a --plugin-dir dev install) and for tests.
 PLUGIN_REGISTRY_ENV = "CT6_PLUGIN_REGISTRY"
@@ -507,7 +584,7 @@ def apply_policy(
 
     * Secondary model available => the role split (``secondary-split``).
     * Secondary model unavailable => the ``uniform-fable`` policy, which moves OFF
-      the shipped v3.43.0 delivery split rather than restoring it (the Opus
+      the shipped v4.0.0 role split rather than restoring it (the Opus
       fallback where fable itself is unavailable stays the separate
       ``--model opus`` uniform lever).
 
@@ -529,10 +606,12 @@ def unclassified_stems(agents_dir) -> List[str]:
 def policy_state(agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID) -> str:
     """Classify the on-disk model state.
 
-    Returns ``uniform-<model>`` (including the operating ``uniform-fable``),
+    Returns ``uniform-<model>`` (including ``uniform-fable``),
     ``secondary-split`` when every file matches either the requested/current
     alias or any complete split on a recognized alias generation (the spawn
-    alias, the neutral ``ct6-secondary``, or a legacy provider alias), else
+    alias, the neutral ``ct6-secondary``, or a legacy provider alias),
+    ``role-split`` (the v4.0.0 shipped state) or ``deliver-opus-split`` (the
+    v3.43.0 state) when the files match that split exactly, else
     ``mixed``. ``codex-split`` is the legacy policy string readers elsewhere
     may still hold; this function emits only the canonical ``secondary-split``
     value."""
@@ -552,6 +631,8 @@ def policy_state(agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID) -> str:
     ))
     if any(actual == split_targets(agents_dir, alias) for alias in recognized_aliases):
         return POLICY_SECONDARY_SPLIT
+    if actual == role_split_targets(agents_dir):
+        return POLICY_ROLE_SPLIT
     if actual == deliver_split_targets(agents_dir):
         return POLICY_DELIVER_OPUS_SPLIT
     return "mixed"
@@ -603,20 +684,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     group.add_argument(
         "--split",
-        choices=["secondary", "codex", "delivery"],
+        choices=["secondary", "codex", "delivery", "role"],
         default=None,
         help="Apply a role split. 'secondary' (canonical; 'codex' is a deprecated "
         "synonym): fable on architecture/control/design agents, the gateway "
         "secondary alias on development/checking/testing agents. 'delivery': opus "
         "on delivery + adversarial agents, fable on planning/validation/review "
-        "agents (the v3.43.0 delivery-adversarial Opus split).",
+        "agents (the v3.43.0 delivery-adversarial Opus split). 'role': the v4.0.0 "
+        "four-tier split (fable judgment / opus delivery / sonnet mechanical / "
+        "haiku classification) -- the shipped default.",
     )
     group.add_argument(
         "--auto",
         action="store_true",
         help=f"Resolve the policy from {CODEX_ENV_VAR}: truthy applies the codex "
         "split; set-but-falsy applies the uniform-fable policy, moving off the "
-        "shipped delivery split; absent leaves the model state untouched.",
+        "shipped role split; absent leaves the model state untouched.",
     )
     group.add_argument(
         "--check",
@@ -651,6 +734,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.split == "delivery":
         changed = apply_deliver_split(agents_dir)
         _report_changed(POLICY_DELIVER_OPUS_SPLIT, changed)
+        return 0
+
+    if args.split == "role":
+        changed = apply_role_split(agents_dir)
+        _report_changed(POLICY_ROLE_SPLIT, changed)
         return 0
 
     if args.split in {"secondary", "codex"}:

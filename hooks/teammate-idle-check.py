@@ -16,7 +16,7 @@ dispatch points):
   identity under `teammate.name` (per https://code.claude.com/docs/en/hooks).
 
 In BOTH modes the enforcement is identical: every task_id in the teammate's
-manifest expected_review_evidence list must have a v6-valid evidence file,
+manifest expected_review_evidence list must have a v7-valid evidence file,
 or the hook exits 2 with the same structured feedback. The teammate-manifest
 verification path is shared — only the name-extraction step branches.
 

@@ -17,6 +17,7 @@ Module loaders use the shared importlib-by-path helper because ``scripts/setup``
 is not an installed package.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import re
 import shutil
@@ -148,19 +149,13 @@ def test_every_principles_bullet_names_exactly_one_anti_pattern(blocks_mod) -> N
 
 
 def test_all_agents_carry_current_principles_block(plugin_root: Path, blocks_mod) -> None:
+    """v4.0.0: the canonical principles text reaches every agent through the
+    preloaded ct6-agent-core skill (the surface), byte-identical to the source."""
     B = blocks_mod
     agents = sorted((plugin_root / "agents").glob("*.md"))
     assert len(agents) >= 39, f"expected >= 39 agents, found {len(agents)}"
-    missing, drifted = [], []
-    for p in agents:
-        block = B.extract_block(B.read_agent_text(p), B.PRINCIPLES_HEADING)
-        if block is None:
-            missing.append(p.stem)
-        elif block != B.PRINCIPLES:
-            drifted.append(p.stem)
-    assert not missing, f"agents missing the principles block: {missing}"
-    assert not drifted, f"agents with a drifted principles block: {drifted}"
-
+    missing = [p.stem for p in agents if B.PRINCIPLES not in agent_surface(p.stem, root=plugin_root)]
+    assert not missing, f"agents whose surface lacks the canonical principles block: {missing}"
 
 def test_every_agent_carries_the_evidence_integrity_clause(plugin_root: Path, blocks_mod) -> None:
     """The compiled propagation actually landed — every agent's evidence bullet
@@ -172,7 +167,7 @@ def test_every_agent_carries_the_evidence_integrity_clause(plugin_root: Path, bl
               "for what it measures, never for what you asserted.")
     missing = [
         p.stem for p in sorted((plugin_root / "agents").glob("*.md"))
-        if clause not in B.read_agent_text(p)
+        if clause not in agent_surface(p.stem, root=plugin_root)
     ]
     assert not missing, f"agents missing the evidence-integrity clause: {missing}"
 
@@ -182,7 +177,7 @@ def test_pipeline_skill_carries_the_evidence_integrity_clause(plugin_root: Path,
     clause = ("Grep proves presence, never absence; silence is not a finding; "
               "relay claims as claims, verdicts as facts; a green check is evidence "
               "for what it measures, never for what you asserted.")
-    text = (plugin_root / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+    text = skill_surface(skill, root=plugin_root)
     assert clause in text, f"{skill}: fenced principles block missing the evidence-integrity clause"
 
 
@@ -217,27 +212,24 @@ def test_agent_sync_and_skill_compile_report_no_drift(plugin_root: Path, sync_mo
 
 
 def test_agent_block_hand_edit_is_detected(plugin_root: Path, sync_mod, blocks_mod) -> None:
-    """Mangling an agent's principles block makes find_drift flag it (temp copy)."""
+    """v4.0.0 contract: a principles block re-introduced (and mangled) inside an
+    agent file is a STRAY compiled block; find_drift flags it and sync removes
+    it, because the one canonical copy lives in skills/ct6-agent-core."""
     B = blocks_mod
     tmp = Path(tempfile.mkdtemp())
     try:
         dst = tmp / "agents"
         shutil.copytree(plugin_root / "agents", dst)
         target = dst / "backend.md"
-        text = B.read_agent_text(target)
-        lines = text.split("\n")
-        for i, line in enumerate(lines):
-            if line.rstrip() == B.PRINCIPLES_HEADING:
-                lines[i + 2] = "MANGLED principle line"
-                break
-        target.write_bytes("\n".join(lines).encode("utf-8"))
+        mangled = B.PRINCIPLES.split("\n")
+        mangled[2] = "MANGLED principle line"
+        target.write_bytes((target.read_text(encoding="utf-8").rstrip("\n") + "\n\n" + "\n".join(mangled) + "\n").encode("utf-8"))
         assert "backend" in sync_mod.find_drift(dst)
         sync_mod.sync(dst)
-        repaired = B.extract_block(B.read_agent_text(target), B.PRINCIPLES_HEADING)
-        assert repaired == B.PRINCIPLES
+        assert B.PRINCIPLES_HEADING not in target.read_text(encoding="utf-8")
+        assert sync_mod.find_drift(dst) == []
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-
 
 def test_skill_fence_hand_edit_is_detected(plugin_root: Path, compile_mod) -> None:
     """Hand-editing inside a skill's fences makes compile find_drift flag it (temp copy)."""

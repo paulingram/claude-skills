@@ -1,6 +1,7 @@
 ---
 name: contract-first-parallelism
 description: "Use whenever a run needs BOTH backend surface work AND a frontend that visualizes that data — a full-stack build from scratch, or an integration with existing services where the frontend needs inbound surfaces. The architect's parallelism protocol: the frontend and backend agents co-design the inbound surface contract, the architect approves it, the backend IMMEDIATELY provisions the endpoint AT ITS REAL PATH serving a contract-conforming mock payload, and the frontend then builds a fully integrated interface against that LIVE endpoint while the backend replaces the mock internals underneath. Neither side waits for the other. The same protocol covers a surface that already exists but needs new attributes. Every provisioned mock is a tracked, temporary scaffold recorded in a ledger; the deterministic engine (scripts/contract/interface_contract.py) makes a run non-closable while any surface is still mock-serving, so the parallelism borrowed is always repaid."
+user-invocable: false
 ---
 
 # Contract-First Parallelism (CFP-1 … CFP-6)

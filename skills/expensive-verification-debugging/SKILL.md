@@ -1,9 +1,12 @@
 ---
 name: expensive-verification-debugging
 description: Use when debugging a failure whose verification cycle is expensive — a container rebuild, an ECS / Kubernetes / Cloud Run rolling deploy, a slow CI run, a long compile, any feedback loop with a multi-minute turnaround — or when you notice you have already burned two or more deploy / rebuild cycles fixing one bug at a time. Triggers — "I'll fix this one and redeploy to see", whack-a-mole config debugging, a greenfield Docker / Vite / build / CI pipeline that has never run end-to-end, an env var or asset that is not reaching the production bundle, sequential one-fix-per-deploy loops, "the deploy is rolling, waiting to verify". Establishes that when verification is expensive you audit the entire failure pathway and batch every fix before spending a cycle, rather than hunting one root cause at a time.
+user-invocable: false
 ---
 
 # Expensive-Verification Debugging — Audit the Whole Pathway, Batch the Fixes
+
+**Before batching fixes for an expensive cycle, ask whether the cycle itself can be made cheap by sampling.** When the expensive step is a data run — a transformation, a backfill, a dedup over a large table — the cycle is expensive because of the *volume*, not the environment, and a stratified sample of the real data (the change's own predicate stratified, edge rows and the reported rows included, whole groups kept for aggregate-level logic) turns a minutes-long verify into a seconds-long one before any fix is batched. The rule and the engine are `skills/data-eng-pipeline/references/sample-first.md` + `scripts/data_dictionary/sampling.py`; `verification-planning` lists the stratified sample as a venue. Only when the cycle cannot be made cheap does the rest of this skill — audit the pathway, batch the fixes — apply.
 
 When a verify cycle is cheap (re-run a unit test, ~1 second), debugging one hypothesis at a time is fine — a wrong guess costs a second. When a verify cycle is expensive (a Docker rebuild + ECS rolling deploy, ~3-4 minutes), the SAME one-hypothesis-at-a-time habit becomes catastrophic: every incomplete diagnosis burns a full cycle, and a symptom with three independent causes costs three cycles plus the debugging time between them.
 

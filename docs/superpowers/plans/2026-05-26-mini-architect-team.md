@@ -1,6 +1,6 @@
 # Mini Architect-Team Pipeline Implementation Plan
 
-> Historical record (point-in-time design doc) — see CHANGELOG for current state.
+> Historical record (point-in-time design doc) — see CHANGELOG for current state. As of v4.0.0: `ralph-loop` is retired (every reviewer-convergence loop is the `ct6-converge` Workflow script, `workflows/ct6-converge.js`); `superpowers` and `cartographer` are CONDITIONAL plugins with a native fallback (`skills/common-pipeline-conventions/references/native-methodology.md`), never gating; three parallel reviewers apply only to tier-3 gates (`skills/team-spawning-and-review-gates/references/review-tiers.md`); agents list `TaskList` / `TaskUpdate` (not `TodoWrite`) and preload `ct6-agent-core`; the plugin ships 60 skills / 39 agents / 29 commands / 9 hook scripts.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

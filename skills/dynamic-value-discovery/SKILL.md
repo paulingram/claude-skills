@@ -1,6 +1,7 @@
 ---
 name: dynamic-value-discovery
 description: Use when authoring a spec or DESIGN_MAP from a mockup, when implementing any screen that renders values, or when reviewing shipped UI — a cross-role discipline for telling a genuine static literal (a fixed label) from sample data standing in for a dynamic, data-bound value. Classify every displayed value static vs. dynamic FROM CONTEXT (its position, its nature, the requirements/design language) — never from the literal itself, since the same string is static in one place and dynamic in another. Mandates that every dynamic value is bound to a named data source rather than shipped as the design's hardcoded sample, and requires escalation to the human when a classification is genuinely ambiguous. Rejects rationalizations like "the design says John Smith so I'll render John Smith."
+user-invocable: false
 ---
 
 # Dynamic-Value Discovery — Is This a Fixed Label, or Sample Data for a Value That Varies?

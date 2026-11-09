@@ -1,0 +1,99 @@
+{
+  "schema": "data-dictionary/v1",
+  "db_name": "shop",
+  "schema_name": null,
+  "built_at": "2026-11-01T09:00:00Z",
+  "tables": {
+    "orders": {
+      "grain": {
+        "grain": "one row per id (declared primary key)",
+        "inferred_key": ["id"],
+        "declared_pk": ["id"],
+        "uniqueness_ratios": {"id": 1.0, "customer_id": 0.42},
+        "sampled_rows": 100,
+        "small_sample_key": false
+      },
+      "partitions": ["region"],
+      "fields": [
+        {"field": "id", "type": "integer", "definition": "order primary key",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "customer_id", "type": "integer", "definition": "the customer who placed the order",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "region", "type": "text", "definition": "sales region the order was booked in",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null,
+         "sample_values": ["EU", "US", "APAC"]},
+        {"field": "status", "type": "text", "definition": "order lifecycle state",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null,
+         "sample_values": ["open", "shipped", "cancelled", "open"]},
+        {"field": "order_date", "type": "date", "definition": "date the order was placed",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null},
+        {"field": "total_cents", "type": "integer", "definition": "order total in cents",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null}
+      ],
+      "usage": {"read_recency": "2026-10-31", "write_recency": "2026-10-31",
+                "row_volume": 2500000, "provenance": "live-data"}
+    },
+    "customers": {
+      "grain": {
+        "grain": "one row per id (declared primary key)",
+        "inferred_key": ["id"],
+        "declared_pk": ["id"],
+        "uniqueness_ratios": {"id": 1.0},
+        "sampled_rows": 100,
+        "small_sample_key": false
+      },
+      "fields": [
+        {"field": "id", "type": "integer", "definition": "customer primary key",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "tier", "type": "text", "definition": "loyalty tier",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null,
+         "sample_values": ["gold", "silver"]}
+      ],
+      "usage": {"read_recency": "2026-10-31", "write_recency": "2026-10-30",
+                "row_volume": 1200, "provenance": "live-data"}
+    },
+    "regions": {
+      "grain": {
+        "grain": "one row per code (inferred unique key) - INFERRED from only 7 sampled row(s)",
+        "inferred_key": ["code"],
+        "declared_pk": [],
+        "uniqueness_ratios": {"code": 1.0},
+        "sampled_rows": 7,
+        "small_sample_key": true
+      },
+      "fields": [
+        {"field": "code", "type": "text", "definition": "region code",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null},
+        {"field": "name", "type": "text", "definition": "region name",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null}
+      ]
+    },
+    "events": {
+      "grain": {
+        "grain": "non-unique grain (fact/event level - no single unique column in the sample)",
+        "inferred_key": [],
+        "declared_pk": [],
+        "uniqueness_ratios": {"order_id": 0.3, "kind": 0.05},
+        "sampled_rows": 100,
+        "small_sample_key": false
+      },
+      "fields": [
+        {"field": "order_id", "type": "integer", "definition": "the order the event belongs to",
+         "provenance": "live-data", "confidence": "high", "inference_evidence": [], "corroboration": null},
+        {"field": "kind", "type": "text", "definition": "event kind",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null,
+         "sample_values": ["created", "paid", "shipped"]},
+        {"field": "at", "type": "timestamp", "definition": "event time",
+         "provenance": "live-data", "confidence": "medium", "inference_evidence": [], "corroboration": null}
+      ]
+    }
+  },
+  "reference_map": {"by_table": {}, "by_field": {}},
+  "relational_map": [
+    {"from_table": "orders", "from_col": "customer_id", "to_table": "customers", "to_col": "id", "kind": "db-fk"}
+  ],
+  "provenance_vocabulary": ["direct-user-input", "direct-code-comment", "inference", "live-data"],
+  "live_inspection": {
+    "ran": true, "engine": "sqlite", "tables_sampled": 4, "rows_sampled_total": 307, "sample_limit": 100
+  }
+}

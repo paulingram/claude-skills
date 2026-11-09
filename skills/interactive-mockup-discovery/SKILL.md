@@ -1,6 +1,7 @@
 ---
 name: interactive-mockup-discovery
 description: Two-pass discovery of interactive HTML mockups as oracle artifacts. Pass 1 (observation) runs the mockup in headless Chrome and records every interactive element's observed behavior; Pass 2 (intent inference) flags semantic-vs-observed mismatches (e.g., "Logout" button routing to /dashboard) and surfaces them at the existing Phase −1D bulk-verify gate so the user-resolved intent — not the mockup's literal behavior — becomes the binding contract. Adds a 6th spec_shape to oracle-deriver, a new interaction-observer agent, an INTENT-INFERENCE mode to interaction-intuiter, a new Layer 3 tool (verify-interactions-honored), and an OPTIONAL schema v7 field.
+user-invocable: false
 ---
 
 # interactive-mockup-discovery — v2.1.0 extension to the VAO framework
@@ -15,7 +16,7 @@ This skill closes two gaps the v2.0.0 oracle-deriver had:
 
 ### Pass 1 — Observation (the `interaction-observer` agent)
 
-When `oracle-deriver` classifies an oracle artifact as `spec_shape: interactive-mockup`, it dispatches the new `interaction-observer` agent BEFORE writing its frozen spec. The observer:
+When `oracle-deriver` classifies an oracle artifact as `spec_shape: interactive-mockup`, it returns an observation request to the Lead, and the Lead dispatches the `interaction-observer` agent BEFORE `oracle-deriver` writes its frozen spec (agents never dispatch agents — the Lead does, on the agent's request). The observer:
 
 1. **Runs the mockup** in headless Chrome via Playwright. (For the v2.1.0 plugin self-test suite — and any environment where Playwright isn't available — the observer reads a pre-captured DOM-interaction-snapshot JSON from disk. Live-execution wiring is v2.1.x.)
 2. **Enumerates every interactive element** — every `button`, `a[href]`, `input`, `textarea`, `select`, `[role="button"]`, `[role="link"]`, `[onclick]`, `[data-action]`.
@@ -154,7 +155,7 @@ v2.0.0 evidence files (which lack this field) continue to validate — the field
 
 | v2.0.0 layer | What it caught | v2.1.0 changes |
 |---|---|---|
-| Layer 1 (`oracle-deriver`) | Frozen structural spec for 5 spec_shape categories | EXTENDED — 6th spec_shape `interactive-mockup` dispatches `interaction-observer` |
+| Layer 1 (`oracle-deriver`) | Frozen structural spec for 5 spec_shape categories | EXTENDED — 6th spec_shape `interactive-mockup` requests an `interaction-observer` dispatch (the Lead dispatches it) |
 | Layer 2 (`adversarial-reviewer`) | 5 role-paired shape audits | Unchanged — the existing `oracle-divergence-hunter` shape now also covers interactions[] divergence via verify-interactions-honored |
 | Layer 3 (`vao_tools.py`) | 5 deterministic verification tools | EXTENDED — 6th tool `verify-interactions-honored` |
 | Layer 5 (structural tests) | Pytest suite asserting each layer is wired | EXTENDED — ~45 new tests asserting v2.1.0's wiring |

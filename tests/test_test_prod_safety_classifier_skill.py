@@ -1,6 +1,7 @@
 """Structural tests for the v2.17.0 `test-prod-safety-classifier` skill body."""
 
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -17,7 +18,7 @@ def test_skill_md_exists() -> None:
 
 
 def test_skill_carries_frontmatter() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert body.startswith("---")
     front, _, _ = body[3:].partition("---")
     assert "name:" in front
@@ -25,23 +26,23 @@ def test_skill_carries_frontmatter() -> None:
 
 
 def test_skill_mentions_both_modes() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert "mass-classify" in body.lower() or "mass classify" in body.lower()
     assert "auto-classify" in body.lower() or "auto classify" in body.lower()
 
 
 def test_skill_mentions_layer3_tool() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert "verify-test-prod-safety-classification" in body or "verify_test_prod_safety_classification" in body
 
 
 def test_skill_mentions_phase_3_integration() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert "Phase 3" in body or "phase 3" in body or "phase-3" in body.lower()
 
 
 def test_skill_documents_4_severities() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     for sev in (
         "unclassified-test",
         "prod-deployment-runs-unsafe-test",
@@ -52,15 +53,15 @@ def test_skill_documents_4_severities() -> None:
 
 
 def test_skill_documents_new_sr_origin_kind() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert "prod-safety-classification-required" in body
 
 
 def test_skill_documents_output_artifact_path() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert ".architect-team/test-prod-safety" in body
 
 
 def test_skill_cross_references_canonical_home() -> None:
-    body = SKILL.read_text(encoding="utf-8")
+    body = surface_read(SKILL)
     assert "common-pipeline-conventions" in body

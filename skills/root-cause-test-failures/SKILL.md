@@ -1,6 +1,7 @@
 ---
 name: root-cause-test-failures
 description: Use when running, debugging, or triaging any Playwright user-flow test or live dev-API integration test. Triggers - any test failure, a flaky test, you are about to retry a test without diagnosing it, you are about to propose a fix without an evidence trail, or you find yourself reaching for "probably" / "must be" / "seems like" / "obviously" to explain why something deviated from expected. Also use before every test run to write the per-step expectation that the failure-mode analysis will measure against. Mandatory whenever the architect-team Phase 3 review gate or Phase 5 integration loop runs tests.
+user-invocable: false
 ---
 
 # Root-Cause Test Failures — Predict, Trace, Loop Three Times
@@ -13,7 +14,7 @@ Three disciplines:
 2. **Refuse to rationalize.** When a test deviates from prediction, "the most likely cause" is not allowed without evidence. Every candidate cause must be supported by a log line, a captured payload, a stack frame, a screenshot, a diff against a known-good run, or a reproduction recipe.
 3. **Three passes, minimum.** Run the root-cause loop three times before claiming you understand the failure. Pass 1 traces data forward; Pass 2 traces calls backward; Pass 3 falsifies. If the three passes converge on the same root cause, you have it. If they diverge, run a fourth pass against the strongest remaining candidate.
 
-This skill builds on `superpowers:systematic-debugging` and operationalizes its principles inside the architect-team review-gate and escalation conventions.
+This skill builds on `superpowers:systematic-debugging` (a CONDITIONAL plugin since v4.0.0 — when it is absent the native systematic-debugging form in `skills/common-pipeline-conventions/references/native-methodology.md` applies) and operationalizes its principles inside the architect-team review-gate and escalation conventions.
 
 ## Phase A — Predict expected behavior BEFORE running the test
 

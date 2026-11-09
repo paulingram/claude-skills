@@ -998,3 +998,166 @@ def test_module_has_no_stub_tokens(notify_path: Path) -> None:
     assert "TODO" not in source
     assert "FIXME" not in source
     assert "raise NotImplementedError" not in source
+
+
+# =============================================================================
+# Timing log (project homepage, change 15) — the five run-shaped events ALSO
+# append to .architect-team/run-history/timings.jsonl regardless of the email
+# opt-in; the email path is untouched.
+# =============================================================================
+
+
+def _engage_run(ws: Path, run_id: str = "run-n-1") -> None:
+    state = ws / ".architect-team"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "active-run.json").write_text(json.dumps({
+        "schema": 1, "status": "active", "skill": "bug-fix-pipeline", "session_id": None,
+        "started_at": "2026-08-01T09:00:00Z", "updated_at": "2026-08-01T09:30:00Z",
+        "run_id": run_id, "slug": "fix", "phase": "Phase B3", "completed_at": None,
+        "stand_down_reason": None}), encoding="utf-8")
+    (state / "intake-state.json").write_text(json.dumps({
+        "run_id": run_id, "lane": "bug-fix", "phase": "Phase B3", "dispatch_mode": "subagents",
+        "model": "opus", "started_at": "2026-08-01T09:00:00Z"}), encoding="utf-8")
+
+
+def _timing_lines(ws: Path) -> list[dict]:
+    path = ws / ".architect-team" / "run-history" / "timings.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+
+def _open_store(ws: Path) -> dict:
+    path = ws / ".architect-team" / "run-history" / "timings-open.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def test_timing_events_are_five_known_event_types(notify: ModuleType) -> None:
+    assert notify.TIMING_EVENTS == ("run_start", "run_complete", "phase_start", "phase_complete", "heartbeat")
+    assert set(notify.TIMING_EVENTS) <= set(notify.EVENT_TYPES)
+    assert len(notify.EVENT_TYPES) == 10, "the email vocabulary is unchanged"
+
+
+def test_phase_events_append_timing_without_any_notify_config(
+    notify: ModuleType, tmp_path: Path, capsys
+) -> None:
+    _engage_run(tmp_path)
+    rc = notify.notify(["phase_start", "--project", "Demo", "--phase", "Phase B3"], cwd=tmp_path)
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == "", "the append is silent"
+    assert "phase:Phase B3" in _open_store(tmp_path)
+    rc = notify.notify(["phase_complete", "--project", "Demo", "--phase", "Phase B3"], cwd=tmp_path)
+    assert rc == 0
+    lines = _timing_lines(tmp_path)
+    assert len(lines) == 1
+    line = lines[0]
+    assert line["schema"] == "timing/v1" and line["kind"] == "phase" and line["phase"] == "Phase B3"
+    assert line["outcome"] == "ok" and line["duration_s"] is not None and line["duration_s"] >= 0
+    assert line["lane"] == "bug-fix" and line["run_id"] == "run-n-1" and line["dispatch_mode"] == "subagents"
+    assert _open_store(tmp_path) == {}
+
+
+def test_phase_complete_without_seen_start_records_unknown_duration(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    _engage_run(tmp_path)
+    notify.notify(["phase_complete", "--phase", "Phase B5"], cwd=tmp_path)
+    lines = _timing_lines(tmp_path)
+    assert len(lines) == 1 and lines[0]["kind"] == "phase" and lines[0]["phase"] == "Phase B5"
+    assert lines[0]["started_at"] is None and lines[0]["duration_s"] is None
+
+
+def test_run_start_and_run_complete_bracket_the_run_interval(notify: ModuleType, tmp_path: Path) -> None:
+    _engage_run(tmp_path)
+    notify.notify(["run_start", "--project", "Demo", "--run-id", "run-n-1"], cwd=tmp_path)
+    assert "run:run-n-1" in _open_store(tmp_path)
+    notify.notify(["run_complete", "--project", "Demo", "--run-id", "run-n-1"], cwd=tmp_path)
+    lines = _timing_lines(tmp_path)
+    assert len(lines) == 1 and lines[0]["kind"] == "run" and lines[0]["run_id"] == "run-n-1"
+    assert lines[0]["outcome"] == "ok" and lines[0]["lane"] == "bug-fix"
+
+
+def test_run_complete_without_run_start_records_from_intake_started_at(
+    notify: ModuleType, tmp_path: Path
+) -> None:
+    _engage_run(tmp_path)
+    notify.notify(["run_complete", "--project", "Demo"], cwd=tmp_path)
+    lines = _timing_lines(tmp_path)
+    assert len(lines) == 1 and lines[0]["kind"] == "run"
+    assert lines[0]["started_at"] == "2026-08-01T09:00:00Z" and lines[0]["duration_s"] > 0
+
+
+def test_heartbeat_appends_a_liveness_point(notify: ModuleType, tmp_path: Path) -> None:
+    _engage_run(tmp_path)
+    notify.notify(["heartbeat", "--project", "Demo", "--phase", "Phase B3", "--elapsed", "1h 02m"], cwd=tmp_path)
+    lines = _timing_lines(tmp_path)
+    assert len(lines) == 1 and lines[0]["kind"] == "run" and lines[0]["outcome"] == "heartbeat"
+    assert lines[0]["started_at"] == "2026-08-01T09:00:00Z" and lines[0]["phase"] == "Phase B3"
+
+
+def test_email_only_events_do_not_touch_the_timing_log(notify: ModuleType, tmp_path: Path) -> None:
+    _engage_run(tmp_path)
+    for event, extra in (("waiting_on_agents", ["--phase", "P2"]), ("issue_discovered", ["--summary", "x"]),
+                         ("git_commit", ["--commit", "abc"]), ("deploy", ["--layer", "api"]),
+                         ("agents_complete", ["--phase", "P2"])):
+        notify.notify([event, "--project", "Demo", *extra], cwd=tmp_path)
+    assert _timing_lines(tmp_path) == [] and _open_store(tmp_path) == {}
+
+
+def test_timing_not_written_when_no_run_is_active(notify: ModuleType, tmp_path: Path) -> None:
+    rc = notify.notify(["phase_start", "--project", "Demo", "--phase", "Phase 3"], cwd=tmp_path)
+    assert rc == 0
+    assert not (tmp_path / ".architect-team").exists()
+
+
+def test_timing_kill_switch(notify: ModuleType, tmp_path: Path, monkeypatch) -> None:
+    _engage_run(tmp_path)
+    monkeypatch.setenv("CT6_TIMINGS_DISABLED", "1")
+    notify.notify(["phase_start", "--project", "Demo", "--phase", "Phase 3"], cwd=tmp_path)
+    assert not (tmp_path / ".architect-team" / "run-history").exists()
+
+
+def test_timing_append_and_email_both_happen_with_config(
+    notify: ModuleType, tmp_path: Path, monkeypatch
+) -> None:
+    """The email path is unchanged: with a valid config the send still fires,
+    and the timing line lands beside it."""
+    _engage_run(tmp_path)
+    _write_config(tmp_path, _gmail_config())
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "app-pass")
+    smtp = MagicMock()
+    with patch("smtplib.SMTP") as smtp_cls:
+        smtp_cls.return_value.__enter__.return_value = smtp
+        rc = notify.notify(["phase_complete", "--project", "Demo", "--phase", "P4"], cwd=tmp_path)
+    assert rc == 0
+    assert smtp.send_message.called, "the email still goes out"
+    lines = _timing_lines(tmp_path)
+    assert len(lines) == 1 and lines[0]["phase"] == "P4"
+
+
+def test_timing_failure_never_reaches_the_email_path(
+    notify: ModuleType, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _engage_run(tmp_path)
+    _write_config(tmp_path, _gmail_config())
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "app-pass")
+
+    def explode():
+        raise RuntimeError("ledger on fire")
+    monkeypatch.setattr(notify, "_load_timings_log", explode)
+    smtp = MagicMock()
+    with patch("smtplib.SMTP") as smtp_cls:
+        smtp_cls.return_value.__enter__.return_value = smtp
+        rc = notify.notify(["phase_complete", "--project", "Demo", "--phase", "P4"], cwd=tmp_path)
+    assert rc == 0 and smtp.send_message.called
+    assert "ledger on fire" not in capsys.readouterr().err
+    assert _timing_lines(tmp_path) == []
+
+
+def test_append_timing_ignores_non_timing_events(notify: ModuleType, tmp_path: Path) -> None:
+    _engage_run(tmp_path)
+    assert notify.append_timing("deploy", {"phase": "x"}, cwd=tmp_path) is None
+    assert notify.append_timing("phase_start", {"phase": None}, cwd=tmp_path) is None
+    rec = notify.append_timing("phase_start", {"phase": "P1"}, cwd=tmp_path)
+    assert rec is not None and rec["kind"] == "phase"

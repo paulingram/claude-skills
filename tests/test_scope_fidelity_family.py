@@ -11,6 +11,7 @@ Stdlib-only; structural (narrative-pinning per Decision 4 — pins the RULE toke
 not removed narrative).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -21,7 +22,7 @@ CPC = REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md"
 
 
 def _section() -> str:
-    body = CPC.read_text(encoding="utf-8")
+    body = surface_read(CPC)
     marker = "## Scope-fidelity discipline family (v3.10.0)"
     assert marker in body, "the CPC must carry the Scope-fidelity discipline family section"
     start = body.index(marker)

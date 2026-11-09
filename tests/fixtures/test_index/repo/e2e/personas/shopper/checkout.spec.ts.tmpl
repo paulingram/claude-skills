@@ -1,0 +1,15 @@
+import { test, expect } from '@playwright/test';
+
+test('shopper completes a card checkout', async ({ page, request }) => {
+  await page.goto('/cart');
+  const items = await request.get('/api/items');
+  expect(items.ok()).toBeTruthy();
+  await page.getByTestId('cart__summary__checkout__1').click();
+  const res = await request.post("/api/checkout", { data: {} });
+  expect(res.ok()).toBeTruthy();
+});
+
+test('shopper sees the order in their history', async ({ page }) => {
+  await page.goto('/orders');
+  await expect(page.getByTestId('orders__list__row__1')).toBeVisible();
+});

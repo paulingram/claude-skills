@@ -18,6 +18,7 @@ Asserts:
 Stdlib-only; structural (no external deps, no subprocess).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 import json
 from pathlib import Path
@@ -32,7 +33,7 @@ FIXTURE = REPO_ROOT / "tests" / "fixtures" / "vao" / "security-finding-routed.js
 
 
 def _read(p: Path) -> str:
-    return p.read_text(encoding="utf-8")
+    return surface_read(p)
 
 
 # ---- 1. adversarial-reviewer 6th shape -------------------------------------

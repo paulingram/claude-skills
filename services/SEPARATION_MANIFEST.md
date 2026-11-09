@@ -21,7 +21,7 @@
   **injected adapter** (a "seam"), never a hard import — so the service's module
   graph is stdlib + in-repo only and it lifts cleanly into its own package/repo.
 
-## The services (all separable, REPO-3)
+## The services (all separable, REPO-3; `check_separation()` covers 26 modules at v4.0.0)
 
 | Service | Dir | Reuses |
 |---|---|---|
@@ -30,6 +30,35 @@
 | `triage` | `services/triage` | `common`, `scripts/helpdesk/logit` |
 | `session_review` | `services/session_review` | `common`, `triage` |
 | `seeded_mempalace` | `services/seeded_mempalace` | `common`, `scripts/phenotypes/phenotypes` |
+| `knowledge_server` (v3.49.0) | `services/knowledge_server` | `librarian` (`library_index.py::LibraryIndex`, composed by module identity), `hooks/lineage_graph.py` (lazy, by bare name, for transitive freshness) |
+
+`knowledge_server` is the one member with NO row in `SEPARATION_MANIFEST["services"]`
+and no seam: it is a deterministic READ path over sidecars CT6 runs already produce
+(the data dictionary, the annotations, `lineage-graph.json`, the `*_MAP.md`
+frontmatter) and adds no closed/paid capability. The REPO-4 rglob invariant still
+covers it automatically — `check_separation()` reports `checked: 26` modules across
+the whole tier, `violations: 0`.
+
+## Boundary with the plugin core (v4.0.0)
+
+The service tier sits OUTSIDE the plugin's enforcement surface, in both directions:
+
+- **No hook wires a service.** `hooks/hooks.json` registers 9 enforcement scripts
+  over 10 events (PreToolUse incl. the Bash deletion guard, PostToolUse,
+  TaskCreated, TaskCompleted, SubagentStart, SubagentStop, TeammateIdle, Stop,
+  PreCompact, SessionStart); none of them imports from or calls into `services/`.
+  The 26 Layer-3 `verify-*` tools live in `hooks/vao/` behind `hooks/vao_tools.py`,
+  not here.
+- **A service never imports the plugin's hooks or scripts at module load.** The
+  only in-repo reuse is the allow-listed pair imported by bare name (`logit`,
+  `phenotypes`) plus `knowledge_server`'s lazy `lineage_graph` import inside a
+  function — each a seam a lifted package would vendor or inject.
+- **Nothing here is a plugin prerequisite.** Setup gates on no service (the
+  Librarian and the knowledge server are opt-in installs with `--check-only` /
+  `status` parity), exactly as the methodology plugins (`superpowers`,
+  `cartographer`) are CONDITIONAL since v4.0.0 — reported, never gating. The
+  only hard (exit-1) prerequisite `scripts/setup/setup.py` keeps is the vendored
+  `openspec-propose` skill, which is unrelated to this tier.
 
 ## The adapter seams (REPO-4 — where external/closed pieces plug in)
 

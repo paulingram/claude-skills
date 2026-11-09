@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from hooks import run_continuity as rc
-from tests.helpers.hook_runner import run_hook as _run
+from tests.helpers.hook_runner import run_hook as _run, allowed, blocked, hook_text
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -144,14 +144,14 @@ def _write_manifest(workspace: Path, name: str, task_ids: list[str]) -> None:
 
 def test_exits_zero_when_status_not_completed(script: Path, workspace: Path) -> None:
     r = _run(script, workspace, _make_payload("T-1", "in_progress"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_exits_two_when_completed_but_no_evidence(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-test", ["T-2"])
     r = _run(script, workspace, _make_payload("T-2", "completed"))
-    assert r.returncode == 2
-    assert "T-2" in r.stderr
+    assert blocked(r)
+    assert "T-2" in hook_text(r)
 
 
 def test_exits_zero_when_completed_with_valid_evidence(script: Path, workspace: Path) -> None:
@@ -160,7 +160,7 @@ def test_exits_zero_when_completed_with_valid_evidence(script: Path, workspace: 
         json.dumps(_valid_evidence("T-3")), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-3", "completed"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_exits_two_when_spec_review_failing(script: Path, workspace: Path) -> None:
@@ -171,8 +171,8 @@ def test_exits_two_when_spec_review_failing(script: Path, workspace: Path) -> No
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-4", "completed"))
-    assert r.returncode == 2
-    assert "spec_review" in r.stderr
+    assert blocked(r)
+    assert "spec_review" in hook_text(r)
 
 
 def test_exits_two_when_tests_added_not_equal_passing(script: Path, workspace: Path) -> None:
@@ -183,8 +183,8 @@ def test_exits_two_when_tests_added_not_equal_passing(script: Path, workspace: P
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-5", "completed"))
-    assert r.returncode == 2
-    assert "tests" in r.stderr
+    assert blocked(r)
+    assert "tests" in hook_text(r)
 
 
 def test_exits_two_when_real_not_stubbed_false(script: Path, workspace: Path) -> None:
@@ -195,8 +195,8 @@ def test_exits_two_when_real_not_stubbed_false(script: Path, workspace: Path) ->
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-6", "completed"))
-    assert r.returncode == 2
-    assert "real_not_stubbed" in r.stderr
+    assert blocked(r)
+    assert "real_not_stubbed" in hook_text(r)
 
 
 def test_exits_two_when_files_changed_empty(script: Path, workspace: Path) -> None:
@@ -207,15 +207,15 @@ def test_exits_two_when_files_changed_empty(script: Path, workspace: Path) -> No
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-7", "completed"))
-    assert r.returncode == 2
-    assert "files_changed" in r.stderr
+    assert blocked(r)
+    assert "files_changed" in hook_text(r)
 
 
 def test_exits_zero_on_unrelated_tool(script: Path, workspace: Path) -> None:
     # Hook should ignore tool calls that aren't TaskUpdate.
     payload = {"tool_name": "Read", "tool_input": {"file_path": "/tmp/x"}}
     r = _run(script, workspace, payload)
-    assert r.returncode == 0
+    assert allowed(r)
 
 
 def test_exits_zero_when_task_not_in_any_manifest(script: Path, workspace: Path) -> None:
@@ -229,7 +229,7 @@ def test_exits_zero_when_task_not_in_any_manifest(script: Path, workspace: Path)
     # Manifest exists but assigns a DIFFERENT task; T-99 is not a teammate task.
     _write_manifest(workspace, "backend-test", ["T-1", "T-2"])
     r = _run(script, workspace, _make_payload("T-99", "completed"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_exits_zero_when_no_teammates_dir(script: Path, workspace: Path, tmp_path: Path) -> None:
@@ -239,7 +239,7 @@ def test_exits_zero_when_no_teammates_dir(script: Path, workspace: Path, tmp_pat
     pristine = tmp_path / "pristine"
     pristine.mkdir()
     r = _run(script, pristine, _make_payload("T-anything", "completed"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("unsafe_id", [
@@ -254,9 +254,9 @@ def test_exits_two_when_taskid_has_path_traversal(
     """REQ-002: task_id values containing path-traversal chars must be rejected."""
     _write_manifest(workspace, "backend-test", [unsafe_id])
     r = _run(script, workspace, _make_payload(unsafe_id, "completed"))
-    assert r.returncode == 2, f"expected exit 2 for unsafe id {unsafe_id!r}, stderr={r.stderr!r}"
-    assert unsafe_id in r.stderr or "path-traversal" in r.stderr, (
-        f"stderr should name the rejected id; got: {r.stderr!r}"
+    assert blocked(r), f"expected exit 2 for unsafe id {unsafe_id!r}, stderr={hook_text(r)!r}"
+    assert unsafe_id in hook_text(r) or "path-traversal" in hook_text(r), (
+        f"stderr should name the rejected id; got: {hook_text(r)!r}"
     )
 
 
@@ -269,8 +269,8 @@ def test_exits_two_when_quality_review_failing(script: Path, workspace: Path) ->
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-10", "completed"))
-    assert r.returncode == 2
-    assert "quality_review" in r.stderr
+    assert blocked(r)
+    assert "quality_review" in hook_text(r)
 
 
 def test_exits_two_when_reuse_compliance_failing(script: Path, workspace: Path) -> None:
@@ -282,8 +282,8 @@ def test_exits_two_when_reuse_compliance_failing(script: Path, workspace: Path) 
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-11", "completed"))
-    assert r.returncode == 2
-    assert "reuse_compliance" in r.stderr
+    assert blocked(r)
+    assert "reuse_compliance" in hook_text(r)
 
 
 @pytest.mark.parametrize("artifact", ["", "   "])
@@ -298,8 +298,8 @@ def test_exits_two_when_demo_artifact_empty(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-12", "completed"))
-    assert r.returncode == 2
-    assert "demo_artifact" in r.stderr
+    assert blocked(r)
+    assert "demo_artifact" in hook_text(r)
 
 
 def test_exits_two_when_tests_added_zero(script: Path, workspace: Path) -> None:
@@ -312,8 +312,8 @@ def test_exits_two_when_tests_added_zero(script: Path, workspace: Path) -> None:
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-13", "completed"))
-    assert r.returncode == 2
-    assert "tests" in r.stderr
+    assert blocked(r)
+    assert "tests" in hook_text(r)
 
 
 def test_exits_two_when_evidence_json_malformed(script: Path, workspace: Path) -> None:
@@ -323,8 +323,8 @@ def test_exits_two_when_evidence_json_malformed(script: Path, workspace: Path) -
         "not json", encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-14", "completed"))
-    assert r.returncode == 2
-    assert "T-14" in r.stderr
+    assert blocked(r)
+    assert "T-14" in hook_text(r)
 
 
 # v0.5.0 — visual-fidelity-reconciliation enforcement
@@ -340,7 +340,7 @@ def test_exits_zero_when_visual_fidelity_pass(script: Path, workspace: Path) -> 
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-V1", "completed"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_exits_two_when_visual_fidelity_fail(script: Path, workspace: Path) -> None:
@@ -352,9 +352,9 @@ def test_exits_two_when_visual_fidelity_fail(script: Path, workspace: Path) -> N
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-V2", "completed"))
-    assert r.returncode == 2
-    assert "visual_fidelity_review" in r.stderr
-    assert "escalate" in r.stderr.lower() or "handoff" in r.stderr.lower()
+    assert blocked(r)
+    assert "visual_fidelity_review" in hook_text(r)
+    assert "escalate" in hook_text(r).lower() or "handoff" in hook_text(r).lower()
 
 
 def test_exits_two_when_visual_fidelity_missing(script: Path, workspace: Path) -> None:
@@ -367,8 +367,8 @@ def test_exits_two_when_visual_fidelity_missing(script: Path, workspace: Path) -
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-V3", "completed"))
-    assert r.returncode == 2
-    assert "visual_fidelity_review" in r.stderr
+    assert blocked(r)
+    assert "visual_fidelity_review" in hook_text(r)
 
 
 @pytest.mark.parametrize("invalid_value", ["yes", "true", "ok", "passed", ""])
@@ -383,8 +383,8 @@ def test_exits_two_when_visual_fidelity_invalid_value(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-V4", "completed"))
-    assert r.returncode == 2
-    assert "visual_fidelity_review" in r.stderr
+    assert blocked(r)
+    assert "visual_fidelity_review" in hook_text(r)
 
 
 @pytest.mark.parametrize("missing_or_empty", [None, "", "   "])
@@ -403,8 +403,8 @@ def test_exits_two_when_visual_fidelity_na_without_note(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-V5", "completed"))
-    assert r.returncode == 2
-    assert "visual_fidelity_review_note" in r.stderr or "n/a" in r.stderr
+    assert blocked(r)
+    assert "visual_fidelity_review_note" in hook_text(r) or "n/a" in hook_text(r)
 
 
 # v0.9.0 — test-completeness-review enforcement
@@ -420,7 +420,7 @@ def test_exits_zero_when_test_completeness_pass(script: Path, workspace: Path) -
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-T1", "completed"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_exits_two_when_test_completeness_fail(script: Path, workspace: Path) -> None:
@@ -432,9 +432,9 @@ def test_exits_two_when_test_completeness_fail(script: Path, workspace: Path) ->
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-T2", "completed"))
-    assert r.returncode == 2
-    assert "test_completeness_review" in r.stderr
-    assert "escalat" in r.stderr.lower() or "sr" in r.stderr.lower() or "auto-spawn" in r.stderr.lower()
+    assert blocked(r)
+    assert "test_completeness_review" in hook_text(r)
+    assert "escalat" in hook_text(r).lower() or "sr" in hook_text(r).lower() or "auto-spawn" in hook_text(r).lower()
 
 
 def test_exits_two_when_test_completeness_missing(script: Path, workspace: Path) -> None:
@@ -447,8 +447,8 @@ def test_exits_two_when_test_completeness_missing(script: Path, workspace: Path)
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-T3", "completed"))
-    assert r.returncode == 2
-    assert "test_completeness_review" in r.stderr
+    assert blocked(r)
+    assert "test_completeness_review" in hook_text(r)
 
 
 @pytest.mark.parametrize("invalid_value", ["yes", "true", "ok", "passed", ""])
@@ -463,8 +463,8 @@ def test_exits_two_when_test_completeness_invalid_value(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-T4", "completed"))
-    assert r.returncode == 2
-    assert "test_completeness_review" in r.stderr
+    assert blocked(r)
+    assert "test_completeness_review" in hook_text(r)
 
 
 @pytest.mark.parametrize("missing_or_empty", [None, "", "   "])
@@ -483,8 +483,8 @@ def test_exits_two_when_test_completeness_na_without_note(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-T5", "completed"))
-    assert r.returncode == 2
-    assert "test_completeness_review_note" in r.stderr or "n/a" in r.stderr
+    assert blocked(r)
+    assert "test_completeness_review_note" in hook_text(r) or "n/a" in hook_text(r)
 
 
 # v0.9.5 — integration-testing-review enforcement (real backend, not fake data)
@@ -500,7 +500,7 @@ def test_exits_zero_when_integration_testing_pass(script: Path, workspace: Path)
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-I1", "completed"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_exits_two_when_integration_testing_fail(script: Path, workspace: Path) -> None:
@@ -512,9 +512,9 @@ def test_exits_two_when_integration_testing_fail(script: Path, workspace: Path) 
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-I2", "completed"))
-    assert r.returncode == 2
-    assert "integration_testing_review" in r.stderr
-    assert "real backend" in r.stderr.lower() or "mock" in r.stderr.lower()
+    assert blocked(r)
+    assert "integration_testing_review" in hook_text(r)
+    assert "real backend" in hook_text(r).lower() or "mock" in hook_text(r).lower()
 
 
 def test_exits_two_when_integration_testing_missing(script: Path, workspace: Path) -> None:
@@ -527,8 +527,8 @@ def test_exits_two_when_integration_testing_missing(script: Path, workspace: Pat
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-I3", "completed"))
-    assert r.returncode == 2
-    assert "integration_testing_review" in r.stderr
+    assert blocked(r)
+    assert "integration_testing_review" in hook_text(r)
 
 
 @pytest.mark.parametrize("invalid_value", ["yes", "true", "ok", "passed", ""])
@@ -543,8 +543,8 @@ def test_exits_two_when_integration_testing_invalid_value(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-I4", "completed"))
-    assert r.returncode == 2
-    assert "integration_testing_review" in r.stderr
+    assert blocked(r)
+    assert "integration_testing_review" in hook_text(r)
 
 
 @pytest.mark.parametrize("missing_or_empty", [None, "", "   "])
@@ -563,8 +563,8 @@ def test_exits_two_when_integration_testing_na_without_note(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _make_payload("T-I5", "completed"))
-    assert r.returncode == 2
-    assert "integration_testing_review_note" in r.stderr or "n/a" in r.stderr
+    assert blocked(r)
+    assert "integration_testing_review_note" in hook_text(r) or "n/a" in hook_text(r)
 
 
 # ===========================================================================
@@ -648,10 +648,10 @@ def test_a_null_session_marker_still_gates_an_unmanifested_completion(
     proof that this is somebody else's task to close."""
     _write_marker(workspace, session_id=None)
     r = _run(script, workspace, _completion())
-    assert r.returncode == 2, (
-        f"a null-session marker must not open the gate; stderr={r.stderr!r}"
+    assert blocked(r), (
+        f"a null-session marker must not open the gate; stderr={hook_text(r)!r}"
     )
-    assert "board-7" in r.stderr
+    assert "board-7" in hook_text(r)
 
 
 def test_a_null_session_marker_gates_even_with_no_payload_session(
@@ -662,7 +662,7 @@ def test_a_null_session_marker_gates_even_with_no_payload_session(
     configuration an attacker reaches by simply not sending one."""
     _write_marker(workspace, session_id=None)
     r = _run(script, workspace, _completion(session_id=None))
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_the_block_does_not_claim_a_session_it_cannot_prove(
@@ -673,7 +673,7 @@ def test_the_block_does_not_claim_a_session_it_cannot_prove(
     marker CANNOT establish. A gate whose first sentence overclaims is a gate
     the reader stops believing, so the undeterminable case says so instead."""
     _write_marker(workspace, session_id=None)
-    err = _run(script, workspace, _completion()).stderr
+    err = hook_text(_run(script, workspace, _completion()))
     assert "comes from the run's own session" not in err, (
         "the block must not claim ownership it could not determine"
     )
@@ -686,7 +686,7 @@ def test_the_block_still_names_the_runs_own_session_when_it_can_prove_it(
     """The control for the message change: where ownership IS provable the
     original, stronger wording must survive."""
     _write_marker(workspace, session_id=ORCH)
-    err = _run(script, workspace, _completion()).stderr
+    err = hook_text(_run(script, workspace, _completion()))
     assert "comes from the run's own session" in err
 
 
@@ -701,7 +701,7 @@ def test_a_demonstrably_different_session_still_stands_the_gate_down(
     a teammate or an unrelated session is still left alone."""
     _write_marker(workspace, session_id=ORCH)
     r = _run(script, workspace, _completion(session_id="sess-somebody-else"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_a_recorded_session_with_no_payload_session_still_stands_down(
@@ -712,7 +712,7 @@ def test_a_recorded_session_with_no_payload_session_still_stands_down(
     completion is not shown to be the owner's."""
     _write_marker(workspace, session_id=ORCH)
     r = _run(script, workspace, _completion(session_id=None))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_no_marker_leaves_an_unmanifested_completion_alone(
@@ -723,7 +723,7 @@ def test_no_marker_leaves_an_unmanifested_completion_alone(
     never by the session check — so narrowing the session check cannot reach
     them."""
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"no run, no gate; stderr={r.stderr!r}"
+    assert allowed(r), f"no run, no gate; stderr={hook_text(r)!r}"
 
 
 def test_a_stale_null_session_marker_does_not_gate(
@@ -737,7 +737,7 @@ def test_a_stale_null_session_marker_does_not_gate(
     )
     _write_marker(workspace, session_id=None, updated_at=old)
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_a_completed_run_marker_with_a_null_session_does_not_gate(
@@ -745,7 +745,7 @@ def test_a_completed_run_marker_with_a_null_session_does_not_gate(
 ) -> None:
     _write_marker(workspace, session_id=None, status="complete")
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_a_manifested_task_is_never_gated_by_this_arm(
@@ -774,7 +774,7 @@ def test_a_manifested_task_is_never_gated_by_this_arm(
     )
     _write_marker(workspace, session_id=None)
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_a_task_registered_only_as_a_shared_board_id_is_not_gated(
@@ -804,7 +804,7 @@ def test_a_task_registered_only_as_a_shared_board_id_is_not_gated(
     )
     _write_marker(workspace, session_id=None)
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"a registered board id must not be gated; {r.stderr!r}"
+    assert allowed(r), f"a registered board id must not be gated; {hook_text(r)!r}"
 
 
 def test_a_non_completed_status_is_untouched_by_the_null_session_gate(
@@ -814,7 +814,7 @@ def test_a_non_completed_status_is_untouched_by_the_null_session_gate(
     asserts nothing that needs evidence."""
     _write_marker(workspace, session_id=None)
     r = _run(script, workspace, _make_payload("board-7", "in_progress"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # --- the operator's exits, unchanged -----------------------------------------
@@ -826,7 +826,7 @@ def test_the_task_gate_kill_switch_releases_the_null_session_case(
     _write_marker(workspace, session_id=None)
     monkeypatch.setenv("CT6_TASK_GATE_DISABLED", "1")
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_the_run_continuity_kill_switch_releases_the_null_session_case(
@@ -835,7 +835,7 @@ def test_the_run_continuity_kill_switch_releases_the_null_session_case(
     _write_marker(workspace, session_id=None)
     monkeypatch.setenv("CT6_RUN_CONTINUITY_DISABLED", "1")
     r = _run(script, workspace, _completion())
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # ===========================================================================
@@ -939,7 +939,7 @@ def test_mutation_baseline_every_target_is_green(
     r = _run_child(" or ".join(_MUTATION_TARGETS), copy)
     assert r.returncode == 0, (
         "baseline child run is not green - a mutation's red would be "
-        f"unattributable:\nrc={r.returncode}\n{r.stdout[-4000:]}\n{r.stderr[-2000:]}"
+        f"unattributable:\nrc={r.returncode}\n{r.stdout[-4000:]}\n{hook_text(r)[-2000:]}"
     )
 
 

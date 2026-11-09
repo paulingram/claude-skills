@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 
 @pytest.fixture()
@@ -88,13 +89,13 @@ def _gate(**overrides) -> dict:
 def test_absent_registry_is_fail_open(script: Path, workspace: Path) -> None:
     """Scenario: absent registry is fail-open."""
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_empty_registry_is_clean(script: Path, workspace: Path) -> None:
     _write_registry(workspace, [])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -105,16 +106,16 @@ def test_unsatisfied_gate_blocks_quoting_the_declaration(script: Path, workspace
     """Scenario: unsatisfied gate blocks completion."""
     _write_registry(workspace, [_gate()])
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "full Playwright suite against the live URL" in r.stderr
-    assert "playwright-live-suite" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "full Playwright suite against the live URL" in hook_text(r)
+    assert "playwright-live-suite" in hook_text(r)
 
 
 def test_gate_with_satisfied_at_but_no_evidence_path_blocks(script: Path, workspace: Path) -> None:
     _write_registry(workspace, [_gate(satisfied_at="2026-07-30T13:00:00Z")])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "evidence_path" in r.stderr
+    assert blocked(r)
+    assert "evidence_path" in hook_text(r)
 
 
 def test_gate_with_evidence_path_but_no_satisfied_at_blocks(script: Path,
@@ -124,8 +125,8 @@ def test_gate_with_evidence_path_but_no_satisfied_at_blocks(script: Path,
         _gate(evidence_path=".architect-team/demos/playwright.txt"),
     ])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "satisfied_at" in r.stderr
+    assert blocked(r)
+    assert "satisfied_at" in hook_text(r)
 
 
 def test_gate_whose_evidence_file_is_missing_blocks(script: Path, workspace: Path) -> None:
@@ -134,8 +135,8 @@ def test_gate_whose_evidence_file_is_missing_blocks(script: Path, workspace: Pat
         evidence_path=".architect-team/demos/never-written.txt",
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "never-written.txt" in r.stderr
+    assert blocked(r)
+    assert "never-written.txt" in hook_text(r)
 
 
 def test_gate_whose_evidence_file_is_empty_blocks(script: Path, workspace: Path) -> None:
@@ -146,8 +147,8 @@ def test_gate_whose_evidence_file_is_empty_blocks(script: Path, workspace: Path)
         evidence_path=".architect-team/demos/empty.txt",
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "empty" in r.stderr.lower()
+    assert blocked(r)
+    assert "empty" in hook_text(r).lower()
 
 
 def test_gate_whose_evidence_path_is_a_directory_blocks(script: Path, workspace: Path) -> None:
@@ -157,7 +158,7 @@ def test_gate_whose_evidence_path_is_a_directory_blocks(script: Path, workspace:
         evidence_path=".architect-team/demos",
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
+    assert blocked(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -172,7 +173,7 @@ def test_satisfied_gate_passes(script: Path, workspace: Path) -> None:
         evidence_path=".architect-team/demos/playwright.txt",
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_absolute_evidence_path_is_honored(script: Path, workspace: Path) -> None:
@@ -182,7 +183,7 @@ def test_absolute_evidence_path_is_honored(script: Path, workspace: Path) -> Non
         evidence_path=str(path),
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_one_unsatisfied_among_several_blocks_and_names_only_that_one(script: Path,
@@ -195,9 +196,9 @@ def test_one_unsatisfied_among_several_blocks_and_names_only_that_one(script: Pa
               declaration_text="The release gates on a verified dev deploy."),
     ])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "deploy-verified" in r.stderr
-    assert "verified dev deploy" in r.stderr
+    assert blocked(r)
+    assert "deploy-verified" in hook_text(r)
+    assert "verified dev deploy" in hook_text(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -219,7 +220,7 @@ def test_evidence_path_escaping_the_workspace_blocks(script: Path, workspace: Pa
         evidence_path="../" + outside.name,
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_absolute_evidence_path_outside_the_workspace_blocks(script: Path,
@@ -232,7 +233,7 @@ def test_absolute_evidence_path_outside_the_workspace_blocks(script: Path,
         evidence_path=str(outside),
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("body", [" ", "\n", "\t\r\n  ", "   \n\n "])
@@ -244,7 +245,7 @@ def test_whitespace_only_evidence_file_blocks(script: Path, workspace: Path,
         evidence_path=".architect-team/demos/blank.txt",
     )])
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_evidence_inside_the_workspace_still_passes(script: Path, workspace: Path) -> None:
@@ -254,7 +255,7 @@ def test_evidence_inside_the_workspace_still_passes(script: Path, workspace: Pat
         satisfied_at="2026-07-30T13:00:00Z",
         evidence_path="captured/suite.txt",
     )])
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --------------------------------------------------------------------------- #
@@ -269,35 +270,35 @@ def test_non_array_json_is_reported_as_such_not_as_unreadable(script: Path,
     as 'unreadable / invalid JSON'. It parsed fine; say what is actually wrong."""
     (_at(workspace) / "declared-gates.json").write_text(body, encoding="utf-8")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "array" in r.stderr.lower(), r.stderr
+    assert blocked(r)
+    assert "array" in hook_text(r).lower(), hook_text(r)
 
 def test_malformed_registry_blocks(script: Path, workspace: Path) -> None:
     (_at(workspace) / "declared-gates.json").write_text("{not json", encoding="utf-8")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "declared-gates.json" in r.stderr
+    assert blocked(r)
+    assert "declared-gates.json" in hook_text(r)
 
 
 def test_registry_that_is_not_an_array_blocks(script: Path, workspace: Path) -> None:
     _write_registry(workspace, {"gate_id": "x"})
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "array" in r.stderr.lower()
+    assert blocked(r)
+    assert "array" in hook_text(r).lower()
 
 
 def test_non_dict_entry_blocks(script: Path, workspace: Path) -> None:
     _write_registry(workspace, ["just a string"])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
+    assert blocked(r)
 
 
 def test_entry_without_declaration_text_still_blocks_readably(script: Path,
                                                               workspace: Path) -> None:
     _write_registry(workspace, [{"gate_id": "nameless"}])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "nameless" in r.stderr
+    assert blocked(r)
+    assert "nameless" in hook_text(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -307,8 +308,8 @@ def test_entry_without_declaration_text_still_blocks_readably(script: Path,
 def test_stop_mode_blocks_the_same_way(script: Path, workspace: Path) -> None:
     _write_registry(workspace, [_gate()])
     r = _run_stop(script, workspace, {})
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "full Playwright suite against the live URL" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "full Playwright suite against the live URL" in hook_text(r)
 
 
 def test_stop_mode_allows_a_satisfied_registry(script: Path, workspace: Path) -> None:
@@ -318,7 +319,7 @@ def test_stop_mode_allows_a_satisfied_registry(script: Path, workspace: Path) ->
         evidence_path=".architect-team/demos/playwright.txt",
     )])
     r = _run_stop(script, workspace, {})
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_registry_alone_does_not_make_a_non_run_workspace_a_run(script: Path,
@@ -329,4 +330,4 @@ def test_registry_alone_does_not_make_a_non_run_workspace_a_run(script: Path,
     at.mkdir()
     (at / "declared-gates.json").write_text(json.dumps([_gate()]), encoding="utf-8")
     r = _run_check(script, tmp_path)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"

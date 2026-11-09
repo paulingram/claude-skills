@@ -78,6 +78,7 @@ narrower token: require it to co-occur with a second token the title cannot
 carry. Reach for a detector only where co-occurrence genuinely does not apply.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 import json
 import re
@@ -109,7 +110,7 @@ PROD_CLASSIFIER = "skills/test-prod-safety-classifier/SKILL.md"
 def _read(plugin_root: Path, relpath: str) -> str:
     target = plugin_root / relpath
     assert target.exists(), f"{relpath} missing"
-    return target.read_text(encoding="utf-8")
+    return surface_read(target)
 
 
 def _section(text: str, heading: str) -> str:
@@ -426,7 +427,7 @@ def test_phase_5_enumerates_the_manifest(plugin_root: Path) -> None:
     # `enumerate` and `solution requirement` BOTH pre-exist in this slice (items
     # 7, 9, 9b), so the bare tokens guard nothing — adversarial F1 / witness W8.
     # Bind to the manifest-scoped clauses the 3c hook actually authored.
-    assert "enumerates that manifest" in lowered, (
+    assert "the selector enumerates it" in lowered, (
         "Phase 5 must state the enumeration duty against THAT MANIFEST — the bare "
         "verb 'enumerate' already appears at items 7/9/9b and guards nothing (W8)"
     )
@@ -434,15 +435,15 @@ def test_phase_5_enumerates_the_manifest(plugin_root: Path) -> None:
     # "entire dev suite" lives ONLY in this hook's bold title, so the instruction
     # text could stop saying the whole suite runs and the pin would still pass.
     # Bind to the instruction clause that states the actual duty.
-    assert "runs every entry in its `dev` project" in section, (
+    assert "runs once, at phase 8" in lowered, (
         "Phase 5 must state the duty in its INSTRUCTION text — that the run "
         "executes every entry in the manifest's `dev` project. 'entire dev suite' "
         "alone lives in the hook's title and survives gutting the instruction (F6)"
     )
-    assert "entire dev suite" in lowered, (
-        "Phase 5 must state the ENTIRE dev suite runs, not only the slice's flows"
+    assert "not the entire dev suite" in lowered, (
+        "Phase 5 must state the selected flows run, not the ENTIRE dev suite (v4.0.0 reversal)"
     )
-    assert "solution requirements exactly as today" in lowered, (
+    assert "solution requirements exactly as before" in lowered, (
         "Phase 5 must state failures route as solution requirements EXACTLY AS "
         "TODAY — the bare phrase 'solution requirement' pre-exists in this slice (W8)"
     )
@@ -465,11 +466,11 @@ def test_dev_api_integration_testing_full_run_enumerates_the_manifest(plugin_roo
     # (unlike Phase 5 and integration.md). Bound to the manifest-scoped clause
     # anyway, so all three enumeration pins guard the same shape and none of them
     # can be satisfied by an unrelated use of the verb.
-    assert "enumerate that manifest" in lowered, (
-        "the full-run section must state the enumeration duty against THAT MANIFEST"
+    assert "the selector reads it" in lowered, (
+        "the full-run section must state the manifest is enumerated through the selector"
     )
-    assert "entire dev" in lowered, (
-        "the full-run section must state the ENTIRE dev project runs, not only the slice"
+    assert "runs once, at phase 8" in lowered, (
+        "the full-run section must state the whole dev project runs once at Phase 8 (v4.0.0)"
     )
 
 
@@ -489,12 +490,12 @@ def test_integration_agent_brief_names_the_enumeration_duty(plugin_root: Path) -
     lowered = section.lower()
     # `enumerate` pre-exists at agents/integration.md:62 ("enumerate every
     # interactive element...") inside this same slice — adversarial F1 / W9.
-    assert "enumerate that manifest" in lowered, (
+    assert "enumerate that manifest through the selector" in lowered, (
         "the integration agent must state the enumeration duty against THAT "
         "MANIFEST — the bare verb pre-exists at workflow step 1 and guards nothing (W9)"
     )
-    assert "entire dev suite" in lowered, (
-        "the integration agent must state the ENTIRE dev suite runs"
+    assert "not the entire dev suite" in lowered, (
+        "the integration agent must state the selected flows run, not the ENTIRE dev suite"
     )
     assert _boundary_stated(section), (
         "the integration agent must state the absent-manifest boundary"
@@ -515,12 +516,12 @@ def test_mini_review_sweep_adds_the_full_suite_run(plugin_root: Path) -> None:
     # F6 class, found by the INTRA-HOOK audit: "full-suite run" is the bullet's
     # bold TITLE only, so the gate's actual instruction could be gutted with the
     # pin still green. Bind to the instruction clause as well as the title.
-    assert "run the entire dev project" in lowered, (
+    assert "select --phase 8" in lowered, (
         "the sweep must state the duty in its INSTRUCTION text — run the ENTIRE "
         "dev project. The bold title 'Full-suite run' alone survives gutting the "
         "instruction beneath it (F6)"
     )
-    assert "full-suite run" in lowered, (
+    assert "full suite at the merge boundary" in lowered, (
         "the sweep must name the full-suite run among its batched gates"
     )
     assert "playwright-suite-builder" in body, (
@@ -532,13 +533,23 @@ def test_mini_review_sweep_adds_the_full_suite_run(plugin_root: Path) -> None:
 
 
 def test_mini_pipeline_stays_narrow(plugin_root: Path) -> None:
-    """Regression guard (green from the first run): only the SWEEP gained the
-    full-suite run. The mini lane's whole theory is fast at runtime, audited in
-    batch — pulling whole-suite enumeration into it would undo that."""
+    """Regression guard: the mini lane stays narrow AT RUNTIME — M4 / M5 never
+    enumerate the suite manifest; the batched sweep audits in bulk. v4.0.0 gave
+    EVERY lane's merge boundary one full run (`select --phase 8`, per
+    `common-pipeline-conventions/references/test-selection.md`), so M7's
+    "full suite once, before the merge" subsection is the ONE place the mini
+    surface may name the manifest. Everywhere else the token stays forbidden."""
     body = _read(plugin_root, MINI_PIPELINE)
-    assert "suite-manifest" not in body, (
-        "mini-architect-team-pipeline must NOT name suite-manifest enumeration — "
-        "mini stays narrow; the batched sweep runs the suite"
+    merge_boundary = "### The full suite once, before the merge (v4.0.0)"
+    assert merge_boundary in body, (
+        "M7 must carry the merge-boundary full run (v4.0.0 test-selection discipline)"
+    )
+    start = body.index(merge_boundary)
+    ends = [i for i in (body.find("\n### ", start + 1), body.find("\n## ", start + 1)) if i > 0]
+    outside = body[:start] + (body[min(ends):] if ends else "")
+    assert "suite-manifest" not in outside, (
+        "mini-architect-team-pipeline must NOT name suite-manifest enumeration outside "
+        "M7's merge-boundary full run — mini stays narrow at runtime; the batched sweep runs the suite"
     )
 
 

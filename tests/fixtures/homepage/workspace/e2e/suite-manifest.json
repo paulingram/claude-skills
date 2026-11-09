@@ -1,0 +1,12 @@
+{
+  "schema_version": "playwright-suite-manifest/v1",
+  "e2e_dir": "e2e",
+  "personas": ["shopper", "admin"],
+  "last_built": "2026-08-01T09:20:00Z",
+  "prod_exceptions": [],
+  "tests": [
+    {"file": "e2e/personas/shopper/checkout.spec.ts", "test_names": ["completes"], "persona": "shopper", "kind": "journey", "source": "user-flow", "covers_elements": ["checkout-pay"], "covers_routes": ["/checkout"], "safety": "dev", "mutates_data": true, "origin_ref": null},
+    {"file": "e2e/personas/shopper/cart-smoke.spec.ts", "test_names": ["loads"], "persona": "shopper", "kind": "prod-check", "source": "gap-fill", "covers_elements": [], "covers_routes": ["/cart"], "safety": "prod", "mutates_data": false, "origin_ref": null},
+    {"file": "e2e/personas/admin/refund-bug.spec.ts", "test_names": ["refund path"], "persona": "admin", "kind": "debug-flow", "source": "bug-path", "covers_elements": [], "covers_routes": ["/admin/refunds"], "safety": "dev", "mutates_data": true, "origin_ref": "SR-014"}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema": "architect-team-publish/v1",
+  "mode": "claude",
+  "adapter": "local-port",
+  "project_slug": null,
+  "token_ttl_hours": 72,
+  "bind": {
+    "host": "0.0.0.0",
+    "port": 8787,
+    "external_ip": null,
+    "tls_cert": null,
+    "tls_key": null
+  },
+  "gcp": {
+    "project": null,
+    "bucket": null,
+    "service": null,
+    "region": null
+  },
+  "nominated_host": {
+    "ssh": null,
+    "web_root": null,
+    "public_base_url": null
+  },
+  "base_url": null,
+  "_comment": "TEMPLATE -- copy to .architect-team-publish.json (gitignored, local per checkout) to choose where this project's shareable pages live; the user-level ~/.architect-team/publish.json carries the same fields as machine-wide defaults (base_url, adapter, gcp.project) and the project file wins key-by-key. Fields: mode 'claude' (default) hands every page to the Claude Artifact tool and mints no URL; 'private-url' publishes through the adapter. adapter: 'local-port' = a stdlib token-checking server on this machine (bind.host/port; external_ip is the address written into links when the box sits behind NAT; tls_cert + tls_key enable HTTPS, otherwise plain HTTP with a printed warning); 'gcp-signed-url' = `gcloud storage cp` into gcp.bucket + a time-limited signed URL, no server to run, HTTPS for free; 'gcp-cloud-run' = GENERATES a Dockerfile + deploy.sh for gcp.project/region/service and deploys NOTHING by itself (a human runs deploy.sh); 'nominated-host' = scp into nominated_host.web_root on nominated_host.ssh, linked under nominated_host.public_base_url. project_slug defaults to the repo directory name and is the first URL segment (<base_url>/<slug>/p/<token>/<page>.html). token_ttl_hours is how long a link lives before the server/registry refuses it (revoke earlier with /architect-team:publish --revoke <token>). base_url overrides the derived link base. SECURITY -- read before switching to private-url: the token IS the secret and it sits in the URL, so it leaks through browser history, chat logs and referrers (links are served with Referrer-Policy: no-referrer and noindex, but anyone holding the link can open the page until it expires or is revoked); local-port opens a listening port on this machine (bind 127.0.0.1 unless you mean to expose it, and prefer a cert -- the stdlib serves TLS but cannot mint a certificate); a Cloud Run service and a bucket cost money and need IAM; the GCP adapters get HTTPS for free, which is why they are recommended when gcloud is present. IMMUTABLE TO AGENTS: once this file exists the pipeline and every subagent may READ it but may NEVER create, edit, disable, delete, or skip it on their own initiative -- only a HUMAN may change it (the setup question writes it once, with your answer). An agent overriding this is a unilateral-override violation the PreToolUse guard blocks."
+}

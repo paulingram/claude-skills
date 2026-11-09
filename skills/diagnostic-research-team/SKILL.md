@@ -1,6 +1,7 @@
 ---
 name: diagnostic-research-team
 description: Use when a failing test escalates back to the orchestrator via a solution requirement before spawning a Phase 2 fix team. Spawns three diagnostic-researcher agents in parallel — each independently maps the FULL code flow from test input to failing assertion, then theorizes ranked diagnostic hypotheses anchored to file-line evidence. The system-architect agent reviews all three drafts for robustness, identifies coverage gaps, sends researchers back for deeper investigation if needed, and only then produces a consolidated diagnostic plan that becomes mandatory input to the fix team brief. The fix team never starts work without an approved diagnostic plan when this skill applies.
+user-invocable: false
 ---
 
 # Diagnostic Research Team — Three Researchers + Architect Review for Failed-Test Escalations
@@ -59,7 +60,7 @@ When **no** CDLG exists for the bug subset (the foundation has not run, or the w
 
 ## Phase A — Spawn three diagnostic researchers in parallel
 
-The orchestrator dispatches three `diagnostic-researcher` subagents simultaneously. Each receives an identical brief containing all six inputs above plus its researcher index (1, 2, or 3).
+The orchestrator dispatches three `diagnostic-researcher` subagents simultaneously. Each receives an identical brief containing all six inputs above plus its researcher index (1, 2, or 3). Three is the review tier, not a habit: a diagnostic panel is a judgment gate, so it stays at **tier 3** under `skills/team-spawning-and-review-gates/references/review-tiers.md` — three independent judgments plus the architect's synthesis in Phase B. The tier-2 "producer + one paired reviewer" shape is for mechanical task gates, not for falsifying a root cause.
 
 Each researcher is INDEPENDENT during this phase — no consulting the other two. They produce drafts in parallel.
 
@@ -169,7 +170,7 @@ The plan has these required sections:
 6. **Coverage-map impact** — every requirement in the coverage map that the leading hypothesis (and the runner-up) would invalidate if confirmed. The fix team's brief MUST list these as acceptance criteria.
 7. **Pre-fix verification checklist** — re-confirmations of the researchers' captured observations against the live state, plus any observation only the fix team's own instrumentation can produce, captured BEFORE proposing a fix. (e.g., "re-capture POST /api/auth/login response body when the matched account row has deleted_at set" / "log the value of feature_flag_v2 in the failing run".) Because the researchers already EXECUTED the falsifications, this checklist is never the first time an experiment runs.
 
-**The machine-readable sidecar (v3.66.0).** Beside the markdown plan the architect writes `diagnostic-plan-<ts>.json` — `leading_hypothesis` (id, candidate, `falsification_executed`, `falsification_command`, `observed_output`, `status`), `competitors[]` (the same fields, plus `not_executable_reason` where `status: not-executable`), and `root_cause_claimed` (true ONLY when the leading hypothesis survived AND at least one competitor was executed-refuted). The architect then runs the 24th Layer-3 tool against it:
+**The machine-readable sidecar (v3.66.0).** Beside the markdown plan the architect writes `diagnostic-plan-<ts>.json` — `leading_hypothesis` (id, candidate, `falsification_executed`, `falsification_command`, `observed_output`, `status`), `competitors[]` (the same fields, plus `not_executable_reason` where `status: not-executable`), and `root_cause_claimed` (true ONLY when the leading hypothesis survived AND at least one competitor was executed-refuted). The architect then runs the Layer-3 tool `verify-diagnosis-falsified` (v3.66.0) against it:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-diagnosis-falsified --artifact "<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.json" --out "<cwd>/.architect-team/vao-verdicts/<test-id>-diagnosis.json" || python "${CLAUDE_PLUGIN_ROOT}/hooks/vao_tools.py" verify-diagnosis-falsified --artifact "<cwd>/.architect-team/diagnostic-research/<test-id>/diagnostic-plan-<ts>.json" --out "<cwd>/.architect-team/vao-verdicts/<test-id>-diagnosis.json"
@@ -199,7 +200,7 @@ The skill fires ONLY when the failure has escalated past the teammate's slice vi
 
 ## Hard rules (non-negotiable)
 
-- Three researchers, always. Two researchers is not enough — the three-way disagreement is the falsification mechanism. Four is unnecessary cost.
+- Three researchers, always — tier 3 by design (a judgment panel per `skills/team-spawning-and-review-gates/references/review-tiers.md`). Two researchers is not enough — the three-way disagreement is the falsification mechanism. Four is unnecessary cost.
 - Researchers are read-only on source code and INDEPENDENT during Phase A. No consulting between drafts.
 - Every hypothesis carries file:line citations and a falsification test. Prose-only hypotheses are not hypotheses.
 - The architect review is a gate, not a formality. If a gap exists, the loop continues — the fix team is NOT spawned with an unvetted plan.

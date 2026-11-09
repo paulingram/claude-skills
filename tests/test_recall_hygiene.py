@@ -7,6 +7,7 @@ refreshed / degraded-stale / unavailable, byte-cap, invalidation, injection
 budget, atomic writes).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -99,9 +100,7 @@ def test_skill_contract_pins_the_recall_hygiene_render_path() -> None:
     REQ-002 render paths) must be guarded against silent deletion/drift. This
     pin fails if `## Recall hygiene`, the allowlist->budget->envelope order, or
     any of the three engine invocation markers are removed from the skill."""
-    skill = (
-        REPO_ROOT / "skills" / "mempalace-integration" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    skill = skill_surface("mempalace-integration")
     assert "## Recall hygiene" in skill
     assert "allowlist -> budget -> envelope" in skill
     assert "recall_hygiene.py" in skill

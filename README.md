@@ -15,7 +15,7 @@
           ██    ██      ██   ██ ██  ██  ██           ██ ██  ██ ██
           ██    ███████ ██   ██ ██      ██      ███████ ██ ██   ██
 
-                        ─── C T 6 ───   v 3 . 67 . 0
+                        ─── C T 6 ───   v 4 . 1 . 0
 ```
 
 > **CLAUDE TEAM SIX (CT6)** — spec-to-production multi-agent coding pipeline
@@ -32,13 +32,13 @@
 > end-to-end.
 
 > The Claude Code plugin slug is `architect-team` (preserved for backward
-> compatibility with existing installations + the 26 slash commands like
+> compatibility with existing installations + the 30 slash commands like
 > `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`,
 > `/architect-team:inject`). CLAUDE TEAM SIX is the user-facing name.
 
-![version](https://img.shields.io/badge/version-3.67.0-2563EB?style=flat-square)
+![version](https://img.shields.io/badge/version-4.1.0-2563EB?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-3FB950?style=flat-square)
-![tests](https://img.shields.io/badge/tests-8345%20passing-3FB950?style=flat-square)
+![tests](https://img.shields.io/badge/tests-8932%20passing-3FB950?style=flat-square)
 ![claude code](https://img.shields.io/badge/Claude%20Code-plugin-7C3AED?style=flat-square)
 
 ```
@@ -58,7 +58,7 @@ is missing.
 |---|---|
 | **`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`** | Set as a shell env var, or as `{"env": {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"}}` in `~/.claude/settings.json`. `/architect-team:architect-team-setup` checks for it and (with your consent) offers to add it to your settings file. |
 | **Claude Code ≥ 2.1.32** | Older versions don't ship the Agent Teams primitive. `/architect-team:architect-team-setup` checks `claude --version`. |
-| **`--no-teams` fallback** | Forces subagents mode even when the flag + version qualify — escape hatch for users hitting experimental-flag instability. Pass it on `/architect-team`, `/architect-team:bug-fix`, or `/architect-team:mini`. |
+| **`--no-teams` fallback** | Forces subagents mode even when the flag + version qualify — escape hatch for users hitting experimental-flag instability. Pass it on `/architect-team`, `/architect-team:bug-fix`, `/architect-team:mini`, `/architect-team:data-eng` or `/architect-team:ux-test`. |
 
 Without the flag set or with Claude Code < 2.1.32, the pipeline runs in
 subagents mode silently — same dispatch behavior as v0.10.0, no surprise. With
@@ -77,19 +77,18 @@ the current release's spotlight, below.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-█▓▒░  ◆  NEW IN v3.67.0  ◆  ░▒▓█
+█▓▒░  ◆  NEW IN v4.1.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
 
-### v3.67.0 — git-commit-identity: a run commits as the person driving it
+### v4.1.0 — quiet-holds-and-the-users-release: the Stop hook holds the turn without shouting, and only the user can let it go
 
-A shipped skill body carried one maintainer's `git -c user.name=… -c user.email=…` override for sixty-odd releases — so every mini run on every user's machine committed as that maintainer — and the main pipeline's alternative was "whatever git config finds", which on a fresh clone is nothing and on a shared machine is someone else. Neither is a decision the tool may make for the user.
+Two field reports from the first v4.0.0 runs. First, the completion lock's worklist and the continuation guard's CONTINUE directive — text written for the AGENT — were being rendered in the user's main view on every refused stop, because a Stop hook's exit-2 stderr (and `decision: block`) is shown as a hook-error notification. The hold now travels as `hookSpecificOutput.additionalContext` in hook JSON on stdout: Claude Code keeps the turn open through the same loop protections, labels it `Stop hook feedback` in the transcript, and the user's screen stays clean (`CT6_STOP_HOLD_MODE=block` restores the old channel; `CT6_STOP_USER_NOTICE=1` adds a one-line count for the user). Second, holds outlived the work — a task nobody closed, an ask the transcript never resolved, a converge gate never recorded — and outlived the user's own "good enough, move on with what you have". **`/architect-team:unlock`** is the user's verb for that: it inspects what holds the turn and, under one durable record of the user's words, retires the open tasks, resolves the open asks, WAIVES the unsatisfied gates (never fakes them satisfied), stands the run down and appends a decision the homepage shows. It is the user's alone: the command is `disable-model-invocation`, the skill gate's Arm 5 refuses the release verb unless the latest genuine user prompt is that command, the override guard refuses hand-written release records, and no Stop hold text names it. Every agent now carries the two moves it has under a hold — finish the work, or show the user what is open.
 
-**The front door asks, once.** Every lane command (`/architect-team`, `bug-fix`, `mini`, `data-eng`, `ux-test`, `playwright-suite`) now resolves the checkout's commit identity before anything touches git: a recorded `<main-worktree>/.architect-team/git-identity.json` is used silently; a candidate from the repo's local or global git config is CONFIRMED with the user — never adopted (the very first checkout it ran on offered a typo'd name); nothing found means the user is asked for name + email. A domain gate that fires regardless of `--proposal-first`, records `source` as its evidence trail, never writes the user's git config, and never names a default.
-
-**Every commit carries it.** The Phase 8 / B8 / M7 / D8 / U9 / P9 steps and the auto-merge helper author commits through the new `hooks/git_identity.py` substrate — `git_identity.py git -- commit …` injects the record and REFUSES when there is none — and `pretool_skill_gate.py` gains Arm 4: during an active run, a commit-authoring `git` command that lacks or contradicts the record is blocked with the exact command to use (`CT6_GIT_IDENTITY_GATE_DISABLED` is the human's lever). A sweep test keeps any person's name out of every shipped surface.
+The same release closes the v4.0.0 documentation debt across every surface (README, CLAUDE.md, the maps, 60 skills, 39 agents, 30 commands, the hook and setup docstrings): every reviewer-convergence site names its tier and runs as declare → `ct6-converge` → record, superpowers and cartographer read as conditional everywhere, the selected-tests rule and the v4.0.0 engines are wired into every lane phase, and eight commit templates drop a model-named trailer.
 
 Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](docs/RELEASE_HISTORY.md).
+
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -98,45 +97,45 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 ```
 
 ```
-┌─ SKILLS (56) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
+┌─ SKILLS (60) ───────────────────────┬─ AGENTS (39) ─────────────────────────┐
 │ ◇ architect-team-pipeline           │ ◆ system-architect (fable)            │
-│ ◇ intake-and-mapping                │ ◆ frontend (fable)                    │
-│ ◇ reuse-first-design                │ ◆ backend (fable)                     │
-│ ◇ frontend-route-mapping            │ ◆ reconciler (fable)                  │
-│ ◇ design-fidelity-mapping          *│ ◆ integration (fable)                 │
+│ ◇ intake-and-mapping                │ ◆ frontend (opus)                     │
+│ ◇ reuse-first-design                │ ◆ backend (opus)                      │
+│ ◇ frontend-route-mapping            │ ◆ reconciler (opus)                   │
+│ ◇ design-fidelity-mapping          *│ ◆ integration (opus)                  │
 │ ◇ visual-fidelity-reconciliation   *│ ◆ scaffold-agent (fable)              │
 │ ◇ playwright-user-flows             │ ◆ codebase-map-reviewer (fable)       │
 │ ◇ dev-api-integration-testing       │ ◆ integration-explorer (fable)        │
 │ ◇ coverage-mapping                  │ ◆ master-synthesizer (fable)          │
-│ ◇ team-spawning-and-review-gates    │ ◆ route-mapper (fable)                │
-│ ◇ root-cause-test-failures          │ ◆ test-completeness-verifier (fable)  │
+│ ◇ team-spawning-and-review-gates    │ ◆ route-mapper (sonnet)               │
+│ ◇ root-cause-test-failures          │ ◆ test-completeness-verifier (sonnet) │
 │ ◇ diagnostic-research-team          │ ◆ diagnostic-researcher (fable)       │
-│ ◇ mempalace-integration             │ ◆ editability-reviewer (fable)        │
-│ ◇ expensive-verification-debugging  │ ◆ visual-capture (fable)              │
-│ ◇ editability-completeness          │ ◆ visual-analyzer (fable)             │
+│ ◇ mempalace-integration             │ ◆ editability-reviewer (sonnet)       │
+│ ◇ expensive-verification-debugging  │ ◆ visual-capture (sonnet)             │
+│ ◇ editability-completeness          │ ◆ visual-analyzer (opus)              │
 │ ◇ readme-styling                    │ ◆ task-reviewer (fable)               │
-│ ◇ visual-verification-team          │ ◆ interaction-reviewer (fable)        │
-│ ◇ documentation-currency            │ ◆ bug-replicator (fable)              │
-│ ◇ interaction-completeness          │ ◆ qa-replayer (fable)                 │
-│ ◇ dynamic-value-discovery           │ ◆ bug-classifier (fable)              │
-│ ◇ interaction-intuition             │ ◆ interaction-intuiter (fable)        │
-│ ◇ bug-fix-pipeline                  │ ◆ doc-updater (fable)                 │
-│ ◇ ux-test-builder                   │ ◆ flow-explorer (fable)               │
-│ ◇ proposal-refiner                  │ ◆ flow-executor (fable)               │
+│ ◇ visual-verification-team          │ ◆ interaction-reviewer (sonnet)       │
+│ ◇ documentation-currency            │ ◆ bug-replicator (opus)               │
+│ ◇ interaction-completeness          │ ◆ qa-replayer (opus)                  │
+│ ◇ dynamic-value-discovery           │ ◆ bug-classifier (haiku)              │
+│ ◇ interaction-intuition             │ ◆ interaction-intuiter (sonnet)       │
+│ ◇ bug-fix-pipeline                  │ ◆ doc-updater (sonnet)                │
+│ ◇ ux-test-builder                   │ ◆ flow-explorer (sonnet)              │
+│ ◇ proposal-refiner                  │ ◆ flow-executor (opus)                │
 │ ◇ email-testing                     │ ◆ fix-sensibility-checker (fable)     │
 │ ◇ mini-architect-team-pipeline      │ ◆ prompt-refiner (fable)              │
-│ ◇ common-pipeline-conventions       │ ◆ mini-qa (fable)                     │
+│ ◇ common-pipeline-conventions       │ ◆ mini-qa (opus)                      │
 │ ◇ verified-agent-output (v2.0.0)   *│ ◆ oracle-deriver (fable) ★            │
 │ ◇ interactive-mockup-discovery     *│ ◆ adversarial-reviewer (fable) ★      │
-│   (v2.1.0)                          │ ◆ interaction-observer (fable) ★      │
-│ ◇ phenotypes (v2.3.0)               │ ◆ endpoint-tracer (fable) ★           │
+│   (v2.1.0)                          │ ◆ interaction-observer (sonnet) ★     │
+│ ◇ phenotypes (v2.3.0)               │ ◆ endpoint-tracer (sonnet) ★          │
 │ ◇ phenotype-absorption (v2.3.0)     │                                       │
 │ ◇ visual-to-api-design (v2.13.0)   *│                                       │
-│ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (fable) ★          │
-│   (v2.17.0)                         │ ◆ monitor-synthesizer (fable) ★       │
+│ ◇ test-prod-safety-classifier      *│ ◆ test-run-watcher (sonnet) ★         │
+│   (v2.17.0)                         │ ◆ monitor-synthesizer (sonnet) ★      │
 │ ◇ test-run-monitor (v3.3.0)        *│ ◆ domain-researcher (fable) ★         │
 │ ◇ cartographer-team (v3.4.0)       *│ ◆ structure-analyst (fable) ★         │
-│ ◇ domain-research-team (v3.4.0)    *│ ◆ reference-tracer (fable) ★          │
+│ ◇ domain-research-team (v3.4.0)    *│ ◆ reference-tracer (sonnet) ★         │
 │ ◇ api-design-from-frontend         *│ ◆ structure-adversary (fable) ★       │
 │   (v3.4.0)                          │                                       │
 │ ◇ data-engineering-exploration     *│                                       │
@@ -147,7 +146,7 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 │   (lineage P3 — asset lineage)      │                                       │
 │ ◇ structure-optimization           *│                                       │
 │   (v3.11.0 — restructure planning)  │                                       │
-│ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (fable) ★            │
+│ ◇ data-dictionary (v3.17.0)         │ ◆ closeout-agent (sonnet) ★           │
 │ ◇ closeout (v3.18.0)                │ ◆ mcp-design-agent (fable) ★          │
 │ ◇ claude-md-efficiency (v3.19.0)    │                                       │
 │ ◇ mcp-output-contract-design        │                                       │
@@ -165,7 +164,11 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 │ ◇ playwright-suite-builder          │                                       │
 │   (v3.65.0 — P0–P9 suite lane)      │                                       │
 │ ◇ verification-planning (v3.66.0)   │                                       │
-├─ COMMANDS (26) ─────────────────────┴───────────────────────────────────────┤
+│ ◇ ct6-agent-core (v4.0.0)           │                                       │
+│ ◇ page-publishing (v4.0.0)          │                                       │
+│ ◇ project-homepage (v4.0.0)         │                                       │
+│ ◇ project-principles (v4.0.0)       │                                       │
+├─ COMMANDS (30) ─────────────────────┴───────────────────────────────────────┤
 │ ▸ /architect-team <path-to-requirements-folder | free-text prompt>          │
 │ ▸ /architect-team:architect-team-setup                                      │
 │ ▸ /architect-team:visual-qa [<codebase-path>]                               │
@@ -203,32 +206,69 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 │   (v3.21.0 — manual triage report; consent + privacy)                       │
 │ ▸ /architect-team:playwright-suite [<codebase-path> | <description>]        │
 │   (v3.65.0 — durable persona-grouped suite + dev/prod manifest, P0–P9)      │
-├─ HOOKS (7 scripts / 8 events) ──────────────────────────────────────────────┤
+│ ▸ /architect-team:principles <show|add|retire|extract> [args]               │
+│   (v4.0.0 — codified project principles, .architect-team/principles.json)   │
+│ ▸ /architect-team:publish <page.html> [--revoke <token>|--list|--status]    │
+│   (v4.0.0 — a self-contained page, per human-owned .architect-team-publish) │
+│ ▸ /architect-team:home [--rebuild] [--stale] [--publish]                    │
+│   (v4.0.0 — the per-project homepage: structure, decisions, timings, maps)  │
+│ ▸ /architect-team:unlock <why, in your words>                               │
+│   (v4.1.0 — the USER releases a completion hold; the agent never does)      │
+├─ HOOKS (9 scripts / 10 events) ─────────────────────────────────────────────┤
 │ ▸ PreToolUse(*)             skill-invocation hard-gate (v3.15.0/1)          │
 │                             + v3.30.0 sticky run arm (active-run marker =>  │
 │                             build/dispatch tools need the Skill re-engaged) │
+│                             + v3.61.0 task-deletion arm + v3.67.0 commit-   │
+│                             identity arm + v4.1.0 unlock arm: the hold-     │
+│                             release verb only inside the user's /unlock     │
+│                             command turn (pretool_skill_gate.py)            │
 │ ▸ PreToolUse(Edit/Write/    unilateral-override guard                       │
-│     NotebookEdit)                                                           │
+│     NotebookEdit)           (pretool_unilateral_override_guard.py)          │
 │                             + v3.56.0 completion-lock ground truth:         │
 │                             the ask-ledger + the harness task store         │
 │                             are immutable to agent Edit / Write             │
+│                             + v4.0.0 docs/PROJECT_PRINCIPLES.md and         │
+│                             .architect-team-publish.json are human-owned    │
+│ ▸ PreToolUse(Bash)          deletion guard (v4.0.0, deletion_guard.py):     │
+│                             classifies every deletion target with git —     │
+│                             allow / ask / deny; soft delete via `trash`     │
 │ ▸ PostToolUse(TaskUpdate)   review-gate evidence — v7 + independent review  │
-│ ▸ TaskCompleted             review-gate evidence re-check                   │
-│ ▸ SubagentStop              teammate-idle review-gate re-check              │
+│ ▸ PostToolUse(Skill)        active-run marker engagement (v3.30.0)          │
+│ ▸ TaskCompleted             review-gate evidence re-check + timing log      │
+│ ▸ TaskCreated               timing log (v4.0.0, timings_log.py ->           │
+│                             run-history/timings.jsonl)                      │
+│ ▸ SubagentStart             timing log (v4.0.0)                             │
+│ ▸ SubagentStop              teammate-idle review-gate re-check + timing log │
 │ ▸ TeammateIdle              teammate-idle review-gate re-check              │
-│ ▸ Stop                      pipeline-completion audit (terminal gate)       │
+│ ▸ Stop                      pipeline-completion audit (terminal gate);      │
+│                             v4.1.0: a hold is hook JSON on stdout (Stop     │
+│                             hook feedback), never a hook error on screen    │
 │                             + v3.9.2 openspec validate --all --strict gate  │
 │                             + v3.30.0 continuation guard (no mid-run stops; │
 │                             no-progress bound => auto-escalate)             │
 │                             + v3.56.0 COMPLETION LOCK — open work           │
 │                             blocks the stop in EVERY session, CT6           │
-│                             run or not; 4 named kill-switches               │
+│                             run or not; 4 named kill-switches; since        │
+│                             v4.0.0 reads <session id>/ and the legacy       │
+│                             session-<first 8>/ task dirs, advisory when     │
+│                             the DEFAULT task root is absent                 │
+│                             + arms: release backing (v3.61.0), diagnosis    │
+│                             falsified (v3.66.0), required reads (v4.0.0)    │
+│                             + timing log closes the run interval            │
 │ ▸ PreCompact                closeout doc-currency reminder (v3.18.0)        │
 │ ▸ SessionStart              run-continuity resume directive (v3.30.0)       │
+│                             + v4.0.0 CLAUDE_CODE_ENABLE_TODO_TOOLS warning  │
 ├─ SETUP ─────────────────────────────────────────────────────────────────────┤
 │ ▸ scripts/setup/setup.py             openspec CLI, pytest+httpx, Playwright │
-│                                      + HARD-gates required plugins +        │
-│                                      openspec-propose skill (exit 1)        │
+│                                      + reports the CONDITIONAL plugins      │
+│                                      (superpowers / cartographer / bauplan —│
+│                                      never gating, v4.0.0); exit 1 on a     │
+│                                      missing openspec-propose skill, 2 on a │
+│                                      failed install step                    │
+│                                      + writes the task-tools opt-in env     │
+│                                      (CLAUDE_CODE_ENABLE_TODO_TOOLS=1)      │
+│                                      + --project-root: the page-publishing  │
+│                                      question + the first project homepage  │
 │ ▸ scripts/setup/install_mempalace.py MemPalace CLI + MCP server (uv-first)  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -260,19 +300,18 @@ Full detail in [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](do
 /plugin install architect-team@architect-team-marketplace
 ```
 
-### ▸ Install prerequisite Claude plugins (one-time)
+### ▸ Install the optional methodology plugins (recommended, never required)
 
 ```bash
 # cartographer ships from a THIRD-PARTY marketplace (kingbootoshi/cartographer);
-# add that source FIRST, then install. superpowers + ralph-loop live on the
-# built-in claude-plugins-official marketplace (no add step needed).
+# add that source FIRST, then install. superpowers lives on the built-in
+# claude-plugins-official marketplace (no add step needed).
 /plugin install superpowers@claude-plugins-official
 /plugin marketplace add kingbootoshi/cartographer
 /plugin install cartographer@cartographer-marketplace
-/plugin install ralph-loop@claude-plugins-official
 ```
 
-These three are **HARD (exit-1) prerequisites** (v3.9.0) — `scripts/setup/setup.py` aborts with exit 1 if any is missing; superpowers in particular is a hard dependency, not a warning. The vendored `openspec-propose` authoring skill is a **4th hard-gated prerequisite** (verified by `ensure_openspec_propose_skill()`; a missing skill is also exit 1). The cartographer marketplace source is `kingbootoshi/cartographer` — `architect-team-setup` names it and prints the exact `/plugin marketplace add kingbootoshi/cartographer` + `/plugin install cartographer@cartographer-marketplace` remediation when cartographer is missing.
+Since v4.0.0 `superpowers` and `cartographer` are **CONDITIONAL plugins** (`CONDITIONAL_PLUGINS` in `scripts/setup/setup.py`; `REQUIRED_PLUGINS` is empty): preferred when installed, reported and remediated by setup when absent, and **never gating** — a lane that finds one missing records `methodology: native` and follows `skills/common-pipeline-conventions/references/native-methodology.md` (brainstorming, TDD, systematic debugging, verification before completion, native codebase mapping). They were hard exit-1 prerequisites from v3.9.0 to v3.67.0. `ralph-loop` is **retired**: every reviewer-convergence loop now runs as the shipped Workflow script `workflows/ct6-converge.js` (`skills/common-pipeline-conventions/references/converge-workflows.md`), so there is nothing to install for it. The one remaining exit-1 prerequisite is the vendored `openspec-propose` authoring skill (verified by `ensure_openspec_propose_skill()`). The cartographer marketplace source is `kingbootoshi/cartographer` — `architect-team-setup` names it and prints the exact `/plugin marketplace add kingbootoshi/cartographer` + `/plugin install cartographer@cartographer-marketplace` remediation when cartographer is missing.
 
 ### ▸ Install CLI / Python / browser deps
 
@@ -280,7 +319,7 @@ These three are **HARD (exit-1) prerequisites** (v3.9.0) — `scripts/setup/setu
 /architect-team:architect-team-setup
 ```
 
-Idempotent. Flags: `--check-only` (report only), `--no-prompt` (print the suggested settings edit; never writes), `--yes` / `-y` (assume "y" to every consent prompt for non-interactive installs — also enabled by `CT6_SETUP_ASSUME_YES=1`), `--force-reinstall` (reinstall everything managed).
+Idempotent. Flags: `--check-only` (report only), `--no-prompt` (print the suggested settings edit; never writes), `--yes` / `-y` (assume "y" to every consent prompt for non-interactive installs — also enabled by `CT6_SETUP_ASSUME_YES=1`), `--force-reinstall` (reinstall everything managed), and (v4.0.0) `--project-root <path>` — opt-in per-project steps: setup asks the **page-publishing question** once (writing the human-owned `.architect-team-publish.json`; the default mode stays `claude`) and builds the project's **first empty-state homepage** at `.architect-team/homepage/index.html`. Setup also writes `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` into `~/.claude/settings.json` (with the same consent flow as the Agent Teams flag), because a Claude 5 session ships without the `TaskCreate` / `TaskUpdate` tools the Phase 3 evidence gate and the completion lock read.
 
 ### ▸ Install MemPalace (optional — enables searchable cross-run memory)
 
@@ -358,7 +397,7 @@ The review gates enforce it: schema v7's OPTIONAL `appearance_scope_review` evid
 
 ### The pipeline at a glance
 
-**Uniform plugin usage (v3.9.0).** Every pipeline body (`architect-team` / `bug-fix` / `mini` / `ux-test`) opens with a **superpowers pre-flight abort gate** and weaves named `superpowers:*` invocations (`brainstorming` / `test-driven-development` / `systematic-debugging` / `verification-before-completion`) through its phases — canonical home `common-pipeline-conventions` `## Uniform plugin usage (v3.9.0)`. The implementing pipelines (`mini` + `bug-fix` + full) share **identical** `openspec validate --all --strict` + `openspec archive` gates.
+**Uniform plugin usage (v3.9.0; conditional since v4.0.0).** Every pipeline body (`architect-team` / `bug-fix` / `mini` / `ux-test`) opens with a **superpowers pre-flight check** — it no longer aborts: when the plugin is present the lane weaves the named `superpowers:*` invocations (`brainstorming` / `test-driven-development` / `systematic-debugging` / `verification-before-completion`) through its phases; when it is absent the lane records `methodology: native` and runs the same disciplines from `skills/common-pipeline-conventions/references/native-methodology.md`. Every "N reviewers loop until all ok" gate is the `ct6-converge` Workflow script (`workflows/ct6-converge.js`), with the reviewer count set per gate by `skills/team-spawning-and-review-gates/references/review-tiers.md`. Canonical home: `skills/common-pipeline-conventions/references/uniform-plugin-usage.md`. The implementing pipelines (`mini` + `bug-fix` + full) share **identical** `openspec validate --all --strict` + `openspec archive` gates.
 
 ```
        ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -370,7 +409,7 @@ The review gates enforce it: schema v7's OPTIONAL `appearance_scope_review` evid
        │  · INTEGR_MAP   │    │  100% gate      │    │    triggers     │
        └─────────────────┘    └─────────────────┘    └────────┬────────┘
             3-reviewer            12 conditions               │
-            ralph loop            hard gate                   ▼
+            ct6-converge          hard gate                   ▼
                                                      ┌─────────────────┐
                                                      │    PHASE 3      │
                                                      │  Review Gate    │
@@ -421,7 +460,7 @@ Every `TaskUpdate(completed)` on a teammate-owned task is gated; the hook exits 
    not an architect-    reads  .architect-team/reviews/<task_id>.json
    team task; ignored             │
                                   ▼
-        ◆ evidence present · valid JSON · all 12 self-review fields valid?
+        ◆ evidence present · valid JSON · all 17 self-review fields valid?
             · spec_review = quality_review = "pass"
             · real_not_stubbed = true · tests added ≥ 1 and == passing
             · reuse_compliance = "ok" · demo_artifact + files_changed non-empty
@@ -435,8 +474,9 @@ Every `TaskUpdate(completed)` on a teammate-owned task is gated; the hook exits 
    ✗ exit 2  —  BLOCK                       ✓ exit 0  —  ALLOW
    stderr names the exact gap               task is marked completed
             ┊
-            └┄┄▶ teammate fixes the gap and retries;
-                 3 consecutive rejections ⇒ escalation handoff
+            └┄┄▶ teammate closes the named gap and retries (a retry
+                 with no substantive change is thrash); a gap it cannot
+                 close inside its own files ⇒ escalation handoff
 ```
 
 ### ▌ Logic Map B — issue → fix routing (Solution Requirements)
@@ -510,10 +550,12 @@ two places this map allows a stop (`escalation-pending.md` and a fresh
                                           │                              │
                                       yes │  (legitimately                │ no
                                           ▼   paused / waiting)           ▼
-                                 ✓ exit 0 — ALLOW             ✗ exit 2 — BLOCK
-                                                              resolve the gaps / keep driving
-                                                              the run, OR write the escalation
-                                                              marker, then stop again
+                                 ✓ exit 0 — ALLOW             ✗ HOLD — exit 0 + hook JSON
+                                                              (additionalContext: the agent's
+                                                              worklist, shown only as transcript
+                                                              feedback) — resolve the gaps / keep
+                                                              driving the run; only the USER's
+                                                              /architect-team:unlock releases it
 ```
 
 For a session that ENGAGED a pipeline skill, the block persists across stop-chains while the run keeps making progress (the `run_continuity` fingerprint changes) — unbounded, per the Unbounded solving discipline — and after `CT6_MAX_NO_PROGRESS_STOPS` (default 3) consecutive **no-progress** blocks the guard auto-writes `escalation-pending.md` and allows the stop, so a wedged run surfaces to the human instead of looping. Non-engaged sessions get one nudge (with the resume-via-Skill directive) and are never wedged.
@@ -578,7 +620,7 @@ None of the three is a thing the agent asserts:
 
 | Source | Read from | Kill-switch |
 |---|---|---|
-| **Harness task list** | `~/.claude/tasks/session-<first-8-of-session-id>/<taskId>.json`, written by the harness. A task whose `status` is not `completed` — including a missing or unrecognized status — counts as OPEN. Teammates are held only for tasks whose `owner` matches them, never wedged on lanes they cannot close. Since v3.64.0 an open task whose *file* has gone untouched longer than the abandonment window (`CT6_TASK_STALE_HOURS`, floored at 1h; defaults to the `CT6_RUN_MARKER_STALE_HOURS` window, 72h) is **inherited debt** — task lists outlive sessions (resume/continue/compact keep the store; forks carry it), so dead sessions' leftovers are listed in the block as non-blocking instead of wedging every later session. Any `TaskUpdate` rewrites the file and revives the task. | `CT6_TASK_LIST_GATE_DISABLED` |
+| **Harness task list** | `~/.claude/tasks/<session id>/<taskId>.json`, written by the harness (older builds wrote `session-<first 8>/`; since v4.0.0 `open_work.session_task_dir` reads whichever layout exists, full id first). A Claude 5 session only has the task tools when `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set — setup writes it — and when the DEFAULT task root is absent altogether this source is reported as `unavailable` and the lock proceeds on the ask-ledger and the run marker (advisory, stated in the message); a REDIRECTED `CT6_TASKS_ROOT` that is missing still blocks. A task whose `status` is not `completed` — including a missing or unrecognized status — counts as OPEN. Teammates are held only for tasks whose `owner` matches them, never wedged on lanes they cannot close. Since v3.64.0 an open task whose *file* has gone untouched longer than the abandonment window (`CT6_TASK_STALE_HOURS`, floored at 1h; defaults to the `CT6_RUN_MARKER_STALE_HOURS` window, 72h) is **inherited debt** — task lists outlive sessions (resume/continue/compact keep the store; forks carry it), so dead sessions' leftovers are listed in the block as non-blocking instead of wedging every later session. Any `TaskUpdate` rewrites the file and revives the task. | `CT6_TASK_LIST_GATE_DISABLED` |
 | **Ask-ledger** | `.architect-team/ask-ledger.json`, DERIVED from the harness-written transcript rather than registered by the model — so an agent cannot decline to register an ask it would rather not do. Entries accumulate and re-derivation only ever ADDS; ambiguous stays open. | `CT6_ASK_LEDGER_GATE_DISABLED` |
 | **Turn-output rule** | All assistant text in the turn — every block since the last genuine user prompt, so a summary followed by a one-line sign-off cannot hide it. While work is open the turn output is *one line of state, not a narrative*: the rule trips on a structural marker (heading, bullet — ASCII or Unicode, numbered item, bold-label block, table row) at `>= 2` lines, on the absolute line ceiling, or on enough unbroken prose. A one-line turn NEVER trips, and markerless prose below the ceiling is deliberately allowed so ordinary narration between tool calls is not refused. | `CT6_TURN_OUTPUT_GATE_DISABLED` |
 
@@ -768,7 +810,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 ### ▌ Loop 1 — Per-codebase mapping (Phase −1B)
 
-- **Wrapper:** `/ralph-loop "<review prompt>" --completion-promise "CODEBASE MAP COMPLETE"`. One ralph loop per discovered codebase (loops until the promise; no iteration cap per v3.8.0 unbounded solving).
+- **Wrapper:** the `ct6-converge` Workflow script (`workflows/ct6-converge.js`, preset `kind: "codebase-map"`, promise `CODEBASE MAP COMPLETE`) — one run per discovered codebase; it fans out the reviewers in parallel, collects typed verdicts, briefs one fixer per round and loops until every reviewer returns `ok` (no self-imposed round cap — only a human `maxRounds`; silence is never read as ok). Review tier 3 per `skills/team-spawning-and-review-gates/references/review-tiers.md`. (`ralph-loop` filled this seat from v3.8.0 to v3.67.0; it is retired.)
 - **Mechanism:** Cartographer (and `route-mapper` for frontends) produces `<codebase>/docs/CODEBASE_MAP.md` (and `ROUTE_MAP.md` + `DESIGN_MAP.md` if design inputs exist). Then 3 `codebase-map-reviewer` agents are spawned **in parallel**. Each returns `{ "status": "ok" | "deficient", "deficiencies": [...] }`.
 - **Iteration body** (if any reviewer returns `deficient`): aggregate + dedupe deficiencies; re-trigger cartographer / route-mapper in update mode; loop.
 - **Exit criteria — all of:** all 3 reviewers return `status: "ok"` in the same iteration; the orchestrator emits `CODEBASE MAP COMPLETE`.
@@ -778,7 +820,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 ### ▌ Loop 2 — Integration mapping (Phase −1C)
 
-- **Wrapper:** `/ralph-loop "<synthesis prompt>" --completion-promise "INTEGRATION MAP COMPLETE"`. One ralph loop for all codebases (loops until the promise; no iteration cap per v3.8.0 unbounded solving).
+- **Wrapper:** the `ct6-converge` Workflow script (preset `kind: "integration-map"`, promise `INTEGRATION MAP COMPLETE`) — one run for all codebases, reviewers `integration-explorer` ×3 with `master-synthesizer` as the fixer; loops until all three confirm, no self-imposed round cap (review tier 3).
 - **Mechanism — sequential sub-loops:** (2a) 3 `integration-explorer` agents in parallel, round-robin convergence; (2b) `master-synthesizer` writes `<workspace>/docs/INTEGRATION_MAP.md`; (2c) confirmation pass — each explorer confirms the master doc.
 - **Exit criteria — all of:** all 3 explorers confirm; INTEGRATION_MAP.md exists with frontmatter + 6 sections; master-synthesizer emits `INTEGRATION MAP COMPLETE`.
 - **Iteration cap:** none — loops until all 3 explorers confirm (v3.8.0 unbounded solving).
@@ -836,9 +878,9 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
   | `skill_invocation_audit` | `"pass"` / `"n/a"` / `"fail"` OR `{verdict, verdict_path}` (v2.0.0 VAO, Layer 6) — `"fail"` blocks |
   | `independent_review` | object — `reviewer` (≠ `teammate`), `verdict` = `"pass"`, `spec_review` / `quality_review` = `"pass"`, `real_not_stubbed` = `true`, `reuse_compliance` = `"ok"`, `reviewed_at` non-empty. Written by the `task-reviewer` agent — the gate cannot open on the teammate's self-review alone. |
 
-  Plus 5 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`) — present only when applicable (a non-empty oracle `interactions[]`, a "verified live" claim, a diff touching frontend presentation surface, a diff adding test files / citing a verification command, or a slice that makes a verification claim, respectively).
+  Plus 6 OPTIONAL VAO fields (`interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`) — present only when applicable (a non-empty oracle `interactions[]`, a "verified live" claim, a diff touching frontend presentation surface, a diff adding test files / citing a verification command, or a slice that makes a verification claim, respectively).
 
-- **Escalation policy:** after 3 consecutive hook rejections on the same `task_id` → teammate stops retrying and writes a `<teammate>-to-orchestrator-stuck-<task_id>` handoff.
+- **Escalation policy** (`team-spawning-and-review-gates/references/hook-rejection-escalation-policy.md`): never re-attempt `TaskUpdate(completed)` for the same `task_id` without a substantive change since the last rejection (that is thrash); there is no rejection count after which a teammate stops closing gaps (ETHOS principle 8). A gap the teammate cannot close inside its own `files_owned` → it writes a `<teammate>-to-orchestrator-stuck-<task_id>` handoff and signals idle. Reviewer count per gate follows `skills/team-spawning-and-review-gates/references/review-tiers.md` — a Phase 3 task gate is tier 2 (the producer plus one paired adversarial reviewer; a third independent verdict only on disagreement).
 - **References:** [`skills/team-spawning-and-review-gates/SKILL.md`](skills/team-spawning-and-review-gates/SKILL.md), [`hooks/review-gate-task.py`](hooks/review-gate-task.py).
 
 ### ▌ Loop 4b — Per-test-failure root-cause analysis (Phase 3 & 5)
@@ -847,7 +889,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 - **Pre-condition:** `<test-output-dir>/expectations/<test-id>.json` written BEFORE the test runs.
 - **3-pass loop:** (1) forward data-flow trace; (2) backward call-flow trace; (3) alternative-hypotheses sweep — including the **multiple-simultaneous-causes** category (a symptom can have several independent root causes; finding one does not mean you found them all).
 - **RCA artifact:** `<test-output-dir>/rca/<test-id>-<ts>.json`. `product-bug` → SR + handoff; **others** → fix in-loop.
-- **Expensive verify loops:** when verifying a fix needs a deploy / rebuild / slow CI run, apply [`skills/expensive-verification-debugging/SKILL.md`](skills/expensive-verification-debugging/SKILL.md) — audit the whole failure pathway statically, batch every fix, spend the expensive cycle once; STOP and escalate after 2 cycles.
+- **Expensive verify loops:** when verifying a fix needs a deploy / rebuild / slow CI run, apply [`skills/expensive-verification-debugging/SKILL.md`](skills/expensive-verification-debugging/SKILL.md) — audit the whole failure pathway statically, batch every fix, spend the expensive cycle once; 2+ cycles already burned on the same symptom is the STRATEGY-SWITCH signal (pivot to pathway audit + batched fixes — the run keeps going, only the one-bug-per-cycle approach stops). Where the expensive step is a data run, `scripts/data_dictionary/sampling.py` (v4.0.0 sample-first) makes the cycle cheap before batching.
 - **References:** [`skills/root-cause-test-failures/SKILL.md`](skills/root-cause-test-failures/SKILL.md).
 
 ### ▌ Loop 4c — Visual-fidelity reconciliation (Phase 3 when frontend touched + Phase 5 regression)
@@ -871,7 +913,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4e — Editability completeness (Phase 5 + on-demand)
 
 - **Trigger:** any feature with a create or edit flow, at Phase 5; or `/architect-team:editability-audit`.
-- **Mechanism:** three `editability-reviewer` agents (fable) spawn in parallel. Each independently enumerates every attribute of every entity (union of DB schema + API schemas + design + components), classifies each (`user-editable` / `user-settable-at-create-only` / `system-managed` / `derived` / `dynamic-via-action` / `ambiguous`), and traces every user-controllable attribute end-to-end through 7 stages: create control → edit control → state → request → request schema → handler → database → read-back.
+- **Mechanism:** three `editability-reviewer` agents (sonnet under the v4.0.0 role split) spawn in parallel for the whole-feature pass — review tier 3, run through the `ct6-converge` `editability` preset; per `skills/team-spawning-and-review-gates/references/review-tiers.md` a single slice at Phase 3 is a tier-2 check (one paired reviewer). Each independently enumerates every attribute of every entity (union of DB schema + API schemas + design + components), classifies each (`user-editable` / `user-settable-at-create-only` / `system-managed` / `derived` / `dynamic-via-action` / `ambiguous`), and traces every user-controllable attribute end-to-end through 7 stages: create control → edit control → state → request → request schema → handler → database → read-back.
 - **Convergence:** the three argue round-robin (evidence-cited) until they hold one identical canonical list of must-be-editable attributes + gaps. Ambiguous attributes escalate to the human.
 - **Gaps → SRs:** every gap (`missing-control`, `dead-control`, `orphan-field`, `no-readback`, `schema-mismatch`) becomes an `editability-gap` SR — spawns a fix team directly.
 - **Multi-pass:** after the fixes land, the three re-spawn and re-review; the loop runs until all three agree zero gaps remain — no fixed cycle cap (per `## Unbounded solving discipline`); it pauses only for a required owner input that cannot be auto-supplied.
@@ -889,7 +931,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 4g — Interaction completeness (Phase 3 + Phase 5)
 
 - **Trigger:** any slice with UI/UX interactive surface, at the Phase 3 review gate and the Phase 5 cross-layer pass. The independent VERIFICATION gate that the `playwright-user-flows` authoring discipline was followed — the sibling of Loop 4e (editability), at the granularity of controls and pages instead of attributes.
-- **Mechanism:** three `interaction-reviewer` agents (fable, analysis-only) spawn in parallel. Each independently re-enumerates every interactive element (the union of the design / `DESIGN_MAP`, the `ROUTE_MAP.md`, the route table, and the component code) AND every page / screen / route; classifies each element `endpoint-backed` / `client-only` / `confirmed-stub` / `ambiguous` and each page `live` / `placeholder` / `confirmed-stub`; verifies every non-stub element has a genuine user-driven Playwright test (real `page.click` / `page.fill` — not a `page.request.*` direct call, not a vacuous navigate-and-assert); traces each element to its endpoint or client behavior; and applies `dynamic-value-discovery` to flag a hardcoded value the context shows should be dynamic.
+- **Mechanism:** three `interaction-reviewer` agents (sonnet under the v4.0.0 role split, analysis-only) spawn in parallel for the whole-feature pass — review tier 3, run through the `ct6-converge` `interaction` preset; a single slice at Phase 3 is a tier-2 check (one paired reviewer) per `skills/team-spawning-and-review-gates/references/review-tiers.md`. Each independently re-enumerates every interactive element (the union of the design / `DESIGN_MAP`, the `ROUTE_MAP.md`, the route table, and the component code) AND every page / screen / route; classifies each element `endpoint-backed` / `client-only` / `confirmed-stub` / `ambiguous` and each page `live` / `placeholder` / `confirmed-stub`; verifies every non-stub element has a genuine user-driven Playwright test (real `page.click` / `page.fill` — not a `page.request.*` direct call, not a vacuous navigate-and-assert); traces each element to its endpoint or client behavior; and applies `dynamic-value-discovery` to flag a hardcoded value the context shows should be dynamic.
 - **Convergence:** the three argue round-robin (evidence-cited) to one identical converged interaction map; a `system-architect` Round-3 robustness review checks for a shared blind spot; bounded multi-pass until all three agree the interactive surface is genuine.
 - **Confirmed-stub mechanism:** an intentionally-inert control or a placeholder page is `confirmed-stub` ONLY with explicit user confirmation — the reviewer escalates a structured question, never guesses. A confirmed stub is recorded in the converged map and in `coverage-map.json` `confirmed_stubs[]`; it needs no user-flow test but is tracked.
 - **Gaps → SRs:** every gap (`unwired-control`, `placeholder-page`, `hardcoded-dynamic-value`) becomes an SR — spawns a fix team directly; surfaces through the `ui_interaction_review` evidence field.
@@ -898,7 +940,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 ### ▌ Loop 5 — Cross-layer integration (Phase 5)
 
 - **Wrapper:** Orchestrator-internal. Begins after both layer-teams pass Loop 4 + Phase 4 merges cleanly.
-- **Mechanism:** integration agent runs the full suite locally then against the **live dev API with real dev data** (never mocks). For frontend: Playwright user-flow tests against the **real running dev environment** — and for `both`-layer features the run exercises the **real backend** (no `page.route` happy-path stubs, no MSW, no fake API server). Visual-fidelity regression sweep (Loop 4c), its independent verification by the visual-verification-team (Loop 4f), the editability-completeness review (Loop 4e), and the interaction-completeness review (Loop 4g) all run here.
+- **Mechanism:** the integration agent runs the **selected** integration tests (`python scripts/test_index/cli.py select --workspace <ws> --phase 5 --baseline <run-base-sha>` — the tests impacted by the run's change set, plus the impacted flows, plus the human `tests.always_run` pins; v4.0.0 test selection, which reverses v3.65.0's ENTIRE-dev-suite rule on purpose — the full suite runs once, at Phase 8) against the **live dev API with real dev data** (never mocks). For frontend: the impacted Playwright user-flow tests against the **real running dev environment** — and for `both`-layer features the run exercises the **real backend** (no `page.route` happy-path stubs, no MSW, no fake API server). Visual-fidelity regression sweep (Loop 4c), its independent verification by the visual-verification-team (Loop 4f), the editability-completeness review (Loop 4e), and the interaction-completeness review (Loop 4g) all run here.
 - **Exit criteria:** every Phase 1 acceptance criterion passes; every documented error response exercised; every interactive element covered by a genuine user-flow test and every page verified live (the interaction-completeness team agrees the interactive surface is genuine); the editability team reaches `satisfied`.
 - **On failure:** SR auto-spawn → Logic Map B.
 - **References:** [`skills/dev-api-integration-testing/SKILL.md`](skills/dev-api-integration-testing/SKILL.md), [`skills/playwright-user-flows/SKILL.md`](skills/playwright-user-flows/SKILL.md), [`agents/integration.md`](agents/integration.md).
@@ -913,7 +955,7 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 - **Mechanism per iteration:** walk every commit; attribute to ≥ 1 requirement via the coverage map; re-run `openspec validate`; walk every coverage-map entry. Then dispatch the `system-architect` in **Master Review Audit mode** — an independent re-verification of every entry + every SR (the orchestrator's own walk is a producer-is-own-checker step; the audit is the independent checker).
 - **Exit criteria — every entry must have:** ≥ 1 commit SHA; passing unit/integration tests; passing Playwright flow(s) where applicable; non-empty `demo_artifact`; the editability team `satisfied` for entity-bearing features. Plus `openspec validate` reports `valid: true`, AND the independent master-review audit verdict is `overall: pass` (it gates the Phase 8 commit; the `Stop` hook checks it). Per v3.9.2, once a master-review verdict exists the `Stop` hook ALSO independently re-runs `openspec validate --all --strict` — an openspec change that fails this gate BLOCKS the commit.
 - **On any gap:** re-spawn the appropriate team(s); meta-loop continues until the coverage map is fully green.
-- **Terminal action:** `openspec archive <change-name>`. Phase 8 then runs the **documentation-currency gate** — every doc the change touched (the maps, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) is updated and then independently audited by the `system-architect` (Documentation Currency Audit mode) — emits the final report (persisted + mined to MemPalace), and auto-commits + pushes.
+- **Terminal action:** `openspec archive <change-name>`. Phase 8 runs the **FULL test suite once** (`select --phase 8` returns every test with reason `full-suite-phase`; no selector flag narrows it, and the result is recorded as evidence before the merge), then the **documentation-currency gate** — every doc the change touched (the maps, `README.md`, `CHANGELOG.md`, `CLAUDE.md`) is updated and then independently audited by the `system-architect` (Documentation Currency Audit mode) — emits the final report (persisted + mined to MemPalace), and auto-commits + pushes.
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -925,9 +967,9 @@ The pipeline is a stack of nested loops, each with explicit exit criteria. Liste
 
 Run the full Phase −1 → 8 pipeline against a requirements folder. See "Usage" above.
 
-### `/architect-team:architect-team-setup [--check-only] [--no-prompt] [--yes] [--force-reinstall] [--codex|--no-codex] [--external-llm|--no-external-llm] [--secondary <openai|zai>]`
+### `/architect-team:architect-team-setup [--check-only] [--no-prompt] [--yes] [--force-reinstall] [--project-root <path>] [--codex|--no-codex] [--external-llm|--no-external-llm] [--secondary <openai|zai>]`
 
-Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent. Also **HARD-checks (exit 1)** that the required plugins (superpowers, cartographer, ralph-loop) are installed and verifies the vendored `openspec-propose` skill resolves via `ensure_openspec_propose_skill()`. Manages the v3.35.0 role split (`--codex`/`--no-codex`) and the v3.36.0 external-LLM gateway (`--external-llm`/`--no-external-llm`) — both never-gates. **v3.40.0 — choose the secondary API:** `--secondary <openai|zai>` (or `CT6_SECONDARY_PROVIDER`) selects which provider backs the split's provider-neutral `ct6-secondary` alias — OpenAI Codex (`gpt-5.6-sol`) or Z.ai GLM 5.2 (`glm-5.2`, keyed by `ZAI_API_KEY` with full v3.38.0 decline parity via `--zai-key`); the choice is asked once (the wrapper's "Choose the secondary API" gate / the installer's TTY prompt), remembered in `gateway.json`, grandfathered as openai for a pre-v3.40 install, and re-opened only by `--re-ask-provider`. **v3.38.0 — ask for missing keys, never punt:** on an absent-key state from the external-LLM path (`ANTHROPIC_API_KEY` absent in subscription mode / the chosen secondary provider's key — `OPENAI_API_KEY` or `ZAI_API_KEY` — absent in provisioned-but-NOT-enabled), the wrapper ASKS for the key in-session (capture-and-apply, with a prior `--yes` carrying over as `--activate` consent) or records an explicit decline via the installer's `decline` subcommand — never the bare script remediation as the only path; an interactive terminal run of the installer prompts itself (hidden entry, blank-to-skip).
+Cross-platform installer for prerequisites: openspec CLI, pytest+httpx, Playwright + chromium. Idempotent. Reports the **CONDITIONAL** plugins (superpowers, cartographer, bauplan — `CONDITIONAL_PLUGINS`; verified and remediated, never exit 1; `REQUIRED_PLUGINS` is empty since v4.0.0) and **exits 1 on a missing vendored `openspec-propose` skill** (resolved via `ensure_openspec_propose_skill()`; under `--check-only` also on an unsatisfied Agent Teams mode), **exits 2 on a failed install step**. Writes `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` (consent flow) so Claude 5 sessions have the task tools the gates read; with `--project-root` asks the page-publishing question once and builds the project's first homepage. Manages the v3.35.0 role split (`--codex`/`--no-codex`) and the v3.36.0 external-LLM gateway (`--external-llm`/`--no-external-llm`) — both never-gates. **v3.40.0 — choose the secondary API:** `--secondary <openai|zai>` (or `CT6_SECONDARY_PROVIDER`) selects which provider backs the split's provider-neutral `ct6-secondary` alias — OpenAI Codex (`gpt-5.6-sol`) or Z.ai GLM 5.2 (`glm-5.2`, keyed by `ZAI_API_KEY` with full v3.38.0 decline parity via `--zai-key`); the choice is asked once (the wrapper's "Choose the secondary API" gate / the installer's TTY prompt), remembered in `gateway.json`, grandfathered as openai for a pre-v3.40 install, and re-opened only by `--re-ask-provider`. **v3.38.0 — ask for missing keys, never punt:** on an absent-key state from the external-LLM path (`ANTHROPIC_API_KEY` absent in subscription mode / the chosen secondary provider's key — `OPENAI_API_KEY` or `ZAI_API_KEY` — absent in provisioned-but-NOT-enabled), the wrapper ASKS for the key in-session (capture-and-apply, with a prior `--yes` carrying over as `--activate` consent) or records an explicit decline via the installer's `decline` subcommand — never the bare script remediation as the only path; an interactive terminal run of the installer prompts itself (hidden entry, blank-to-skip).
 
 ### `/architect-team:visual-qa [<codebase-path>]`
 
@@ -947,7 +989,7 @@ Ad-hoc interaction with the per-workspace MemPalace store at `<workspace>/.mempa
 
 ### `/architect-team:editability-audit [<codebase-path>] [--feature <name>]`
 
-On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4e), reports the converged editable-surface map + gaps + escalations, and writes the `editability-gap` SRs.
+On-demand editability-completeness audit. Spawns the three-reviewer team (Loop 4e — review tier 3 through the `ct6-converge` `editability` preset), reports the converged editable-surface map + gaps + escalations, and writes the `editability-gap` SRs.
 
 ### `/architect-team:mini <requirements-folder | free-text prompt>`
 
@@ -983,6 +1025,13 @@ On-demand replay of the heavyweight gates against a batch of recent mini-runs �
 | `<workspace>/.architect-team/escalation-pending.md` | Escalation marker — present while the run is paused for a human (the Stop hook stands down) | — |
 | `<workspace>/.architect-team/runs/<change>-<ts>.md` | Phase 8 final reports | — |
 | `<workspace>/.mempalace/palace` | MemPalace local-first searchable memory store | — |
+| `<workspace>/.architect-team/principles.json` → `docs/PROJECT_PRINCIPLES.md` | Codified project principles (v4.0.0; `scripts/principles/`, `/architect-team:principles`); the rendered doc is agent-immutable | — |
+| `<workspace>/.architect-team/decisions.jsonl` | Decisions ledger (v4.0.0; `hooks/decisions_ledger.py`) — one append-only line per decision, rendered by the homepage | — |
+| `<workspace>/.architect-team/run-history/timings.jsonl` | Timing log (v4.0.0; `hooks/timings_log.py`) — agent / task / phase / run intervals; `scripts/homepage/timings.py` turns them into history-not-promise estimates | — |
+| `<workspace>/.architect-team/homepage/index.html` | The per-project homepage (v4.0.0; `scripts/homepage/build.py`, `/architect-team:home`) — built from the state files, secrets never rendered | `built_at` + source hashes |
+| `<workspace>/.architect-team/test-index.json` + `test-selection-<ts>.json` | Test index + per-phase selection records (v4.0.0; `scripts/test_index/`) — the Phase 3 / 5 evidence cites the selection record | — |
+| `<workspace>/.architect-team/trash/<run-id>/` | Soft-deleted paths (v4.0.0; `hooks/deletion_guard.py trash` / `prune`) with `.trash-manifest.jsonl` | — |
+| `<project>/.architect-team-publish.json` | Human-owned page-publishing config (v4.0.0; template `.architect-team-publish.example.json`; `/architect-team:publish`) — agent-immutable | — |
 | `<test-output-dir>/expectations/<test-id>.json` | Per-test predictions (RCA pre-condition) | — |
 | `<test-output-dir>/rca/<test-id>-<ts>.json` | 3-pass RCA artifact for failed tests | — |
 | `openspec/changes/<change>/coverage-map.json` | Coverage map (Phase 1 → 8 spine) | — |
@@ -1151,7 +1200,7 @@ Markdown. Three failure modes, one enforcement layer.
 A new judgment-heavy verification discipline — the `interaction-completeness`
 skill — modeled on the proven `editability-completeness` pattern. For any slice
 with UI/UX surface it runs at the **Phase 3** review gate and the **Phase 5**
-cross-layer pass: three `interaction-reviewer` agents (fable, analysis-only)
+cross-layer pass: the `interaction-reviewer` agents (sonnet, analysis-only; one per slice at tier 2, a panel of three at tier 3)
 spawn **in parallel** and each independently re-enumerates **every interactive
 element** (buttons, links, inputs, selects, toggles, menus, drag handles,
 file-uploads) AND **every page / screen / route** — the union of the design /
@@ -1244,7 +1293,7 @@ escalates to the human.
 python -m pytest -v
 ```
 
-Tests validate: plugin/marketplace JSON; all 56 skill frontmatters; all 39 agent frontmatters (tool + model names); all 26 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 124 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands); hooks.json wiring for all eight trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle + the v3.18.0 PreCompact + the v3.30.0 SessionStart); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check and the v3.56.0 completion lock — its placement above every agent-written release path, the four kill-switches, teammate owner-scoping, and the block-vs-fail-open split of the `hooks/open_work.py` substrate, plus the v3.64.0 abandonment discrimination (inherited-stale tasks surface, never block; the retire surface refuses live tasks without --force); path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks), and playwright-suite-intuition-lifecycle (v3.65.0 — the `intuition-map-lifecycle` ensure/grow/bug-path-upsert engine, the `suite-manifest.json` schema engine + `verify-suite-manifest` with default-deny prod safety, the 8 thin lane hooks, and the run-driving registry additions — 4 new test files), and executed-diagnosis-and-no-limits (v3.66.0 — the `verify-diagnosis-falsified` tool + the `_audit_diagnosis_falsified` Stop arm, the `verification-planning` skill + the `stuck-without-verification-plan` gap, and the no-self-imposed-limits corpus sweep — 3 new test files), and git-commit-identity (v3.67.0 — the `hooks/git_identity.py` substrate against real git fixtures, the Arm-4 gate matrix, the merge helper's author, the six front-door pins, and the maintainer-identity sweep — 1 new test file) disciplines. **8345 tests pass (+ 6 skipped, 0 failed, across 263 top-level test files — disk-anchored via `git ls-files 'tests/test_*.py'`; measured on Windows/win32 at v3.67.0, recorded under `docs/measurements/` as the release's closing act; the win32/darwin skip-profile difference is real — a darwin host without PyYAML reports 16 skips, 14 PyYAML-gated + 2 archived-coverage-map, and a PyYAML-present host reports fewer).**
+Tests validate: plugin/marketplace JSON; all 60 skill frontmatters (`user-invocable: false` on the 57 internal skills); all 39 agent frontmatters (tool + model names — `TaskList` / `TaskUpdate`, never `TodoWrite`; the role split; the `ct6-agent-core` preload with no compiled boilerplate block left in any body, guarded by `sync_agent_boilerplate.py --check`); all 30 commands; the v3.31.0 instruction-compliance lint (`tests/test_instruction_compliance.py` — the deterministic engine's enforced zero-findings gate across all 132 in-scope instruction files, plus the uniform 1024-char raw-description cap for agents + commands and the v4.0.0 dead-pointer / dead-heading / chapter-over-budget checks; tests read the SURFACE an agent receives via `tests/helpers/surfaces.py`, so wording pins hold wherever the words live); hooks.json wiring for all ten trigger events (PreToolUse + PostToolUse + SubagentStop + Stop + the v1.0.0 TaskCompleted + TeammateIdle + the v3.18.0 PreCompact + the v3.30.0 SessionStart + the v4.0.0 SubagentStart + TaskCreated); hook script logic (review-gate + teammate-idle share one `review_evidence_schema` module — evidence schema v7: 17 self-review fields + the independent `task-reviewer` verdict; the `pretool_unilateral_override_guard` PreToolUse hook; the `pipeline-completion-audit` Stop hook incl. the master-review audit check and the v3.56.0 completion lock — its placement above every agent-written release path, the four kill-switches, teammate owner-scoping, and the block-vs-fail-open split of the `hooks/open_work.py` substrate, plus the v3.64.0 abandonment discrimination (inherited-stale tasks surface, never block; the retire surface refuses live tasks without --force); path-traversal sanitization); cross-component consistency (the two evidence hooks cannot drift; the Stop hook's origin set matches the pipeline; no unregistered skills/agents/commands); the setup + MemPalace install scripts; the `scripts/notify/notify.py` notifier (config load/validate, Gmail + SendGrid message construction with mocked transport, event dispatch, secret resolution, CLI + failure isolation) and its pipeline wiring; the v1.0.0 teams-mode detection helper (`scripts/setup/teams_mode.py`) + the cross-session lock layer (`hooks/locks.py`); the v1.1.0 worktree-aware state-resolution helper (`scripts/setup/worktree_paths.py`) including the cross-worktree lock-coordination integration test (acquire from a real `git worktree add`-created worktree blocks an intersecting acquire from main with the default `locks_dir`); the v1.2.0+v1.3.0+v3.6.0 worktree-lifecycle helper (`scripts/setup/worktree_lifecycle.py`) including `create_run_worktree` (now at the v3.6.0 hidden per-project container layout `<parent>/.<repo>-worktrees/<slug>/`) + collision handling, `current_worktree_is_run` True / False detection, `current_run_slug` extraction, `cleanup_run_worktree` with + without branch removal, the v1.3.0 auto-cleanup helpers (`list_merged_architect_team_worktrees` with `exclude_current` safeguard; `cleanup_merged_worktrees` with `dry_run` preview; end-to-end cleanup-only-removes-merged), and the v3.6.0 `finalize_run_worktree` end-of-run merge check (remove-when-merged / warn-when-unmerged / no-op-on-non-run-branch) + dual-layout (old-flat + new-container) slug derivation & sweep, and the v3.7.0 auto-merge-to-main helpers (`list_run_branches` per-branch merged / cleanly-mergeable status excluding non-architect-team branches; `merge_branch_to_main_and_prune` clean-merge→push→delete-branch→remove-worktree with conflict-abort-changes-nothing and never-`--force` safety)) — all exercising real `git init` + `git worktree add` fixtures with no git mocks; and the no-arbitrary-timers, diagnostic-research, MemPalace-integration, integration-testing, expensive-verification, editability-completeness, readme-styling, design-baseline-migration, visual-verification-team, producer-checker-enforcement, mempalace-mine-syntax, documentation-currency, project-email-notifications, ui-interaction-fidelity, email-testing, proposal-refiner, ux-test-builder, bug-fix-pipeline, code-path-witness, mini-architect-team-pipeline, agent-teams-mode, scope-discipline (v1.4.0 — `tests/test_scope_discipline.py` audits the canonical `## Scope discipline` section in `common-pipeline-conventions/SKILL.md`, the 6 parity-implying verbs documented in the section + the bug-classifier action-verb section, the 3 pipeline body references, the prompt-refiner 6th `scope-fidelity` axis + grade-schema, the proposal-refiner Phase R2 documentation of the axis + new weights, and the system-architect Master Review Audit + Phase 2 architect brief scope-narrowing checks), and playwright-suite-intuition-lifecycle (v3.65.0 — the `intuition-map-lifecycle` ensure/grow/bug-path-upsert engine, the `suite-manifest.json` schema engine + `verify-suite-manifest` with default-deny prod safety, the 8 thin lane hooks, and the run-driving registry additions — 4 new test files), and executed-diagnosis-and-no-limits (v3.66.0 — the `verify-diagnosis-falsified` tool + the `_audit_diagnosis_falsified` Stop arm, the `verification-planning` skill + the `stuck-without-verification-plan` gap, and the no-self-imposed-limits corpus sweep — 3 new test files), and git-commit-identity (v3.67.0 — the `hooks/git_identity.py` substrate against real git fixtures, the Arm-4 gate matrix, the merge helper's author, the six front-door pins, and the maintainer-identity sweep — 1 new test file), and claude-5-modernization (v4.0.0 — the task-tools floor + both task-dir layouts + the advisory degrade, the constitution split with its `references/INDEX.md` declarations and `verify-required-reads`, the `ct6-agent-core` preload inverse contract, `--split role`, the review tiers + the `ct6-converge` workflow, the conditional plugin tier with its native fallback, the deletion guard + soft delete, project principles + `verify-principles-respected`, the test index + selector, sample-first, page publishing, the homepage + timing log + decisions ledger, and the instruction budget) disciplines, and quiet-holds-and-the-users-release (v4.1.0 — the Stop hold channel contract in `tests/test_stop_hold_channel.py`, the `/architect-team:unlock` engine, Arm 5, the override-guard arm and the waiver rules in `tests/test_completion_unlock.py`, the converge-record read in `tests/test_converge_gate.py` — 3 new test files). **8932 tests pass (+ 2 skipped, 0 failed, across 277 top-level test files — disk-anchored via `git ls-files 'tests/test_*.py'`; measured on linux/py3.13 at v4.1.0 and recorded as `docs/measurements/2026-11-09-v4.1.0-suite.json` as the release's closing act; the skip profile varies by host — a host without PyYAML reports the PyYAML-gated skips in addition).**
 
 ### Bumping versions
 
@@ -1266,13 +1315,13 @@ Tests validate: plugin/marketplace JSON; all 56 skill frontmatters; all 39 agent
 ```
    ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 
-   ◆       v3.67.0 ─ git-commit-identity — a run commits as the PERSON
-           driving it, and the tool never decides who: the front door
-           resolves a per-checkout git-identity.json once (a git-config
-           candidate is confirmed, a missing one is asked, never a
-           hardcoded author); every commit carries it, and a PreToolUse
-           arm refuses a commit-authoring git command in an active run
-           that lacks or contradicts the record
+   ◆       v4.0.0 ─ claude-5-modernization — keep every gate, shed the
+           instruction weight: the constitution + references/ chapters,
+           ct6-agent-core preloaded by every agent, models by role, review
+           tiers, the ct6-converge workflow (ralph-loop retired), conditional
+           superpowers / cartographer, the Claude 5 task-tools floor; plus the
+           deletion guard, project principles, the test index + selector,
+           sample-first, page publishing, and the homepage + timing log
 
            Full release timeline (every version) → docs/RELEASE_HISTORY.md
 
@@ -1291,6 +1340,6 @@ MIT — see [`LICENSE`](LICENSE).
 
 ```
                   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-                  █   Built with Claude Code · Opus 5   █
+                  █   Built with Claude Code            █
                   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 ```

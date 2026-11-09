@@ -1,0 +1,11 @@
+# Contract-first parallelism (v3.48.0 — the canonical statement)
+
+When a run needs BOTH backend surface work AND a frontend that visualizes that data, the architect settles the INTERFACE first and makes it real immediately, so both sides build at once. The frontend never needed the backend's implementation — only its interface, and those become available at very different times.
+
+**The rule.** At Phase 2 / M4, for every `both`-layer slice where the frontend needs a surface that does not exist (`new-surface`) or lacks attributes it must render (`amend-surface` — equally blocking): the two agents co-design the contract, `system-architect` `## Interface Contract Approval` approves and BINDS it (amendments return through the architect, who relays them), and the backend's FIRST action is to provision the endpoint **at its REAL path** with a contract-conforming provisional payload registered in `.architect-team/contracts/ledger.json`. The frontend then builds its complete integration against that live surface while the backend builds the real internals underneath. Before the run closes, every surface reaches `live` (real data, verified end-to-end through the same path) — `scripts/contract/interface_contract.py gate` blocks the close-out on any unretired entry, and the ledger state machine is forward-only.
+
+**Why this is not the forbidden pattern below.** The provisional data lives SERVER-SIDE behind the real path, so the frontend holds no fixture, no `page.route` intercept, and no hardcoded shape — it performs real HTTP and renders what comes back, which is strictly more live-wired than the alternative. The safety property is the ledger: a mock that outlives its run IS the debt these disciplines exist to prevent, which is why retirement is a blocking gate rather than a reminder.
+
+**Relationship to the discipline below.** Contract-first is the DEFAULT when the architect has engaged it. The missing-API SR-and-pause path governs a surface discovered mid-slice that the architect has not contracted — and that SR is the cheapest entry point into this protocol, since it already documents the shape the architect can convert into a contract.
+
+Full protocol (CFP-1…CFP-6, the engine contract, the approval and retirement gates): `skills/contract-first-parallelism/SKILL.md`.

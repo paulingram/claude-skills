@@ -12,6 +12,7 @@ WHY, when fallback fired). The structural-test discipline matches v1.0.0's
 monkeypatched per scenario, settings.json injected via a tmp_path Path.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import importlib.util
 import json
@@ -266,7 +267,7 @@ def test_each_pipeline_slash_command_documents_banner_step(
     """
     path = plugin_root / "commands" / f"{cmd_name}.md"
     assert path.exists(), f"{cmd_name}.md missing"
-    text = path.read_text(encoding="utf-8")
+    text = surface_read(path)
 
     # The section heading must appear.
     assert "## Dispatch mode banner" in text, (
@@ -297,7 +298,7 @@ def test_each_pipeline_slash_command_banner_is_informational_not_gating(
     that subprocess failure surfaces a one-line note and the run continues.
     """
     path = plugin_root / "commands" / f"{cmd_name}.md"
-    text = path.read_text(encoding="utf-8")
+    text = surface_read(path)
     # Look at the banner section's body specifically.
     banner_idx = text.find("## Dispatch mode banner")
     next_section_idx = text.find("## ", banner_idx + 1)
@@ -338,7 +339,7 @@ def test_status_command_body_documents_four_sections(plugin_root: Path) -> None:
     active worktrees, open SRs, last completed run.
     """
     path = plugin_root / "commands" / "status.md"
-    text = path.read_text(encoding="utf-8")
+    text = surface_read(path)
     # Section pointers — the helper invocation OR the human description.
     assert "format_dispatch_banner" in text or "Dispatch mode" in text, (
         "status.md must document the dispatch mode banner section"
@@ -363,13 +364,13 @@ def test_architect_team_pipeline_phase8_documents_dispatch_mode_trailer(
 ) -> None:
     """Spec REQ-4 scenario 'architect-team-pipeline Phase 8 documents the trailer'."""
     path = plugin_root / "skills" / "architect-team-pipeline" / "SKILL.md"
-    text = path.read_text(encoding="utf-8")
+    text = surface_read(path)
     assert "Dispatch-Mode:" in text, (
         "architect-team-pipeline Phase 8 must add a `Dispatch-Mode:` trailer"
     )
     # Must appear in the commit-message template block — the Co-Authored-By
     # trailer is the canonical neighbor.
-    co_auth_idx = text.find("Co-Authored-By: Claude Opus")
+    co_auth_idx = text.find("Co-Authored-By: Claude <noreply@anthropic.com>")
     dispatch_idx = text.find("Dispatch-Mode:")
     assert co_auth_idx >= 0 and dispatch_idx >= 0
     # Dispatch-Mode trailer must be near (within ~200 chars of) the
@@ -385,11 +386,11 @@ def test_bug_fix_pipeline_phase_b8_documents_dispatch_mode_trailer(
 ) -> None:
     """Spec REQ-4 scenario 'bug-fix-pipeline Phase B8 documents the trailer'."""
     path = plugin_root / "skills" / "bug-fix-pipeline" / "SKILL.md"
-    text = path.read_text(encoding="utf-8")
+    text = surface_read(path)
     assert "Dispatch-Mode:" in text, (
         "bug-fix-pipeline Phase B8 must add a `Dispatch-Mode:` trailer"
     )
-    co_auth_idx = text.find("Co-Authored-By: Claude Opus")
+    co_auth_idx = text.find("Co-Authored-By: Claude <noreply@anthropic.com>")
     dispatch_idx = text.find("Dispatch-Mode:")
     assert co_auth_idx >= 0 and dispatch_idx >= 0
     assert abs(dispatch_idx - co_auth_idx) < 500
@@ -398,11 +399,11 @@ def test_bug_fix_pipeline_phase_b8_documents_dispatch_mode_trailer(
 def test_mini_pipeline_m7_documents_dispatch_mode_trailer(plugin_root: Path) -> None:
     """Spec REQ-4 scenario 'mini-pipeline M7 documents the trailer'."""
     path = plugin_root / "skills" / "mini-architect-team-pipeline" / "SKILL.md"
-    text = path.read_text(encoding="utf-8")
+    text = surface_read(path)
     assert "Dispatch-Mode:" in text, (
         "mini-pipeline M7 must add a `Dispatch-Mode:` trailer"
     )
-    co_auth_idx = text.find("Co-Authored-By: Claude Opus")
+    co_auth_idx = text.find("Co-Authored-By: Claude <noreply@anthropic.com>")
     dispatch_idx = text.find("Dispatch-Mode:")
     assert co_auth_idx >= 0 and dispatch_idx >= 0
     assert abs(dispatch_idx - co_auth_idx) < 500
@@ -416,7 +417,7 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     version-bump consistency check tracks WHICHEVER version is the current
     release. The test name preserves its v1.5.0 origin (it was added in v1.5.0)
     but its semantic intent is 'plugin metadata is at the current release
-    version', which the current release (v3.67.0 — git-commit-identity)
+    version', which the current release (v4.1.0 — quiet-holds-and-the-users-release)
     makes 3.67.0. NOTE: the v3.40.1 release bumped the manifests without
     updating this pin (red on the shipped 3.40.1 tree) — the pin is updated
     here together with each release's CHANGELOG entry."""
@@ -426,6 +427,6 @@ def test_plugin_metadata_at_1_5_0(plugin_root: Path) -> None:
     marketplace_json = json.loads(
         (plugin_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
     )
-    assert plugin_json["version"] == "3.67.0"
+    assert plugin_json["version"] == "4.1.0"
     # marketplace.json has plugins[0].version
-    assert marketplace_json["plugins"][0]["version"] == "3.67.0"
+    assert marketplace_json["plugins"][0]["version"] == "4.1.0"

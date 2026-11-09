@@ -1,0 +1,5 @@
+import json
+
+
+def test_json_roundtrip():
+    assert json.loads(json.dumps({"a": 1})) == {"a": 1}

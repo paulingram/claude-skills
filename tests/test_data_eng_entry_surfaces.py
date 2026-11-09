@@ -11,6 +11,7 @@ skill only by NAME (never as a `skills/…` path, to stay decoupled from that sl
 and instruction-compliance-clean).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def _body(relpath: str) -> str:
 
 
 def _text(relpath: str) -> str:
-    return (REPO_ROOT / relpath).read_text(encoding="utf-8")
+    return surface_read((REPO_ROOT / relpath))
 
 
 # ── classifier: 5th kind + data_eng_portion field ──────────────────────────

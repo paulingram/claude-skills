@@ -11,6 +11,7 @@ isolation that makes a lane safe, and the doctrine wording across the skills/
 command/verifier so a future edit can't silently drop it.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import surface_read
 
 from pathlib import Path
 
@@ -122,7 +123,7 @@ def test_overlapping_lane_scope_is_blocked(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def _read(rel: str) -> str:
-    return (REPO_ROOT / rel).read_text(encoding="utf-8")
+    return surface_read((REPO_ROOT / rel))
 
 
 def test_canonical_documents_parallel_lanes() -> None:

@@ -5,6 +5,7 @@ submission builder (consent gate + the full/summary/off levels), the evidence
 redaction (EVAL-16), the validator, the CLI, and the skill + command surfaces.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -185,7 +186,7 @@ def test_cli_off_produces_nothing(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def test_skill_present_and_documents_hd() -> None:
-    body = (REPO_ROOT / "skills" / "helpdesk" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("helpdesk")
     assert body.startswith("---")
     assert "logit.py" in body
     for tag in ("HD-1", "HD-2", "HD-3"):

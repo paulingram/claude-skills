@@ -1490,9 +1490,9 @@ def _default_agents_dir() -> Path:
 
     Claude Code runs the INSTALLED plugin cache copy, not the dev checkout —
     a split applied to the repo's agents/ never reaches the runtime and is
-    reverted by the next git operation (the committed ship state is the v3.43.0
-    delivery-adversarial split — 12 delivery + adversarial agents on ``opus``,
-    27 planning / validation / review agents on ``fable``). Resolve the
+    reverted by the next git operation (the committed ship state is the v4.0.0
+    role split -- 15 fable / 9 opus / 14 sonnet / 1 haiku; the v3.43.0
+    delivery-adversarial split before it). Resolve the
     installed copy via the lever; fall back to the repo agents/ when no
     installed copy exists (a --plugin-dir dev install, or tests)."""
     return _lever.runtime_agents_dir()

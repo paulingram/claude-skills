@@ -1,24 +1,41 @@
 #!/usr/bin/env python3
-"""v3.0.0 PreToolUse runtime guardrail.
+"""PreToolUse runtime guardrail -- seven arms over Edit / Write / NotebookEdit.
 
-Fires BEFORE Edit / Write / NotebookEdit tool calls when:
+Registered in hooks/hooks.json as PreToolUse[Edit|Write|NotebookEdit]; the
+payload is read from stdin as JSON. `check_payload` runs SIX UNCONDITIONAL
+immutability arms first -- each fires whether or not a pipeline run is active,
+in this order -- and only then the run-gated pipeline-bypass arm:
 
-  1. An active pipeline run is in flight (workspace's `.architect-team/
-     intake-state.json` exists with `status: in_progress` and `phase < 8`).
-  2. The about-to-fire tool targets a source file (NOT under
-     `.architect-team/` / `.mempalace/` / `openspec/changes/`).
-  3. No `Skill(architect-team-pipeline)` (or sibling pipeline skill)
-     invocation appears in the run's toolcall ledger yet.
+  1. v3.56.0 completion-lock ground truth: the ask-ledger, a Claude Code
+     settings file (`.claude/settings.json` / `settings.local.json`), or the
+     harness task store the Stop-hook completion lock reads (link aliases
+     of each included).
+  2. v4.1.0 completion-hold release records under `.architect-team/releases/`
+     (written only by the user's own `/architect-team:unlock` command).
+  3. v4.0.0 an EXISTING `.architect-team-publish.json` (the page-publishing
+     opt-in).
+  4. v4.0.0 `docs/PROJECT_PRINCIPLES.md` (rendered from
+     `.architect-team/principles.json` by the principles engine, never
+     hand-edited).
+  5. v3.44.0 an EXISTING `.architect-team-deploy.json` (the human-authored
+     deploy config).
+  6. v3.61.0 recorded measurement artifacts under `docs/measurements/`
+     (creation is refused too -- a hand-written artifact IS the forgery).
+  7. v3.0.0 pipeline bypass, the only RUN-GATED arm. It fires when all of:
+     an active pipeline run is in flight (the workspace's `.architect-team/
+     intake-state.json` has `status: in_progress` and `phase < 8`); the tool
+     targets a source file (NOT under `.architect-team/` / `.mempalace/` /
+     `openspec/changes/`); and no `Skill(architect-team-pipeline)` (or
+     sibling pipeline skill) invocation appears in the run's toolcall ledger
+     yet.
 
-When all three conditions hold, exit 2 to block the tool call. The stderr
-message names the violation + the disclosure-required alternative.
-
-Use:
-  Registered in hooks/hooks.json as PreToolUse[Edit|Write|NotebookEdit].
-  Payload is read from stdin as JSON.
-
-Backwards-compat: when no active pipeline state is detected, the hook is a
-silent no-op (exit 0). Stdlib-only.
+Any arm that matches exits 2 to block the tool call; the stderr message names
+the violation + the required alternative (for arm 7, the disclosure-required
+alternative). Arms 1-6 need no pipeline state at all, so a plain session
+with no CT6 run is still refused on those surfaces; arm 7 alone stands down
+when no active run is detected. A tool other than Edit / Write / NotebookEdit,
+a payload with no file path, or a path no arm matches is allowed (exit 0).
+Stdlib-only.
 """
 
 from __future__ import annotations
@@ -159,6 +176,46 @@ def _targets_existing_deploy_config(file_path: str) -> bool:
     except (TypeError, ValueError):
         return False
     return p.name == _DEPLOY_CONFIG_FILENAME and p.exists()
+
+
+# v4.0.0 -- two more human-owned surfaces on the deploy-config terms.
+_PUBLISH_CONFIG_FILENAME = ".architect-team-publish.json"   # page-publishing opt-in
+_PRINCIPLES_DOC_PARENT = "docs"                              # docs/PROJECT_PRINCIPLES.md
+_PRINCIPLES_DOC_NAME = "PROJECT_PRINCIPLES.md"
+_RELEASES_DIRNAME = "releases"                               # .architect-team/releases/*.json (v4.1.0)
+
+
+def _targets_release_record(file_path: Any) -> bool:
+    """True iff the tool targets a file under ``.architect-team/releases/`` --
+    the records the user's /architect-team:unlock command writes. Parent-pair
+    keyed like the measurements arm, so some project's own ``releases/``
+    directory stays out of scope."""
+    if not isinstance(file_path, str) or not file_path.strip():
+        return False
+    parts = [p for p in file_path.strip().replace("\\", "/").split("/") if p]
+    return len(parts) >= 3 and parts[-2] == _RELEASES_DIRNAME and parts[-3] == ".architect-team"
+
+
+def _targets_existing_publish_config(file_path: Any) -> bool:
+    """True iff the tool targets an EXISTING ``.architect-team-publish.json``."""
+    if not isinstance(file_path, str) or not file_path:
+        return False
+    try:
+        p = Path(file_path)
+    except (TypeError, ValueError):
+        return False
+    return p.name == _PUBLISH_CONFIG_FILENAME and p.exists()
+
+
+def _targets_project_principles(file_path: Any) -> bool:
+    """True iff the tool targets ``docs/PROJECT_PRINCIPLES.md`` (parent pair),
+    the human-readable twin the principles engine renders. Agents change it
+    only through ``scripts/principles/cli.py``, never with Edit / Write."""
+    if not isinstance(file_path, str) or not file_path:
+        return False
+    norm = file_path.replace("\\", "/")
+    parts = [c for c in norm.split("/") if c]
+    return len(parts) >= 2 and parts[-1] == _PRINCIPLES_DOC_NAME and parts[-2] == _PRINCIPLES_DOC_PARENT
 
 
 # v3.61.0 — recorded MEASUREMENT ARTIFACTS are immutable to agent tools. A
@@ -498,9 +555,11 @@ def _settings_identity_candidates(target: Path) -> list[Path]:
 def _task_store_identity_candidates(roots: tuple[Path, ...]) -> list[Path]:
     """Files under the protected task roots, in the harness's own layout.
 
-    The store is `<root>/session-<8-of-session-id>/<taskId>.json` (see
-    `hooks/open_work.py::read_harness_tasks`), so two shallow globs cover it
-    without an unbounded walk, and `_IDENTITY_SCAN_CAP` bounds even a
+    The store is `<root>/<full session id>/<taskId>.json` today and
+    `<root>/session-<8-of-session-id>/<taskId>.json` in older builds (see
+    `hooks/open_work.py::session_task_dir`); both are two levels deep, so two
+    shallow globs cover it without an unbounded walk, and
+    `_IDENTITY_SCAN_CAP` bounds even a
     pathological root.
     """
     out: list[Path] = []
@@ -738,6 +797,52 @@ def check_payload(payload: dict[str, Any]) -> tuple[int, str]:
     # pipeline-state gate below), because an agent editing/disabling the deploy
     # config is a violation whether or not a pipeline run is active. Only a human
     # may change it once it exists.
+    if _targets_release_record(file_path):
+        return 2, (
+            "CT6 v4.1.0 PreToolUse guardrail BLOCKED -- a completion-hold release "
+            "record is written by the user's command, never authored or edited.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            "Files under .architect-team/releases/ are the evidence that the USER "
+            "released a hold, in their own words. The Stop hook honours a waived "
+            "gate only because such a record exists; hand-writing one manufactures "
+            "a release nobody asked for, and editing one rewrites what they said.\n"
+            "\n"
+            "REQUIRED ACTION: none for you. If the user wants a hold released, they "
+            "type the command; its engine writes the record. If a record is wrong, "
+            "tell the user -- it is theirs to correct.\n"
+            "\n"
+            "HONEST BOUNDARY: Bash can still write these files; this rule makes it "
+            "a deliberate act on a named surface, not an accident."
+        )
+    if _targets_existing_publish_config(file_path):
+        return 2, (
+            "CT6 v4.0.0 PreToolUse guardrail BLOCKED -- publish config immutability.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            f"'{_PUBLISH_CONFIG_FILENAME}' is a HUMAN-AUTHORED opt-in (where shareable "
+            "pages are hosted, with what token lifetime). Once it exists only a human "
+            "edits it; the setup question writes it once with the human's answer.\n"
+            "REQUIRED ACTION: do NOT modify this file. Report the needed change and let "
+            "the human make it."
+        )
+    if _targets_project_principles(file_path):
+        return 2, (
+            "CT6 v4.0.0 PreToolUse guardrail BLOCKED -- project principles are rendered, not edited.\n"
+            "\n"
+            f"  - tool about to fire: {tool}\n"
+            f"  - target file: {file_path}\n"
+            "\n"
+            "docs/PROJECT_PRINCIPLES.md is rendered from .architect-team/principles.json by "
+            "the principles engine. Propose, confirm, add or retire a principle through "
+            "`python scripts/principles/cli.py` (the /architect-team:principles command), "
+            "which re-renders the file; a confirmed principle is the user's decision and "
+            "is never rewritten by hand."
+        )
     if _targets_existing_deploy_config(file_path):
         message = (
             "CT6 v3.44.0 PreToolUse guardrail BLOCKED — deploy config immutability.\n"

@@ -59,6 +59,22 @@ Flags (each independent):
 - No flags → `AUTO_COMMIT = true`, `AUTO_PUSH = true`, `AUTO_COMPACT_PROMPT = true`,
   `ALLOW_PUSH_TO_DEFAULT = false`, `PROPOSAL_FIRST = false`, `AUTO_WORKTREE = true`.
 
+## Auto-cleanup of merged worktrees (v1.3.0) -- runs first
+
+Before any argument parsing or pipeline invocation, sweep merged architect-team
+worktrees, exactly as the other five lane commands do. Best-effort: a failure
+surfaces a one-line note and the run continues.
+
+1. Refresh the origin ref so merge detection is current (best-effort):
+   ```bash
+   git fetch origin main 2>/dev/null || true
+   ```
+2. Invoke the cleanup helper via the detect-once form:
+   ```bash
+   $(command -v python3 || command -v python) -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts/setup'); from worktree_lifecycle import cleanup_merged_worktrees; [print(f'cleaned: {p}') for p in cleanup_merged_worktrees()]" 2>&1 || echo 'auto-cleanup: best-effort, continuing.'
+   ```
+3. Report any cleaned paths in one line; the current worktree is excluded by default.
+
 ## Auto-worktree creation — runs after argument parsing, before skill invocation
 
 Mirrors `commands/ux-test.md`'s worktree wiring. After binding `$SUITE_TARGET` and

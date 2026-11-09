@@ -1,0 +1,15 @@
+# Spec currency discipline (mid-run) (v3.47.0)
+
+**The orchestrator owns spec currency WHILE agents read it.** `openspec/changes/<slug>/` is not a private drafting space once Phase 2 has dispatched — it is the contract several teammates are actively building against, and every edit to it silently re-points a document someone else already read. Two teammates implementing two readings of one amended line produce a defect no test names and no reviewer can attribute; the fix costs a phase, and the cause is invisible in every diff.
+
+**Every teammate's manifest records the spec state it was briefed against.** At Phase 2 dispatch the orchestrator stamps `spec_fingerprint` — a SHA-256 over the sorted (posix relative path, content) pairs of the active change dir, from `hooks/spec_fingerprint.py` — into each teammate manifest beside `baseline_sha` (schema documented in `team-spawning-and-review-gates` `## Baseline SHA capture`). `baseline_sha` freezes the code the teammate started from; `spec_fingerprint` freezes the spec it was told to build.
+
+**An amendment after dispatch obliges a re-brief.** When the orchestrator edits ANY artifact under the active change dir after Phase 2 has dispatched:
+
+1. The fingerprint moves — recompute it.
+2. Write a re-brief handoff to every teammate whose scope the amendment touches: `.architect-team/handoffs/orchestrator-to-<teammate>-rebrief-<ts>.md`, naming what changed and what it changes for THEM (not "the spec was updated" — the specific line, and the specific task it re-scopes).
+3. Update that teammate's manifest `spec_fingerprint` to the new value. Both halves are required: the handoff without the manifest update leaves the audit blind, and the manifest update without the handoff is the orchestrator marking its own homework.
+
+`_audit_spec_currency` in `hooks/pipeline-completion-audit.py` checks this at Stop: a manifest whose expected work is incomplete and whose `spec_fingerprint` no longer matches the current one, with no re-brief record, is a violation naming that teammate. It fails open when there is no openspec change dir and when no manifest carries a fingerprint (pre-upgrade runs).
+
+**Where code and spec disagree at review time, the code wins and the spec is amended in the same phase.** The spec is a plan; the code is the fact. When a reviewer finds the implementation and the written requirement diverge, the resolution is to (a) confirm the code delivers the user-facing outcome, (b) amend the spec artifact to describe what the code actually does, in the same phase, and (c) file a `spec-drift` SR if a second implementation was built against the superseded reading. The resolution is **never** "the readers misread" — a line two competent agents read two ways is an ambiguous line, and blaming the readers leaves the ambiguity in place for the next run. `spec-drift` SRs dispatch a fix team DIRECTLY (the diagnosis is already complete) and are deliberately NOT `TEST_FAILURE_ORIGINS` members; see `team-spawning-and-review-gates` `## Required field validity`.

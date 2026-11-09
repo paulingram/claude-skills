@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers.hook_runner import run_hook as _run
+from tests.helpers.hook_runner import run_hook as _run, allowed, blocked, hook_text
 
 
 # --- fixtures -----------------------------------------------------------
@@ -173,7 +173,7 @@ def test_review_gate_post_tool_use_allow_when_evidence_valid(
     _write_manifest(workspace, "backend-test", ["T-PTU-1"])
     _write_evidence(workspace, "T-PTU-1")
     r = _run(review_gate_script, workspace, _post_tool_use_payload("T-PTU-1"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_review_gate_post_tool_use_block_when_evidence_missing(
@@ -182,9 +182,9 @@ def test_review_gate_post_tool_use_block_when_evidence_missing(
     """REQ-4.1: subagents-mode payload + missing evidence => exit 2."""
     _write_manifest(workspace, "backend-test", ["T-PTU-2"])
     r = _run(review_gate_script, workspace, _post_tool_use_payload("T-PTU-2"))
-    assert r.returncode == 2
-    assert "T-PTU-2" in r.stderr
-    assert "missing review evidence" in r.stderr
+    assert blocked(r)
+    assert "T-PTU-2" in hook_text(r)
+    assert "missing review evidence" in hook_text(r)
 
 
 # --- REQ-4.2: review-gate-task handles TaskCompleted --------------------
@@ -202,7 +202,7 @@ def test_review_gate_task_completed_allow_when_evidence_valid(
     _write_manifest(workspace, "backend-test", ["T-TC-1"])
     _write_evidence(workspace, "T-TC-1")
     r = _run(review_gate_script, workspace, _task_completed_payload("T-TC-1"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_review_gate_task_completed_block_when_evidence_missing(
@@ -212,9 +212,9 @@ def test_review_gate_task_completed_block_when_evidence_missing(
     block-with-feedback message as the subagents-mode equivalent."""
     _write_manifest(workspace, "backend-test", ["T-TC-2"])
     r = _run(review_gate_script, workspace, _task_completed_payload("T-TC-2"))
-    assert r.returncode == 2
-    assert "T-TC-2" in r.stderr
-    assert "missing review evidence" in r.stderr
+    assert blocked(r)
+    assert "T-TC-2" in hook_text(r)
+    assert "missing review evidence" in hook_text(r)
 
 
 def test_review_gate_task_completed_block_when_evidence_invalid(
@@ -233,9 +233,9 @@ def test_review_gate_task_completed_block_when_evidence_invalid(
         json.dumps(bad), encoding="utf-8"
     )
     r = _run(review_gate_script, workspace, _task_completed_payload("T-TC-3"))
-    assert r.returncode == 2
-    assert "T-TC-3" in r.stderr
-    assert "spec_review" in r.stderr
+    assert blocked(r)
+    assert "T-TC-3" in hook_text(r)
+    assert "spec_review" in hook_text(r)
 
 
 def test_review_gate_same_block_message_across_triggers(
@@ -250,15 +250,15 @@ def test_review_gate_same_block_message_across_triggers(
     r_subagents = _run(review_gate_script, workspace, _post_tool_use_payload("T-COMP-A"))
     r_teams = _run(review_gate_script, workspace, _task_completed_payload("T-COMP-B"))
 
-    assert r_subagents.returncode == 2
-    assert r_teams.returncode == 2
+    assert blocked(r_subagents)
+    assert blocked(r_teams)
 
     # Stderr will differ in the task_id substring, but the structural shape
     # (review-gate-task: blocking ... missing review evidence at ...) must match.
-    assert "missing review evidence at" in r_subagents.stderr
-    assert "missing review evidence at" in r_teams.stderr
-    assert r_subagents.stderr.startswith("review-gate-task: blocking")
-    assert r_teams.stderr.startswith("review-gate-task: blocking")
+    assert "missing review evidence at" in hook_text(r_subagents)
+    assert "missing review evidence at" in hook_text(r_teams)
+    assert hook_text(r_subagents).startswith("review-gate-task: blocking")
+    assert hook_text(r_teams).startswith("review-gate-task: blocking")
 
 
 def test_review_gate_task_completed_ignored_when_not_teammate_task(
@@ -271,7 +271,7 @@ def test_review_gate_task_completed_ignored_when_not_teammate_task(
     # manifest claims a DIFFERENT task, so T-EXTERNAL is not a teammate task
     _write_manifest(workspace, "backend-test", ["T-OWNED"])
     r = _run(review_gate_script, workspace, _task_completed_payload("T-EXTERNAL"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_review_gate_task_completed_path_traversal_rejected(
@@ -282,8 +282,8 @@ def test_review_gate_task_completed_path_traversal_rejected(
     unsafe = "T-1/../../etc/passwd"
     _write_manifest(workspace, "backend-test", [unsafe])
     r = _run(review_gate_script, workspace, _task_completed_payload(unsafe))
-    assert r.returncode == 2
-    assert "path-traversal" in r.stderr
+    assert blocked(r)
+    assert "path-traversal" in hook_text(r)
 
 
 # --- REQ-4.3: teammate-idle-check handles both SubagentStop AND TeammateIdle
@@ -297,7 +297,7 @@ def test_idle_check_subagent_stop_allow_when_evidence_complete(
     _write_evidence(workspace, "T-SS-1")
     _write_evidence(workspace, "T-SS-2")
     r = _run(idle_check_script, workspace, _subagent_stop_payload("backend-idle-a"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_idle_check_teammate_idle_allow_when_evidence_complete(
@@ -312,7 +312,7 @@ def test_idle_check_teammate_idle_allow_when_evidence_complete(
     _write_evidence(workspace, "T-TI-1")
     _write_evidence(workspace, "T-TI-2")
     r = _run(idle_check_script, workspace, _teammate_idle_payload("backend-idle-b"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_idle_check_teammate_idle_block_when_evidence_missing(
@@ -323,9 +323,9 @@ def test_idle_check_teammate_idle_block_when_evidence_missing(
     _write_manifest(workspace, "backend-idle-c", ["T-TI-3", "T-TI-4"])
     _write_evidence(workspace, "T-TI-3")  # T-TI-4 missing
     r = _run(idle_check_script, workspace, _teammate_idle_payload("backend-idle-c"))
-    assert r.returncode == 2
-    assert "T-TI-4" in r.stderr
-    assert "no review evidence" in r.stderr
+    assert blocked(r)
+    assert "T-TI-4" in hook_text(r)
+    assert "no review evidence" in hook_text(r)
 
 
 def test_idle_check_same_block_message_across_triggers(
@@ -344,13 +344,13 @@ def test_idle_check_same_block_message_across_triggers(
         idle_check_script, workspace, _teammate_idle_payload("backend-idle-e")
     )
 
-    assert r_subagents.returncode == 2
-    assert r_teams.returncode == 2
+    assert blocked(r_subagents)
+    assert blocked(r_teams)
     # Structural prefix must match across both trigger shapes.
-    assert r_subagents.stderr.startswith("teammate-idle-check: blocking idle of teammate")
-    assert r_teams.stderr.startswith("teammate-idle-check: blocking idle of teammate")
-    assert "no review evidence" in r_subagents.stderr
-    assert "no review evidence" in r_teams.stderr
+    assert hook_text(r_subagents).startswith("teammate-idle-check: blocking idle of teammate")
+    assert hook_text(r_teams).startswith("teammate-idle-check: blocking idle of teammate")
+    assert "no review evidence" in hook_text(r_subagents)
+    assert "no review evidence" in hook_text(r_teams)
 
 
 def test_idle_check_teammate_idle_invalid_evidence_blocks(
@@ -365,9 +365,9 @@ def test_idle_check_teammate_idle_invalid_evidence_blocks(
         json.dumps(bad), encoding="utf-8"
     )
     r = _run(idle_check_script, workspace, _teammate_idle_payload("backend-idle-f"))
-    assert r.returncode == 2
-    assert "T-TI-INV" in r.stderr
-    assert "real_not_stubbed" in r.stderr
+    assert blocked(r)
+    assert "T-TI-INV" in hook_text(r)
+    assert "real_not_stubbed" in hook_text(r)
 
 
 def test_idle_check_teammate_idle_no_manifest_allows(
@@ -377,7 +377,7 @@ def test_idle_check_teammate_idle_no_manifest_allows(
     `.architect-team/teammates/<name>.json` is NOT an architect-team teammate;
     the hook must allow (same as SubagentStop for non-teammates)."""
     r = _run(idle_check_script, workspace, _teammate_idle_payload("some-other-agent"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_idle_check_teammate_idle_path_traversal_rejected(
@@ -390,8 +390,8 @@ def test_idle_check_teammate_idle_path_traversal_rejected(
         workspace,
         _teammate_idle_payload("backend/../../etc/passwd"),
     )
-    assert r.returncode == 2
-    assert "path-traversal" in r.stderr
+    assert blocked(r)
+    assert "path-traversal" in hook_text(r)
 
 
 # --- REQ-4.4: pipeline-completion-audit Stop trigger unchanged ---------
@@ -409,7 +409,7 @@ def test_completion_audit_stop_unchanged_clean_workspace(
     """
     payload = {"hook_event_name": "Stop"}
     r = _run(completion_audit_script, workspace, payload)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_completion_audit_stop_blocks_on_open_sr_regardless_of_mode(
@@ -431,8 +431,8 @@ def test_completion_audit_stop_blocks_on_open_sr_regardless_of_mode(
 
     payload = {"hook_event_name": "Stop"}
     r = _run(completion_audit_script, workspace, payload)
-    assert r.returncode == 2
-    assert "SR-test.json" in r.stderr
+    assert blocked(r)
+    assert "SR-test.json" in hook_text(r)
 
 
 # --- hooks.json wiring (REQ-4 registration) ----------------------------

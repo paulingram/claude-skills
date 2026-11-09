@@ -1,0 +1,11 @@
+import fixpkg.models as models
+
+
+def test_parse_item():
+    item = models.parse_item("sku-1:250")
+    assert item.sku == "sku-1" and item.cents == 250
+
+
+class TestItem:
+    def test_equality(self):
+        assert models.Item("a", 1) == models.Item("a", 1)

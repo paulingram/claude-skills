@@ -82,7 +82,7 @@ def _module_objects() -> dict[str, object]:
             "core", "oracle", "fake_data", "live_verification", "persona", "scope",
             "deferral", "deferral_b", "mention_context", "prod_safety", "registry_inflight", "deploy_pipeline",
             "deploy_pipeline_b", "check_integrity", "frontend_e2e", "claim_binding",
-            "diagnosis",
+            "diagnosis", "principles", "required_reads",
         )
     }
 

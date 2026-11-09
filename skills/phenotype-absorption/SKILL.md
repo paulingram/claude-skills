@@ -1,6 +1,7 @@
 ---
 name: phenotype-absorption
 description: Absorb any arbitrary codebase into a new labeled phenotype — analyze it (read-only), synthesize a generalized blueprint, derive a parameterized scaffold, write + validate the phenotype.json, and index it for reuse. Use when /architect-team:absorb-phenotype is invoked, or the user asks to "absorb" / "capture" / "turn this codebase into a phenotype". The generalized, repeatable form of how the seed phenotypes were authored by hand.
+user-invocable: false
 ---
 
 # Phenotype absorption — turn a codebase into a reusable phenotype

@@ -128,7 +128,9 @@ def test_main_returns_one_when_plugin_missing(setup_module: ModuleType, tmp_path
     """If a required plugin is missing, main() returns 1."""
     installed_path = tmp_path / "installed.json"
     installed_path.write_text(json.dumps({"version": 2, "plugins": {}}), encoding="utf-8")
+    # v4.0.0: the shipped hard set is empty, so a fake hard member proves the branch.
     with patch.object(setup_module, "INSTALLED_PLUGINS_PATH", installed_path), \
+         patch.object(setup_module, "REQUIRED_PLUGINS", {"fake-hard-prerequisite@claude-plugins-official"}), \
          patch.object(setup_module, "ensure_openspec", return_value=("openspec", "present", None)), \
          patch.object(setup_module, "ensure_python_test_tools", return_value=("pytest+httpx+...", "present", None)), \
          patch.object(setup_module, "ensure_playwright", return_value=("playwright", "present", None)), \
@@ -170,13 +172,15 @@ def test_python3_on_path_returns_remediation_when_missing_windows(setup_module: 
 # ---- openspec-propose skill prerequisite (HARD block) ----------------------
 
 
-def test_required_plugins_unchanged_hard_set(setup_module: ModuleType) -> None:
-    """superpowers / cartographer / ralph-loop remain the REQUIRED_PLUGINS hard set."""
-    assert setup_module.REQUIRED_PLUGINS == {
-        "superpowers@claude-plugins-official",
-        "cartographer@cartographer-marketplace",
-        "ralph-loop@claude-plugins-official",
-    }
+def test_required_plugins_hard_set_is_empty_since_v4(setup_module: ModuleType) -> None:
+    """v4.0.0 (proposal change 6): superpowers and cartographer moved to the
+    CONDITIONAL tier (native fallback in
+    skills/common-pipeline-conventions/references/native-methodology.md) and
+    ralph-loop is retired (workflows/ct6-converge.js). The HARD set is empty;
+    the machinery that reads it stays."""
+    assert setup_module.REQUIRED_PLUGINS == set()
+    assert {"superpowers@claude-plugins-official", "cartographer@cartographer-marketplace"} <= setup_module.CONDITIONAL_PLUGINS
+    assert "ralph-loop@claude-plugins-official" not in setup_module.CONDITIONAL_PLUGINS
 
 
 def test_ensure_openspec_propose_present_via_vendored_skill(

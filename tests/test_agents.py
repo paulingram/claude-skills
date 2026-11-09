@@ -1,4 +1,5 @@
 """Validate every expected agent is present with valid frontmatter."""
+from tests.helpers.surfaces import agent_surface, skill_surface
 from pathlib import Path
 
 import pytest
@@ -72,7 +73,8 @@ VALID_MODELS = {
 # `NotebookEdit` is kept.
 VALID_TOOLS = {
     "Read", "Edit", "Write", "Glob", "Grep", "Bash",
-    "TodoWrite", "NotebookEdit",
+    "NotebookEdit",
+    "TaskCreate", "TaskGet", "TaskList", "TaskUpdate",
     "WebFetch", "WebSearch",
 }
 # v3.10.0 (R4d): the documented agent-frontmatter colour palette.
@@ -151,7 +153,10 @@ def test_bounded_write_agents_grant_write(plugin_root: Path, agent_name: str) ->
     path = plugin_root / "agents" / f"{agent_name}.md"
     if not path.exists():
         pytest.skip(f"{agent_name} not present yet")
-    fm, body = frontmatter.parse(path)
+    # v4.0.0: the checkpoint block (and its analysis-only exemption sentence)
+    # reaches the agent through the preloaded ct6-agent-core skill, so the
+    # surface is the file plus that skill.
+    fm, body = frontmatter.parse_text(agent_surface(agent_name, root=plugin_root))
     tools_raw = fm["tools"]
     tools = ({t.strip() for t in tools_raw.split(",") if t.strip()}
              if isinstance(tools_raw, str) else set(tools_raw))
@@ -171,7 +176,10 @@ def test_analysis_only_agents_have_checkpoint_exemption(
     path = plugin_root / "agents" / f"{agent_name}.md"
     if not path.exists():
         pytest.skip(f"{agent_name} not present yet")
-    fm, body = frontmatter.parse(path)
+    # v4.0.0: the checkpoint block (and its analysis-only exemption sentence)
+    # reaches the agent through the preloaded ct6-agent-core skill, so the
+    # surface is the file plus that skill.
+    fm, body = frontmatter.parse_text(agent_surface(agent_name, root=plugin_root))
     tools_raw = fm["tools"]
     tools = ({t.strip() for t in tools_raw.split(",") if t.strip()}
              if isinstance(tools_raw, str) else set(tools_raw))
@@ -193,7 +201,7 @@ def test_agent_boilerplate_is_in_sync(plugin_root: Path) -> None:
 
 def test_oracle_deriver_has_baseline_sha(plugin_root: Path) -> None:
     """v3.10.0 (R4c): oracle-deriver's restored canonical git block names $BASELINE_SHA."""
-    body = (plugin_root / "agents" / "oracle-deriver.md").read_text(encoding="utf-8")
+    body = agent_surface("oracle-deriver", root=plugin_root)
     assert "$BASELINE_SHA" in body, "oracle-deriver must carry the $BASELINE_SHA instruction"
 
 
@@ -215,32 +223,35 @@ def test_agent_body_opens_with_role_or_h1(plugin_root: Path, agent_name: str) ->
     )
 
 
-def test_agents_follow_the_delivery_opus_split(plugin_root: Path) -> None:
-    """v3.43.0: the ship state is the delivery-adversarial Opus split — the 12
-    delivery + adversarial agents ship `model: opus` (strongest code-gen for the
-    agents that write / merge product code; sharpest attacker for the agents that
-    break / refute / reproduce / execute-to-surface-failures) and every planning /
-    validation / review agent stays `model: fable`. The canonical partition is
-    `DELIVERY_ADVERSARIAL_AGENTS` in scripts/setup/set_default_model.py; the
-    deterministic lever `--split delivery` reproduces this exact state. A drifted
-    agent fails this pin. (Superseded the v3.32.0 uniform-fable ship state.)"""
+def test_agents_follow_the_role_split(plugin_root: Path) -> None:
+    """v4.0.0: the ship state is the four-tier model-by-role split (proposal
+    change 5): fable on judgment seats (architecture, adversarial attack,
+    synthesis, independent verdicts, research, map-convergence review), opus on
+    delivery and execution agents, sonnet on mechanical verification /
+    extraction / observation / documentation, haiku on classification. The
+    canonical partition is `ROLE_SPLIT_MODELS` in
+    scripts/setup/set_default_model.py; `--split role` reproduces this exact
+    state. A drifted agent fails this pin. (Superseded the v3.43.0
+    delivery-adversarial Opus ship state, which `--split delivery` still applies.)"""
     lever = load_module(
         plugin_root / "scripts" / "setup" / "set_default_model.py",
         "set_default_model_pin",
     )
     agents_dir = plugin_root / "agents"
     models = {p.stem: frontmatter.parse(p)[0]["model"] for p in sorted(agents_dir.glob("*.md"))}
-    expected = {
-        stem: ("opus" if stem in lever.DELIVERY_ADVERSARIAL_AGENTS else "fable")
-        for stem in models
-    }
-    drift = {name: m for name, m in models.items() if m != expected[name]}
-    assert not drift, f"agents off the delivery-opus split: {drift}"
-    assert len(models) == len(EXPECTED_AGENTS), (
-        f"expected {len(EXPECTED_AGENTS)} agents, found {len(models)}"
+    assert set(lever.ROLE_SPLIT_MODELS) == set(models), (
+        "ROLE_SPLIT_MODELS drifted from agents/*.md: "
+        f"{set(lever.ROLE_SPLIT_MODELS) ^ set(models)}"
     )
-    # the opus set on disk is EXACTLY the canonical delivery/adversarial partition
-    assert {n for n, m in models.items() if m == "opus"} == set(
-        lever.DELIVERY_ADVERSARIAL_AGENTS
-    )
-    assert len(lever.DELIVERY_ADVERSARIAL_AGENTS) == 12
+    drift = {name: m for name, m in models.items() if m != lever.ROLE_SPLIT_MODELS[name]}
+    assert not drift, f"agents off the role split: {drift}"
+    assert len(models) == len(EXPECTED_AGENTS)
+    tiers = {}
+    for stem, model in models.items():
+        tiers.setdefault(model, set()).add(stem)
+    assert set(tiers) == {"fable", "opus", "sonnet", "haiku"}
+    assert tiers["haiku"] == {"bug-classifier"}
+    # the delivery/adversarial partition is still a SUBSET of the opus tier
+    # plus the adversarial fable seats: nothing that writes product code left opus.
+    assert {"backend", "frontend", "integration", "reconciler"} <= tiers["opus"]
+

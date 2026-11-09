@@ -1,6 +1,7 @@
 ---
 description: Refine a free-text prompt with codebase-grounded clarity-grading + conversational dialogue, without running any downstream pipeline. Produces a structured refined-prompt markdown under .architect-team/refined-prompts/ that can later be fed to /architect-team, /architect-team:bug-fix, or /architect-team:ux-test.
-allowed-tools: Skill, Read, Glob, Grep, LS, Bash, Write, AskUserQuestion, TodoWrite, Agent
+allowed-tools: Skill, Read, Glob, Grep, LS, Bash, Write, AskUserQuestion, TaskUpdate, Agent
+argument-hint: "<free-text prompt>"
 ---
 
 # Proposal Refiner — Standalone Invocation

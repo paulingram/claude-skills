@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 from hooks import run_continuity as rc
-from tests.helpers.hook_runner import run_hook as _run
+from tests.helpers.hook_runner import run_hook as _run, allowed, blocked, hook_text
 
 ORCH_SESSION = "sess-orchestrator-1"
 
@@ -174,29 +174,29 @@ def test_unmanifested_completion_blocks_during_active_run(script: Path, workspac
     """Scenario: orchestrator completes an unmanifested task mid-run."""
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 2, f"expected a block; stderr={r.stderr!r}"
-    assert "board-7" in r.stderr
+    assert blocked(r), f"expected a block; stderr={hook_text(r)!r}"
+    assert "board-7" in hook_text(r)
 
 
 def test_block_message_names_the_manifest_remediation(script: Path, workspace: Path) -> None:
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert "expected_review_evidence" in r.stderr, r.stderr
-    assert "manifest" in r.stderr.lower(), r.stderr
+    assert "expected_review_evidence" in hook_text(r), hook_text(r)
+    assert "manifest" in hook_text(r).lower(), hook_text(r)
 
 
 def test_block_message_names_the_kill_switch(script: Path, workspace: Path) -> None:
     """A gate that can fire on a foreign workflow must say how to turn it off."""
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert "CT6_TASK_GATE_DISABLED" in r.stderr, r.stderr
+    assert "CT6_TASK_GATE_DISABLED" in hook_text(r), hook_text(r)
 
 
 def test_unmanifested_completion_blocks_in_teams_shape(script: Path, workspace: Path) -> None:
     _write_marker(workspace)
     r = _run(script, workspace, _teams_payload("board-9"))
-    assert r.returncode == 2, f"expected a block; stderr={r.stderr!r}"
-    assert "board-9" in r.stderr
+    assert blocked(r), f"expected a block; stderr={hook_text(r)!r}"
+    assert "board-9" in hook_text(r)
 
 
 def test_gate_fires_even_when_other_teammates_have_manifests(script: Path, workspace: Path) -> None:
@@ -204,7 +204,7 @@ def test_gate_fires_even_when_other_teammates_have_manifests(script: Path, works
     _write_marker(workspace)
     _write_manifest(workspace, "backend-test", ["T-1", "T-2"])
     r = _run(script, workspace, _subagents_payload("T-99"))
-    assert r.returncode == 2, f"expected a block; stderr={r.stderr!r}"
+    assert blocked(r), f"expected a block; stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -214,14 +214,14 @@ def test_gate_fires_even_when_other_teammates_have_manifests(script: Path, works
 def test_no_active_run_marker_allows(script: Path, workspace: Path) -> None:
     """Scenario: no active run — the pre-existing manifest-scoped behavior."""
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("status", ["complete", "stood-down"])
 def test_marker_not_active_allows(script: Path, workspace: Path, status: str) -> None:
     _write_marker(workspace, status=status)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_session_mismatch_allows(script: Path, workspace: Path) -> None:
@@ -229,7 +229,7 @@ def test_session_mismatch_allows(script: Path, workspace: Path) -> None:
     orchestrator relaying a producer's status — the gate stands down."""
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7", session_id="sess-teammate-2"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_marker_without_session_id_now_gates(script: Path, workspace: Path) -> None:
@@ -257,10 +257,10 @@ def test_marker_without_session_id_now_gates(script: Path, workspace: Path) -> N
     that does not name that owner."""
     _write_marker(workspace, session_id=None)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 2, (
-        f"undeterminable ownership must not open the gate; stderr={r.stderr!r}"
+    assert blocked(r), (
+        f"undeterminable ownership must not open the gate; stderr={hook_text(r)!r}"
     )
-    assert "cannot be determined" in r.stderr, (
+    assert "cannot be determined" in hook_text(r), (
         "and the block must say WHY it fired rather than claiming a session "
         "it could not establish"
     )
@@ -278,13 +278,13 @@ def test_a_stale_marker_without_session_id_still_allows(
     )
     _write_marker(workspace, session_id=None, updated_at=old)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_payload_without_session_id_allows(script: Path, workspace: Path) -> None:
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7", session_id=None))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_kill_switch_allows(script: Path, workspace: Path,
@@ -293,7 +293,7 @@ def test_kill_switch_allows(script: Path, workspace: Path,
     monkeypatch.setenv("CT6_TASK_GATE_DISABLED", "1")
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("value", ["0", "false", "no", ""])
@@ -302,7 +302,7 @@ def test_kill_switch_falsy_values_do_not_disable(script: Path, workspace: Path, 
     monkeypatch.setenv("CT6_TASK_GATE_DISABLED", value)
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 2, f"{value!r} must not read as 'disabled'; stderr={r.stderr!r}"
+    assert blocked(r), f"{value!r} must not read as 'disabled'; stderr={hook_text(r)!r}"
 
 
 def test_run_continuity_kill_switch_allows(script: Path, workspace: Path,
@@ -312,7 +312,7 @@ def test_run_continuity_kill_switch_allows(script: Path, workspace: Path,
     monkeypatch.setenv("CT6_RUN_CONTINUITY_DISABLED", "1")
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_stale_marker_allows(script: Path, workspace: Path) -> None:
@@ -323,26 +323,26 @@ def test_stale_marker_allows(script: Path, workspace: Path) -> None:
     )
     _write_marker(workspace, updated_at=old)
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_malformed_marker_allows(script: Path, workspace: Path) -> None:
     (workspace / ".architect-team" / "active-run.json").write_text("{not json", encoding="utf-8")
     r = _run(script, workspace, _subagents_payload("board-7"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_non_completed_status_allows(script: Path, workspace: Path) -> None:
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("board-7", status="in_progress"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_missing_task_id_allows(script: Path, workspace: Path) -> None:
     """Scenario: no task id extractable — nothing to look up, nothing to block."""
     _write_marker(workspace)
     r = _run(script, workspace, _teams_payload(None))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -357,7 +357,7 @@ def test_manifested_task_with_valid_evidence_completes(script: Path, workspace: 
         json.dumps(_valid_evidence("T-3")), encoding="utf-8"
     )
     r = _run(script, workspace, _subagents_payload("T-3"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_manifested_task_missing_evidence_still_blocks_on_evidence(script: Path,
@@ -366,16 +366,16 @@ def test_manifested_task_missing_evidence_still_blocks_on_evidence(script: Path,
     _write_marker(workspace)
     _write_manifest(workspace, "backend-test", ["T-4"])
     r = _run(script, workspace, _subagents_payload("T-4"))
-    assert r.returncode == 2
-    assert "missing review evidence" in r.stderr
+    assert blocked(r)
+    assert "missing review evidence" in hook_text(r)
 
 
 def test_path_traversal_task_id_blocks_before_the_new_gate(script: Path,
                                                            workspace: Path) -> None:
     _write_marker(workspace)
     r = _run(script, workspace, _subagents_payload("../evil"))
-    assert r.returncode == 2
-    assert "path-traversal" in r.stderr
+    assert blocked(r)
+    assert "path-traversal" in hook_text(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -397,7 +397,7 @@ def test_list_shaped_evidence_file_blocks_instead_of_crashing(script: Path,
         "[]", encoding="utf-8"
     )
     r = _run(script, workspace, _subagents_payload("T-9"))
-    assert r.returncode == 2, f"must block, not exit 1; stderr={r.stderr!r}"
+    assert blocked(r), f"must block, not exit 1; stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("body", ['"a string"', "123", "null", "true"])
@@ -408,7 +408,7 @@ def test_non_object_evidence_blocks_instead_of_crashing(script: Path, workspace:
         body, encoding="utf-8"
     )
     r = _run(script, workspace, _subagents_payload("T-10"))
-    assert r.returncode == 2, f"must block, not exit 1; stderr={r.stderr!r}"
+    assert blocked(r), f"must block, not exit 1; stderr={hook_text(r)!r}"
 
 
 def test_evidence_that_would_crash_the_validator_cannot_skip_the_gate(
@@ -427,7 +427,7 @@ def test_evidence_that_would_crash_the_validator_cannot_skip_the_gate(
         json.dumps(ev), encoding="utf-8"
     )
     r = _run(script, workspace, _subagents_payload("T-11"))
-    assert r.returncode == 2, f"the added key must not disarm the gate; stderr={r.stderr!r}"
+    assert blocked(r), f"the added key must not disarm the gate; stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -531,7 +531,7 @@ def _run_cli(plugin_root: Path, workspace: Path, *args: str) -> subprocess.Compl
 def test_cli_engage_records_the_session_id_flag(plugin_root: Path, tmp_path: Path) -> None:
     r = _run_cli(plugin_root, tmp_path, "--engage", "architect-team-pipeline",
                  "--session-id", "sess-cli")
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     assert rc.read_marker(tmp_path)["session_id"] == "sess-cli"
 
 
@@ -539,14 +539,14 @@ def test_cli_engage_records_the_environment_session_id(plugin_root: Path, tmp_pa
                                                        monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CT6_SESSION_ID", "sess-env-cli")
     r = _run_cli(plugin_root, tmp_path, "--engage", "architect-team-pipeline")
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     assert rc.read_marker(tmp_path)["session_id"] == "sess-env-cli"
 
 
 def test_cli_engage_without_a_session_still_engages(plugin_root: Path, tmp_path: Path) -> None:
     """Recording the session is best-effort; it never blocks engagement."""
     r = _run_cli(plugin_root, tmp_path, "--engage", "architect-team-pipeline")
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     marker = rc.read_marker(tmp_path)
     assert marker["status"] == "active"
     assert marker["session_id"] is None
@@ -596,7 +596,7 @@ def test_board_task_registered_as_shared_task_id_is_not_unmanifested(
         shared_task_id="4", task_ids=["2.1", "2.2"], evidence_ids=["hei-group2"],
     )
     r = _run(script, workspace, _subagents_payload("4"))
-    assert r.returncode == 0, f"a registered board task must complete; stderr={r.stderr!r}"
+    assert allowed(r), f"a registered board task must complete; stderr={hook_text(r)!r}"
 
 
 def test_board_task_registered_as_shared_task_id_in_teams_shape(script: Path,
@@ -607,7 +607,7 @@ def test_board_task_registered_as_shared_task_id_in_teams_shape(script: Path,
         shared_task_id="4", task_ids=["2.1"], evidence_ids=["hei-group2"],
     )
     r = _run(script, workspace, _teams_payload("4"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_task_registered_in_task_ids_is_not_unmanifested(script: Path,
@@ -618,7 +618,7 @@ def test_task_registered_in_task_ids_is_not_unmanifested(script: Path,
         shared_task_id="4", task_ids=["2.1"], evidence_ids=["hei-group2"],
     )
     r = _run(script, workspace, _subagents_payload("2.1"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_a_task_no_manifest_mentions_anywhere_still_blocks(script: Path,
@@ -631,8 +631,8 @@ def test_a_task_no_manifest_mentions_anywhere_still_blocks(script: Path,
         shared_task_id="4", task_ids=["2.1"], evidence_ids=["hei-group2"],
     )
     r = _run(script, workspace, _subagents_payload("board-99"))
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "board-99" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "board-99" in hook_text(r)
 
 
 def test_registration_does_not_weaken_the_evidence_gate(script: Path,
@@ -645,8 +645,8 @@ def test_registration_does_not_weaken_the_evidence_gate(script: Path,
         shared_task_id="4", task_ids=["2.1"], evidence_ids=["hei-group2"],
     )
     r = _run(script, workspace, _subagents_payload("hei-group2"))
-    assert r.returncode == 2
-    assert "missing review evidence" in r.stderr
+    assert blocked(r)
+    assert "missing review evidence" in hook_text(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -680,8 +680,8 @@ def test_integer_typed_expected_id_still_enforces_evidence(script: Path,
         "task_ids": [3], "files_owned": [], "expected_review_evidence": [3],
     })
     r = _run(script, workspace, _subagents_payload("3"))
-    assert r.returncode == 2, f"an int-typed id must not void the gate; stderr={r.stderr!r}"
-    assert "missing review evidence" in r.stderr
+    assert blocked(r), f"an int-typed id must not void the gate; stderr={hook_text(r)!r}"
+    assert "missing review evidence" in hook_text(r)
 
 
 def test_integer_typed_expected_id_accepts_valid_evidence(script: Path,
@@ -694,7 +694,7 @@ def test_integer_typed_expected_id_accepts_valid_evidence(script: Path,
         json.dumps(_valid_evidence("3")), encoding="utf-8"
     )
     r = _run(script, workspace, _subagents_payload("3"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("body", [[], [{"teammate": "x"}], "a string", 123, None])
@@ -705,15 +705,15 @@ def test_non_object_manifest_never_crashes_the_scan(script: Path, workspace: Pat
     _write_raw_manifest(workspace, "broken", body)
     _write_manifest(workspace, "backend-test", ["T-20"])
     r = _run(script, workspace, _subagents_payload("T-20"))
-    assert r.returncode == 2, f"the valid manifest must still be found; stderr={r.stderr!r}"
-    assert "missing review evidence" in r.stderr
+    assert blocked(r), f"the valid manifest must still be found; stderr={hook_text(r)!r}"
+    assert "missing review evidence" in hook_text(r)
 
 
 def test_non_object_manifest_alone_does_not_block_an_unowned_task(script: Path,
                                                                   workspace: Path) -> None:
     _write_raw_manifest(workspace, "broken", [])
     r = _run(script, workspace, _subagents_payload("T-21"))
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("entry", [
@@ -737,8 +737,8 @@ def test_unusable_expected_entry_is_warned_about(script: Path, workspace: Path,
         "task_ids": [], "files_owned": [], "expected_review_evidence": [entry],
     })
     r = _run(script, workspace, _subagents_payload("T-22"))
-    assert "expected_review_evidence" in r.stderr, r.stderr
-    assert "backend-test" in r.stderr, r.stderr
+    assert "expected_review_evidence" in hook_text(r), hook_text(r)
+    assert "backend-test" in hook_text(r), hook_text(r)
 
 
 def test_usable_entries_produce_no_warning(script: Path, workspace: Path) -> None:
@@ -750,7 +750,7 @@ def test_usable_entries_produce_no_warning(script: Path, workspace: Path) -> Non
         "expected_review_evidence": ["T-1", 3],
     })
     r = _run(script, workspace, _subagents_payload("T-99"))
-    assert "expected_review_evidence" not in r.stderr, r.stderr
+    assert "expected_review_evidence" not in hook_text(r), hook_text(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -783,13 +783,13 @@ def test_both_surfaces_agree_on_the_orchestrator_session(
     audit_owner = _run_stop_audit(plugin_root, workspace, {
         "session_id": ORCH_SESSION, "stop_hook_active": True,
     })
-    assert gate_owner.returncode == 2, gate_owner.stderr
-    assert audit_owner.returncode == 2, audit_owner.stderr
-    assert "CONTINUE" in audit_owner.stderr
+    assert blocked(gate_owner), hook_text(gate_owner)
+    assert blocked(audit_owner), hook_text(audit_owner)
+    assert "CONTINUE" in hook_text(audit_owner)
 
     gate_other = _run(script, workspace, _subagents_payload("board-7", session_id="sess-other"))
     audit_other = _run_stop_audit(plugin_root, workspace, {
         "session_id": "sess-other", "stop_hook_active": True,
     })
-    assert gate_other.returncode == 0, gate_other.stderr
-    assert audit_other.returncode == 0, audit_other.stderr
+    assert allowed(gate_other), hook_text(gate_other)
+    assert allowed(audit_other), hook_text(audit_other)

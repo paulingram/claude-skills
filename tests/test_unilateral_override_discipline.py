@@ -1,6 +1,7 @@
 """Structural tests for the v3.0.0 Unilateral-override discipline (META)."""
 
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 from pathlib import Path
@@ -12,26 +13,26 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_canonical_section_present() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     assert "## Unilateral-override discipline (v3.0.0) — META" in body
 
 
 def test_canonical_home_names_unified_pattern() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
     assert "Virtue-framed opener" in section
     assert "Element-of-bypass admission" in section
 
 
 def test_canonical_home_lists_5_prior_surfaces() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
     for v in ("v2.10.0", "v2.14.0", "v2.20.0", "v2.21.0", "v2.22.0"):
         assert v in section
 
 
 def test_canonical_home_documents_two_layer_enforcement() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
     assert "Post-hoc detection" in section
     assert "Pre-action runtime guardrail" in section
@@ -39,13 +40,13 @@ def test_canonical_home_documents_two_layer_enforcement() -> None:
 
 
 def test_canonical_home_names_single_severity() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
     assert "unilateral-override-with-virtue-framed-confession" in section
 
 
 def test_canonical_home_documents_high_confidence_flag() -> None:
-    body = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("common-pipeline-conventions")
     section = body.split("## Unilateral-override discipline (v3.0.0) — META", 1)[1].split("\n## ", 1)[0]
     assert "high_confidence" in section
 
@@ -54,19 +55,19 @@ def test_canonical_home_documents_high_confidence_flag() -> None:
 
 
 def test_architect_team_pipeline_has_meta_gate() -> None:
-    body = (REPO_ROOT / "skills" / "architect-team-pipeline" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("architect-team-pipeline")
     assert "Unilateral-override meta-gate (v3.0.0)" in body
     assert "verify-no-unilateral-override" in body
 
 
 def test_bug_fix_pipeline_has_meta_gate() -> None:
-    body = (REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("bug-fix-pipeline")
     assert "Unilateral-override meta-gate (v3.0.0)" in body
     assert "verify-no-unilateral-override" in body
 
 
 def test_mini_pipeline_has_meta_gate() -> None:
-    body = (REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("mini-architect-team-pipeline")
     assert "Unilateral-override meta-gate (v3.0.0)" in body
     assert "verify-no-unilateral-override" in body
 
@@ -75,7 +76,7 @@ def test_override_gate_polyglot_lives_in_cpc_table() -> None:
     """v3.10.0 (R3c): the per-body v3.0.0 polyglot bash was collapsed into the
     canonical `## Layer 3 gate invocation table (v3.10.0)` (the detect-once polyglot
     form). Each pipeline body names the tool + references that table."""
-    cpc = (REPO_ROOT / "skills" / "common-pipeline-conventions" / "SKILL.md").read_text(encoding="utf-8")
+    cpc = skill_surface("common-pipeline-conventions")
     assert "## Layer 3 gate invocation table (v3.10.0)" in cpc
     assert "verify-no-unilateral-override" in cpc, "the gate table must name the override tool"
     assert "command -v python3 || command -v python" in cpc, "the table uses the detect-once polyglot form"
@@ -84,7 +85,7 @@ def test_override_gate_polyglot_lives_in_cpc_table() -> None:
         REPO_ROOT / "skills" / "bug-fix-pipeline" / "SKILL.md",
         REPO_ROOT / "skills" / "mini-architect-team-pipeline" / "SKILL.md",
     ):
-        body = path.read_text(encoding="utf-8")
+        body = surface_read(path)
         assert "verify-no-unilateral-override" in body, f"{path.name}: must still name the override tool"
         assert "Layer 3 gate invocation table (v3.10.0)" in body, (
             f"{path.name}: must reference the canonical gate invocation table"
@@ -113,6 +114,7 @@ def test_pretool_hook_uses_guardrail_script() -> None:
         "Write": "pretool_unilateral_override_guard.py",
         "NotebookEdit": "pretool_unilateral_override_guard.py",
         "*": "pretool_skill_gate.py",
+        "Bash": "deletion_guard.py",  # v4.0.0 deletion recoverability guard
     }
     for entry in hooks["hooks"]["PreToolUse"]:
         expected = expected_by_matcher.get(entry["matcher"])

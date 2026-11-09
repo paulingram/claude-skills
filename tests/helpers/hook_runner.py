@@ -57,7 +57,9 @@ def run_hook(
     subprocess.CompletedProcess[str]
         The completed process with text-mode ``stdout`` and ``stderr``
         captured; ``returncode`` is the hook's exit status (0 = allow, 2 =
-        block per Claude Code's hook semantics).
+        block for PreToolUse gates and ``--check`` CLIs). A Stop hook that
+        HOLDS the turn exits 0 with hook JSON on stdout (v4.1.0) -- read it
+        through ``blocked`` / ``allowed`` / ``hook_text`` below.
     """
     return subprocess.run(
         [sys.executable, str(script)],
@@ -67,3 +69,62 @@ def run_hook(
         cwd=str(workspace),
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
+
+
+# ---------------------------------------------------------------------------
+# v4.1.0 -- reading a Stop hook's verdict.
+#
+# The completion audit used to refuse a stop with the directive on stderr and
+# exit 2; since v4.1.0 it prints hook JSON on stdout and exits 0, carrying the
+# directive in ``hookSpecificOutput.additionalContext`` (transcript-only "Stop
+# hook feedback") or, under CT6_STOP_HOLD_MODE=block, in ``reason`` beside
+# ``decision: "block"``. PreToolUse gates and ``--check`` CLIs still block with
+# exit 2 and stderr. These three readers make a test indifferent to the
+# channel: ``blocked`` / ``allowed`` say whether the hook refused, ``hook_text``
+# is everything it said. A pin that cares about the CHANNEL itself reads
+# ``hold_payload`` directly (tests/test_stop_hold_channel.py).
+# ---------------------------------------------------------------------------
+
+def hold_payload(proc) -> "dict | None":
+    """The hook JSON object a Stop hook printed on stdout, or None."""
+    out = getattr(proc, "stdout", None) or ""
+    for line in reversed(out.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
+
+
+def hold_text(proc) -> "str | None":
+    """The directive a Stop hook held the turn with, or None when it allowed."""
+    data = hold_payload(proc)
+    if not data:
+        return None
+    hso = data.get("hookSpecificOutput")
+    if isinstance(hso, dict) and isinstance(hso.get("additionalContext"), str):
+        return hso["additionalContext"]
+    if data.get("decision") == "block":
+        return str(data.get("reason") or "")
+    return None
+
+
+def blocked(proc) -> bool:
+    """True when the hook refused: a Stop hold (JSON on stdout) or an exit-2 block."""
+    return hold_text(proc) is not None or proc.returncode == 2
+
+
+def allowed(proc) -> bool:
+    """True when the hook let the event through: exit 0 and no hold on stdout."""
+    return proc.returncode == 0 and hold_text(proc) is None
+
+
+def hook_text(proc) -> str:
+    """Everything the hook said: the Stop hold text (if any), then stderr."""
+    held = hold_text(proc)
+    return ((held + "\n") if held else "") + (getattr(proc, "stderr", None) or "")

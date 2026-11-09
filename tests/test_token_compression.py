@@ -6,6 +6,7 @@ preservation), `estimate_tokens`, `compression_stats`, the CLI, and the skill
 contract surface (incl. the hard internal-only boundary).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib.util
 import json
@@ -149,7 +150,7 @@ def test_cli_stats_json(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def test_skill_present_and_documents_tc() -> None:
-    body = (REPO_ROOT / "skills" / "token-compression" / "SKILL.md").read_text(encoding="utf-8")
+    body = skill_surface("token-compression")
     assert body.startswith("---")
     assert "caveman.py" in body
     for tag in ("TC-1", "TC-2", "TC-3"):

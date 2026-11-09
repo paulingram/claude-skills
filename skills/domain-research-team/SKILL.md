@@ -1,11 +1,12 @@
 ---
 name: domain-research-team
 description: A 3-researcher domain analysis skill with MANDATORY outside research. Reads provided inputs (a frontend codebase, documentation, or both — any combination is valid), extracts personas + objectives, and AUGMENTS with industry / market / competitor research that every researcher performs independently regardless of input completeness. Round-robin convergence + master-synthesizer produces the final map. Caller-configurable output path so the skill is reusable from intake-and-mapping (INTEGRATION_MAP.md output), visual-to-api-design Stages 1+2 (PERSONA_MAP.md output), the new Phase 0b backend dispatch (PERSONA_MAP.md output to .architect-team/frontend-reference/ when frontend_read_only). v3.4.0.
+user-invocable: false
 ---
 
 # Domain Research Team
 
-You are the **Domain Research Team orchestrator**. Drive 3 `domain-researcher` agents in parallel with mandatory outside research, converge via round-robin, and synthesize a final domain map via the `master-synthesizer` agent. Caller-configurable output path.
+You are the **Domain Research Team orchestrator**. Drive 3 `domain-researcher` agents in parallel with mandatory outside research, converge via round-robin, and synthesize a final domain map via the `master-synthesizer` agent. Caller-configurable output path. Three researchers is the review tier, not a habit: a research panel producing a map is a tier-3 judgment gate (`skills/team-spawning-and-review-gates/references/review-tiers.md`), and its convergence loop runs as declare → `ct6-converge` workflow → record (`skills/common-pipeline-conventions/references/converge-workflows.md`).
 
 ## When this skill runs
 
@@ -51,7 +52,7 @@ Dispatch 3 `domain-researcher` agents in parallel via a single Agent-tool batch 
 
 - `Read` / `Glob` / `Grep` / `LS` / `Bash` (read provided inputs)
 - `WebFetch` / `WebSearch` (mandatory outside research)
-- `Write` / `TodoWrite` (per-researcher draft output)
+- `Write` / `TaskUpdate` (per-researcher draft output)
 
 Each researcher's job:
 
@@ -100,11 +101,19 @@ Convergence check before exiting:
 - Every researcher's `outside_research` block is non-empty (the mandate is satisfied).
 - The union of `evidence_from_outside_research` across all 3 researchers has ≥ 3 distinct citations (ensures the outside research is real, not perfunctory).
 
-Failures iterate via `ralph-loop:ralph-loop` in the canonical flag form `/ralph-loop "<round-robin convergence prompt>" --completion-promise "DOMAIN RESEARCH COMPLETE"` (or the caller-configured exit string). Loops until the promise fires; no iteration cap (v3.8.0 unbounded solving).
+Failures iterate as the `ct6-converge` workflow with completion promise "DOMAIN RESEARCH COMPLETE" (or the caller-configured `completion_promise` — `INTEGRATION MAP COMPLETE` uses the `integration-map` preset; the others declare `kind: domain-research`), tier 3 (three researchers), declared before the loop and recorded after it:
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" declare --workspace <ws> --kind domain-research --promise "<completion_promise>" --reviewers 3
+#   Workflow({ name: "ct6-converge", args: { kind: "domain-research", promise: "<completion_promise>", reviewers: 3, reviewerAgent: "architect-team:domain-researcher", fixerAgent: "architect-team:master-synthesizer", artifacts: ["<research dir>/researcher-*/final.json"] } })
+python "${CLAUDE_PLUGIN_ROOT}/scripts/converge/record.py" record --workspace <ws> --kind domain-research --result '<the workflow JSON>'
+```
+
+The promise is the gate's label; the loop runs until the record says converged (every researcher's `final.json` agrees and the checks above pass); no iteration cap (v3.8.0 unbounded solving) — a human `maxRounds` pauses the gate, it never passes it.
 
 ## Phase R4 — Master synthesis
 
-Dispatch the `master-synthesizer` agent (existing, opus). Inputs: every researcher's `final.json`. The synthesizer:
+Dispatch the `master-synthesizer` agent (existing; fable — a synthesis seat under `--split role`). Inputs: every researcher's `final.json`. The synthesizer:
 
 1. Merges the 3 maps into a single authoritative one.
 2. For every `persona_id` where the disagreement is genuinely owner-only — the researchers' evidence is exhausted and the remaining question is a product decision only the user can make, never a round count — the synthesizer escalates to the orchestrator (which surfaces to the user via `AskUserQuestion`).
@@ -117,7 +126,7 @@ Dispatch the `master-synthesizer` agent (existing, opus). Inputs: every research
 
 4. The 3 researchers confirm the master doc reflects their understanding (one round of confirmations).
 
-5. Emit the completion promise to exit the ralph-loop.
+5. Record the convergence (`record.py record`); the record — not a typed promise — closes the gate labelled with the completion promise.
 
 ## Phase R5 — Return verdict
 
@@ -150,7 +159,7 @@ The skill body re-states this as a hard rule because the researchers run with `W
 - v3.0.0 unilateral-override — researchers cannot decide to skip the outside research mandate.
 - v2.22.0 no-pipeline-bypass — this skill is invoked via the Skill tool by the caller; it does not bypass the caller's pipeline.
 - v2.6.0 live-data wiring — N/A here (this is a read-only analysis skill).
-- v0.9.19 3-reviewer convergence — the canonical pattern this skill implements.
+- v0.9.19 3-reviewer convergence, tiered in v4.0.0 — a research panel is tier 3 (three researchers), run as declare → `ct6-converge` workflow → record.
 
 ## What this skill is NOT
 

@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-08-01T09:05:00Z",
+  "disciplines": {
+    "prod-safe-test-classification": {"status": "applied", "last_applied": "2026-08-01T09:05:00Z"},
+    "multi-persona-path-coverage": {"status": "not_applicable", "last_applied": null}
+  }
+}

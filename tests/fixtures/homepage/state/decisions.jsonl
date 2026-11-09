@@ -1,0 +1,4 @@
+{"schema": "decision/v1", "at": "2026-08-01T09:10:00Z", "run_id": "run-fixture-008", "phase": "Phase -2", "kind": "triage", "summary": "Routed the checkout total bug to the bug-fix lane", "chosen": "bug-fix", "rejected": [{"label": "mini", "why": "the symptom spans two layers"}], "refs": ["openspec/changes/checkout-fix/proposal.md"]}
+{"schema": "decision/v1", "at": "2026-08-01T09:40:00Z", "run_id": "run-fixture-008", "phase": "Phase 1", "kind": "reuse", "summary": "Reused the existing totals service instead of a new calculator", "chosen": "src/services/totals.py", "rejected": [{"label": "new CartCalculator", "why": "duplicates totals.py"}], "refs": ["docs/CODEBASE_MAP.md"]}
+{"schema": "decision/v1", "at": "2026-08-01T10:05:00Z", "run_id": "run-fixture-008", "phase": "Phase -2", "kind": "appearance", "summary": "Appearance mode bound to strict", "chosen": "strict", "rejected": [], "refs": []}
+not json at all

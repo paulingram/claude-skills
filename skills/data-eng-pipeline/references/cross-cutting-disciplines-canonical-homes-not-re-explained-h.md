@@ -1,0 +1,8 @@
+# Cross-cutting disciplines (canonical homes, not re-explained here)
+
+- **Notifications** — the ten recognized events via `${CLAUDE_PLUGIN_ROOT}/scripts/notify/notify.py`, opt-in (gated on `.architect-team-notify.json`) and best-effort, per `common-pipeline-conventions` `## Notifications wiring convention`. `run_start` fires once the D1 plan validates; `run_complete` is the final notification at D8.
+- **In-flight clarification handling (v2.5.0)** — a mid-run user message that does not cancel and is not a fresh `/architect-team:<command>` invocation is a clarification / scope amendment to THIS run; fold it in per `common-pipeline-conventions` `## In-flight clarification discipline (v2.5.0)`. Never bypass the lane to answer it directly.
+- **Phase-boundary inbox check (v2.19.0)** — at the start of every D-phase AND after every background-dispatch return, drain `<workspace>/.architect-team/inbox/<run-id>.jsonl`; D8 invokes `verify-inflight-clarifications-processed`.
+- **Discipline freshness (v2.18.0)** — after the wake-up and before D−1, run the `verify-discipline-registry-current` check, auto-apply safe disciplines, route the rest as SRs. Best-effort; never blocks.
+- **Background-agent resume (v1.5.0)** — route every background Agent dispatch result through `wrap_agent_result()` from `scripts/setup/agent_resume.py` before treating the work as complete.
+- **Augment-never-replace precedence (v3.63.0)** — when a run arms an optional third-party capability, the armed skill operates INSIDE this lane's mandates rather than in place of them; the rule, the D0 verbatim-dispatch example, the skill-to-phase binding, and the narrow platform-safety carve-out all live in `common-pipeline-conventions` `## Augment-never-replace discipline (v3.63.0)`.

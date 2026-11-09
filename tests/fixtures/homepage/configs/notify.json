@@ -1,0 +1,8 @@
+{
+  "provider": "sendgrid",
+  "from_address": "ci@example.com",
+  "from_name": "Shop CI",
+  "sendgrid": {"api_key_env": "SENDGRID_API_KEY"},
+  "webhook_token": "sk-PLANTED-SECRET-NOTIFY-0b1ff2a9",
+  "recipients": [{"email": "lead@example.com", "events": ["all"]}]
+}

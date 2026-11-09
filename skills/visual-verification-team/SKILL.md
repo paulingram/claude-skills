@@ -1,6 +1,7 @@
 ---
 name: visual-verification-team
 description: Use when visual-fidelity reconciliation needs to be independently verified against the live running app — at Phase 5, or via the visual-qa command. Spawns a three-role team — visual-capture agents start the live app and capture screenshots plus computed-style DATA for every DESIGN_MAP screen (countable, hard-to-fake artifacts); visual-analyzer agents perform objective structural analysis (a deterministic data diff of the captured values against the design spec, a pixel diff against the design reference image, and a code cross-check); then the system-architect synthesizes the per-screen gap lists holistically, clustering them into root causes and routing fixes. Replaces the single-agent verifier — capture, analysis, and synthesis are separate roles so no one agent can cut a step inside itself.
+user-invocable: false
 ---
 
 # Visual Verification Team — Capture, Analyze, Synthesize
@@ -12,6 +13,8 @@ The recurring failure of visual QA is an agent that reads the code, reasons abou
 3. **Synthesize** — the `system-architect` agent reads every per-screen gap list and synthesizes them **holistically** — clustering individual gaps into root causes, deciding routing, producing the consolidated verdict and the SRs.
 
 Analysis cannot begin until the capture artifacts exist on disk. Synthesis cannot begin until every screen has an analysis. The boundaries are the enforcement.
+
+**Review tier (v4.0.0).** The three roles are a division of labor, not three copies of one reviewer. Under `skills/team-spawning-and-review-gates/references/review-tiers.md` this team is a tier-2 shape: capture is the producer, ONE `visual-analyzer` per capture set is its paired independent checker (a second analyzer re-runs the deterministic data diff only when a screen's verdict is disputed), and the `system-architect` synthesis is the independent judgment seat. No screen is analyzed three times in parallel; the countable artifacts and the deterministic diff carry the rigor that a triple panel would otherwise buy.
 
 ## The objective layer is DATA — not an agent eyeballing images
 

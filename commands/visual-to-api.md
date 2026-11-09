@@ -96,7 +96,7 @@ The pipeline reads `intake_mode: "visual-to-api"` at Phase 0 and routes the run 
 3. **Stage 3 — Page catalog.** Every page → every element with classification + blurb + `is_dynamic` + `needs_backend` + `backend_endpoint_hint` + `affordance_kind`. Checklisted against Stage 1's `pages_count` + Stage 2's expected workflows + expected affordances.
 4. **Stage 4 — Backend design from frontend.** 4 nested layers (data → services → schema → api) each checklisted against the prior + against Stage 3's elements with `needs_backend: true`.
 
-Each stage runs the v0.9.19 3-reviewer convergence protocol (Round 1 independent → Round 2 round-robin → Round 3 architect review) before its artifact is frozen. The frozen chain carries `based_on_stage_<N-1>: "<sha>"` so cross-stage references are provable.
+Each stage runs the v0.9.19 3-reviewer convergence protocol (Round 1 independent → Round 2 round-robin → Round 3 architect review) before its artifact is frozen — review tier 3 (design / architecture approval, per `skills/team-spawning-and-review-gates/references/review-tiers.md`), run as the `ct6-converge` workflow (`stage-<n>` kinds) that is declared before and recorded after per `skills/architect-team-pipeline/references/phase--1.md` `### Converge record protocol (v4.0.0)`; the recorded all-ok round, not the completion promise, is the exit. The frozen chain carries `based_on_stage_<N-1>: "<sha>"` so cross-stage references are provable.
 
 **Pass the `AUTO_COMMIT`, `AUTO_PUSH`, `ALLOW_PUSH_TO_DEFAULT`, and `PROPOSAL_FIRST` flags to the skill.** Phase 8 reads these for commit/push behavior.
 
@@ -119,7 +119,7 @@ visual-to-api-design: <one-line summary>
 - Per-stage checklists: all green
 - Frozen artifacts: <list paths>
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 4. `git push -u origin <branch>`.

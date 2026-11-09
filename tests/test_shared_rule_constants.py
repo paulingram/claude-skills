@@ -14,6 +14,7 @@ These tests pin:
     of those files carries the source-of-truth comment.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface
 
 import importlib
 import importlib.util
@@ -199,9 +200,7 @@ def test_test_failure_origins_is_canonical_enum_subset(plugin_root: Path, shared
     expected set FROM the enum means a future drift in EITHER place — a renamed
     enum member OR a re-forked constant — fails this test, so the fork cannot
     silently reopen."""
-    body = (plugin_root / "skills" / "team-spawning-and-review-gates" / "SKILL.md").read_text(
-        encoding="utf-8"
-    )
+    body = skill_surface("team-spawning-and-review-gates", root=plugin_root)
     # The schema enum line lists every canonical origin kind as quoted strings.
     enum_line = next(ln for ln in body.splitlines() if '"kind": "playwright-failure"' in ln)
     import re
@@ -269,7 +268,7 @@ def test_vao_tools_does_not_redeclare_forbidden_literal(plugin_root: Path) -> No
 def test_every_parity_verb_appears_in_each_agent_file(
     plugin_root: Path, shared, agent_file: str
 ) -> None:
-    text = (plugin_root / "agents" / agent_file).read_text(encoding="utf-8")
+    text = agent_surface(agent_file, root=plugin_root)
     for verb in shared.PARITY_VERBS:
         assert verb in text, (
             f"agents/{agent_file} does not restate the parity verb {verb!r} — "
@@ -281,7 +280,7 @@ def test_every_parity_verb_appears_in_each_agent_file(
 def test_source_of_truth_comment_present_in_each_agent_file(
     plugin_root: Path, agent_file: str
 ) -> None:
-    text = (plugin_root / "agents" / agent_file).read_text(encoding="utf-8")
+    text = agent_surface(agent_file, root=plugin_root)
     assert SOURCE_OF_TRUTH_COMMENT in text, (
         f"agents/{agent_file} is missing the source-of-truth comment pointing at "
         f"hooks/shared_rule_constants.py PARITY_VERBS"

@@ -59,8 +59,13 @@ files themselves cannot carry (see the per-function docstrings):
   `verify-check-can-fail` verdict must exist (a new guard never shown red is not
   yet evidence).
 - `_audit_declared_gates` — every entry in `.architect-team/declared-gates.json`
-  must carry `satisfied_at` + an evidence file with bytes in it (a gate you name
-  is a gate you keep).
+  must carry `satisfied_at` + an evidence file with non-whitespace content (a
+  gate you name is a gate you keep). Since v4.1.0 a USER waiver is honoured in
+  place of that pair -- `waived_at` + `waived_by: user` + an `evidence_path`
+  resolving to a non-empty record under `.architect-team/releases/`, the file
+  the USER's own release command writes, never a flag an agent sets -- and a
+  cited `ct6-converge/v1` record is READ, not just found (`converged: false`
+  blocks).
 - `_audit_spec_currency` — no teammate with unfinished expected work may still
   be carrying a superseded `spec_fingerprint` with no re-brief record.
 
@@ -73,7 +78,8 @@ above are WORKLIST checks scoped to a CT6 run (`_is_real_run` gates `audit()`).
 The lock is not: it fires in EVERY session, including a plain Agent Teams
 session that never invoked a CT6 pipeline, and it refuses the stop while
 registered work is open — open items in the harness's own per-session task list
-(`~/.claude/tasks/session-<first-8>/`), unresolved directives in the accumulated
+(`~/.claude/tasks/<full session id>/`, or the legacy `session-<first-8>/`),
+unresolved directives in the accumulated
 ask-ledger, or a source it was asked to read and could not. Its exit condition
 is read from files the HARNESS writes, so unlike an instruction or a self-typed
 promise string there is no wording that clears it.
@@ -104,7 +110,26 @@ SAFETY (this hook can block a session, so it is deliberately conservative):
 - `CT6_RUN_CONTINUITY_DISABLED=1` => full legacy behaviour.
 - ANY unexpected error => exit 0 (fail open — never wedge a session on a bug).
 
-Exit codes: 0 = allow / not-an-architect-team-run / clean. 2 = block.
+How a held turn is delivered (v4.1.0). In Stop-hook mode every refusal is
+printed on STDOUT as hook JSON and the process exits 0:
+
+    {"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "..."}}
+
+Claude Code keeps the turn open on `additionalContext` through the same loop
+protections as `decision: "block"`, but labels it `Stop hook feedback` in the
+transcript instead of raising a hook-error notification -- the directive is
+written for the AGENT and the user no longer sees it on screen. The field
+report that motivated this: the worklist and the CONTINUE directive were being
+rendered in the user's main view on every refused stop. `CT6_STOP_HOLD_MODE=block`
+restores `{"decision": "block", "reason": ...}` (same hold, hook-error
+visibility) for a harness that does not honour `additionalContext` on Stop.
+`CT6_STOP_USER_NOTICE=1` adds a one-line user-facing `systemMessage` ("CT6 is
+holding this turn: N open item(s)") -- off by default. Nothing about WHAT holds
+the turn changed; only the channel the directive travels on.
+
+Exit codes: 0 = allow / not-an-architect-team-run / clean / HELD (the JSON on
+stdout says which). `--check` (the standalone pre-commit mode) keeps 2 = block
+with the worklist on stderr, because there it is a CLI, not a hook.
 """
 from __future__ import annotations
 
@@ -404,7 +429,7 @@ def _audit_editability(at: Path) -> list[str]:
             if any(feature_dir.iterdir()):
                 violations.append(
                     f"editability review for '{feature_dir.name}' has reviewer drafts "
-                    f"but no converged map — the three reviewers did not converge"
+                    f"but no converged map — the reviewers at this gate's tier did not converge"
                 )
             continue
         latest = _load_json(maps[-1])
@@ -739,6 +764,18 @@ def _audit_declared_gates(at: Path) -> list[str]:
 
         satisfied_at = entry.get("satisfied_at")
         if not isinstance(satisfied_at, str) or not satisfied_at.strip():
+            # v4.1.0 — a gate the USER released. The waiver is honoured only
+            # when its evidence is a release record under
+            # .architect-team/releases/ that exists and has content: the file
+            # the user's /unlock command writes, never a bare flag an agent can
+            # set. A waiver with any other evidence falls through to the
+            # unsatisfied violation below, which quotes the gate's own words.
+            waiver = _user_waiver_problem(at, entry)
+            if waiver is None:
+                continue
+            if waiver:
+                violations.append(f"declared gate '{gate_id}' carries a waiver that does not hold: {waiver}: {quoted}")
+                continue
             violations.append(
                 f"declared gate '{gate_id}' has no satisfied_at — it was "
                 f"declared and never satisfied: {quoted}. Run the gate's check, "
@@ -785,12 +822,85 @@ def _audit_declared_gates(at: Path) -> list[str]:
                     f"content): {quoted}. A blank capture is the paper version of "
                     f"a check that never ran."
                 )
+            else:
+                # v4.1.0 — a converge record is READ, not just found. The
+                # record script only stamps satisfied_at when the verdicts
+                # prove convergence, so a satisfied gate citing a record that
+                # says converged=false can only be a hand-edited registry.
+                verdict_problem = _converge_record_problem(resolved)
+                if verdict_problem:
+                    violations.append(
+                        f"declared gate '{gate_id}' cites converge record "
+                        f"{evidence_path!r} which {verdict_problem}: {quoted}. "
+                        f"Run the convergence loop again; the recorded verdicts "
+                        f"are the exit, not the satisfied_at stamp."
+                    )
         except OSError as e:
             violations.append(
                 f"declared gate '{gate_id}' cites evidence_path "
                 f"{evidence_path!r} which could not be read ({e}): {quoted}"
             )
     return violations
+
+
+USER_WAIVER_RELEASES_DIRNAME = "releases"
+CONVERGE_RECORDS_DIRNAME = "converge"
+CONVERGE_RECORD_SCHEMA = "ct6-converge/v1"
+
+
+def _converge_record_problem(path: Path) -> str | None:
+    """For evidence under `.architect-team/converge/` that parses as a
+    `ct6-converge/v1` record: a sentence when its verdicts do NOT prove
+    convergence, else None. Non-converge evidence and unparsable files return
+    None here (the surrounding arm already checked existence and content)."""
+    try:
+        if path.resolve().parent.name != CONVERGE_RECORDS_DIRNAME:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != CONVERGE_RECORD_SCHEMA:
+        return None
+    if data.get("converged") is not True:
+        reasons = data.get("reasons")
+        why = "; ".join(str(r) for r in reasons) if isinstance(reasons, list) and reasons else "converged is not true"
+        return f"records that the reviewers did NOT converge ({why})"
+    return None
+
+
+def _user_waiver_problem(at: Path, entry: dict) -> str | None:
+    """Classify a declared-gate entry's user waiver (v4.1.0).
+
+    Returns ``None`` when the entry carries a VALID waiver (the arm skips it),
+    ``""`` when it carries no waiver at all (the arm reports it unsatisfied),
+    or a sentence naming why the waiver does not hold (the arm reports that).
+    Valid means: ``waived_at`` set, ``waived_by == "user"``, and
+    ``evidence_path`` resolving INSIDE the workspace to an existing non-empty
+    file under ``.architect-team/releases/``. The arm never reads what the
+    record says -- the user's words are for the human reader; the arm checks
+    only that the record the command writes is really there."""
+    waived_at = entry.get("waived_at")
+    if not isinstance(waived_at, str) or not waived_at.strip():
+        return ""
+    if str(entry.get("waived_by") or "").strip().lower() != "user":
+        return "waived_by is not 'user' (only the user's own command releases a gate)"
+    evidence = entry.get("evidence_path")
+    if not isinstance(evidence, str) or not evidence.strip():
+        return "the waiver cites no evidence_path (a release record is required)"
+    resolved = _resolve_state_path(at, evidence.strip())
+    try:
+        if not _is_within_workspace(at, resolved):
+            return f"the waiver's evidence resolves outside the workspace ({resolved})"
+        rp = resolved.resolve()
+        if rp.parent.name != USER_WAIVER_RELEASES_DIRNAME or rp.parent.parent != at.resolve():
+            return f"the waiver's evidence is not a release record under {at.name}/{USER_WAIVER_RELEASES_DIRNAME}/ ({evidence})"
+        if not resolved.is_file():
+            return f"the waiver cites a release record that does not exist ({evidence})"
+        if not _has_substantive_content(resolved):
+            return f"the waiver cites an EMPTY release record ({evidence})"
+    except OSError as e:
+        return f"the waiver's evidence could not be read ({e})"
+    return None
 
 
 def _git_lines(root: Path, args: list[str]) -> list[str] | None:
@@ -1893,6 +2003,71 @@ def _audit_diagnosis_falsified(root: Path, at: Path) -> list[str]:
     return violations
 
 
+REQUIRED_READS_GATE_DISABLE_ENV = "CT6_REQUIRED_READS_GATE_DISABLED"
+REQUIRED_READS_BLOCKING_ENV = "CT6_REQUIRED_READS_BLOCKING"
+
+
+def _audit_required_reads(root: Path, at: Path) -> list[str]:
+    """v4.0.0 (proposal change 9) -- the referencing mandate's hall monitor.
+
+    Runs the 26th Layer-3 tool ``verify-required-reads`` over the active run's
+    tool-call ledger and the INDEX.md declarations. A ``required-read-skipped``
+    gap is a MEASURED GAP: it is printed to stderr with the chapter and the
+    phase so the Lead sees it, but it does NOT block the stop by default --
+    the tool proves a file was opened, not understood, and blocking on an
+    opened-file check would be the overclaim. ``CT6_REQUIRED_READS_BLOCKING=1``
+    makes the gap blocking for a project that wants it; the kill-switch
+    ``CT6_REQUIRED_READS_GATE_DISABLED=1`` silences the arm. Fail-open when
+    the tool is unimportable or the run has no recorded id.
+    """
+    violations: list[str] = []
+    if os.environ.get(REQUIRED_READS_GATE_DISABLE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
+        return violations
+    run_id = None
+    for name in ("active-run.json", "intake-state.json"):
+        data = _load_json(at / name) if (at / name).exists() else None
+        if isinstance(data, dict):
+            run_id = data.get("run_id") or data.get("slug") or run_id
+            if run_id:
+                break
+    if not run_id:
+        return violations
+    try:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "ct6_required_reads_arm", Path(__file__).resolve().parent / "vao" / "required_reads.py"
+        )
+        if spec is None or spec.loader is None:
+            return violations
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        verdict = mod.verify_required_reads(
+            workspace=root, run_id=str(run_id), plugin_root=Path(__file__).resolve().parents[1]
+        )
+    except Exception:
+        return violations
+    gaps = [g for g in verdict.get("gaps", []) if isinstance(g, dict)]
+    if not gaps:
+        return violations
+    lines = []
+    for g in gaps[:12]:
+        lines.append(
+            f"{g.get('severity', '?')}: {g.get('path') or g.get('chapter') or '?'} "
+            f"(before {g.get('phase') or '?'})"
+        )
+    summary = (
+        f"[CT6 measured gap] verify-required-reads: {len(gaps)} chapter(s) the INDEX "
+        f"requires were not Read before their phase started -- " + "; ".join(lines)
+        + ". The pointer was skipped; read the chapter before continuing that phase "
+        f"(kill-switch {REQUIRED_READS_GATE_DISABLE_ENV}; blocking with {REQUIRED_READS_BLOCKING_ENV}=1)."
+    )
+    if os.environ.get(REQUIRED_READS_BLOCKING_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
+        violations.append(summary)
+    else:
+        print(summary, file=sys.stderr)
+    return violations
+
+
 def audit(root: Path) -> tuple[bool, list[str]]:
     """Audit a workspace. Returns (is_real_run, violations)."""
     at = root / ".architect-team"
@@ -1914,6 +2089,7 @@ def audit(root: Path) -> tuple[bool, list[str]]:
     violations += _audit_frontend_e2e(root, at)
     violations += _audit_release_backing(root, at)
     violations += _audit_diagnosis_falsified(root, at)
+    violations += _audit_required_reads(root, at)
     return True, violations
 
 
@@ -1951,11 +2127,59 @@ def _resume_note(marker: dict | None) -> str:
     )
 
 
-def _emit_block(violations: list[str], marker: dict | None = None) -> int:
+# v4.1.0 -- the channel a held turn travels on. See the module docstring.
+STOP_HOLD_MODE_ENV = "CT6_STOP_HOLD_MODE"      # "feedback" (default) | "block"
+STOP_USER_NOTICE_ENV = "CT6_STOP_USER_NOTICE"  # truthy => one-line systemMessage
+# The hook event this process is answering; main() sets it from the payload so a
+# SubagentStop wiring would label its feedback correctly. Stop is the shipped one.
+_HOOK_EVENT = "Stop"
+
+
+def _hold_mode() -> str:
+    v = os.environ.get(STOP_HOLD_MODE_ENV, "").strip().lower()
+    return "block" if v == "block" else "feedback"
+
+
+def _user_notice_enabled() -> bool:
+    v = os.environ.get(STOP_USER_NOTICE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _hold_notice(open_items: int) -> str:
+    """The ONLY text a user sees about a held turn, and only when they opted in.
+    Counts, not contents: the directive itself is written for the agent."""
+    return (
+        f"CT6 is holding this turn: {open_items} open item(s) remain; work "
+        "continues. (The agent's worklist is in the transcript's Stop hook feedback.)"
+    )
+
+
+def _emit_hold(text: str, open_items: int | None = None) -> int:
+    """Hold the turn. Prints the hook JSON on stdout and returns 0.
+
+    The directive goes in `hookSpecificOutput.additionalContext` (transcript-only
+    hook feedback) unless CT6_STOP_HOLD_MODE=block asks for `decision: block`
+    (a hook-error notification the user sees). `json.dumps` keeps the payload
+    ASCII, so a cp1252 console cannot raise on an emoji in a task title -- the
+    same failure `_lock_ascii` guards -- and the harness reads the JSON back as
+    the original text."""
+    out: dict[str, Any]
+    if _hold_mode() == "block":
+        out = {"decision": "block", "reason": text}
+    else:
+        out = {"hookSpecificOutput": {"hookEventName": _HOOK_EVENT, "additionalContext": text}}
+    if open_items is not None and _user_notice_enabled():
+        out["systemMessage"] = _hold_notice(open_items)
+    print(json.dumps(out))
+    return 0
+
+
+def _block_text(violations: list[str], marker: dict | None = None) -> str:
+    """The non-engaged (legacy) refusal: the worklist + the four resolutions."""
     if not violations and marker:
         violations = [_lifecycle_line(marker)]
     lines = "\n  - ".join(violations)
-    print(
+    return (
         "pipeline-completion-audit: BLOCKED — the architect-team run is incomplete. "
         "The items below are the WORKLIST the run keeps closing until empty "
         "(success) — they are not an iteration/give-up gate; there is no iteration "
@@ -1979,9 +2203,14 @@ def _emit_block(violations: list[str], marker: dict | None = None) -> int:
         "the audit forever.\n"
         "  4. If this run is abandoned, remove the .architect-team/ directory (it is "
         "gitignored runtime state)."
-        + (_resume_note(marker) if marker else ""),
-        file=sys.stderr,
+        + (_resume_note(marker) if marker else "")
     )
+
+
+def _emit_block(violations: list[str], marker: dict | None = None) -> int:
+    """`--check` mode only (a CLI, not a hook): the worklist on stderr, exit 2.
+    The Stop-hook path renders the same text through `_emit_hold`."""
+    print(_block_text(violations, marker), file=sys.stderr)
     return 2
 
 
@@ -2141,12 +2370,11 @@ def _emit_continuation_block(
     a count >= 2 means this session already received the full directive for
     this wedge episode and the state has not moved."""
     budget_note = _budget_note(count, budget)
-    print(
+    return _emit_hold(
         _continuation_block_text(violations, marker, needs_skill_reload, budget_note,
                                  root=root, repeat_count=count),
-        file=sys.stderr,
+        open_items=len(violations),
     )
-    return 2
 
 
 # ---------------------------------------------------------------------------
@@ -2549,8 +2777,8 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
             if guard_text else ""
         )
     )
-    print(_lock_ascii(message), file=sys.stderr)
-    return 2
+    held_items = len(open_tasks) + len(open_asks) + len(unreadable) + (1 if rule_fired else 0)
+    return _emit_hold(_lock_ascii(message), open_items=held_items)
 
 
 def _lock_consecutive(root: Path, session_id: str) -> int:
@@ -3075,8 +3303,10 @@ def _completion_lock_action(
 ) -> int | None:
     """Evaluate the completion lock; return an exit code, or None to continue.
 
-    ``2`` = the stop is refused. ``0`` = the lock's OWN code raised and failed
-    OPEN. ``None`` = inert or no open work; control belongs to the arms below.
+    ``0`` after the hold JSON was printed = the stop is refused (v4.1.0: the
+    hold travels on stdout, see `_emit_hold`); ``0`` with nothing printed = the
+    lock's OWN code raised and failed OPEN. ``None`` = inert or no open work;
+    control belongs to the arms below.
 
     REQ-6's split lives here. A source the lock could not read comes back as
     DATA (``unreadable[]``) and BLOCKS with the source named, because unknown
@@ -3228,6 +3458,10 @@ def main(argv: list[str]) -> int:
         if _rc is not None and transcript_path:
             records, head, truncated = _rc.load_transcript_slices(transcript_path)
         session_id = str(payload.get("session_id") or "")
+        global _HOOK_EVENT
+        ev = payload.get("hook_event_name")
+        if isinstance(ev, str) and ev.strip():
+            _HOOK_EVENT = ev.strip()
 
         # v3.30.0 continuation-guard context, hoisted above the completion lock
         # so the lock can heartbeat the marker and COMPOSE the guard's block
@@ -3308,7 +3542,7 @@ def main(argv: list[str]) -> int:
             # nudge naming the Skill when a run is active.
             if payload.get("stop_hook_active") is True:
                 return 0  # already fired once this stop — never loop
-            return _emit_block(violations, marker)
+            return _emit_hold(_block_text(violations, marker), open_items=len(violations) or 1)
 
         # ENGAGED orchestrator session — the v3.30.0 continuation guard.
         # Progress (a changed run fingerprint) or a fresh user prompt resets

@@ -1,6 +1,7 @@
 ---
 name: test-run-monitor
 description: A passive observer team that watches when testing is happening and produces a per-run report. Generic across 3 source adapters — local test runs (pytest / playwright / npm test / vitest / jest) / CI runs (GitHub Actions / GitLab CI) / production QA + UAT (APM / log-tail). Strictly log-only — no mid-run interrupts, no auto-SR filing, no pipeline gating.
+user-invocable: false
 ---
 
 # Test-Run Monitor
@@ -98,7 +99,7 @@ Dispatch `test-run-watcher` (sonnet, color teal) with the bound source spec + ad
 
 ## Phase M3 — Synthesize (dispatch the monitor-synthesizer agent)
 
-Dispatch `monitor-synthesizer` (opus, color teal) with the run-id + the findings directory. The synthesizer's job:
+Dispatch `monitor-synthesizer` (sonnet under `--split role`, color teal) with the run-id + the findings directory. The synthesizer's job:
 
 1. **Read every finding** from the findings directory.
 2. **Classify each finding** into one of the 4 categories per `common-pipeline-conventions/SKILL.md` `## Test-run monitor discipline (v3.3.0)`:

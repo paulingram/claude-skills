@@ -17,7 +17,7 @@ dispatch points):
   The hook fires when a teammate marks a shared-task-list item complete.
 
 In BOTH modes the enforcement is identical: read
-`.architect-team/reviews/<task-id>.json`, validate the v6 schema, exit 2
+`.architect-team/reviews/<task-id>.json`, validate the v7 schema, exit 2
 with the same structured feedback if anything is wrong.
 
 The evidence schema + validation logic live in `review_evidence_schema.py`
@@ -119,8 +119,9 @@ def _subject_slug(subject: str) -> str:
 def _completing_task_subject(payload: dict[str, Any], task_id: str) -> str | None:
     """The COMPLETING task's own subject, read from the harness store, or None.
 
-    Resolution: payload session_id -> `<tasks-root>/session-<sid8>/<id>.json`
-    -> its `subject`. Every failure (no substrate, no session, no file, no
+    Resolution: payload session_id -> `<tasks-root>/<full session id>/<id>.json`
+    (or the legacy `session-<sid8>/` dir; `open_work.session_task_dir` resolves
+    both) -> its `subject`. Every failure (no substrate, no session, no file, no
     subject field) returns None, which the caller treats as LEGACY behaviour
     — fail-open on infrastructure, never a new block."""
     if _ow is None:
@@ -130,7 +131,13 @@ def _completing_task_subject(payload: dict[str, Any], task_id: str) -> str | Non
         if not session_id:
             return None
         root = _ow.tasks_root(None)
-        task_file = root / f"session-{session_id[:8]}" / f"{task_id}.json"
+        # v4.0.0 -- the harness writes <root>/<full session id>/ today and
+        # <root>/session-<sid8>/ in older builds; open_work resolves both.
+        session_dir_fn = getattr(_ow, "session_task_dir", None)
+        if callable(session_dir_fn):
+            task_file = session_dir_fn(root, session_id) / f"{task_id}.json"
+        else:  # pragma: no cover - older open_work without the resolver
+            task_file = root / f"session-{session_id[:8]}" / f"{task_id}.json"
         data = json.loads(task_file.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return None

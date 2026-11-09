@@ -12,6 +12,7 @@ every submit_interaction (double-click idempotency), and every
 backend_call_interaction (loading-state UI within 200ms).
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 import json
 from pathlib import Path
@@ -25,13 +26,13 @@ import pytest
 
 def test_canonical_section_exists(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "## Multi-persona path-coverage discipline (v2.11.0)" in body
 
 
 def test_canonical_section_appears_once_as_h2(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert body.count("\n## Multi-persona path-coverage discipline (v2.11.0)\n") == 1
 
 
@@ -43,13 +44,13 @@ def test_canonical_section_appears_once_as_h2(plugin_root: Path):
 ])
 def test_canonical_section_names_severity(plugin_root: Path, severity: str):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert severity in body
 
 
 def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "title side" in body or "title agency view" in body
     assert "two matters were created" in body or "looked frozen" in body
     assert "attorney view" in body
@@ -58,7 +59,7 @@ def test_canonical_section_quotes_verbatim_user_prose(plugin_root: Path):
 
 def test_canonical_section_documents_persona_inventory_schema(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     # Schema fields must be named
     for field in [
         "persona_id", "entry_point", "expected_views", "expected_data_visibility",
@@ -69,7 +70,7 @@ def test_canonical_section_documents_persona_inventory_schema(plugin_root: Path)
 
 def test_canonical_section_names_loading_state_hints(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8").lower()
+    body = surface_read(skill).lower()
     # At least 4 of the canonical loading-state hint classes named
     hints = ["spinner", "skeleton", "progress", "submitting", "aria-busy"]
     hits = sum(1 for h in hints if h in body)
@@ -78,7 +79,7 @@ def test_canonical_section_names_loading_state_hints(plugin_root: Path):
 
 def test_canonical_section_names_double_submit_threshold(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     # 500ms double-submit threshold must be mentioned
     assert "500" in body
     # 200ms loading-state delay threshold must be mentioned
@@ -97,7 +98,7 @@ def test_canonical_section_names_double_submit_threshold(plugin_root: Path):
 ])
 def test_agent_body_has_v2_11_0_section(plugin_root: Path, agent_file: str):
     agent = plugin_root / "agents" / agent_file
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "## Multi-persona path-coverage discipline (v2.11.0)" in body, (
         f"agents/{agent_file} missing v2.11.0 section"
     )
@@ -105,13 +106,13 @@ def test_agent_body_has_v2_11_0_section(plugin_root: Path, agent_file: str):
 
 def test_qa_replayer_names_per_persona_findings_field(plugin_root: Path):
     agent = plugin_root / "agents" / "qa-replayer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "per_persona_findings" in body
 
 
 def test_frontend_lists_six_mandatory_assertions(plugin_root: Path):
     agent = plugin_root / "agents" / "frontend.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     # Must enumerate: entry_point + live backend + visibility + cross-persona
     # + double-submit + loading-state
     for needed in [
@@ -123,7 +124,7 @@ def test_frontend_lists_six_mandatory_assertions(plugin_root: Path):
 
 def test_interaction_reviewer_names_persona_path_coverage_axis(plugin_root: Path):
     agent = plugin_root / "agents" / "interaction-reviewer.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "persona_path_coverage" in body
     assert "tested-with-cross-persona-sync" in body
     assert "entry-point-untested" in body
@@ -131,7 +132,7 @@ def test_interaction_reviewer_names_persona_path_coverage_axis(plugin_root: Path
 
 def test_bug_replicator_names_needs_persona_inventory_verdict(plugin_root: Path):
     agent = plugin_root / "agents" / "bug-replicator.md"
-    body = agent.read_text(encoding="utf-8")
+    body = surface_read(agent)
     assert "needs-persona-inventory" in body
 
 
@@ -171,12 +172,12 @@ def test_fixture_corrected_covers_all_personas(plugin_root: Path):
 
 def test_canonical_section_cross_references_layer3_tool(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "verify_per_persona_path_coverage" in body
     assert "_LOADING_STATE_UI_HINTS" in body
 
 
 def test_canonical_section_cross_references_fixture(plugin_root: Path):
     skill = plugin_root / "skills" / "common-pipeline-conventions" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "multi-persona-path-coverage-gap.json" in body

@@ -3,6 +3,7 @@ slash command is present, well-formed, and wires the explicit `intake_mode`
 signal to short-circuit the architect-team-pipeline's heuristic detection.
 """
 from __future__ import annotations
+from tests.helpers.surfaces import agent_surface, skill_surface, surface_read
 
 from pathlib import Path
 
@@ -11,7 +12,7 @@ COMMAND_PATH = ("commands", "visual-to-api.md")
 
 
 def _read(plugin_root: Path) -> str:
-    return plugin_root.joinpath(*COMMAND_PATH).read_text(encoding="utf-8")
+    return surface_read(plugin_root.joinpath(*COMMAND_PATH))
 
 
 def test_command_file_exists(plugin_root: Path):
@@ -158,14 +159,14 @@ def test_command_cross_references_visual_to_api_design_skill(plugin_root: Path):
 
 def test_skill_body_documents_explicit_signal(plugin_root: Path):
     skill = plugin_root / "skills" / "visual-to-api-design" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "intake_mode" in body
     assert "v2.15.0" in body or "/architect-team:visual-to-api" in body
 
 
 def test_skill_body_documents_signal_short_circuits_heuristic(plugin_root: Path):
     skill = plugin_root / "skills" / "visual-to-api-design" / "SKILL.md"
-    body = skill.read_text(encoding="utf-8")
+    body = surface_read(skill)
     assert "SHORT-CIRCUITS" in body or "short-circuits" in body.lower()
     # The order is: explicit signal first, then heuristic fallback
     assert "explicit signal" in body.lower() or "Explicit signal" in body

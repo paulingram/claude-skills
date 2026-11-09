@@ -1,6 +1,7 @@
 ---
 name: playwright-suite-builder
-description: Callable orchestrator that builds and maintains a durable, persona-grouped Playwright suite for a target frontend codebase, reached via /architect-team:playwright-suite. Ten phases — P0 target and e2e-dir resolution following the repo's own convention, P1 inventory reconciled against the suite manifest, P2 intuition-map freshness, P3 review of the existing tests by dispatching the existing checkers, P4 suite-wide gap analysis, P5 gap-fill authoring per the full playwright-user-flows discipline, P6 debug-flow registration, P7 persona grouping, P8 dev-versus-prod safety classification, P9 engine-validated manifest write plus report. Triggers — "build the Playwright suite", a project with no durable test registry, a full-integration run that needs the entire dev suite enumerated. Adds no new agents.
+description: Callable orchestrator that builds and maintains a durable, persona-grouped Playwright suite for a target frontend codebase, reached via /architect-team:playwright-suite. Ten phases — P0 target and e2e-dir resolution following the repo's own convention, P1 inventory reconciled against the suite manifest, P2 intuition-map freshness, P3 review of the existing tests by dispatching the existing checkers, P4 suite-wide gap analysis, P5 gap-fill authoring per the full playwright-user-flows discipline, P6 debug-flow registration, P7 persona grouping, P8 dev-versus-prod safety classification, P9 engine-validated manifest write plus report. Triggers — "build the Playwright suite", a project with no durable test registry, the merge-boundary full run (`select --phase 8`) that needs the entire dev suite enumerated. Adds no new agents.
+user-invocable: false
 ---
 
 # playwright-suite-builder
@@ -124,6 +125,18 @@ Record the resolved path in the manifest's `e2e_dir`. Read the Playwright config
 in full — the existing `projects[]`, `baseURL`, and `use` blocks are what P7
 extends rather than replaces.
 
+**Project principles at intake (v4.0.0, per `project-principles`).** Once per
+project: when `<workspace>/.architect-team/principles.json` is absent, run
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" default-set --workspace <ws>`
+(proposed never binds); when the user provided a document, run
+`python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" extract-candidates <file>`,
+`Read` it, and confirm the drafted statements in ONE `AskUserQuestion` (a domain
+gate; nothing becomes confirmed silently). Every checker dispatched at P3 and
+every authoring brief at P5 carries the output of `python "${CLAUDE_PLUGIN_ROOT}/scripts/principles/cli.py" brief --workspace <ws>`
+under a `Confirmed project principles` heading — a testing principle ("test names
+say the behaviour", "no mocked backend in e2e") binds the suite exactly as it
+binds a feature slice.
+
 ## Phase P1 — Inventory
 
 Glob every spec under `<e2e-dir>` (and any additional `testDir` the config
@@ -161,7 +174,13 @@ frontend file" here; a second definition is a second thing to drift.
 - **Map current** — proceed.
 
 `playwright-user-flows`' standing rule holds unchanged here: tests are never
-built on a stale map.
+built on a stale map. Once the map is current, rebuild the project homepage so
+its Maps panel never shows a pre-refresh verdict (v4.0.0, best-effort, never
+blocking — `project-homepage` `## Rebuild moments`):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || python "${CLAUDE_PLUGIN_ROOT}/scripts/homepage/build.py" --workspace "<workspace>" --json 2>&1 || echo "(homepage rebuild skipped; continuing.)"
+```
 
 ## Phase P3 — Review the existing tests
 
@@ -175,13 +194,25 @@ their own findings:
 - **`interaction-completeness`** — element wiring, placeholder pages, and
   controls that look live but are not.
 
-Scope each dispatch to the inventoried suite rather than a single slice. Findings
+Scope each dispatch to the inventoried suite rather than a single slice.
+
+**Review tier (v4.0.0, per `skills/team-spawning-and-review-gates/references/review-tiers.md`).** A suite-wide review is a
+whole-surface convergence, not a slice, so `interaction-completeness` runs here
+at its Phase 7 count: the `ct6-converge` workflow with the `interaction` preset
+(`kind: "interaction"`, `promise: "INTERACTION COMPLETE"`,
+`reviewerAgent: "architect-team:interaction-reviewer"`, `reviewers: 3`),
+DECLARED before the workflow runs and RECORDED after it per `skills/architect-team-pipeline/references/phase--1.md` `### Converge record protocol (v4.0.0)` —
+the recorded all-`ok` round is the exit condition, the promise only the label.
+`test-completeness-verifier` is a single mechanical verifier (the verifier seat
+of tier 2); it does not fan out. Findings
 route exactly as they already do — a gap becomes a P5 work item, and anything
 meeting the existing SR bar becomes a solution requirement through the normal
 path. This skill adds no new reviewer role, no new verdict vocabulary, and no
 second opinion on top of theirs.
 
 ## Phase P4 — Gap analysis
+
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p4.md` and execute it in full. Do not work from memory.
 
 Coverage is the union of the manifest's `covers_elements[]` and the
 persona-times-goal journeys, measured against the CONFIRMED intuition map and the
@@ -190,19 +221,9 @@ existing user-intent maps. The math is `skills/playwright-user-flows`
 element wants a covering test, every `(persona, goal)` pair wants a journey,
 every journey wants a test, every failure branch wants one too.
 
-Personas come from the artifacts that already carry them, in order: existing
-user-intent maps, `domain-research-team` outputs, and `ux-test-builder` intake
-records. **An unknown persona escalates per `playwright-user-flows` Step 0's
-PROCEED test — it is never guessed.** A suite grouped by invented personas is
-worse than an ungrouped one, because the grouping then asserts something false
-about who the software is for.
-
-Each gap is recorded with the element or journey it covers, the persona it
-belongs to, and why it is a gap. A gap that is genuinely out of scope is declared
-explicitly with its rationale, exactly as Phase C requires. Silent gaps are
-forbidden.
-
 ## Phase P5 — Gap-fill authoring
+
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p5.md` and execute it in full. Do not work from memory.
 
 **`PROPOSAL_FIRST` pauses here.** When the run was invoked with
 `--proposal-first`, P0–P4 complete and the run STOPS before authoring anything,
@@ -211,36 +232,13 @@ go-ahead. This is a process gate and is opt-in — it is off by default. The dom
 gates (P2 bulk-verify, P4 unknown-persona escalation, P8 prod-mutation
 authorization) are unaffected and fire either way.
 
-Author the missing tests per the **FULL** `skills/playwright-user-flows`
-discipline — not a reduced form of it. That means Step 0's persona and objective
-citations (or escalation when they cannot be cited), real interaction calls, a
-real backend, per-step expectation files, selector witness assertions, and the
-shared-state hygiene rules for anything that mutates.
-
-New tests enter the manifest with `source` `gap-fill`, `kind` `journey`, and the
-`covers_elements[]` / `covers_routes[]` the gap named. They land dev-only until
-P8 classifies them.
-
 ## Phase P6 — Debug-flow registration
+
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p6.md` and execute it in full. Do not work from memory.
 
 Sweep the resolved bug artifacts the workspace already carries —
 `.architect-team/solution-requirements/`, the run history, `ux-tests/*/bugs/`,
 and committed Phase B2 reproduction specs. For each resolved bug path:
-
-1. Confirm a covering test exists in the suite. The B2 reproduction artifact IS
-   the regression test; registration moves or references it, never rewrites it.
-2. Register it as a manifest entry with `kind` `debug-flow`, `source` `bug-path`,
-   and a live `origin_ref` naming the SR path or bug slug. A **null** `origin_ref`
-   always blocks. A **path-shaped** one is dereferenced and a dead one blocks. A
-   bare **slug** is recorded but its liveness is advisory-only — see P9's
-   blocking-versus-advisory note. Prefer a repo path when you want the check to
-   actually verify the reference.
-3. Call the `intuition-map-lifecycle` `bug-path-upsert` verb so the map carries
-   the path's elements with `source` `bug-path` and a `regression_refs[]` entry
-   pointing back at this test. The manifest's `origin_ref` and the map's
-   `regression_refs[]` are the two ends of one pointer.
-
-A resolved bug with no registered debug-flow is a gap, and it is reported as one.
 
 ## Phase P7 — Persona grouping
 
@@ -263,109 +261,32 @@ drift after the fact is not a substitute for not creating it.
 
 ## Phase P8 — Dev/prod classification
 
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p8.md` and execute it in full. Do not work from memory.
+
 Invoke `skills/test-prod-safety-classifier` per test and bind its verdict INTO
 the manifest — `safety` (`dev` / `prod`) and `mutates_data` (bool) are recorded
 per entry. The classifier is the existing discipline and the existing annotation
 contract; this phase is where its verdict stops being a report and becomes a
 registry fact.
 
-**The prod project is default-deny.** It contains `kind` `prod-check` tests only
-— navigation and assertion, no mutation. A test with no recorded classification
-lands dev-only and carries `safety` `dev`; unclassified never means "probably
-fine".
-
-A `mutates_data` true test enters the prod project ONLY through a
-`prod_exceptions[]` entry carrying all three of:
-
-1. **The user's recorded authorization** — who authorized it, when, and why. Not
-   an agent's judgment that it seemed safe.
-2. **A test-only data tag** per the `it-<prefix>` convention from
-   `skills/dev-api-integration-testing`, so anything the test creates is
-   identifiable as test data.
-3. **Mandatory teardown** — declared in the exception and implemented in the
-   test.
-
-An exception missing any of the three is a blocking finding, not a warning.
-Derive read-only `prod-check` variants of the smoke-worthy journeys here rather
-than promoting mutating tests — a prod smoke suite is built from reads, not from
-writes made careful.
-
 ## Phase P9 — Manifest write + report
+
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/phase-p9.md` and execute it in full. Do not work from memory.
 
 Validate the assembled manifest with the engine and write it to
 `<e2e-dir>/suite-manifest.json`. A validation error means the manifest is not
 written — a half-valid registry is worse than a stale one, because everything
 downstream trusts it.
 
-```
-$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/playwright_suite/manifest.py" validate --manifest <e2e-dir>/suite-manifest.json
-$(command -v python3 || command -v python) "${CLAUDE_PLUGIN_ROOT}/scripts/playwright_suite/manifest.py" verify --manifest <e2e-dir>/suite-manifest.json --repo-root <repo-root>
-```
-
-`validate` is the schema gate and takes ONLY the manifest — schema validity is a
-property of the document alone, and it reads no tree. It **refuses**
-`--repo-root` (argparse exit 2) rather than accepting and ignoring it, so a
-plausible-looking invocation cannot quietly do less than it appears to.
-`verify` does take `--repo-root`, because reconciliation and `origin_ref`
-liveness are questions about the DISK, not about the JSON; the manifest's `file`
-values and its `e2e_dir` are resolved relative to it.
-
-Exit codes are the gate: **`0`** no blocking findings, **`1`** blocking findings,
-**`2`** the manifest could not be read. Add `--as-json` to either subcommand when
-P9 is parsing the findings rather than showing them. (`--manifest` is the
-readable spelling; `--json` is the older house alias and still works, but pairing
-it with the `--as-json` OUTPUT switch reads badly — prefer `--manifest`.)
-
-`verify-suite-manifest` is the deterministic ship check — manifest-to-disk
-reconciliation in both directions, the prod project as a subset of `prod-check`
-entries union authorized exceptions, `origin_ref` provenance on every
-`debug-flow`, and schema validity.
-
-**Blocking versus advisory — say which, because they are not the same.** Most
-violations block: a dangling `file`, an unlisted spec, an unauthorized mutating
-test in the prod project, a missing required field, an unknown enum value. But
-`origin_ref` liveness splits, and the engine is deliberately honest about it. A
-**path-shaped** `origin_ref` is dereferenced against the tree, and a dead one
-**blocks**. A bare **bug slug** cannot be dereferenced by a filesystem check, so
-it produces an **advisory** (`debug-flow-origin-undereferenceable`) — its
-liveness is unverified rather than verified — and advisories do not affect the
-exit code. `unexpected-schema-version` is advisory for the same reason.
-
-That split is a real limit on what this check proves, not a defect to route
-around. A suite that registers its debug-flows by slug gets provenance recorded
-and liveness UNVERIFIED; register by repo path when you want the check to
-actually dereference it. Claiming every violation blocks would be the overclaim
-this skill's own compiled `Honest boundary` principle names.
-
-Then emit the run report: counts per persona, per `kind`, and per `safety`; which
-gaps were closed and by which new tests; which gaps were escalated and why; the
-checkers' findings from P3 and where each was routed; the manifest path; and the
-`verify-suite-manifest` result. Commit the manifest and the suite with the run's
-standard git behaviour unless `--no-commit` was passed.
-
-**Mark the run complete — the LAST state action of P9.** After the run's outputs
-have landed (the manifest written, the report emitted, and the commit + push done
-per the flags), run the helper from the workspace root:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete || python "${CLAUDE_PLUGIN_ROOT}/hooks/run_continuity.py" --mark-complete
-```
-
-Until then the run-continuity enforcement treats the suite-builder run as
-in-flight. Keep `--set phase="Phase P<N>" slug=playwright-suite-<codebase-slug>`
-current at P-phase boundaries so the marker says where the run actually is. Per
-`common-pipeline-conventions` `## Run continuity discipline (v3.30.0)`.
-
-Note: the solution requirements this run routes — the P3 authenticity findings
-and the P4 gap escalations — are their OWN runs with their own markers. The suite
-run marks complete when ITS phases close, per the SR hand-off contract; it does
-not stay in-flight waiting on work it handed off.
-
 ## Running the suite
 
+> **STOP.** Before acting under this section, Read `skills/playwright-suite-builder/references/running-the-suite.md` and execute it in full. Do not work from memory.
+
 - **Dev suite** — the `dev` Playwright project, against the project's dev
-  environment. This is what a full-integration run enumerates from the manifest
-  and executes in its entirety.
+  environment. This is what the merge-boundary full run (Phase 8 / B8 / M7 /
+  D8 / U9 / P9 — `select --phase 8`) enumerates from the manifest and executes
+  in its entirety; Phase 5 and its lane equivalents run the SELECTED flows
+  (`skills/common-pipeline-conventions/references/test-selection.md`).
 - **Prod smoke suite** — the `prod` project is a first-class runnable smoke suite
   against the production URL, and `skills/test-run-monitor` names it as a
   runnable TEST SOURCE through its existing **command-spawn path
@@ -375,12 +296,6 @@ not stay in-flight waiting on work it handed off.
   command to `LocalAdapter` and spawns it. No new input form, no new
   prerequisite, no adapter change. Read-only by construction, enforced by P8 and
   re-checked by `verify-suite-manifest`.
-
-  **Mind the adapter split — the name invites the wrong guess.**
-  `ProductionQAAdapter` OBSERVES a signal production is already emitting (it
-  polls an APM endpoint, or tails a log file) and executes nothing, so it cannot
-  spawn this suite and is not the path for it. Running a prod suite IS a
-  test-command spawn.
 
 ## Operating rules (non-negotiable)
 
@@ -418,3 +333,16 @@ not stay in-flight waiting on work it handed off.
 - `skills/ux-test-builder` and `skills/bug-fix-pipeline` — the two lanes that
   feed the suite between builder runs, via the lifecycle verbs and manifest
   registration.
+
+## Reference index
+
+Each heavy section's full text lives in this skill's `references/` folder behind the STOP pointer in its section; `references/INDEX.md` lists what to Read before each phase.
+
+| Section | Reference file | Loaded |
+| --- | --- | --- |
+| `Phase P4 — Gap analysis` | `skills/playwright-suite-builder/references/phase-p4.md` | on demand |
+| `Phase P5 — Gap-fill authoring` | `skills/playwright-suite-builder/references/phase-p5.md` | on demand |
+| `Phase P6 — Debug-flow registration` | `skills/playwright-suite-builder/references/phase-p6.md` | on demand |
+| `Phase P8 — Dev/prod classification` | `skills/playwright-suite-builder/references/phase-p8.md` | on demand |
+| `Phase P9 — Manifest write + report` | `skills/playwright-suite-builder/references/phase-p9.md` | on demand |
+| `Running the suite` | `skills/playwright-suite-builder/references/running-the-suite.md` | on demand |
