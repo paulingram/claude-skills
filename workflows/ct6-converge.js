@@ -18,6 +18,11 @@ export const meta = {
 //   fixerPrompt    extra instructions for the fixer
 //   reviewers      how many independent reviewers per round (tier 3 => 3; tier 2 => 1)
 //   maxRounds      HUMAN-set ceiling only; absent means no cap (the no-self-imposed-limits rule)
+// The result (with its `record` block) is handed to scripts/converge/record.py, which
+// writes it under .architect-team/converge/ and satisfies the declared gate ONLY when
+// converged is true and every reviewer returned ok in the final round. Declare the
+// gate BEFORE running this workflow (record.py declare); the Stop audit holds the run
+// until the record exists.
 const a = args || {}
 const kind = a.kind || 'artifact'
 const promise = a.promise || `${kind.toUpperCase()} COMPLETE`
@@ -60,7 +65,8 @@ while (true) {
   round += 1
   if (maxRounds && round > maxRounds) {
     log(`${kind}: human-set ceiling of ${maxRounds} rounds reached without convergence`)
-    return { converged: false, promise, rounds: round - 1, history, reason: 'human-set round ceiling' }
+    return { converged: false, promise, rounds: round - 1, history, reason: 'human-set round ceiling',
+      record: { schema: 'ct6-converge/v1', kind, promise, reviewers, converged: false, rounds: round - 1, history } }
   }
   const verdicts = (await parallel(Array.from({ length: reviewers }, (_, i) => () =>
     agent(
@@ -82,7 +88,8 @@ while (true) {
 
   if (verdicts.length === reviewers && okCount === reviewers) {
     log(promise)
-    return { converged: true, promise, rounds: round, history }
+    return { converged: true, promise, rounds: round, history,
+      record: { schema: 'ct6-converge/v1', kind, promise, reviewers, converged: true, rounds: round, history } }
   }
 
   const fix = await agent(
