@@ -1,5 +1,5 @@
 ---
-description: Report which CT6 codebase disciplines have been applied to the current codebase (the v2.18.0 codebase discipline registry). Read-only by default; pass --apply to auto-execute auto-apply-safe disciplines that are missing or stale. The same logic Phase 0.1 fires automatically at every pipeline-run start, exposed as a user-triggered standalone command for "is my codebase up to date with CT6?"
+description: Report which CT6 codebase disciplines have been applied to the current codebase (the discipline registry). Read-only by default; --apply auto-executes auto-apply-safe disciplines that are missing or stale. The same check Phase 0.1 fires at every run start, standalone.
 argument-hint: "[--apply] [--workspace <path>]"
 ---
 

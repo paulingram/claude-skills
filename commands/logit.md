@@ -1,5 +1,5 @@
 ---
-description: Run the Logit / Helpdesk manual triage report after a session that went badly (HD-1…3). Asks for explicit consent and a privacy level (full / summary / off), captures the issues the agents could not solve on the first attempt, and produces a triage submission via scripts/helpdesk/logit.py that follows the same triage process as the automatic logger. The actual send to the triage server is the server-tier; this command produces the privacy-applied payload locally.
+description: Logit / Helpdesk manual triage report after a session that went badly (HD-1...3). Asks consent and a privacy level (full / summary / off), captures the issues the agents could not solve first time, produces the privacy-applied payload locally; the actual send is the server-tier.
 argument-hint: "[--privacy <full|summary|off>] [--workspace <path>]"
 ---
 

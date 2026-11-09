@@ -1,5 +1,5 @@
 ---
-description: "Batched heavyweight review for commits produced by /architect-team:mini. Greps git log for the Mini-Run: <slug> trailer in the configured range (--since), groups commits by slug, computes the aggregate per-slug diff, and runs the full /architect-team review gates against each — interaction-completeness and editability-completeness per slice at review tier 2 (one paired reviewer via the ct6-converge presets, a second verdict only on disagreement, each gate declared before and recorded after), visual-fidelity-reconciliation (per design map), test-completeness-verifier, dev-api-integration-testing audit. Drift becomes solution requirements; the existing bug-fix-pipeline auto-spawn picks them up (v0.7.0 SR → dev-loop). After sweep, tags main with mini-sweep/<ISO-date> so the next sweep's --since works. Closes the loop on the many rapid mini changes + one massive review pattern."
+description: Batch review of /architect-team:mini commits, grouped by Mini-Run trailer (--since) -- interaction- and editability-completeness at review tier 2 (one paired reviewer, a second only on disagreement), visual-fidelity, test-completeness, dev-API audits per slug. Drift becomes SRs.
 argument-hint: "[--since <ref>] [--limit <N>] [--no-compact]"
 ---
 

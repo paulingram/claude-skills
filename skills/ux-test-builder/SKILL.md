@@ -1,6 +1,6 @@
 ---
 name: ux-test-builder
-description: "A persona-driven UX-test orchestrator. Takes a persona description + objectives + target site (URL or `--dev` for the project's dev environment) + credentials (env-var reference, never the secret). Maps the site (fresh or freshness-checked via `intake-and-mapping`), drafts a literal Playwright flow matching the user's request, dispatches `flow-explorer` agents per the review tier (one by default, three only at tier 3) to propose 10-15 adjacent flows each, distills to a unique set, authors one `.spec.ts` per flow, dispatches `flow-executor` agents per the review tier (one runs every flow against the live target, a second re-runs disputed flows), resolves verdict disagreements via loop-until-converged convergence (no fixed cycle cap), documents bugs, and auto-routes them through the existing `bug-fix-pipeline` (v0.9.22). The capability is the structural bridge between 'human describes a persona's UX concern' and 'the bug-fix-pipeline has the work queued.' Reached via `/architect-team:ux-test`."
+description: Persona-driven UX-test orchestrator via /architect-team:ux-test. Persona, objectives, target site (URL or --dev), env-var credential ref in; maps the site (intake-and-mapping), flow-explorer agents propose adjacent flows, flow-executor agents run each .spec.ts until verdicts converge, bugs route to bug-fix-pipeline.
 user-invocable: false
 ---
 

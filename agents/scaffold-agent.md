@@ -1,6 +1,6 @@
 ---
 name: scaffold-agent
-description: Generates new domain-specific agent .md files into the architect-team plugin's agents/ directory (e.g., ml-engineer, mobile-ios, data-pipeline). Reads existing agents as templates; preserves structural conventions; validates that the generated file's frontmatter is valid and its tool list names real tools.
+description: Generates new domain-specific agent .md files into the plugin's agents/ from existing agents as templates. Dispatched by the Lead on demand. Validates frontmatter and that the tool list names real tools; writes only the new file.
 tools: Read, Glob, Write, Edit, Bash, TaskList, TaskUpdate, WebFetch
 model: fable
 color: purple

@@ -1,5 +1,5 @@
 ---
-description: Run an on-demand editability-completeness audit against one or all codebases. Runs the whole-surface convergence at the Phase 7 count (review tier 3 — three editability-reviewer agents via the ct6-converge editability preset, declared before and recorded after) that independently enumerate every attribute of every entity the codebase creates or edits, reason through which a user should be able to control, and trace each end-to-end (UI control → state → API → request schema → handler → database → read-back). The three argue to a converged list of must-be-editable attributes and gaps; every gap is written as a solution requirement. Reports the converged map; the architect-team pipeline acts on the SRs. Emits a /compact prompt at the end unless --no-compact.
+description: On-demand editability-completeness audit of one or all codebases -- convergence at the Phase 7 count (review tier 3, three editability-reviewer agents via ct6-converge) over every entity attribute a user should control. Gaps become SRs; emits /compact unless --no-compact.
 argument-hint: "[codebase-path] [--feature <name>] [--no-compact]"
 ---
 

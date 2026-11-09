@@ -1,6 +1,6 @@
 ---
 name: claude-design-import
-description: Use when a requirement carries a Claude Design offer — a claude.ai/design/p link and/or a claude_design MCP mention — and you need to import that design project into the pipeline as a front-end oracle. Detects the offer, fetches the WHOLE project natively through the claude_design MCP, materializes it locally path-safely, and hands it to the existing interactive-mockup oracle path. Degrades gracefully with an instruct-then-fallback to the zip/local design-input path when the MCP is unavailable, so a run never dead-ends. The deterministic detector, URL parser, materializer, and fallback planner live in scripts/claude_design/claude_design_import.py; this skill is the contract.
+description: Use when a requirement carries a Claude Design offer -- a claude.ai/design/p link or a claude_design MCP mention -- to import it as a front-end oracle into the interactive-mockup oracle path, falling back to the zip/local design-input path when the MCP is absent. Engine scripts/claude_design/claude_design_import.py.
 user-invocable: false
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Build or refresh a target frontend codebase's durable, persona-grouped Playwright suite. Drives the playwright-suite-builder skill through P0-P9 — resolve the e2e directory following the repo's own convention, inventory the existing specs, refresh a stale interaction-intuition map, review the existing tests by dispatching test-completeness-verifier and interaction-completeness, analyse suite-wide coverage gaps, author the missing flows, register debug-flows from resolved bugs, group by persona, classify every test dev or prod under default-deny production safety, then write an engine-validated suite-manifest.json plus a run report. Auto-commits and pushes on a clean P9 pass and emits a /compact prompt, unless --no-commit / --no-push / --no-compact.
+description: Build/refresh a frontend codebase's persona-grouped Playwright suite (P0-P9) -- inventory specs, refresh the intuition map, author missing flows, register debug-flows from resolved bugs, classify tests dev or prod (default-deny), write suite-manifest.json. Commits on a P9 pass.
 argument-hint: "[<frontend-codebase-path> | <target description>] [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first] [--no-worktree]"
 ---
 

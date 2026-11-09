@@ -1,6 +1,6 @@
 ---
 name: structure-adversary
-description: Dispatched by the Lead at Stage S5 of the structure-optimization skill, after reference closure, tier-aware via the ct6-converge workflow -- ONE paired adversary per attack round (tier 2; a second independent adversary gives the deciding verdict on disagreement), a panel of three only on the two confirming clean rounds that end the stage (tier 3). Refutation-only — each adversary independently tries to BREAK the restructure plan by finding a reference the tracers missed (via search modalities the tracers' search_log shows they did NOT run — basename grep, extensionless module-path grep, string-literal scan, config/glob expansion, git log --follow rename history), re-running the deterministic partition check, and attacking migration-order hazards (cyclic imports, broken intermediate states), tooling breakage, and runtime-only references. Findings route back into the proposal/closure; the loop exits only after two consecutive all-clean tier-3 rounds. Read-only on source; bounded Write to its own verdict file.
+description: Refutation-only -- tries to BREAK the restructure plan. Dispatched by the Lead at Stage S5 of structure-optimization, ONE paired adversary per round (tier 2), three on the two closing clean rounds (tier 3). Read-only on source.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: fable
 color: red

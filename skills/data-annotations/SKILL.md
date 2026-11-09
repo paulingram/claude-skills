@@ -1,6 +1,6 @@
 ---
 name: data-annotations
-description: Use when a codebase's team knowledge about data objects (tables and fields) needs a durable, structured, git-shared home instead of only prose recall. The persistent per-user annotation store on data objects, anchored to table/table.field ids from docs/data-dictionary.json and typed with a fixed vocabulary (note, quality_flag, deprecation). The CT6 inversion is load-bearing — a FACTUAL annotation (an expected_type/claims_key/definition) is corroborated on ingest through corroborate_definition and flagged on conflict, never transcribed as truth; opinions are stored as authored but a quality_flag still travels with the served field. Per-user files never merge-conflict; the knowledge server merges annotations at query time with corroboration status; recall INFORMS but never skips a per-run gate. The engine lives in scripts/data_dictionary/annotations.py; this skill is its contract.
+description: Use when a codebase's team knowledge about data objects (tables and fields) needs a durable, git-shared home. Per-user annotations keyed to data-dictionary ids, typed note / quality_flag / deprecation; facts pass corroborate_definition, never transcribed as truth. Engine scripts/data_dictionary/annotations.py.
 user-invocable: false
 ---
 

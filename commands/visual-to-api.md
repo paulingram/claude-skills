@@ -1,5 +1,5 @@
 ---
-description: Run the visual-to-API design pipeline against a visual codebase (UI present, requirements absent OR only partially specified). Drives a 4-stage structured workflow — context discovery → per-persona research → page catalog → backend design from frontend — with 3-reviewer convergence per stage and per-stage checklists that gate the next stage's freeze. Each stage's output is a frozen structured JSON artifact at `<workspace>/.architect-team/visual-to-api-design/<feature-slug>/stage-<N>-<name>.json`. Use this when /architect-team's heuristic detection might not match — when you want to FORCE the visual-to-API pipeline regardless of whether a requirements folder is present. Auto-commits + pushes the produced artifacts on Phase 8 (unless --no-commit / --no-push) and emits a /compact prompt at end (unless --no-compact).
+description: Visual-to-API pipeline for a codebase with UI but absent or partial requirements -- 4 stages (context discovery, per-persona research, page catalog, backend design from frontend) with 3-reviewer convergence. FORCES it when /architect-team's heuristic detection may not match.
 argument-hint: "<codebase-path> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default]"
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Produce an adversarially-verified codebase-restructure PLAN — analyze the code + codebase maps (producing them via cartographer-team if missing/stale), converge the structure-analyst draft at the per-slice review tier (tier 2 — one independent draft, a second only when the partition check contests it; three only at tier 3) gated by a deterministic every-file partition check, close every movement's reference-impact set (imports / configs / CI / docs / string paths, file:line evidence), refute the whole via ×3 structure-adversary rounds until two consecutive all-clean rounds, architect-audit it, and ship RESTRUCTURE_PLAN.md + movements.json + a strict-validated OpenSpec change. Plan-only by default — execution belongs to /architect-team driving the produced change (--execute hands off immediately). Commits the produced artifacts (never source moves) unless --no-commit; emits a /compact prompt unless --no-compact.
+description: Adversarially-verified restructure PLAN -- structure-analyst converged at the per-slice review tier (tier 2; three at tier 3), reference-impact closure, structure-adversary rounds; ships RESTRUCTURE_PLAN.md + OpenSpec change. Plan-only, never moves source; --execute hands off.
 argument-hint: "[codebase-path | --all] [--objective \"<prose>\"] [--execute] [--no-commit] [--no-push] [--no-compact]"
 ---
 

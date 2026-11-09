@@ -1,6 +1,6 @@
 ---
 name: page-publishing
-description: Use whenever a run or a user wants a PAGE rather than terminal text -- a report, dashboard, explainer, the project homepage, a visual someone else will read -- and to decide where that page lives. Carries the plugin's own page contract (one self-contained HTML file, light + dark color tokens, inline SVG diagrams, responsive at 400px, pinned-CDN libraries only, no data leaves the page, no secrets, under 16 MB) so the page is portable to any host. Two publish modes read from the human-owned .architect-team-publish.json -- claude (default, hand the file to the Claude Artifact tool) and private-url (scripts/publish/publish.py mints a token and places the page through the local-port / gcp-signed-url / gcp-cloud-run / nominated-host adapter under <base_url>/<slug>/p/<token>/<page>.html). Covers the one setup question, token TTL, revoke and list, and the honest boundary printed with every private link.
+description: Use when a run or user wants a PAGE rather than terminal text -- report, dashboard, explainer, project homepage -- and where it lives. Page contract (self-contained HTML, nothing leaves the page) and two publish modes -- claude (the Artifact tool) and private-url (scripts/publish/publish.py, tokened link).
 user-invocable: false
 ---
 

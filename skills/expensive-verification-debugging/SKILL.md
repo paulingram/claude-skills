@@ -1,6 +1,6 @@
 ---
 name: expensive-verification-debugging
-description: Use when debugging a failure whose verification cycle is expensive — a container rebuild, an ECS / Kubernetes / Cloud Run rolling deploy, a slow CI run, a long compile, any feedback loop with a multi-minute turnaround — or when you notice you have already burned two or more deploy / rebuild cycles fixing one bug at a time. Triggers — "I'll fix this one and redeploy to see", whack-a-mole config debugging, a greenfield Docker / Vite / build / CI pipeline that has never run end-to-end, an env var or asset that is not reaching the production bundle, sequential one-fix-per-deploy loops, "the deploy is rolling, waiting to verify". Establishes that when verification is expensive you audit the entire failure pathway and batch every fix before spending a cycle, rather than hunting one root cause at a time.
+description: Use when debugging a failure whose verification is costly -- container rebuild, ECS / Kubernetes / Cloud Run deploy, slow CI, long compile -- or after two deploy cycles on one bug, whack-a-mole config fixes, a greenfield Docker / Vite / CI build, an env var missing in the bundle. Audit the whole pathway; batch fixes.
 user-invocable: false
 ---
 

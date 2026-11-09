@@ -1,6 +1,6 @@
 ---
 name: ct6-agent-core
-description: The rules every CT6 agent carries. Preloaded into each agent through its `skills:` frontmatter (never invoked by hand) - the operating context of a long-lived teammate, the forbidden shared-state git operations, the checkpoint discipline, the eight operating principles, and the reporting and escalation channel. One canonical copy replaces the five blocks that were compiled into all 39 agent files before v4.0.0.
+description: The rules every CT6 agent carries. Preloaded into each agent through its skills frontmatter, never invoked by hand -- the operating context of a long-lived teammate, the forbidden shared-state git operations, the checkpoint discipline, the eight operating principles, and the reporting and escalation channel.
 user-invocable: false
 ---
 

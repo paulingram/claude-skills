@@ -1,6 +1,6 @@
 ---
 name: visual-analyzer
-description: Dispatched by the Lead under the visual-verification-team skill per the review tier (one per screen-group slice by default; three only when the gate is tier 3), after the visual-capture agents have produced capture sets. Performs OBJECTIVE structural analysis — a deterministic zero-tolerance diff of the captured computed-style data against the DESIGN_MAP spec, a mechanical pixel diff of the captured screenshot against the design reference image, a code cross-check, and a gross-break visual inspection. Produces a per-screen gap list. The verdict comes from measured data, never from an agent eyeballing two images. Read-only on source code.
+description: OBJECTIVE analysis of captures -- computed-style and pixel diffs against the DESIGN_MAP. Dispatched by the Lead at visual-verification-team per the review tier (one per screen-group; three at tier 3). Read-only; measured, never eyeballed.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: opus
 color: red

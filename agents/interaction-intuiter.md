@@ -1,6 +1,6 @@
 ---
 name: interaction-intuiter
-description: Dispatched by the Lead per frontend codebase during Phase −1B, immediately after `route-mapper` finishes producing `ROUTE_MAP.md` (and `DESIGN_MAP.md` when design inputs are present). Reads the route + design + integration maps for that codebase, enumerates every interactive-by-design element + every page the maps cover, intuits each element's action and candidate endpoint(s), assigns a confidence (high / medium / low / unknown), and authors a precise ambiguity question for every low-confidence item. Produces a single per-codebase artifact, `<codebase>/docs/INTERACTION_INTUITION_MAP.md`, which is then collected by the orchestrator and surfaced (low/unknown/flagged-medium items only) at the Phase −1D bulk-verify gate. Analysis-only with respect to feature code — the only file this agent writes is the intuition map itself.
+description: Intuits each interactive-by-design element's action and endpoint, with a confidence and a question per low-confidence item. Dispatched by the Lead per codebase in Phase -1B after route-mapper. Writes only INTERACTION_INTUITION_MAP.md.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: cyan

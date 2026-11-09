@@ -1,6 +1,6 @@
 ---
 name: data-eng-pipeline
-description: Use when a data-engineering ask should be driven end-to-end as a first-class lane — build the warehouse dbt models, mine the stored procedures into a data dictionary, design the Airflow pipeline — faster than the full architect-team-pipeline but with the same rigor where it matters. A sibling orchestrator playbook (like bug-fix-pipeline) whose phases D−1 through D8 reuse the main pipeline's structural points rather than duplicating them; D0 dispatches data-engineering-exploration verbatim (the lane is its third caller), D2–D6 run Phases 2–6 verbatim (the full evidence stack), and the two new disciplines are the D−1 warm-catalog-first check (query the Run A knowledge server plus its freshness verdict before a rebuild) and the D7 catalog-refresh (rebuild the dictionary, re-index the server, mine to MemPalace, leaving the catalog warm). Accepts the same two input forms as architect-team — a requirements folder OR plain-language prose typed directly.
+description: Use when a data-engineering ask should run end-to-end as a first-class lane -- dbt warehouse models, mined stored procedures, an Airflow pipeline -- faster than architect-team-pipeline, same rigor. Phases D-1 to D8 -- warm-catalog-first check, data-engineering-exploration, catalog-refresh. Folder or prose in.
 user-invocable: false
 ---
 

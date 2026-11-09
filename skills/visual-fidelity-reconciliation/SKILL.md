@@ -1,6 +1,6 @@
 ---
 name: visual-fidelity-reconciliation
-description: Use when QA-reviewing frontend work post-development against a codebase that has a DESIGN_MAP.md — any commit touching frontend files (.tsx / .jsx / .vue / .svelte / .astro / .css / .scss / theme tokens / Storybook stories / assets) MUST produce a reconciliation report verifying every (screen, element, state) tuple in scope matches the design contract PERFECTLY. Also use in Phase 5 integration to regression-check the visual contract, on-demand via /architect-team:visual-qa, or when the Phase 3 hook rejects a visual_fidelity_review=fail evidence file. The body mandates zero-tolerance defaults, exhaustive per-state walks, fix-to-spec by default, and the four narrow escalation exceptions.
+description: Use when QA-reviewing frontend work with a DESIGN_MAP.md -- any frontend commit (.tsx / .vue / .css, tokens, assets) MUST yield a reconciliation report proving each screen, element and state matches the design PERFECTLY. Also Phase 5, /architect-team:visual-qa, or a Phase 3 visual_fidelity_review=fail rejection.
 user-invocable: false
 ---
 

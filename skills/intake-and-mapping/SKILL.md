@@ -1,6 +1,6 @@
 ---
 name: intake-and-mapping
-description: Use when entering Phase −1 of the architect-team pipeline, when any agent needs to consult codebase or integration maps, or when checking whether existing maps need refresh. Defines codebase discovery rules, the per-codebase tier-3 map convergence (3 reviewers, declared and recorded around the ct6-converge workflow labelled "CODEBASE MAP COMPLETE"), frontend detection that triggers the route-mapper, and the integration map convergence with 3 explorers + master-synthesizer (tier 3, labelled "INTEGRATION MAP COMPLETE"). Handles re-entry freshness checks against git commit timestamps.
+description: Use when entering Phase -1 of the architect-team pipeline, when an agent needs the codebase or integration maps, or to check whether maps need refresh. Tier-3 map convergence via ct6-converge (CODEBASE MAP COMPLETE), frontend detection firing the route-mapper, integration-map convergence, git-timestamp freshness.
 user-invocable: false
 ---
 

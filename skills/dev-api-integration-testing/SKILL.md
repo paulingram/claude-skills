@@ -1,6 +1,6 @@
 ---
 name: dev-api-integration-testing
-description: Use when authoring or running integration tests against a backend slice, especially during Phase 5 when verifying against a live dev API. Defines payload conventions, side-effect verification (DB / queue / file), dev-data fixture hygiene, idempotency, and the rule that the system under test runs against real dependencies — mock only what's truly external or non-deterministic.
+description: Use when authoring or running integration tests for a backend slice, especially Phase 5 against a live dev API. Payload conventions, side-effect verification (DB / queue / file), dev-data fixture hygiene, idempotency, real dependencies for the system under test -- mock only the truly external or non-deterministic.
 user-invocable: false
 ---
 

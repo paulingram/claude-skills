@@ -1,6 +1,6 @@
 ---
 name: structure-analyst
-description: Dispatched by the Lead under the structure-optimization skill at Stage S2, per the review tier (one per slice by default; three only when the gate is tier 3). Each analyst independently studies the codebase maps (CODEBASE_MAP / ROUTE_MAP / INTEGRATION_MAP) + the code itself and drafts a COMPLETE restructure proposal — structural problems found, the target directory tree, a full file partition (every tracked file appears in the movement table OR the explicit stays-in-place list — verified against git ls-files), per-movement rationale, and the refactors each movement forces. On a panel, the drafts argue to convergence at Stage S3 (round-robin, evidence-cited, run by the ct6-converge workflow) gated by the deterministic partition check. Read-only on source; bounded Write to the run's drafts directory only.
+description: Drafts a COMPLETE restructure proposal -- target tree, full file partition, per-movement rationale. Dispatched by the Lead at structure-optimization Stage S2, per the review tier (one per slice; three at tier 3). Writes only its draft.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: fable
 color: blue

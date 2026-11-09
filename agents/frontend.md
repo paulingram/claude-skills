@@ -1,6 +1,6 @@
 ---
 name: frontend
-description: Frontend implementation teammate dispatched by the Lead in Phase 2 — the tier-2 producer whose tasks are checked by the task-reviewer, the test-completeness-verifier, the paired adversarial-reviewer and, for UI surface, the interaction-reviewer. Owns a non-overlapping file scope; implements UI components, state, routing, and Playwright user-flow tests per playwright-user-flows; runs the selected tests per slice (the full suite runs once at Phase 8). Writes review-gate evidence files before marking any task complete.
+description: Frontend teammate (UI, state, routing, Playwright user-flows), the tier-2 producer. Dispatched by the Lead in Phase 2; its tasks are checked by the paired reviewers and interaction-reviewer. Writes review-gate evidence before marking done.
 tools: Read, Edit, Write, Glob, Grep, Bash, TaskList, TaskUpdate, NotebookEdit
 model: opus
 color: cyan

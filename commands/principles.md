@@ -1,5 +1,5 @@
 ---
-description: Show, add, retire or extract the current project's codified principles (the project-principles register at .architect-team/principles.json, rendered to docs/PROJECT_PRINCIPLES.md). Read-only by default — `show` lists the confirmed, proposed and retired principles with their sources; `add` codifies a rule the user states (confirmed immediately); `retire` removes one with a recorded reason; `extract` prints candidate statements from a document for the user to confirm. The same engine every pipeline lane consults at intake and before presenting a design.
+description: Show, add, retire or extract the project's codified principles (.architect-team/principles.json). Read-only by default -- show lists confirmed, proposed and retired; add codifies a user-stated rule; retire removes one with a reason; extract proposes candidates from a document.
 argument-hint: "[show | brief | add \"<statement>\" --scope <scope> | retire P-xx --reason \"...\" | extract <file>] [--workspace <path>]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: delivery-manifest
-description: Use at the END of every completed run or piece of delivered work — fired by the close-out of all four pipelines (Phase 8 / B8 / M7 / U9, right after run-continuity mark-complete) and invocable on demand for any finished change. Produces the run's DELIVERY MANIFEST (the "bill of sale") — what problem was solved in plain speak, the testing criteria anyone can use to validate it, and (for a feature) the location of every new element with what each one does — written email-ready so it can be copied straight into a message and sent. If the user provided an example document (a prior delivery note, a company template), the manifest MATCHES ITS VOCABULARY AND LAYOUT. The deterministic engine (scripts/delivery/delivery_manifest.py) gates publishing on content completeness (required sections, per-step expected results, per-element locations, zero placeholders); the manifest embeds into the run_complete email via the notifier's plan-file flag.
+description: Use at the END of every run or delivery -- Phase 8 / B8 / M7 / U9 close-out or on demand. The DELIVERY MANIFEST (bill of sale) -- problem solved in plain speak, test criteria anyone can run, where each new element lives -- email-ready, matching any example document. scripts/delivery/delivery_manifest.py gates it.
 user-invocable: false
 ---
 

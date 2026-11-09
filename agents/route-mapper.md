@@ -1,6 +1,6 @@
 ---
 name: route-mapper
-description: Dispatched by the Lead per frontend codebase during Phase −1B (after CODEBASE_MAP.md is produced — by the cartographer plugin when installed, else the native codebase-mapping fallback). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp. Additionally, when design inputs are present (screenshots / Figma exports / design tokens / Storybook / brand docs / assets directory), produces DESIGN_MAP.md per the design-fidelity-mapping skill's schema — design tokens table, asset registry with SHA-256 hashes, per-screen visual specs (typography, color, spacing, layout, asset placement), and detected drift between design source and implementation.
+description: Statically enumerates every route, component tree and API call into the ROUTE_MAP; with design inputs (screenshots, Figma, tokens) also writes the DESIGN_MAP. Dispatched by the Lead per frontend codebase in Phase -1B after the codebase map.
 tools: Read, Glob, Grep, Bash, Write, Edit, TaskList, TaskUpdate
 model: sonnet
 color: cyan

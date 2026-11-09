@@ -1,6 +1,6 @@
 ---
 name: bug-fix-pipeline
-description: "Use when a bug needs to be fixed end-to-end faster than the full architect-team-pipeline can deliver, but with the same rigor where it matters. A sibling orchestrator playbook whose Phases B−1 through B8 mirror the main pipeline's structural points but replace the Phase 2-5 parallel-team-spawn / 6-team-review with a tight replicate → reproduce-test → propose → fix → QA-replay loop. The body documents the five non-negotiable disciplines (replicate first, reproduction IS the regression test, generalized fix not symptom patch, QA replay against the live dev environment, live-dev-by-default with production opt-in). Accepts the same two input forms as the main /architect-team — a requirements folder OR a plain-language requirement typed directly as prose."
+description: Use when a bug needs fixing end-to-end faster than the full architect-team-pipeline, with the same rigor where it matters. Sibling lane, Phases B-1 to B8 -- replicate, reproduce-test, propose, fix, QA-replay against live dev (production opt-in). Takes a requirements folder or plain prose like /architect-team.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: codebase-map-reviewer
-description: Dispatched by the Lead as a tier-3 panel of three via the ct6-converge workflow (codebase-map convergence), per codebase, during Phase −1B. Reviews CODEBASE_MAP.md (and ROUTE_MAP.md when present, and DESIGN_MAP.md when present) against the actual codebase, looking for missing modules, unmapped routes, missing API entries, unmapped design tokens / assets / per-screen visual specs, and stale entries. Read-only. Returns a structured JSON verdict; the ct6-converge workflow collects the three typed verdicts and loops until all three return ok.
+description: Reviews the codebase, route and design maps against the code for missing modules, unmapped routes and stale entries. Dispatched by the Lead per codebase in Phase -1B as a tier-3 panel of three via ct6-converge. Read-only; JSON verdict.
 tools: Read, Glob, Grep, Bash, TaskList, TaskUpdate
 model: fable
 color: red

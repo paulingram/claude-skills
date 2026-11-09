@@ -1,6 +1,6 @@
 ---
 name: monitor-synthesizer
-description: Dispatched by the Lead under the `test-run-monitor` skill at Phase M3 after the `test-run-watcher` has captured per-finding JSON files. Reads every finding, classifies each into one of the 4 monitor categories (flake / regression / environmental / new), assigns severity per the documented rubric, captures additional context (covered-files diff, trace path normalization), computes the summary and trend blocks, and writes the final `report.json` + `report.md` to `<workspace>/.architect-team/monitor-runs/<run-id>/`. Strictly passive — no source modification, no SR filing, no pipeline gating.
+description: Classifies watcher findings as flake / regression / environmental / new and writes the run's final report. Dispatched by the Lead at test-run-monitor Phase M3. Strictly passive -- no source modification, no SR filing, no pipeline gating.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: cyan

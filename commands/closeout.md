@@ -1,5 +1,5 @@
 ---
-description: Run the closeout double-check (CO-1…CO-3) at the end of a work session — review what changed this session against the requirement, confirm the documentation-currency inventory is up to date, and update any stale doc rather than just flagging it. Read-only with --check (deterministic staleness signals only); the default performs the review + update via the closeout skill. The same check the PreCompact hook fires automatically before context is compacted, exposed as a user-triggered standalone command.
+description: Closeout double-check (CO-1...CO-3) at the end of a work session -- review what changed against the requirement, confirm the documentation-currency inventory is current, update stale docs rather than flag them. --check is read-only; the same check the PreCompact hook fires.
 argument-hint: "[--check] [--workspace <path>]"
 ---
 

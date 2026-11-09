@@ -1,6 +1,6 @@
 ---
 name: editability-reviewer
-description: Dispatched by the Lead under the editability-completeness skill (Phase 5, or the /architect-team:editability-audit command) per the review tier — one per slice by default; three only when the gate is tier 3 (then via the ct6-converge workflow). Each reviewer independently enumerates every attribute of every entity a feature creates or edits, reasons through which attributes a user should be able to control, and traces each user-controllable attribute end-to-end from UI control through state, API request, request schema, backend handler, into the database and back. On a panel, the reviewers then argue to a converged list of must-be-editable attributes and gaps. Read-only on source code. Analysis-only — never writes feature code; gaps become solution requirements that the normal fix loop acts on.
+description: Enumerates every entity attribute a feature creates or edits, decides which a user should control. Dispatched by the Lead at Phase 5 or via editability-audit, per the review tier (one per slice; three at tier 3). Read-only; gaps become SRs.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: yellow

@@ -1,5 +1,5 @@
 ---
-description: Spec-to-production multi-agent coding pipeline. Takes EITHER a requirements folder (OpenSpec / Superpowers / plain markdown) OR a plain-language requirement typed directly — a sentence or paragraph describing what to build, fix, change, review, or improve — and drives it end-to-end to tested, integrated production code. Auto-commits and pushes on a clean Phase 8 pass and emits a clear /compact prompt to free context for the next run, unless invoked with --no-commit / --no-push / --no-compact.
+description: Spec-to-production multi-agent pipeline. Takes a requirements folder (OpenSpec, Superpowers, markdown) OR typed prose to build, fix, change, review or improve, and drives it to production. Commits, pushes, compacts on a Phase 8 pass unless --no-commit / --no-push / --no-compact.
 argument-hint: "<requirements-folder | plain-language requirement> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first]"
 ---
 

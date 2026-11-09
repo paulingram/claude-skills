@@ -1,5 +1,5 @@
 ---
-description: Data-engineering lane variant of /architect-team (v3.50.0) — the first-class sibling lane for data-engineering work. Takes EITHER a requirements folder OR a plain-language data-engineering requirement typed directly — a sentence describing the warehouse, pipeline, dbt models, or data dictionary to build, design, or refresh — and drives it through the data-eng-pipeline orchestrator (phases D−1 through D8), which reuses the main pipeline's evidence stack, dispatches data-engineering-exploration verbatim, and adds the warm-catalog-first check plus the catalog-refresh discipline. Auto-commits and pushes on a clean Phase D8 pass and emits a /compact prompt to free context. Accepts the SAME two input forms as /architect-team — folder or plain-language prose, both first-class.
+description: Data-engineering lane of /architect-team. Takes a requirements folder OR a data-engineering requirement (warehouse, pipeline, dbt models, or data dictionary to build, design, or refresh) and drives it through the data-eng-pipeline, D-1 through D8. Commits on a Phase D8 pass.
 argument-hint: "<requirements-folder | data-engineering requirement> [--no-commit] [--no-push] [--no-compact] [--allow-push-to-default] [--proposal-first] [--no-refine] [--no-worktree] [--no-auto-merge] [--appearance strict|propose|innovate] [--full-data]"
 ---
 

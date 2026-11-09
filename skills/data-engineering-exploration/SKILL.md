@@ -1,6 +1,6 @@
 ---
 name: data-engineering-exploration
-description: The data-plane analog of `visual-to-api-design` — a 7-stage exploration pipeline for data engineering / data architecture asks (dbt projects / Airflow DAGs / Snowflake warehouses / Databricks lakehouses / Kafka streaming / data meshes / feature stores / data products). Stage 1 domain context (via domain-research-team with mandatory outside research on data-stack patterns) → Stage 2 conceptual data model → Stage 3 service design (tool + architecture + phenotype dispatch) → Stage 4 volume + velocity analysis → Stage 5 data security (PII / encryption / access control / regulatory) → Stage 6 MANDATORY validation + lineage + observability (per-transformation rules + aggregate + per-endpoint metrics) → Stage 7 OpenSpec authoring via openspec-propose. Each stage's 3-reviewer convergence wraps in ct6-converge workflow with total-agreement completion-promise. Dispatched from Phase 0c of architect-team-pipeline; never invoked standalone for code generation. v3.5.0.
+description: Data-plane analog of visual-to-api-design -- 7-stage exploration for data engineering asks (dbt, Airflow, Snowflake, Databricks, Kafka, data mesh), domain context and data model through security, validation and lineage to OpenSpec via openspec-propose. Dispatched from Phase 0c; never standalone for code generation.
 user-invocable: false
 ---
 

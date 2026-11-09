@@ -1,6 +1,6 @@
 ---
 name: integration-explorer
-description: Dispatched by the Lead as a tier-3 panel of three via the ct6-converge workflow (integration-map convergence) during Phase −1C. Each independently produces an integration synthesis from all CODEBASE_MAP.md / ROUTE_MAP.md files plus read access to boundary code (HTTP clients, queues, shared schemas, deployment configs). In the round-robin convergence step, each reviews the other two's drafts and revises its own until all three agree; the workflow owns the loop, with master-synthesizer as its fixer seat.
+description: Produces an integration synthesis from every CODEBASE_MAP / ROUTE_MAP plus boundary code. Dispatched by the Lead in Phase -1C as a tier-3 panel of three via ct6-converge, revising round-robin until all three agree. Read-only on source.
 tools: Read, Glob, Grep, Bash, Write, Edit, TaskList, TaskUpdate, WebFetch
 model: fable
 color: blue

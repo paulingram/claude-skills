@@ -1,6 +1,6 @@
 ---
 name: endpoint-trace-mapping
-description: Use when the endpoint-tracer agent is producing a per-endpoint internal call-trace for an in-scope endpoint subset, or when any phase needs to consult or build the Code & Data Lineage Graph (CDLG). Defines ENDPOINT_TRACE_MAP.md + lineage-graph.json, the two-layer extraction contract (intra-service LSP-first static seed + LLM-refine on ambiguity; inter-service route/contract matching reusing INTEGRATION_MAP + INTERACTION_INTUITION_MAP), the func:// / asset:// identity nomenclature, runtime-witness verification against code-path-witness.json (the trust gate), subset-on-demand + transitive freshness + the cost ceiling. The deterministic pieces live in hooks/lineage_graph.py.
+description: Use when the endpoint-tracer agent traces an in-scope endpoint subset, or any phase must consult or build the Code and Data Lineage Graph (CDLG). Defines ENDPOINT_TRACE_MAP.md plus lineage-graph.json, func:// and asset:// identity, runtime-witness verification, the cost ceiling. Engine hooks/lineage_graph.py.
 user-invocable: false
 ---
 

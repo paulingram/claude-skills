@@ -1,6 +1,6 @@
 ---
 name: architect-team-pipeline
-description: "Use when a feature needs to be driven end-to-end to tested, integrated, demonstrable production code. Spec-to-production agent team orchestration: takes a requirement ($ARGUMENTS) — EITHER a requirements folder (OpenSpec, Superpowers, or plain markdown) OR a plain-language requirement typed directly as prose; builds and validates codebase + integration maps; generates the OpenSpec plan via a 100% coverage validation loop with reuse-first design; spawns parallel agent teams for backend and frontend work (superpowers methodology when present, the native fallback otherwise) with tiered review gates; reconciles parallel changes; runs Playwright user-flow tests against the development environment; and meta-loops until the entire spec is implemented."
+description: Use when a feature needs to be driven end-to-end to tested, integrated, demonstrable production code. Takes a requirements folder (OpenSpec, Superpowers, markdown) or plain prose; maps, OpenSpec plan at 100% coverage, reuse-first design, parallel teams, tiered review gates, Playwright flows on dev, meta-loop to done.
 argument-hint: "[requirements-folder | plain-language requirement]"
 user-invocable: false
 ---
@@ -180,7 +180,7 @@ The dev-loop runs until SUCCESS with no iteration ceiling; oscillation changes t
 
 > **STOP.** Before acting under this section, Read `skills/architect-team-pipeline/references/operating-rules.md` and execute it in full. Do not work from memory.
 
-Every rule in the chapter binds every phase of this lane: default to action, tiered reviewer counts, no timers, no destructive teammate git, fix every issue found, execute every test, never end a run silently on incomplete work.
+Every rule in the chapter binds every phase of this lane: default to action, tiered reviewer counts, no timers, no destructive teammate git, fix every issue found, execute every test, never end a run silently on incomplete work. In particular, **NEVER schedule arbitrary wall-clock wakeups**, cron jobs, or background timer tools (`ScheduleWakeup`, `CronCreate` and their kin) from inside the pipeline, and never tell the user "I scheduled a wakeup for N minutes" or "I'll come back to this later" -- the pipeline is synchronous and a subagent dispatch IS the wait.
 
 ## Reference index
 

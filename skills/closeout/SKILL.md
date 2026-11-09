@@ -1,6 +1,6 @@
 ---
 name: closeout
-description: Use at the END of a work session — before compacting context, before declaring work done, or when invoked via /architect-team:closeout. A double-check that reviews the changes made against the requirement and confirms the documentation has been suitably updated; if any doc in the currency inventory is lax or incomplete, it updates it itself rather than just flagging it. Fires automatically before compaction via the PreCompact hook (hooks/precompact-closeout.py), which surfaces the deterministic staleness signals from hooks/closeout_check.py. Reuses the documentation-currency discipline + the doc-updater pattern; operates from the working-tree diff so it works OUTSIDE a full pipeline run.
+description: Use at the END of a work session -- before compacting context, before declaring work done, or via /architect-team:closeout. Reviews the changes against the requirement and updates any lax doc in the currency inventory itself. Fires via the PreCompact hook too; works from the working-tree diff, outside a full run.
 user-invocable: false
 ---
 

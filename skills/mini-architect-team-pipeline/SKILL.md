@@ -1,6 +1,6 @@
 ---
 name: mini-architect-team-pipeline
-description: "Use when a small-to-medium feature change (≤5 acceptance criteria) needs to be driven end-to-end faster than the full /architect-team can deliver, but with auto-merge to main on green QA. A sibling orchestrator playbook to architect-team-pipeline and bug-fix-pipeline; speed comes from dropping phases and parallel-review fan-out, not a weaker model. The body documents the M0-M8 phases: a single system-architect drafts the 5-artifact OpenSpec bundle with a mandatory ## QA Guidance section, two devs implement in parallel and cross-review each other, and one mini-qa agent runs unit + integration + 1-3 narrow Playwright flows against the live dev URL. On green it auto-merges to main with a Mini-Run: <slug> trailer; on persistent red it hands the work off to the unbounded full /architect-team pipeline as a continuation (no give-up cap). Accepts the same two input forms as /architect-team — a requirements folder OR plain-language prose."
+description: Use when a feature change (5 or fewer acceptance criteria) needs driving end-to-end faster than /architect-team, auto-merge to main on green QA. M0-M8 -- one system-architect, two cross-reviewing devs, one mini-qa agent running unit, integration and 1-3 Playwright flows on live dev; red hands off to the full lane.
 user-invocable: false
 ---
 

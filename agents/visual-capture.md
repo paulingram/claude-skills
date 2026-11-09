@@ -1,6 +1,6 @@
 ---
 name: visual-capture
-description: Dispatched by the Lead under the visual-verification-team skill per the review tier (one per screen-group slice by default; three only when the gate is tier 3). Starts the LIVE running application and captures, for every assigned DESIGN_MAP screen, a capture set — per-state / per-viewport screenshots PLUS a computed-style and bounding-box data dump from the real DOM — and assembles the design-side reference (a design image, a design-prototype screenshot, or spec-only). Purely mechanical — it renders and records, it never judges. Its output is a countable artifact set that the visual-analyzer agents consume. Read-only on source code.
+description: Runs the LIVE app, capturing screenshots and computed styles per DESIGN_MAP screen. Dispatched by the Lead at visual-verification-team per the review tier (one per screen-group; three at tier 3). Mechanical -- records, never judges.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: cyan

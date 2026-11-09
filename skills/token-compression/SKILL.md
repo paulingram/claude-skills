@@ -1,6 +1,6 @@
 ---
 name: token-compression
-description: Use to reduce the token cost of agents' INTERNAL communication — inter-agent messages, scratch notes, internal reasoning summaries — by writing tersely ("talk like a caveman"), WITHOUT harming external output quality (output to users / other systems / final deliverables stays full-quality; TC-1). Provides a deterministic stdlib "caveman" compressor (drops articles / politeness / intensifiers + wordy phrases, preserves content words / identifiers / numbers / code verbatim) and documents evaluating a heavier ML token-compression package (LLMLingua-style) for developer agents while they run (TC-3). The deterministic engine lives in scripts/token_compression/caveman.py; this skill is the contract, including the hard internal-only boundary.
+description: Use to cut the token cost of agents' INTERNAL communication -- inter-agent messages, scratch notes, reasoning notes -- by 'talking like a caveman' WITHOUT touching external output (users, systems, deliverables stay full-quality, TC-1). Engine scripts/token_compression/caveman.py; LLMLingua-style evaluation (TC-3).
 ---
 
 # Token Compression (TC-1 … TC-3)

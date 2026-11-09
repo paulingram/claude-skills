@@ -1,6 +1,6 @@
 ---
 name: helpdesk
-description: Use after a session that went badly to file a manual triage report — the user-run counterpart to the automatic issue logging (named "Logit" / "Helpdesk"). It asks for explicit consent before sending anything and asks which privacy level to apply (full shares code/data snippets, summary sends nothing identifiable, off sends nothing), captures the issues the agents could not solve on the first attempt, and produces a triage submission that follows the SAME triage process as the automatic path. The deterministic submission builder + privacy redaction + validator live in scripts/helpdesk/logit.py; this skill is the contract. Honest boundary — the actual SEND to the triage server is the server-tier (the SEC handshake + the EVAL server), not part of this in-repo plugin; the skill produces the payload + applies privacy locally.
+description: Use after a session that went badly to file a manual triage report -- the user-run counterpart to automatic issue logging (Logit / Helpdesk). Asks consent and a privacy level (full / summary / off), captures what the agents could not solve. Engine scripts/helpdesk/logit.py; the send is server-tier, not this plugin.
 user-invocable: false
 ---
 

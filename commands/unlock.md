@@ -1,5 +1,5 @@
 ---
-description: Release a completion hold on the USER's explicit word. When the Stop hook keeps holding a turn after the work is genuinely done -- or after the user has said "good enough, move on with what you have" -- this command inspects what holds the turn (open harness tasks, unresolved asks, declared and converge gates, the active run marker), then retires, resolves, waives and stands them down under ONE durable record of the user's words (.architect-team/releases/unlock-<ts>.json, a decisions-ledger line, pipeline-stand-down.md). Sanctioned only as the user's own slash command; the PreToolUse gate refuses the release verb from any other turn and no Stop hold text names it.
+description: Release a completion hold on the USER's explicit word when the Stop hook keeps holding a finished turn -- inspects the open tasks, asks, gates and run marker, then retires, resolves, waives and stands them down under one record. Sanctioned only as the user's own slash command.
 argument-hint: "<why, in your own words -- e.g. good enough, move on with what you have>"
 disable-model-invocation: true
 ---

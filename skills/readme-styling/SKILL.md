@@ -1,6 +1,6 @@
 ---
 name: readme-styling
-description: Use when creating or updating a README or any top-level project document and you want the house "bitmap" aesthetic — ASCII block-letter banner, gradient section dividers, box-drawing panels and inventory grids, ASCII flowcharts, logic maps that show routing and gates, a status timeline, colored badges, and a per-project color theme. Triggers — authoring or refreshing a README, the user asks for "flair" / "colorful" / "centered" / "bitmap" / "make it look good" styling, a new plugin or project needs its README, a version bump needs the README brought current, or a project has non-trivial control flow that the README must make legible. Reference guide — provides the canvas + centering rules, the pipe-table / ASCII-graph alignment rules, the banner / divider / panel / flowchart / logic-map / timeline patterns, the GitHub-safe + ANSI color model, the preset theme palettes, the interactive theme picker, and the consistency rules.
+description: Use when creating or updating a README or top-level doc in the house 'bitmap' aesthetic -- ASCII banner, gradient dividers, box-drawing panels, flowcharts, logic maps, timeline, badges, color theme. Triggers -- 'flair' / 'colorful' / 'centered' / 'bitmap' / 'make it look good', a new project, a version bump.
 ---
 
 # Readme Styling — The Bitmap House Style

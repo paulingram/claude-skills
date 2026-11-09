@@ -1,6 +1,6 @@
 ---
 name: common-pipeline-conventions
-description: "Use as the canonical home for cross-cutting conventions shared by every architect-team pipeline (architect-team-pipeline, bug-fix-pipeline, mini-architect-team-pipeline). Consolidates the polyglot Python invocation rule, dispatch-mode selection (teams vs subagents) and persistence, the project-email notifier discipline (the 10 event types, the opt-in best-effort rule, the phase-boundary wiring rule), and the MemPalace wake-up precondition reference. Each pipeline skill references the canonical sections here rather than re-explaining the rule, so a single edit propagates."
+description: Use as the canonical home for conventions shared by every lane (architect-team-pipeline, bug-fix-pipeline, mini-architect-team-pipeline) -- polyglot Python invocation, dispatch mode (teams vs subagents), project-email notifier discipline, MemPalace wake-up precondition. Lanes cite it; one edit propagates.
 user-invocable: false
 ---
 

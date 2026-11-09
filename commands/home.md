@@ -1,5 +1,5 @@
 ---
-description: Build, inspect or publish the per-project CT6 homepage (.architect-team/homepage/index.html) — structure, settings, decisions, map freshness, functions, tests and performance in one static page. `--rebuild` rebuilds from the current sources, `--stale` reports whether the built page is behind its sources, `--publish` republishes per the project's publish setting. Read-only on the project; writes only under .architect-team/homepage/.
+description: Build, inspect or publish the CT6 homepage -- structure, settings, decisions, map freshness, functions, tests, performance in one static page. --rebuild from sources, --stale checks for drift, --publish per the publish setting. Writes only under .architect-team/homepage/.
 argument-hint: "[--rebuild] [--publish] [--stale]"
 ---
 

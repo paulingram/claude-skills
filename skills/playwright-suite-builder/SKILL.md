@@ -1,6 +1,6 @@
 ---
 name: playwright-suite-builder
-description: Callable orchestrator that builds and maintains a durable, persona-grouped Playwright suite for a target frontend codebase, reached via /architect-team:playwright-suite. Ten phases — P0 target and e2e-dir resolution following the repo's own convention, P1 inventory reconciled against the suite manifest, P2 intuition-map freshness, P3 review of the existing tests by dispatching the existing checkers, P4 suite-wide gap analysis, P5 gap-fill authoring per the full playwright-user-flows discipline, P6 debug-flow registration, P7 persona grouping, P8 dev-versus-prod safety classification, P9 engine-validated manifest write plus report. Triggers — "build the Playwright suite", a project with no durable test registry, the merge-boundary full run (`select --phase 8`) that needs the entire dev suite enumerated. Adds no new agents.
+description: Builds and maintains a durable, persona-grouped Playwright suite, via /architect-team:playwright-suite. P0-P9 -- manifest inventory, map freshness, gap-fill per playwright-user-flows, persona grouping, dev/prod safety. Triggers -- 'build the Playwright suite', no durable test registry, the merge-boundary full run.
 user-invocable: false
 ---
 

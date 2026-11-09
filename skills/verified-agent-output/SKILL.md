@@ -1,6 +1,6 @@
 ---
 name: verified-agent-output
-description: The Verified Agent Output (VAO) framework — six layers of machine-mediated verification of agent claims. Closes the class of "agent silently does the wrong thing" failures the plugin has been patching one at a time. Schema v7 + 5 deterministic tool verdicts + adversarial reviewer pairings + run-history shape detection + Skill-invocation audit.
+description: The Verified Agent Output (VAO) framework -- six layers of machine-mediated verification of agent claims, closing the 'agent silently does the wrong thing' class of failures. Schema v7, deterministic tool verdicts, adversarial reviewer pairings, run-history shape detection, the Skill-invocation audit.
 user-invocable: false
 ---
 

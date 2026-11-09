@@ -1,5 +1,5 @@
 ---
-description: Run a pixel-perfect post-development visual-QA reconciliation against DESIGN_MAP.md for one or all frontend codebases. Refreshes the design map if stale, runs code-first static analysis, then Playwright runtime verification with per-state screenshots, fixes drift to spec by default, auto-commits + pushes any fixes (unless --no-commit / --no-push), and emits a /compact prompt at the end to free context for the next run (unless --no-compact).
+description: Pixel-perfect visual-QA reconciliation against DESIGN_MAP.md for one or all frontend codebases -- refreshes a stale design map, static analysis then Playwright runtime verification, fixes drift to spec; commits, pushes, compacts unless --no-commit / --no-push / --no-compact.
 argument-hint: "[codebase-path] [--no-commit] [--no-push] [--no-compact]"
 ---
 

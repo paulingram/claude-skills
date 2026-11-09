@@ -1,5 +1,5 @@
 ---
-description: Explicit cleanup of merged architect-team/* worktrees. Walks `git worktree list`, identifies any whose branch is merged into `origin/main`, and removes them (worktree + branch). Excludes the current worktree from cleanup by default (safety). Supports `--dry-run` to preview without filesystem changes.
+description: Explicit cleanup of merged architect-team/* worktrees -- walks git worktree list, finds any whose branch is merged into origin/main, and removes worktree + branch. Excludes the current worktree by default (safety); --dry-run previews without filesystem changes.
 argument-hint: "[--dry-run] [--against <ref>]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: interaction-reviewer
-description: Dispatched by the Lead under the interaction-completeness skill (Phase 3 review gate, or Phase 5 cross-layer verification) for any slice with UI/UX surface, per the review tier — one per slice by default; three only when the gate is tier 3 (then via the ct6-converge workflow). Each reviewer independently enumerates every interactive element AND every page / screen / route the slice ships, classifies each element by how it is wired (endpoint-backed / client-only / confirmed-stub / ambiguous) and each page as live / placeholder / confirmed-stub, traces each non-stub element to its endpoint or client behavior, audits every Playwright test for genuine user-driven interaction, and applies dynamic-value-discovery to flag values hardcoded where they should be dynamic. On a panel, the reviewers then argue to a converged interaction map of genuine controls, live pages, and gaps. Read-only on source code. Analysis-only — never writes feature code; gaps become solution requirements that the normal fix loop acts on.
+description: Classifies wiring of each interactive element and page a slice ships; audits Playwright tests for genuine interaction. Dispatched by the Lead at Phase 3 or 5, per the review tier (one per slice; three at tier 3). Read-only; gaps become SRs.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: yellow

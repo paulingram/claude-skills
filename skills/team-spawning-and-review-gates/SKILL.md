@@ -1,6 +1,6 @@
 ---
 name: team-spawning-and-review-gates
-description: Use when the orchestrator is dispatching teammates in Phase 2 or capturing review-gate evidence in Phase 3. Defines non-overlapping file-scope rules, plan-approval-mode triggers, direct teammate-to-teammate messaging conventions, the review-gate evidence file schema (v7 — the teammate's 17-field self-review including the 5 Verified Agent Output fields, plus an independent task-reviewer verdict), the independent task-reviewer dispatch, the teammate manifest format the SubagentStop hook reads, and escalation policy on repeated hook rejection.
+description: Use when the orchestrator dispatches teammates in Phase 2 or captures review-gate evidence in Phase 3. File-scope rules, plan-approval-mode triggers, evidence schema v7 (self-review, Verified Agent Output fields, task-reviewer verdict), the SubagentStop teammate manifest, escalation on repeated hook rejection.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: mempalace-integration
-description: Use whenever a phase of the architect-team pipeline needs to query prior context or persist a newly-produced artifact to the per-workspace MemPalace store. The orchestrator and named subagents (system-architect, diagnostic-researcher, route-mapper, cartographer-flow callers) consult this skill for the canonical wake-up query at intake, the search patterns each role uses before producing output, the auto-mine rules that fire when an artifact is written (CODEBASE_MAP, ROUTE_MAP, INTEGRATION_MAP, DESIGN_MAP, RCA artifacts, diagnostic plans, solution requirements, handoffs, coverage maps, final reports), and the MCP wire-up that lets every subagent reach the 29 mempalace MCP tools.
+description: Use when an architect-team phase needs to query prior context or persist a new artifact to the workspace MemPalace store -- the intake wake-up query, per-role search patterns, auto-mine rules for maps, RCA artifacts, diagnostic plans, solution requirements, handoffs, coverage maps, final reports, the MCP wire-up.
 user-invocable: false
 ---
 
