@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.1` — hold-channel-harness-pin
 - `v4.1.0` — quiet-holds-and-the-users-release
 - `v4.0.0` — claude-5-modernization
 - `v3.67.0` — git-commit-identity
@@ -172,6 +173,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.1  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.1 — hold-channel-harness-pin: the quiet hold's dependence on Claude Code is announced, not assumed
+
+v4.1.0 moved the Stop hold onto `additionalContext`, a Claude Code behaviour: a later harness that stopped honouring it would leave the completion lock printing into the void while turns ended anyway, with nothing to say so. `hooks/hold_channel.py` now names the harness range the channel was verified on (first build 2.1.319, release line 2.1), and the SessionStart hook prints one line when the running Claude Code is older than that build or on a newer, unverified line — naming the switch (`CT6_STOP_HOLD_MODE=block`) and the re-verification procedure. Silent inside the range, silent when the version cannot be read, silent under `CT6_HOLD_CHANNEL_PIN_DISABLED=1`. It detects a version change, not the behaviour itself; the chapter gives the two-minute behavioural check for a new harness.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

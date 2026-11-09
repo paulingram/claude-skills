@@ -59,6 +59,22 @@ caps consecutive hook continuations (eight by default, reset on every tool
 call); a wedged turn ends there -- which is one more reason the lock reports
 counts honestly instead of looping on a message.
 
+## The harness pin (v4.1.1)
+
+The quiet channel is Claude Code's behaviour, not ours. `hooks/hold_channel.py`
+names the harness range it was verified on (`HOLD_CHANNEL_VERIFIED_MIN`, the
+first build, and `HOLD_CHANNEL_VERIFIED_LINE`, the release line whose later
+patches count as verified); the SessionStart hook reads the running version
+(`claude --version`, else the `version` stamp on transcript records) and prints
+ONE line when the harness is older than that build or on a newer, unverified
+line. An unknown version prints nothing. `CT6_STOP_HOLD_MODE=block` is the
+remedy when the line appears and agents are stopping with work open;
+`CT6_HOLD_CHANNEL_PIN_DISABLED=1` silences the line. To re-verify on a new
+harness: on a workspace with one open harness task, end a turn and confirm the
+transcript shows `Stop hook feedback` and the turn continues; then bump both
+constants and record the harness version in the CHANGELOG entry that ships the
+bump.
+
 ## Enforcement
 
 - `hooks/pretool_skill_gate.py` Arm 5 refuses a Bash command carrying

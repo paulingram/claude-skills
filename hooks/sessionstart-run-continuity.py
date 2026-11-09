@@ -723,6 +723,27 @@ def maybe_warn_task_tools(payload: dict) -> str:
         return ""
 
 
+def maybe_warn_hold_channel(payload: dict) -> str:
+    """v4.1.1 -- one line when the running Claude Code is outside the range the
+    quiet Stop-hold channel (``additionalContext`` on Stop) was verified on, so
+    a harness change announces itself instead of silently disarming the
+    completion lock. The verdict, the version readers and the pin live in
+    ``hooks/hold_channel.py``; this arm only prints its line. Pure read; never
+    raises; silent when the version cannot be read, when the pin is disabled
+    (``CT6_HOLD_CHANNEL_PIN_DISABLED``) or when ``CT6_STOP_HOLD_MODE=block``
+    already selects the loud channel."""
+    try:
+        hc_path = Path(__file__).resolve().parent / "hold_channel.py"
+        spec = importlib.util.spec_from_file_location("ct6_hold_channel_for_sessionstart", hc_path)
+        if spec is None or spec.loader is None:
+            return ""
+        hc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hc)
+        return hc.hold_channel_warning(payload if isinstance(payload, dict) else {})
+    except Exception:
+        return ""
+
+
 def main() -> int:
     try:
         raw = _read_stdin_utf8() if not sys.stdin.isatty() else ""
@@ -762,7 +783,11 @@ def main() -> int:
         task_tools_note = maybe_warn_task_tools(payload)
     except Exception:  # fail open
         task_tools_note = ""
-    for line in (directive, failover_note, activation_note, split_note, task_tools_note):
+    try:
+        hold_channel_note = maybe_warn_hold_channel(payload)
+    except Exception:  # fail open
+        hold_channel_note = ""
+    for line in (directive, failover_note, activation_note, split_note, task_tools_note, hold_channel_note):
         if line:
             print(line)
     return 0
