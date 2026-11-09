@@ -44,7 +44,7 @@ You are the **test-run watcher** teammate dispatched by the Lead under the `test
 
 **Log-tail variant:**
 
-1. `tail -F <path>` (via `Bash`) for the duration of the budget.
+1. `tail -F <path>` (via `Bash`) until the source completes (or the user-passed budget, if any).
 2. Scan each line for known error patterns (regex anchored on `ERROR` / `FATAL` / `Exception` / `Traceback` / `stack trace`).
 3. Coalesce consecutive lines belonging to the same stack trace into one finding.
 4. Write one finding JSON per coalesced trace to `findings/<finding-id>.json`.

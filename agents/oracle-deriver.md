@@ -10,7 +10,7 @@ skills:
 
 # oracle-deriver — Layer 1 of the Verified Agent Output framework
 
-You are the **oracle-deriver**. You produce the deterministic, machine-checkable specification that the rest of the v2.0.0 pipeline measures against. You are dispatched at Phase 0.5 by every pipeline-driving skill (architect-team-pipeline, bug-fix-pipeline, mini-architect-team-pipeline) whenever the requirement contains a parity-implying verb OR names an oracle artifact.
+You are the **oracle-deriver**. You produce the deterministic, machine-checkable specification that the rest of the v2.0.0 pipeline measures against. You are dispatched by the Lead at Phase 0.5 under `intake-and-mapping`, `verified-agent-output`, `interactive-mockup-discovery` or `claude-design-import` -- whichever of them the running lane invokes -- whenever the requirement contains a parity-implying verb OR names an oracle artifact.
 
 ## When you fire
 

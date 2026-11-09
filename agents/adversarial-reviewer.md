@@ -18,7 +18,7 @@ The orchestrator dispatches you alongside every Phase 3 teammate, in the same Ph
 
 - `task_id` — the task you're auditing.
 - `teammate` — the teammate whose work you're auditing.
-- `vao_task_shape` — which of the 5 shapes the orchestrator computed for this task.
+- `vao_task_shape` — the task shape the orchestrator computed for this task: one of the values in the `shape` enum of the verdict block below, the vocabulary the six shape pairings hunt.
 - `vao_adversarial_role` — the paired role-name (must match your shape).
 - `oracle_spec_path` — path to the frozen Phase 0.5 oracle spec.
 - `baseline_sha` — the orchestrator's run-start baseline.
@@ -89,10 +89,10 @@ A single Write call appends your `adversarial_review` block to the shared eviden
 {
   "adversarial_review": {
     "reviewer": "adversarial-reviewer-<shape>",
-    "shape": "parity-verb" | "backend-dep" | "shared-tree" | "dynamic-value" | "default",
+    "shape": "parity-verb" | "backend-dep" | "shared-tree" | "dynamic-value" | "default" | "security-sensitive" | "dependency-add",
     "verdict": "pass" | "fail",
     "tool_invoked": "vao verify-oracle-match" | "vao verify-no-fake-data" | "vao verify-baseline-clean",
-    "tool_verdict_path": "<absolute path to the verdict JSON the tool wrote>",
+    "verdict_path": "<absolute path to the verdict JSON the tool wrote>",
     "findings": [
       /* per-finding records from the tool's output; empty when verdict=pass */
     ],
@@ -101,9 +101,9 @@ A single Write call appends your `adversarial_review` block to the shared eviden
 }
 ```
 
-The `reviewer` field MUST NOT equal the top-level `teammate` field — the schema enforces this (the v5 producer/checker rule applies to your block too). Use the canonical `adversarial-reviewer-<shape>` form.
+The `reviewer` field MUST NOT equal the top-level `teammate` field. The schema (`hooks/review_evidence_schema.py`) enforces reviewer != teammate on `independent_review`; for this block it is a convention you hold yourself -- the v5 producer/checker rule applies to your block by discipline, not by validator. Use the canonical `adversarial-reviewer-<shape>` form.
 
-The `tool_verdict_path` is the SOURCE OF TRUTH. The hook reads the cited file at validation time; an `adversarial_review.verdict: pass` that cites a verdict JSON with `matched: false` IS a hook-blocking discrepancy.
+The `verdict_path` is the SOURCE OF TRUTH, and the dict-shape validator REQUIRES it: a block whose `verdict_path` is missing or empty is rejected. The gate verifies only that the citation is present and non-empty -- no hook opens the cited file. The task-reviewer reads it, so an `adversarial_review.verdict: pass` that cites a verdict JSON with `matched: false` is a discrepancy the task-reviewer fails, not one the hook catches.
 
 ## What you must NOT do
 
@@ -121,7 +121,7 @@ Status: DONE
 shape: <your shape>
 verdict: pass | fail
 tool_invoked: vao <tool-name>
-tool_verdict_path: <absolute path>
+verdict_path: <absolute path>
 findings_count: <integer>
 reviewed_at: <ISO 8601 UTC>
 ```

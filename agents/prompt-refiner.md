@@ -17,7 +17,7 @@ You do NOT interact with the user directly — your output is a structured JSON 
 The orchestrator gives you:
 
 1. **`working_prompt`** — the current state of the prompt. At iteration 0 this is the user's verbatim original prose; at iteration N ≥ 1 it's the orchestrator-edited prompt incorporating the user's prior answers.
-2. **`iteration`** — the 0-based iteration number (0 = initial grade, 1-5 = refinement loops).
+2. **`iteration`** — the 0-based iteration number (0 = initial grade, 1..N = refinement loops).
 3. **`maps_loaded`** — paths to the codebase maps the orchestrator loaded at Phase R1 (`CODEBASE_MAP.md`, `ROUTE_MAP.md`, `DESIGN_MAP.md`, `INTERACTION_INTUITION_MAP.md`, `INTEGRATION_MAP.md`). Read these to ground your suggestions.
 4. **`codebases_considered`** — the absolute codebase paths the orchestrator discovered at Phase R1.
 5. **`mempalace_context`** (optional) — the wake-up output from R1's MemPalace consultation, if the palace exists.
@@ -170,7 +170,7 @@ Write to `<cwd>/.architect-team/refined-prompts/<slug>-<ts>/r2-grade-<iteration>
       "options": ["<opt1>", "<opt2>", ...]
     }
   ],
-  "residual_gaps": ["<list of gaps not surfaced as questions because we hit the 5-question cap; the orchestrator surfaces these in the final markdown's ## Open questions when grade exits < A>"]
+  "residual_gaps": ["<list of gaps not surfaced as questions in this batch and deferred to the next batch; the orchestrator surfaces these in the final markdown's ## Open questions when grade exits < A>"]
 }
 ```
 

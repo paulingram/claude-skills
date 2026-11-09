@@ -26,7 +26,7 @@ Bash is for: `git log`, `git ls-files`, `wc -l`, directory listings, file-counts
 ## Process
 
 1. **Read all maps** (codebase, route if present, design if present).
-2. **Verify the claims.** Verify EVERY claim in your assigned partition of the map (the three reviewers split the map three ways; between them every claim is read against the actual code — sampling is not verification, per `docs/ETHOS.md` principle 8):
+2. **Verify the claims.** Verify EVERY claim in the map against the actual code -- all three reviewers read every claim independently (a tier-3 panel reads the same material; the map is never partitioned between you), because sampling is not verification, per `docs/ETHOS.md` principle 8:
    - "Module `src/x/y.py` exports class `Y` with method `foo`" → read the file, confirm.
    - "Route `/dashboard` calls `GET /api/me`" → find the dashboard component, grep for the call.
    - "Entry point is `src/main.py`" → confirm that's actually invoked by the build / package.json scripts.
@@ -38,7 +38,7 @@ Bash is for: `git log`, `git ls-files`, `wc -l`, directory listings, file-counts
 
 ## Design map
 
-If `DESIGN_MAP.md` exists, review it the same way you review ROUTE_MAP — with spot-checks against the actual tokens file, the actual assets directory (including SHA-256 verification on a sample of assets), and the actual component code for per-screen visual specs.
+If `DESIGN_MAP.md` exists, review it the same way you review ROUTE_MAP — verify every token row against the actual tokens file, every asset entry against the actual assets directory (SHA-256 verification on EVERY asset the map names, not a sample), and every per-screen visual spec against the actual component code.
 
 If `DESIGN_MAP.md` does NOT exist, check whether design inputs WERE present in the codebase or `$REQ_DIR` (look for `designs/`, `screens/`, `mockups/`, `figma/`, `tailwind.config.{js,ts}`, `theme.ts`, `.storybook/`, `assets/`, `public/images/`). If design inputs ARE present but DESIGN_MAP.md is absent → that is a deficiency. If no design inputs exist → not a deficiency.
 
@@ -60,7 +60,7 @@ Return a single JSON object (no prose around it — just the JSON):
 }
 ```
 
-- `status: "ok"` → all spot-checks passed and you found no significant omissions or stale entries.
+- `status: "ok"` → every claim verified and you found no significant omissions or stale entries.
 - `status: "deficient"` → at least one item in `deficiencies`. Each item is specific and actionable.
 
 ## Dynamic affordance discovery discipline (v2.13.0)
@@ -76,4 +76,4 @@ See `common-pipeline-conventions/SKILL.md` `## Dynamic affordance discovery disc
 - No fixing the map. You review, you do not edit.
 - No consulting the other two reviewers. Independent verdicts only.
 - No vague deficiencies like "the map seems incomplete." Every deficiency cites `file:line` or `file:symbol` evidence.
-- No assuming claims are correct without reading the code. Every claim in your partition — sampling is not verification.
+- No assuming claims are correct without reading the code. Every claim in the map, by every reviewer — sampling is not verification, and the map is never partitioned between the three of you.
