@@ -7,9 +7,11 @@ stopping condition somewhere the AGENT controls — an instruction it reads, a
 promise string it types, a summary it decides is complete enough. This module
 puts the stopping condition in files the HARNESS writes:
 
-  * the harness task list at ``~/.claude/tasks/session-<first-8>/<taskId>.json``
-    (``status`` in ``pending`` / ``in_progress`` / ``completed``, plus an
-    ``owner``), and
+  * the harness task list at ``~/.claude/tasks/<full session id>/<taskId>.json``
+    (the layout Claude Code writes today; older builds wrote
+    ``session-<first 8>/`` and :func:`session_task_dir` resolves both), each
+    file carrying ``status`` in ``pending`` / ``in_progress`` / ``completed``
+    plus an ``owner``, and
   * the session transcript, from which the user's directives are DERIVED into
     an accumulating ask-ledger — so an agent cannot decline to register an ask
     it would rather not do.
@@ -1651,7 +1653,7 @@ def _cmd_retire(
     sid = (session or "").strip()
     sid = sid[len("session-"):] if sid.startswith("session-") else sid
     if not sid:
-        print("retire needs --session <session-id> (or the session-<first8> "
+        print("retire needs --session <session-id> (or the legacy session-<first8> "
               "dir name) naming which task list holds the dead work.",
               file=sys.stderr)
         return 2
@@ -1746,8 +1748,9 @@ def main(argv: list[str] | None = None) -> int:
              "live tasks unless --force)",
     )
     p_retire.add_argument("--session", required=True,
-                          help="session id, its first 8 chars, or the "
-                               "session-<first8> dir name")
+                          help="session id (the task-dir name in today's "
+                               "layout), or the legacy session-<first8> dir "
+                               "name / its first 8 chars")
     p_retire.add_argument("--reason", required=True,
                           help="why the work is being closed without being "
                                "done; recorded on every retired task")

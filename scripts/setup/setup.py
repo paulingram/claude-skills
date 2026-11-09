@@ -7,16 +7,17 @@ Behavior (in order):
   3. openspec CLI: shutil.which → if missing or --force-reinstall, npm install -g @fission-ai/openspec@latest.
   4. Python test tools (pytest, pytest-asyncio, httpx).
   5. Playwright (Python pkg) + chromium browser.
-  6. Plugin presence check (read ~/.claude/plugins/installed_plugins.json) for:
-       - superpowers@claude-plugins-official
-       - cartographer@cartographer-marketplace
-       - ralph-loop@claude-plugins-official
-     These are HARD prerequisites. A MISSING required plugin is a HARD failure
-     (exit 1) — superpowers especially is a hard dependency of the pipeline,
-     NOT a soft warning. The script cannot self-install Claude plugins.
+  6. Plugin presence check (read ~/.claude/plugins/installed_plugins.json) for
+     REQUIRED_PLUGINS. Since v4.0.0 that set is EMPTY: superpowers and
+     cartographer moved to the conditional tier (6a) with a native fallback in
+     the lanes, and ralph-loop is retired (workflows/ct6-converge.js does its
+     job). The machinery stays: a MISSING member of REQUIRED_PLUGINS would be
+     a HARD failure (exit 1). The script cannot self-install Claude plugins.
   6a. Conditional plugin tier (CONDITIONAL_PLUGINS): plugins that are valuable
       on a project of a particular shape and pure cost everywhere else (today:
-      bauplan@bauplan-skills). These are checked and REPORTED — present or
+      bauplan@bauplan-skills, plus the methodology plugins superpowers and
+      cartographer -- preferred when installed, never gating). These are
+      checked and REPORTED -- present or
       absent, with the same remediation lines a hard prerequisite gets — but
       the tier NEVER contributes to the exit code. It is deliberately kept out
       of both exit paths: it is not in REQUIRED_PLUGINS (so it cannot reach
@@ -52,18 +53,19 @@ Flags:
                       code-checking/testing agents). Also enabled by
                       CT6_CODEX_56_AVAILABLE=1.
   --no-codex          Codex 5.6 is NOT available: apply the uniform fable policy
-                      — this moves OFF the shipped delivery split rather than
-                      restoring it (the Opus fallback stays the
-                      set_default_model.py --model opus lever). Overrides the env var.
+                      -- this moves OFF the shipped role split (v4.0.0; the
+                      v3.43.0 delivery split before it) rather than restoring
+                      it (the Opus fallback stays the set_default_model.py
+                      --model opus lever). Overrides the env var.
                       With neither flag nor env var, the model state is left
                       untouched (the shipped default IS the operating model).
 
 Exit:
   0  Everything we control is present and ok.
   1  At least one required prerequisite is missing and cannot be self-installed.
-     This is a HARD block: a missing REQUIRED Claude plugin (superpowers /
-     cartographer / ralph-loop) OR a missing openspec-propose skill yields
-     exit 1. superpowers is a hard dependency, not a soft warning. A missing
+     This is a HARD block: a missing REQUIRED_PLUGINS member (the set is empty
+     since v4.0.0 -- superpowers and cartographer are conditional, ralph-loop
+     is retired) OR a missing openspec-propose skill yields exit 1. A missing
      CONDITIONAL_PLUGINS member does NOT: that tier never contributes to any
      exit code, in either direction.
   2  An installation failed.
@@ -1101,10 +1103,10 @@ def check_model_default(remediation: str | None = None) -> tuple[str, str, str |
 # INPUT (--codex / --no-codex / CT6_CODEX_56_AVAILABLE) — never probed, the same
 # injected-availability convention as service_config.resolve_model (SETUP-ADV-1:
 # a harness probe here would be false precision). With no signal at all the model
-# state is left untouched: the shipped v3.43.0 delivery-adversarial split (12
-# delivery + adversarial agents on `opus`, 27 planning / validation / review
-# agents on `fable`) IS the operating model, and a user's manual lever state is
-# never silently clobbered.
+# state is left untouched: the shipped v4.0.0 role split (15 fable / 9 opus /
+# 14 sonnet / 1 haiku, `set_default_model.py --split role`; the v3.43.0
+# delivery-adversarial split before it) IS the operating model, and a user's
+# manual lever state is never silently clobbered.
 
 def _load_model_lever():
     """Load the sibling set_default_model.py module (works however setup.py
@@ -1144,9 +1146,9 @@ def check_codex_option() -> tuple[str, str, str | None]:
     available but nothing is rewritten (the current operating model stays)."""
     name = "model-policy (Codex 5.6 role split — not requested)"
     detail = (
-        "no Codex 5.6 signal — the committed model state stays as shipped (the "
-        "v3.43.0 delivery-adversarial split: 12 delivery + adversarial agents on "
-        "'opus', 27 planning/validation/review agents on 'fable'; Opus fallback "
+        "no Codex 5.6 signal -- the committed model state stays as shipped (the "
+        "v4.0.0 role split: fable on judgment seats, opus on delivery seats, "
+        "sonnet on mechanical verification, haiku on classification; Opus fallback "
         "lever unchanged). If this harness has Codex 5.6, rerun with --codex (or "
         "set CT6_CODEX_56_AVAILABLE=1) to put development/code-checking/testing "
         "agents on ct6-secondary while architecture/control/design agents stay on "
@@ -1187,7 +1189,7 @@ def apply_model_policy(
             detail = (
                 f"check-only: current policy state is '{state}'; a normal run would "
                 f"apply '{target}'"
-                + ("" if codex_signal else " (moving off the shipped delivery split)")
+                + ("" if codex_signal else " (moving off the shipped role split)")
                 + f". Manual lever: {manual}"
             )
             return name, "note", detail
@@ -1198,7 +1200,7 @@ def apply_model_policy(
                 f"{lever.SECONDARY_ALIAS} now drives development/code-checking/testing agents"
                 if codex_signal
                 else f"Codex 5.6 unavailable — applied '{policy}': uniform fable, "
-                f"which moves OFF the shipped delivery split rather than restoring "
+                f"which moves OFF the shipped role split rather than restoring "
                 f"it; Opus fallback lever unchanged"
             )
             return name, "applied", f"{what} ({len(changed)} file(s) rewritten)."
@@ -1390,7 +1392,7 @@ def main(argv: list[str] | None = None) -> int:
         "--no-codex",
         action="store_true",
         help="Codex 5.6 is NOT available: apply the uniform fable policy, moving "
-             "off the shipped delivery split. Overrides CT6_CODEX_56_AVAILABLE.",
+             "off the shipped role split. Overrides CT6_CODEX_56_AVAILABLE.",
     )
     args = parser.parse_args(argv)
 
@@ -1513,7 +1515,9 @@ def main(argv: list[str] | None = None) -> int:
     if any(r[1] == "failed" for r in rows):
         return 2
     # HARD block: a missing REQUIRED plugin OR a missing openspec-propose skill
-    # is a non-recoverable prerequisite gap. superpowers is a hard dependency.
+    # is a non-recoverable prerequisite gap. (REQUIRED_PLUGINS is empty since
+    # v4.0.0, so only the openspec-propose arm can fire today; the branch stays
+    # so a future hard prerequisite is one registry entry away.)
     if missing:
         return 1
     if openspec_propose_row[1] == "missing":

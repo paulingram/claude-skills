@@ -73,7 +73,8 @@ above are WORKLIST checks scoped to a CT6 run (`_is_real_run` gates `audit()`).
 The lock is not: it fires in EVERY session, including a plain Agent Teams
 session that never invoked a CT6 pipeline, and it refuses the stop while
 registered work is open — open items in the harness's own per-session task list
-(`~/.claude/tasks/session-<first-8>/`), unresolved directives in the accumulated
+(`~/.claude/tasks/<full session id>/`, or the legacy `session-<first-8>/`),
+unresolved directives in the accumulated
 ask-ledger, or a source it was asked to read and could not. Its exit condition
 is read from files the HARNESS writes, so unlike an instruction or a self-typed
 promise string there is no wording that clears it.

@@ -3,7 +3,7 @@
 verification tools, as a thin facade over the ``hooks/vao/`` package.
 
 R2 (v3.10.0) split the former ~5,200-line monolith into the ``hooks/vao/``
-package of per-discipline-family modules (each <= 900 lines). This module
+package of per-discipline-family modules. This module
 remains the stable public surface: it re-exports every ``verify_*`` function,
 module-level constant, and helper the test suite references (so
 ``vao_tools.<name>`` and ``from hooks.vao_tools import <name>`` keep working,
@@ -12,7 +12,7 @@ preserves the ``python hooks/vao_tools.py <subcommand>`` CLI byte-for-byte
 (same argparse subcommands, exit codes, and verdict-file writes). No behavior
 change — the package is the structural home the monolith should have had.
 
-The 22 tools live in the per-family modules listed in ``hooks/vao/__init__.py``;
+The 26 tools live in the per-family modules listed in ``hooks/vao/__init__.py``;
 see ``_REEXPORT_MAP`` below for the name->module mapping. Each tool is
 deterministic (bit-stable output), writes its verdict JSON to
 ``<cwd>/.architect-team/vao-verdicts/<task-id>-<tool>.json`` by default, and is

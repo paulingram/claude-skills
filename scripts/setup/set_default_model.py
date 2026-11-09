@@ -19,7 +19,8 @@ backward compatibility and migration detection. Availability is an INPUT (a flag
 or the ``CT6_CODEX_56_AVAILABLE`` env var), never probed here — the same injected-
 availability convention as ``services/common/service_config.py``'s
 ``resolve_model``. With the signal SET-but-falsy the policy resolves to uniform
-``fable``, which moves OFF the shipped delivery split rather than restoring it;
+``fable``, which moves OFF the shipped split (the v4.0.0 role split; the v3.43.0
+delivery split before it) rather than restoring it;
 with the signal ABSENT the model state is left untouched (the existing
 ``--model opus`` uniform lever remains the Opus fallback where fable itself is
 unavailable).
@@ -37,15 +38,22 @@ Behaviour
 * ``--split delivery`` applies the v3.43.0 delivery-adversarial Opus split: the
   12 delivery + adversarial agents (``DELIVERY_ADVERSARIAL_AGENTS``) take
   ``model: opus``, every planning / validation / review agent stays on ``fable``.
-  This is the shipped default state; ``opus`` is a real Claude id (no gateway
-  impersonation). It is a DIFFERENT axis than the secondary split above.
+  This WAS the shipped default from v3.43.0 to v3.67.0 and still applies on
+  demand; ``opus`` is a real Claude id (no gateway impersonation). It is a
+  DIFFERENT axis than the secondary split above.
+* ``--split role`` applies the v4.0.0 model-by-role split (``ROLE_SPLIT_MODELS``):
+  fable on the 15 judgment seats, opus on the 9 delivery / execution seats,
+  sonnet on the 14 mechanical verification / extraction / observation /
+  documentation seats, haiku on ``bug-classifier``. This is the SHIPPED default
+  since v4.0.0 (``policy_state`` reports ``role-split``).
 * ``--auto`` resolves the policy from ``CT6_CODEX_56_AVAILABLE``: truthy => the
   secondary split; SET-but-falsy => the ``uniform-fable`` policy, which moves OFF
-  the shipped delivery split above rather than restoring it; ABSENT => no signal —
+  the shipped role split above rather than restoring it; ABSENT => no signal --
   the model state is left untouched (a manually applied lever state, e.g. the Opus
   fallback, is never silently clobbered).
 * ``--check`` prints the model distribution, uniformity, and the recognized policy
-  state (``uniform-fable`` / ``secondary-split`` / ``uniform-<m>`` / ``mixed``).
+  state (``uniform-fable`` / ``secondary-split`` / ``role-split`` /
+  ``deliver-opus-split`` / ``uniform-<m>`` / ``mixed``).
   Readers may still encounter ``codex-split`` in legacy state files, but this lever
   emits the single canonical ``secondary-split`` policy string.
 * ``--agents-dir`` overrides the target directory (default: the repo's agents/).
@@ -140,7 +148,7 @@ LEGACY_POLICY_CODEX_SPLIT = "codex-split"
 
 # Availability signal for --auto (and for setup.py). Truthy => Codex 5.6 is
 # available in this harness. SET-but-falsy => apply the ``uniform-fable`` policy,
-# which moves OFF the shipped delivery split rather than restoring it (opus
+# which moves OFF the shipped role split rather than restoring it (opus
 # fallback via --model opus where fable itself is absent). ABSENT => no signal;
 # the model state is left untouched.
 CODEX_ENV_VAR = "CT6_CODEX_56_AVAILABLE"
@@ -327,9 +335,9 @@ def _default_agents_dir() -> pathlib.Path:
 # ~/.claude/plugins/cache/<marketplace>/architect-team/<version>/agents — NOT the
 # dev checkout this file may live in. A split applied to a dev checkout never
 # affects the runtime and is silently reverted by the next git operation (the
-# committed ship state is the v3.43.0 delivery-adversarial split — 12 delivery
-# + adversarial agents on ``opus``, 27 planning / validation / review agents on
-# ``fable``). Install-time policy therefore targets the INSTALLED copy when one
+# committed ship state is the v4.0.0 role split -- 15 fable / 9 opus / 14 sonnet
+# / 1 haiku, ``--split role``; the v3.43.0 delivery-adversarial split before
+# it). Install-time policy therefore targets the INSTALLED copy when one
 # exists; the repo agents/ stays the fallback for repos that ARE the runtime
 # plugin (a --plugin-dir dev install) and for tests.
 PLUGIN_REGISTRY_ENV = "CT6_PLUGIN_REGISTRY"
@@ -573,7 +581,7 @@ def apply_policy(
 
     * Secondary model available => the role split (``secondary-split``).
     * Secondary model unavailable => the ``uniform-fable`` policy, which moves OFF
-      the shipped v3.43.0 delivery split rather than restoring it (the Opus
+      the shipped v4.0.0 role split rather than restoring it (the Opus
       fallback where fable itself is unavailable stays the separate
       ``--model opus`` uniform lever).
 
@@ -595,10 +603,12 @@ def unclassified_stems(agents_dir) -> List[str]:
 def policy_state(agents_dir, codex_model: str = SPAWN_ALIAS_MODEL_ID) -> str:
     """Classify the on-disk model state.
 
-    Returns ``uniform-<model>`` (including the operating ``uniform-fable``),
+    Returns ``uniform-<model>`` (including ``uniform-fable``),
     ``secondary-split`` when every file matches either the requested/current
     alias or any complete split on a recognized alias generation (the spawn
-    alias, the neutral ``ct6-secondary``, or a legacy provider alias), else
+    alias, the neutral ``ct6-secondary``, or a legacy provider alias),
+    ``role-split`` (the v4.0.0 shipped state) or ``deliver-opus-split`` (the
+    v3.43.0 state) when the files match that split exactly, else
     ``mixed``. ``codex-split`` is the legacy policy string readers elsewhere
     may still hold; this function emits only the canonical ``secondary-split``
     value."""
@@ -686,7 +696,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         action="store_true",
         help=f"Resolve the policy from {CODEX_ENV_VAR}: truthy applies the codex "
         "split; set-but-falsy applies the uniform-fable policy, moving off the "
-        "shipped delivery split; absent leaves the model state untouched.",
+        "shipped role split; absent leaves the model state untouched.",
     )
     group.add_argument(
         "--check",

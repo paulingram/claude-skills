@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """Marker-block compiler for the pipeline SKILL.md files.
 
-The counterpart of ``scripts/setup/sync_agent_boilerplate.py`` for skills. Where
-the agent sync tool keeps ``## ``-delimited boilerplate sections byte-identical to
-their canonical source across ``agents/*.md``, this tool keeps FENCED blocks
-byte-identical across the consuming ``skills/*/SKILL.md`` files.
+The counterpart of ``scripts/setup/sync_agent_boilerplate.py`` for skills. Since
+v4.0.0 the canonical agent boilerplate renders ONCE, into the fenced blocks of
+``skills/ct6-agent-core/SKILL.md`` (which every agent preloads), and the sync
+tool only guards that no agent body carries a compiled copy; this tool is what
+keeps the FENCED blocks byte-identical across every consuming
+``skills/*/SKILL.md`` file (the agent core, the six lane skills and the
+conventions).
 
 A consuming skill opts in by placing a fence pair around a block::
 
@@ -20,10 +23,10 @@ hand-edit inside a fence trips). Output is deterministic and byte-stable — the
 are NO timestamps and no ordering nondeterminism, so two consecutive ``--write``
 runs produce identical bytes.
 
-The canonical block sources are defined ONCE. ``principles`` renders the compact
-operating-principles block whose single source of truth is
-``scripts/setup/agent_boilerplate_blocks.PRINCIPLES`` — the same string the agent
-sync tool injects — so a skill and an agent can never disagree about the text.
+The canonical block sources are defined ONCE, in
+``scripts/setup/agent_boilerplate_blocks`` (``PRINCIPLES`` and the four other
+block strings), so a lane skill and the agent core can never disagree about
+the text.
 
 Stdlib-only; no third-party dependencies; no import-time side effects.
 
@@ -101,7 +104,7 @@ def _default_skills_dir() -> pathlib.Path:
 
 
 # Reuse the canonical newline-preserving rewrite trio (v3.35.1 consolidation) so a
-# CRLF working tree round-trips byte-exactly, exactly as the agent sync tool does.
+# CRLF working tree round-trips byte-exactly (set_default_model.py shares it).
 _read = blocks.read_preserving
 _write_if_changed = blocks.write_if_changed
 

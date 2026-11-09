@@ -119,8 +119,9 @@ def _subject_slug(subject: str) -> str:
 def _completing_task_subject(payload: dict[str, Any], task_id: str) -> str | None:
     """The COMPLETING task's own subject, read from the harness store, or None.
 
-    Resolution: payload session_id -> `<tasks-root>/session-<sid8>/<id>.json`
-    -> its `subject`. Every failure (no substrate, no session, no file, no
+    Resolution: payload session_id -> `<tasks-root>/<full session id>/<id>.json`
+    (or the legacy `session-<sid8>/` dir; `open_work.session_task_dir` resolves
+    both) -> its `subject`. Every failure (no substrate, no session, no file, no
     subject field) returns None, which the caller treats as LEGACY behaviour
     — fail-open on infrastructure, never a new block."""
     if _ow is None:

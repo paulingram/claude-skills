@@ -526,9 +526,11 @@ def _settings_identity_candidates(target: Path) -> list[Path]:
 def _task_store_identity_candidates(roots: tuple[Path, ...]) -> list[Path]:
     """Files under the protected task roots, in the harness's own layout.
 
-    The store is `<root>/session-<8-of-session-id>/<taskId>.json` (see
-    `hooks/open_work.py::read_harness_tasks`), so two shallow globs cover it
-    without an unbounded walk, and `_IDENTITY_SCAN_CAP` bounds even a
+    The store is `<root>/<full session id>/<taskId>.json` today and
+    `<root>/session-<8-of-session-id>/<taskId>.json` in older builds (see
+    `hooks/open_work.py::session_task_dir`); both are two levels deep, so two
+    shallow globs cover it without an unbounded walk, and
+    `_IDENTITY_SCAN_CAP` bounds even a
     pathological root.
     """
     out: list[Path] = []

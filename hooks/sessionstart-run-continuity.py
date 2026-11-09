@@ -18,8 +18,9 @@ Output contract: plain stdout on exit 0 is added to the session context (the
 documented SessionStart behaviour). No marker / inactive marker / kill-switch
 / ANY error => print nothing, exit 0. This hook never blocks anything.
 
-v3.39.0 adds the MODEL-SPLIT SELF-HEAL: a plugin update ships uniform-fable
-agent files into a fresh cache dir, silently reverting an applied codex role
+v3.39.0 adds the MODEL-SPLIT SELF-HEAL: a plugin update ships the committed
+agent files (uniform-fable when this landed; the v4.0.0 `--split role` state
+today) into a fresh cache dir, silently reverting an applied secondary role
 split. When the gateway state (`~/.architect-team/gateway/gateway.json`) says
 the split is the desired policy (activated + api-key + a split model_policy —
 the v3.40 `secondary-split` or the legacy `codex-split`) and THIS hook is
