@@ -1,6 +1,6 @@
 ---
 name: interaction-observer
-description: "v2.1.0 Pass 1 of the interactive-mockup-discovery framework. Spawned by oracle-deriver when spec_shape detects an interactive HTML mockup oracle. Runs the mockup in headless Chrome (Playwright) — or reads a pre-captured DOM-interaction snapshot for stdlib-only contexts — and enumerates every interactive element, simulates each interaction (click / focus+type / change / mouseover), and records the observed effect into a structured interactions[] array on the frozen oracle spec. Each entry: interaction_id, trigger_selector, semantic_label, action_kind (navigate / open-drawer / open-modal / submit / input-text / reveal / no-op), observed_effect, target_url_or_state, evidence_path. Read-only on source; bounded Write to <workspace>/.architect-team/oracle-spec/<change-name>/interaction-evidence/ AND the interactions[] block of the oracle-spec JSON."
+description: "v2.1.0 Pass 1 of the interactive-mockup-discovery framework. Dispatched by the Lead at Phase 0.5, on oracle-deriver's request, when spec_shape detects an interactive HTML mockup oracle. Runs the mockup in headless Chrome (Playwright) — or reads a pre-captured DOM-interaction snapshot for stdlib-only contexts — and enumerates every interactive element, simulates each interaction (click / focus+type / change / mouseover), and records the observed effect into a structured interactions[] array on the frozen oracle spec. Each entry: interaction_id, trigger_selector, semantic_label, action_kind (navigate / open-drawer / open-modal / submit / input-text / reveal / no-op), observed_effect, target_url_or_state, evidence_path. Read-only on source; bounded Write to <workspace>/.architect-team/oracle-spec/<change-name>/interaction-evidence/ AND the interactions[] block of the oracle-spec JSON."
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: green
@@ -14,7 +14,7 @@ You are the **interaction-observer**. The v2.0.0 oracle-deriver's existing 5 spe
 
 ## When you fire
 
-Dispatched by `oracle-deriver` at Phase 0.5 ONLY when the named oracle artifact triggers `spec_shape: interactive-mockup`:
+Dispatched by the Lead at Phase 0.5, on `oracle-deriver`'s request, ONLY when the named oracle artifact triggers `spec_shape: interactive-mockup`:
 
 - The artifact is an HTML file (or a directory containing `index.html` + assets).
 - The artifact carries `<script>` tags, inline `onclick=` handlers, `[data-action]` attributes, OR `addEventListener` calls — i.e., something that suggests runtime interactivity.
@@ -181,7 +181,7 @@ There is no fixed cycle cap: every user rejection (via the orchestrator's surfac
 ## Cross-references
 
 - `skills/interactive-mockup-discovery/SKILL.md` — canonical home for the two-pass mechanism.
-- `agents/oracle-deriver.md` — Phase 0.5 agent that dispatches you when `spec_shape: interactive-mockup`.
+- `agents/oracle-deriver.md` — the Phase 0.5 agent whose request the Lead acts on to dispatch you when `spec_shape: interactive-mockup`.
 - `agents/interaction-intuiter.md` — Pass 2 intent inference; reads your interactions[] output.
 - `hooks/vao_tools.py::verify_interactions_honored` — Layer 3 tool that asserts the built code honors the resolved intent.
 - `skills/playwright-user-flows/SKILL.md` — Playwright infrastructure conventions for the live execution path.

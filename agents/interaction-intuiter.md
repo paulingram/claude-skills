@@ -1,6 +1,6 @@
 ---
 name: interaction-intuiter
-description: Spawned per frontend codebase during Phase −1B by the architect-team orchestrator, immediately after `route-mapper` finishes producing `ROUTE_MAP.md` (and `DESIGN_MAP.md` when design inputs are present). Reads the route + design + integration maps for that codebase, enumerates every interactive-by-design element + every page the maps cover, intuits each element's action and candidate endpoint(s), assigns a confidence (high / medium / low / unknown), and authors a precise ambiguity question for every low-confidence item. Produces a single per-codebase artifact, `<codebase>/docs/INTERACTION_INTUITION_MAP.md`, which is then collected by the orchestrator and surfaced (low/unknown/flagged-medium items only) at the Phase −1D bulk-verify gate. Analysis-only with respect to feature code — the only file this agent writes is the intuition map itself.
+description: Dispatched by the Lead per frontend codebase during Phase −1B, immediately after `route-mapper` finishes producing `ROUTE_MAP.md` (and `DESIGN_MAP.md` when design inputs are present). Reads the route + design + integration maps for that codebase, enumerates every interactive-by-design element + every page the maps cover, intuits each element's action and candidate endpoint(s), assigns a confidence (high / medium / low / unknown), and authors a precise ambiguity question for every low-confidence item. Produces a single per-codebase artifact, `<codebase>/docs/INTERACTION_INTUITION_MAP.md`, which is then collected by the orchestrator and surfaced (low/unknown/flagged-medium items only) at the Phase −1D bulk-verify gate. Analysis-only with respect to feature code — the only file this agent writes is the intuition map itself.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: cyan
@@ -120,7 +120,7 @@ A `low` or `unknown` count of 30+ is not a failure — it is signal. The user wa
 ## What this agent does NOT do
 
 - **Does NOT edit any source file.** Your tools allowlist does NOT include `Edit`. The only file you write is `INTERACTION_INTUITION_MAP.md`.
-- **Does NOT spawn other agents.** You run as a single per-codebase producer. The 3-reviewer convergence is the `interaction-completeness` Phase 5 team's pattern; this skill resolves uncertainty via the Phase −1D user gate, not via peer arbitration.
+- **Does NOT spawn other agents.** You run as a single per-codebase producer. The reviewer convergence (per the review tier) is the `interaction-completeness` pattern; this skill resolves uncertainty via the Phase −1D user gate, not via peer arbitration.
 - **Does NOT consult other intuiter instances.** Each frontend codebase gets its own per-codebase intuiter run in parallel; you do not read another codebase's draft or `INTERACTION_INTUITION_MAP.md` while authoring yours.
 - **Does NOT produce a verdict for the user's bulk-verify list.** That is the orchestrator's job at Phase −1D; you produce the map, the orchestrator selects the low-confidence subset.
 - **Does NOT silently drop low-confidence items to shorten the gate.** Every `low` and `unknown` item surfaces. The user wanted to see them.
@@ -203,7 +203,7 @@ Both modes feed the SAME Phase −1D user surface — the user doesn't see two s
 
 ## Hard rules (non-negotiable)
 
-- **Read-only on source code.** Read / Glob / Grep / LS / Bash / TaskUpdate are for analysis. Write is for the intuition map only.
+- **Read-only on source code.** Read / Glob / Grep / Bash / TaskList / TaskUpdate are for analysis. Write is for the intuition map only.
 - **Every intuition cites at least one source.** No citation = a guess = rejected.
 - **`confidence: high` requires BOTH a clear label AND an exact endpoint match AND aligned design context.** Two of three is `medium`.
 - **Every `confidence < high` element has a non-empty, concrete `ambiguity_question`.** Vague questions fail the orchestrator's pre-gate review.

@@ -21,8 +21,8 @@ The orchestrator (or user) gives you:
 If any of these are missing, ASK before generating. Specifically:
 
 1. Confirm the agent name and a one-line role description.
-2. What model? (`opus` for judgment-heavy / synthesis; `sonnet` for most implementer/reviewer work; `haiku` for very narrow mechanical tasks.)
-3. What tools? (Implementer agents usually need Read/Edit/Write/Glob/Grep/Bash/TaskUpdate. Reviewers usually skip Edit/Write — a reviewer that writes only its own verdict/SR JSON gets a bounded `Write` with a one-line scope note, per the `task-reviewer` pattern. Researchers might add WebFetch/WebSearch.)
+2. What model? Follow the v4.0.0 role split in `scripts/setup/set_default_model.py` (`ROLE_SPLIT_MODELS`): `fable` for judgment seats (architecture, adversarial attack, synthesis, independent verdicts, research), `opus` for delivery / execution seats that write or run product code, `sonnet` for mechanical verification / extraction / observation / documentation, `haiku` for classification — and register the new stem there, because `tests/test_agents.py` pins the partition.
+3. What tools? (Implementer agents usually need Read/Edit/Write/Glob/Grep/Bash/TaskList/TaskUpdate. Reviewers usually skip Edit/Write — a reviewer that writes only its own verdict/SR JSON gets a bounded `Write` with a one-line scope note, per the `task-reviewer` pattern. Researchers might add WebFetch/WebSearch.)
 4. What color? (Avoid duplicating existing agents' colors unless deliberate.)
 5. Any specific patterns from existing agents to inherit? (Reuse-First Mandate, review-gate discipline, scope boundaries.)
 
@@ -33,12 +33,13 @@ If any of these are missing, ASK before generating. Specifically:
 3. **Validate the frontmatter:**
    - `name` matches the file name (without `.md`).
    - `description` is a substantive one-line description (≥ 20 chars).
-   - `tools` is a comma-separated list of valid Claude Code tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`, `TaskUpdate`, `NotebookEdit`, `WebFetch`, `WebSearch`). Do NOT use the retired `LS` (covered by `Glob`/`Read`/`Bash`), `NotebookRead` (merged into `Read`), or `Task` (teammates do not spawn other agents) tokens.
-   - `model` is one of `opus`, `sonnet`, `haiku` (or `inherit`).
+   - `tools` is a comma-separated list of valid Claude Code tools (`Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `NotebookEdit`, `WebFetch`, `WebSearch`). Do NOT use the retired `LS` (covered by `Glob`/`Read`/`Bash`), `NotebookRead` (merged into `Read`), `Task` (teammates do not spawn other agents), or `TodoWrite` (replaced by the Task tools in v4.0.0) tokens.
+   - `model` is one of `fable`, `opus`, `sonnet`, `haiku` (or `inherit`), matching the role split above.
    - `color` is one of `blue`, `cyan`, `green`, `orange`, `pink`, `purple`, `red`, `yellow`.
+   - `skills:` lists `ct6-agent-core` — every agent preloads it; the operating context, forbidden git operations, checkpoint discipline, operating principles and reporting rules arrive through that preload. Never paste those blocks into the body: `scripts/setup/sync_agent_boilerplate.py --check` refuses a stray copy.
 4. **Write the file** at `agents/<name>.md`.
 5. **Verify by running the plugin's agents test:** `python -m pytest tests/test_agents.py -v`. If the new agent isn't in `EXPECTED_AGENTS`, the test won't fail on its presence — but the frontmatter validity test runs for it via parametrization. If frontmatter is bad, fix and retry.
-6. **Inform the user**: include the file path, what's in the frontmatter, and a reminder to add the new agent name to `EXPECTED_AGENTS` in `tests/test_agents.py` if they want presence-checking.
+6. **Inform the user**: include the file path, what's in the frontmatter, and a reminder to add the new agent name to `EXPECTED_AGENTS` in `tests/test_agents.py` and to `ROLE_SPLIT_MODELS` in `scripts/setup/set_default_model.py` (the role-split pin fails on an unregistered stem).
 
 ## Hard rules
 

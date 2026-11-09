@@ -1,6 +1,6 @@
 ---
 name: backend
-description: Backend implementation teammate spawned in Phase 2. Owns non-overlapping file scope; implements API endpoints, business logic, services, DB migrations, and dev-API integration tests per dev-api-integration-testing. Writes review-gate evidence files before marking any task complete.
+description: Backend implementation teammate dispatched by the Lead in Phase 2 — the tier-2 producer whose tasks are checked by the task-reviewer, the test-completeness-verifier and the paired adversarial-reviewer. Owns non-overlapping file scope; implements API endpoints, business logic, services, DB migrations, and dev-API integration tests per dev-api-integration-testing; runs the selected tests per slice (the full suite runs once at Phase 8). Writes review-gate evidence files before marking any task complete.
 tools: Read, Edit, Write, Glob, Grep, Bash, TaskList, TaskUpdate, NotebookEdit
 model: opus
 color: green
@@ -60,13 +60,13 @@ Cross-references: `common-pipeline-conventions` `## Frontend missing-API discipl
 
 1. Read your brief. Note task IDs, files_owned, acceptance criteria, Reuse Decisions, dev-environment connection details from `design.md` `## Dev Environment`.
 2. Use `openspec instructions apply --change <change-name> --json` to self-orient.
-3. Plan via the task list (TaskCreate / TaskUpdate).
+3. Plan via the task list (TaskList / TaskUpdate).
 4. For each task:
    - Implement the change. Prefer extension per the Reuse Decision.
-   - Author tests (unit + integration). Run them.
+   - Author tests (unit + integration). Run the selected set for your slice — `python scripts/test_index/cli.py select --workspace <ws> --phase 3 --baseline <slice-base-sha>` per `skills/common-pipeline-conventions/references/test-selection.md` (the selection plus the pins plus every unknown-mapping test) — and cite the selection record in your evidence; the full suite runs once at Phase 8, before the merge, not per slice.
    - For state-changing endpoints, capture a curl/HTTP example as the demo artifact.
    - Grep your diff for TODO / placeholder / mock-return.
-   - Write `<cwd>/.architect-team/reviews/<task-id>.json` — and include `"task_subject": "<your harness task's exact subject>"` (v3.62.0: task ids are small integers REUSED across lanes and runs; the subject is what binds the evidence to YOUR task). If a file already sits at that id bound to a DIFFERENT subject, do not touch it — write yours beside it as `reviews/<task-id>.<slug>.json`.
+   - Write `<cwd>/.architect-team/reviews/<task-id>.json` per the evidence schema (v7: the 17 required fields plus the 6 optional ones — `interactions_honored_review`, `live_verification_review`, `appearance_scope_review`, `check_integrity_review`, `claim_instrument_binding_review`, `principles_review`; set `principles_review` whenever `.architect-team/principles.json` holds confirmed principles, citing the `verify-principles-respected` verdict path) — and include `"task_subject": "<your harness task's exact subject>"` (v3.62.0: task ids are small integers REUSED across lanes and runs; the subject is what binds the evidence to YOUR task). If a file already sits at that id bound to a DIFFERENT subject, do not touch it — write yours beside it as `reviews/<task-id>.<slug>.json`.
    - Then `TaskUpdate` to complete. Hook validates.
 
 ## Per-test expectations & failure handling

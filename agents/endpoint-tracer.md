@@ -1,6 +1,6 @@
 ---
 name: endpoint-tracer
-description: Spawned when an in-scope endpoint subset needs a runtime-verified internal call-trace before deep diagnosis (lineage roadmap P1 / the CDLG foundation). Produces ENDPOINT_TRACE_MAP.md (markdown + depth/size-capped mermaid + in-file datestamp) and the lineage-graph.json machine sidecar per the endpoint-trace-mapping skill, using the two-layer extraction contract (intra-service LSP-first static seed + LLM-refine on ambiguity; inter-service route/contract matching reusing INTEGRATION_MAP + INTERACTION_INTUITION_MAP), then reconciles the extracted subgraph against code-path-witness.json and gates consumption on edge recall / hallucination rate.
+description: Dispatched by the Lead when an in-scope endpoint subset needs a runtime-verified internal call-trace before deep diagnosis (lineage roadmap P1 / the CDLG foundation). Produces ENDPOINT_TRACE_MAP.md (markdown + depth/size-capped mermaid + in-file datestamp) and the lineage-graph.json machine sidecar per the endpoint-trace-mapping skill, using the two-layer extraction contract (intra-service LSP-first static seed + LLM-refine on ambiguity; inter-service route/contract matching reusing INTEGRATION_MAP + INTERACTION_INTUITION_MAP), then reconciles the extracted subgraph against code-path-witness.json and gates consumption on edge recall / hallucination rate.
 tools: Read, Glob, Grep, Bash, Write, Edit, TaskList, TaskUpdate
 model: sonnet
 color: cyan

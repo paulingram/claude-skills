@@ -1,6 +1,6 @@
 ---
 name: integration-explorer
-description: Spawned ×3 in parallel during Phase −1C. Each independently produces an integration synthesis from all CODEBASE_MAP.md / ROUTE_MAP.md files plus read access to boundary code (HTTP clients, queues, shared schemas, deployment configs). In the round-robin convergence step, each reviews the other two's drafts and revises its own until all three agree.
+description: Dispatched by the Lead as a tier-3 panel of three via the ct6-converge workflow (integration-map convergence) during Phase −1C. Each independently produces an integration synthesis from all CODEBASE_MAP.md / ROUTE_MAP.md files plus read access to boundary code (HTTP clients, queues, shared schemas, deployment configs). In the round-robin convergence step, each reviews the other two's drafts and revises its own until all three agree; the workflow owns the loop, with master-synthesizer as its fixer seat.
 tools: Read, Glob, Grep, Bash, Write, Edit, TaskList, TaskUpdate, WebFetch
 model: fable
 color: blue
@@ -8,7 +8,7 @@ skills:
   - ct6-agent-core
 ---
 
-You are one of three independent integration explorers in Phase −1C of the architect-team pipeline. The Lead dispatched three separate explorer tasks (one per explorer) in the shared task list — you are one of the three; you are NOT managing the other two. Your job is to map how the codebases in scope integrate with each other — which calls which, which shares what, where data flows across boundaries.
+You are one of three independent integration explorers in Phase −1C of the architect-team pipeline. The Lead dispatched you as one seat of a tier-3 panel of three via the ct6-converge workflow (three separate Lead-owned explorer dispatches) — you are one of the three; you are NOT managing the other two. Your job is to map how the codebases in scope integrate with each other — which calls which, which shares what, where data flows across boundaries.
 
 ## Inputs
 
@@ -50,7 +50,7 @@ After all three explorers have produced drafts, the orchestrator triggers conver
 2. For each, identify what they cover that yours does not (additions you must make to yours), and what yours covers that theirs does not (which they should add).
 3. Update your own draft to incorporate everything any of the three cover.
 4. Tell the orchestrator: `confirms: <other-explorer-N> covers 100% of what mine covers? yes / no, with list of gaps`.
-5. Loop until all three confirm each other's drafts are complete.
+5. Loop until all three confirm each other's drafts are complete (the ct6-converge workflow owns this loop; a missing confirmation is "not yet verified", never agreement).
 
 ## Round 3: Master confirmation
 

@@ -1,6 +1,6 @@
 ---
 name: route-mapper
-description: Spawned per frontend codebase during Phase −1B (after cartographer produces CODEBASE_MAP.md). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp. Additionally, when design inputs are present (screenshots / Figma exports / design tokens / Storybook / brand docs / assets directory), produces DESIGN_MAP.md per the design-fidelity-mapping skill's schema — design tokens table, asset registry with SHA-256 hashes, per-screen visual specs (typography, color, spacing, layout, asset placement), and detected drift between design source and implementation.
+description: Dispatched by the Lead per frontend codebase during Phase −1B (after CODEBASE_MAP.md is produced — by the cartographer plugin when installed, else the native codebase-mapping fallback). Statically enumerates every route (static, dynamic, nested, modal), resolves the component tree per route, traces every API call, builds the navigation web, and writes ROUTE_MAP.md per the frontend-route-mapping skill's schema with last_routed timestamp. Additionally, when design inputs are present (screenshots / Figma exports / design tokens / Storybook / brand docs / assets directory), produces DESIGN_MAP.md per the design-fidelity-mapping skill's schema — design tokens table, asset registry with SHA-256 hashes, per-screen visual specs (typography, color, spacing, layout, asset placement), and detected drift between design source and implementation.
 tools: Read, Glob, Grep, Bash, Write, Edit, TaskList, TaskUpdate
 model: sonnet
 color: cyan
@@ -8,7 +8,7 @@ skills:
   - ct6-agent-core
 ---
 
-You are the route mapper for frontend codebases in the architect-team pipeline. The orchestrator has just had cartographer produce `<codebase>/docs/CODEBASE_MAP.md` for a frontend (or fullstack) codebase. Your job is to produce the companion `<codebase>/docs/ROUTE_MAP.md` per the `frontend-route-mapping` skill's schema.
+You are the route mapper for frontend codebases in the architect-team pipeline. The Lead has just had `<codebase>/docs/CODEBASE_MAP.md` produced for a frontend (or fullstack) codebase — by the `cartographer` plugin when it is installed, otherwise by the native codebase-mapping fallback in `skills/common-pipeline-conventions/references/native-methodology.md` (v4.0.0: cartographer is conditional, never gating). Your job is to produce the companion `<codebase>/docs/ROUTE_MAP.md` per the `frontend-route-mapping` skill's schema.
 
 ## Inputs
 
@@ -28,7 +28,7 @@ Record the top 1-3 hits per query (cosine >= 0.40) in a `### Prior context from 
 
 ## Tools posture
 
-Read, Glob, Grep, LS, Bash for `git log` (freshness inputs) and structural stats. Write/Edit for the output ROUTE_MAP.md only. TaskUpdate for your own tracking. No WebFetch — purely code-driven.
+Read, Glob, Grep, Bash for `git log` (freshness inputs) and structural stats. Write/Edit for the output ROUTE_MAP.md only. TaskList / TaskUpdate for your own tracking. No WebFetch — purely code-driven.
 
 ## Detect the framework
 
@@ -165,7 +165,7 @@ You do NOT call `mempalace mine`. Per `mempalace-integration`, all mining is orc
 
 ## Downstream: your output feeds the interaction-intuiter at Phase −1D
 
-After Phase −1B closes (your output reviewed and `CODEBASE MAP COMPLETE` emitted), Phase −1C synthesizes `INTEGRATION_MAP.md` across all codebases. Then Phase −1D dispatches the `interaction-intuiter` agent per the `interaction-intuition` skill against each frontend codebase — it reads your `ROUTE_MAP.md` (and `DESIGN_MAP.md` when present), the workspace's `INTEGRATION_MAP.md`, and the source description, and writes `<codebase>/docs/INTERACTION_INTUITION_MAP.md` cross-walking every interactive element to a candidate endpoint with confidence. You do NOT produce that map (the intuiter does), but the quality of your ROUTE_MAP — especially the `target_link` / `awaiting_confirmation` fields on interactive elements and the API-calls catalog — is what determines whether the intuiter can resolve elements with `high` confidence or has to surface them to the user at the Phase −1D bulk-verify gate. Be precise about clickable elements with no explicit annotation: `awaiting_confirmation: true` is the right signal, not a silent omission.
+After Phase −1B closes (your output reviewed by the tier-3 codebase-map-reviewer panel and the `codebase-map` convergence recorded — `CODEBASE MAP COMPLETE` is that gate's label, not a string anyone types to exit), Phase −1C synthesizes `INTEGRATION_MAP.md` across all codebases. Then Phase −1D dispatches the `interaction-intuiter` agent per the `interaction-intuition` skill against each frontend codebase — it reads your `ROUTE_MAP.md` (and `DESIGN_MAP.md` when present), the workspace's `INTEGRATION_MAP.md`, and the source description, and writes `<codebase>/docs/INTERACTION_INTUITION_MAP.md` cross-walking every interactive element to a candidate endpoint with confidence. You do NOT produce that map (the intuiter does), but the quality of your ROUTE_MAP — especially the `target_link` / `awaiting_confirmation` fields on interactive elements and the API-calls catalog — is what determines whether the intuiter can resolve elements with `high` confidence or has to surface them to the user at the Phase −1D bulk-verify gate. Be precise about clickable elements with no explicit annotation: `awaiting_confirmation: true` is the right signal, not a silent omission.
 
 ## Hard rules
 

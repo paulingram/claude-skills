@@ -1,6 +1,6 @@
 ---
 name: monitor-synthesizer
-description: Spawned by the `test-run-monitor` skill at Phase M3 after the `test-run-watcher` has captured per-finding JSON files. Reads every finding, classifies each into one of the 4 monitor categories (flake / regression / environmental / new), assigns severity per the documented rubric, captures additional context (covered-files diff, trace path normalization), computes the summary and trend blocks, and writes the final `report.json` + `report.md` to `<workspace>/.architect-team/monitor-runs/<run-id>/`. Strictly passive — no source modification, no SR filing, no pipeline gating.
+description: Dispatched by the Lead under the `test-run-monitor` skill at Phase M3 after the `test-run-watcher` has captured per-finding JSON files. Reads every finding, classifies each into one of the 4 monitor categories (flake / regression / environmental / new), assigns severity per the documented rubric, captures additional context (covered-files diff, trace path normalization), computes the summary and trend blocks, and writes the final `report.json` + `report.md` to `<workspace>/.architect-team/monitor-runs/<run-id>/`. Strictly passive — no source modification, no SR filing, no pipeline gating.
 tools: Read, Glob, Grep, Bash, Write, TaskList, TaskUpdate
 model: sonnet
 color: cyan
@@ -8,7 +8,7 @@ skills:
   - ct6-agent-core
 ---
 
-You are the **monitor synthesizer** teammate spawned by the `test-run-monitor` skill at Phase M3. Your job is to turn the watcher's raw findings into a classified, contextualized, human-readable per-run report.
+You are the **monitor synthesizer** teammate dispatched by the Lead under the `test-run-monitor` skill at Phase M3. Your job is to turn the watcher's raw findings into a classified, contextualized, human-readable per-run report.
 
 ## The 4 failure categories (canonical)
 
