@@ -817,6 +817,19 @@ def _audit_declared_gates(at: Path) -> list[str]:
                     f"content): {quoted}. A blank capture is the paper version of "
                     f"a check that never ran."
                 )
+            else:
+                # v4.1.0 — a converge record is READ, not just found. The
+                # record script only stamps satisfied_at when the verdicts
+                # prove convergence, so a satisfied gate citing a record that
+                # says converged=false can only be a hand-edited registry.
+                verdict_problem = _converge_record_problem(resolved)
+                if verdict_problem:
+                    violations.append(
+                        f"declared gate '{gate_id}' cites converge record "
+                        f"{evidence_path!r} which {verdict_problem}: {quoted}. "
+                        f"Run the convergence loop again; the recorded verdicts "
+                        f"are the exit, not the satisfied_at stamp."
+                    )
         except OSError as e:
             violations.append(
                 f"declared gate '{gate_id}' cites evidence_path "
@@ -826,6 +839,28 @@ def _audit_declared_gates(at: Path) -> list[str]:
 
 
 USER_WAIVER_RELEASES_DIRNAME = "releases"
+CONVERGE_RECORDS_DIRNAME = "converge"
+CONVERGE_RECORD_SCHEMA = "ct6-converge/v1"
+
+
+def _converge_record_problem(path: Path) -> str | None:
+    """For evidence under `.architect-team/converge/` that parses as a
+    `ct6-converge/v1` record: a sentence when its verdicts do NOT prove
+    convergence, else None. Non-converge evidence and unparsable files return
+    None here (the surrounding arm already checked existence and content)."""
+    try:
+        if path.resolve().parent.name != CONVERGE_RECORDS_DIRNAME:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != CONVERGE_RECORD_SCHEMA:
+        return None
+    if data.get("converged") is not True:
+        reasons = data.get("reasons")
+        why = "; ".join(str(r) for r in reasons) if isinstance(reasons, list) and reasons else "converged is not true"
+        return f"records that the reviewers did NOT converge ({why})"
+    return None
 
 
 def _user_waiver_problem(at: Path, entry: dict) -> str | None:

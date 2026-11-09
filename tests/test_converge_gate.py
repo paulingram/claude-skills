@@ -122,6 +122,25 @@ def test_stop_arm_holds_until_the_record_satisfies(rec, audit, tmp_path):
     assert audit._audit_declared_gates(at) == []
 
 
+def test_a_hand_stamped_gate_citing_a_failed_record_still_blocks(rec, audit, tmp_path):
+    """Belt and braces: record.py never stamps satisfied_at on a failed round,
+    so a registry that says satisfied while the cited record says converged
+    false can only be hand-edited -- and the Stop arm READS the record."""
+    at = tmp_path / ".architect-team"
+    rec.declare(tmp_path, "codebase-map", "CODEBASE MAP COMPLETE", 3)
+    failed = rec.record(tmp_path, "codebase-map", {"converged": False, "history": [{"round": 1, "reviewers_returned": 3, "ok": 1}]})
+    reg = at / "declared-gates.json"
+    entries = json.loads(reg.read_text(encoding="utf-8"))
+    entries[0]["satisfied_at"] = "2026-11-09T00:00:00Z"
+    entries[0]["evidence_path"] = failed["record_path"]
+    reg.write_text(json.dumps(entries), encoding="utf-8")
+    violations = audit._audit_declared_gates(at)
+    assert violations and any("did NOT converge" in v and "1 of 3 reviewers said ok" in v for v in violations), violations
+    # the honest record releases it
+    rec.record(tmp_path, "codebase-map", _good())
+    assert audit._audit_declared_gates(at) == []
+
+
 def test_cli_round_trip(rec, tmp_path):
     def run(*args, stdin=None):
         return subprocess.run([sys.executable, str(RECORD), *args], capture_output=True, text=True, encoding="utf-8", input=stdin)
