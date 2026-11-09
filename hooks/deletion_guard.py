@@ -115,6 +115,43 @@ TEMP_FILE_NAMES: frozenset[str] = frozenset({".coverage"})
 TEMP_FILE_SUFFIXES: tuple[str, ...] = (".pyc", ".pyo", ".egg-info")
 
 RM_COMMANDS: frozenset[str] = frozenset({"rm", "rmdir", "unlink", "shred"})
+#: v4.1.3 -- the cheap pre-screen a segment must pass before a tokenizer failure
+#: is worth asking about. A heredoc'd commit message with an apostrophe ("the
+#: engine's config") used to fail `shlex` and ask as "unparsable" although the
+#: command deleted nothing (field report). Only a segment that LOOKS like a
+#: deletion may ask when it cannot be tokenized; everything else is allowed.
+_DELETION_SHAPED_RE = re.compile(
+    r"(?<![\w.-])(rm|rmdir|unlink|shred|del|erase|rd|remove-item|ri|xargs|find)(?![\w-])"
+    r"|\bgit\b[^\n]*\b(rm|clean|checkout|restore|reset|branch|stash|worktree|push|update-ref|reflog|filter-branch)\b"
+    r"|shutil\.rmtree|os\.remove\b|os\.unlink\b|\.unlink\(|rmdir\(|os\.removedirs|send2trash",
+    re.IGNORECASE,
+)
+_HEREDOC_OPEN_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def strip_heredocs(command: str) -> str:
+    """Return ``command`` with every here-document BODY removed (the opener
+    stays, the terminator line goes). A heredoc body is data fed to the
+    command -- a commit message, a file's content -- never a command of its
+    own, so it must not be segmented or tokenized as one. Unterminated
+    heredocs drop everything after the opener's line."""
+    lines = (command or "").split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        m = _HEREDOC_OPEN_RE.search(line)
+        i += 1
+        if not m:
+            continue
+        terminator = m.group(2)
+        while i < len(lines):
+            body = lines[i]
+            i += 1
+            if body.strip() == terminator or (line.count("<<-") and body.lstrip("\t") == terminator):
+                break
+    return "\n".join(out)
 WINDOWS_DELETE_COMMANDS: frozenset[str] = frozenset({"del", "erase", "rd", "remove-item", "ri"})
 _PYTHON_WORD_RE = re.compile(r"^(python|python3|py|pythonw)(\d+(\.\d+)*)?$")
 _PYTHON_DELETE_RE = re.compile(
@@ -538,10 +575,18 @@ def detect_deletions(command: str, cwd: str | None) -> list[dict[str, Any]]:
     hits: list[dict[str, Any]] = []
     base = cwd if isinstance(cwd, str) and cwd.strip() else None
     saw_python = False
-    for seg in split_segments(command or ""):
+    # Heredoc bodies are data (a commit message, a file's content), never
+    # commands: segment the command with them removed. The python-heredoc
+    # check below still reads the FULL text, so `python - <<EOF` bodies that
+    # call shutil.rmtree are not lost.
+    for seg in split_segments(strip_heredocs(command or "")):
         tokens = _tokenize(seg)
         if tokens is None:
-            hits.append(_hit("unparsable", seg, [], base, "the command could not be tokenized (unbalanced quotes)"))
+            if _DELETION_SHAPED_RE.search(seg):
+                hits.append(_hit("unparsable", seg, [], base, "the command could not be tokenized (unbalanced quotes)"))
+            # A segment that is not deletion-shaped and cannot be tokenized
+            # deletes nothing the guard knows of -- a prose line, an odd quote
+            # in an argument to a non-deleting tool. Silence, not ask.
             continue
         tokens = _strip_redirections(_strip_prefixes(tokens))
         if not tokens:

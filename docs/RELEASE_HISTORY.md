@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.3` — deletion-guard-heredocs
 - `v4.1.2` — instruction-compression
 - `v4.1.1` — hold-channel-harness-pin
 - `v4.1.0` — quiet-holds-and-the-users-release
@@ -174,6 +175,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.3  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.3 — deletion-guard-heredocs: a commit message is data, not a command
+
+A `git commit -F - <<'EOF'` whose message contained an apostrophe was asking for confirmation on every run: the deletion guard tokenized the heredoc's prose lines as commands and applied its "unparsable, so ask" fail-safe to them. Here-document bodies are now stripped before the command is segmented, and a segment that cannot be tokenized asks only when it is deletion-shaped. A `python - <<EOF` body that calls `shutil.rmtree` is still seen; `rm -rf "half quoted` still asks; the reported command is silent, pinned verbatim in the tests.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
