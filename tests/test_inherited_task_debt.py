@@ -42,6 +42,7 @@ import pytest
 
 from hooks import open_work as ow
 from hooks import run_continuity as rc
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 
 SESSION = "abcdef1234567890"
@@ -289,7 +290,7 @@ def test_stale_only_store_releases_the_hook_end_to_end(
     for tid in ("8", "9", "10", "11"):
         _write_task(tasks_root, tid, "pending", age_hours=200.0)
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
-    assert r.returncode == 0, f"stale-only debt must release; stderr={r.stderr!r}"
+    assert allowed(r), f"stale-only debt must release; stderr={hook_text(r)!r}"
 
 
 def test_control_fresh_store_still_blocks_the_hook_end_to_end(
@@ -297,8 +298,8 @@ def test_control_fresh_store_still_blocks_the_hook_end_to_end(
 ) -> None:
     _write_task(tasks_root, "8", "pending", subject="critique both halves")
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
-    assert r.returncode == 2, r.stderr
-    assert "open harness tasks (1)" in r.stderr
+    assert blocked(r), hook_text(r)
+    assert "open harness tasks (1)" in hook_text(r)
 
 
 # --- D3: the block message ----------------------------------------------------
@@ -311,15 +312,15 @@ def test_block_lists_stale_debt_as_non_blocking_and_names_the_store(
     _write_task(tasks_root, "2", "pending", subject="dead lane from earlier run",
                 age_hours=200.0)
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
-    assert r.returncode == 2
-    assert "inherited stale open tasks (1)" in r.stderr
-    assert "dead lane from earlier run" in r.stderr
-    assert "NOT blocking" in r.stderr
-    assert f"session-{SESSION[:8]}" in r.stderr, "the store dir is named for the operator"
+    assert blocked(r)
+    assert "inherited stale open tasks (1)" in hook_text(r)
+    assert "dead lane from earlier run" in hook_text(r)
+    assert "NOT blocking" in hook_text(r)
+    assert f"session-{SESSION[:8]}" in hook_text(r), "the store dir is named for the operator"
     # The F-A rule survives the new section: the block never prints the
     # substrate path, so it still hands the agent no release entry point.
-    assert "open_work.py" not in r.stderr
-    assert "retire" not in r.stderr.casefold().replace("retired", ""), (
+    assert "open_work.py" not in hook_text(r)
+    assert "retire" not in hook_text(r).casefold().replace("retired", ""), (
         "the retire verb is the operator's; the block points at the README only"
     )
 
@@ -332,9 +333,9 @@ def test_block_killswitch_section_states_the_launch_env_fact(
     stated. Now it does, alongside the task-abandonment lever."""
     _write_task(tasks_root, "1", "pending")
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
-    assert r.returncode == 2
-    assert "LAUNCHED" in r.stderr
-    assert "CT6_TASK_STALE_HOURS" in r.stderr
+    assert blocked(r)
+    assert "LAUNCHED" in hook_text(r)
+    assert "CT6_TASK_STALE_HOURS" in hook_text(r)
 
 
 # --- D2: the operator retire surface -----------------------------------------
@@ -347,7 +348,7 @@ def test_retire_closes_stale_tasks_with_an_audit_trail(
                     age_hours=200.0)
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", SESSION, "--reason", "runs terminated 08-18"])
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     data = json.loads(p.read_text(encoding="utf-8"))
     assert data["status"] == "completed"
     assert data["metadata"]["ct6_retired"]["reason"] == "runs terminated 08-18"
@@ -364,7 +365,7 @@ def test_retire_refuses_live_tasks_without_force(
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", SESSION, "--reason", "cleanup"])
     assert r.returncode == 1
-    assert "--force" in r.stderr
+    assert "--force" in hook_text(r)
     assert json.loads(p.read_text(encoding="utf-8"))["status"] == "pending"
 
 
@@ -374,7 +375,7 @@ def test_retire_force_closes_live_tasks(
     p = _write_task(tasks_root, "1", "pending")
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", SESSION, "--reason", "operator decision", "--force"])
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     assert json.loads(p.read_text(encoding="utf-8"))["status"] == "completed"
 
 
@@ -382,7 +383,7 @@ def test_retire_requires_a_reason(open_work_cli: Path, tasks_root: Path) -> None
     p = _write_task(tasks_root, "1", "pending", age_hours=200.0)
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", SESSION, "--reason", "   "])
-    assert r.returncode == 2
+    assert blocked(r)
     assert json.loads(p.read_text(encoding="utf-8"))["status"] == "pending"
 
 
@@ -393,7 +394,7 @@ def test_retire_scopes_to_named_task_ids(
     gone = _write_task(tasks_root, "2", "pending", age_hours=200.0)
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", SESSION, "--reason", "dead", "--task", "2"])
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     assert json.loads(kept.read_text(encoding="utf-8"))["status"] == "pending"
     assert json.loads(gone.read_text(encoding="utf-8"))["status"] == "completed"
 
@@ -404,11 +405,11 @@ def test_retire_accepts_the_dir_spelling_and_reports_a_missing_store(
     _write_task(tasks_root, "1", "pending", age_hours=200.0)
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", f"session-{SESSION[:8]}", "--reason", "dead"])
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     missing = _run_retire(open_work_cli, tasks_root,
                           ["--session", "0000000000", "--reason", "dead"])
     assert missing.returncode == 1
-    assert "session-00000000" in missing.stderr
+    assert "session-00000000" in hook_text(missing)
 
 
 def test_retired_store_releases_the_lock_and_stays_registered(
@@ -420,7 +421,7 @@ def test_retired_store_releases_the_lock_and_stays_registered(
     _write_task(tasks_root, "9", "in_progress", age_hours=200.0)
     r = _run_retire(open_work_cli, tasks_root,
                     ["--session", SESSION, "--reason", "dead run"])
-    assert r.returncode == 0, r.stderr
+    assert allowed(r), hook_text(r)
     verdict = _evaluate(workspace, tasks_root)
     assert verdict["blocked"] is False
     assert verdict["stale_tasks"] == [], "a retired task is closed, not stale debt"
@@ -446,8 +447,8 @@ def test_mark_complete_refusal_names_stand_down(
         env=_clean_env(tasks_root),
     )
     assert r.returncode == 1
-    assert "REFUSED --mark-complete" in r.stderr
-    assert "--stand-down" in r.stderr
+    assert "REFUSED --mark-complete" in hook_text(r)
+    assert "--stand-down" in hook_text(r)
 
 
 # --- D5: the heartbeat is the engaged run's pulse ----------------------------
@@ -464,7 +465,7 @@ def test_lock_block_in_foreign_session_does_not_heartbeat_the_marker(
     stamp = _backdate_marker(workspace)
     _write_task(tasks_root, "1", "pending")
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
-    assert r.returncode == 2, r.stderr
+    assert blocked(r), hook_text(r)
     after = json.loads(rc.marker_path(workspace).read_text(encoding="utf-8"))
     assert after["updated_at"] == stamp, (
         "a non-engaged session's lock block must not refresh the marker"
@@ -481,6 +482,6 @@ def test_control_lock_block_in_the_orchestrator_session_still_heartbeats(
     stamp = _backdate_marker(workspace)
     _write_task(tasks_root, "1", "pending")
     r = _run_stop(script, workspace, tasks_root, {"session_id": SESSION})
-    assert r.returncode == 2, r.stderr
+    assert blocked(r), hook_text(r)
     after = json.loads(rc.marker_path(workspace).read_text(encoding="utf-8"))
     assert after["updated_at"] != stamp, "the engaged run's heartbeat must survive"

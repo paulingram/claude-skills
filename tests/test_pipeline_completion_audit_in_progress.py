@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 import pytest
+from tests.helpers.hook_runner import hook_text
 
 
 @pytest.fixture(scope="module")
@@ -106,7 +107,7 @@ def _run_hook(plugin_root: Path, cwd: Path, mode: str = "--check") -> tuple[int,
         mode,
     ]
     r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    return r.returncode, r.stderr
+    return r.returncode, hook_text(r)
 
 
 def test_check_mode_with_fresh_marker_exits_0(plugin_root, tmp_path):

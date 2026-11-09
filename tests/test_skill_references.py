@@ -104,7 +104,13 @@ EXTRACTIONS = {
     #     are enforced by hooks and Layer-3 tools, the prose is read on demand,
     #     and tests read the surface (SKILL.md with its chapters spliced in
     #     place -- tests/helpers/surfaces.py), not the raw body.
-    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 59615),
+    #   v4.0.0 doc-debt pass: 59615 -> 63816. Four chapters that other v4.0.0
+    #     workers created without a stub (deletion-discipline, test-selection,
+    #     converge-workflows, native-methodology) gained their `## ` stub + STOP
+    #     pointer + first paragraph and their Reference-index rows, so every
+    #     chapter is reachable from the constitution; the Uniform-plugin-usage
+    #     stub was reworded for the conditional-plugin / declare-record state.
+    "common-pipeline-conventions": ("auto-worktree-lifecycle", 259290, 63816),
 }
 
 # the STOP pointer's cited-path grammar: > **STOP.** ... Read `<path>` ...

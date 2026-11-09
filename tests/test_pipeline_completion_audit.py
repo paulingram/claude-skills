@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 from tests.helpers.module_loader import load_module
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 
 @pytest.fixture()
@@ -72,14 +73,14 @@ def _write_sr(workspace: Path, sr_id: str, status: str, *, origin_kind: str = "e
 # --- not an architect-team run => always allow -----------------------------
 
 def test_no_architect_team_dir_allows(script: Path, workspace: Path) -> None:
-    assert _run_check(script, workspace).returncode == 0
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_check(script, workspace))
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_empty_architect_team_dir_allows(script: Path, workspace: Path) -> None:
     _at(workspace)  # exists but holds no run state
-    assert _run_check(script, workspace).returncode == 0
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_check(script, workspace))
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 # --- clean run => allow -----------------------------------------------------
@@ -89,8 +90,8 @@ def test_clean_run_allows(script: Path, workspace: Path) -> None:
     (_at(workspace) / "intake-state.json").write_text(
         json.dumps({"dev_loop_iterations": 4}), encoding="utf-8"
     )
-    assert _run_check(script, workspace).returncode == 0, _run_check(script, workspace).stderr
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_check(script, workspace)), hook_text(_run_check(script, workspace))
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 # --- open / in-progress SRs => block ---------------------------------------
@@ -99,9 +100,9 @@ def test_clean_run_allows(script: Path, workspace: Path) -> None:
 def test_unresolved_sr_blocks(script: Path, workspace: Path, status: str) -> None:
     _write_sr(workspace, "SR-1", status)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"a {status!r} SR must block; stderr={r.stderr!r}"
-    assert "SR-1" in r.stderr
-    assert _run_stop(script, workspace, {}).returncode == 2
+    assert blocked(r), f"a {status!r} SR must block; stderr={hook_text(r)!r}"
+    assert "SR-1" in hook_text(r)
+    assert blocked(_run_stop(script, workspace, {}))
 
 
 # --- test-failure SR without a diagnostic plan => block --------------------
@@ -109,16 +110,16 @@ def test_unresolved_sr_blocks(script: Path, workspace: Path, status: str) -> Non
 def test_test_failure_sr_without_diagnostic_plan_blocks(script: Path, workspace: Path) -> None:
     _write_sr(workspace, "SR-2", "resolved", origin_kind="rca-product-bug")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "diagnostic" in r.stderr.lower()
+    assert blocked(r)
+    assert "diagnostic" in hook_text(r).lower()
 
 
 def test_test_failure_sr_with_missing_plan_file_blocks(script: Path, workspace: Path) -> None:
     _write_sr(workspace, "SR-3", "resolved", origin_kind="integration-testing-failure",
               diagnostic_plan_path=".architect-team/diagnostic-research/x/plan.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "diagnostic_plan_path" in r.stderr
+    assert blocked(r)
+    assert "diagnostic_plan_path" in hook_text(r)
 
 
 def test_test_failure_sr_with_present_plan_allows(script: Path, workspace: Path) -> None:
@@ -128,7 +129,7 @@ def test_test_failure_sr_with_present_plan_allows(script: Path, workspace: Path)
     plan.write_text("the plan", encoding="utf-8")
     _write_sr(workspace, "SR-4", "resolved", origin_kind="rca-product-bug",
               diagnostic_plan_path=plan_rel)
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --- editability not satisfied => block ------------------------------------
@@ -141,8 +142,8 @@ def test_unsatisfied_editability_blocks(script: Path, workspace: Path) -> None:
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "editability" in r.stderr.lower()
+    assert blocked(r)
+    assert "editability" in hook_text(r).lower()
 
 
 def test_satisfied_editability_allows(script: Path, workspace: Path) -> None:
@@ -152,7 +153,7 @@ def test_satisfied_editability_allows(script: Path, workspace: Path) -> None:
         json.dumps({"feature": "projects", "satisfied": True, "gaps": []}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 def test_editability_drafts_without_converged_map_blocks(script: Path, workspace: Path) -> None:
@@ -160,8 +161,8 @@ def test_editability_drafts_without_converged_map_blocks(script: Path, workspace
     feat.mkdir(parents=True)
     (feat / "reviewer-1-pass1-ts.json").write_text(json.dumps({"draft": True}), encoding="utf-8")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "converge" in r.stderr.lower()
+    assert blocked(r)
+    assert "converge" in hook_text(r).lower()
 
 
 # --- test-completeness debt => block ---------------------------------------
@@ -174,8 +175,8 @@ def test_test_completeness_fail_blocks(script: Path, workspace: Path) -> None:
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "test-completeness" in r.stderr.lower()
+    assert blocked(r)
+    assert "test-completeness" in hook_text(r).lower()
 
 
 def test_phase_5_integration_debt_blocks(script: Path, workspace: Path) -> None:
@@ -187,8 +188,8 @@ def test_phase_5_integration_debt_blocks(script: Path, workspace: Path) -> None:
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "debt" in r.stderr.lower()
+    assert blocked(r)
+    assert "debt" in hook_text(r).lower()
 
 
 def test_latest_verdict_wins(script: Path, workspace: Path) -> None:
@@ -203,7 +204,7 @@ def test_latest_verdict_wins(script: Path, workspace: Path) -> None:
         json.dumps({"task_id": "T-3", "verified_at": "2026-05-20T12:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --- visual-fidelity: reconciliation ran but no verifier verdict => block ---
@@ -215,8 +216,8 @@ def test_reconciliation_without_verifier_verdict_blocks(script: Path, workspace:
     at = _at(workspace)
     (at / "visual-fidelity-summary-ts.md").write_text("reconciliation ran", encoding="utf-8")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"reconciliation w/o a verification verdict must block; stderr={r.stderr!r}"
-    assert "verification" in r.stderr.lower()
+    assert blocked(r), f"reconciliation w/o a verification verdict must block; stderr={hook_text(r)!r}"
+    assert "verification" in hook_text(r).lower()
 
 
 def test_failed_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
@@ -229,8 +230,8 @@ def test_failed_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "visual-verification-team" in r.stderr
+    assert blocked(r)
+    assert "visual-verification-team" in hook_text(r)
 
 
 def test_blocked_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
@@ -243,7 +244,7 @@ def test_blocked_verifier_verdict_blocks(script: Path, workspace: Path) -> None:
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2
+    assert blocked(r)
 
 
 def test_passing_verifier_verdict_allows(script: Path, workspace: Path) -> None:
@@ -255,7 +256,7 @@ def test_passing_verifier_verdict_allows(script: Path, workspace: Path) -> None:
         json.dumps({"codebase": "web", "verified_at": "2026-05-20T10:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 def test_latest_verifier_verdict_wins_per_codebase(script: Path, workspace: Path) -> None:
@@ -272,7 +273,7 @@ def test_latest_verifier_verdict_wins_per_codebase(script: Path, workspace: Path
         json.dumps({"codebase": "web", "verified_at": "2026-05-20T12:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --- master-review audit verdict => gate -----------------------------------
@@ -287,9 +288,9 @@ def test_failed_master_review_audit_blocks(script: Path, workspace: Path) -> Non
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"a failing master-review audit must block; stderr={r.stderr!r}"
-    assert "master-review" in r.stderr.lower()
-    assert _run_stop(script, workspace, {}).returncode == 2
+    assert blocked(r), f"a failing master-review audit must block; stderr={hook_text(r)!r}"
+    assert "master-review" in hook_text(r).lower()
+    assert blocked(_run_stop(script, workspace, {}))
 
 
 def test_passing_master_review_audit_allows(script: Path, workspace: Path) -> None:
@@ -299,15 +300,15 @@ def test_passing_master_review_audit_allows(script: Path, workspace: Path) -> No
         json.dumps({"change": "x", "verified_at": "2026-05-21T10:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0, _run_check(script, workspace).stderr
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_check(script, workspace)), hook_text(_run_check(script, workspace))
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_no_master_review_audit_files_allows(script: Path, workspace: Path) -> None:
     """No master-review audit verdict yet => no violation (conservative — the
     absence of the Phase 7 verdict is not itself a block)."""
     _write_sr(workspace, "SR-1", "resolved")
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 def test_latest_master_review_audit_wins(script: Path, workspace: Path) -> None:
@@ -322,7 +323,7 @@ def test_latest_master_review_audit_wins(script: Path, workspace: Path) -> None:
         json.dumps({"change": "x", "verified_at": "2026-05-21T12:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --- documentation-currency audit verdict => gate --------------------------
@@ -337,9 +338,9 @@ def test_failed_documentation_currency_audit_blocks(script: Path, workspace: Pat
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"a failing documentation-currency audit must block; stderr={r.stderr!r}"
-    assert "documentation-currency" in r.stderr.lower()
-    assert _run_stop(script, workspace, {}).returncode == 2
+    assert blocked(r), f"a failing documentation-currency audit must block; stderr={hook_text(r)!r}"
+    assert "documentation-currency" in hook_text(r).lower()
+    assert blocked(_run_stop(script, workspace, {}))
 
 
 def test_passing_documentation_currency_audit_allows(script: Path, workspace: Path) -> None:
@@ -349,15 +350,15 @@ def test_passing_documentation_currency_audit_allows(script: Path, workspace: Pa
         json.dumps({"change": "x", "verified_at": "2026-05-21T10:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0, _run_check(script, workspace).stderr
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_check(script, workspace)), hook_text(_run_check(script, workspace))
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_no_documentation_currency_audit_files_allows(script: Path, workspace: Path) -> None:
     """No documentation-currency audit verdict yet => no violation (conservative,
     mirroring the master-review check)."""
     _write_sr(workspace, "SR-1", "resolved")
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 def test_latest_documentation_currency_audit_wins(script: Path, workspace: Path) -> None:
@@ -372,7 +373,7 @@ def test_latest_documentation_currency_audit_wins(script: Path, workspace: Path)
         json.dumps({"change": "x", "verified_at": "2026-05-21T12:00:00Z", "overall": "pass"}),
         encoding="utf-8",
     )
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --- v3.8.0 unbounded solving: NO iteration ceiling ------------------------
@@ -385,10 +386,10 @@ def test_high_iteration_count_does_not_block(script: Path, workspace: Path) -> N
         json.dumps({"dev_loop_iterations": 999}), encoding="utf-8"
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 0, (
-        f"a high dev_loop_iterations must NOT block (no ceiling); stderr={r.stderr!r}"
+    assert allowed(r), (
+        f"a high dev_loop_iterations must NOT block (no ceiling); stderr={hook_text(r)!r}"
     )
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_iteration_ceiling_symbols_removed(script: Path) -> None:
@@ -408,8 +409,8 @@ def test_high_iteration_count_with_open_sr_still_blocks(script: Path, workspace:
     )
     _write_sr(workspace, "SR-1", "open")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"an open SR must still block; stderr={r.stderr!r}"
-    assert "SR-1" in r.stderr
+    assert blocked(r), f"an open SR must still block; stderr={hook_text(r)!r}"
+    assert "SR-1" in hook_text(r)
 
 
 # --- escalation marker => allow even with violations -----------------------
@@ -419,8 +420,8 @@ def test_escalation_marker_allows_despite_violations(script: Path, workspace: Pa
     (_at(workspace) / "escalation-pending.md").write_text(
         "Waiting on the human to decide X.", encoding="utf-8"
     )
-    assert _run_check(script, workspace).returncode == 0
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_check(script, workspace))
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 # --- stop_hook_active => never loop ----------------------------------------
@@ -429,7 +430,7 @@ def test_stop_hook_active_allows(script: Path, workspace: Path) -> None:
     """When the Stop hook has already fired this stop, it must not block again."""
     _write_sr(workspace, "SR-1", "open")
     r = _run_stop(script, workspace, {"stop_hook_active": True})
-    assert r.returncode == 0, f"stop_hook_active must prevent a re-block; stderr={r.stderr!r}"
+    assert allowed(r), f"stop_hook_active must prevent a re-block; stderr={hook_text(r)!r}"
 
 
 # --- fail open --------------------------------------------------------------
@@ -442,7 +443,7 @@ def test_malformed_stop_payload_fails_open(script: Path, workspace: Path) -> Non
         text=True, capture_output=True, cwd=str(workspace),
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
-    assert r.returncode == 0, "a malformed hook payload must fail open (exit 0)"
+    assert allowed(r), "a malformed hook payload must fail open (exit 0)"
 
 
 def test_corrupt_sr_is_reported_not_crashed(script: Path, workspace: Path) -> None:
@@ -451,8 +452,8 @@ def test_corrupt_sr_is_reported_not_crashed(script: Path, workspace: Path) -> No
     (sr_dir / "SR-bad.json").write_text("{ not json", encoding="utf-8")
     r = _run_check(script, workspace)
     # A corrupt SR is a real violation, but the hook must not crash.
-    assert r.returncode == 2
-    assert "SR-bad" in r.stderr
+    assert blocked(r)
+    assert "SR-bad" in hook_text(r)
 
 
 # --- v0.9.36: bug-fix testing verdict enforcement ---------------------------
@@ -496,16 +497,16 @@ def test_bug_fix_no_b1_verdict_blocks(script: Path, workspace: Path) -> None:
     bf_dir.mkdir(parents=True)
     _write_bug_fix_b6(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "b1-replication-verdict" in r.stderr
+    assert blocked(r)
+    assert "b1-replication-verdict" in hook_text(r)
 
 
 def test_bug_fix_no_b6_verdict_blocks(script: Path, workspace: Path) -> None:
     """A bug-fix slug directory without a B6 verdict file blocks."""
     _write_bug_fix_b1(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "b6-qa-replay-verdict" in r.stderr
+    assert blocked(r)
+    assert "b6-qa-replay-verdict" in hook_text(r)
 
 
 def test_bug_fix_b1_not_executed_blocks(script: Path, workspace: Path) -> None:
@@ -513,8 +514,8 @@ def test_bug_fix_b1_not_executed_blocks(script: Path, workspace: Path) -> None:
     _write_bug_fix_b1(workspace, "fix-broken-delete", artifact_executed=False)
     _write_bug_fix_b6(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "artifact_executed" in r.stderr
+    assert blocked(r)
+    assert "artifact_executed" in hook_text(r)
 
 
 def test_bug_fix_b1_no_output_blocks(script: Path, workspace: Path) -> None:
@@ -522,8 +523,8 @@ def test_bug_fix_b1_no_output_blocks(script: Path, workspace: Path) -> None:
     _write_bug_fix_b1(workspace, "fix-broken-delete", failing_output_captured=False)
     _write_bug_fix_b6(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "failing_output_captured" in r.stderr
+    assert blocked(r)
+    assert "failing_output_captured" in hook_text(r)
 
 
 def test_bug_fix_b6_not_executed_blocks(script: Path, workspace: Path) -> None:
@@ -531,8 +532,8 @@ def test_bug_fix_b6_not_executed_blocks(script: Path, workspace: Path) -> None:
     _write_bug_fix_b1(workspace, "fix-broken-delete")
     _write_bug_fix_b6(workspace, "fix-broken-delete", artifacts_executed=False)
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "artifacts_executed_against_live_dev" in r.stderr
+    assert blocked(r)
+    assert "artifacts_executed_against_live_dev" in hook_text(r)
 
 
 def test_bug_fix_b6_symptom_not_gone_blocks(script: Path, workspace: Path) -> None:
@@ -540,8 +541,8 @@ def test_bug_fix_b6_symptom_not_gone_blocks(script: Path, workspace: Path) -> No
     _write_bug_fix_b1(workspace, "fix-broken-delete")
     _write_bug_fix_b6(workspace, "fix-broken-delete", symptom_gone=False)
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "symptom_gone_end_to_end" in r.stderr
+    assert blocked(r)
+    assert "symptom_gone_end_to_end" in hook_text(r)
 
 
 def test_bug_fix_b6_witness_not_passed_blocks(script: Path, workspace: Path) -> None:
@@ -549,8 +550,8 @@ def test_bug_fix_b6_witness_not_passed_blocks(script: Path, workspace: Path) -> 
     _write_bug_fix_b1(workspace, "fix-broken-delete")
     _write_bug_fix_b6(workspace, "fix-broken-delete", witness_passed=False)
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "code_path_witness_passed" in r.stderr
+    assert blocked(r)
+    assert "code_path_witness_passed" in hook_text(r)
 
 
 def test_bug_fix_clean_verdicts_allow(script: Path, workspace: Path) -> None:
@@ -558,7 +559,7 @@ def test_bug_fix_clean_verdicts_allow(script: Path, workspace: Path) -> None:
     _write_bug_fix_b1(workspace, "fix-broken-delete")
     _write_bug_fix_b6(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
-    assert r.returncode == 0
+    assert allowed(r)
 
 
 def test_bug_fix_could_not_reproduce_b1_does_not_block_on_execution(script: Path, workspace: Path) -> None:
@@ -567,7 +568,7 @@ def test_bug_fix_could_not_reproduce_b1_does_not_block_on_execution(script: Path
                        artifact_executed=False)
     _write_bug_fix_b6(workspace, "fix-broken-delete")
     r = _run_check(script, workspace)
-    assert r.returncode == 0
+    assert allowed(r)
 
 
 # ---- openspec validate --all --strict wired into the master-review gate ----
@@ -773,9 +774,9 @@ def test_added_test_file_without_a_verdict_blocks(script: Path, workspace: Path)
     _write_intake(workspace, baseline_sha=sha)
     _add_file(workspace, "tests/test_new_guard.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "tests/test_new_guard.py" in r.stderr.replace("\\", "/")
-    assert "verify-check-can-fail" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "tests/test_new_guard.py" in hook_text(r).replace("\\", "/")
+    assert "verify-check-can-fail" in hook_text(r)
 
 
 def test_committed_added_test_file_also_counts(script: Path, workspace: Path) -> None:
@@ -783,8 +784,8 @@ def test_committed_added_test_file_also_counts(script: Path, workspace: Path) ->
     _write_intake(workspace, baseline_sha=sha)
     _add_file(workspace, "tests/test_committed_guard.py", commit=True)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "test_committed_guard.py" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "test_committed_guard.py" in hook_text(r)
 
 
 def test_added_test_file_with_a_passing_verdict_allows(script: Path, workspace: Path) -> None:
@@ -793,7 +794,7 @@ def test_added_test_file_with_a_passing_verdict_allows(script: Path, workspace: 
     _add_file(workspace, "tests/test_new_guard.py")
     _write_check_verdict(workspace, valid=True)
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_added_test_file_with_a_failing_verdict_blocks(script: Path, workspace: Path) -> None:
@@ -802,8 +803,8 @@ def test_added_test_file_with_a_failing_verdict_blocks(script: Path, workspace: 
     _add_file(workspace, "tests/test_new_guard.py")
     _write_check_verdict(workspace, valid=False)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "check-can-fail" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "check-can-fail" in hook_text(r)
 
 
 # --- B4 (adversarial, medium): EVERY verdict must pass, not just the "latest".
@@ -828,7 +829,7 @@ def test_a_failing_verdict_is_not_buried_by_a_future_dated_passing_one(
     _write_check_verdict(workspace, valid=True, name="b-check-can-fail.json",
                          verdict_at="9999-12-31T23:59:59Z")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_a_failing_verdict_is_not_buried_by_an_undated_passing_one(
@@ -843,7 +844,7 @@ def test_a_failing_verdict_is_not_buried_by_an_undated_passing_one(
     _write_check_verdict(workspace, name="zz-check-can-fail.json",
                          body={"tool": "verify-check-can-fail", "valid": True})
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_one_groups_failure_is_not_hidden_by_another_groups_pass(
@@ -858,8 +859,8 @@ def test_one_groups_failure_is_not_hidden_by_another_groups_pass(
     _write_check_verdict(workspace, valid=True, name="hei-group4-check-can-fail.json",
                          verdict_at="2026-07-31T05:00:00Z")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "hei-group3" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "hei-group3" in hook_text(r)
 
 
 def test_all_passing_verdicts_allow(script: Path, workspace: Path) -> None:
@@ -870,7 +871,7 @@ def test_all_passing_verdicts_allow(script: Path, workspace: Path) -> None:
                          verdict_at="2026-07-31T03:00:00Z")
     _write_check_verdict(workspace, valid=True, name="hei-group4-check-can-fail.json",
                          verdict_at="2026-07-31T05:00:00Z")
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 # --- B5 (adversarial, medium): the arm must bite the RUN's files, not a
@@ -893,7 +894,7 @@ def test_untracked_file_predating_the_run_does_not_arm_the_gate(
     scratch = _add_file(workspace, "tests/test_developer_scratch.py")
     _age_file(scratch, 60 * 60 * 24 * 30)  # a month old — long before this run
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_untracked_file_written_during_the_run_still_arms_the_gate(
@@ -903,7 +904,7 @@ def test_untracked_file_written_during_the_run_still_arms_the_gate(
     _write_intake(workspace, baseline_sha=sha)
     _add_file(workspace, "tests/test_new_guard.py")  # written now
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_marker_started_at_is_the_preferred_run_start(script: Path,
@@ -926,7 +927,7 @@ def test_marker_started_at_is_the_preferred_run_start(script: Path,
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_unreadable_check_verdict_blocks(script: Path, workspace: Path) -> None:
@@ -937,7 +938,7 @@ def test_unreadable_check_verdict_blocks(script: Path, workspace: Path) -> None:
     vd.mkdir(parents=True, exist_ok=True)
     (vd / "task-a-check-can-fail.json").write_text("{not json", encoding="utf-8")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_check_verdict_of_unknown_shape_blocks(script: Path, workspace: Path) -> None:
@@ -947,7 +948,7 @@ def test_check_verdict_of_unknown_shape_blocks(script: Path, workspace: Path) ->
     _add_file(workspace, "tests/test_new_guard.py")
     _write_check_verdict(workspace, body={"tool": "verify-check-can-fail", "notes": "fine"})
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_no_added_test_files_is_fail_open(script: Path, workspace: Path) -> None:
@@ -956,7 +957,7 @@ def test_no_added_test_files_is_fail_open(script: Path, workspace: Path) -> None
     _write_intake(workspace, baseline_sha=sha)
     _add_file(workspace, "src/feature.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_modified_test_file_is_not_an_added_test_file(script: Path, workspace: Path) -> None:
@@ -968,7 +969,7 @@ def test_modified_test_file_is_not_an_added_test_file(script: Path, workspace: P
         "def test_x():\n    assert 1 == 1\n", encoding="utf-8"
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_no_baseline_sha_is_fail_open(script: Path, workspace: Path) -> None:
@@ -976,7 +977,7 @@ def test_no_baseline_sha_is_fail_open(script: Path, workspace: Path) -> None:
     _write_intake(workspace)  # no baseline_sha recorded
     _add_file(workspace, "tests/test_new_guard.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_unknown_baseline_sha_is_fail_open(script: Path, workspace: Path) -> None:
@@ -984,14 +985,14 @@ def test_unknown_baseline_sha_is_fail_open(script: Path, workspace: Path) -> Non
     _write_intake(workspace, baseline_sha="0" * 40)
     _add_file(workspace, "tests/test_new_guard.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_not_a_git_repo_is_fail_open(script: Path, workspace: Path) -> None:
     _write_intake(workspace, baseline_sha="deadbeef")
     _add_file(workspace, "tests/test_new_guard.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_baseline_sha_falls_back_to_a_teammate_manifest(script: Path, workspace: Path) -> None:
@@ -1006,7 +1007,7 @@ def test_baseline_sha_falls_back_to_a_teammate_manifest(script: Path, workspace:
     )
     _add_file(workspace, "tests/test_new_guard.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_gitignored_files_are_not_added_tests(script: Path, workspace: Path) -> None:
@@ -1015,7 +1016,7 @@ def test_gitignored_files_are_not_added_tests(script: Path, workspace: Path) -> 
     _write_intake(workspace, baseline_sha=sha)
     _add_file(workspace, ".architect-team/fixtures/test_scratch.py")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # --- W2 (group 1's adversary, moderate): a verdict's indeterminate NOTES are
@@ -1046,8 +1047,8 @@ def test_passing_verdict_with_notes_allows_but_surfaces_them(script: Path,
          "remediation": "cite the tsconfig path"},
     ])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"notes must never gate; stderr={r.stderr!r}"
-    assert "typecheck-tsconfig-indeterminate" in r.stderr, r.stderr
+    assert allowed(r), f"notes must never gate; stderr={hook_text(r)!r}"
+    assert "typecheck-tsconfig-indeterminate" in hook_text(r), hook_text(r)
 
 
 def test_passing_verdict_without_notes_says_nothing(script: Path,
@@ -1057,8 +1058,8 @@ def test_passing_verdict_without_notes_says_nothing(script: Path,
     _add_file(workspace, "tests/test_new_guard.py")
     _verdict_with_notes(workspace, [])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
-    assert "note" not in r.stderr.lower(), r.stderr
+    assert allowed(r), f"stderr={hook_text(r)!r}"
+    assert "note" not in hook_text(r).lower(), hook_text(r)
 
 
 def test_notes_on_a_failing_verdict_do_not_replace_the_violation(script: Path,
@@ -1069,7 +1070,7 @@ def test_notes_on_a_failing_verdict_do_not_replace_the_violation(script: Path,
     _verdict_with_notes(workspace, [{"kind": "typecheck-tsconfig-indeterminate"}],
                         valid=False)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_check_integrity_stop_mode_blocks_the_same_way(script: Path, workspace: Path) -> None:
@@ -1077,5 +1078,5 @@ def test_check_integrity_stop_mode_blocks_the_same_way(script: Path, workspace: 
     _write_intake(workspace, baseline_sha=sha)
     _add_file(workspace, "tests/test_new_guard.py")
     r = _run_stop(script, workspace, {})
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "verify-check-can-fail" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "verify-check-can-fail" in hook_text(r)

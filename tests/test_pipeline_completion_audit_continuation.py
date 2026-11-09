@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from hooks import run_continuity as rc
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 
 @pytest.fixture()
@@ -95,16 +96,16 @@ def test_active_marker_clean_worklist_blocks_stop(script: Path, workspace: Path)
     rc.engage_marker(workspace, "architect-team-pipeline")
     rc.update_marker(workspace, slug="my-feature", phase="Phase 3")
     r = _run_stop(script, workspace, {})
-    assert r.returncode == 2, f"active run + clean worklist must still block; stderr={r.stderr!r}"
-    assert "my-feature" in r.stderr
-    assert "mark-complete" in r.stderr
+    assert blocked(r), f"active run + clean worklist must still block; stderr={hook_text(r)!r}"
+    assert "my-feature" in hook_text(r)
+    assert "mark-complete" in hook_text(r)
 
 
 def test_complete_marker_allows_stop(script: Path, workspace: Path) -> None:
     _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
     rc.mark_complete(workspace)
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_check_mode_ignores_lifecycle(script: Path, workspace: Path) -> None:
@@ -112,21 +113,21 @@ def test_check_mode_ignores_lifecycle(script: Path, workspace: Path) -> None:
     active — the lifecycle check must not apply there."""
     _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
 
 
 def test_kill_switch_restores_legacy(script: Path, workspace: Path) -> None:
     _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
     r = _run_stop(script, workspace, {}, env_extra={rc.DISABLE_ENV: "1"})
-    assert r.returncode == 0
+    assert allowed(r)
 
 
 def test_malformed_marker_fails_open(script: Path, workspace: Path) -> None:
     p = rc.marker_path(workspace)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text("{broken", encoding="utf-8")
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 # --- sanctioned pauses still win ---------------------------------------------
@@ -135,14 +136,14 @@ def test_escalation_marker_allows_despite_active_run(script: Path, workspace: Pa
     at = _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
     (at / "escalation-pending.md").write_text("waiting on the human", encoding="utf-8")
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_fresh_in_progress_allows_despite_active_run(script: Path, workspace: Path) -> None:
     at = _at(workspace)
     rc.engage_marker(workspace, "architect-team-pipeline")
     (at / "in-progress.md").write_text("waiting on deploy", encoding="utf-8")
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 # --- non-engaged sessions: legacy one-nudge + the resume directive -----------
@@ -152,12 +153,12 @@ def test_non_engaged_gets_one_nudge_with_resume_directive(script: Path, workspac
     rc.engage_marker(workspace, "bug-fix-pipeline")
     t = _plain_transcript(workspace)
     r = _run_stop(script, workspace, {"transcript_path": str(t)})
-    assert r.returncode == 2
-    assert "RUN-CONTINUITY NOTE" in r.stderr
-    assert 'Skill(skill="bug-fix-pipeline")' in r.stderr
+    assert blocked(r)
+    assert "RUN-CONTINUITY NOTE" in hook_text(r)
+    assert 'Skill(skill="bug-fix-pipeline")' in hook_text(r)
     # legacy never-loop semantics preserved for non-engaged sessions
     r2 = _run_stop(script, workspace, {"transcript_path": str(t), "stop_hook_active": True})
-    assert r2.returncode == 0
+    assert allowed(r2)
 
 
 # --- engaged sessions: bounded persistence -----------------------------------
@@ -170,9 +171,9 @@ def test_engaged_blocks_past_stop_hook_active(script: Path, workspace: Path) -> 
     t = _engaged_transcript(workspace)
     payload = {"transcript_path": str(t), "stop_hook_active": True}
     r = _run_stop(script, workspace, payload)
-    assert r.returncode == 2, f"engaged session must be re-blocked; stderr={r.stderr!r}"
-    assert "CONTINUE" in r.stderr
-    assert "want me to continue" in r.stderr, "the message names the forbidden deferral"
+    assert blocked(r), f"engaged session must be re-blocked; stderr={hook_text(r)!r}"
+    assert "CONTINUE" in hook_text(r)
+    assert "want me to continue" in hook_text(r), "the message names the forbidden deferral"
 
 
 def _quiet_engaged_transcript(workspace: Path) -> Path:
@@ -222,8 +223,8 @@ def test_engaged_no_progress_budget_is_overridden_by_the_lock(
            "CT6_TASKS_ROOT": str(workspace / "harness-tasks")}
     for attempt in range(1, 6):
         r = _run_stop(script, workspace, payload, env_extra=env)
-        assert r.returncode == 2, (
-            f"attempt {attempt} was released while work was open; stderr={r.stderr!r}"
+        assert blocked(r), (
+            f"attempt {attempt} was released while work was open; stderr={hook_text(r)!r}"
         )
     assert not (at / "escalation-pending.md").exists(), (
         "the lock must not auto-escalate: escalation is the budget's exit, and "
@@ -244,16 +245,16 @@ def test_engaged_no_progress_auto_escalates_at_budget_with_no_open_work(
     payload = {"transcript_path": str(t)}
     env = {rc.MAX_NO_PROGRESS_ENV: "1"}
     r1 = _run_stop(script, workspace, payload, env_extra=env)
-    assert r1.returncode == 2, r1.stderr
+    assert blocked(r1), hook_text(r1)
     # nothing changed between stops => no progress => budget (1) exhausted
     r2 = _run_stop(script, workspace, payload, env_extra=env)
-    assert r2.returncode == 0, r2.stderr
-    assert "no-progress" in r2.stderr
+    assert allowed(r2), hook_text(r2)
+    assert "no-progress" in hook_text(r2)
     esc = at / "escalation-pending.md"
     assert esc.exists(), "auto-escalation must leave the sanctioned pause marker"
     assert "no progress" in esc.read_text(encoding="utf-8").lower()
     # and the NEXT stop is sanctioned via that marker
-    assert _run_stop(script, workspace, payload, env_extra=env).returncode == 0
+    assert allowed(_run_stop(script, workspace, payload, env_extra=env))
 
 
 def test_engaged_progress_resets_budget(script: Path, workspace: Path) -> None:
@@ -262,12 +263,12 @@ def test_engaged_progress_resets_budget(script: Path, workspace: Path) -> None:
     t = _engaged_transcript(workspace)
     payload = {"transcript_path": str(t)}
     env = {rc.MAX_NO_PROGRESS_ENV: "1"}
-    assert _run_stop(script, workspace, payload, env_extra=env).returncode == 2
+    assert blocked(_run_stop(script, workspace, payload, env_extra=env))
     time.sleep(0.01)
     (at / "reviews").mkdir(exist_ok=True)
     (at / "reviews" / "T1.json").write_text("{}", encoding="utf-8")  # progress
     r = _run_stop(script, workspace, payload, env_extra=env)
-    assert r.returncode == 2, "progress => keep pushing (unbounded), not escalate"
+    assert blocked(r), "progress => keep pushing (unbounded), not escalate"
     assert not (at / "escalation-pending.md").exists()
 
 
@@ -281,8 +282,8 @@ def test_engaged_with_violations_lists_worklist(script: Path, workspace: Path) -
                     "origin": {"kind": "editability-gap"}}), encoding="utf-8")
     t = _engaged_transcript(workspace)
     r = _run_stop(script, workspace, {"transcript_path": str(t)})
-    assert r.returncode == 2
-    assert "SR-1" in r.stderr and "CONTINUE" in r.stderr
+    assert blocked(r)
+    assert "SR-1" in hook_text(r) and "CONTINUE" in hook_text(r)
 
 
 def test_engaged_post_compact_block_directs_skill_reload(script: Path, workspace: Path) -> None:
@@ -293,8 +294,8 @@ def test_engaged_post_compact_block_directs_skill_reload(script: Path, workspace
         _user("keep going", ts="2026-07-03T11:00:00Z"),
     ])
     r = _run_stop(script, workspace, {"transcript_path": str(t)})
-    assert r.returncode == 2
-    assert "re-invoke Skill" in r.stderr, "post-compact the block directs a playbook reload"
+    assert blocked(r)
+    assert "re-invoke Skill" in hook_text(r), "post-compact the block directs a playbook reload"
 
 
 # --- v3.30.0 adversarial-review remediations ---------------------------------
@@ -307,7 +308,7 @@ def test_stale_marker_does_not_block_non_engaged(script: Path, workspace: Path) 
     m = rc.read_marker(workspace)
     m["updated_at"] = "2020-01-01T00:00:00+00:00"
     rc._atomic_write_json(rc.marker_path(workspace), m)
-    assert _run_stop(script, workspace, {}).returncode == 0
+    assert allowed(_run_stop(script, workspace, {}))
 
 
 def test_session_id_match_counts_as_engaged(script: Path, workspace: Path) -> None:
@@ -322,8 +323,8 @@ def test_session_id_match_counts_as_engaged(script: Path, workspace: Path) -> No
         "session_id": "sess-orch",
         "stop_hook_active": True,
     })
-    assert r.returncode == 2, f"session-id match must engage the guard; stderr={r.stderr!r}"
-    assert "CONTINUE" in r.stderr
+    assert blocked(r), f"session-id match must engage the guard; stderr={hook_text(r)!r}"
+    assert "CONTINUE" in hook_text(r)
 
 
 def test_engaged_block_touches_marker_freshness(script: Path, workspace: Path) -> None:
@@ -337,7 +338,7 @@ def test_engaged_block_touches_marker_freshness(script: Path, workspace: Path) -
     rc._atomic_write_json(rc.marker_path(workspace), m)
     t = _engaged_transcript(workspace)
     env = {rc.MAX_NO_PROGRESS_ENV: "3", rc.MARKER_STALE_HOURS_ENV: "999999"}
-    assert _run_stop(script, workspace, {"transcript_path": str(t)}, env_extra=env).returncode == 2
+    assert blocked(_run_stop(script, workspace, {"transcript_path": str(t)}, env_extra=env))
     assert rc.read_marker(workspace)["updated_at"] != before, "the block must heartbeat the marker"
     # A second identical no-progress stop still blocks.
     #
@@ -363,8 +364,8 @@ def test_engaged_block_touches_marker_freshness(script: Path, workspace: Path) -
     # that actually goes red (the guard auto-escalates and releases the stop).
     # The coverage was always there; the citation pointed at the wrong test.
     r = _run_stop(script, workspace, {"transcript_path": str(t)}, env_extra=env)
-    assert r.returncode == 2
-    assert "CONTINUE" in r.stderr, "the composed block must keep the guard's directive"
+    assert blocked(r)
+    assert "CONTINUE" in hook_text(r), "the composed block must keep the guard's directive"
 
 
 def test_new_block_messages_are_ascii(script: Path, workspace: Path) -> None:
@@ -375,10 +376,10 @@ def test_new_block_messages_are_ascii(script: Path, workspace: Path) -> None:
     rc.update_marker(workspace, slug="my-feature", phase="Phase 3")
     t = _engaged_transcript(workspace)
     r = _run_stop(script, workspace, {"transcript_path": str(t)})
-    assert r.returncode == 2
-    for line in r.stderr.splitlines():
+    assert blocked(r)
+    for line in hook_text(r).splitlines():
         if line.startswith("pipeline-completion-audit: CONTINUE"):
             assert line == line.encode("ascii", "replace").decode("ascii"), (
                 f"non-ASCII in the continuation block header: {line!r}"
             )
-    assert "—" not in r.stderr, "em-dashes are banned from the new stderr strings"
+    assert "—" not in hook_text(r), "em-dashes are banned from the new stderr strings"

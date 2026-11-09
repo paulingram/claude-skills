@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 
 from tests.helpers.module_loader import load_module
+from tests.helpers.hook_runner import blocked, hook_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AUDIT_SCRIPT = REPO_ROOT / "hooks" / "pipeline-completion-audit.py"
@@ -194,8 +195,8 @@ def test_third_consecutive_stop_is_terse_end_to_end(tmp_path: Path) -> None:
     outs = []
     for _ in range(3):
         r = _run_stop(script, workspace, tasks_root, payload)
-        assert r.returncode == 2, "the wedge must keep blocking throughout"
-        outs.append(r.stderr)
+        assert blocked(r), "the wedge must keep blocking throughout"
+        outs.append(hook_text(r))
 
     assert "Decide by CHECKING" in outs[0], "first block = the full directive"
     assert "state unchanged" in outs[2], "third block = the terse form"

@@ -37,6 +37,7 @@ from pathlib import Path
 import pytest
 
 from hooks.vao.diagnosis import verify_diagnosis_falsified
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -229,8 +230,8 @@ def test_cli_subcommand_exits_0_on_valid_and_2_on_invalid(plugin_root: Path, tmp
          "--out", str(tmp_path / "vb.json")],
         text=True, capture_output=True, env=env, cwd=str(plugin_root),
     )
-    assert r_good.returncode == 0, r_good.stderr
-    assert r_bad.returncode == 2, r_bad.stderr
+    assert allowed(r_good), hook_text(r_good)
+    assert blocked(r_bad), hook_text(r_bad)
     assert json.loads((tmp_path / "vb.json").read_text(encoding="utf-8"))["valid"] is False
 
 
@@ -293,15 +294,15 @@ def test_in_flight_sr_with_unfalsified_plan_blocks(audit_script: Path, tmp_path:
                             plan_json=_plan(leading_hypothesis=_hyp("H1", executed=False,
                                                                     status="survived")))
     r = _run_check(audit_script, ws)
-    assert r.returncode == 2, r.stderr
-    assert "diagnosis-leading-hypothesis-unexecuted" in r.stderr
+    assert blocked(r), hook_text(r)
+    assert "diagnosis-leading-hypothesis-unexecuted" in hook_text(r)
 
 
 def test_in_flight_sr_with_no_sidecar_blocks_naming_the_path(audit_script: Path, tmp_path: Path) -> None:
     ws = _workspace_with_sr(tmp_path, status="in_progress", plan_json=None, plan_present=False)
     r = _run_check(audit_script, ws)
-    assert r.returncode == 2, r.stderr
-    assert "diagnostic-plan-20260828T000000Z.json" in r.stderr, (
+    assert blocked(r), hook_text(r)
+    assert "diagnostic-plan-20260828T000000Z.json" in hook_text(r), (
         "the violation must name the sidecar path the plan must write"
     )
 
@@ -312,14 +313,14 @@ def test_in_flight_sr_with_valid_sidecar_passes_this_arm(audit_script: Path, tmp
     assert only that THIS arm names nothing."""
     ws = _workspace_with_sr(tmp_path, status="in_progress", plan_json=_plan())
     r = _run_check(audit_script, ws)
-    assert "diagnosis-" not in r.stderr, r.stderr
+    assert "diagnosis-" not in hook_text(r), hook_text(r)
 
 
 def test_resolved_sr_is_not_retroactively_gated(audit_script: Path, tmp_path: Path) -> None:
     ws = _workspace_with_sr(tmp_path, status="resolved", plan_json=None, plan_present=False)
     r = _run_check(audit_script, ws)
-    assert r.returncode == 0, r.stderr
-    assert "diagnosis-" not in r.stderr
+    assert allowed(r), hook_text(r)
+    assert "diagnosis-" not in hook_text(r)
 
 
 def test_kill_switch_disables_the_arm(audit_script: Path, tmp_path: Path) -> None:
@@ -327,7 +328,7 @@ def test_kill_switch_disables_the_arm(audit_script: Path, tmp_path: Path) -> Non
                             plan_json=_plan(leading_hypothesis=_hyp("H1", executed=False,
                                                                     status="survived")))
     r = _run_check(audit_script, ws, CT6_DIAGNOSIS_GATE_DISABLED="1")
-    assert "diagnosis-" not in r.stderr, r.stderr
+    assert "diagnosis-" not in hook_text(r), hook_text(r)
 
 
 # ---------------------------------------------------------------------------

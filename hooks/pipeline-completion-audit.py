@@ -105,7 +105,26 @@ SAFETY (this hook can block a session, so it is deliberately conservative):
 - `CT6_RUN_CONTINUITY_DISABLED=1` => full legacy behaviour.
 - ANY unexpected error => exit 0 (fail open — never wedge a session on a bug).
 
-Exit codes: 0 = allow / not-an-architect-team-run / clean. 2 = block.
+How a held turn is delivered (v4.1.0). In Stop-hook mode every refusal is
+printed on STDOUT as hook JSON and the process exits 0:
+
+    {"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "..."}}
+
+Claude Code keeps the turn open on `additionalContext` through the same loop
+protections as `decision: "block"`, but labels it `Stop hook feedback` in the
+transcript instead of raising a hook-error notification -- the directive is
+written for the AGENT and the user no longer sees it on screen. The field
+report that motivated this: the worklist and the CONTINUE directive were being
+rendered in the user's main view on every refused stop. `CT6_STOP_HOLD_MODE=block`
+restores `{"decision": "block", "reason": ...}` (same hold, hook-error
+visibility) for a harness that does not honour `additionalContext` on Stop.
+`CT6_STOP_USER_NOTICE=1` adds a one-line user-facing `systemMessage` ("CT6 is
+holding this turn: N open item(s)") -- off by default. Nothing about WHAT holds
+the turn changed; only the channel the directive travels on.
+
+Exit codes: 0 = allow / not-an-architect-team-run / clean / HELD (the JSON on
+stdout says which). `--check` (the standalone pre-commit mode) keeps 2 = block
+with the worklist on stderr, because there it is a CLI, not a hook.
 """
 from __future__ import annotations
 
@@ -2018,11 +2037,59 @@ def _resume_note(marker: dict | None) -> str:
     )
 
 
-def _emit_block(violations: list[str], marker: dict | None = None) -> int:
+# v4.1.0 -- the channel a held turn travels on. See the module docstring.
+STOP_HOLD_MODE_ENV = "CT6_STOP_HOLD_MODE"      # "feedback" (default) | "block"
+STOP_USER_NOTICE_ENV = "CT6_STOP_USER_NOTICE"  # truthy => one-line systemMessage
+# The hook event this process is answering; main() sets it from the payload so a
+# SubagentStop wiring would label its feedback correctly. Stop is the shipped one.
+_HOOK_EVENT = "Stop"
+
+
+def _hold_mode() -> str:
+    v = os.environ.get(STOP_HOLD_MODE_ENV, "").strip().lower()
+    return "block" if v == "block" else "feedback"
+
+
+def _user_notice_enabled() -> bool:
+    v = os.environ.get(STOP_USER_NOTICE_ENV, "").strip().lower()
+    return v not in ("", "0", "false", "no")
+
+
+def _hold_notice(open_items: int) -> str:
+    """The ONLY text a user sees about a held turn, and only when they opted in.
+    Counts, not contents: the directive itself is written for the agent."""
+    return (
+        f"CT6 is holding this turn: {open_items} open item(s) remain; work "
+        "continues. (The agent's worklist is in the transcript's Stop hook feedback.)"
+    )
+
+
+def _emit_hold(text: str, open_items: int | None = None) -> int:
+    """Hold the turn. Prints the hook JSON on stdout and returns 0.
+
+    The directive goes in `hookSpecificOutput.additionalContext` (transcript-only
+    hook feedback) unless CT6_STOP_HOLD_MODE=block asks for `decision: block`
+    (a hook-error notification the user sees). `json.dumps` keeps the payload
+    ASCII, so a cp1252 console cannot raise on an emoji in a task title -- the
+    same failure `_lock_ascii` guards -- and the harness reads the JSON back as
+    the original text."""
+    out: dict[str, Any]
+    if _hold_mode() == "block":
+        out = {"decision": "block", "reason": text}
+    else:
+        out = {"hookSpecificOutput": {"hookEventName": _HOOK_EVENT, "additionalContext": text}}
+    if open_items is not None and _user_notice_enabled():
+        out["systemMessage"] = _hold_notice(open_items)
+    print(json.dumps(out))
+    return 0
+
+
+def _block_text(violations: list[str], marker: dict | None = None) -> str:
+    """The non-engaged (legacy) refusal: the worklist + the four resolutions."""
     if not violations and marker:
         violations = [_lifecycle_line(marker)]
     lines = "\n  - ".join(violations)
-    print(
+    return (
         "pipeline-completion-audit: BLOCKED — the architect-team run is incomplete. "
         "The items below are the WORKLIST the run keeps closing until empty "
         "(success) — they are not an iteration/give-up gate; there is no iteration "
@@ -2046,9 +2113,14 @@ def _emit_block(violations: list[str], marker: dict | None = None) -> int:
         "the audit forever.\n"
         "  4. If this run is abandoned, remove the .architect-team/ directory (it is "
         "gitignored runtime state)."
-        + (_resume_note(marker) if marker else ""),
-        file=sys.stderr,
+        + (_resume_note(marker) if marker else "")
     )
+
+
+def _emit_block(violations: list[str], marker: dict | None = None) -> int:
+    """`--check` mode only (a CLI, not a hook): the worklist on stderr, exit 2.
+    The Stop-hook path renders the same text through `_emit_hold`."""
+    print(_block_text(violations, marker), file=sys.stderr)
     return 2
 
 
@@ -2208,12 +2280,11 @@ def _emit_continuation_block(
     a count >= 2 means this session already received the full directive for
     this wedge episode and the state has not moved."""
     budget_note = _budget_note(count, budget)
-    print(
+    return _emit_hold(
         _continuation_block_text(violations, marker, needs_skill_reload, budget_note,
                                  root=root, repeat_count=count),
-        file=sys.stderr,
+        open_items=len(violations),
     )
-    return 2
 
 
 # ---------------------------------------------------------------------------
@@ -2616,8 +2687,8 @@ def _emit_completion_lock_block(verdict: dict, guard_text: str | None = None) ->
             if guard_text else ""
         )
     )
-    print(_lock_ascii(message), file=sys.stderr)
-    return 2
+    held_items = len(open_tasks) + len(open_asks) + len(unreadable) + (1 if rule_fired else 0)
+    return _emit_hold(_lock_ascii(message), open_items=held_items)
 
 
 def _lock_consecutive(root: Path, session_id: str) -> int:
@@ -3142,8 +3213,10 @@ def _completion_lock_action(
 ) -> int | None:
     """Evaluate the completion lock; return an exit code, or None to continue.
 
-    ``2`` = the stop is refused. ``0`` = the lock's OWN code raised and failed
-    OPEN. ``None`` = inert or no open work; control belongs to the arms below.
+    ``0`` after the hold JSON was printed = the stop is refused (v4.1.0: the
+    hold travels on stdout, see `_emit_hold`); ``0`` with nothing printed = the
+    lock's OWN code raised and failed OPEN. ``None`` = inert or no open work;
+    control belongs to the arms below.
 
     REQ-6's split lives here. A source the lock could not read comes back as
     DATA (``unreadable[]``) and BLOCKS with the source named, because unknown
@@ -3295,6 +3368,10 @@ def main(argv: list[str]) -> int:
         if _rc is not None and transcript_path:
             records, head, truncated = _rc.load_transcript_slices(transcript_path)
         session_id = str(payload.get("session_id") or "")
+        global _HOOK_EVENT
+        ev = payload.get("hook_event_name")
+        if isinstance(ev, str) and ev.strip():
+            _HOOK_EVENT = ev.strip()
 
         # v3.30.0 continuation-guard context, hoisted above the completion lock
         # so the lock can heartbeat the marker and COMPOSE the guard's block
@@ -3375,7 +3452,7 @@ def main(argv: list[str]) -> int:
             # nudge naming the Skill when a run is active.
             if payload.get("stop_hook_active") is True:
                 return 0  # already fired once this stop — never loop
-            return _emit_block(violations, marker)
+            return _emit_hold(_block_text(violations, marker), open_items=len(violations) or 1)
 
         # ENGAGED orchestrator session — the v3.30.0 continuation guard.
         # Progress (a changed run fingerprint) or a fresh user prompt resets

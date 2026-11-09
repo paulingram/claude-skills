@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from hooks.spec_fingerprint import compute_spec_fingerprint
+from tests.helpers.hook_runner import allowed, blocked, hook_text
 
 STALE_FINGERPRINT = "0" * 64
 
@@ -129,15 +130,15 @@ def test_stale_in_flight_manifest_blocks(script: Path, workspace: Path) -> None:
     """Scenario: amended spec with un-rebriefed teammate blocks."""
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "backend-auth" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "backend-auth" in hook_text(r)
 
 
 def test_violation_names_the_remediation(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     r = _run_check(script, workspace)
-    assert "re-brief" in r.stderr.lower(), r.stderr
-    assert "spec_fingerprint" in r.stderr, r.stderr
+    assert "re-brief" in hook_text(r).lower(), hook_text(r)
+    assert "spec_fingerprint" in hook_text(r), hook_text(r)
 
 
 def test_amending_the_spec_after_dispatch_makes_a_current_manifest_stale(
@@ -145,13 +146,13 @@ def test_amending_the_spec_after_dispatch_makes_a_current_manifest_stale(
 ) -> None:
     """The realistic sequence: stamp at dispatch, then amend the proposal."""
     _write_manifest(workspace, "backend-auth", fingerprint=_current_fingerprint(workspace))
-    assert _run_check(script, workspace).returncode == 0
+    assert allowed(_run_check(script, workspace))
     (_change_dir(workspace) / "proposal.md").write_text(
         "# Proposal\n\nBuild it — amended after dispatch.\n", encoding="utf-8"
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "backend-auth" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "backend-auth" in hook_text(r)
 
 
 def test_only_the_stale_teammate_is_named(script: Path, workspace: Path) -> None:
@@ -160,9 +161,9 @@ def test_only_the_stale_teammate_is_named(script: Path, workspace: Path) -> None
     _write_manifest(workspace, "frontend-ui", fingerprint=STALE_FINGERPRINT,
                     expected=["task-b"])
     r = _run_check(script, workspace)
-    assert r.returncode == 2
-    assert "frontend-ui" in r.stderr
-    assert "backend-auth" not in r.stderr
+    assert blocked(r)
+    assert "frontend-ui" in hook_text(r)
+    assert "backend-auth" not in hook_text(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -172,14 +173,14 @@ def test_only_the_stale_teammate_is_named(script: Path, workspace: Path) -> None
 def test_matching_fingerprint_passes(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=_current_fingerprint(workspace))
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_rebrief_record_clears_a_stale_manifest(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     _write_rebrief(workspace, "2026-07-30-rebrief-backend-auth.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_rebrief_record_spelling_variants_are_recognized(script: Path, workspace: Path) -> None:
@@ -188,22 +189,22 @@ def test_rebrief_record_spelling_variants_are_recognized(script: Path, workspace
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     _write_rebrief(workspace, "re-brief_backend_auth_2026-07-30.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_rebrief_for_a_different_teammate_does_not_clear(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     _write_rebrief(workspace, "rebrief-frontend-ui.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "backend-auth" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "backend-auth" in hook_text(r)
 
 
 def test_an_unrelated_handoff_does_not_clear(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     _write_rebrief(workspace, "handoff-backend-auth-status.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -224,8 +225,8 @@ def test_rebrief_for_a_longer_teammate_does_not_clear_the_shorter_one(
                     expected=["task-b"])
     _write_rebrief(workspace, "rebrief-backend-auth.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"'backend' must stay flagged; stderr={r.stderr!r}"
-    assert "'backend'" in r.stderr
+    assert blocked(r), f"'backend' must stay flagged; stderr={hook_text(r)!r}"
+    assert "'backend'" in hook_text(r)
 
 
 def test_rebrief_naming_a_longer_teammate_id_does_not_clear_its_prefix(
@@ -237,7 +238,7 @@ def test_rebrief_naming_a_longer_teammate_id_does_not_clear_its_prefix(
                     expected=["task-b"])
     _write_rebrief(workspace, "orchestrator-to-hei-claims-2-rebrief.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"'hei-claims' must stay flagged; stderr={r.stderr!r}"
+    assert blocked(r), f"'hei-claims' must stay flagged; stderr={hook_text(r)!r}"
 
 
 def test_a_teammate_name_embedded_in_an_unrelated_word_does_not_clear(
@@ -247,7 +248,7 @@ def test_a_teammate_name_embedded_in_an_unrelated_word_does_not_clear(
     _write_manifest(workspace, "ui", fingerprint=STALE_FINGERPRINT, expected=["task-a"])
     _write_rebrief(workspace, "rebrief-build-guide.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"'ui' must stay flagged; stderr={r.stderr!r}"
+    assert blocked(r), f"'ui' must stay flagged; stderr={hook_text(r)!r}"
 
 
 def test_the_correctly_named_teammate_is_still_cleared(script: Path,
@@ -259,7 +260,7 @@ def test_the_correctly_named_teammate_is_still_cleared(script: Path,
                     expected=["task-a"])
     _write_rebrief(workspace, "rebrief-backend-auth.md")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_an_explicit_teammate_field_in_the_handoff_clears_unambiguously(
@@ -275,7 +276,7 @@ def test_an_explicit_teammate_field_in_the_handoff_clears_unambiguously(
         encoding="utf-8",
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -293,12 +294,12 @@ def test_integer_typed_expected_id_resolves_its_evidence_file(script: Path,
     work has not is not waved through)."""
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT,
                     expected=[3])
-    assert _run_check(script, workspace).returncode == 2  # evidence absent
+    assert blocked(_run_check(script, workspace))  # evidence absent
     (_at(workspace) / "reviews" / "3.json").write_text(
         json.dumps({"task_id": "3"}), encoding="utf-8"
     )
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"int id must resolve its file; stderr={r.stderr!r}"
+    assert allowed(r), f"int id must resolve its file; stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("entry", [
@@ -315,9 +316,9 @@ def test_unusable_expected_entry_is_a_violation(script: Path, workspace: Path,
     _write_manifest(workspace, "backend-auth",
                     fingerprint=_current_fingerprint(workspace), expected=[entry])
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "backend-auth" in r.stderr
-    assert "expected_review_evidence" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "backend-auth" in hook_text(r)
+    assert "expected_review_evidence" in hook_text(r)
 
 
 def test_well_formed_entries_are_not_flagged(script: Path, workspace: Path) -> None:
@@ -325,7 +326,7 @@ def test_well_formed_entries_are_not_flagged(script: Path, workspace: Path) -> N
                     fingerprint=_current_fingerprint(workspace), expected=["task-a", 3])
     _complete_expected_work(workspace, ["task-a", "3"])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_archived_manifests_are_not_scanned(script: Path, workspace: Path) -> None:
@@ -342,7 +343,7 @@ def test_archived_manifests_are_not_scanned(script: Path, workspace: Path) -> No
                     fingerprint=_current_fingerprint(workspace), expected=["task-a"])
     _complete_expected_work(workspace, ["task-a"])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"archived manifests must be inert; stderr={r.stderr!r}"
+    assert allowed(r), f"archived manifests must be inert; stderr={hook_text(r)!r}"
 
 
 @pytest.mark.parametrize("body", ["{not json", "", "[]", "null"])
@@ -355,7 +356,7 @@ def test_unreadable_expected_evidence_is_not_completed_work(script: Path,
                     expected=["task-a"])
     (_at(workspace) / "reviews" / "task-a.json").write_text(body, encoding="utf-8")
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_completed_expected_work_is_not_in_flight(script: Path, workspace: Path) -> None:
@@ -365,7 +366,7 @@ def test_completed_expected_work_is_not_in_flight(script: Path, workspace: Path)
                     expected=["task-a", "task-b"])
     _complete_expected_work(workspace, ["task-a", "task-b"])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_partially_completed_work_is_still_in_flight(script: Path, workspace: Path) -> None:
@@ -373,7 +374,7 @@ def test_partially_completed_work_is_still_in_flight(script: Path, workspace: Pa
                     expected=["task-a", "task-b"])
     _complete_expected_work(workspace, ["task-a"])
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -384,7 +385,7 @@ def test_pre_upgrade_manifests_are_fail_open(script: Path, workspace: Path) -> N
     """Scenario: pre-upgrade runs are fail-open — no manifest carries a stamp."""
     _write_manifest(workspace, "backend-auth", fingerprint=None)
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_no_openspec_change_dir_is_fail_open(script: Path, workspace: Path) -> None:
@@ -393,7 +394,7 @@ def test_no_openspec_change_dir_is_fail_open(script: Path, workspace: Path) -> N
     _change_dir(workspace).rmdir()
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_unresolvable_change_name_is_fail_open(script: Path, workspace: Path) -> None:
@@ -404,20 +405,20 @@ def test_unresolvable_change_name_is_fail_open(script: Path, workspace: Path) ->
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT,
                     change_name="a-change-that-does-not-exist")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_empty_fingerprint_string_is_fail_open(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint="   ")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_malformed_manifest_does_not_crash_the_audit(script: Path, workspace: Path) -> None:
     (_at(workspace) / "teammates" / "broken.json").write_text("{not json", encoding="utf-8")
     _write_manifest(workspace, "backend-auth", fingerprint=_current_fingerprint(workspace))
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_manifest_with_no_expected_evidence_is_not_in_flight(script: Path,
@@ -425,7 +426,7 @@ def test_manifest_with_no_expected_evidence_is_not_in_flight(script: Path,
     """No expected work means nothing the spec state can corrupt."""
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT, expected=[])
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 def test_traversal_in_the_change_name_is_refused(script: Path, workspace: Path) -> None:
@@ -436,7 +437,7 @@ def test_traversal_in_the_change_name_is_refused(script: Path, workspace: Path) 
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT,
                     change_name="../../etc")
     r = _run_check(script, workspace)
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
 
 
 # --------------------------------------------------------------------------- #
@@ -454,7 +455,7 @@ def test_change_dir_resolves_from_the_active_run_marker(script: Path, workspace:
     )
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_change_dir_resolves_from_the_manifest_change_name(script: Path,
@@ -464,17 +465,17 @@ def test_change_dir_resolves_from_the_manifest_change_name(script: Path,
     )
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     r = _run_check(script, workspace)
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
+    assert blocked(r), f"stderr={hook_text(r)!r}"
 
 
 def test_stop_mode_blocks_the_same_way(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=STALE_FINGERPRINT)
     r = _run_stop(script, workspace, {})
-    assert r.returncode == 2, f"stderr={r.stderr!r}"
-    assert "backend-auth" in r.stderr
+    assert blocked(r), f"stderr={hook_text(r)!r}"
+    assert "backend-auth" in hook_text(r)
 
 
 def test_stop_mode_allows_a_current_manifest(script: Path, workspace: Path) -> None:
     _write_manifest(workspace, "backend-auth", fingerprint=_current_fingerprint(workspace))
     r = _run_stop(script, workspace, {})
-    assert r.returncode == 0, f"stderr={r.stderr!r}"
+    assert allowed(r), f"stderr={hook_text(r)!r}"
