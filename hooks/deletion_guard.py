@@ -127,7 +127,7 @@ _DELETION_SHAPED_RE = re.compile(
     r"|shutil\.rmtree|os\.remove\b|os\.unlink\b|\.unlink\(|rmdir\(|os\.removedirs|send2trash",
     re.IGNORECASE,
 )
-_HEREDOC_OPEN_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+_HEREDOC_OPEN_RE = re.compile(r"(?<!<)<<-?(?!<)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 
 def strip_heredocs(command: str) -> str:
@@ -163,7 +163,7 @@ _PREFIX_WORDS: frozenset[str] = frozenset({"sudo", "doas", "command", "exec", "b
 _PREFIX_VALUE_FLAGS: frozenset[str] = frozenset({"-u", "-g", "-n", "-C"})
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _REDIRECT_TOKEN_RE = re.compile(r"^\d*(>>?|<|&>|>&|<&)\S*$")
-_REDIRECT_BARE_RE = re.compile(r"^\d*(>>?|<|&>|>&|<&)$")
+_REDIRECT_BARE_RE = re.compile(r"^\d*(>>?|<<<|<<-?|<|&>|>&|<&)$")
 _WINDOWS_SWITCH_RE = re.compile(r"^/[A-Za-z](:\S*)?$")
 _GIT_GLOBAL_VALUE_OPTS: frozenset[str] = frozenset({
     "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env",
@@ -585,11 +585,12 @@ _PY_DELETE_METHODS: frozenset[str] = frozenset({"unlink", "rmdir"})  # Path(...)
 _PY_DELETE_BARE: frozenset[str] = frozenset({"rmtree", "send2trash", "removedirs"})
 
 
-def heredoc_bodies(command: str) -> list[str]:
-    """The BODY text of every here-document in ``command`` (the counterpart of
-    ``strip_heredocs``)."""
+def heredoc_bodies(command: str) -> list[tuple[str, str]]:
+    """``(opener line, body)`` for every here-document in ``command``, in
+    order (the counterpart of ``strip_heredocs``: both walk the same lines, so
+    the Nth opener left in the stripped text pairs with the Nth body here)."""
     lines = (command or "").split("\n")
-    out: list[str] = []
+    out: list[tuple[str, str]] = []
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -605,8 +606,42 @@ def heredoc_bodies(command: str) -> list[str]:
             if cur.strip() == terminator or (line.count("<<-") and cur.lstrip("\t") == terminator):
                 break
             body.append(cur)
-        out.append("\n".join(body))
+        out.append((line, "\n".join(body)))
     return out
+
+
+# Which heredocs are PROGRAMS. `python3 -` / `python3` with no script and
+# `bash -s` / `bash` with no script read their program from stdin, so a heredoc
+# fed to them is the code that runs. A script path, `-c` or `-m` names the
+# program on the command line, and the heredoc is then that program's INPUT.
+# Any other command (`cat > f`, `tee`, `git commit -F -`) takes the body as data.
+_PY_STDIN_MARKERS: frozenset[str] = frozenset({"-"})
+_PY_PROGRAM_FLAGS: frozenset[str] = frozenset({"-c", "-m"})
+_PY_VALUE_FLAGS: frozenset[str] = frozenset({"-W", "-X", "--check-hash-based-pycs"})
+SHELL_WORDS: frozenset[str] = frozenset({"bash", "sh", "zsh", "dash", "ksh"})
+_SHELL_STDIN_MARKERS: frozenset[str] = frozenset({"-", "-s"})
+_SHELL_PROGRAM_FLAGS: frozenset[str] = frozenset({"-c"})
+_SHELL_VALUE_FLAGS: frozenset[str] = frozenset({"-o", "-O", "--init-file", "--rcfile"})
+
+
+def _program_from_stdin(tokens: list[str], stdin_markers: frozenset[str],
+                        program_flags: frozenset[str], value_flags: frozenset[str]) -> bool:
+    """Does this interpreter invocation read its PROGRAM from stdin?"""
+    i = 1
+    while i < len(tokens):
+        t = tokens[i]
+        if t in stdin_markers:
+            return True
+        if t in program_flags:
+            return False
+        if t in value_flags:
+            i += 2
+            continue
+        if t.startswith("-") and len(t) > 1:
+            i += 1
+            continue
+        return False  # a script path: the heredoc is its input, not the program
+    return True
 
 
 def _call_target(call: "ast.Call") -> tuple[str | None, bool]:
@@ -682,11 +717,7 @@ def analyze_python_deletions(code: str) -> tuple[str, list[str]] | None:
     return ("unresolved" if unresolved else "ok", targets)
 
 
-def _python_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, Any] | None:
-    if "-c" not in tokens:
-        return None
-    idx = tokens.index("-c")
-    code = tokens[idx + 1] if idx + 1 < len(tokens) else ""
+def _python_code_hit(code: str, segment: str, base: str | None) -> dict[str, Any] | None:
     verdict = analyze_python_deletions(code)
     if verdict is None:
         return None
@@ -694,6 +725,14 @@ def _python_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, 
     if status == "unresolved" or not targets:
         return _hit("python", segment, targets, base, "the deletion target is not a string literal")
     return _hit("python", segment, targets, base)
+
+
+def _python_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, Any] | None:
+    if "-c" not in tokens:
+        return None
+    idx = tokens.index("-c")
+    code = tokens[idx + 1] if idx + 1 < len(tokens) else ""
+    return _python_code_hit(code, segment, base)
 
 
 def _xargs_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, Any] | None:
@@ -727,13 +766,20 @@ def detect_deletions(command: str, cwd: str | None) -> list[dict[str, Any]]:
     base). An EMPTY list means the command deletes nothing the guard knows of."""
     hits: list[dict[str, Any]] = []
     base = cwd if isinstance(cwd, str) and cwd.strip() else None
-    saw_python = False
     assigns: dict[str, str] = {}
     # Heredoc bodies are data (a commit message, a file's content), never
-    # commands: segment the command with them removed. The python-heredoc
-    # check below still reads the FULL text, so `python - <<EOF` bodies that
-    # call shutil.rmtree are not lost.
+    # commands: segment the command with them removed. Each opener left in
+    # the stripped text pairs with its body below, and the body is read as
+    # CODE only when the command feeding it is an interpreter that takes its
+    # program from stdin (`python3 - <<EOF`, `bash <<EOF`); `cat > f <<EOF`
+    # with a `.unlink()` inside is a file being written (v4.1.7, field report).
+    heredocs = heredoc_bodies(command or "")
+    next_heredoc = 0
     for seg in split_segments(strip_heredocs(command or "")):
+        body: str | None = None
+        if next_heredoc < len(heredocs) and _HEREDOC_OPEN_RE.search(seg):
+            body = heredocs[next_heredoc][1]
+            next_heredoc += 1
         tokens = _tokenize(seg)
         if tokens is None:
             if _DELETION_SHAPED_RE.search(seg):
@@ -765,24 +811,23 @@ def detect_deletions(command: str, cwd: str | None) -> list[dict[str, Any]]:
         elif word == "xargs":
             hit = _xargs_hit(tokens, seg, base)
         elif _PYTHON_WORD_RE.match(word):
-            saw_python = True
             hit = _python_hit(tokens, seg, base)
+            if hit is None and body is not None and _program_from_stdin(
+                    tokens, _PY_STDIN_MARKERS, _PY_PROGRAM_FLAGS, _PY_VALUE_FLAGS):
+                # The heredoc IS the script: parse it for an ACTUAL deletion
+                # call (v4.1.6); a mention in a string or comment is text.
+                hit = _python_code_hit(body, seg, base)
+        elif word in SHELL_WORDS:
+            if body is not None and _program_from_stdin(
+                    tokens, _SHELL_STDIN_MARKERS, _SHELL_PROGRAM_FLAGS, _SHELL_VALUE_FLAGS):
+                # The heredoc IS a shell script: its commands are this
+                # command's commands. Outer-shell variables are NOT carried
+                # in (a quoted heredoc never sees them), so `$W` inside asks.
+                hits.extend(detect_deletions(body, base))
         elif word in WINDOWS_DELETE_COMMANDS:
             hit = _windows_hit(tokens, seg, base)
         if hit is not None:
             hits.append(hit)
-    if not hits and saw_python:
-        # A heredoc body (`python - <<EOF ... EOF`) is the script itself: parse
-        # it and look for an ACTUAL deletion call. A mention of shutil.rmtree
-        # inside a string the script is editing is text, not a deletion
-        # (v4.1.6, field report).
-        for body in heredoc_bodies(command or ""):
-            verdict = analyze_python_deletions(body)
-            if verdict is None:
-                continue
-            status, targets = verdict
-            hits.append(_hit("python", command.strip()[:120], targets, base,
-                             None if (status == "ok" and targets) else "the deletion target is not a string literal"))
     return hits
 
 
