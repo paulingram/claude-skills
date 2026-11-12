@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.6` — deletion-guard-python-ast
 - `v4.1.5` — deletion-guard-branches
 - `v4.1.4` — deletion-guard-variables
 - `v4.1.3` — deletion-guard-heredocs
@@ -177,6 +178,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.6  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.6 — deletion-guard-python-ast: a deletion is a call, not a word
+
+A heredoc'd Python script whose job was to edit `shutil.rmtree(root)` out of a file was asking for confirmation: the guard searched the script for the pattern, found the words inside the string being replaced, and took every string literal in the script for a deletion target. The Python path now parses a heredoc or `-c` body with `ast` and reports a deletion only for an actual call to `shutil.rmtree`, `os.remove` / `unlink` / `rmdir` / `removedirs`, `send2trash`, a from-imported `rmtree`, or `Path(...).unlink()` / `.rmdir()`. A literal argument is the target, a non-literal argument asks, a mention in a string or comment is text; code that does not parse falls back to the pattern with strings blanked. Ten tests, the reported script verbatim among them.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
