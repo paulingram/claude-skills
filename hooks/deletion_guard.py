@@ -62,6 +62,7 @@ import argparse
 import json
 import os
 import re
+import ast
 import shlex
 import shutil
 import subprocess
@@ -572,17 +573,127 @@ def _python_literals(code: str) -> list[str]:
     return [a or b for a, b in _STRING_LITERAL_RE.findall(code) if (a or b).strip()]
 
 
+#: v4.1.6 -- the deletion CALLS Python code can make. A mention of one of these
+#: names inside a string literal is text, not a call (field report: a script
+#: that edited `shutil.rmtree(root)` OUT of a file was read as a deletion of
+#: every string literal it contained -- "EOF", "mut", "src").
+_PY_DELETE_ATTRS: frozenset[tuple[str, str]] = frozenset({
+    ("shutil", "rmtree"), ("os", "remove"), ("os", "unlink"), ("os", "rmdir"),
+    ("os", "removedirs"), ("send2trash", "send2trash"),
+})
+_PY_DELETE_METHODS: frozenset[str] = frozenset({"unlink", "rmdir"})  # Path(...).unlink()
+_PY_DELETE_BARE: frozenset[str] = frozenset({"rmtree", "send2trash", "removedirs"})
+
+
+def heredoc_bodies(command: str) -> list[str]:
+    """The BODY text of every here-document in ``command`` (the counterpart of
+    ``strip_heredocs``)."""
+    lines = (command or "").split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        m = _HEREDOC_OPEN_RE.search(line)
+        if not m:
+            continue
+        terminator = m.group(2)
+        body: list[str] = []
+        while i < len(lines):
+            cur = lines[i]
+            i += 1
+            if cur.strip() == terminator or (line.count("<<-") and cur.lstrip("\t") == terminator):
+                break
+            body.append(cur)
+        out.append("\n".join(body))
+    return out
+
+
+def _call_target(call: "ast.Call") -> tuple[str | None, bool]:
+    """``(literal path, is_literal)`` for a deletion call's first argument."""
+    arg = None
+    if call.args:
+        arg = call.args[0]
+    else:
+        for kw in call.keywords:
+            if kw.arg in ("path", "src", "p"):
+                arg = kw.value
+                break
+    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+        return arg.value, True
+    return None, False
+
+
+def analyze_python_deletions(code: str) -> tuple[str, list[str]] | None:
+    """Parse ``code`` and look for an ACTUAL deletion call.
+
+    Returns ``None`` when the code makes no deletion call (a mention inside a
+    string, a comment or a name that is never called is not one); ``("ok",
+    targets)`` when every deletion call names a string-literal path; or
+    ``("unresolved", targets)`` when at least one target is not a literal.
+    Code that does not parse falls back to the regex heuristic with string
+    literals blanked first, so prose inside strings still does not count."""
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        blanked = _STRING_LITERAL_RE.sub('""', code)
+        if not _PYTHON_DELETE_RE.search(blanked):
+            return None
+        literals = _python_literals(code)
+        return ("ok", literals) if literals else ("unresolved", [])
+    targets: list[str] = []
+    unresolved = False
+    found = False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        is_delete = False
+        if isinstance(func, ast.Attribute):
+            if isinstance(func.value, ast.Name) and (func.value.id, func.attr) in _PY_DELETE_ATTRS:
+                is_delete = True
+            elif func.attr in _PY_DELETE_METHODS and not isinstance(func.value, ast.Name):
+                is_delete = True  # Path("x").unlink(), (root / "y").rmdir()
+            elif func.attr in _PY_DELETE_METHODS and isinstance(func.value, ast.Name) and func.value.id not in ("os", "shutil"):
+                is_delete = True  # p.unlink() on a Path-like name
+        elif isinstance(func, ast.Name) and func.id in _PY_DELETE_BARE:
+            is_delete = True  # from shutil import rmtree; rmtree("x")
+        if not is_delete:
+            continue
+        found = True
+        if isinstance(func, ast.Attribute) and func.attr in _PY_DELETE_METHODS and not (
+            isinstance(func.value, ast.Name) and (func.value.id, func.attr) in _PY_DELETE_ATTRS
+        ):
+            # a method on a path object: the receiver is the target
+            recv = func.value
+            if isinstance(recv, ast.Call) and isinstance(recv.func, ast.Name) and recv.func.id == "Path" \
+                    and recv.args and isinstance(recv.args[0], ast.Constant) and isinstance(recv.args[0].value, str):
+                targets.append(recv.args[0].value)
+            else:
+                unresolved = True
+            continue
+        target, literal = _call_target(node)
+        if literal and target is not None:
+            targets.append(target)
+        else:
+            unresolved = True
+    if not found:
+        return None
+    return ("unresolved" if unresolved else "ok", targets)
+
+
 def _python_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, Any] | None:
     if "-c" not in tokens:
         return None
     idx = tokens.index("-c")
     code = tokens[idx + 1] if idx + 1 < len(tokens) else ""
-    if not _PYTHON_DELETE_RE.search(code):
+    verdict = analyze_python_deletions(code)
+    if verdict is None:
         return None
-    literals = _python_literals(code)
-    if not literals:
-        return _hit("python", segment, [], base, "the deletion target is not a string literal")
-    return _hit("python", segment, literals, base)
+    status, targets = verdict
+    if status == "unresolved" or not targets:
+        return _hit("python", segment, targets, base, "the deletion target is not a string literal")
+    return _hit("python", segment, targets, base)
 
 
 def _xargs_hit(tokens: list[str], segment: str, base: str | None) -> dict[str, Any] | None:
@@ -660,12 +771,18 @@ def detect_deletions(command: str, cwd: str | None) -> list[dict[str, Any]]:
             hit = _windows_hit(tokens, seg, base)
         if hit is not None:
             hits.append(hit)
-    if not hits and saw_python and _PYTHON_DELETE_RE.search(command or ""):
-        # A heredoc body (`python - <<EOF ... EOF`) arrives as separate lines;
-        # the literals in the whole text are the best available targets.
-        literals = _python_literals(command)
-        hits.append(_hit("python", command.strip()[:120], literals, base,
-                         None if literals else "the deletion target is not a string literal"))
+    if not hits and saw_python:
+        # A heredoc body (`python - <<EOF ... EOF`) is the script itself: parse
+        # it and look for an ACTUAL deletion call. A mention of shutil.rmtree
+        # inside a string the script is editing is text, not a deletion
+        # (v4.1.6, field report).
+        for body in heredoc_bodies(command or ""):
+            verdict = analyze_python_deletions(body)
+            if verdict is None:
+                continue
+            status, targets = verdict
+            hits.append(_hit("python", command.strip()[:120], targets, base,
+                             None if (status == "ok" and targets) else "the deletion target is not a string literal"))
     return hits
 
 

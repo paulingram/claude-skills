@@ -472,6 +472,62 @@ def test_a_variable_chain_resolves_through_known_names(repo: Path) -> None:
     assert d is not None and d["permissionDecision"] == "allow", d
 
 
+_EDIT_SCRIPT_HEREDOC = (
+    "SC=/tmp/x/lanes/fix-stage-d-rc-scratch; python3 - $SC/mut/mutants.py <<'EOF'\n"
+    "import sys\n"
+    "p = sys.argv[1]; s = open(p).read()\n"
+    "a = \'\'\'        root = SC / \"mut\" / name.split()[0]\n"
+    "        if root.exists():\n"
+    "            shutil.rmtree(root)       # scratch only: the lane's own mutant copy\n"
+    "        shutil.copytree(W / SRC, root / \"src\")\'\'\'\n"
+    "b = \'\'\'        root = SC / \"mut\" / f\"{name.split()[0]}_{time.time_ns()}\"   # a fresh copy per run; nothing is deleted\n"
+    "        shutil.copytree(W / SRC, root / \"src\")\'\'\'\n"
+    "assert s.count(a) == 1; s = s.replace(a, b); open(p, \"w\").write(s); print(\"ok\")\n"
+    "EOF\n"
+    "grep -c rmtree $SC/mut/mutants.py; cat $SC/logs/sd_final/summary.txt | grep -v ' passed'; wc -l < $SC/logs/sd_final/summary.txt"
+)
+
+
+def test_a_python_script_that_only_mentions_rmtree_in_a_string_is_silent(repo: Path) -> None:
+    """Field report (v4.1.6): a heredoc'd Python script that edited a
+    `shutil.rmtree(root)` line OUT of a file was read as a deletion of every
+    string literal it contained ("EOF", "mut", "src"). A name inside a string
+    is text; only a CALL is a deletion."""
+    assert _decide(_EDIT_SCRIPT_HEREDOC, repo) is None
+
+
+@pytest.mark.parametrize("body, expect", [
+    ("import shutil\nshutil.rmtree('build')\n", "allow-or-ask"),
+    ("import shutil\nroot = 'x'\nshutil.rmtree(root)\n", "ask"),
+    ("from shutil import rmtree\nrmtree('build')\n", "allow-or-ask"),
+    ("from pathlib import Path\nPath('build/a.txt').unlink()\n", "allow-or-ask"),
+    ("import os\nos.remove(f'{d}/x')\n", "ask"),
+    ("print('shutil.rmtree is scary')\n", "silent"),
+    ("# shutil.rmtree(root) used to live here\nprint(1)\n", "silent"),
+])
+def test_python_heredoc_calls_are_parsed_not_grepped(repo: Path, body: str, expect: str) -> None:
+    d = _decide(f"python3 - <<'EOF'\n{body}EOF\n", repo)
+    if expect == "silent":
+        assert d is None, d
+    elif expect == "ask":
+        assert d is not None and d["permissionDecision"] == "ask", d
+        assert "not a string literal" in d["permissionDecisionReason"]
+    else:
+        assert d is not None and d["permissionDecision"] in ("allow", "ask"), d
+        assert "not a string literal" not in d["permissionDecisionReason"]
+
+
+def test_python_dash_c_mentions_are_not_calls(repo: Path) -> None:
+    assert _decide("python3 -c \"print('shutil.rmtree is scary')\"", repo) is None
+    d = _decide("python3 -c \"import shutil; shutil.rmtree('build')\"", repo)
+    assert d is not None
+
+
+def test_unparsable_python_with_a_real_mention_still_asks(repo: Path) -> None:
+    d = _decide("python3 - <<'EOF'\nimport shutil\nshutil.rmtree(root\nEOF\n", repo)
+    assert d is not None and d["permissionDecision"] == "ask"
+
+
 def test_relative_path_without_cwd_asks(repo: Path) -> None:
     d = _decide("rm notes.txt", None)
     assert d["permissionDecision"] == "ask"

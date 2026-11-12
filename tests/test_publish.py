@@ -419,7 +419,9 @@ def test_local_port_tls_branch_serves_https(tmp_path: Path, home: Path, project:
     assert result["url"].startswith("https://127.0.0.1:8443/")
     assert not any("plain HTTP" in w for w in result["warnings"])
     assert not any("clear text" in b for b in result["boundary"])
-    srv = local_port.make_server("127.0.0.1", 0, home=home, tls_cert=str(cert), tls_key=str(key))
+    # The token was minted at the fixed NOW; the server must read the same
+    # clock or the test expires with the calendar (it did, three days on).
+    srv = local_port.make_server("127.0.0.1", 0, home=home, tls_cert=str(cert), tls_key=str(key), now_fn=lambda: NOW)
     assert srv.scheme == "https"
     thread = threading.Thread(target=srv.serve_forever, daemon=True)
     thread.start()
