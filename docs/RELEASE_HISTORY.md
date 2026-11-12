@@ -10,6 +10,7 @@ The formal per-version log is [`CHANGELOG.md`](../CHANGELOG.md); this file is th
 
 Every release, newest first — the one-line index the README used to carry. Full detail for each is in the per-release sections below and in [`CHANGELOG.md`](../CHANGELOG.md).
 
+- `v4.1.7` — deletion-guard-heredoc-programs
 - `v4.1.6` — deletion-guard-python-ast
 - `v4.1.5` — deletion-guard-branches
 - `v4.1.4` — deletion-guard-variables
@@ -178,6 +179,18 @@ Every release, newest first — the one-line index the README used to carry. Ful
 █▓▒░  ◆  CARRIED FROM v3.67.0  ◆  ░▒▓█
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 ```
+
+```
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+█▓▒░  ◆  NEW IN v4.1.7  ◆  ░▒▓█
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### v4.1.7 — deletion-guard-heredoc-programs: a heredoc is a program only when an interpreter runs it
+
+A command that wrote a pytest file with `cat > tests/x.py <<'EOF'` was asking for confirmation because the file's body carried `fx["planned"].unlink()`: v4.1.6 parsed every here-document in a command as Python once any segment invoked python, so a test being written was read as a script being run. Each heredoc is now paired with the command feeding it, and its body is read as code only when that command is an interpreter taking its program from stdin. `python3 -` or bare `python3` parses it as Python; `bash` / `sh` with no script runs it through the guard as commands, closing the blind spot where a heredoc'd shell script's `rm` was invisible; a script path, `-c`, `-m`, `cat`, `tee` or `git commit -F -` makes it data. A here-string is no longer mistaken for a heredoc, and a bare `<<` owns its delimiter. Thirty tests, the reported command verbatim among them.
+
+Full detail in [`CHANGELOG.md`](../CHANGELOG.md) and [`docs/RELEASE_HISTORY.md`](RELEASE_HISTORY.md).
 
 ```
 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░

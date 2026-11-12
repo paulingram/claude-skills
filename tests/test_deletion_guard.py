@@ -32,6 +32,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -526,6 +527,155 @@ def test_python_dash_c_mentions_are_not_calls(repo: Path) -> None:
 def test_unparsable_python_with_a_real_mention_still_asks(repo: Path) -> None:
     d = _decide("python3 - <<'EOF'\nimport shutil\nshutil.rmtree(root\nEOF\n", repo)
     assert d is not None and d["permissionDecision"] == "ask"
+
+
+_WRITE_TEST_FILE_HEREDOC = (
+    "H=/tmp/x/harness; MY=/tmp/x/lanes/review-scratch; sed -n 's/^if sha(src_census) != census_sha:$/"
+    "if sha(planned_census) != census_sha:/p' $H/seed_from_records.py > $MY/mutants/m3-no-repoint.py\n"
+    "# M4: the census check moves AFTER the state write\n"
+    "python3 - \"$H/seed_from_records.py\" \"$MY/mutants/m4-check-after-write.py\" <<'EOF'\n"
+    "import sys, copy\n"
+    "src2 = open(sys.argv[1]).read()\n"
+    "marker = 'doc = copy.deepcopy(source)'\n"
+    "pre = 'census_sha, k_carried, src_census, planned_census = \"\", 0, Path(\".\"), Path(\".\")\\n'\n"
+    "d = src2.index(marker)\n"
+    "src2 = src2[:d] + pre + src2[d:]\n"
+    "open(sys.argv[2], \"w\").write(src2)\n"
+    "EOF\n"
+    "for m in m1 m2 m3 m4; do echo \"== $m\"; diff $H/seed_from_records.py $MY/mutants/$m.py | head -20; done\n"
+    "cat > $MY/tests/test_seed_extra_probes.py <<'EOF'\n"
+    "import json, glob\n"
+    "from pathlib import Path\n"
+    "def test_refuses_a_string_k(tmp_path):\n"
+    "    fx = build(tmp_path); run = fx[\"run\"]\n"
+    "    kd_path = next(Path(p) for p in glob.glob(str(run / \"inputs\" / \"**\" / \"k-derivation.json\"), recursive=True))\n"
+    "    doc = json.loads(kd_path.read_text()); doc[\"K\"] = \"124\"\n"
+    "    kd_path.write_bytes(json.dumps(doc).encode())\n"
+    "    p = seed(fx)\n"
+    "    assert p.returncode != 0\n"
+    "\n"
+    "def test_refuses_a_planned_census_that_is_not_on_disk(tmp_path):\n"
+    "    fx = build(tmp_path)\n"
+    "    fx[\"planned\"].unlink()\n"
+    "    p = seed(fx)\n"
+    "    assert p.returncode != 0 and \"REFUSING\" in p.stderr\n"
+    "EOF\n"
+    "ls $MY/mutants $MY/tests"
+)
+
+_RMTREE_BODY = "import shutil\nshutil.rmtree('build')\n"
+
+
+def test_a_test_file_written_by_cat_heredoc_is_data_not_a_deletion(repo: Path) -> None:
+    """Field report (v4.1.7): a command that wrote a pytest file with
+    `cat > $MY/tests/x.py <<'EOF'` asked, because its body carried
+    `fx["planned"].unlink()` and the guard parsed EVERY heredoc as Python once
+    the command mentioned python anywhere. A body is code only when the
+    command feeding it is an interpreter reading its program from stdin."""
+    assert _decide(_WRITE_TEST_FILE_HEREDOC, repo) is None
+
+
+@pytest.mark.parametrize("opener, seen", [
+    ("cat > f <<'EOF'", False),
+    ("tee notes.py <<'EOF'", False),
+    ("git commit -F - <<'EOF'", False),
+    ("python3 script.py <<'EOF'", False),          # the heredoc is the script's INPUT
+    ("python3 -c 'print(input())' <<'EOF'", False),
+    ("python3 -m json.tool <<'EOF'", False),
+    ("python3 - <<'EOF'", True),
+    ("python3 <<'EOF'", True),
+    ("python3 << EOF", True),                       # a bare `<<` owns its delimiter
+    ("python3 <<-EOF", True),
+    ("python3 -u - <<'EOF'", True),
+    ("python3 -W ignore - <<'EOF'", True),          # -W takes a value
+    ("python3 -I -- <<'EOF'", True),
+    ("python - args.txt <<'EOF'", True),            # `-` first: the heredoc is the program
+    ("env PYTHONUTF8=1 python3 - <<'EOF'", True),
+    ("cd /tmp && python3 - <<'EOF'", True),
+])
+def test_a_heredoc_is_a_program_only_when_an_interpreter_reads_stdin(repo: Path, opener: str, seen: bool) -> None:
+    d = _decide(f"{opener}\n{_RMTREE_BODY}EOF\n", repo)
+    if seen:
+        assert d is not None and d["permissionDecision"] == "allow", (opener, d)
+        assert "build" in d["permissionDecisionReason"], d
+    else:
+        assert d is None, (opener, d)
+
+
+def test_a_python_heredoc_hit_names_its_opener_segment(repo: Path) -> None:
+    d = _decide("echo start\npython3 - <<'EOF'\nimport os\nos.remove(p)\nEOF\necho end", repo)
+    assert d is not None and d["permissionDecision"] == "ask"
+    assert "python3 - <<'EOF'" in d["permissionDecisionReason"], d
+    assert "not a string literal" in d["permissionDecisionReason"]
+
+
+def test_a_python_heredoc_resolves_against_the_tracked_base(repo: Path) -> None:
+    scratch = Path(tempfile.gettempdir()) / "ct6-guard-heredoc-base"
+    d = _decide(f"cd {scratch} && python3 - <<'EOF'\nimport os\nos.remove('x.txt')\nEOF\n", repo)
+    assert d is not None and d["permissionDecision"] == "allow", d
+    assert "temp" in d["permissionDecisionReason"]
+
+
+def test_a_python_heredoc_is_seen_beside_another_deletion(repo: Path) -> None:
+    """v4.1.6 only read heredocs when no other segment had hit; a
+    `rm -rf /tmp/x && python3 - <<EOF` with a variable target slipped through
+    as the rm's allow. Every opener is paired with its body now."""
+    cmd = f"rm -rf {tempfile.gettempdir()}/ct6-guard-x && python3 - <<'EOF'\nimport os\nos.remove(p)\nEOF\n"
+    d = _decide(cmd, repo)
+    assert d is not None and d["permissionDecision"] == "ask", d
+    assert "not a string literal" in d["permissionDecisionReason"]
+
+
+def test_two_heredocs_pair_each_body_with_its_own_opener(repo: Path) -> None:
+    cmd = ("cat > f.py <<'A'\nimport shutil\nshutil.rmtree('build')\nA\n"
+           "python3 - <<'B'\nimport os\nos.remove(p)\nB\n")
+    d = _decide(cmd, repo)
+    assert d is not None and d["permissionDecision"] == "ask", d
+    assert "python3 - <<'B'" in d["permissionDecisionReason"], d
+    assert _decide("python3 - <<'A'\nprint(1)\nA\ncat > f.py <<'B'\nshutil.rmtree('build')\nB\n", repo) is None
+
+
+@pytest.mark.parametrize("opener, seen", [
+    ("bash <<'EOF'", True),
+    ("bash -s <<'EOF'", True),
+    ("sh - <<'EOF'", True),
+    ("bash -e <<'EOF'", True),
+    ("bash go.sh <<'EOF'", False),                  # the heredoc is the script's INPUT
+    ("bash -c 'cat' <<'EOF'", False),
+])
+def test_a_heredoc_fed_to_a_shell_is_commands(repo: Path, opener: str, seen: bool) -> None:
+    """A shell reading its script from stdin runs the body: the guard reads
+    it as it reads the outer command (v4.1.7 closes the v4.1.3 blind spot)."""
+    d = _decide(f"{opener}\nrm -rf {tempfile.gettempdir()}/ct6-guard-sh\nEOF\n", repo)
+    if seen:
+        assert d is not None and d["permissionDecision"] == "allow", (opener, d)
+        assert "temp" in d["permissionDecisionReason"]
+    else:
+        assert d is None, (opener, d)
+
+
+def test_a_shell_heredoc_does_not_inherit_the_outer_commands_variables(repo: Path) -> None:
+    """A quoted heredoc never sees the outer shell's `$W`; the inner `rm`
+    would run on an EMPTY expansion. The guard asks rather than resolving `$W`
+    to the outer value and calling the target temp."""
+    d = _decide(f"W={tempfile.gettempdir()}/ct6-x; bash <<'EOF'\nrm -rf $W/y\nEOF\n", repo)
+    assert d is not None and d["permissionDecision"] == "ask", d
+    assert "unexpanded shell variable" in d["permissionDecisionReason"]
+
+
+def test_a_here_string_is_not_a_here_document(repo: Path) -> None:
+    """`cat <<<'x'` used to open a heredoc with terminator `x` and swallow
+    every later line as its body, hiding the `rm` that followed."""
+    d = _decide(f"cat <<<'x'\nrm -rf {tempfile.gettempdir()}/ct6-guard-hs\n", repo)
+    assert d is not None and d["permissionDecision"] == "allow", d
+    assert _decide("grep rm <<< \"rm -rf /\"", repo) is None
+    assert guard.strip_heredocs("cat <<<'x'\necho after") == "cat <<<'x'\necho after"
+
+
+def test_heredoc_bodies_pairs_each_opener_with_its_body() -> None:
+    pairs = guard.heredoc_bodies("cat <<A\none\nA\npython3 - <<'B'\ntwo\nthree\nB\necho done")
+    assert pairs == [("cat <<A", "one"), ("python3 - <<'B'", "two\nthree")]
+    assert guard.heredoc_bodies("echo plain") == []
 
 
 def test_relative_path_without_cwd_asks(repo: Path) -> None:
